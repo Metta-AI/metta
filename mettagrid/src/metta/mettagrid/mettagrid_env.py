@@ -16,7 +16,7 @@ from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.instantiate import instantiate
-from metta.mettagrid.curriculum import TaskTree
+from metta.mettagrid.curriculum import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
@@ -61,7 +61,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
-        task_tree: TaskTree,
+        curriculum: Curriculum,
         render_mode: Optional[str],
         level: Optional[Level] = None,
         buf=None,
@@ -77,8 +77,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._resets = 0
 
         self._render_mode = render_mode
-        self._task_tree = task_tree
-        self._task = self._task_tree.sample()
+        self._curriculum = curriculum
+        self._task = self._curriculum.sample()
         self._level = level
         self._renderer = None
         self._map_labels: list[str] = []
@@ -164,7 +164,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self.timer.stop("thread_idle")
 
-        self._task = self._task_tree.sample()
+        self._task = self._curriculum.sample()
 
         self._initialize_c_env()
         self._steps = 0
@@ -235,7 +235,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
             # Add curriculum task probabilities to infos for distributed logging
-            infos["curriculum_task_probs"] = self._task_tree.get_task_probabilities()
+            infos["curriculum_task_probs"] = self._curriculum.get_task_probabilities()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
@@ -256,10 +256,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
-        infos.update(self._task_tree.get_completion_rates())
+        infos.update(self._curriculum.get_completion_rates())
 
         # Add curriculum-specific stats
-        curriculum_stats = self._task_tree.get_curriculum_stats()
+        curriculum_stats = self._curriculum.get_curriculum_stats()
         for key, value in curriculum_stats.items():
             infos[f"curriculum/{key}"] = value
 
@@ -358,8 +358,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         task_init_time_msec = lap_times.get("_initialize_c_env", 0) * 1000
         infos.update(
             {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
+                f"task_reward/{self._task.name}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{self._task.name}/init_time_msec": task_init_time_msec,
             }
         )
 

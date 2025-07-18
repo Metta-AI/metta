@@ -1,4 +1,4 @@
-# metta/mettagrid/curriculum/task_tree_config.py
+# metta/mettagrid/curriculum/curriculum_config.py
 from typing import Any, Dict, List, Optional, Tuple
 
 from omegaconf import DictConfig, OmegaConf
@@ -6,15 +6,15 @@ from pydantic import Field, field_validator, model_validator
 
 from metta.common.util.config import config_from_path
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.curriculum.curriculum import Curriculum
 from metta.mettagrid.curriculum.curriculum_algorithm import (
     CurriculumAlgorithmHypers,
     DiscreteRandomHypers,
 )
-from metta.mettagrid.curriculum.curriculum_api import task_set
+from metta.mettagrid.curriculum.curriculum_builder import task_set
 from metta.mettagrid.curriculum.learning_progress import LearningProgressHypers
 from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedHypers
 from metta.mettagrid.curriculum.progressive import ProgressiveHypers
-from metta.mettagrid.curriculum.task_tree import TaskTree
 
 
 class ParameterRange(BaseModelWithForbidExtra):
@@ -24,6 +24,7 @@ class ParameterRange(BaseModelWithForbidExtra):
     - A list of discrete values
     - A continuous range with number of bins
     """
+
     values: Optional[List[Any]] = None
     range: Optional[Tuple[float, float]] = None
     bins: Optional[int] = None
@@ -48,8 +49,8 @@ class ParameterRange(BaseModelWithForbidExtra):
         return self
 
 
-class TaskTreeConfig(BaseModelWithForbidExtra):
-    """Configuration for creating a TaskTree.
+class CurriculumConfig(BaseModelWithForbidExtra):
+    """Configuration for creating a Curriculum.
 
     This configuration can create either:
     1. A flat task set (when env_paths is provided)
@@ -61,6 +62,7 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
 
     Parameters create a cartesian product with ALL provided configs.
     """
+
     name: str
 
     # List of environment config paths (can be a single item)
@@ -70,7 +72,7 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
     parameters: Optional[Dict[str, ParameterRange]] = None
 
     # Child task sets for hierarchical structure
-    children: Optional[List["TaskTreeConfig"]] = None
+    children: Optional[List["CurriculumConfig"]] = None
 
     # Curriculum algorithm configuration - stores the actual hypers object
     algorithm: Optional[CurriculumAlgorithmHypers] = None
@@ -78,12 +80,12 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
     # Environment configuration overrides applied to all tasks
     env_overrides: Dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("children", mode="before")  
+    @field_validator("children", mode="before")
     def parse_children(cls, v):
-        """Convert child specifications to TaskTreeConfig objects."""
+        """Convert child specifications to CurriculumConfig objects."""
         if v is None:
             return None
-        
+
         result = []
         for child in v:
             if isinstance(child, str):
@@ -93,17 +95,15 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
                 child_config = cls.model_validate(child_dict)
                 result.append(child_config)
             elif isinstance(child, dict):
-                # Parse dict as TaskTreeConfig
+                # Parse dict as CurriculumConfig
                 child_config = cls.model_validate(child)
                 result.append(child_config)
             elif isinstance(child, cls):
-                # Already a TaskTreeConfig
+                # Already a CurriculumConfig
                 result.append(child)
             else:
-                raise ValueError(
-                    f"Child must be a string path, dict, or TaskTreeConfig. Got: {type(child)}"
-                )
-        
+                raise ValueError(f"Child must be a string path, dict, or CurriculumConfig. Got: {type(child)}")
+
         return result
 
     @field_validator("algorithm", mode="before")
@@ -142,8 +142,7 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
         hypers_class = algorithm_map.get(algorithm_type)
         if hypers_class is None:
             raise ValueError(
-                f"Unknown algorithm type: {algorithm_type}. "
-                f"Valid types are: {', '.join(algorithm_map.keys())}"
+                f"Unknown algorithm type: {algorithm_type}. Valid types are: {', '.join(algorithm_map.keys())}"
             )
 
         return hypers_class(**params)
@@ -156,28 +155,24 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
 
         if is_task_set and is_hierarchical:
             raise ValueError(
-                "Cannot specify both env_paths and children. "
-                "Use either a flat task set or a hierarchical structure."
+                "Cannot specify both env_paths and children. Use either a flat task set or a hierarchical structure."
             )
 
         if not is_task_set and not is_hierarchical:
-            raise ValueError(
-                "Must specify either env_paths or children."
-            )
+            raise ValueError("Must specify either env_paths or children.")
 
         return self
 
-    def create(self, env_overrides: DictConfig | None = None) -> TaskTree:
-        """Create the TaskTree from this configuration.
-        
+    def create(self, env_overrides: DictConfig | None = None) -> Curriculum:
+        """Create the Curriculum from this configuration.
+
         Args:
             env_overrides: Additional environment overrides to apply
         """
         # Merge external overrides with config overrides
         if env_overrides:
             merged_overrides = OmegaConf.merge(
-                OmegaConf.create(self.env_overrides) if self.env_overrides else OmegaConf.create({}),
-                env_overrides
+                OmegaConf.create(self.env_overrides) if self.env_overrides else OmegaConf.create({}), env_overrides
             )
         else:
             merged_overrides = OmegaConf.create(self.env_overrides) if self.env_overrides else None
@@ -188,7 +183,7 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
         else:
             return self._create_task_set(merged_overrides)
 
-    def _create_task_set(self, env_overrides_cfg) -> TaskTree:
+    def _create_task_set(self, env_overrides_cfg) -> Curriculum:
         """Create a flat task set using the unified task_set API."""
         # Collect all env configs
         env_configs = []
@@ -203,16 +198,10 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
                 if param_range.values is not None:
                     parameter_ranges[param_name] = {"values": param_range.values}
                 else:
-                    parameter_ranges[param_name] = {
-                        "range": list(param_range.range),
-                        "bins": param_range.bins
-                    }
+                    parameter_ranges[param_name] = {"range": list(param_range.range), "bins": param_range.bins}
 
         # Load actual configs from paths
-        loaded_env_configs = [
-            (name, config_from_path(path, None))
-            for name, path in env_configs
-        ]
+        loaded_env_configs = [(name, config_from_path(path, None)) for name, path in env_configs]
 
         # Use the unified task_set API
         # parameter_ranges will create a cartesian product with ALL env_configs
@@ -221,19 +210,19 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
             env_configs=loaded_env_configs,
             env_overrides=env_overrides_cfg,
             curriculum_hypers=self.algorithm,
-            parameter_ranges=parameter_ranges
+            parameter_ranges=parameter_ranges,
         )
 
-    def _create_hierarchical(self) -> TaskTree:
+    def _create_hierarchical(self) -> Curriculum:
         """Create a hierarchical task tree."""
-        # Children are now always TaskTreeConfig objects thanks to the validator
+        # Children are now always CurriculumConfig objects thanks to the validator
         child_trees = [child.create() for child in self.children]
 
         # Default to random algorithm if not specified
         algorithm_hypers = self.algorithm or DiscreteRandomHypers()
 
         algorithm = algorithm_hypers.create(len(child_trees))
-        return TaskTree(self.name, algorithm, child_trees)
+        return Curriculum(self.name, algorithm, child_trees)
 
     @staticmethod
     def _name_from_path(path: str) -> str:
@@ -252,4 +241,4 @@ class TaskTreeConfig(BaseModelWithForbidExtra):
 
 
 # Enable recursive type references
-TaskTreeConfig.model_rebuild()
+CurriculumConfig.model_rebuild()

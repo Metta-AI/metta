@@ -8,7 +8,7 @@ from typing import Optional
 import wandb
 from wandb.sdk import wandb_run
 
-from metta.mettagrid.curriculum import TaskTree
+from metta.mettagrid.curriculum import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import write_file
 
@@ -52,7 +52,7 @@ def write_local_map_preview(env: MettaGridEnv):
 
 
 def upload_map_preview(
-    curriculum: TaskTree,
+    curriculum: Curriculum,
     s3_path: str,
     wandb_run: Optional[wandb_run.Run] = None,
 ):

@@ -134,16 +134,16 @@ class MettaTrainer:
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
-        # Create TaskTree from curriculum config, applying env_overrides
+        # Create Curriculum from curriculum config, applying env_overrides
         if trainer_cfg.curriculum:
             env_overrides_cfg = DictConfig(trainer_cfg.env_overrides)
-            self._task_tree = trainer_cfg.curriculum.create(env_overrides_cfg)
+            self._curriculum = trainer_cfg.curriculum.create(env_overrides_cfg)
         elif trainer_cfg.env:
-            # Single env mode - create a simple TaskTree
-            from metta.mettagrid.curriculum.util import task_tree_from_config_path
+            # Single env mode - create a simple Curriculum
+            from metta.mettagrid.curriculum import curriculum_from_config_path
 
             env_overrides_cfg = DictConfig(trainer_cfg.env_overrides)
-            self._task_tree = task_tree_from_config_path(trainer_cfg.env, env_overrides_cfg)
+            self._curriculum = curriculum_from_config_path(trainer_cfg.env, env_overrides_cfg)
         else:
             raise ValueError("Either curriculum or env must be set")
 
@@ -151,7 +151,7 @@ class MettaTrainer:
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
             num_episodes=1,
-            env_overrides=self._task_tree.sample().env_config,
+            env_overrides=self._curriculum.sample().env_config,
         )
 
         self._make_vecenv()
@@ -949,7 +949,7 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
-        task = self._task_tree.sample()
+        task = self._curriculum.sample()
         env_cfg = task.env_config
 
         # TODO: relax someday when we support other observation shapes
@@ -999,7 +999,7 @@ class MettaTrainer:
             )
 
         self.vecenv = make_vecenv(
-            self._task_tree,
+            self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
             batch_size=self.batch_size,

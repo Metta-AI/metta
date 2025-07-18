@@ -24,7 +24,7 @@ from pydantic import validate_call
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.instantiate import instantiate
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.curriculum import TaskTree
+from metta.mettagrid.curriculum import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -47,7 +47,7 @@ class MettaGridEnv(ABC):
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
-        curriculum: TaskTree,
+        curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
         stats_writer: Optional[StatsWriter] = None,
@@ -59,7 +59,7 @@ class MettaGridEnv(ABC):
         Initialize base MettaGridEnv.
 
         Args:
-            curriculum: TaskTree for task management
+            curriculum: Curriculum for task management
             render_mode: Rendering mode (None, "human", "miniscope")
             level: Optional pre-built level
             stats_writer: Optional stats writer
@@ -342,8 +342,8 @@ class MettaGridEnv(ABC):
         task_init_time_msec = self.timer.lap_all().get("_create_core_env", 0) * 1000
         infos.update(
             {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
+                f"task_reward/{self._task.name}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{self._task.name}/init_time_msec": task_init_time_msec,
             }
         )
 

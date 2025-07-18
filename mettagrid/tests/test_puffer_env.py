@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum import single_task_tree
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.puffer_env import MettaGridPufferEnv
 
 
@@ -66,7 +66,7 @@ def simple_config():
 
 def test_puffer_env_creation(simple_config):
     """Test PufferLib environment creation and properties."""
-    curriculum = single_task_tree("puffer_test", simple_config)
+    curriculum = single_task("puffer_test", simple_config)
 
     env = MettaGridPufferEnv(
         curriculum=curriculum,
@@ -85,7 +85,7 @@ def test_puffer_env_creation(simple_config):
 
 def test_puffer_env_reset(simple_config):
     """Test PufferLib environment reset functionality."""
-    curriculum = single_task_tree("puffer_reset_test", simple_config)
+    curriculum = single_task("puffer_reset_test", simple_config)
     env = MettaGridPufferEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -105,7 +105,7 @@ def test_puffer_env_reset(simple_config):
 
 def test_puffer_env_step(simple_config):
     """Test PufferLib environment step functionality."""
-    curriculum = single_task_tree("puffer_step_test", simple_config)
+    curriculum = single_task("puffer_step_test", simple_config)
     env = MettaGridPufferEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -142,7 +142,7 @@ def test_puffer_env_step(simple_config):
 
 def test_puffer_env_episode_termination(simple_config):
     """Test that PufferLib environment terminates properly."""
-    curriculum = single_task_tree("puffer_termination_test", simple_config)
+    curriculum = single_task("puffer_termination_test", simple_config)
     env = MettaGridPufferEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -170,7 +170,7 @@ def test_puffer_env_episode_termination(simple_config):
 
 def test_puffer_env_buffer_integration(simple_config):
     """Test PufferLib environment buffer operations."""
-    curriculum = single_task_tree("puffer_buffer_test", simple_config)
+    curriculum = single_task("puffer_buffer_test", simple_config)
     env = MettaGridPufferEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -196,7 +196,7 @@ def test_puffer_env_buffer_integration(simple_config):
 
 def test_puffer_env_observation_action_spaces(simple_config):
     """Test PufferLib environment observation and action spaces."""
-    curriculum = single_task_tree("puffer_spaces_test", simple_config)
+    curriculum = single_task("puffer_spaces_test", simple_config)
     env = MettaGridPufferEnv(
         curriculum=curriculum,
         render_mode=None,

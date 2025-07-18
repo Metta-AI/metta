@@ -1,8 +1,8 @@
 """
-Learning Progress Curriculum Algorithm for TaskTree.
+Learning Progress Curriculum Algorithm for Curriculum.
 
 This module implements the learning progress algorithm as a CurriculumAlgorithm
-that can be used with TaskTree nodes to adaptively sample tasks based on
+that can be used with Curriculum nodes to adaptively sample tasks based on
 bidirectional learning progress tracking.
 """
 
@@ -61,8 +61,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             memory=hypers.memory,
         )
 
-        # Reference to owning TaskTree (set by TaskTree during initialization)
-        self.task_tree = None
+        # Reference to owning Curriculum (set by Curriculum during initialization)
+        self.curriculum = None
 
     def _update_weights(self, child_idx: int, score: float) -> None:
         """Update task weights based on learning progress.
@@ -72,7 +72,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             score: Score achieved (between 0 and 1)
 
         Note:
-            The weights array is updated in-place. The TaskTree will handle
+            The weights array is updated in-place. The Curriculum will handle
             normalization automatically via its _update_probabilities() method.
         """
         # Convert score to success rate (assuming score is between 0 and 1)

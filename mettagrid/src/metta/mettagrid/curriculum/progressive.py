@@ -1,8 +1,8 @@
 """
-Progressive Curriculum Algorithm for TaskTree.
+Progressive Curriculum Algorithm for Curriculum.
 
 This module implements progressive curriculum algorithms as CurriculumAlgorithms
-that can be used with TaskTree nodes to progressively advance through tasks
+that can be used with Curriculum nodes to progressively advance through tasks
 based on performance thresholds or time-based progression.
 """
 
@@ -82,8 +82,8 @@ class ProgressiveAlgorithm(CurriculumAlgorithm):
         self.step_count = 0
         self.last_score = None
 
-        # Reference to owning TaskTree (set by TaskTree during initialization)
-        self.task_tree = None
+        # Reference to owning Curriculum (set by Curriculum during initialization)
+        self.curriculum = None
 
     def _update_weights(self, child_idx: int, score: float) -> None:
         """Update task weights based on progressive curriculum logic.
@@ -93,7 +93,7 @@ class ProgressiveAlgorithm(CurriculumAlgorithm):
             score: Score achieved (between 0 and 1)
 
         Note:
-            The weights array is updated in-place. The TaskTree will handle
+            The weights array is updated in-place. The Curriculum will handle
             normalization automatically via its _update_probabilities() method.
         """
         if child_idx >= self.num_tasks or child_idx < 0:
@@ -209,7 +209,7 @@ class SimpleProgressiveAlgorithm(CurriculumAlgorithm):
 
     This is a simpler version that directly advances to the next task when
     a score threshold is met, similar to the original ProgressiveCurriculum
-    but adapted for the TaskTree framework.
+    but adapted for the Curriculum framework.
     """
 
     def __init__(self, num_tasks: int, hypers: SimpleProgressiveHypers):
@@ -223,8 +223,8 @@ class SimpleProgressiveAlgorithm(CurriculumAlgorithm):
         self.score_threshold = hypers.score_threshold
         self.current_task = 0  # Index of current active task
 
-        # Reference to owning TaskTree (set by TaskTree during initialization)
-        self.task_tree = None
+        # Reference to owning Curriculum (set by Curriculum during initialization)
+        self.curriculum = None
 
     def _update_weights(self, child_idx: int, score: float) -> None:
         """Update task weights based on simple progression logic.

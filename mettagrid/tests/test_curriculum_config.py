@@ -1,11 +1,11 @@
-"""Tests for TaskTreeConfig and YAML-based curriculum creation."""
+"""Tests for CurriculumConfig and YAML-based curriculum creation."""
 
 from unittest.mock import patch
 
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum import TaskTree, TaskTreeConfig
+from metta.mettagrid.curriculum import Curriculum, CurriculumConfig
 from metta.mettagrid.curriculum.curriculum_algorithm import DiscreteRandomCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressAlgorithm
 from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedAlgorithm
@@ -22,15 +22,15 @@ def mock_config_from_path():
             {"game": {"num_agents": 4, "map_builder": {"room": {"dir": "default", "objects": {"altar": 10}}}}}
         )
 
-    with patch("metta.mettagrid.curriculum.task_tree_config.config_from_path", side_effect=_mock_config):
+    with patch("metta.mettagrid.curriculum.curriculum_config.config_from_path", side_effect=_mock_config):
         yield _mock_config
 
 
-class TestTaskTreeConfig:
-    """Test TaskTreeConfig creation and validation."""
+class TestCurriculumConfig:
+    """Test CurriculumConfig creation and validation."""
 
     def test_simple_task_list_config(self, mock_config_from_path):
-        """Test creating a simple TaskTree from a list of task paths."""
+        """Test creating a simple Curriculum from a list of task paths."""
         config_dict = {
             "name": "test_curriculum",
             "algorithm": "discrete_random",
@@ -38,14 +38,14 @@ class TestTaskTreeConfig:
         }
 
         # Create and validate config
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        assert task_tree_config.name == "test_curriculum"
-        assert len(task_tree_config.env_paths) == 3
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        assert curriculum_config.name == "test_curriculum"
+        assert len(curriculum_config.env_paths) == 3
 
-        # Create TaskTree
-        tree = task_tree_config.create()
-        assert isinstance(tree, TaskTree)
-        assert tree.num_children == 3
+        # Create Curriculum
+        tree = curriculum_config.create()
+        assert isinstance(tree, Curriculum)
+        assert tree.num_tasks == 3
         assert isinstance(tree.curriculum_algorithm, DiscreteRandomCurriculum)
 
         # Check task names
@@ -55,39 +55,39 @@ class TestTaskTreeConfig:
         assert "tag" in task_names
 
     def test_single_env_path_config(self, mock_config_from_path):
-        """Test creating a TaskTree with a single env path."""
+        """Test creating a Curriculum with a single env path."""
         config_dict = {"name": "single_task", "env_paths": ["/env/mettagrid/arena/basic"]}
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
-        assert tree.num_children == 1
+        assert tree.num_tasks == 1
         assert tree.children[0].name == "basic"
 
     def test_algorithm_string_shorthand(self, mock_config_from_path):
         """Test different algorithm specifications."""
         # Test discrete_random
         config_dict = {"name": "test", "algorithm": "discrete_random", "env_paths": ["/env/mettagrid/arena/basic"]}
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
         assert isinstance(tree.curriculum_algorithm, DiscreteRandomCurriculum)
 
         # Test learning_progress
         config_dict["algorithm"] = "learning_progress"
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
         assert isinstance(tree.curriculum_algorithm, LearningProgressAlgorithm)
 
         # Test prioritize_regressed
         config_dict["algorithm"] = "prioritize_regressed"
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
         assert isinstance(tree.curriculum_algorithm, PrioritizeRegressedAlgorithm)
 
         # Test progressive
         config_dict["algorithm"] = "progressive"
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
         assert isinstance(tree.curriculum_algorithm, ProgressiveAlgorithm)
 
     def test_parameter_ranges_with_discrete_values(self, mock_config_from_path):
@@ -101,11 +101,11 @@ class TestTaskTreeConfig:
             },
         }
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
         # Should create 2 * 3 = 6 tasks
-        assert tree.num_children == 6
+        assert tree.num_tasks == 6
 
         # Check that task names contain parameter values
         task_names = [child.name for child in tree.children]
@@ -124,11 +124,11 @@ class TestTaskTreeConfig:
             },
         }
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
         # Should create 4 * 2 = 8 tasks
-        assert tree.num_children == 8
+        assert tree.num_tasks == 8
 
         # Check that task names contain range indicators
         task_names = [child.name for child in tree.children]
@@ -146,8 +146,8 @@ class TestTaskTreeConfig:
             "env_overrides": {"game": {"episode_length": 100, "num_agents": 8}},
         }
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
         # Check that overrides are applied to all tasks
         for child in tree.children:
@@ -164,17 +164,17 @@ class TestTaskTreeConfig:
         }
 
         with pytest.raises(ValueError, match="Cannot specify both env_paths and children"):
-            TaskTreeConfig.model_validate(config_dict)
+            CurriculumConfig.model_validate(config_dict)
 
     def test_invalid_config_no_tasks_or_children(self):
         """Test that specifying neither tasks nor children raises an error."""
         config_dict = {"name": "invalid"}
 
         with pytest.raises(ValueError, match="Must specify either env_paths or children"):
-            TaskTreeConfig.model_validate(config_dict)
+            CurriculumConfig.model_validate(config_dict)
 
     def test_hierarchical_config(self, mock_config_from_path):
-        """Test creating a hierarchical TaskTree."""
+        """Test creating a hierarchical Curriculum."""
         config_dict = {
             "name": "root",
             "algorithm": "discrete_random",
@@ -184,20 +184,20 @@ class TestTaskTreeConfig:
             ],
         }
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
         # Root should have 2 children (easy_tasks and hard_tasks)
-        assert tree.num_children == 2
-        assert isinstance(tree.children[0], TaskTree)
-        assert isinstance(tree.children[1], TaskTree)
+        assert tree.num_tasks == 2
+        assert isinstance(tree.children[0], Curriculum)
+        assert isinstance(tree.children[1], Curriculum)
 
         # Each child should have 2 tasks
-        assert tree.children[0].num_children == 2
-        assert tree.children[1].num_children == 2
+        assert tree.children[0].num_tasks == 2
+        assert tree.children[1].num_tasks == 2
 
     def test_hierarchical_config_with_paths(self, mock_config_from_path):
-        """Test creating a hierarchical TaskTree with child paths."""
+        """Test creating a hierarchical Curriculum with child paths."""
 
         # Mock the child configs that will be loaded
         def _mock_config(path, overrides):
@@ -212,7 +212,7 @@ class TestTaskTreeConfig:
             else:
                 return DictConfig({"game": {"num_agents": 4}})
 
-        with patch("metta.mettagrid.curriculum.task_tree_config.config_from_path", side_effect=_mock_config):
+        with patch("metta.mettagrid.curriculum.curriculum_config.config_from_path", side_effect=_mock_config):
             config_dict = {
                 "name": "root",
                 "algorithm": "discrete_random",
@@ -222,11 +222,11 @@ class TestTaskTreeConfig:
                 ],
             }
 
-            task_tree_config = TaskTreeConfig.model_validate(config_dict)
-            tree = task_tree_config.create()
+            curriculum_config = CurriculumConfig.model_validate(config_dict)
+            tree = curriculum_config.create()
 
             # Root should have 2 children
-            assert tree.num_children == 2
+            assert tree.num_tasks == 2
             assert tree.children[0].name == "arena_learning_progress"
             assert tree.children[1].name == "inline_child"
 
@@ -235,7 +235,7 @@ class TestTaskTreeConfig:
         config_dict = {"name": "test", "algorithm": "unknown_algorithm", "env_paths": ["/env/mettagrid/arena/basic"]}
 
         with pytest.raises(ValueError, match="Unknown algorithm type: unknown_algorithm"):
-            TaskTreeConfig.model_validate(config_dict)
+            CurriculumConfig.model_validate(config_dict)
 
     def test_parameter_range_validation(self):
         """Test parameter range validation."""
@@ -249,26 +249,26 @@ class TestTaskTreeConfig:
         }
 
         # This should now be valid
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        assert task_tree_config.parameters["game.width"].bins is None
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        assert curriculum_config.parameters["game.width"].bins is None
 
         # bins = 1 should now raise an error
         config_dict["parameters"]["game.width"] = {"range": [10, 50], "bins": 1}
 
         with pytest.raises(ValueError, match="'bins' must be >= 2 when specified"):
-            TaskTreeConfig.model_validate(config_dict)
+            CurriculumConfig.model_validate(config_dict)
 
         # Both values and range specified
         config_dict["parameters"]["game.width"] = {"values": [10, 20], "range": [10, 50], "bins": 2}
 
         with pytest.raises(ValueError, match="Cannot specify both 'values' and 'range'"):
-            TaskTreeConfig.model_validate(config_dict)
+            CurriculumConfig.model_validate(config_dict)
 
         # Neither values nor range specified
         config_dict["parameters"]["game.width"] = {}
 
         with pytest.raises(ValueError, match="Must specify either 'values' or 'range'"):
-            TaskTreeConfig.model_validate(config_dict)
+            CurriculumConfig.model_validate(config_dict)
 
     def test_continuous_range_without_bins(self, mock_config_from_path):
         """Test creating tasks with continuous ranges (no bins)."""
@@ -281,11 +281,11 @@ class TestTaskTreeConfig:
             },
         }
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
         # Should create 1 task (no discretization)
-        assert tree.num_children == 1
+        assert tree.num_tasks == 1
 
         # Task name should show continuous ranges
         task_name = tree.children[0].name
@@ -305,14 +305,14 @@ class TestTaskTreeConfig:
         del config_dict["tasks"]
         config_dict["name"] = "arena_random"  # Add required name
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
-        assert tree.num_children == 3
+        assert tree.num_tasks == 3
         assert isinstance(tree.curriculum_algorithm, DiscreteRandomCurriculum)
 
     def test_real_yaml_conversion(self, mock_config_from_path):
-        """Test converting a real YAML config to TaskTreeConfig."""
+        """Test converting a real YAML config to CurriculumConfig."""
         # This mimics the bucketed curriculum structure
         yaml_str = """
         name: navigation_bucketed
@@ -329,8 +329,8 @@ class TestTaskTreeConfig:
         config = OmegaConf.create(yaml_str)
         config_dict = OmegaConf.to_container(config, resolve=True)
 
-        task_tree_config = TaskTreeConfig.model_validate(config_dict)
-        tree = task_tree_config.create()
+        curriculum_config = CurriculumConfig.model_validate(config_dict)
+        tree = curriculum_config.create()
 
         # Should create 8 terrains * 10 altar bins = 80 tasks
-        assert tree.num_children == 80
+        assert tree.num_tasks == 80

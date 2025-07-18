@@ -1,8 +1,8 @@
 """
-Base classes for curriculum algorithms used with TaskTree.
+Base classes for curriculum algorithms used with Curriculum.
 
 This module defines the abstract base classes and interfaces that all
-curriculum algorithms must implement to work with the TaskTree system.
+curriculum algorithms must implement to work with the Curriculum system.
 """
 
 import abc
@@ -40,7 +40,7 @@ class CurriculumAlgorithm(ABC):
     2. Updating weights based on task completion feedback
     3. Providing normalized probabilities for sampling
 
-    The TaskTree will use these algorithms to decide which child to sample next.
+    The Curriculum will use these algorithms to decide which child to sample next.
     """
 
     num_tasks: int
@@ -48,7 +48,7 @@ class CurriculumAlgorithm(ABC):
     probabilities: np.ndarray
     hypers: CurriculumAlgorithmHypers
 
-    # API that TaskTree uses
+    # API that Curriculum uses
 
     def update(self, child_idx: int, score: float) -> None:
         """Update weights in-place based on task completion."""
@@ -116,4 +116,5 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
     task performance.
     """
 
-    pass
+    def _update_weights(self, child_idx: int, score: float) -> None:
+        pass

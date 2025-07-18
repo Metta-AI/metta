@@ -14,7 +14,7 @@ from pettingzoo import ParallelEnv
 from typing_extensions import override
 
 from metta.mettagrid.base_env import MettaGridEnv
-from metta.mettagrid.curriculum import TaskTree
+from metta.mettagrid.curriculum import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -37,7 +37,7 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
 
     def __init__(
         self,
-        curriculum: TaskTree,
+        curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
         stats_writer: Optional[StatsWriter] = None,
@@ -49,7 +49,7 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         Initialize PettingZoo environment.
 
         Args:
-            curriculum: TaskTree for task management
+            curriculum: Curriculum for task management
             render_mode: Rendering mode
             level: Optional pre-built level
             stats_writer: Optional stats writer

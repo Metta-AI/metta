@@ -5,8 +5,7 @@ from omegaconf import OmegaConf
 
 from metta.common.util.mettagrid_cfgs import METTAGRID_CFG_ROOT, MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
-from metta.mettagrid.curriculum import TaskTree
-from metta.mettagrid.curriculum.util import task_tree_from_config_path
+from metta.mettagrid.curriculum import Curriculum, curriculum_from_config_path
 
 register_resolvers()
 
@@ -40,21 +39,21 @@ def curriculum_configs() -> list[MettagridCfgFileMetadata]:
 
 
 @pytest.mark.parametrize("cfg_metadata", curriculum_configs(), ids=[cfg.path for cfg in curriculum_configs()])
-class TestValidateAllCurriculums:
+class TestValidateAllCurricula:
     def test_curriculum(self, cfg_metadata: MettagridCfgFileMetadata):
-        # Test the task_tree_from_config_path function as it will be used by the trainer
+        # Test the curriculum_from_config_path function as it will be used by the trainer
         cfg_path = METTAGRID_CFG_ROOT + "/" + cfg_metadata.path
         env_overrides = OmegaConf.create({})  # Empty overrides for testing
 
         print(f"\nTesting curriculum: {cfg_metadata.path}")
 
         # This is exactly how the trainer will load curricula
-        tree = task_tree_from_config_path(cfg_path, env_overrides)
+        tree = curriculum_from_config_path(cfg_path, env_overrides)
 
-        assert isinstance(tree, TaskTree)
+        assert isinstance(tree, Curriculum)
 
         # Print some debug info
-        print(f"  - Created TaskTree with {tree.num_children} children")
+        print(f"  - Created Curriculum with {tree.num_tasks} children")
 
         # Test that we can sample a task from the tree
         task = tree.sample()

@@ -21,7 +21,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import MettaAgent
 from metta.common.util.fs import wait_for_file
-from metta.mettagrid.curriculum import parameter_grid_task_set, single_task_tree
+from metta.mettagrid.curriculum import Curriculum, parameter_grid_task_set, single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.functions import (
     cleanup_old_policies,
@@ -500,16 +500,16 @@ def navigation_bucketed_task_set(
     terrain_dirs: List[str],
     altar_range: Tuple[int, int],
     name: str = "navigation_bucketed",
-) -> Any:  # Returns TaskTree
+) -> Curriculum:  # Returns Curriculum
     """Create a navigation task set with terrain and altar variations.
     Args:
         base_config: Base environment configuration
         terrain_dirs: List of terrain directory names to sample from
         altar_range: Tuple of (min_altars, max_altars) for random sampling
-        name: Name for the TaskTree root
+        name: Name for the Curriculum root
 
     Returns:
-        TaskTree with tasks for each terrain/altar combination
+        Curriculum with tasks for each terrain/altar combination
     """
 
     # Convert terrain_dirs to discrete values
@@ -669,12 +669,12 @@ class Environment:
             # For other curriculum paths, try to create a simple single-task curriculum
             # by using the path as a task name with the provided config
             task_config = DictConfig(env_config)
-            curriculum = single_task_tree(curriculum_path, task_config)
+            curriculum = single_task(curriculum_path, task_config)
         else:
             # Create a single task curriculum with the provided config
             task_config = DictConfig(env_config)
             curriculum_name = "custom_env"
-            curriculum = single_task_tree(curriculum_name, task_config)
+            curriculum = single_task(curriculum_name, task_config)
 
         # Create vectorized environment
         vecenv = make_vecenv(

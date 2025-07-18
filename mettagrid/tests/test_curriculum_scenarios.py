@@ -1,8 +1,8 @@
 """
-Test suite for curriculum algorithm scenarios using the new TaskTree system.
+Test suite for curriculum algorithm scenarios using the new Curriculum system.
 
 This module tests specific scenarios to validate that curriculum algorithms
-behave correctly under controlled conditions using the TaskTree architecture.
+behave correctly under controlled conditions using the Curriculum architecture.
 
 Progressive Algorithm Tests:
 1. Monotonic linear signal -> should advance through tasks correctly
@@ -28,6 +28,10 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum import task_set
+from metta.mettagrid.curriculum.curriculum import (
+    Curriculum,
+    MettaGridTask,
+)
 from metta.mettagrid.curriculum.curriculum_algorithm import (
     CurriculumAlgorithm,
     CurriculumAlgorithmHypers,
@@ -38,10 +42,6 @@ from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedH
 from metta.mettagrid.curriculum.progressive import (
     ProgressiveHypers,
     SimpleProgressiveHypers,
-)
-from metta.mettagrid.curriculum.task_tree import (
-    MettaGridTask,
-    TaskTree,
 )
 
 
@@ -204,10 +204,10 @@ class ThresholdDependentScores(ScoreGenerator):
 # ============================================================================
 
 
-def create_task_tree_with_algorithm(
+def create_curriculum_with_algorithm(
     task_names: List[str], algorithm: CurriculumAlgorithm, env_cfg: DictConfig
-) -> TaskTree:
-    """Create a TaskTree with the specified algorithm and tasks.
+) -> Curriculum:
+    """Create a Curriculum with the specified algorithm and tasks.
 
     Args:
         task_names: List of task names
@@ -215,7 +215,7 @@ def create_task_tree_with_algorithm(
         env_cfg: Environment configuration for tasks
 
     Returns:
-        TaskTree initialized with the given algorithm and tasks
+        Curriculum initialized with the given algorithm and tasks
     """
     # Create task configs as list of tuples
     env_configs = [(name, env_cfg.copy()) for name in task_names]
@@ -225,7 +225,7 @@ def create_task_tree_with_algorithm(
         def create(self, num_tasks: int) -> CurriculumAlgorithm:
             return algorithm
 
-    # Create TaskTree using task_set helper
+    # Create Curriculum using task_set helper
     return task_set(
         name="test_curriculum",
         env_configs=env_configs,
@@ -233,11 +233,13 @@ def create_task_tree_with_algorithm(
     )
 
 
-def run_task_tree_simulation(task_tree: TaskTree, score_generator: ScoreGenerator, num_steps: int) -> Dict[str, Any]:
+def run_curriculum_simulation(
+    curriculum: Curriculum, score_generator: ScoreGenerator, num_steps: int
+) -> Dict[str, Any]:
     """Run a task tree test with controlled scores and collect detailed statistics.
 
     Args:
-        task_tree: TaskTree instance to test
+        curriculum: Curriculum instance to test
         score_generator: Generator for controlled scores
         num_steps: Number of steps to simulate
 
@@ -250,8 +252,8 @@ def run_task_tree_simulation(task_tree: TaskTree, score_generator: ScoreGenerato
     score_history = []
 
     for step in range(num_steps):
-        # Sample task from TaskTree
-        metta_task = task_tree.sample()
+        # Sample task from Curriculum
+        metta_task = curriculum.sample()
         task_name = metta_task.name
 
         # Record selection
@@ -266,17 +268,17 @@ def run_task_tree_simulation(task_tree: TaskTree, score_generator: ScoreGenerato
         metta_task.complete(score)
 
         # Record current weights and probabilities
-        current_weights = task_tree.curriculum_algorithm.weights.copy()
-        current_probs = task_tree.curriculum_algorithm.probabilities.copy()
+        current_weights = curriculum.curriculum_algorithm.weights.copy()
+        current_probs = curriculum.curriculum_algorithm.probabilities.copy()
         weight_history.append({"weights": current_weights, "probabilities": current_probs, "step": step})
 
     # Collect final state
     final_weights = {
         child.name: prob
-        for child, prob in zip(task_tree.children, task_tree.curriculum_algorithm.probabilities, strict=False)
+        for child, prob in zip(curriculum.children, curriculum.curriculum_algorithm.probabilities, strict=False)
     }
 
-    curriculum_stats = task_tree.get_curriculum_stats()
+    curriculum_stats = curriculum.get_curriculum_stats()
 
     return {
         "task_counts": task_counts,
@@ -286,9 +288,9 @@ def run_task_tree_simulation(task_tree: TaskTree, score_generator: ScoreGenerato
         "final_weights": final_weights,
         "curriculum_stats": curriculum_stats,
         "total_steps": num_steps,
-        "completion_rates": task_tree.get_completion_rates(),
-        "sample_rates": task_tree.get_sample_rates(),
-        "task_probabilities": task_tree.get_task_probabilities(),
+        "completion_rates": curriculum.get_completion_rates(),
+        "sample_rates": curriculum.get_sample_rates(),
+        "task_probabilities": curriculum.get_task_probabilities(),
     }
 
 
@@ -321,8 +323,8 @@ class TestProgressiveAlgorithmScenarios:
             progression_mode="perf",  # Progress based on performance
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
-        results = run_task_tree_simulation(task_tree, score_gen, 100)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+        results = run_curriculum_simulation(curriculum, score_gen, 100)
 
         # Analyze progression pattern
         weight_history = results["weight_history"]
@@ -405,8 +407,8 @@ class TestProgressiveAlgorithmScenarios:
             progression_mode="perf",
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
-        results = run_task_tree_simulation(task_tree, score_gen, 100)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+        results = run_curriculum_simulation(curriculum, score_gen, 100)
 
         # Analyze the results
         weight_history = results["weight_history"]
@@ -471,8 +473,8 @@ class TestProgressiveAlgorithmScenarios:
             progression_mode="perf",
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
-        results = run_task_tree_simulation(task_tree, score_gen, 300)  # Longer simulation
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+        results = run_curriculum_simulation(curriculum, score_gen, 300)  # Longer simulation
 
         # Analyze results
         weight_history = results["weight_history"]
@@ -530,8 +532,8 @@ class TestSimpleProgressiveAlgorithmScenarios:
             score_threshold=0.5,
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
-        results = run_task_tree_simulation(task_tree, score_gen, 50)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+        results = run_curriculum_simulation(curriculum, score_gen, 50)
 
         weight_history = results["weight_history"]
         task_counts = results["task_counts"]
@@ -582,7 +584,7 @@ class TestSimpleProgressiveAlgorithmScenarios:
 
 
 class TestLearningProgressAlgorithmScenarios:
-    """Test the Learning Progress Algorithm scenarios using TaskTree."""
+    """Test the Learning Progress Algorithm scenarios using Curriculum."""
 
     def test_scenario_4_mixed_impossible_learnable_tasks(self, env_cfg):
         """
@@ -607,8 +609,8 @@ class TestLearningProgressAlgorithmScenarios:
             rand_task_rate=0.1,  # Lower random exploration
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
-        results = run_task_tree_simulation(task_tree, score_gen, 600)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+        results = run_curriculum_simulation(curriculum, score_gen, 600)
 
         # Analyze results
         final_weights = results["final_weights"]
@@ -656,8 +658,8 @@ class TestLearningProgressAlgorithmScenarios:
             rand_task_rate=0.5,  # Higher random rate to ensure both tasks get sampled
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
-        results = run_task_tree_simulation(task_tree, score_gen, 150)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+        results = run_curriculum_simulation(curriculum, score_gen, 150)
 
         task_counts = results["task_counts"]
         final_weights = results["final_weights"]
@@ -680,7 +682,7 @@ class TestLearningProgressAlgorithmScenarios:
 
 
 class TestPrioritizeRegressedAlgorithmScenarios:
-    """Test the Prioritize Regressed Algorithm scenarios using TaskTree."""
+    """Test the Prioritize Regressed Algorithm scenarios using Curriculum."""
 
     def test_scenario_6_all_linear_scaling_equal_distribution(self, env_cfg):
         """
@@ -714,11 +716,11 @@ class TestPrioritizeRegressedAlgorithmScenarios:
             moving_avg_decay_rate=0.1,  # Moderate smoothing
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
 
         # NO INITIALIZATION - let the algorithm handle exploration naturally
 
-        results = run_task_tree_simulation(task_tree, score_gen, 200)
+        results = run_curriculum_simulation(curriculum, score_gen, 200)
 
         final_weights = results["final_weights"]
         task_counts = results["task_counts"]
@@ -782,8 +784,8 @@ class TestPrioritizeRegressedAlgorithmScenarios:
             moving_avg_decay_rate=0.05,  # Slower adaptation
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
-        results = run_task_tree_simulation(task_tree, score_gen, 300)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+        results = run_curriculum_simulation(curriculum, score_gen, 300)
 
         final_weights = results["final_weights"]
         task_counts = results["task_counts"]
@@ -877,19 +879,19 @@ class TestPrioritizeRegressedAlgorithmScenarios:
             min_samples_per_task=5,  # Ensure all tasks get sampled initially
         ).create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
 
         # Run simulation in phases to observe behavior over time
         phase_size = 100
 
         # Phase 1: Early (steps 0-99)
-        results_early = run_task_tree_simulation(task_tree, score_gen, phase_size)
+        results_early = run_curriculum_simulation(curriculum, score_gen, phase_size)
 
         # Continue for Phase 2: Middle (steps 100-199)
-        results_middle = run_task_tree_simulation(task_tree, score_gen, phase_size)
+        results_middle = run_curriculum_simulation(curriculum, score_gen, phase_size)
 
         # Continue for Phase 3: Late (steps 200-299)
-        results_late = run_task_tree_simulation(task_tree, score_gen, phase_size)
+        results_late = run_curriculum_simulation(curriculum, score_gen, phase_size)
 
         # Analyze each phase
         print("\n--- EARLY PHASE (steps 0-99) ---")
@@ -956,7 +958,7 @@ class TestPrioritizeRegressedAlgorithmScenarios:
         )
 
         # Get detailed stats for analysis
-        alg = task_tree.curriculum_algorithm
+        alg = curriculum.curriculum_algorithm
         print("\nDetailed task analysis:")
         print("(Note: PrioritizeRegressed prioritizes tasks where current performance < past peak)")
         for i, name in enumerate(task_names):
@@ -980,45 +982,45 @@ class TestPrioritizeRegressedAlgorithmScenarios:
 # ============================================================================
 
 
-class TestTaskTreeIntegration:
-    """Test TaskTree integration and basic functionality."""
+class TestCurriculumIntegration:
+    """Test Curriculum integration and basic functionality."""
 
-    def test_task_tree_basic_functionality(self, env_cfg):
-        """Test basic TaskTree functionality with DiscreteRandomCurriculum."""
+    def test_curriculum_basic_functionality(self, env_cfg):
+        """Test basic Curriculum functionality with DiscreteRandomCurriculum."""
         print("\n=== TASK TREE INTEGRATION: Basic Functionality ===")
 
         task_names = ["task_1", "task_2", "task_3"]
         algorithm = DiscreteRandomHypers().create(len(task_names))
 
-        task_tree = create_task_tree_with_algorithm(task_names, algorithm, env_cfg)
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
 
         # Test basic sampling
         for _ in range(10):
-            task = task_tree.sample()
+            task = curriculum.sample()
             assert isinstance(task, MettaGridTask)
             assert task.name in task_names
 
         # Test task completion
-        task = task_tree.sample()
-        initial_completed = task_tree.total_completed_tasks
+        task = curriculum.sample()
+        initial_completed = curriculum.total_completed_tasks
         task.complete(0.5)
-        assert task_tree.total_completed_tasks == initial_completed + 1
+        assert curriculum.total_completed_tasks == initial_completed + 1
 
         # Test statistics
-        completion_rates = task_tree.get_completion_rates()
-        sample_rates = task_tree.get_sample_rates()
-        task_probs = task_tree.get_task_probabilities()
-        curriculum_stats = task_tree.get_curriculum_stats()
+        completion_rates = curriculum.get_completion_rates()
+        sample_rates = curriculum.get_sample_rates()
+        task_probs = curriculum.get_task_probabilities()
+        curriculum_stats = curriculum.get_curriculum_stats()
 
         assert isinstance(completion_rates, dict)
         assert isinstance(sample_rates, dict)
         assert isinstance(task_probs, dict)
         assert isinstance(curriculum_stats, dict)
 
-        print("✓ PASSED: TaskTree basic functionality works correctly")
+        print("✓ PASSED: Curriculum basic functionality works correctly")
 
-    def test_task_tree_with_custom_weights(self, env_cfg):
-        """Test TaskTree with custom initial weights."""
+    def test_curriculum_with_custom_weights(self, env_cfg):
+        """Test Curriculum with custom initial weights."""
         print("\n=== TASK TREE INTEGRATION: Custom Weights ===")
 
         task_names = ["task_1", "task_2", "task_3"]
@@ -1029,7 +1031,7 @@ class TestTaskTreeIntegration:
 
         hypers = DiscreteRandomHypers(initial_weights=task_weights)
 
-        task_tree = task_set(
+        curriculum = task_set(
             name="test_weighted",
             env_configs=env_configs,
             curriculum_hypers=hypers,
@@ -1038,7 +1040,7 @@ class TestTaskTreeIntegration:
         # Sample many times and check distribution
         counts = {name: 0 for name in task_names}
         for _ in range(1000):
-            task = task_tree.sample()
+            task = curriculum.sample()
             counts[task.name] += 1
 
         total = sum(counts.values())
@@ -1050,4 +1052,4 @@ class TestTaskTreeIntegration:
         assert ratios["task_2"] > ratios["task_3"], "task_2 should be sampled more than task_3"
         assert ratios["task_2"] > 0.6, f"task_2 should dominate sampling, got {ratios['task_2']}"
 
-        print("✓ PASSED: TaskTree respects custom initial weights")
+        print("✓ PASSED: Curriculum respects custom initial weights")

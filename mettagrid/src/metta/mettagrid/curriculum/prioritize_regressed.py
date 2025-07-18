@@ -1,8 +1,8 @@
 """
-Prioritize Regressed Curriculum Algorithm for TaskTree.
+Prioritize Regressed Curriculum Algorithm for Curriculum.
 
 This module implements the prioritize regressed algorithm as a CurriculumAlgorithm
-that can be used with TaskTree nodes to prioritize tasks where current performance
+that can be used with Curriculum nodes to prioritize tasks where current performance
 has regressed relative to peak performance.
 """
 
@@ -54,8 +54,8 @@ class PrioritizeRegressedAlgorithm(CurriculumAlgorithm):
         self.reward_maxes = np.zeros(num_tasks, dtype=np.float32)
         self.task_completed_count = np.zeros(num_tasks, dtype=np.int32)
 
-        # Reference to owning TaskTree (set by TaskTree during initialization)
-        self.task_tree = None
+        # Reference to owning Curriculum (set by Curriculum during initialization)
+        self.curriculum = None
 
         self.epsilon = 1e-4
 
@@ -67,7 +67,7 @@ class PrioritizeRegressedAlgorithm(CurriculumAlgorithm):
             score: Score achieved (between 0 and 1)
 
         Note:
-            The weights array is updated in-place. The TaskTree will handle
+            The weights array is updated in-place. The Curriculum will handle
             normalization automatically via its _update_probabilities() method.
         """
         if child_idx >= self.num_tasks or child_idx < 0:
@@ -138,7 +138,7 @@ class PrioritizeRegressedAlgorithm(CurriculumAlgorithm):
             stats["pr/mean_regression_ratio"] = float(np.mean(regression_ratios))
             stats["pr/max_regression_ratio"] = float(np.max(regression_ratios))
 
-            # Individual task statistics (with names from TaskTree context if available)
+            # Individual task statistics (with names from Curriculum context if available)
             for i in range(min(3, self.num_tasks)):
                 if self.task_completed_count[i] > 0:
                     task_name = self.get_task_name(i)
@@ -173,17 +173,17 @@ class PrioritizeRegressedAlgorithm(CurriculumAlgorithm):
         return ratios
 
     def get_task_name(self, child_idx: int) -> str:
-        """Helper method to get task name from TaskTree context.
+        """Helper method to get task name from Curriculum context.
 
         Args:
             child_idx: Index of the child task
 
         Returns:
-            Task name if TaskTree context is available, otherwise generic name
+            Task name if Curriculum context is available, otherwise generic name
         """
-        if self.task_tree is not None and hasattr(self.task_tree, "full_name"):
+        if self.curriculum is not None and hasattr(self.curriculum, "full_name"):
             try:
-                return self.task_tree.full_name(child_idx)
+                return self.curriculum.full_name(child_idx)
             except (IndexError, AttributeError):
                 pass
         return f"task_{child_idx}"

@@ -4,7 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
-from metta.mettagrid.curriculum.task_tree_config import TaskTreeConfig
+from metta.mettagrid.curriculum import CurriculumConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 
@@ -196,7 +196,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
     env: str | None = None  # Environment config path
-    curriculum: TaskTreeConfig | None = None
+    curriculum: CurriculumConfig | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
@@ -226,7 +226,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
         # Apply default curriculum if neither curriculum nor env is set
         if not self.curriculum and not self.env:
             # Create default curriculum config
-            self.curriculum = TaskTreeConfig(name="default", env_paths=["/env/mettagrid/arena/basic_easy_shaped"])
+            self.curriculum = CurriculumConfig(name="default", env_paths=["/env/mettagrid/arena/basic_easy_shaped"])
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
