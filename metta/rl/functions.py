@@ -120,8 +120,8 @@ def process_minibatch_update(
     policy: torch.nn.Module,
     experience: Experience,
     minibatch: TensorDict,
-    advantages: Tensor,
     trainer_cfg: Any,
+    indices: Tensor,
     kickstarter: Any,
     agent_step: int,
     losses: Losses,
@@ -186,7 +186,7 @@ def process_minibatch_update(
         {"values": newvalue.view(minibatch["values"].shape), "ratio": importance_sampling_ratio},
         batch_size=minibatch.batch_size,
     )
-    experience.update(minibatch["indices"], update_td)
+    experience.update(indices, update_td)
 
     # Update loss tracking
     losses.policy_loss_sum += pg_loss.item()

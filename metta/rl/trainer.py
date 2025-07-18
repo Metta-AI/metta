@@ -510,7 +510,7 @@ class MettaTrainer:
 
         for _epoch in range(trainer_cfg.update_epochs):
             for _ in range(experience.num_minibatches):
-                minibatch = experience.sample_minibatch(
+                minibatch, indices = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
@@ -521,7 +521,7 @@ class MettaTrainer:
                     policy=self.policy,
                     experience=experience,
                     minibatch=minibatch,
-                    advantages=advantages,
+                    indices=indices,
                     trainer_cfg=trainer_cfg,
                     kickstarter=self.kickstarter,
                     agent_step=self.agent_step,

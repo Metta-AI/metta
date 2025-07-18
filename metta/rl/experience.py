@@ -151,7 +151,7 @@ class Experience:
         self,
         advantages: Tensor,
         prio_alpha: float,
-        prio_beta: float,
+        prio_beta: float,  # av delete this
     ) -> TensorDict:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
@@ -170,10 +170,10 @@ class Experience:
         minibatch_td["returns"] = advantages[idx] + minibatch_td["values"]
         # minibatch_td["indices"] = idx.view(-1, 1)
         # minibatch_td["prio_weights"] = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        minibatch_td["indices"] = idx.view(-1, 1).expand(-1, self.bptt_horizon)
-        prio_weights_val = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        minibatch_td["prio_weights"] = prio_weights_val.expand(-1, self.bptt_horizon)
-        return minibatch_td
+        # minibatch_td["indices"] = idx.view(-1, 1).expand(-1, self.bptt_horizon)
+        # prio_weights_val = (self.segments * prio_probs[idx, None]) ** -prio_beta
+        # minibatch_td["prio_weights"] = prio_weights_val.expand(-1, self.bptt_horizon)
+        return minibatch_td, idx
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
