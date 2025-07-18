@@ -22,7 +22,6 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.metta_agent import MettaAgent
 from metta.common.util.fs import wait_for_file
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.functions import (
     cleanup_old_policies,
 )
@@ -746,7 +745,11 @@ class Agent:
 
         # Get the actual MettaGridEnv from vecenv wrapper
         metta_grid_env = env.driver_env
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        # Check if driver_env is one of our valid MettaGrid adapters
+        from metta.mettagrid import MettaGridCore, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridPufferEnv
+        
+        valid_adapters = (MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore)
+        assert isinstance(metta_grid_env, valid_adapters), f"Expected MettaGrid adapter, got {type(metta_grid_env)}"
 
         # Create observation space matching what make_policy does
         obs_space = gym.spaces.Dict(
