@@ -40,14 +40,13 @@ class EvaluationSmokeTest(SmokeTest):
             "uv",
             "run",
             "./tools/sim.py",
-            "sim=smoke_test",
+            "sim=navigation",
             f"run=navigation_smoke_{attempt}",
             f"policy_uri=wandb://run/{self.policy}",
             "+eval_db_uri=wandb://artifacts/navigation_db",
             "seed=31415",
             "torch_deterministic=True",
             "device=cpu",
-            "wandb=off",
         ]
 
     def get_timeout(self) -> int:

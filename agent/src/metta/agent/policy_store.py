@@ -292,10 +292,12 @@ class PolicyStore:
             )
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
-        if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
+        api_key = os.environ.get("WANDB_API_KEY")
+        api = wandb.Api(api_key=api_key) if api_key else wandb.Api()
+        if not api.artifact_collection_exists(type=artifact_type, name=path):
             logger.warning(f"No artifact collection found at {uri}")
             return []
-        artifact_collection = wandb.Api().artifact_collection(type_name=artifact_type, name=path)
+        artifact_collection = api.artifact_collection(type_name=artifact_type, name=path)
 
         artifacts = artifact_collection.artifacts()
 
