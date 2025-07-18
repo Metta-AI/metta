@@ -51,12 +51,12 @@ def get_stats_client_direct(stats_server_uri: str | None, logger: Logger) -> Sta
     if stats_server_uri is None:
         logger.warning("No stats server URI provided, running without stats collection")
         return None
-    
+
     machine_token = get_machine_token(stats_server_uri)
     if machine_token is None:
         logger.warning("No machine token provided, running without stats collection")
         return None
-    
+
     logger.info(f"Using stats client at {stats_server_uri}")
     http_client = Client(base_url=stats_server_uri)
     return StatsClient(http_client=http_client, machine_token=machine_token)

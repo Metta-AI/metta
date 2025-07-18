@@ -1,10 +1,11 @@
-
 import argparse
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-import logging
+
 import wandb
+
 from metta.common.util.stats_client_cfg import get_stats_client_direct
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,9 @@ class RunInfo:
     artifacts: List[Dict[str, str]]
 
 
-def get_recent_runs(entity: str, project: str, days_back: int = 30, limit: Optional[int] = None, debug: bool = False) -> List[RunInfo]:
+def get_recent_runs(
+    entity: str, project: str, days_back: int = 30, limit: Optional[int] = None, debug: bool = False
+) -> List[RunInfo]:
     """
     Fetch recent runs from W&B that are not cancelled or crashed.
 
@@ -67,7 +70,9 @@ def get_recent_runs(entity: str, project: str, days_back: int = 30, limit: Optio
                 or run.summary.get("git_hash")
                 or run.summary.get("git_commit")
                 or run.summary.get("_wandb", {}).get("git", {}).get("commit")
-                or run.metadata.get("git", {}).get("commit") if hasattr(run, "metadata") else None
+                or run.metadata.get("git", {}).get("commit")
+                if hasattr(run, "metadata")
+                else None
             )
 
             # Also check in the run's commit field directly
@@ -224,7 +229,7 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Show debug information")
 
     args = parser.parse_args()
-    
+
     # Validate that stats-db-uri is provided when post-policies is used
     if args.post_policies and not args.stats_db_uri:
         parser.error("--stats-db-uri is required when using --post-policies")
