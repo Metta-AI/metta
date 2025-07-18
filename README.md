@@ -1,6 +1,5 @@
 # Metta AI
 
-
 <p align="center">
   <a href="https://codecov.io/gh/Metta-AI/metta">
     <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg?token=SX28I8PS3E" alt="codecov">
@@ -14,8 +13,10 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
   </a>
+  <a href="https://deepwiki.com/Metta-AI/metta">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+  </a>
 </p>
-
 
 A reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems.
 
