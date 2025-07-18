@@ -1,10 +1,10 @@
-# BBC Learning Progress Curriculum
+name: bbc_basic
+algorithm: discrete_random  # Default algorithm
 
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_paths:
+  - /env/mettagrid/arena/combat
 
-env_cfg_template: /env/mettagrid/arena/combat
-
-buckets:
+parameters:
   game.agent.rewards.ore_red: { values: [0, 1] }
   game.agent.rewards.battery_red: { values: [0, 1] }
 

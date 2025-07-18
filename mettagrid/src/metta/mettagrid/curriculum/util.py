@@ -1,15 +1,31 @@
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
-from metta.mettagrid.util.hydra import config_from_path
+from metta.common.util.config import config_from_path
+from metta.mettagrid.curriculum.task_tree import TaskTree
+from metta.mettagrid.curriculum.task_tree_config import TaskTreeConfig
 
 
-def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> "Curriculum":
-    if "_target_" in config_from_path(config_path, None):
-        return hydra.utils.instantiate(
-            config_from_path(config_path, OmegaConf.create({"env_overrides": env_overrides}))
-        )
-    else:
-        return SamplingCurriculum(config_path, env_overrides)
+def task_tree_from_config_path(config_path: str, env_overrides: DictConfig) -> TaskTree:
+    """Load a curriculum (TaskTree) from a config path.
+
+    Args:
+        config_path: Path to the curriculum config file
+        env_overrides: Environment configuration overrides to apply
+
+    Returns:
+        A TaskTree instance representing the curriculum
+    """
+    cfg = config_from_path(config_path, None)
+    config_dict = OmegaConf.to_container(cfg, resolve=True)
+
+    # Apply env_overrides to the config
+    if env_overrides:
+        overrides_dict = OmegaConf.to_container(env_overrides, resolve=True)
+        if "env_overrides" in config_dict:
+            config_dict["env_overrides"].update(overrides_dict)
+        else:
+            config_dict["env_overrides"] = overrides_dict
+
+    # Create TaskTreeConfig and then TaskTree
+    task_tree_config = TaskTreeConfig.model_validate(config_dict)
+    return task_tree_config.create()

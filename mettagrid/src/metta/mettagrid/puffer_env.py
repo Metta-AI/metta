@@ -13,7 +13,7 @@ from pufferlib import PufferEnv
 from typing_extensions import override
 
 from metta.mettagrid.base_env import MettaGridEnv
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum import TaskTree
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -36,7 +36,7 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
 
     def __init__(
         self,
-        curriculum: Curriculum,
+        curriculum: TaskTree,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
         buf: Optional[Any] = None,
@@ -49,7 +49,7 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
         Initialize PufferLib environment.
 
         Args:
-            curriculum: Curriculum for task management
+            curriculum: TaskTree for task management
             render_mode: Rendering mode
             level: Optional pre-built level
             buf: PufferLib buffer object

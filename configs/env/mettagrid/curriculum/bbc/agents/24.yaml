@@ -1,10 +1,37 @@
-defaults:
-  - defaults
+# BBC Learning Progress Curriculum - 24 agents per instance
+name: bbc_agents_24
+algorithm: discrete_random
 
 env_overrides:
   game:
+    actions:
+      attack: { consumed_resources: { blueprint: 1 } }
+      change_color: { enabled: false }
+      swap: { enabled: false }
+
     map_builder:
       instances: 1
+      instance_border_width: 6
       root:
         params:
           agents: 24
+          objects:
+            mine_red: 3
+            generator_red: 3
+            altar: 3
+
+    agent:
+      rewards:
+        ore_red_max: 1
+        battery_red_max: 1
+        laser_max: 1
+        armor_max: 1
+        blueprint_max: 1
+
+children:
+  - /env/mettagrid/curriculum/bbc/tasks/basic
+  - /env/mettagrid/curriculum/bbc/tasks/altar
+  - /env/mettagrid/curriculum/bbc/tasks/laser
+  - /env/mettagrid/curriculum/bbc/tasks/armor
+  - /env/mettagrid/curriculum/bbc/tasks/combat
+  - /env/mettagrid/curriculum/bbc/tasks/tag

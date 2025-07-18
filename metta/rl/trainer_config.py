@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.curriculum.task_tree_config import TaskTreeConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 
@@ -195,8 +196,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
     env: str | None = None  # Environment config path
-    # Default curriculum: Simple environment for initial experiments
-    curriculum: str | None = "/env/mettagrid/curriculum/simple"
+    curriculum: TaskTreeConfig | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
@@ -223,8 +223,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
 
+        # Apply default curriculum if neither curriculum nor env is set
         if not self.curriculum and not self.env:
-            raise ValueError("curriculum or env must be set")
+            # Create default curriculum config
+            self.curriculum = TaskTreeConfig(name="default", env_paths=["/env/mettagrid/arena/basic_easy_shaped"])
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -256,14 +258,6 @@ class TrainerConfig(BaseModelWithForbidExtra):
             )
 
         return self
-
-    @property
-    def curriculum_or_env(self) -> str:
-        if self.curriculum:
-            return self.curriculum
-        if self.env:
-            return self.env
-        raise ValueError("curriculum or env must be set")
 
 
 def create_trainer_config(

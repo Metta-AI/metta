@@ -1,8 +1,11 @@
 # BBC Learning Progress Curriculum
 
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+name: bbc_tag
+algorithm: discrete_random
 
-env_cfg_template: /env/mettagrid/arena/combat
+env_paths:
+  - /env/mettagrid/arena/combat
+
 env_overrides:
   game:
     objects:
@@ -15,6 +18,6 @@ env_overrides:
     actions: { attack: { consumed_resources: { blueprint: 0 } } }
     agent: { rewards: { heart: 1 } }
 
-buckets:
+parameters:
   game.objects.lasery.initial_resource_count: { values: [0, 1] }
   game.objects.armory.initial_resource_count: { values: [0, 1] }

@@ -24,7 +24,7 @@ from pydantic import validate_call
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.instantiate import instantiate
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum import TaskTree
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -47,7 +47,7 @@ class MettaGridEnv(ABC):
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
-        curriculum: Curriculum,
+        curriculum: TaskTree,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
         stats_writer: Optional[StatsWriter] = None,
@@ -59,7 +59,7 @@ class MettaGridEnv(ABC):
         Initialize base MettaGridEnv.
 
         Args:
-            curriculum: Curriculum for task management
+            curriculum: TaskTree for task management
             render_mode: Rendering mode (None, "human", "miniscope")
             level: Optional pre-built level
             stats_writer: Optional stats writer
@@ -75,7 +75,7 @@ class MettaGridEnv(ABC):
 
         self._render_mode = render_mode
         self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
+        self._task = self._curriculum.sample()
         self._level = level
         self._renderer = None
         self._map_labels: List[str] = []
@@ -90,7 +90,7 @@ class MettaGridEnv(ABC):
         self._core_env: Optional[MettaGridCore] = None
 
         # Environment metadata
-        self.labels: List[str] = self._task.env_cfg().get("labels", [])
+        self.labels: List[str] = self._task.env_config.get("labels", [])
         self._should_reset = False
 
         # Initialize renderer if needed
@@ -128,18 +128,18 @@ class MettaGridEnv(ABC):
         level = self._level
 
         if level is None:
-            map_builder_config = task.env_cfg().game.map_builder
+            map_builder_config = task.env_config.game.map_builder
             with self.timer("_create_core_env.build_map"):
                 map_builder = instantiate(map_builder_config, _recursive_=True)
                 level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
+        assert task.env_config.game.num_agents == level_agents, (
+            f"Number of agents {task.env_config.game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        game_config_dict = OmegaConf.to_container(task.env_config.game)
 
         # Ensure we have a dict
         if not isinstance(game_config_dict, dict):
@@ -189,7 +189,7 @@ class MettaGridEnv(ABC):
         self.timer.stop("thread_idle")
 
         # Get new task from curriculum
-        self._task = self._curriculum.get_task()
+        self._task = self._curriculum.sample()
 
         # Create new core environment
         self._core_env = self._create_core_env(seed)
@@ -333,7 +333,7 @@ class MettaGridEnv(ABC):
         self._task.complete(episode_rewards_mean)
 
         # Add curriculum task probabilities
-        infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+        infos["curriculum_task_probs"] = self._curriculum.get_task_probabilities(relative_to_root=True)
 
         # Add timing information
         self._add_timing_info(infos)
@@ -361,7 +361,7 @@ class MettaGridEnv(ABC):
 
         # Flatten environment config
         env_cfg_flattened: Dict[str, str] = {}
-        env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+        env_cfg = OmegaConf.to_container(self._task.env_config, resolve=False)
         for k, v in unroll_nested_dict(cast(Dict[str, Any], env_cfg)):
             env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 

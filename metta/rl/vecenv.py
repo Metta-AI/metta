@@ -6,7 +6,7 @@ import pufferlib.vector
 from pydantic import validate_call
 
 from metta.common.util.resolvers import register_resolvers
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum.task_tree import TaskTree
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -16,7 +16,7 @@ logger = logging.getLogger("vecenv")
 
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
-    curriculum: Curriculum,
+    task_tree: TaskTree,
     buf=None,
     render_mode="rgb_array",
     stats_writer: Optional[StatsWriter] = None,
@@ -29,7 +29,7 @@ def make_env_func(
 
     # Create the environment instance
     env = MettaGridEnv(
-        curriculum,
+        task_tree,
         render_mode=render_mode,
         buf=buf,
         stats_writer=stats_writer,
@@ -45,7 +45,7 @@ def make_env_func(
 
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_vecenv(
-    curriculum: Curriculum,
+    task_tree: TaskTree,
     vectorization: str,
     num_envs=1,
     batch_size=None,
@@ -71,7 +71,7 @@ def make_vecenv(
         raise ValueError(f"num_envs must be at least 1, got {num_envs}")
 
     env_kwargs = {
-        "curriculum": curriculum,
+        "task_tree": task_tree,
         "render_mode": render_mode,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
