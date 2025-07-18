@@ -867,12 +867,12 @@ class MettaTrainer:
             grad_stats=self.grad_stats,
             system_stats=system_stats,
             memory_stats=memory_stats,
+            curriculum_stats=curriculum_stats,
             parameters=parameters,
             hyperparameters=self.hyperparameters,
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
-            **curriculum_stats,
         )
 
         self.wandb_run.log(
