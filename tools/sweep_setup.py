@@ -1,7 +1,7 @@
-"""
-We divide the labour of initializing a sweep and preparing a run between different scripts.
-Changes: sweep_name --> sweep_name
-"""
+#!/usr/bin/env -S uv run
+
+# NumPy 2.0 compatibility for WandB - must be imported before wandb
+import sys
 
 import numpy as np  # noqa: E402
 
@@ -68,3 +68,7 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
         },
         os.path.join(cfg.sweep_dir, "metadata.yaml"),
     )
+
+
+if __name__ == "__main__":
+    sys.exit(main())
