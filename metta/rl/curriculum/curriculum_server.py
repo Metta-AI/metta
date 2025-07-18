@@ -1,4 +1,5 @@
 import logging
+import random
 import threading
 from typing import Any, Dict
 
@@ -14,10 +15,10 @@ logger = logging.getLogger(__name__)
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 
-class CurriculumServer(Curriculum):
+class CurriculumServer:
     """HTTP server that serves curriculum tasks to distributed environments."""
 
-    def __init__(self, curriculum: Curriculum, host: str = "127.0.0.1", port: int = 5555):
+    def __init__(self, curriculum: Curriculum, host: str = "127.0.0.1", port: int = 12346):
         self._curriculum = curriculum
         self._host = host
         self._port = port
@@ -26,13 +27,14 @@ class CurriculumServer(Curriculum):
         self._server_thread = None
         self._server = None
 
+        self._assigned_tasks = {}
+
         # Set up routes
         self._app.add_url_rule("/tasks", "get_tasks", self._get_tasks, methods=["GET"])
-        self._app.add_url_rule("/complete", "complete_task", self._complete_task, methods=["GET"])
+        self._app.add_url_rule("/complete", "complete_task", self._complete_task, methods=["POST"])
         self._app.add_url_rule("/health", "health", self._health, methods=["GET"])
 
         # Metrics
-        self._num_tasks_assigned = 0
         self._num_tasks_completed = 0
 
     def _get_tasks(self) -> Dict[str, Any]:
@@ -46,12 +48,12 @@ class CurriculumServer(Curriculum):
             with self._lock:
                 for _ in range(batch_size):
                     try:
-                        task = self.get_task()
+                        task = self._curriculum.get_task()
                         # Convert the task's env_cfg to a serializable format
                         env_cfg = OmegaConf.to_container(task.env_cfg(), resolve=True)
-                        # Get task name - it's a method in the Task class
-                        task_name = task.name() if hasattr(task, "name") else "unknown"
-                        tasks.append({"name": task_name, "env_cfg": env_cfg})
+                        task_id = random.randint(0, 1000000)
+                        tasks.append({"id": task_id, "env_cfg": env_cfg})
+                        self._assigned_tasks[task_id] = task
                     except Exception as e:
                         # If curriculum can't provide more tasks, break and return what we have
                         logger.warning(f"Curriculum stopped providing tasks: {e}")
@@ -64,9 +66,15 @@ class CurriculumServer(Curriculum):
 
     def _complete_task(self) -> Dict[str, Any]:
         """Complete a task."""
-        id = request.args.get("id")
-        score = request.args.get("score")
-        self.complete_task(id, score)
+        data = request.get_json()
+        id = data.get("id")
+        score = data.get("score")
+        if id not in self._assigned_tasks:
+            logger.error(f"Task {id} not found")
+            return jsonify({"error": f"Task {id} not found", "status": "error"}), 404
+        task = self._assigned_tasks.pop(id)
+        task.complete(score)
+        self._num_tasks_completed += 1
         return jsonify({"status": "ok"})
 
     def _health(self) -> Dict[str, str]:
@@ -103,25 +111,20 @@ class CurriculumServer(Curriculum):
         env_overrides = DictConfig(trainer_cfg.get("env_overrides", {}))
         curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
 
-        server = CurriculumServer(curriculum=curriculum, port=trainer_cfg.curriculum_server.port)
+        # Get host from config, default to 0.0.0.0 for Docker compatibility
+        host = trainer_cfg.curriculum_server.get("host", "0.0.0.0")
+        port = trainer_cfg.curriculum_server.port
+
+        server = CurriculumServer(curriculum=curriculum, host=host, port=port)
         server.start(background=True)
-        logger.info(f"Started curriculum server on port {server._port}")
+        logger.info(f"Started curriculum server on {host}:{port}")
         return server
 
     # Implement the Curriculum interface
     def get_task(self) -> Task:
         task = self._curriculum.get_task()
         logger.debug(f"Assigning task: {task.name()}")
-        self._num_tasks_assigned += 1
         return task
 
-    def complete_task(self, id: str, score: float):
-        logger.debug(f"Completing task: {id} with score: {score}")
-        self._curriculum.complete_task(id, score)
-        self._num_tasks_completed += 1
-
     def get_curriculum_stats(self) -> Dict[str, float]:
-        return {
-            "tasks_assigned": self._num_tasks_assigned,
-            "tasks_completed": self._num_tasks_completed,
-        }
+        return {"tasks_completed": self._num_tasks_completed, **self._curriculum.stats()}

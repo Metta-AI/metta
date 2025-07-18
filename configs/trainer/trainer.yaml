@@ -100,6 +100,6 @@ kickstart:
     #    value_loss_coef: 1
 
 curriculum_server:
-  host: localhost
-  port: 5555 # Port for the curriculum server
+  host: 0.0.0.0 # Bind to all interfaces for Docker compatibility
+  port: 12346 # Port for the curriculum server
   batch_size: 5 # Number of tasks to fetch in each batch
