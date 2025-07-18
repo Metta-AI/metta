@@ -238,6 +238,8 @@ class MettaCLI:
         if hasattr(args, "local_command") and args.local_command:
             if args.local_command == "build-docker-img":
                 self.local_commands.build_docker_img(args)
+            elif args.local_command == "build-app-backend-img":
+                self.local_commands.build_app_backend_img()
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -521,6 +523,7 @@ Examples:
 
         # Local subcommands
         local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
+        local_subparsers.add_parser("build-app-backend-img", help="Build local development app_backend Docker image")
 
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)

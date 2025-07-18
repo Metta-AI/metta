@@ -2,6 +2,7 @@ import os
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.docker import DockerContainerManager
+from metta.app_backend.container_managers.eks import EksPodManager
 
 
 def create_container_manager(
@@ -11,7 +12,7 @@ def create_container_manager(
 
     if runtime == "docker":
         return DockerContainerManager()
-    elif runtime == "eks" or runtime == "kubernetes":
-        raise NotImplementedError("EKS container manager is not implemented yet")
+    elif runtime in ["eks", "kind"]:
+        return EksPodManager(namespace=namespace, kubeconfig=kubeconfig)
     else:
-        raise ValueError(f"Unsupported container runtime: {runtime}. Use 'docker' or 'eks'.")
+        raise ValueError(f"Unsupported container runtime: {runtime}. Use 'docker', 'eks', or 'kind'.")

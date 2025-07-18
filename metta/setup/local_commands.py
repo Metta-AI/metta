@@ -10,6 +10,15 @@ class LocalCommands:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
 
+    def build_app_backend_img(self) -> None:
+        """Build local development Docker image."""
+        docker_dir = self.repo_root / "app_backend"
+        dockerfile_path = docker_dir / "Dockerfile"
+        subprocess.run(
+            ["docker", "build", "-t", "metta-app-backend:latest", "-f", str(dockerfile_path), str(self.repo_root)],
+            check=True,
+        )
+
     def build_docker_img(self, args) -> None:
         """Build local development Docker image."""
         docker_dir = self.repo_root / "devops" / "docker"
