@@ -12,79 +12,23 @@
 # +trainer.env_overrides.game.num_agents=4 \
 # sim=navigation \
 # "$@"
-
-
-./devops/skypilot/launch.py train \
-run=$USER.navigation.ffa_random_spawn_4rooms_of_2_seed0.$(date +%m-%d) \
-trainer.curriculum=env/mettagrid/curriculum/navigation/random \
---gpus=1 \
---nodes=1 \
---no-spot \
-+USER=greg \
-++trainer.env_overrides.special_reward_mode=ffa \
-++trainer.env_overrides.game.num_agents=8 \
-++trainer.env_overrides.game.map_builder.room.agents=2 \
-++trainer.env_overrides.game.map_builder.num_rooms=4 \
-seed=0 \
-sim=navigation \
-"$@"
-
-./devops/skypilot/launch.py train \
-run=$USER.navigation.ffa_random_spawn_4rooms_of_2_seed1.$(date +%m-%d) \
-trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
---gpus=1 \
---nodes=1 \
---no-spot \
-+USER=greg \
-++trainer.env_overrides.special_reward_mode=ffa \
-++trainer.env_overrides.game.num_agents=8 \
-++trainer.env_overrides.game.map_builder.room.agents=2 \
-++trainer.env_overrides.game.map_builder.num_rooms=4 \
-seed=1 \
-sim=navigation \
-"$@"
-
-./devops/skypilot/launch.py train \
-run=$USER.navigation.ffa_random_spawn_4rooms_of_2_seed2.$(date +%m-%d) \
-trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
---gpus=1 \
---nodes=1 \
---no-spot \
-+USER=greg \
-++trainer.env_overrides.special_reward_mode=ffa \
-++trainer.env_overrides.game.num_agents=8 \
-++trainer.env_overrides.game.map_builder.room.agents=2 \
-++trainer.env_overrides.game.map_builder.num_rooms=4 \
-seed=2 \
-sim=navigation \
-"$@"
-
-./devops/skypilot/launch.py train \
-run=$USER.navigation.ffa_random_spawn_4rooms_of_2_seed3.$(date +%m-%d) \
-trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
---gpus=1 \
---nodes=1 \
---no-spot \
-+USER=greg \
-++trainer.env_overrides.special_reward_mode=ffa \
-++trainer.env_overrides.game.num_agents=8 \
-++trainer.env_overrides.game.map_builder.room.agents=2 \
-++trainer.env_overrides.game.map_builder.num_rooms=4 \
-seed=3 \
-sim=navigation \
-"$@"
-
-./devops/skypilot/launch.py train \
-run=$USER.navigation.ffa_random_spawn_4rooms_of_2_seed4.$(date +%m-%d) \
-trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
---gpus=1 \
---nodes=1 \
---no-spot \
-+USER=greg \
-++trainer.env_overrides.special_reward_mode=ffa \
-++trainer.env_overrides.game.num_agents=8 \
-++trainer.env_overrides.game.map_builder.room.agents=2 \
-++trainer.env_overrides.game.map_builder.num_rooms=4 \
-seed=4 \
-sim=navigation \
-"$@"
+agent_cluster_type=right_next_to_each_other
+num_rooms=4
+num_agents_per_room=2
+for seed in 0 1 2 3 4; do
+  ./devops/skypilot/launch.py train \
+    run=$USER.navigation.ffa_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
+    trainer.curriculum=env/mettagrid/curriculum/navigation/random \
+    --gpus=1 \
+    --nodes=1 \
+    --no-spot \
+    +USER=greg \
+    ++trainer.env_overrides.special_reward_mode=ffa \
+    ++trainer.env_overrides.game.map_builder.room.agent_cluster_type=${agent_cluster_type} \
+    ++trainer.env_overrides.game.num_agents=${$((num_agents_per_room * num_rooms))} \
+    ++trainer.env_overrides.game.map_builder.room.agents=${num_agents_per_room} \
+    ++trainer.env_overrides.game.map_builder.num_rooms=${num_rooms} \
+    seed=${seed} \
+    sim=navigation \
+    "$@"
+done

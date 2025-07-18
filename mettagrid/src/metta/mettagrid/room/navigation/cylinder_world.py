@@ -98,7 +98,9 @@ class CylinderWorld(Room):
                 continue
             contiguous_positions.append(pos)
             # Check 4 neighbors (up, down, left, right)
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            neighbor_deltas = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            random.shuffle(neighbor_deltas)
+            for dr, dc in neighbor_deltas:
                 nr, nc = pos[0] + dr, pos[1] + dc
                 neighbor = (nr, nc)
                 if (
