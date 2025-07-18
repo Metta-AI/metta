@@ -67,19 +67,6 @@ class AgentConfig(GridObjectConfig):
     group_reward_pct: float
 
 class ConverterConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str,
-        input_resources: dict[int, int],
-        output_resources: dict[int, int],
-        max_output: int,
-        conversion_ticks: int,
-        cooldown: int,
-        initial_resource_count: int = 0,
-        color: int = 0,
-        show_recipe_inputs: bool = False,
-    ): ...
     type_id: int
     type_name: str
     input_resources: dict[int, int]
@@ -108,10 +95,12 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
+        resource_rewards: bool = False,
     ): ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
+    resource_rewards: bool
 
 class GameConfig:
     def __init__(
