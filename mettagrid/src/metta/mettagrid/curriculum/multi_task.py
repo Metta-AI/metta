@@ -48,4 +48,7 @@ class MultiTaskCurriculum(Curriculum):
             stats.update({f"task_prob/{k}": 1.0 / n for k in self._task_weights})
         else:
             stats.update({f"task_prob/{k}": v / weights_total for k, v in self._task_weights.items()})
+
+        # Sometimes tasks start with '/' and we don't want task_probs//task/...
+        stats = {k.replace("//", "/"): v for k, v in stats.items()}
         return stats
