@@ -14,6 +14,7 @@ sweep_name: ???  # Will be set via command line override
 sweep_server_uri: https://api.observatory.softmax-research.net
 
 trainer:
+  total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
   curriculum: /env/mettagrid/curriculum/navigation/bucketed
   simulation:
     evaluate_interval: 0  # No evaluation during training for speed

@@ -1,13 +1,13 @@
-# BBC Learning Progress Curriculum
+name: bbc_armor
+algorithm: discrete_random
 
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_paths:
+  - /env/mettagrid/arena/combat
 
-env_cfg_template_path: /env/mettagrid/arena/combat
+parameters:
+  game.objects.armory.input_resources.ore_red: { values: [0, 1, 2] }
+  game.objects.armory.input_resources.battery_red: { values: [0, 1, 2] }
+  game.agent.rewards.inventory.armor: { values: [0, 1] }
 
-buckets:
-  game.objects.armory.input_resources.ore_red: [0, 1, 2]
-  game.objects.armory.input_resources.battery_red: [0, 1, 2]
-  game.agent.rewards.inventory.armor: [0, 1]
-
-  # game.map_builder.width: [5, 10, 25]
-  # game.map_builder.height: [5, 10, 25]
+  # game.map_builder.width: { values: [5, 10, 25] }
+  # game.map_builder.height: { values: [5, 10, 25] }

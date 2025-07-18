@@ -4,6 +4,9 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.curriculum import CurriculumConfig, curriculum_config_from_path
+from metta.mettagrid.curriculum.curriculum_builder import curriculum_config_from_python
+from metta.mettagrid.curriculum.curriculum_store import curriculum_store
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
@@ -187,8 +190,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
     env: str | None = None  # Environment config path
-    # Default curriculum: Simple environment for initial experiments
-    curriculum: str | None = "/env/mettagrid/curriculum/simple"
+    curriculum: CurriculumConfig | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
@@ -215,8 +217,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
 
+        # Apply default curriculum if neither curriculum nor env is set
         if not self.curriculum and not self.env:
-            raise ValueError("curriculum or env must be set")
+            # Create default curriculum config
+            self.curriculum = CurriculumConfig(name="default", env_paths=["/env/mettagrid/arena/basic_easy_shaped"])
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -249,14 +253,6 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
         return self
 
-    @property
-    def curriculum_or_env(self) -> str:
-        if self.curriculum:
-            return self.curriculum
-        if self.env:
-            return self.env
-        raise ValueError("curriculum or env must be set")
-
 
 def create_trainer_config(
     cfg: DictConfig,
@@ -283,6 +279,89 @@ def create_trainer_config(
     if cfg.vectorization == "serial":
         config_dict["async_factor"] = 1
         config_dict["zero_copy"] = False
+
+    # Handle curriculum config
+    if "curriculum" in config_dict:
+        curriculum = config_dict["curriculum"]
+
+        # Handle string path reference
+        if isinstance(curriculum, str):
+            # First check if it's in the curriculum store (simple name)
+            # Ensure curriculum definitions are loaded
+            try:
+                import sys
+                from pathlib import Path
+
+                experiments_path = Path(__file__).parent.parent.parent / "experiments"
+                if str(experiments_path) not in sys.path:
+                    sys.path.insert(0, str(experiments_path))
+                import curriculum_defs  # noqa: F401
+            except ImportError:
+                pass  # Curriculum definitions not available
+
+            stored_config = curriculum_store.get(curriculum)
+            if stored_config:
+                curriculum_config = stored_config
+            # Check if it's a Python module reference
+            elif curriculum.startswith("python:"):
+                # Load from Python module
+                module_path = curriculum[7:]  # Remove "python:" prefix
+                curriculum_config = curriculum_config_from_python(module_path)
+            else:
+                # Load CurriculumConfig from YAML path
+                curriculum_config = curriculum_config_from_path(curriculum)
+
+            # Convert to dict properly, handling the algorithm field
+            curriculum_dict = curriculum_config.model_dump(exclude={"algorithm"})
+
+            # Handle algorithm separately to ensure proper serialization
+            if curriculum_config.algorithm:
+                # Use the algorithm_type() method for clean serialization
+                curriculum_dict["algorithm"] = curriculum_config.algorithm.algorithm_type()
+
+            config_dict["curriculum"] = curriculum_dict
+
+        # Handle dict with Hydra defaults
+        elif isinstance(curriculum, dict):
+            # If curriculum only contains defaults, it means Hydra hasn't resolved the reference
+            # In this case, we need to load the curriculum from the path
+            if list(curriculum.keys()) == ["defaults"] and len(curriculum["defaults"]) > 0:
+                # Extract the curriculum path from defaults and load the config
+                curriculum_path = curriculum["defaults"][0]
+                curriculum_config = curriculum_config_from_path(curriculum_path)
+
+                # Convert to dict properly, handling the algorithm field
+                curriculum_dict = curriculum_config.model_dump(exclude={"algorithm"})
+
+                # Handle algorithm separately to ensure proper serialization
+                if curriculum_config.algorithm:
+                    # Use the algorithm_type() method for clean serialization
+                    curriculum_dict["algorithm"] = curriculum_config.algorithm.algorithm_type()
+
+                config_dict["curriculum"] = curriculum_dict
+            else:
+                # For regular dicts, we need to handle the algorithm field if present
+                # Remove Hydra's defaults field which is not part of CurriculumConfig
+                curriculum.pop("defaults", None)
+
+                # Check if algorithm needs serialization
+                if "algorithm" in curriculum and isinstance(curriculum["algorithm"], dict):
+                    # This is likely a CurriculumAlgorithmHypers that needs proper serialization
+                    # For now, we'll try to extract the type from the dict structure
+                    # This is a temporary fix - ideally we'd have the actual hypers object
+                    if "_target_" in curriculum["algorithm"]:
+                        # Extract algorithm type from target
+                        target = curriculum["algorithm"]["_target_"]
+                        if "DiscreteRandom" in target:
+                            curriculum["algorithm"] = "discrete_random"
+                        elif "LearningProgress" in target:
+                            curriculum["algorithm"] = "learning_progress"
+                        elif "PrioritizeRegressed" in target:
+                            curriculum["algorithm"] = "prioritize_regressed"
+                        elif "Progressive" in target:
+                            curriculum["algorithm"] = "progressive"
+                        elif "SimpleProgressive" in target:
+                            curriculum["algorithm"] = "simple_progressive"
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):

@@ -8,7 +8,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from tqdm import tqdm
 
 from metta.common.util.config import copy_omegaconf_config
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum.curriculum import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
 

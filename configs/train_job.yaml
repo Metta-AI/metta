@@ -13,7 +13,9 @@ train_job:
   evals: ${sim}
 
 trainer:
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  curriculum:
+    defaults:
+      - /env/mettagrid/curriculum/arena/random
 
 # If we detect you are on a mac, we update configs related to batch size and checkpoint frequency
 # you can opt out of those by setting this to true

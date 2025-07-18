@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 
 
 def create_test_config():
@@ -62,7 +62,7 @@ def create_test_config():
 def test_curriculum():
     """Create a test curriculum."""
     config = create_test_config()
-    return SingleTaskCurriculum("test_hierarchy", config)
+    return single_task("test_hierarchy", config)
 
 
 class TestNewEnvironmentHierarchy:
@@ -132,7 +132,7 @@ class TestNewEnvironmentHierarchy:
         config = create_test_config()
         config.game.num_agents = 1
         config.game.map_builder.agents = 1
-        curriculum = SingleTaskCurriculum("test_single", config)
+        curriculum = single_task("test_single", config)
 
         env = SingleAgentMettaGridGymEnv(
             curriculum=curriculum,
@@ -151,7 +151,7 @@ class TestNewEnvironmentHierarchy:
         config = create_test_config()
         config.game.num_agents = 1
         config.game.map_builder.agents = 1
-        curriculum = SingleTaskCurriculum("test_single", config)
+        curriculum = single_task("test_single", config)
 
         env = SingleAgentMettaGridGymEnv(
             curriculum=curriculum,
@@ -225,7 +225,7 @@ if __name__ == "__main__":
 
     # Create test curriculum
     config = create_test_config()
-    curriculum = SingleTaskCurriculum("manual_test", config)
+    curriculum = single_task("manual_test", config)
 
     # Test imports
     try:

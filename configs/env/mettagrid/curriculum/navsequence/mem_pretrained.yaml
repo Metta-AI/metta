@@ -1,8 +1,8 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
-
-tasks:
-  /env/mettagrid/extended_sequence/backchain3: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_maze: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
+name: mem_pretrained
+algorithm: prioritize_regressed
+env_paths:
+  - /env/mettagrid/extended_sequence/backchain3
+  - /env/mettagrid/navigation_sequence/experiments/mem_balanced
+  - /env/mettagrid/navigation_sequence/experiments/mem_sparse
+  - /env/mettagrid/navigation_sequence/experiments/mem_maze
+  - /env/mettagrid/navigation_sequence/experiments/mem_dense

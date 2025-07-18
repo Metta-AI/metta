@@ -9,8 +9,8 @@ import wandb
 from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum import Curriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)

@@ -1,5 +1,7 @@
-num_workers: null
-curriculum: ???
+_target_: metta.rl.trainer.MettaTrainer
+num_workers: null  # determined by train.py if not specified
+
+curriculum: ???  # Should be a CurriculumConfig dict or reference a curriculum config
 env_overrides: {}
 
 initial_policy:

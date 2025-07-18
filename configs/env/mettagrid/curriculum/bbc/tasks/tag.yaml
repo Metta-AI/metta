@@ -1,14 +1,14 @@
-# BBC Learning Progress Curriculum
+name: bbc_tag
+algorithm: discrete_random
 
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_paths:
+  - /env/mettagrid/arena/combat
 
-env_cfg_template_path: /env/mettagrid/arena/combat
 env_overrides:
   game:
     objects:
       altar:
         initial_resource_count: 1
-        # no new hearts
         input_resources:
           blueprint: 1
 
@@ -24,6 +24,6 @@ env_overrides:
             lasery: 3
             armory: 3
 
-buckets:
-  game.objects.lasery.initial_resource_count: [0, 1, 20]
-  game.objects.armory.initial_resource_count: [0, 1, 5]
+parameters:
+  game.objects.lasery.initial_resource_count: { values: [0, 1, 20] }
+  game.objects.armory.initial_resource_count: { values: [0, 1, 5] }

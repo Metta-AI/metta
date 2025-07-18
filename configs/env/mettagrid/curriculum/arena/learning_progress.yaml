@@ -1,5 +1,7 @@
+name: arena_learning_progress
+algorithm: learning_progress
+
+# Inherit from base random configuration
 defaults:
   - random
   - _self_
-
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum

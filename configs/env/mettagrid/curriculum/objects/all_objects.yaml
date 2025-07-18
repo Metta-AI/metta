@@ -1,12 +1,14 @@
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+name: all_objects_bucketed
+algorithm: discrete_random
 
-env_cfg_template_path: /env/mettagrid/object_use/training/easy_all_objects
+env_paths:
+  - /env/mettagrid/object_use/training/easy_all_objects
 
-buckets:
-  game.map_builder.width:
+parameters:
+  game.map_builder.room.width:
     range: [15, 50]
     bins: 2
-  game.map_builder.height:
+  game.map_builder.room.height:
     range: [15, 50]
     bins: 2
   game.map_builder.root.params.objects.altar:

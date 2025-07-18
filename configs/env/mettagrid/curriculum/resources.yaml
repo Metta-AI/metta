@@ -1,8 +1,13 @@
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+name: resources_curriculum
+algorithm: discrete_random
 
-env_cfg_template_path: /env/mettagrid/arena/advanced_easy
+env_paths:
+  - /env/mettagrid/arena/advanced_easy
 
-buckets:
-  game.agent.rewards.inventory.ore_red: [0, 0.5, 1]
-  game.agent.rewards.inventory.battery_red: [0, 0.5, 1]
-  game.agent.rewards.inventory.heart: [0, 0.5, 1]
+parameters:
+  game.agent.rewards.inventory.ore_red:
+    values: [0, 0.5, 1]
+  game.agent.rewards.inventory.battery_red:
+    values: [0, 0.5, 1]
+  game.agent.rewards.inventory.heart:
+    values: [0, 0.5, 1]

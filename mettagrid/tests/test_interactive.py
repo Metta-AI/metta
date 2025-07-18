@@ -11,7 +11,7 @@ import time
 import numpy as np
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 from metta.mettagrid.puffer_env import MettaGridPufferEnv
@@ -102,7 +102,7 @@ def test_puffer_env():
     print("=" * 50)
 
     config = create_game_config()
-    curriculum = SingleTaskCurriculum("puffer_interactive", config)
+    curriculum = single_task("puffer_interactive", config)
 
     env = MettaGridPufferEnv(
         curriculum=curriculum,
@@ -156,7 +156,7 @@ def test_gym_env():
     config = create_game_config()
     config.game.num_agents = 1  # Single agent for Gym
     config.game.map_builder.agents = 1
-    curriculum = SingleTaskCurriculum("gym_interactive", config)
+    curriculum = single_task("gym_interactive", config)
 
     env = SingleAgentMettaGridGymEnv(
         curriculum=curriculum,
@@ -203,7 +203,7 @@ def test_pettingzoo_env():
     config = create_game_config()
     config.game.num_agents = 3  # Multi-agent for PettingZoo
     config.game.map_builder.agents = 3
-    curriculum = SingleTaskCurriculum("pettingzoo_interactive", config)
+    curriculum = single_task("pettingzoo_interactive", config)
 
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,

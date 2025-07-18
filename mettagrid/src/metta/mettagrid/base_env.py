@@ -23,7 +23,7 @@ from pydantic import validate_call
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -74,7 +74,7 @@ class MettaGridEnv(ABC):
 
         self._render_mode = render_mode
         self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
+        self._task = self._curriculum.sample()
         self._level = level
         self._renderer = None
         self._map_labels: List[str] = []
@@ -89,7 +89,7 @@ class MettaGridEnv(ABC):
         self._core_env: Optional[MettaGridCore] = None
 
         # Environment metadata
-        self.labels: List[str] = self._task.env_cfg().get("labels", [])
+        self.labels: List[str] = self._task.env_config.get("labels", [])
         self._should_reset = False
 
         # Initialize renderer if needed
@@ -124,11 +124,11 @@ class MettaGridEnv(ABC):
             New MettaGridCore instance
         """
         task = self._task
-        task_cfg = task.env_cfg()
+        task_cfg = task.env_config
         level = self._level
 
         if level is None:
-            with self.timer("_initialize_c_env.build_map"):
+            with self.timer("_create_core_env.build_map"):
                 level = task_cfg.game.map_builder.build()
 
         # Validate the level
@@ -138,7 +138,6 @@ class MettaGridEnv(ABC):
         )
 
         game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
 
         # Ensure we have a dict
         if not isinstance(game_config_dict, dict):
@@ -183,7 +182,7 @@ class MettaGridEnv(ABC):
         self.timer.stop("thread_idle")
 
         # Get new task from curriculum
-        self._task = self._curriculum.get_task()
+        self._task = self._curriculum.sample()
 
         # Create new core environment
         self._core_env = self._create_core_env(seed)
@@ -280,8 +279,8 @@ class MettaGridEnv(ABC):
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
         # Add curriculum stats
-        infos.update(self._curriculum.get_completion_rates())
-        curriculum_stats = self._curriculum.get_curriculum_stats()
+        infos.update(self._curriculum.stats().get_total_completions())
+        curriculum_stats = self._curriculum.stats().get_algorithm_stats()
         for key, value in curriculum_stats.items():
             infos[f"curriculum/{key}"] = value
 
@@ -324,12 +323,10 @@ class MettaGridEnv(ABC):
                 self._write_episode_stats(stats, episode_rewards, replay_url)
 
         # Update curriculum
-        # Note: mettagrid/src/metta/mettagrid/mettagrid_env.py has been updated to work with multiple trials per
-        # episode, but we haven't. That should be okay as long as we're only dealing with single-trial episodes.
-        self._task.complete_trial(episode_rewards_mean)
+        self._task.complete(episode_rewards_mean)
 
         # Add curriculum task probabilities
-        infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+        infos["curriculum_task_probs"] = self._curriculum.get_task_probabilities(relative_to_root=True)
 
         # Add timing information
         self._add_timing_info(infos)
@@ -338,8 +335,8 @@ class MettaGridEnv(ABC):
         task_init_time_msec = self.timer.lap_all().get("_create_core_env", 0) * 1000
         infos.update(
             {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
+                f"task_reward/{self._task.name}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{self._task.name}/init_time_msec": task_init_time_msec,
             }
         )
 
@@ -357,7 +354,7 @@ class MettaGridEnv(ABC):
 
         # Flatten environment config
         env_cfg_flattened: Dict[str, str] = {}
-        env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+        env_cfg = OmegaConf.to_container(self._task.env_config, resolve=False)
         for k, v in unroll_nested_dict(cast(Dict[str, Any], env_cfg)):
             env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 
