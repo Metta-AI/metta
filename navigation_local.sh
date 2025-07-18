@@ -8,6 +8,7 @@ trainer.curriculum=env/mettagrid/curriculum/navigation/random \
 ++trainer.env_overrides.special_reward_mode=ffa \
 ++trainer.env_overrides.game.num_agents=8 \
 ++trainer.env_overrides.game.map_builder.room.agents=2 \
+++trainer.env_overrides.game.map_builder.room.agent_cluster_type=positions_in_same_area \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 seed=0 \
 sim=navigation \

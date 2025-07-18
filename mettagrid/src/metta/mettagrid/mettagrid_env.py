@@ -195,10 +195,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self.timer.stop("thread_idle")
 
-        random_task_number = np.random.randint(0, 10001)
+        # random_task_number = np.random.randint(0, 10001)
         # print(f"Random task number: {random_task_number}")
 
-        self._task = self._curriculum.get_task(random_task_number)
+        self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
         self._steps = 0

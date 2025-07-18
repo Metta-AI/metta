@@ -79,11 +79,13 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         border_width: int = 0,
         border_object: str = "wall",
+        agent_cluster_type: str = "no_clustering",
     ):
         self._dir = dir
         self._file = file
         self._agents = agents
         self._objects = objects
+        self._agent_cluster_type = agent_cluster_type
         super().__init__(border_width=border_width, border_object=border_object)
 
     def get_valid_positions(self, level):
@@ -264,12 +266,19 @@ class TerrainFromNumpy(Room):
             raise TypeError("Unsupported _agents type")
         num_agents = len(agent_labels)
 
-        valid_positions = self.get_valid_positions(level)
-        # valid_positions = self.right_next_to_each_other_positions(level, num_agents)
-        # valid_positions = self.positions_in_same_area(level, num_agents)
-        random.shuffle(valid_positions)
+        if self._agent_cluster_type == "no_clustering":
+            valid_positions = self.get_valid_positions(level)
+        elif self._agent_cluster_type == "right_next_to_each_other":
+            valid_positions = self.right_next_to_each_other_positions(level, num_agents)
+        elif self._agent_cluster_type == "positions_in_same_area":
+            valid_positions = self.positions_in_same_area(level, num_agents)
+        else:
+            raise ValueError(f"Invalid agent cluster type: {self._agent_cluster_type}")
 
         # 5. Place agents in first slice
+        if len(valid_positions) < num_agents:
+            valid_positions = self.get_valid_positions(level)
+            # raise ValueError(f"tfnp Not enough valid positions found for {num_agents} agents")
         agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label

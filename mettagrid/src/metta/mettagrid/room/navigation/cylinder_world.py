@@ -17,6 +17,7 @@ class CylinderWorld(Room):
         border_width: int = 0,
         border_object: str = "wall",
         team: str | None = None,
+        agent_cluster_type: str = "no_clustering",
     ):
         super().__init__(border_width=border_width, border_object=border_object, labels=["cylinder_world"])
         self._rng = np.random.default_rng(seed)
@@ -26,6 +27,7 @@ class CylinderWorld(Room):
         self._team = team
         # occupancy mask: False = empty
         self._occ = np.zeros((height, width), dtype=bool)
+        self._agent_cluster_type = agent_cluster_type
 
         self.set_size_labels(width, height)
 
@@ -234,9 +236,19 @@ class CylinderWorld(Room):
 
         level = np.where(~self._occupancy, "empty", "occupied")
         num_agents = len(agents)
-        valid_positions = self.get_valid_positions(level, num_agents)
-        # valid_positions = self.right_next_to_each_other_positions(level, num_agents)
-        # valid_positions = self.positions_in_same_area(level, num_agents)
+        if self._agent_cluster_type == "no_clustering":
+            valid_positions = self.get_valid_positions(level)
+        elif self._agent_cluster_type == "right_next_to_each_other":
+            valid_positions = self.right_next_to_each_other_positions(level, num_agents)
+        elif self._agent_cluster_type == "positions_in_same_area":
+            valid_positions = self.positions_in_same_area(level, num_agents)
+        else:
+            raise ValueError(f"Invalid agent cluster type: {self._agent_cluster_type}")
+
+        if len(valid_positions) < num_agents:
+            valid_positions = self.get_valid_positions(level)
+            # raise ValueError(f"cw Not enough valid positions found for {num_agents} agents")
+
         random.shuffle(valid_positions)
 
         agent_positions = valid_positions[:num_agents]

@@ -81,6 +81,7 @@ class VariedTerrain(Room):
         occupancy_threshold: float = 0.66,  # maximum fraction of grid cells to occupy
         style: str = "balanced",
         teams: list | None = None,
+        agent_cluster_type: str = "no_clustering",
     ):
         super().__init__(border_width=border_width, border_object=border_object, labels=[style])
         self.set_size_labels(width, height)
@@ -90,6 +91,7 @@ class VariedTerrain(Room):
         self._agents = agents
         self._teams = teams
         self._occupancy_threshold = occupancy_threshold
+        self._agent_cluster_type = agent_cluster_type
 
         if style not in self.STYLE_PARAMETERS:
             raise ValueError(f"Unknown style: '{style}'. Available styles: {list(self.STYLE_PARAMETERS.keys())}")
@@ -295,12 +297,19 @@ class VariedTerrain(Room):
 
         level = np.where(~self._occupancy, "empty", "occupied")
         num_agents = len(agents)
-        valid_positions = self.get_valid_positions(level, num_agents)
-        # valid_positions = self.right_next_to_each_other_positions(level, num_agents)
-        # valid_positions = self.positions_in_same_area(level, num_agents)
-        random.shuffle(valid_positions)
+        if self._agent_cluster_type == "no_clustering":
+            valid_positions = self.get_valid_positions(level)
+        elif self._agent_cluster_type == "right_next_to_each_other":
+            valid_positions = self.right_next_to_each_other_positions(level, num_agents)
+        elif self._agent_cluster_type == "positions_in_same_area":
+            valid_positions = self.positions_in_same_area(level, num_agents)
+        else:
+            raise ValueError(f"Invalid agent cluster type: {self._agent_cluster_type}")
 
         # 5. Place agents in first slice
+        if len(valid_positions) < num_agents:
+            valid_positions = self.get_valid_positions(level)
+            # raise ValueError(f"vtNot enough valid positions found for {num_agents} agents")
         agent_positions = valid_positions[:num_agents]
 
         # Place agents.

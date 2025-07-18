@@ -25,6 +25,7 @@ game:
       agents: 1
       objects:
         altar: ${sampling:10, 50, 30}
+      agent_cluster_type: no_clustering
   objects:
     altar:
       cooldown: 1000
