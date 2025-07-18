@@ -441,43 +441,42 @@ class MettaAgent(nn.Module):
             - In inference mode, this contains data to be stored in the experience buffer.
             - In training mode, this contains data for loss calculation.
         """
-        # The internal components work with a shared TensorDict that expects specific keys.
-        # We'll create one and populate it from the input_td.
-        internal_td = TensorDict({}, batch_size=input_td.batch_size, device=input_td.device)
-
-        # The observation is expected under the key "x" by the components.
-        internal_td["x"] = input_td["obs"]
+        # The internal components work with a shared dictionary.
+        # We extract the required data from the input TensorDict and place it in a plain dict.
+        internal_data = {"x": input_td["obs"]}
 
         # The recurrent state is expected under the key "state".
         if "lstm_h" in input_td.keys() and "lstm_c" in input_td.keys():
             # The `state` is a concatenation of h and c states along the layer dimension.
-            # This keeps the batch dimension first, as required by TensorDict.
-            # The core component is expected to handle the permutation to (layers, batch, hidden).
-            lstm_h = input_td["lstm_h"].to(internal_td["x"].device)
-            lstm_c = input_td["lstm_c"].to(internal_td["x"].device)
+            lstm_h = input_td["lstm_h"].to(internal_data["x"].device)
+            lstm_c = input_td["lstm_c"].to(internal_data["x"].device)
+            internal_data["lstm_h"] = lstm_h
+            internal_data["lstm_c"] = lstm_c
             # Concatenate along dim 1 (the layer dim)
-            internal_td["state"] = torch.cat([lstm_h, lstm_c], dim=1)
+            # internal_data["state"] = torch.cat([lstm_h, lstm_c], dim=0)
         else:
             # If no state is provided, the LSTM core will initialize a zero state.
-            internal_td["state"] = None
+            internal_data["lstm_h"] = None
+            internal_data["lstm_c"] = None
+            # internal_data["state"] = None
 
         # Forward pass through value network. This will also run the core network.
-        self.components["_value_"](internal_td)
-        value = internal_td["_value_"]
+        self.components["_value_"](internal_data)
+        value = internal_data["_value_"]
 
         # Value shape is (BT, 1) - keeping the final dimension explicit
         if __debug__:
             assert_shape(value, ("BT", 1), "value")
 
         # Forward pass through action network. This will reuse the core network's output.
-        self.components["_action_"](internal_td)
-        logits = internal_td["_action_"]
+        self.components["_action_"](internal_data)
+        logits = internal_data["_action_"]
 
         if __debug__:
             assert_shape(logits, ("BT", "A"), "logits")
 
-        # After the forward passes, internal_td["state"] holds the *new* recurrent state.
-        new_state = internal_td["state"]
+        # After the forward passes, internal_data["state"] holds the *new* recurrent state.
+        new_state = internal_data["state"]
 
         if action is None:
             # Inference mode

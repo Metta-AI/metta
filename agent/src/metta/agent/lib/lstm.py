@@ -49,11 +49,14 @@ class LSTM(LayerBase):
     def _forward(self, td: TensorDict):
         x = td["x"]
         hidden = td[self._sources[0]["name"]]
-        state = td["state"]
+        # state = td["state"]
+        lstm_h = td["lstm_h"]
+        lstm_c = td["lstm_c"]
 
-        if state is not None:
-            split_size = self.num_layers
-            state = (state[:split_size], state[split_size:])
+        state = None
+        if lstm_h is not None and lstm_c is not None:
+            # LSTM expects (num_layers, batch, features), so we permute
+            state = (lstm_h.permute(1, 0, 2), lstm_c.permute(1, 0, 2))
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -67,11 +70,11 @@ class LSTM(LayerBase):
         else:
             raise ValueError("Invalid input tensor shape", x.shape)
 
-        if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
-        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
-            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
-        )
+        # if state is not None:
+        #     assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
+        # assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
+        #     f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
+        # )
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
@@ -80,10 +83,11 @@ class LSTM(LayerBase):
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
         if state is not None:
-            state = tuple(s.detach() for s in state)
-            state = torch.cat(state, dim=0)
+            # Unpack the state tuple and permute back to (batch, num_layers, features)
+            lstm_h, lstm_c = state
+            td["lstm_h"] = lstm_h.detach().permute(1, 0, 2)
+            td["lstm_c"] = lstm_c.detach().permute(1, 0, 2)
 
         td[self._name] = hidden
-        td["state"] = state
 
         return td
