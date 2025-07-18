@@ -6,7 +6,7 @@ Detailed agent behavior metrics including actions taken, items collected, combat
 and other agent-specific events. These metrics help understand what agents are actually doing
 in the environment.
 
-**Total metrics in this section:** 1164
+**Total metrics in this section:** 1209
 
 ## Metric Suffixes
 
@@ -1373,5 +1373,105 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/status.frozen.ticks.agent.updates`
 - `env_agent/status.frozen.ticks.agent.updates.std_dev`
 - `env_agent/status.frozen.ticks.agent.std_dev`
+
+**movement/facing/down:** (9 values / 9 std_devs)
+- `env_agent/movement/facing/down`
+- `env_agent/movement/facing/down.activity_rate`
+- `env_agent/movement/facing/down.activity_rate.std_dev`
+- `env_agent/movement/facing/down.avg`
+- `env_agent/movement/facing/down.avg.std_dev`
+- `env_agent/movement/facing/down.first_step`
+- `env_agent/movement/facing/down.first_step.std_dev`
+- `env_agent/movement/facing/down.last_step`
+- `env_agent/movement/facing/down.last_step.std_dev`
+- `env_agent/movement/facing/down.max`
+- `env_agent/movement/facing/down.max.std_dev`
+- `env_agent/movement/facing/down.min`
+- `env_agent/movement/facing/down.min.std_dev`
+- `env_agent/movement/facing/down.rate`
+- `env_agent/movement/facing/down.rate.std_dev`
+- `env_agent/movement/facing/down.updates`
+- `env_agent/movement/facing/down.updates.std_dev`
+- `env_agent/movement/facing/down.std_dev`
+
+**movement/facing/left:** (9 values / 9 std_devs)
+- `env_agent/movement/facing/left`
+- `env_agent/movement/facing/left.activity_rate`
+- `env_agent/movement/facing/left.activity_rate.std_dev`
+- `env_agent/movement/facing/left.avg`
+- `env_agent/movement/facing/left.avg.std_dev`
+- `env_agent/movement/facing/left.first_step`
+- `env_agent/movement/facing/left.first_step.std_dev`
+- `env_agent/movement/facing/left.last_step`
+- `env_agent/movement/facing/left.last_step.std_dev`
+- `env_agent/movement/facing/left.max`
+- `env_agent/movement/facing/left.max.std_dev`
+- `env_agent/movement/facing/left.min`
+- `env_agent/movement/facing/left.min.std_dev`
+- `env_agent/movement/facing/left.rate`
+- `env_agent/movement/facing/left.rate.std_dev`
+- `env_agent/movement/facing/left.updates`
+- `env_agent/movement/facing/left.updates.std_dev`
+- `env_agent/movement/facing/left.std_dev`
+
+**movement/facing/right:** (9 values / 9 std_devs)
+- `env_agent/movement/facing/right`
+- `env_agent/movement/facing/right.activity_rate`
+- `env_agent/movement/facing/right.activity_rate.std_dev`
+- `env_agent/movement/facing/right.avg`
+- `env_agent/movement/facing/right.avg.std_dev`
+- `env_agent/movement/facing/right.first_step`
+- `env_agent/movement/facing/right.first_step.std_dev`
+- `env_agent/movement/facing/right.last_step`
+- `env_agent/movement/facing/right.last_step.std_dev`
+- `env_agent/movement/facing/right.max`
+- `env_agent/movement/facing/right.max.std_dev`
+- `env_agent/movement/facing/right.min`
+- `env_agent/movement/facing/right.min.std_dev`
+- `env_agent/movement/facing/right.rate`
+- `env_agent/movement/facing/right.rate.std_dev`
+- `env_agent/movement/facing/right.updates`
+- `env_agent/movement/facing/right.updates.std_dev`
+- `env_agent/movement/facing/right.std_dev`
+
+**movement/facing/up:** (9 values / 9 std_devs)
+- `env_agent/movement/facing/up`
+- `env_agent/movement/facing/up.activity_rate`
+- `env_agent/movement/facing/up.activity_rate.std_dev`
+- `env_agent/movement/facing/up.avg`
+- `env_agent/movement/facing/up.avg.std_dev`
+- `env_agent/movement/facing/up.first_step`
+- `env_agent/movement/facing/up.first_step.std_dev`
+- `env_agent/movement/facing/up.last_step`
+- `env_agent/movement/facing/up.last_step.std_dev`
+- `env_agent/movement/facing/up.max`
+- `env_agent/movement/facing/up.max.std_dev`
+- `env_agent/movement/facing/up.min`
+- `env_agent/movement/facing/up.min.std_dev`
+- `env_agent/movement/facing/up.rate`
+- `env_agent/movement/facing/up.rate.std_dev`
+- `env_agent/movement/facing/up.updates`
+- `env_agent/movement/facing/up.updates.std_dev`
+- `env_agent/movement/facing/up.std_dev`
+
+**movement/sequential_rotations:** (9 values / 9 std_devs)
+- `env_agent/movement/sequential_rotations`
+- `env_agent/movement/sequential_rotations.activity_rate`
+- `env_agent/movement/sequential_rotations.activity_rate.std_dev`
+- `env_agent/movement/sequential_rotations.avg`
+- `env_agent/movement/sequential_rotations.avg.std_dev`
+- `env_agent/movement/sequential_rotations.first_step`
+- `env_agent/movement/sequential_rotations.first_step.std_dev`
+- `env_agent/movement/sequential_rotations.last_step`
+- `env_agent/movement/sequential_rotations.last_step.std_dev`
+- `env_agent/movement/sequential_rotations.max`
+- `env_agent/movement/sequential_rotations.max.std_dev`
+- `env_agent/movement/sequential_rotations.min`
+- `env_agent/movement/sequential_rotations.min.std_dev`
+- `env_agent/movement/sequential_rotations.rate`
+- `env_agent/movement/sequential_rotations.rate.std_dev`
+- `env_agent/movement/sequential_rotations.updates`
+- `env_agent/movement/sequential_rotations.updates.std_dev`
+- `env_agent/movement/sequential_rotations.std_dev`
 
 

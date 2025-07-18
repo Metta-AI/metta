@@ -91,6 +91,12 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
     del game_cpp_params["agent"]
     del game_cpp_params["groups"]
 
+    # Remove Python-only config that C++ doesn't need
+    if "track_movement_metrics" in game_cpp_params:
+        track_movement_metrics = game_cpp_params.pop("track_movement_metrics")
+    else:
+        track_movement_metrics = False
+
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
     global_obs_cpp = CppGlobalObsConfig(
@@ -126,6 +132,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
+    game_cpp_params["track_movement_metrics"] = track_movement_metrics
     # Note: global_observations configuration is handled internally by the C++ code
     # and is not configurable through GameConfig
 

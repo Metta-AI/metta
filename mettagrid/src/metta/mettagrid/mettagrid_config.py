@@ -138,3 +138,8 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+
+    # Movement metrics configuration
+    track_movement_metrics: bool = Field(
+        default=False, description="Enable movement metrics tracking (turn angles, direction distribution)"
+    )
