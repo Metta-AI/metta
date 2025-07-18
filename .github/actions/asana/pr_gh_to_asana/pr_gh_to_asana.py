@@ -701,9 +701,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
     existing_comments_by_review_id = {
         comment["review_id"]: comment for comment in asana_comments_with_links if comment["review_id"] is not None
     }
-    print(
-        f"[synchronize_comments_in_asana_as_multiple_blocks] Existing comments by review ID: {list(existing_comments_by_review_id.keys())}"
-    )
+    print(f"[s] Existing comments by review ID: {list(existing_comments_by_review_id.keys())}")
 
     # Process each GitHub review
     for github_review in comments_from_github:
@@ -713,9 +711,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
         review_state = github_review["action"]
         github_timestamp = github_review["timestamp"]
 
-        print(
-            f"[synchronize_comments_in_asana_as_multiple_blocks] Processing review {review_id} from {github_user} ({review_state})"
-        )
+        print(f"[s] Processing review {review_id} from {github_user} ({review_state})")
 
         # Format the review for Asana
         formatted_comment = format_github_review_body_for_asana(
@@ -727,9 +723,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
             # Update existing comment if content differs
             existing_comment = existing_comments_by_review_id[review_id]
             if existing_comment["text"] != formatted_comment:
-                print(
-                    f"[synchronize_comments_in_asana_as_multiple_blocks] Updating existing comment for review {review_id}"
-                )
+                print(f"[s] Updating existing comment for review {review_id}")
                 story_id = existing_comment["id"]
                 url = f"https://app.asana.com/api/1.0/stories/{story_id}"
                 payload = {"data": {"html_text": formatted_comment}}
@@ -744,24 +738,39 @@ def synchronize_comments_in_asana_as_multiple_blocks(
             else:
                 print(f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} comment is up to date")
         else:
-            print(
-                f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} has no existing Asana comment"
-            )
+            print(f"[s] Review {review_id} has no existing Asana comment")
             # Check if we should add this comment (don't add out of order)
-            should_add = True
+            # Find the last existing comment that matches a GitHub review
+            last_matching_review_id = None
             for existing_comment in asana_comments_with_links:
                 if existing_comment["review_id"] is not None:
-                    # If we find an existing comment that matches a GitHub review,
-                    # only add new comments after that point
                     if existing_comment["review_id"] in {r["id"] for r in comments_from_github}:
-                        print(
-                            f"[synchronize_comments_in_asana_as_multiple_blocks] Found existing comment with review ID {existing_comment['review_id']}, skipping addition of review {review_id}"
-                        )
-                        should_add = False
+                        last_matching_review_id = existing_comment["review_id"]
+
+            # Check if this review comes before the last matching review
+            should_add = True
+            if last_matching_review_id is not None:
+                # Find the position of the last matching review in the GitHub reviews list
+                last_matching_index = -1
+                for i, review in enumerate(comments_from_github):
+                    if review["id"] == last_matching_review_id:
+                        last_matching_index = i
                         break
 
+                # Find the position of current review in the GitHub reviews list
+                current_review_index = -1
+                for i, review in enumerate(comments_from_github):
+                    if review["id"] == review_id:
+                        current_review_index = i
+                        break
+
+                # Only add if current review comes after the last matching review
+                if current_review_index <= last_matching_index:
+                    print(f"[s] Review {review_id} comes before or at last  review {last_matching_review_id}, skipping")
+                    should_add = False
+
             if should_add:
-                print(f"[synchronize_comments_in_asana_as_multiple_blocks] Adding new comment for review {review_id}")
+                print(f"[s] Adding new comment for review {review_id}")
                 # Create new comment
                 url = f"{api_url}/stories"
                 payload = {"data": {"text": formatted_comment}}
@@ -772,9 +781,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                 except requests.exceptions.RequestException as e:
                     print(f"Error adding Asana comment for review {review_id}: {e}")
             else:
-                print(
-                    f"[synchronize_comments_in_asana_as_multiple_blocks] Skipped adding comment for review {review_id} due to ordering constraint"
-                )
+                print(f"[s] Skipped adding comment for review {review_id} due to ordering constraint")
 
     # Remove any existing comments that don't correspond to current GitHub reviews
     # current_review_ids = {review["id"] for review in comments_from_github}
