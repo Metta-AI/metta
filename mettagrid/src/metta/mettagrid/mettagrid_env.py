@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 # Additional backward compatibility types
+import os
 import numpy as np
 
 # Import all the new adapters for easy access
@@ -33,16 +34,36 @@ def required(func):
     return func
 
 
-# Backward compatibility aliases
-class MettaGridEnv(MettaGridPufferEnv):
-    """
-    Main MettaGridEnv class - backward compatible with PufferLib adapter.
+# Adapter mapping for configurable environment selection (training-compatible adapters only)
+_ADAPTER_MAP = {
+    "puffer": MettaGridPufferEnv,
+    "pettingzoo": MettaGridPettingZooEnv,
+    "core": MettaGridCore,
+}
 
-    This class is now a thin wrapper around MettaGridPufferEnv to maintain
-    backward compatibility while using the new modular architecture.
+
+class MettaGridEnv:
+    """
+    Dynamic environment adapter that selects the appropriate adapter class at runtime.
+
+    The adapter is selected based on the METTAGRID_ADAPTER environment variable:
+    - "puffer" (default): Returns MettaGridPufferEnv and maintains backward compatibility
+    - "pettingzoo": Returns MettaGridPettingZooEnv
+    - "core": Returns MettaGridCore
+
+    Note: MettaGridGymEnv is available as a standalone class for Gymnasium research
+    but is not part of the configurable system since it's not training-compatible.
     """
 
-    pass
+    def __new__(cls, *args, **kwargs):
+        """Create instance of the selected adapter class."""
+        adapter_name = os.environ.get("METTAGRID_ADAPTER", "puffer").lower()
+
+        if adapter_name not in _ADAPTER_MAP:
+            raise ValueError(f"Unknown adapter '{adapter_name}'. Available adapters: {list(_ADAPTER_MAP.keys())}")
+
+        adapter_class = _ADAPTER_MAP[adapter_name]
+        return adapter_class(*args, **kwargs)
 
 
 # All existing functionality is now inherited from MettaGridPufferEnv

@@ -158,6 +158,9 @@ def test_puffer_training_integration():
     print("\nPUFFER TRAINING INTEGRATION TEST")
     print("=" * 60)
 
+    # Set environment variable to use Puffer adapter
+    os.environ["METTAGRID_ADAPTER"] = "puffer"
+
     with tempfile.TemporaryDirectory() as temp_dir:
         test_id = f"puffer_train_test_{int(time.time())}"
 
@@ -168,7 +171,7 @@ def test_puffer_training_integration():
             f"run={test_id}",
             "+hardware=macbook",
             "trainer.num_workers=1",
-            "trainer.total_timesteps=3",
+            "trainer.total_timesteps=10",
             "trainer.checkpoint.checkpoint_interval=1",
             "trainer.simulation.evaluate_interval=0",
             "wandb=off",
@@ -179,12 +182,17 @@ def test_puffer_training_integration():
         print(f"   - Test ID: {test_id}")
 
         try:
+            # Pass environment variable to subprocess
+            env = os.environ.copy()
+            env["METTAGRID_ADAPTER"] = "puffer"
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,
                 cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
+                env=env,
             )
 
             if result.returncode == 0:

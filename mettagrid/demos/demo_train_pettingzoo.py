@@ -117,6 +117,9 @@ def test_pettingzoo_training_integration():
     print("\nPETTINGZOO TRAINING INTEGRATION TEST")
     print("=" * 60)
 
+    # Set environment variable to use PettingZoo adapter
+    os.environ["METTAGRID_ADAPTER"] = "pettingzoo"
+
     with tempfile.TemporaryDirectory() as temp_dir:
         test_id = f"pettingzoo_train_test_{int(time.time())}"
 
@@ -137,12 +140,17 @@ def test_pettingzoo_training_integration():
         print(f"   - Test ID: {test_id}")
 
         try:
+            # Pass environment variable to subprocess
+            env = os.environ.copy()
+            env["METTAGRID_ADAPTER"] = "pettingzoo"
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,
                 cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
+                env=env,
             )
 
             if result.returncode == 0:

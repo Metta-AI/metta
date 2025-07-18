@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        demo: [demo_train_core, demo_train_gym, demo_train_pettingzoo, demo_train_puffer]
+        demo: [demo_train_core, demo_train_pettingzoo, demo_train_puffer]
     
     steps:
     - name: Checkout repository
