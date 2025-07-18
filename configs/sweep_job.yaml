@@ -12,15 +12,15 @@ sweep_name: ???  # Will be set via command line override
 
 trainer:
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  curriculum: /env/mettagrid/arena/basic_easy_shaped # This won't be used, but needed for Pydantic
   simulation:
     evaluate_interval: 0  # No evaluation during training for speed
     replay_dir: "" # No replays for sweeps
 
 sim:
   name: sweep_eval  # Required field
-  num_episodes: 2
-  max_time_s: 10
+  num_episodes: 5
+  max_time_s: 240
   env_overrides: {}
   simulations:
     simple:
@@ -34,6 +34,7 @@ sweep_job:
   trainer: ${trainer}
   agent: ${agent}
   wandb: ${wandb}
+  run: ???
   runs_dir: "${sweep_dir}/runs"
   seed: null  # Will be randomly generated for each run if not specified
   stats_server_uri: null # No logging to observatory for sweeps
