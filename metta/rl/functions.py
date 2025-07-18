@@ -7,17 +7,16 @@ extracting the rollout and train logic from MettaTrainer into standalone functio
 import logging
 from collections import defaultdict
 from contextlib import nullcontext
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import einops
 import numpy as np
 import torch
 import torch.distributed
 from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+from tensordict import TensorDict
 from torch import Tensor
 
-from metta.agent.policy_state import PolicyState
-from metta.agent.util.debug import assert_shape
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
@@ -56,47 +55,25 @@ def get_observation(
 
 def run_policy_inference(
     policy: torch.nn.Module,
-    observations: Tensor,
-    experience: Experience,
-    training_env_id_start: int,
+    input_td: TensorDict,
     device: torch.device,
-) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
+) -> TensorDict:
     """Run the policy to get actions and value estimates.
 
     Returns:
-        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
+        A TensorDict containing all data to be stored in the experience buffer.
     """
-
-    # av this LSTM stuff should be a method on the policy. the policy would have to know that it's in rollout mode
     with torch.no_grad():
-        state = PolicyState()
-        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
-        if lstm_h is not None:
-            state.lstm_h = lstm_h
-            state.lstm_c = lstm_c
-
-        # av instead of passing state, we should pass a td of the tensors the policy wants stored in the experience
-        # buffer.
-        actions, selected_action_log_probs, _, value, _ = policy(observations, state)
-        # av policy should return a td of the tensors it wants stored in the experience buffer.
-
-        if __debug__:
-            assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
-            assert_shape(actions, ("BT", 2), "actions")
-
-        lstm_state_to_store = None
-        if state.lstm_h is not None:
-            lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
+        experience_td = policy(input_td)
 
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store # av here we can return the td
-# of tensors the policy wants stored in the experience buffer.
+    return experience_td
 
 
 def compute_ppo_losses(
-    minibatch: Dict[str, Tensor],
+    minibatch: TensorDict,
     new_logprobs: Tensor,
     entropy: Tensor,
     newvalue: Tensor,
@@ -142,7 +119,7 @@ def compute_ppo_losses(
 def process_minibatch_update(
     policy: torch.nn.Module,
     experience: Experience,
-    minibatch: Dict[str, Tensor],
+    minibatch: TensorDict,
     advantages: Tensor,
     trainer_cfg: Any,
     kickstarter: Any,
@@ -151,16 +128,15 @@ def process_minibatch_update(
     device: torch.device,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
-    obs = minibatch["obs"]
+    # The policy's training forward pass returns a TD with required tensors for loss calculation.
+    policy_output = policy(minibatch, action=minibatch["actions"])
+    new_logprobs = policy_output["action_log_prob"].reshape(minibatch["logprobs"].shape)
+    entropy = policy_output["entropy"]
+    newvalue = policy_output["value"]
+    full_logprobs = policy_output["log_probs"]
 
-    lstm_state = PolicyState()
-    _, new_logprobs, entropy, newvalue, full_logprobs = policy(obs, lstm_state, action=minibatch["actions"])
-
-    new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
     logratio = new_logprobs - minibatch["logprobs"]
     importance_sampling_ratio = logratio.exp()
-    # av ideally this would call a generic update method using something like "ratio" as the key
-    experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
     # Re-compute advantages with new ratios (V-trace)
     adv = compute_advantage(
@@ -186,7 +162,9 @@ def process_minibatch_update(
     )
 
     # Kickstarter losses
-    ks_action_loss, ks_value_loss = kickstarter.loss(agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[])
+    ks_action_loss, ks_value_loss = kickstarter.loss(
+        agent_step, full_logprobs, newvalue, minibatch["obs"], teacher_lstm_state=[]
+    )
 
     # L2 init loss
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
@@ -203,8 +181,12 @@ def process_minibatch_update(
         + ks_value_loss
     )
 
-    # Update values in experience buffer
-    experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
+    # Update values and ratio in experience buffer
+    update_td = TensorDict(
+        {"values": newvalue.view(minibatch["values"].shape), "ratio": importance_sampling_ratio},
+        batch_size=minibatch.batch_size,
+    )
+    experience.update(minibatch["indices"], update_td)
 
     # Update loss tracking
     losses.policy_loss_sum += pg_loss.item()

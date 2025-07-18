@@ -5,10 +5,10 @@ import gymnasium as gym
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
+from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -69,6 +69,9 @@ class DistributedMettaAgent(DistributedDataParallel):
     ) -> None:
         # is_training parameter is deprecated and ignored - mode is auto-detected
         return self.module.initialize_to_environment(features, action_names, action_max_params, device)
+
+    def get_experience_spec(self) -> TensorDict:
+        return self.module.get_experience_spec()
 
 
 class MettaAgent(nn.Module):
@@ -144,6 +147,25 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
+
+    def get_experience_spec(self) -> TensorDict:
+        """Get the specification for the experience buffer."""
+        # Note: These tensors are unbatched and on CPU.
+        # The experience buffer will expand and move them to the correct device.
+        return TensorDict(
+            {
+                "obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
+                "rewards": torch.zeros((), dtype=torch.float32),
+                "dones": torch.zeros((), dtype=torch.bool),
+                "truncateds": torch.zeros((), dtype=torch.bool),
+                "actions": torch.zeros(self.agent_attributes["action_space"].shape, dtype=torch.int32),
+                "logprobs": torch.zeros((), dtype=torch.float32),
+                "values": torch.zeros((), dtype=torch.float32),
+                "lstm_h": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
+                "lstm_c": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
+            },
+            batch_size=[],
+        )
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
@@ -330,9 +352,7 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward_inference(
-        self, value: torch.Tensor, logits: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward_inference(self, value: torch.Tensor, logits: torch.Tensor) -> TensorDict:
         """
         Forward pass for inference mode - samples new actions based on the policy.
 
@@ -341,25 +361,21 @@ class MettaAgent(nn.Module):
             logits: Action logits tensor, shape (BT, A)
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Sampled action, shape (BT, 2)
-            - action_log_prob: Log probability of the sampled action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT, 1)
-            - log_probs: Log-softmax of logits, shape (BT, A)
+            TensorDict containing:
+            - actions: Sampled action, shape (BT, 2)
+            - logprobs: Log probability of the sampled action, shape (BT,)
+            - values: Value estimate, shape (BT,)
         """
         if __debug__:
             assert_shape(value, ("BT", 1), "inference_value")
             assert_shape(logits, ("BT", "A"), "inference_logits")
 
         # Sample actions
-        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+        action_logit_index, action_log_prob, _, _ = sample_actions(logits)
 
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "action_logit_index")
             assert_shape(action_log_prob, ("BT",), "action_log_prob")
-            assert_shape(entropy, ("BT",), "entropy")
-            assert_shape(log_probs, ("BT", "A"), "log_probs")
 
         # Convert logit index to action
         action = self._convert_logit_index_to_action(action_logit_index)
@@ -367,11 +383,11 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action, ("BT", 2), "inference_output_action")
 
-        return action, action_log_prob, entropy, value, log_probs
+        return TensorDict(
+            {"actions": action, "logprobs": action_log_prob, "values": value.flatten()}, batch_size=action.shape[0]
+        )
 
-    def forward_training(
-        self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward_training(self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor) -> TensorDict:
         """
         Forward pass for training mode - evaluates the policy on provided actions.
 
@@ -381,8 +397,7 @@ class MettaAgent(nn.Module):
             action: Action tensor for evaluation, shape (B, T, 2)
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Same as input action, shape (B, T, 2)
+            TensorDict containing:
             - action_log_prob: Log probability of the provided action, shape (BT,)
             - entropy: Entropy of the action distribution, shape (BT,)
             - value: Value estimate, shape (BT, 1)
@@ -406,90 +421,79 @@ class MettaAgent(nn.Module):
             assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
             assert_shape(entropy, ("BT",), "training_entropy")
             assert_shape(log_probs, ("BT", "A"), "training_log_probs")
-            assert_shape(action, ("B", "T", 2), "training_output_action")
 
-        return action, action_log_prob, entropy, value, log_probs
+        return TensorDict(
+            {"action_log_prob": action_log_prob, "entropy": entropy, "value": value, "log_probs": log_probs},
+            batch_size=value.shape[0],
+        )
 
-    def forward(
-        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, input_td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         """
-        Forward pass of the MettaAgent - delegates to appropriate specialized method.
+        Forward pass of the MettaAgent.
 
         Args:
-            x: Input observation tensor
-            state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor for BPTT
+            input_td: A TensorDict containing at least "obs". During inference, it should also contain
+                      the recurrent state keys ("lstm_h", "lstm_c") if they are to be used.
+            action: Optional action tensor for BPTT (training mode).
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            A TensorDict containing the model's output.
+            - In inference mode, this contains data to be stored in the experience buffer.
+            - In training mode, this contains data for loss calculation.
         """
-        if __debug__:
-            # Default values in case obs_shape is not available
-            obs_w, obs_h, features = "W", "H", "F"
+        # The internal components work with a shared TensorDict that expects specific keys.
+        # We'll create one and populate it from the input_td.
+        internal_td = TensorDict({}, batch_size=input_td.batch_size, device=input_td.device)
 
-            # Check if agent_attributes exists, is not None, and contains obs_shape
-            if (
-                hasattr(self, "agent_attributes")
-                and self.agent_attributes is not None
-                and "obs_shape" in self.agent_attributes
-            ):
-                # Get obs_shape and ensure it has the expected format
-                obs_shape = self.agent_attributes["obs_shape"]
-                if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
-                    obs_w, obs_h, features = obs_shape
+        # The observation is expected under the key "x" by the components.
+        internal_td["x"] = input_td["obs"]
 
-            # TODO: redo this and the above once we converge on token obs space. Commenting out for now.
-            if action is None:
-                # Inference: x should have shape (BT, obs_w, obs_h, features)
-                pass
-            else:
-                # Training: x should have shape (B, T, obs_w, obs_h, features)
-                B, T, A = action.shape
-                assert A == 2, f"Action dimensionality should be 2, got {A}"
-                # assert_shape(action, (B, T, 2), "training_input_action")
+        # The recurrent state is expected under the key "state".
+        if "lstm_h" in input_td.keys() and "lstm_c" in input_td.keys():
+            # The `state` is a concatenation of h and c states along the layer dimension.
+            # This keeps the batch dimension first, as required by TensorDict.
+            # The core component is expected to handle the permutation to (layers, batch, hidden).
+            lstm_h = input_td["lstm_h"].to(internal_td["x"].device)
+            lstm_c = input_td["lstm_c"].to(internal_td["x"].device)
+            # Concatenate along dim 1 (the layer dim)
+            internal_td["state"] = torch.cat([lstm_h, lstm_c], dim=1)
+        else:
+            # If no state is provided, the LSTM core will initialize a zero state.
+            internal_td["state"] = None
 
-        # Initialize dictionary for TensorDict
-        td = {"x": x, "state": None}
+        # Forward pass through value network. This will also run the core network.
+        self.components["_value_"](internal_td)
+        value = internal_td["_value_"]
 
-        # Safely handle LSTM state
-        if state.lstm_h is not None and state.lstm_c is not None:
-            # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)
-            lstm_c = state.lstm_c.to(x.device)
-            # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
-
-        # Forward pass through value network
-        self.components["_value_"](td)
-        value = td["_value_"]
-
-        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
-        # This design supports potential future extensions like distributional value functions
-        # or multi-head value networks which would require more than a scalar per state
+        # Value shape is (BT, 1) - keeping the final dimension explicit
         if __debug__:
             assert_shape(value, ("BT", 1), "value")
 
-        # Forward pass through action network
-        self.components["_action_"](td)
-        logits = td["_action_"]
+        # Forward pass through action network. This will reuse the core network's output.
+        self.components["_action_"](internal_td)
+        logits = internal_td["_action_"]
 
         if __debug__:
-            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
             assert_shape(logits, ("BT", "A"), "logits")
 
-        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
-        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
-        # - Inference input: (BT, *obs_shape) stays as (BT, *)
-
-        # Update LSTM states
-        split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
+        # After the forward passes, internal_td["state"] holds the *new* recurrent state.
+        new_state = internal_td["state"]
 
         if action is None:
-            return self.forward_inference(value, logits)
+            # Inference mode
+            output_td = self.forward_inference(value, logits)
+
+            # Add the new recurrent state to the output so it can be stored.
+            if new_state is not None:
+                # Split the state back into h and c. It was concatenated on dim 1.
+                split_size = self.core_num_layers
+                lstm_h_new, lstm_c_new = new_state.split([split_size, split_size], dim=1)
+                output_td["lstm_h"] = lstm_h_new.detach()
+                output_td["lstm_c"] = lstm_c_new.detach()
+
+            return output_td
         else:
+            # Training mode
             return self.forward_training(value, logits, action)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:

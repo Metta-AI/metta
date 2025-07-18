@@ -39,7 +39,6 @@ from metta.rl.functions import (
     compute_advantage,
     compute_gradient_stats,
     compute_timing_stats,
-    get_lstm_config,
     get_observation,
     process_minibatch_update,
     process_training_stats,
@@ -411,6 +410,10 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
+        # Get the initial recurrent state for all agents.
+        # The policy is responsible for creating a zero state if one is not available.
+        recurrent_state_td = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
             if trainer_cfg.require_contiguous_env_ids:
@@ -424,28 +427,32 @@ class MettaTrainer:
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps * self._world_size
 
-            # Run policy inference
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                self.policy, o, experience, training_env_id.start, self.device
-            )
+            # Prepare the input TensorDict for the policy
+            input_td = recurrent_state_td.clone()
+            input_td["obs"] = o
 
-            # Store experience
+            # Run policy inference
+            experience_td = run_policy_inference(self.policy, input_td, self.device)
+
+            # The policy doesn't know about env rewards/dones. Add them here.
+            # The experience spec expects these, so the buffer has space for them.
+            experience_td["rewards"] = r
+            experience_td["dones"] = d
+            experience_td["truncateds"] = t
+
+            # Store experience - the returned TD has everything we need.
             experience.store(
-                obs=o,
-                actions=actions,
-                logprobs=selected_action_log_probs,
-                rewards=r,
-                dones=d,
-                truncations=t,
-                values=values,
+                data_td=experience_td,
                 env_id=training_env_id,
                 mask=mask,
-                lstm_state=lstm_state_to_store,
             )
+
+            # Update the recurrent state for the next step
+            recurrent_state_td[training_env_id] = experience_td.select("lstm_h", "lstm_c")
 
             # Send actions back to environment
             with self.timer("_rollout.env"):
-                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+                self.vecenv.send(experience_td["actions"].cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:
@@ -481,15 +488,15 @@ class MettaTrainer:
         )
 
         # Compute advantages using puff_advantage
-        advantages = torch.zeros(experience.values.shape, device=self.device)
+        advantages = torch.zeros_like(experience.buffer["values"])
 
         # Initial importance sampling ratio is all ones
-        initial_importance_sampling_ratio = torch.ones_like(experience.values)
+        initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
         advantages = compute_advantage(
-            experience.values,
-            experience.rewards,
-            experience.dones,
+            experience.buffer["values"],
+            experience.buffer["rewards"],
+            experience.buffer["dones"],
             initial_importance_sampling_ratio,
             advantages,
             trainer_cfg.ppo.gamma,
@@ -553,7 +560,7 @@ class MettaTrainer:
             self.lr_scheduler.step()
 
         # Calculate explained variance using helper function
-        self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+        self.losses.explained_variance = calculate_explained_variance(experience.buffer["values"], advantages)
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
         """Check if a periodic task should run based on interval and force flag."""
@@ -897,15 +904,13 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
 
         # Get environment info
-        obs_space = vecenv.single_observation_space
-        atn_space = vecenv.single_action_space
         total_agents = vecenv.num_agents
 
         # Calculate minibatch parameters
         max_minibatch_size = trainer_cfg.minibatch_size
 
-        # Get LSTM parameters using helper function
-        hidden_size, num_lstm_layers = get_lstm_config(self.policy)
+        # Get the experience buffer specification from the policy
+        experience_spec = self.policy.get_experience_spec()
 
         # Create experience buffer
         self.experience = Experience(
@@ -914,13 +919,9 @@ class MettaTrainer:
             bptt_horizon=trainer_cfg.bptt_horizon,
             minibatch_size=self._minibatch_size,
             max_minibatch_size=max_minibatch_size,
-            obs_space=obs_space,
-            atn_space=atn_space,
+            experience_spec=experience_spec,
             device=self.device,
-            hidden_size=hidden_size,
             cpu_offload=trainer_cfg.cpu_offload,
-            num_lstm_layers=num_lstm_layers,
-            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
     def _make_vecenv(self):
