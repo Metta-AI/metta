@@ -153,25 +153,13 @@ class TestEpisodeFiltering:
                 "id",
                 "created_at",
                 "primary_policy_id",
-                "stats_epoch",
-                "replay_url",
-                "eval_name",
-                "simulation_suite",
                 "eval_category",
                 "env_name",
                 "attributes",
                 "policy_name",
-                "policy_description",
-                "policy_url",
-                "epoch_start_training_epoch",
-                "epoch_end_training_epoch",
                 "training_run_id",
                 "training_run_name",
                 "training_run_user_id",
-                "training_run_status",
-                "training_run_url",
-                "training_run_description",
-                "training_run_tags",
                 "tags",
             ]
 
@@ -286,8 +274,7 @@ class TestEpisodeFiltering:
         assert data["total_count"] == 2  # Two manipulation episodes
         assert len(data["episodes"]) == 2
 
-        for episode in data["episodes"]:
-            assert episode["simulation_suite"] == "manipulation_suite"
+        # Note: simulation_suite is not included in the response fields but is filterable
 
     def test_episode_filtering_pagination(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
@@ -340,25 +327,13 @@ class TestEpisodeFiltering:
                 "id",
                 "created_at",
                 "primary_policy_id",
-                "stats_epoch",
-                "replay_url",
-                "eval_name",
-                "simulation_suite",
                 "eval_category",
                 "env_name",
                 "attributes",
                 "policy_name",
-                "policy_description",
-                "policy_url",
-                "epoch_start_training_epoch",
-                "epoch_end_training_epoch",
                 "training_run_id",
                 "training_run_name",
                 "training_run_user_id",
-                "training_run_status",
-                "training_run_url",
-                "training_run_description",
-                "training_run_tags",
                 "tags",
             ]
             for field in required_fields:
@@ -456,19 +431,10 @@ class TestEpisodeFiltering:
 
         # Check policy data
         assert episode["policy_name"] == "policy_alpha_early"
-        assert episode["policy_description"] == "Early policy from alpha run"
-
-        # Check epoch data
-        assert episode["epoch_start_training_epoch"] == 0
-        assert episode["epoch_end_training_epoch"] == 50
 
         # Check training run data
         assert episode["training_run_name"] == "training_run_alpha"
         assert episode["training_run_user_id"] == "test_user@example.com"
-        assert episode["training_run_status"] == "running"
-        assert episode["training_run_description"] == "First training run for testing"
-        assert "experiment" in episode["training_run_tags"]
-        assert "baseline" in episode["training_run_tags"]
 
     def test_episode_filtering_invalid_filter(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
