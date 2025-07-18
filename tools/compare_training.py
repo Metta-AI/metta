@@ -83,7 +83,7 @@ def run_hydra_training(run_name: str, run_dir: str, group: str) -> subprocess.Po
         "tools/train.py",
         "--config-name",
         "user/compare_training",
-        f"run={run_name}",
+        f"+run={run_name}",
     ]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=os.getcwd(), env=env)
     return process

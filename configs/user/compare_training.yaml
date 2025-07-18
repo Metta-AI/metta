@@ -1,16 +1,66 @@
 defaults:
-  - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/arena
   - /wandb/comparision_trainer
   - _self_
 
 seed: 1
 
+# Essential keys from common config (self-contained to avoid include issues)
+device: cuda
+vectorization: multiprocessing
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+policy_uri: file://${run_dir}/checkpoints
+torch_deterministic: true
+dist_cfg_path: null
+stats_server_uri: https://api.observatory.softmax-research.net
+
 train_job:
   map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
-  evals: ${sim}
+  evals:
+    name: arena_evaluation
+    simulations:
+      arena/basic:
+        env: /env/mettagrid/arena/basic
+        num_episodes: 10
+        max_time_s: 30
+        env_overrides:
+          _pre_built_env_config:
+            sampling: 0
+            num_agents: 4
+            width: 32
+            height: 32
+      arena/combat:
+        env: /env/mettagrid/arena/combat
+        num_episodes: 10
+        max_time_s: 30
+        env_overrides:
+          _pre_built_env_config:
+            sampling: 0
+            num_agents: 4
+            width: 32
+            height: 32
+      arena/advanced:
+        env: /env/mettagrid/arena/advanced
+        num_episodes: 10
+        max_time_s: 30
+        env_overrides:
+          _pre_built_env_config:
+            sampling: 0
+            num_agents: 4
+            width: 32
+            height: 32
+      arena/tag:
+        env: /env/mettagrid/arena/tag
+        num_episodes: 10
+        max_time_s: 30
+        env_overrides:
+          _pre_built_env_config:
+            sampling: 0
+            num_agents: 4
+            width: 32
+            height: 32
 
 trainer:
   # Core training parameters matching bullm_run.py
