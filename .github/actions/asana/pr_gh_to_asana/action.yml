@@ -84,5 +84,14 @@ runs:
         INPUT_GITHUB_REPO: ${{ inputs.github_repo }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
 
+      - name: Upload HTTP interaction logs
+        if: always()  # Runs even if the previous step fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: http-interactions-${{ github.run_id }}
+          path: "http_interactions_*.yaml"
+          retention-days: 7  # Keep for 7 days
+
+
 
 
