@@ -93,6 +93,7 @@ export const state = {
   playbackSpeed: 0.1,
   demoMode: false,
   fullScreen: false,
+  isReplay: false,
 
   // What to show?
   showUi: true,
