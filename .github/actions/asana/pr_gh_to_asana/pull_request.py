@@ -2,16 +2,6 @@ import json
 import re
 
 import requests
-import vcr
-
-# Configure VCR for GitHub API calls
-github_vcr = vcr.VCR(
-    cassette_library_dir="cassettes",
-    record_mode=vcr.mode.ONCE,
-    match_on=["uri", "method"],
-    filter_headers=["authorization", "accept", "x-github-api-version"],
-    decode_compressed_response=True,
-)
 
 
 class PullRequest:
@@ -23,43 +13,42 @@ class PullRequest:
         self._parse_data()
 
     def _fetch_data(self):
-        with github_vcr.use_cassette(f"pr_{self.repo}_{self.pr_number}.yaml"):
-            url = f"https://api.github.com/repos/{self.repo}/pulls/{self.pr_number}"
-            headers = {
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {self.github_token}",
-                "X-GitHub-Api-Version": "2022-11-28",
-            }
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            self.data = response.json()
+        url = f"https://api.github.com/repos/{self.repo}/pulls/{self.pr_number}"
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {self.github_token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        self.data = response.json()
 
-            # Fetch PR comments (issue comments)
-            comments_url = f"https://api.github.com/repos/{self.repo}/issues/{self.pr_number}/comments"
-            comments_response = requests.get(comments_url, headers=headers)
-            if comments_response.status_code == 200:
-                self.data["retrieved_comments"] = comments_response.json()
-            else:
-                print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
-                self.data["retrieved_comments"] = []
+        # Fetch PR comments (issue comments)
+        comments_url = f"https://api.github.com/repos/{self.repo}/issues/{self.pr_number}/comments"
+        comments_response = requests.get(comments_url, headers=headers)
+        if comments_response.status_code == 200:
+            self.data["retrieved_comments"] = comments_response.json()
+        else:
+            print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
+            self.data["retrieved_comments"] = []
 
-            # Fetch PR reviews
-            reviews_url = f"https://api.github.com/repos/{self.repo}/pulls/{self.pr_number}/reviews"
-            reviews_response = requests.get(reviews_url, headers=headers)
-            if reviews_response.status_code == 200:
-                self.data["retrieved_reviews"] = reviews_response.json()
-            else:
-                print(f"Failed to fetch PR reviews: {reviews_response.status_code} - {reviews_response.text}")
-                self.data["retrieved_reviews"] = []
+        # Fetch PR reviews
+        reviews_url = f"https://api.github.com/repos/{self.repo}/pulls/{self.pr_number}/reviews"
+        reviews_response = requests.get(reviews_url, headers=headers)
+        if reviews_response.status_code == 200:
+            self.data["retrieved_reviews"] = reviews_response.json()
+        else:
+            print(f"Failed to fetch PR reviews: {reviews_response.status_code} - {reviews_response.text}")
+            self.data["retrieved_reviews"] = []
 
-            # Fetch PR timeline
-            timeline_url = f"https://api.github.com/repos/{self.repo}/issues/{self.pr_number}/timeline"
-            timeline_response = requests.get(timeline_url, headers=headers)
-            if timeline_response.status_code == 200:
-                self.data["retrieved_timeline"] = timeline_response.json()
-            else:
-                print(f"Failed to fetch PR timeline: {timeline_response.status_code} - {timeline_response.text}")
-                self.data["retrieved_timeline"] = []
+        # Fetch PR timeline
+        timeline_url = f"https://api.github.com/repos/{self.repo}/issues/{self.pr_number}/timeline"
+        timeline_response = requests.get(timeline_url, headers=headers)
+        if timeline_response.status_code == 200:
+            self.data["retrieved_timeline"] = timeline_response.json()
+        else:
+            print(f"Failed to fetch PR timeline: {timeline_response.status_code} - {timeline_response.text}")
+            self.data["retrieved_timeline"] = []
 
     def _parse_data(self):
         d = self.data

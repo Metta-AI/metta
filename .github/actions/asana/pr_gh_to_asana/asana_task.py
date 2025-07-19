@@ -1,18 +1,8 @@
 import re
 
 import requests
-import vcr
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
-
-# Configure VCR for Asana API calls
-asana_vcr = vcr.VCR(
-    cassette_library_dir="cassettes",
-    record_mode=vcr.mode.ONCE,
-    match_on=["uri", "method"],
-    filter_headers=["authorization"],
-    decode_compressed_response=True,
-)
 
 
 class AsanaTask:
@@ -113,27 +103,24 @@ class AsanaTask:
             "Content-Type": "application/json",
         }
         params = {
-            "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,"
-            "assignee.email,followers.email,projects.gid",
+            "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email,projects.gid",
         }
-
-        with asana_vcr.use_cassette(f"validate_task_{gid}.yaml"):
-            response = requests.get(api_url, headers=headers, params=params, timeout=30)
-            if response.status_code != 200:
-                return None
-            data = response.json()["data"]
-            projects = [project["gid"] for project in data.get("projects", [])]
-            if self.project_id not in projects:
-                return None
-            custom_fields = data.get("custom_fields", [])
-            task_github_url = None
-            for field in custom_fields:
-                if field.get("gid") == self.github_url_field_id:
-                    task_github_url = field.get("text_value")
-                    break
-            if task_github_url != github_url:
-                return None
-            return data
+        response = requests.get(api_url, headers=headers, params=params, timeout=30)
+        if response.status_code != 200:
+            return None
+        data = response.json()["data"]
+        projects = [project["gid"] for project in data.get("projects", [])]
+        if self.project_id not in projects:
+            return None
+        custom_fields = data.get("custom_fields", [])
+        task_github_url = None
+        for field in custom_fields:
+            if field.get("gid") == self.github_url_field_id:
+                task_github_url = field.get("text_value")
+                break
+        if task_github_url != github_url:
+            return None
+        return data
 
     def search(
         self,
@@ -151,16 +138,14 @@ class AsanaTask:
             "projects.any": self.project_id,
             f"custom_fields.{self.github_url_field_id}.value": github_url,
         }
-
-        with asana_vcr.use_cassette("search_tasks.yaml"):
-            response = requests.get(api_url, headers=headers, params=params, timeout=30)
-            if response.status_code != 200:
-                return None
-            data = response.json()
-            results = data["data"]
-            if results:
-                return results[0]
+        response = requests.get(api_url, headers=headers, params=params, timeout=30)
+        if response.status_code != 200:
             return None
+        data = response.json()
+        results = data["data"]
+        if results:
+            return results[0]
+        return None
 
     def create(
         self,
@@ -194,15 +179,13 @@ class AsanaTask:
         payload["data"]["custom_fields"] = custom_fields
         if completed:
             payload["data"]["completed"] = True
-
-        with asana_vcr.use_cassette("create_task.yaml"):
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-            if response.status_code == 201:
-                url = response.json()["data"]["permalink_url"]
-                self.ensure_github_url_in_task(url, title, github_url)
-                return url
-            else:
-                raise Exception(f"Asana API Error (create): {response.status_code} - {response.text}")
+        response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 201:
+            url = response.json()["data"]["permalink_url"]
+            self.ensure_github_url_in_task(url, title, github_url)
+            return url
+        else:
+            raise Exception(f"Asana API Error (create): {response.status_code} - {response.text}")
 
     def update(
         self,
@@ -227,11 +210,9 @@ class AsanaTask:
         custom_fields[self.pr_author_field_id] = pr_author
         if custom_fields:
             payload["data"]["custom_fields"] = custom_fields
-
-        with asana_vcr.use_cassette(f"update_task_{gid}.yaml"):
-            response = requests.put(api_url, json=payload, headers=headers, timeout=30)
-            if response.status_code != 200:
-                raise Exception(f"Asana API Error (update): {response.status_code} - {response.text}")
+        response = requests.put(api_url, json=payload, headers=headers, timeout=30)
+        if response.status_code != 200:
+            raise Exception(f"Asana API Error (update): {response.status_code} - {response.text}")
 
     def update_if_needed(
         self,
@@ -284,13 +265,11 @@ class AsanaTask:
             "pullRequestNumber": int(github_url_number),
             "pullRequestURL": github_url,
         }
-
-        with asana_vcr.use_cassette("ensure_github_url_in_task.yaml"):
-            response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
-            if response.status_code == 201:
-                return response.json()
-            else:
-                return None
+        response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
+        if response.status_code == 201:
+            return response.json()
+        else:
+            return None
 
     def get_comments(self, task_id: str):
         """
@@ -302,39 +281,39 @@ class AsanaTask:
         """
         from datetime import datetime
 
+        import requests
+
         url = f"https://app.asana.com/api/1.0/tasks/{task_id}/stories"
         headers = {"Authorization": f"Bearer {self.asana_token}", "Content-Type": "application/json"}
         params = {
             "opt_fields": "text,html_text,created_by.name,created_by.email,created_at,type,resource_subtype,is_pinned"
         }
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+        comments = [
+            story
+            for story in data["data"]
+            if story.get("type") == "comment" or story.get("resource_subtype") == "comment_added"
+        ]
+        ret = [
+            {
+                "id": comment.get("gid"),
+                "text": comment.get("text", ""),
+                "html_text": comment.get("html_text", ""),
+                "author": {
+                    "name": comment.get("created_by", {}).get("name", "Unknown"),
+                    "email": comment.get("created_by", {}).get("email"),
+                },
+                "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
+                "is_pinned": comment.get("is_pinned", False),
+                "review_id": None,  # You may want to add review_id extraction logic if needed
+            }
+            for comment in comments
+        ]
+        print(f"comments in asana: {ret}")
 
-        with asana_vcr.use_cassette(f"get_comments_{task_id}.yaml"):
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
-            comments = [
-                story
-                for story in data["data"]
-                if story.get("type") == "comment" or story.get("resource_subtype") == "comment_added"
-            ]
-            ret = [
-                {
-                    "id": comment.get("gid"),
-                    "text": comment.get("text", ""),
-                    "html_text": comment.get("html_text", ""),
-                    "author": {
-                        "name": comment.get("created_by", {}).get("name", "Unknown"),
-                        "email": comment.get("created_by", {}).get("email"),
-                    },
-                    "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
-                    "is_pinned": comment.get("is_pinned", False),
-                    "review_id": None,  # You may want to add review_id extraction logic if needed
-                }
-                for comment in comments
-            ]
-            print(f"comments in asana: {ret}")
-
-            return ret
+        return ret
 
     def asana_comments_with_links(self):
         comments = self.get_comments(self.task_gid)
@@ -394,12 +373,13 @@ class AsanaTask:
                     payload = {"data": {"html_text": formatted_comment}}
                     try:
                         print(payload)
-                        with asana_vcr.use_cassette(f"update_comment_{story_id}.yaml"):
-                            response = requests.put(url, headers=headers, json=payload)
-                            if response.status_code == 200:
-                                print(f"Updated Asana comment {story_id} for review {review_id}")
-                            else:
-                                print(f"Failed to update comment {story_id}: {response.status_code} - {response.text}")
+                        response = requests.put(url, headers=headers, json=payload)
+                        if response.status_code == 200:
+                            print(f"Updated Asana comment {story_id} for review {review_id}")
+                        else:
+                            print(
+                                f"Failed to update Asana comment {story_id}: {response.status_code} - {response.text}"
+                            )
                     except requests.exceptions.RequestException as e:
                         print(f"Error updating Asana comment {story_id}: {e}")
                 else:
@@ -435,7 +415,9 @@ class AsanaTask:
 
                     # Only add if current review comes after the last matching review
                     if current_review_index <= last_matching_index:
-                        print(f"[s] Review {review_id} comes before/at last review {last_matching_review_id}, skipping")
+                        print(
+                            f"[s] Review {review_id} comes before or at last  review {last_matching_review_id}, skipping"
+                        )
                         should_add = False
 
                 if should_add:
@@ -446,10 +428,9 @@ class AsanaTask:
                     print(payload)
 
                     try:
-                        with asana_vcr.use_cassette(f"add_comment_{review_id}.yaml"):
-                            response = requests.post(url, headers=headers, json=payload)
-                            response.raise_for_status()
-                            print(f"Added new Asana comment for review {review_id}")
+                        response = requests.post(url, headers=headers, json=payload)
+                        response.raise_for_status()
+                        print(f"Added new Asana comment for review {review_id}")
                     except requests.exceptions.RequestException as e:
                         print(f"Error adding Asana comment for review {review_id}: {e}")
                         print(payload)
