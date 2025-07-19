@@ -370,7 +370,16 @@ while agent_step < trainer_config.total_timesteps:
         device,
     )
 
-    # Train for multiple epochs
+    # # Train for multiple epochs
+    # # If training on 4 GPUs with 8 nodes, make update_epochs 8x as big
+    # if (
+    #     hasattr(trainer_config, "update_epochs")
+    #     and hasattr(trainer_config, "num_gpus")
+    #     and hasattr(trainer_config, "num_nodes")
+    #     and trainer_config.num_gpus == 4
+    #     and trainer_config.num_nodes == 8
+    # ):
+    #     trainer_config.update_epochs *= 8
     total_minibatches = experience.num_minibatches * trainer_config.update_epochs
     minibatch_idx = 0
 

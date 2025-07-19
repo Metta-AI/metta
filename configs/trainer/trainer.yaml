@@ -73,7 +73,7 @@ verbose: true
 batch_size: 524288
 minibatch_size: 16384
 bptt_horizon: 64
-update_epochs: 1
+update_epochs: 8
 
 cpu_offload: false
 compile: false
