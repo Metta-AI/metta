@@ -18,33 +18,38 @@ from github_asana_mapping import GithubAsanaMapping
 from pull_request import PullRequest
 
 # VCR configuration for tracking REST traffic
+# logging.basicConfig(level=logging.INFO)
+# vcr_log = logging.getLogger("vcr")
+# vcr_log.setLevel(logging.DEBUG)
+
 my_vcr = vcr.VCR(
-    record_mode='all',
-    cassette_library_dir='.',
-    filter_headers=['Authorization'],
-    match_on=['uri', 'method'],
-    filter_query_parameters=['access_token']
+    record_mode="new_episodes",
+    cassette_library_dir=".",
+    filter_headers=["Authorization"],
+    match_on=["uri", "method"],
+    filter_query_parameters=["access_token"],
 )
 
 
 def log_http_interactions(cassette_name):
     """Log HTTP interactions from the VCR cassette"""
     try:
-        import yaml
         import os
-        
+
+        import yaml
+
         # Check if file exists
         if not os.path.exists(cassette_name):
             print(f"VCR cassette file not found: {cassette_name}")
             print(f"Current working directory: {os.getcwd()}")
             print(f"Files in current directory: {os.listdir('.')}")
             return
-            
+
         with open(cassette_name, "r") as f:
             cassette_data = yaml.safe_load(f)
 
-        if cassette_data and "http_interactions" in cassette_data:
-            interactions = cassette_data["http_interactions"]
+        if cassette_data and "interactions" in cassette_data:
+            interactions = cassette_data["interactions"]
             print(f"Recorded {len(interactions)} HTTP interactions in {cassette_name}")
 
             for i, interaction in enumerate(interactions):
@@ -59,6 +64,7 @@ def log_http_interactions(cassette_name):
     except Exception as e:
         print(f"Error logging HTTP interactions: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -85,32 +91,6 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
     # formatted_body = review_body if review_body else "(No comment)"
 
     return "<body>" + header + formatted_body + "</body>"
-
-
-def extract_github_review_id(asana_comment_text):
-    """
-    Extract GitHub review ID from Asana comment text
-
-    Args:
-        asana_comment_text: The text content of an Asana comment
-
-    Returns:
-        int: GitHub review ID if found, None otherwise
-    """
-
-    if not asana_comment_text:
-        return None
-
-    # Look for pattern: "Review #123456789" or "(Review #123456789)"
-    # This matches the format we created in format_github_review_body_for_asana
-    pattern = r"(ID \d+)"
-
-    match = re.search(pattern, asana_comment_text)
-
-    if match:
-        return int(match.group(1))
-
-    return None
 
 
 def convert_basic_markdown(text):
@@ -167,7 +147,7 @@ asana task assignment (asana owner) should be the PR author or PR assignee dep w
     - note that this is only for active PRs
     -   if the PR is closed or merged (ie not open), or is a draft, the PR author is the asana owner
     - simplifying this logic:
-    -   asana owner is designee when last_event is None or review_requested
+    -   asana designee is github designee when last_event is None or review_requested
     - ideally we would want to incorporate mergeability
     -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
     -     however, this is not easy to implement because mergeability is computed async and there is no hook
@@ -181,8 +161,8 @@ if __name__ == "__main__":
     print(f"Starting VCR recording with cassette: {cassette_name}")
     print(f"Current working directory: {os.getcwd()}")
 
-    with my_vcr.use_cassette(cassette_name):
-        try:
+    try:
+        with my_vcr.use_cassette(cassette_name):
             # Inputs from the Action
             project_id = getenv_or_bust("INPUT_PROJECT_ID")
             workspace_id = getenv_or_bust("INPUT_WORKSPACE_ID")
@@ -208,10 +188,9 @@ if __name__ == "__main__":
                 asana_token,
             )
 
-            # todo document this logic
-            author_is_assignee = not (pr.last_event) or pr.last_event["type"] == "review_requested"
+            asana_assignee_is_github_assignee = not (pr.last_event) or pr.last_event["type"] == "review_requested"
             designated_pr_assignee = next((a for a in sorted(pr.assignees) if a != pr.author), pr.author)
-            asana_assignee_github_name = pr.author if author_is_assignee else designated_pr_assignee
+            asana_assignee_github_name = designated_pr_assignee if asana_assignee_is_github_assignee else pr.author
 
             asana_assignee = (
                 mapping.github_login_to_asana_email.get(asana_assignee_github_name) if pr.assignees else None
@@ -258,9 +237,9 @@ if __name__ == "__main__":
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 f.write(f"task_url={task_url}\n")
 
-        except Exception:
-            traceback.print_exc()
-            raise
-        finally:
-            # Log all HTTP interactions
-            log_http_interactions(cassette_name)
+    except Exception:
+        traceback.print_exc()
+        raise
+    finally:
+        # Log all HTTP interactions
+        log_http_interactions(cassette_name)

@@ -46,8 +46,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - name: Sync PR Description (GH to Asana)
-        uses: ./.github/actions/asana/pr_description_gh_to_asana
+      - name: Sync PR Description (Asana to GH)
+        uses: ./.github/actions/asana/pr_description_asana_to_gh
         with:
           pr_number: ${{ github.event.pull_request.number }}
           repo: ${{ github.repository }}
