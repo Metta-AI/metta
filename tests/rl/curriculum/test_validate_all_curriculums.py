@@ -31,6 +31,6 @@ def curriculum_configs() -> list[MettagridCfgFileMetadata]:
 class TestValidateAllCurriculums:
     def test_curriculum(self, cfg_metadata: MettagridCfgFileMetadata):
         cfg = cfg_metadata.get_cfg().cfg
-        with hydra.initialize(version_base=None, config_path="../configs"):
+        with hydra.initialize(version_base=None, config_path="../../../configs"):
             curriculum = hydra.utils.instantiate(cfg, _recursive_=True)
         assert isinstance(curriculum, Curriculum)

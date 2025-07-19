@@ -5,7 +5,6 @@ from itertools import product
 from typing import Any, Dict, List, Optional, Tuple
 
 from omegaconf import DictConfig
-from tqdm import tqdm
 
 from metta.common.util.config import copy_omegaconf_config
 from metta.mettagrid.curriculum.core import Curriculum
@@ -32,8 +31,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
         # We copy to reset the config's root.
         env_cfg_template = copy_omegaconf_config(base_cfg)
 
-        logger.info("Generating bucketed tasks")
-        for parameter_values in tqdm(product(*expanded_buckets.values())):
+        for parameter_values in product(*expanded_buckets.values()):
             curriculum_id = get_id(expanded_buckets.keys(), parameter_values)
             sampling_parameters = {k: v for k, v in zip(expanded_buckets.keys(), parameter_values, strict=True)}
             self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(

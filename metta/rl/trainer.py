@@ -3,7 +3,6 @@ import os
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -12,7 +11,8 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
-from pydantic import ValidationError
+from rich.console import Console
+from rich.table import Table
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -27,9 +27,9 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
@@ -76,12 +76,13 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig,
-        wandb_run: WandbRun | None,
-        policy_store: PolicyStore,
-        sim_suite_config: SimulationSuiteConfig,
-        stats_client: StatsClient | None,
-        **kwargs: Any,
+        curriculum_stats_provider: Curriculum | None,
+        wandb_run: WandbRun | None = None,
+        policy_store: PolicyStore | None = None,
+        sim_suite_config: SimulationSuiteConfig | None = None,
+        stats_client: StatsClient | None = None,
     ):
+        super().__init__()
         logger.info(f"run_dir = {cfg.run_dir}")
         checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
         if checkpoints_dir.exists():
@@ -134,10 +135,9 @@ class MettaTrainer:
                 auto_start=True,  # Start monitoring immediately
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
+            self._curriculum_stats_provider = curriculum_stats_provider
 
-        curriculum_config = trainer_cfg.curriculum_or_env
-        env_overrides = DictConfig(trainer_cfg.env_overrides)
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        self._curriculum = CurriculumClient.create(self.trainer_cfg)
 
         # Add training task to the suite
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
@@ -358,23 +358,7 @@ class MettaTrainer:
             # Processing stats
             self._process_stats()
 
-            rollout_time = self.timer.get_last_elapsed("_rollout")
-            train_time = self.timer.get_last_elapsed("_train")
-            stats_time = self.timer.get_last_elapsed("_process_stats")
-            steps_calculated = self.agent_step - steps_before
-
-            total_time = train_time + rollout_time + stats_time
-            steps_per_sec = steps_calculated / total_time
-
-            train_pct = (train_time / total_time) * 100
-            rollout_pct = (rollout_time / total_time) * 100
-            stats_pct = (stats_time / total_time) * 100
-
-            logger.info(
-                f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
-                f"{steps_per_sec * self._world_size:.0f} steps/sec "
-                f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
-            )
+            self._log_status(steps_before)
 
             # Interval periodic tasks
             self._maybe_record_heartbeat()
@@ -404,6 +388,58 @@ class MettaTrainer:
 
     def _on_train_step(self):
         pass
+
+    def _log_status(self, steps_before: int):
+        if not self._master:
+            return
+
+        rollout_time = self.timer.get_last_elapsed("_rollout")
+        train_time = self.timer.get_last_elapsed("_train")
+        stats_time = self.timer.get_last_elapsed("_process_stats")
+        steps_calculated = self.agent_step - steps_before
+
+        total_time = train_time + rollout_time + stats_time
+        steps_per_sec = steps_calculated / total_time
+
+        train_pct = (train_time / total_time) * 100
+        rollout_pct = (rollout_time / total_time) * 100
+        stats_pct = (stats_time / total_time) * 100
+
+        curriculum_stats = self._curriculum_stats_provider.get_curriculum_stats()
+        tasks_completed = curriculum_stats.get("tasks_completed", 0)
+        tasks_per_sec = tasks_completed / total_time
+
+        # Create a rich console and table
+        console = Console()
+        table = Table(
+            title=f"[bold cyan]Training Progress - Epoch {self.epoch}[/bold cyan]",
+            show_header=True,
+            header_style="bold magenta",
+        )
+
+        # Add columns
+        table.add_column("Metric", style="cyan", justify="left")
+        table.add_column("Progress", style="green", justify="right")
+        table.add_column("Rate", style="yellow", justify="left")
+
+        # Add rows
+        progress_pct = (self.agent_step / self.trainer_cfg.total_timesteps) * 100
+        table.add_row(
+            "Agent Steps",
+            f"{self.agent_step:,} / {self.trainer_cfg.total_timesteps:,} ({progress_pct:.1f}%)",
+            f"[dim]{steps_per_sec * self._world_size:.0f} steps/sec[/dim]",
+        )
+
+        table.add_row("Tasks", f"{tasks_completed:,}", f"[dim]{tasks_per_sec:.1f} tasks/sec[/dim]")
+
+        table.add_row(
+            "Epoch Time",
+            f"{total_time:.2f}s",
+            f"[dim]Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%[/dim]",
+        )
+
+        # Log the table
+        console.print(table)
 
     @with_instance_timer("_rollout")
     def _rollout(self):
@@ -853,9 +889,12 @@ class MettaTrainer:
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
 
+        curriculum_stats = self._curriculum_stats_provider.get_curriculum_stats()
+
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
+            curriculum_stats=curriculum_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self.grad_stats,
@@ -867,7 +906,6 @@ class MettaTrainer:
             epoch=self.epoch,
         )
 
-        # Log to wandb
         self.wandb_run.log(
             all_stats,
             # WandB can automatically increment step on each call to log, but we force the value here
@@ -881,6 +919,8 @@ class MettaTrainer:
         self.grad_stats.clear()
 
     def close(self):
+        self.timer.stop()
+        # TorchProfiler doesn't have a close method
         self.vecenv.close()
         if self._master:
             self._memory_monitor.clear()
@@ -1063,21 +1103,3 @@ class MettaTrainer:
             )
         else:
             policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
-
-
-class AbortingTrainer(MettaTrainer):
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(*args, **kwargs)
-
-    def _on_train_step(self):
-        if self.wandb_run is None:
-            return
-
-        if "abort" not in wandb.Api().run(self.wandb_run.path).tags:
-            return
-
-        logger.info("Abort tag detected. Stopping the run.")
-        self.trainer_cfg.total_timesteps = int(self.agent_step)
-        self.wandb_run.config.update(
-            {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
-        )

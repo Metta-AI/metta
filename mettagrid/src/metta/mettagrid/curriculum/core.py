@@ -1,5 +1,6 @@
 import logging
-from typing import List, Optional
+import random
+from typing import Optional
 
 from omegaconf import DictConfig
 
@@ -7,28 +8,29 @@ logger = logging.getLogger(__name__)
 
 
 class Curriculum:
+    def __init__(self):
+        self._task_completions = {}
+
     def get_task(self) -> "Task":
         raise NotImplementedError("Subclasses must implement this method")
 
     def complete_task(self, id: str, score: float):
+        # We don't want this map to get too big, so we don't log it here.
+        if len(self._task_completions) > 1000:
+            self._task_completions.pop(random.choice(list(self._task_completions.keys())))
+        self._task_completions[id] = self._task_completions.get(id, 0) + 1
+
+        # infos.update(
+        #     {
+        #         f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+        #         f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
+        #     }
         # logger.info(f"Task completed: {id} -> {score:.5f}")
         pass
 
-    def completed_tasks(self) -> List[str]:
-        """Return a list of completed task identifiers."""
-        return []
-
-    def get_completion_rates(self):
-        """Return a dictionary of completion rates for each task."""
-        return {}
-
-    def get_task_probs(self) -> dict[str, float]:
-        """Return the current task probabilities for logging purposes."""
-        return {}
-
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         """Return curriculum statistics for logging purposes (default: empty)."""
-        return {}
+        return {f"task_completions/{id}": value for id, value in self._task_completions.items()}
 
 
 class Task:
@@ -71,6 +73,7 @@ class SingleTaskCurriculum(Curriculum):
     """Curriculum that only contains a single task."""
 
     def __init__(self, task_id: str, task_cfg: DictConfig):
+        super().__init__()
         self._task_id = task_id
         self._task_cfg = task_cfg
 

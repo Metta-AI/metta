@@ -4,6 +4,9 @@ _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculu
 
 env_overrides:
   game:
+    global_obs:
+      resource_rewards: true
+
     actions:
       attack: { consumed_resources: { blueprint: 1 } }
       change_color: { enabled: false }

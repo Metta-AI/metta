@@ -687,6 +687,7 @@ def compute_timing_stats(
 
 def build_wandb_stats(
     processed_stats: Dict[str, Any],
+    curriculum_stats: Dict[str, Any],
     timing_info: Dict[str, Any],
     weight_stats: Dict[str, Any],
     grad_stats: Dict[str, Any],
@@ -701,6 +702,7 @@ def build_wandb_stats(
 
     Args:
         processed_stats: Output from process_training_stats
+        curriculum_stats: Curriculum statistics
         timing_info: Output from compute_timing_stats
         weight_stats: Weight analysis statistics
         grad_stats: Gradient statistics
@@ -745,6 +747,7 @@ def build_wandb_stats(
         **{f"eval_{k}": v for k, v in evals.to_wandb_metrics_format().items()},
         **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
         **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
+        **curriculum_stats,
         **processed_stats["environment_stats"],
         **weight_stats,
         **timing_info["timing_stats"],

@@ -109,8 +109,9 @@ public:
     }
 
     // Calculate the new amount with clamping
-    InventoryQuantity new_amount = static_cast<InventoryQuantity>(std::clamp(
-        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item])));
+    InventoryQuantity new_amount = static_cast<InventoryQuantity>(
+        std::max(0, std::min(static_cast<int>(initial_amount + attempted_delta),
+                             static_cast<int>(this->resource_limits[item]))));
 
     InventoryDelta delta = new_amount - initial_amount;
 
