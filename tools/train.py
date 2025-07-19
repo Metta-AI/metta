@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
+import logging
 import multiprocessing
 import os
-import sys
 from logging import Logger
 
 import hydra
@@ -14,14 +14,16 @@ from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.metta_script import metta_script
 from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
     validate_train_job_config,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # TODO: populate this more
@@ -94,13 +96,9 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     trainer.close()
 
 
-@hydra.main(config_path="../configs", config_name="train_job", version_base=None)
-@metta_script
 @record
 def main(cfg: DictConfig) -> int:
     record_heartbeat()
-
-    logger = get_metta_logger()
 
     logger.info(
         f"Training {cfg.run} on "
@@ -128,5 +126,4 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+metta_script(main, "train_job")

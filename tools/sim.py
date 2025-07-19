@@ -11,23 +11,23 @@ Simulation driver for evaluating policies in the Metta environment.
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
-import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
-from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.util.metta_script import metta_script
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -64,10 +64,8 @@ def _determine_run_name(policy_uri: str) -> str:
 # --------------------------------------------------------------------------- #
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
-@metta_script
 def main(cfg: DictConfig) -> None:
-    logger = get_metta_logger()
+    logger = logging.getLogger("tools.sim")
     if not cfg.get("run"):
         cfg.run = _determine_run_name(cfg.policy_uri)
         logger.info(f"Auto-generated run name: {cfg.run}")
@@ -135,5 +133,4 @@ def main(cfg: DictConfig) -> None:
     print("===JSON_OUTPUT_END===")
 
 
-if __name__ == "__main__":
-    main()
+metta_script(main, "sim_job")

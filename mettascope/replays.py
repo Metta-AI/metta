@@ -1,23 +1,22 @@
 # Deals with full and partial replays.
 
 import json
+import logging
 import time
 
-import hydra
+from omegaconf import DictConfig
 
 from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.util.metta_script import metta_script
+
+logger = logging.getLogger(__name__)
 
 
 def create_simulation(cfg):
-    setup_mettagrid_environment(cfg)
-
-    logger = setup_mettagrid_logger("replay")
     logger.info(f"Replaying {cfg.run}")
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
@@ -57,18 +56,16 @@ def generate_replay(sim: Simulation) -> dict:
     return {}
 
 
-if __name__ == "__main__":
+def main(cfg: DictConfig) -> None:
+    start = time.time()
+    sim = create_simulation(cfg)
+    end = time.time()
+    print("Create simulation time", end - start)
+    start = time.time()
+    replay = generate_replay(sim)
+    end = time.time()
+    print("replay: ", len(json.dumps(replay)), "bytes")
+    print("Generate replay time", end - start)
 
-    @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
-    def main(cfg):
-        start = time.time()
-        sim = create_simulation(cfg)
-        end = time.time()
-        print("Create simulation time", end - start)
-        start = time.time()
-        replay = generate_replay(sim)
-        end = time.time()
-        print("replay: ", len(json.dumps(replay)), "bytes")
-        print("Generate replay time", end - start)
 
-    main()
+metta_script(main, "replay_job")

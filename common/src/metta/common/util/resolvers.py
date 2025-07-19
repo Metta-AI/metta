@@ -1,12 +1,11 @@
 import datetime
+import logging
 import random
 from typing import Any, Dict, TypeVar, Union
 
 import numpy as np
 from hydra.experimental.callback import Callback
 from omegaconf import DictConfig, OmegaConf
-
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 
 T = TypeVar("T")  # For generic conditional function
 Numeric = Union[int, float]  # Type alias for numeric types
@@ -270,7 +269,7 @@ class ResolverRegistrar(Callback):
     """Class for registering custom OmegaConf resolvers."""
 
     def __init__(self):
-        self.logger = setup_mettagrid_logger("ResolverRegistrar")
+        self.logger = logging.getLogger("ResolverRegistrar")
         self.resolver_count = 0
         """Prepare for registration but don't register yet."""
 

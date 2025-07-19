@@ -1,6 +1,8 @@
 #!/usr/bin/env -S uv run
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
+import logging
+
 import numpy as np  # noqa: E402
 
 if not hasattr(np, "byte"):
@@ -8,19 +10,19 @@ if not hasattr(np, "byte"):
 
 import json
 import os
-import sys
 import time
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
+from metta.util.metta_script import metta_script
+
+logger = logging.getLogger(__name__)
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -39,11 +41,7 @@ def load_file(run_dir, name):
         return OmegaConf.load(f)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-@metta_script
 def main(cfg: DictConfig) -> int:
-    logger = get_metta_logger()
-
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
@@ -164,5 +162,4 @@ def main(cfg: DictConfig) -> int:
         return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+metta_script(main, "sweep_eval")
