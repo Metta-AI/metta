@@ -213,7 +213,7 @@ public:
     if (this->show_recipe_inputs) {
       for (const auto& [item, amount] : this->input_resources) {
         features.push_back(
-            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+            {static_cast<ObservationType>(item + RecipeInputFeatureOffset), static_cast<ObservationType>(amount)});
       }
     }
 
