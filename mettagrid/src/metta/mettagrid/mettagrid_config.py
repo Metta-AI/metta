@@ -7,8 +7,8 @@ from metta.common.util.typed_config import BaseModelWithForbidExtra
 # ===== Python Configuration Models =====
 
 
-class PyAgentRewards(BaseModelWithForbidExtra):
-    """Python agent reward configuration."""
+class PyInventoryRewards(BaseModelWithForbidExtra):
+    """Inventory-based reward configuration."""
 
     ore_red: Optional[float] = Field(default=None)
     ore_blue: Optional[float] = Field(default=None)
@@ -30,6 +30,56 @@ class PyAgentRewards(BaseModelWithForbidExtra):
     laser_max: Optional[int] = Field(default=None)
     blueprint: Optional[float] = Field(default=None)
     blueprint_max: Optional[int] = Field(default=None)
+
+
+class PyStatsRewards(BaseModelWithForbidExtra):
+    """Agent stats-based reward configuration.
+
+    Maps stat names to reward values. Stats are tracked by the StatsTracker
+    and can include things like 'action.attack.agent', 'inventory.armor.gained', etc.
+    Each entry can have:
+    - stat_name: reward_per_unit
+    - stat_name_max: maximum cumulative reward for this stat
+    """
+
+    class Config:
+        extra = "allow"  # Allow any stat names to be added dynamically
+
+
+class PyAgentRewards(BaseModelWithForbidExtra):
+    """Agent reward configuration with separate inventory and stats rewards."""
+
+    inventory: Optional[PyInventoryRewards] = Field(default_factory=PyInventoryRewards)
+    stats: Optional[PyStatsRewards] = Field(default_factory=PyStatsRewards)
+
+    # For backward compatibility, handle old format
+    def __init__(self, **data):
+        # If we have direct inventory reward keys, move them to inventory
+        inventory_keys = [
+            "ore_red",
+            "ore_blue",
+            "ore_green",
+            "battery_red",
+            "battery_blue",
+            "battery_green",
+            "heart",
+            "armor",
+            "laser",
+            "blueprint",
+        ]
+        inventory_max_keys = [f"{k}_max" for k in inventory_keys]
+
+        # Check if this is the old format (has direct reward keys)
+        if any(k in data for k in inventory_keys + inventory_max_keys):
+            # Old format - move to inventory
+            if "inventory" not in data:
+                data["inventory"] = {}
+
+            for key in list(data.keys()):
+                if key in inventory_keys or key in inventory_max_keys:
+                    data["inventory"][key] = data.pop(key)
+
+        super().__init__(**data)
 
 
 class PyAgentConfig(BaseModelWithForbidExtra):

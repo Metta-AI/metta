@@ -1,0 +1,26 @@
+# Example configuration for stats-based rewards
+# Stats rewards give agents rewards based on tracked statistics
+
+inventory:
+  # Standard inventory rewards (optional)
+  heart: 1.0
+
+stats:
+  # Reward for successful attacks
+  action.attack.success: 0.1
+  action.attack.success_max: 10.0  # Maximum total reward from successful attacks
+  
+  # Reward for collecting items
+  ore_red.gained: 0.05
+  ore_red.gained_max: 5.0
+  
+  # Reward for successful item conversions
+  battery_red.gained: 0.1
+  battery_red.gained_max: 10.0
+  
+  # Penalty for failed actions (negative reward)
+  action.failure_penalty: -0.01
+  
+  # Reward for exploring (moving to new locations)
+  action.move.success: 0.01
+  action.move.success_max: 1.0
