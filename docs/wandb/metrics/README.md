@@ -3,6 +3,25 @@
 This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB) during
 Metta training runs.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Metric Categories](#metric-categories)
+- [Metric Aggregation Strategy](#metric-aggregation-strategy)
+  - [Aggregation Pipeline](#aggregation-pipeline)
+  - [Detailed Aggregation Table](#detailed-aggregation-table)
+  - [Timing Metrics Explained](#timing-metrics-explained)
+  - [Key Points](#key-points)
+  - [Example: Tracing a Reward Metric](#example-tracing-a-reward-metric)
+  - [Special Cases](#special-cases)
+- [Metric Naming Convention](#metric-naming-convention)
+  - [Common Statistics Suffixes](#common-statistics-suffixes)
+  - [Common Qualifiers](#common-qualifiers)
+- [Usage](#usage)
+- [Quick Start](#quick-start)
+- [Related Tools](#related-tools)
+- [Updating Documentation](#updating-documentation)
+
 ## Overview
 
 Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent

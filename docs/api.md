@@ -2,6 +2,20 @@
 
 The Metta API (`metta.api`) provides a clean way to use Metta's training components without Hydra configuration files.
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Core Components](#core-components)
+  - [Environment](#environment)
+  - [Agent](#agent)
+  - [Optimizer](#optimizer)
+  - [Training Loop Functions](#training-loop-functions)
+- [Distributed Training](#distributed-training)
+- [Checkpointing](#checkpointing)
+- [Configuration](#configuration)
+- [Complete Example](#complete-example)
+- [Key Exports](#key-exports)
+
 ## Quick Start
 
 ```python

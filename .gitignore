@@ -77,3 +77,7 @@ metta-research/
 terrain_maps_nohearts*
 gpu_names_cache.json
 sweep_id
+
+# MkDocs
+site/
+.mkdocs_cache/
