@@ -7,11 +7,10 @@ The Metta API (`metta.api`) provides a clean way to use Metta's training compone
 ```python
 #!/usr/bin/env -S uv run
 import torch
-from metta.api.agent import Agent
+from metta.api.agent import Agent, wrap_agent_distributed
 from metta.api.environment import Environment
 from metta.api.directories import setup_run_directories, setup_device_and_distributed
 from metta.api.training import Optimizer
-from metta.rl.functions import wrap_agent_distributed
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig

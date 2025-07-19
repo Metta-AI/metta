@@ -227,3 +227,35 @@ def ensure_initial_policy(
     # Ensure all ranks synchronize
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
+
+
+def should_run_on_interval(
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> bool:
+    """Check if a periodic task should run based on interval and master status.
+
+    Args:
+        epoch: Current epoch
+        interval: Interval to check
+        is_master: Whether this is the master rank
+        force: Force run regardless of interval
+
+    Returns:
+        True if should run, False otherwise
+    """
+    if not is_master or not interval:
+        return False
+
+    if force:
+        return True
+
+    return epoch % interval == 0
+
+
+# Alias for backward compatibility
+def should_run(epoch: int, interval: int, is_master: bool = True) -> bool:
+    """Alias for should_run_on_interval for compatibility."""
+    return should_run_on_interval(epoch, interval, is_master)

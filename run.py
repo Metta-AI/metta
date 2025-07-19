@@ -8,7 +8,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.api.agent import Agent
+from metta.api.agent import Agent, wrap_agent_distributed
 from metta.api.directories import (
     save_experiment_config,
     setup_device_and_distributed,
@@ -27,6 +27,7 @@ from metta.api.training import (
     initialize_wandb,
     load_checkpoint,
     save_checkpoint,
+    should_run_on_interval,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
@@ -50,8 +51,6 @@ from metta.rl.functions import (
     process_minibatch_update,
     process_training_stats,
     run_policy_inference,
-    should_run_on_interval,
-    wrap_agent_distributed,
 )
 
 # Import additional functions from metta.rl.functions
