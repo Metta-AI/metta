@@ -60,40 +60,36 @@ class DockerContainerManager(AbstractContainerManager):
             self._logger.info(f"Cleaned up container {container_id}")
 
     async def discover_alive_workers(self) -> list[WorkerInfo]:
-        try:
-            result = subprocess.run(
-                [
-                    "docker",
-                    "ps",
-                    "--filter",
-                    "name=eval-worker-",
-                    "--format",
-                    "{{.ID}}\t{{.Names}}",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
+        result = subprocess.run(
+            [
+                "docker",
+                "ps",
+                "--filter",
+                "name=eval-worker-",
+                "--format",
+                "{{.ID}}\t{{.Names}}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
-            workers = []
-            if result.stdout.strip():
-                for line in result.stdout.strip().split("\n"):
-                    parts = line.split("\t")
-                    if len(parts) == 2:
-                        container_id, container_name = parts
-                        if container_name.startswith("eval-worker-"):
-                            try:
-                                git_hash, _ = self._parse_container_name(container_name)
-                                workers.append(
-                                    WorkerInfo(
-                                        git_hash=git_hash,
-                                        container_id=container_id,
-                                        container_name=container_name,
-                                    )
+        workers = []
+        if result.stdout.strip():
+            for line in result.stdout.strip().split("\n"):
+                parts = line.split("\t")
+                if len(parts) == 2:
+                    container_id, container_name = parts
+                    if container_name.startswith("eval-worker-"):
+                        try:
+                            git_hash, _ = self._parse_container_name(container_name)
+                            workers.append(
+                                WorkerInfo(
+                                    git_hash=git_hash,
+                                    container_id=container_id,
+                                    container_name=container_name,
                                 )
-                            except ValueError:
-                                self._logger.warning(f"Skipping container with invalid name: {container_name}")
-            return workers
-        except subprocess.CalledProcessError as e:
-            self._logger.error(f"Failed to discover workers: {e}")
-            return []
+                            )
+                        except ValueError:
+                            self._logger.warning(f"Skipping container with invalid name: {container_name}")
+        return workers
