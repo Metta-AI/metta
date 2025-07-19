@@ -16,7 +16,7 @@ The goal is to call the rendering code from within observatory.
 
 1. download docker https://docs.docker.com/desktop/setup/install/mac-install/. open it, etc
 2. run this to get a local version of postgres running: `docker run --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=password -d pgvector/pgvector:pg17`. it'll yell at you if docker isn't running
-3. `cd app_backend/src/metta/app_backend && uv run python server.py` to run local observatory backend
+3. `cd app_backend/src/metta/app_backend` and then `DEBUG_USER_EMAIL=dev@stem.ai uv run python server.py` to run local observatory backend
 4. `cd observatory && npm run dev` to run the local frontend (new terminal)
 5. `metta install observatory-key-local`. This should get a key for you to use for your local observatory. do cat ~/.metta/observatory_tokens.yaml to confirm that there's a line for http://localhost:8000 
 6. `uv run python tools/train.py +user=ptsier +hardware=macbook wandb=off` to run training followed by evaluation.
