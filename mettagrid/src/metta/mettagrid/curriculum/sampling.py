@@ -36,17 +36,13 @@ class SampledTaskCurriculum(Curriculum):
         task_id: str,
         task_cfg_template: OmegaConf.DictConfig,
         sampling_parameters: Dict[str, Dict[str, Any]],
-        env_overrides: Optional[DictConfig] = None,
     ):
         self._task_id = task_id
         self._task_cfg_template = task_cfg_template
         self._sampling_parameters = sampling_parameters
-        self._env_overrides = env_overrides
 
     def get_task(self) -> Task:
         cfg = self._task_cfg_template.copy()
-        if self._env_overrides:
-            cfg.merge_with(self._env_overrides)
         for k, v in self._sampling_parameters.items():
             OmegaConf.update(cfg, k, _sample(v), merge=False)
         return Task(self._task_id, self, cfg)
