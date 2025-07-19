@@ -1,3 +1,5 @@
+import re
+
 import requests
 import vcr
 
@@ -455,13 +457,15 @@ class AsanaTask:
                     print(f"[s] Skipped adding comment for review {review_id} due to ordering constraint")
 
     @staticmethod
-    def extract_gid_from_url(url: str) -> str:
-        import re
+    def extract_asana_gid_from_url(task_url: str) -> str:
+        # Try Format 1: https://app.asana.com/0/project_id/task_id
+        match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)(?:/|$)", task_url)
+        if match:
+            return match.group(1)
 
-        match = re.search(r"https://app\\.asana\\.com/\d+/\d+/(\d+)(?:/|$)", url)
+        # Try Format 2: https://app.asana.com/1/workspace_id/project/project_id/task/task_id
+        match = re.search(r"https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)(?:/|$)", task_url)
         if match:
             return match.group(1)
-        match = re.search(r"https://app\\.asana\\.com/\d+/\d+/project/\d+/task/(\d+)(?:/|$)", url)
-        if match:
-            return match.group(1)
-        raise Exception(f"Could not extract task ID from URL: {url}")
+
+        raise Exception(f"Could not extract task ID from URL: {task_url}")

@@ -1,4 +1,5 @@
 import json
+import re
 
 import requests
 import vcr
@@ -147,9 +148,9 @@ class PullRequest:
 
         # Pattern to match Asana task URLs in the format used by update-pr-description
         # Matches: [Asana Task](https://app.asana.com/0/123456789/123456789)
-        import re
 
-        asana_pattern = r"\\[Asana Task\\]\\((https://app\\.asana\\.com/\\d+/\\d+/\\d+(?:\\?[^\\s\\)]*)?)\\)"
+        asana_pattern = r"\[Asana Task\]\((https://app\.asana\.com/\d+/\d+/\d+(?:\?[^\s\)]*)?)\)"
+
         urls = re.findall(asana_pattern, description)
         print(f"Found {len(urls)} Asana URLs in description: {description}")
 
