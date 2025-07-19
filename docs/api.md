@@ -7,10 +7,11 @@ The Metta API (`metta.api`) provides a clean way to use Metta's training compone
 ```python
 #!/usr/bin/env -S uv run
 import torch
-from metta.api.agent import Agent, wrap_agent_distributed
+from metta.api.agent import Agent
 from metta.api.environment import Environment
 from metta.api.directories import setup_run_directories, setup_device_and_distributed
-from metta.api.training import Optimizer
+from metta.api.training import Optimizer, save_checkpoint, load_checkpoint
+from metta.rl.functions.policy_management import wrap_agent_distributed
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
@@ -123,6 +124,7 @@ device = setup_device_and_distributed("cuda")
 is_master, world_size, rank = setup_distributed_vars()
 
 # Wrap agent for distributed
+from metta.rl.functions.policy_management import wrap_agent_distributed
 agent = wrap_agent_distributed(agent, device)
 
 # Run with torchrun
@@ -172,4 +174,19 @@ See `run.py` for a complete example of training without Hydra configuration file
 
 ## Key Exports
 
-The `metta.api`
+The `metta.api` module exports:
+
+**Factories**: `Environment`, `Agent`, `Optimizer`
+
+**Training**: `perform_rollout_step`, `process_minibatch_update`, `accumulate_rollout_stats`, `compute_advantage`
+
+**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `cleanup_distributed`
+
+**Checkpointing**: `save_checkpoint`, `load_checkpoint`
+
+**Configuration**: `TrainerConfig`, `PPOConfig`, `OptimizerConfig`, `CheckpointConfig`
+
+**Components**: `Experience`, `Kickstarter`, `Losses`, `Stopwatch`
+
+**Utilities**: `setup_run_directories`, `save_experiment_config`, `create_evaluation_config_suite`,
+`create_replay_config`

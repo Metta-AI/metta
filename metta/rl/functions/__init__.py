@@ -1,35 +1,97 @@
-# Compatibility layer for metta.rl.functions imports
-# This allows Python to treat metta.rl.functions as either a module or package
-#
-# This compatibility layer exists because:
-# 1. Some Python environments try to import metta.rl.functions as a package
-# 2. We're in the process of deprecating metta.rl.functions.py
-# 3. This ensures imports work consistently across different environments
-#
-# TODO: Remove this compatibility layer once metta.rl.functions.py is fully
-# deprecated and all imports have been migrated to their new locations
+"""Functional training utilities for Metta.
 
-# Import everything from the parent functions.py module
-# noqa: F403, F401, TID252 - This is a compatibility layer
-from metta.rl.functions import *  # noqa: F403, TID252
+This module provides functional implementations of the core training loop components,
+extracting the rollout and train logic from MettaTrainer into standalone functions.
+"""
 
-# Also explicitly re-export commonly used functions to ensure they're available
-# noqa comments needed for compatibility layer
-from metta.rl.functions import (  # noqa: TID252
-    accumulate_rollout_stats,  # noqa: F401
-    build_wandb_stats,  # noqa: F401
-    calculate_batch_sizes,  # noqa: F401
-    calculate_explained_variance,  # noqa: F401
-    calculate_prioritized_sampling_params,  # noqa: F401
-    cleanup_old_policies,  # noqa: F401
-    compute_advantage,  # noqa: F401
-    compute_gradient_stats,  # noqa: F401
-    compute_timing_stats,  # noqa: F401
-    get_lstm_config,  # noqa: F401
-    get_observation,  # noqa: F401
-    process_minibatch_update,  # noqa: F401
-    process_training_stats,  # noqa: F401
-    run_policy_inference,  # noqa: F401
-    save_policy_with_metadata,  # noqa: F401
-    validate_policy_environment_match,  # noqa: F401
+# Advantage computation
+from .advantage import compute_advantage, normalize_advantage_distributed
+
+# Batch utilities
+from .batch_utils import calculate_batch_sizes, calculate_prioritized_sampling_params
+
+# Distributed utilities
+from .distributed import setup_device_and_distributed, setup_distributed_vars
+
+# Evaluation utilities
+from .evaluation import evaluate_policy, generate_replay
+
+# Loss computation
+from .losses import compute_ppo_losses, process_minibatch_update
+
+# Optimization utilities
+from .optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+    maybe_update_l2_weights,
 )
+
+# Policy management
+from .policy_management import (
+    cleanup_old_policies,
+    ensure_initial_policy,
+    maybe_load_checkpoint,
+    save_policy_with_metadata,
+    validate_policy_environment_match,
+    wrap_agent_distributed,
+)
+
+# Rollout utilities
+from .rollout import get_lstm_config, get_observation, run_policy_inference
+
+# Statistics and metrics
+from .stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_stats,
+    process_training_stats,
+)
+
+# Utility functions
+from .utils import should_run
+
+# For backward compatibility, also provide should_run_on_interval as an alias
+should_run_on_interval = should_run
+
+__all__ = [
+    # Advantage
+    "compute_advantage",
+    "normalize_advantage_distributed",
+    # Batch utils
+    "calculate_batch_sizes",
+    "calculate_prioritized_sampling_params",
+    # Distributed
+    "setup_device_and_distributed",
+    "setup_distributed_vars",
+    # Evaluation
+    "evaluate_policy",
+    "generate_replay",
+    # Losses
+    "compute_ppo_losses",
+    "process_minibatch_update",
+    # Optimization
+    "calculate_explained_variance",
+    "compute_gradient_stats",
+    "maybe_update_l2_weights",
+    # Policy management
+    "cleanup_old_policies",
+    "ensure_initial_policy",
+    "maybe_load_checkpoint",
+    "save_policy_with_metadata",
+    "validate_policy_environment_match",
+    "wrap_agent_distributed",
+    # Rollout
+    "get_lstm_config",
+    "get_observation",
+    "run_policy_inference",
+    # Stats
+    "accumulate_rollout_stats",
+    "build_wandb_stats",
+    "compute_timing_stats",
+    "process_stats",
+    "process_training_stats",
+    # Utils
+    "should_run",
+    "should_run_on_interval",
+]
