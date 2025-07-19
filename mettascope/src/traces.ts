@@ -83,6 +83,36 @@ export function drawTrace(panel: PanelInfo) {
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
+  // Compute the currently visible rect of the trace panel.
+  // This is important for very large scenes with lots of agents.
+
+  const rectCenterX = rect.x + rect.width / 2
+  const rectCenterY = rect.y + rect.height / 2
+
+  function screenToWorldX(screenX: number): number {
+    return (screenX - rectCenterX) / panel.zoomLevel - panel.panPos.x()
+  }
+
+  function screenToWorldY(screenY: number): number {
+    return (screenY - rectCenterY) / panel.zoomLevel - panel.panPos.y()
+  }
+
+  // World coordinate bounds that are visible this frame.
+  const worldLeft = screenToWorldX(rect.x)
+  const worldRight = screenToWorldX(rect.x + rect.width)
+  const worldTop = screenToWorldY(rect.y)
+  const worldBottom = screenToWorldY(rect.y + rect.height)
+
+  // Visible step / agent ranges.
+  const firstStep = Math.max(Math.floor(worldLeft / Common.TRACE_WIDTH) - 1, 0)
+  const lastStep = Math.min(Math.ceil(worldRight / Common.TRACE_WIDTH) + 1, state.replay.max_steps - 1)
+
+  const firstAgent = Math.max(Math.floor(worldTop / Common.TRACE_HEIGHT) - 1, 0)
+  const lastAgent = Math.min(
+    Math.ceil(worldBottom / Common.TRACE_HEIGHT) + 1,
+    state.replay.num_agents - 1
+  )
+
   // Draw a rectangle around the selected agent.
   if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
     const agentId = state.selectedGridObject.agent_id
@@ -101,9 +131,10 @@ export function drawTrace(panel: PanelInfo) {
   )
 
   // Draw the agent traces.
-  for (let i = 0; i < state.replay.num_agents; i++) {
+  for (let i = firstAgent; i <= lastAgent; i++) {
     const agent = state.replay.agents[i]
-    for (let j = 0; j < state.replay.max_steps; j++) {
+
+    for (let j = firstStep; j <= lastStep; j++) {
       const action = getAttr(agent, 'action', j)
       const action_success = getAttr(agent, 'action_success', j)
 
