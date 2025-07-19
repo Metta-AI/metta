@@ -12,7 +12,7 @@ const inputSchema = zfd.formData({
   paperId: zfd.text(z.string().min(1)),
 });
 
-export const toggleQueueActionPrisma = actionClient
+export const toggleQueueAction = actionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();

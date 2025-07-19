@@ -56,7 +56,7 @@ export interface PaperWithUserContext extends Paper {
  * This function fetches papers and their associated user interactions,
  * and determines the current user's interaction status for each paper.
  */
-export async function loadPapersWithUserContextPrisma(): Promise<{
+export async function loadPapersWithUserContext(): Promise<{
   papers: PaperWithUserContext[];
   users: User[];
   interactions: UserInteraction[];
@@ -116,7 +116,7 @@ export async function loadPapersWithUserContextPrisma(): Promise<{
  * This function fetches papers and their associated user interactions,
  * transforming the data to match the expected format for the papers view.
  */
-export async function loadPapersPrisma(): Promise<{
+export async function loadPapers(): Promise<{
   papers: Paper[];
   users: User[];
   interactions: UserInteraction[];
@@ -147,7 +147,7 @@ export async function loadPapersPrisma(): Promise<{
  * 
  * @param userId - The ID of the user to load interactions for
  */
-export async function loadPapersForUserPrisma(userId: string): Promise<{
+export async function loadPapersForUser(userId: string): Promise<{
   papers: Paper[];
   userInteractions: UserInteraction[];
 }> {

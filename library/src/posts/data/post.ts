@@ -3,7 +3,7 @@ import { FeedPostDTO, toFeedPostDTO } from "./feed";
 
 export type PostDTO = FeedPostDTO;
 
-export default async function loadPostPrisma(postId: string): Promise<PostDTO> {
+export default async function loadPost(postId: string): Promise<PostDTO> {
   const post = await prisma.post.findUnique({
     where: { id: postId },
     include: {

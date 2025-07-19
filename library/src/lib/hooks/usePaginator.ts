@@ -63,11 +63,11 @@ export function usePaginator<T>(initialPage: Paginated<T>): FullPaginated<T> {
       ? (limit: number) => {
           setLoading(true);
           loadMore(limit).then(({ items: newItems, loadMore: newLoadMore }) => {
-            // In theory, there should be no duplicates, if `loadMore` is implemented correctly.
-            // But maybe we should check for duplicate keys and skip them.
-            // This would require a separate (optional?) `getKey` parameter to this hook.
+            // Deduplicate items by ID to prevent React key conflicts
             setPage(({ items }) => {
-              const updatedItems = [...items, ...newItems];
+              const existingIds = new Set(items.map(item => (item as any).id));
+              const uniqueNewItems = newItems.filter(item => !existingIds.has((item as any).id));
+              const updatedItems = [...items, ...uniqueNewItems];
               return {
                 items: updatedItems,
                 loadMore: newLoadMore,

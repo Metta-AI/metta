@@ -15,7 +15,7 @@ const inputSchema = zfd.formData({
   paperId: zfd.text(z.string().optional()), // Added support for paperId
 });
 
-export const createPostActionPrisma = actionClient
+export const createPostAction = actionClient
   .inputSchema(inputSchema)
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
