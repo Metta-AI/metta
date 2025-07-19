@@ -121,3 +121,59 @@ The application implements cursor-based pagination for efficient data loading:
 - `pnpm prisma studio` - Open Prisma Studio for database management
 - `pnpm prisma generate` - Generate Prisma client
 - `pnpm prisma db push` - Push schema changes to database
+- `pnpm fetch-arxiv` - Fetch arXiv paper metadata as JSON
+- `pnpm test-arxiv` - Test the arXiv fetcher module
+
+### arXiv Paper Fetcher
+
+The project includes a reusable script for fetching arXiv paper metadata as JSON. This script can be used both as a command-line tool and imported as a module in your code.
+
+#### Command Line Usage
+
+```bash
+# Fetch paper by URL
+pnpm fetch-arxiv https://arxiv.org/abs/2204.11674
+
+# Fetch paper by arXiv ID
+pnpm fetch-arxiv 2204.11674
+```
+
+#### Module Usage
+
+```typescript
+import { fetchArxivPaper, ArxivPaperData } from './scripts/fetch-arxiv-paper';
+
+// Fetch paper data
+const paperData: ArxivPaperData = await fetchArxivPaper('2204.11674');
+
+// Use the structured data
+console.log(paperData.title);
+console.log(paperData.authors);
+console.log(paperData.abstract);
+```
+
+#### Output Format
+
+The script returns a structured JSON object with the following fields:
+
+- `id`: arXiv ID (e.g., "2204.11674")
+- `title`: Paper title
+- `abstract`: Paper abstract
+- `authors`: Array of author names
+- `categories`: Array of arXiv categories
+- `publishedDate`: Publication date (ISO string)
+- `updatedDate`: Last update date (ISO string)
+- `doi`: DOI if available
+- `journalRef`: Journal reference if available
+- `primaryCategory`: Primary arXiv category
+- `arxivUrl`: arXiv abstract URL
+- `pdfUrl`: Direct PDF download URL
+- `summary`: Alias for abstract
+
+#### Testing
+
+Run the test script to verify the module works correctly:
+
+```bash
+pnpm test-arxiv
+```
