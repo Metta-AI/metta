@@ -1,27 +1,67 @@
 # Softmax Library
 
+A social feed and knowledge repository for AI research papers, built with Next.js 15, Prisma ORM, and NextAuth.js.
+
 ## Development
+
+### Prerequisites
+
+1. **PostgreSQL Database**: You need to run [Postgres.app](https://postgresapp.com/) locally
+   - Download and install Postgres.app
+   - Start the PostgreSQL server
+   - Create a database named `metta_library` (or update the DATABASE_URL in your .env.local)
+
+2. **Node.js**: Ensure you have Node.js installed (version 18 or higher recommended)
 
 ### Setup
 
-Run `pnpm install` to install dependencies.
+1. **Install dependencies**:
+   ```bash
+   pnpm install
+   ```
 
-Create a `.env.local` file with the following content:
+2. **Set up environment variables**:
+   Create a `.env.local` file with the following content:
+   ```
+   DATABASE_URL=postgres://localhost/metta_library
+   DEV_MODE=true
+   ```
 
-```
-DATABASE_URL=postgres://localhost/metta_library
-DEV_MODE=true
-```
+3. **Generate authentication secret**:
+   ```bash
+   pnpm auth secret
+   ```
+   This will populate your `.env.local` file with a random `AUTH_SECRET`.
 
-Then run `pnpx auth secret` to populate this file with a random `AUTH_SECRET`.
+4. **Set up the database**:
+   ```bash
+   # Generate Prisma client
+   pnpm prisma generate
+   
+   # Run database migrations (if any)
+   pnpm prisma db push
+   ```
 
 ### Running
 
-Run `pnpm dev` to start the development server.
+1. **Start the development server**:
+   ```bash
+   pnpm dev
+   ```
 
-Then go to `http://localhost:3001` to see the app.
+2. **Access the application**:
+   Open your browser and go to `http://localhost:3001`
 
-Use any email to sign in; click the logged magic link in the terminal logs to complete the sign in.
+3. **Sign in**:
+   - Use any email address to sign in
+   - Check the terminal logs for the magic link
+   - Click the magic link to complete the sign in process
+
+### Database Management
+
+- **View database**: Use `pnpm prisma studio` to open Prisma Studio and browse your data
+- **Reset database**: Use `pnpm prisma db push --force-reset` to reset the database (⚠️ this will delete all data)
+- **Generate client**: Use `pnpm prisma generate` after schema changes
 
 ### Code layout
 
@@ -39,18 +79,45 @@ For example, `src/posts` contains:
 
 If you need to reuse content type-specific React components, you should put them under `src/{entity}/components` dir.
 
-### Auth
+### Authentication
 
-Auth is handled by [Auth.js](https://authjs.dev/).
+Authentication is handled by [NextAuth.js](https://next-auth.js.org/) with the Prisma adapter.
 
-In development, we use a fake email provider that logs the magic link to the console.
+- **Development**: Uses a fake email provider that logs magic links to the console
+- **Production**: Configure your preferred email provider in the auth configuration
 
 See [src/lib/auth.ts](src/lib/auth.ts) for more details.
 
+### Database
+
+The application uses [Prisma ORM](https://www.prisma.io/) for database access:
+
+- **Schema**: Defined in `prisma/schema.prisma`
+- **Client**: Generated automatically with `pnpm prisma generate`
+- **Migrations**: Applied with `pnpm prisma db push`
+
+The database schema includes:
+- **Users**: Authentication and user profiles
+- **Papers**: Research papers with metadata
+- **Posts**: User-generated content and discussions
+- **Interactions**: User interactions with papers (stars, queue)
+
 ### Pagination
 
-Example implementation:
+The application implements cursor-based pagination for efficient data loading:
 
-- [src/posts/data/feed.ts](src/posts/data/feed.ts) for selecting a feed that supports infinite scrolling
-- [src/lib/hooks/usePaginator.ts](src/lib/hooks/usePaginator.ts) for a React hook that manages the pagination state
-- [src/components/LoadMore.tsx](src/components/LoadMore.tsx) for a component that can be used to load more items
+- [src/posts/data/feed.ts](src/posts/data/feed.ts) - Feed data access with pagination support
+- [src/lib/hooks/usePaginator.ts](src/lib/hooks/usePaginator.ts) - React hook for managing pagination state
+- [src/components/LoadMore.tsx](src/components/LoadMore.tsx) - UI component for loading more items
+- [src/components/InfiniteScroll.tsx](src/components/InfiniteScroll.tsx) - Infinite scroll implementation
+
+### Available Scripts
+
+- `pnpm dev` - Start development server
+- `pnpm build` - Build for production
+- `pnpm start` - Start production server
+- `pnpm lint` - Run linting
+- `pnpm format` - Format code with Prettier
+- `pnpm prisma studio` - Open Prisma Studio for database management
+- `pnpm prisma generate` - Generate Prisma client
+- `pnpm prisma db push` - Push schema changes to database
