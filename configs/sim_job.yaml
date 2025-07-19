@@ -15,4 +15,6 @@ sim_job:
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: ${run_dir}/replays/evals
 
+eval_task_id: null
+
 cmd: sim
