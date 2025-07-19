@@ -5,9 +5,6 @@ from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.types import Area, AreaQuery, AreaWhere
 
-# Set a global seed for reproducibility
-SEED = 42
-
 
 class MockParams(Config):
     pass
@@ -20,9 +17,6 @@ class MockScene(Scene[MockParams]):
 
 @pytest.fixture
 def scene():
-    # Set NumPy seed for reproducibility
-    np.random.seed(SEED)
-
     # Create a 5x5 grid with some test data
     grid = np.array(
         [
@@ -34,7 +28,7 @@ def scene():
         ]
     )
     area = Area.root_area_from_grid(grid)
-    scene = MockScene(area=area)
+    scene = MockScene(area=area, seed=42)
     # Create some test areas with different tags
     scene.make_area(0, 0, 3, 2, tags=["tag1", "tag2", "scene1"])  # ABC / FGH
     scene.make_area(1, 2, 2, 2, tags=["tag2", "tag3", "scene2"])  # LM / QR
@@ -53,7 +47,6 @@ def test_areas_are_correctly_created(scene):
 
 
 def test_select_areas_with_where_tags(scene):
-    assert np.random.get_state()[1][0] == SEED  # Verify seed is still effective
     # Test selecting areas with specific tags
     query = AreaQuery(where=AreaWhere(tags=["tag1", "tag2"]))
     selected_areas = scene.select_areas(query)
@@ -127,7 +120,7 @@ def test_select_areas_returns_list_type(scene):
     assert isinstance(selected_areas, list), "select_areas should return a list"
 
     # Test with random ordering (which uses numpy internally)
-    query = AreaQuery(limit=2, order_by="random", order_by_seed=42)
+    query = AreaQuery(limit=2, order_by="random")
     selected_areas = scene.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with random ordering should return a list"
 
@@ -142,7 +135,7 @@ def test_select_areas_returns_list_type(scene):
     assert isinstance(selected_areas, list), "select_areas with last ordering should return a list"
 
     # Verify list operations work
-    query = AreaQuery(limit=1, order_by="random", order_by_seed=42)
+    query = AreaQuery(limit=1, order_by="random")
     selected_areas = scene.select_areas(query)
     # This should not raise AttributeError if it's a proper list
     selected_areas_copy = selected_areas.copy()

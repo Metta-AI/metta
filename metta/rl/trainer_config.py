@@ -71,10 +71,8 @@ class CheckpointConfig(BaseModelWithForbidExtra):
 
 
 class SimulationConfig(BaseModelWithForbidExtra):
-    # Evaluate interval: Type 2 arbitrary default
+    # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
-    # Replay interval: Type 2 arbitrary default
-    replay_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
 
     @model_validator(mode="after")
@@ -154,7 +152,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     # System configuration
-    # Zero copy: Performance optimization to avoid memory copies
+    # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)
     zero_copy: bool = True
     # Contiguous env IDs not required: More flexible env management
     require_contiguous_env_ids: bool = False
@@ -187,6 +185,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Forward minibatch: Type 2 default chosen arbitrarily
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
+    #   (default assumes multiprocessing)
     async_factor: int = Field(default=2, gt=0)
 
     # Kickstart
@@ -227,6 +226,35 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if not self.curriculum and not self.env:
             raise ValueError("curriculum or env must be set")
 
+        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
+            )
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
+            )
+        # Validate that we save policies locally at least as often as we upload to wandb
+        if (
+            self.checkpoint.wandb_checkpoint_interval != 0
+            and self.checkpoint.checkpoint_interval != 0
+            and self.checkpoint.wandb_checkpoint_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                f"to ensure policies exist locally before uploading to wandb "
+                f"({self.checkpoint.wandb_checkpoint_interval} < {self.checkpoint.checkpoint_interval})"
+            )
+
         return self
 
     @property
@@ -238,10 +266,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         raise ValueError("curriculum or env must be set")
 
 
-def parse_trainer_config(
+def create_trainer_config(
     cfg: DictConfig,
 ) -> TrainerConfig:
-    """Parse trainer config from Hydra config.
+    """Create trainer config from Hydra config.
 
     Args:
         cfg: The complete Hydra config (must contain trainer, run, and run_dir)
@@ -262,6 +290,11 @@ def parse_trainer_config(
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
+
+    # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
+    if cfg.vectorization == "serial":
+        config_dict["async_factor"] = 1
+        config_dict["zero_copy"] = False
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):

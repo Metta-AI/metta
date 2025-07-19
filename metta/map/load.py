@@ -1,5 +1,6 @@
 from typing import cast
 
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import make_scene
@@ -37,7 +38,7 @@ class Load(Room):
         area = Area.root_area_from_grid(grid)
 
         if self._extra_root is not None:
-            root_scene = make_scene(self._extra_root, area)
+            root_scene = make_scene(self._extra_root, area, rng=np.random.default_rng())
             root_scene.render_with_children()
 
         return Level(grid=grid, labels=[])

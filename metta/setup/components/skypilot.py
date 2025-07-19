@@ -7,6 +7,8 @@ from metta.setup.utils import info, success
 
 @register_module
 class SkypilotSetup(SetupModule):
+    install_once = True
+
     @property
     def description(self) -> str:
         return "SkyPilot cloud compute orchestration"

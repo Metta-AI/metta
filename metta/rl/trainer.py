@@ -1,8 +1,9 @@
 import logging
 import os
+import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Set
+from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -10,7 +11,8 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationError
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -23,30 +25,44 @@ from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_stats_db import EvalStatsDB
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions import (
-    accumulate_rollout_stats,
+from metta.rl.functions.advantage import compute_advantage
+from metta.rl.functions.batch_utils import (
     calculate_batch_sizes,
-    calculate_explained_variance,
     calculate_prioritized_sampling_params,
-    compute_advantage,
-    get_lstm_config,
-    perform_rollout_step,
-    process_minibatch_update,
+)
+from metta.rl.functions.losses import process_minibatch_update
+from metta.rl.functions.optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+)
+from metta.rl.functions.policy_management import (
+    cleanup_old_policies,
     validate_policy_environment_match,
+)
+from metta.rl.functions.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.functions.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import parse_trainer_config
+from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.simulation_suite import SimulationSuite
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -82,36 +98,12 @@ class MettaTrainer:
             logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
         self.cfg = cfg
-        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg)
-
-        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
-        if (
-            trainer_cfg.simulation.evaluate_interval != 0
-            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.checkpoint_interval
-        ):
-            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
-
-        if (
-            trainer_cfg.simulation.evaluate_interval != 0
-            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.wandb_checkpoint_interval
-        ):
-            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
-
-        # Validate that we save policies locally at least as often as we upload to wandb
-        if (
-            trainer_cfg.checkpoint.wandb_checkpoint_interval != 0
-            and trainer_cfg.checkpoint.checkpoint_interval != 0
-            and trainer_cfg.checkpoint.wandb_checkpoint_interval < trainer_cfg.checkpoint.checkpoint_interval
-        ):
-            raise ValueError(
-                "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                "to ensure policies exist locally before uploading to wandb"
-            )
+        self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
 
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
 
-        self.sim_suite_config = sim_suite_config
+        self._sim_suite_config = sim_suite_config
         self._stats_client = stats_client
 
         if torch.distributed.is_initialized():
@@ -136,7 +128,7 @@ class MettaTrainer:
         self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.evals: dict[str, float] = {}
+        self.evals = EvalRewardSummary()
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -148,11 +140,20 @@ class MettaTrainer:
                 history_size=100,  # Keep last 100 samples
                 logger=logger,
                 auto_start=True,  # Start monitoring immediately
+                external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Add training task to the suite
+        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -171,11 +172,6 @@ class MettaTrainer:
             if checkpoint.stopwatch_state is not None:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
-
-        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
-        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names
-        actions_max_params = metta_grid_env.max_action_args
 
         # Load or create policy with distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
@@ -263,8 +259,7 @@ class MettaTrainer:
             trainer_cfg.kickstart,
             self.device,
             policy_store,
-            actions_names,
-            actions_max_params,
+            metta_grid_env,
         )
 
         if torch.distributed.is_initialized():
@@ -324,6 +319,11 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+            # Log model parameters
+            num_params = sum(p.numel() for p in self.policy.parameters())
+            if wandb_run.summary:
+                wandb_run.summary["model/total_parameters"] = num_params
+
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
@@ -379,7 +379,7 @@ class MettaTrainer:
             stats_pct = (stats_time / total_time) * 100
 
             logger.info(
-                f"Epoch {self.epoch} - "
+                f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
@@ -390,7 +390,6 @@ class MettaTrainer:
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
-            self._maybe_generate_replay()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -406,6 +405,10 @@ class MettaTrainer:
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
+
+        if self._stats_epoch_start < self.epoch:
+            # If we have not just evaluated the latest policy, evaluate it
+            self._maybe_evaluate_policy(force=True)
 
     def _on_train_step(self):
         pass
@@ -428,9 +431,32 @@ class MettaTrainer:
                 )
 
             # Perform single rollout step
-            num_steps, info = perform_rollout_step(self.policy, self.vecenv, experience, self.device, self.timer)
+            # Receive environment data
+            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
+            self.agent_step += num_steps * self._world_size
 
-            self.agent_step += num_steps
+            # Run policy inference
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                self.policy, o, experience, training_env_id.start, self.device
+            )
+
+            # Store experience
+            experience.store(
+                obs=o,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r,
+                dones=d,
+                truncations=t,
+                values=values,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
+            )
+
+            # Send actions back to environment
+            with self.timer("_rollout.env"):
+                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:
@@ -551,10 +577,8 @@ class MettaTrainer:
         return self.epoch % interval == 0
 
     def _maybe_record_heartbeat(self, force=False):
-        if not self._should_run(10, force):
-            return
-
-        record_heartbeat()
+        if force or (self.epoch % 10 == 0):
+            record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
@@ -578,7 +602,6 @@ class MettaTrainer:
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
-            total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             stopwatch_state=self.timer.save_state(),
             policy_path=self.latest_saved_policy_uri,
@@ -613,7 +636,7 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+        category_scores_map = self.evals.category_scores.copy()
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
@@ -655,7 +678,7 @@ class MettaTrainer:
 
         # Clean up old policies to prevent disk space issues
         if self.epoch % 10 == 0:  # Clean up every 10 epochs
-            self._cleanup_old_policies(keep_last_n=5)
+            cleanup_old_policies(self.trainer_cfg.checkpoint.checkpoint_dir, keep_last_n=5)
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
@@ -693,6 +716,7 @@ class MettaTrainer:
                 self._evaluate_policy(wandb_policy_name)
             except Exception as e:
                 logger.error(f"Error evaluating policy: {e}")
+                logger.error(traceback.format_exc())
 
             self._stats_epoch_start = self.epoch + 1
 
@@ -706,79 +730,90 @@ class MettaTrainer:
                 attributes={},
             ).id
 
-        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(
-            config=self.sim_suite_config,
-            policy_pr=self.latest_saved_policy_record,
-            policy_store=self.policy_store,
+        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
+        evaluation_results = evaluate_policy(
+            policy_record=self.latest_saved_policy_record,
+            simulation_suite=self._sim_suite_config,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            stats_dir="/tmp/stats",
-            stats_client=self._stats_client,
+            replay_dir=self.trainer_cfg.simulation.replay_dir,  # Pass replay_dir to enable replay generation
             stats_epoch_id=self._stats_epoch_id,
             wandb_policy_name=wandb_policy_name,
-        )
-        result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-        logger.info("Simulation complete")
-
-        # Build evaluation metrics
-        self.evals = {}  # used for wandb
-        categories: Set[str] = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
-
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter(
-                "reward", self.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
-            )
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is None:
-                continue
-            self.evals[f"{category}/score"] = score
-
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.latest_saved_policy_record, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            self.evals[f"{category}/{sim_short_name}"] = score
-
-    def _maybe_generate_replay(self, force=False):
-        """Generate replay if on replay interval"""
-        if self._should_run(self.trainer_cfg.simulation.replay_interval, force):
-            self._generate_and_upload_replay()
-
-    @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
-    def _generate_and_upload_replay(self):
-        replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/full",
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
-        replay_simulator = Simulation(
-            name=f"replay_{self.epoch}",
-            config=replay_sim_config,
-            policy_pr=self.latest_saved_policy_record,
             policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            replay_dir=self.trainer_cfg.simulation.replay_dir,
+            stats_client=self._stats_client,
+            logger=logger,
         )
-        results = replay_simulator.simulate()
+        logger.info("Simulation complete")
+        self.evals = evaluation_results.scores
 
-        if self.wandb_run is not None:
-            key, version = results.stats_db.key_and_version(self.latest_saved_policy_record)
-            replay_urls = results.stats_db.get_replay_urls(key, version)
-            if len(replay_urls) > 0:
-                replay_url = replay_urls[0]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
+        # Get target metric (for logging) from sweep config
+        # and write top-level score for policy selection.
+        # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
+        target_metric = getattr(self.cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
+        category_scores = list(self.evals.category_scores.values())
+        if category_scores and self.latest_saved_policy_record:
+            self.latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+            logger.info(
+                f"Set policy metadata score to "
+                f"{self.latest_saved_policy_record.metadata['score']} using {target_metric} metric"
+            )
+
+        # Generate and upload replay HTML if we have wandb
+        if self.wandb_run is not None and evaluation_results.replay_urls:
+            self._upload_replay_html(evaluation_results.replay_urls)
+
+    def _upload_replay_html(self, replay_urls: dict[str, list[str]]):
+        """Upload replay HTML to wandb"""
+        # Create unified HTML with all replay links on a single line
+        if replay_urls:
+            # Group replays by base name
+            replay_groups = {}
+
+            for sim_name, urls in sorted(replay_urls.items()):
+                if "training_task" in sim_name:
+                    # Training replays
+                    if "training" not in replay_groups:
+                        replay_groups["training"] = []
+                    replay_groups["training"].extend(urls)
+                else:
+                    # Evaluation replays - clean up the display name
+                    display_name = sim_name.replace("eval/", "")
+                    if display_name not in replay_groups:
+                        replay_groups[display_name] = []
+                    replay_groups[display_name].extend(urls)
+
+            # Build HTML with episode numbers
+            links = []
+            for name, urls in replay_groups.items():
+                if len(urls) == 1:
+                    # Single episode - just show the name
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                    links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
+                else:
+                    # Multiple episodes - show with numbers
+                    episode_links = []
+                    for i, url in enumerate(urls, 1):
+                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                        episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
+                    links.append(f"{name} [{' '.join(episode_links)}]")
+
+            # Join all links with " | " separator and add epoch prefix
+            html_content = f"epoch {self.epoch}: " + " | ".join(links)
+        else:
+            html_content = f"epoch {self.epoch}: No replays available."
+
+        # Log the unified HTML with step parameter for wandb's epoch slider
+        link_summary = {"replays/all_links": wandb.Html(html_content)}
+        self.wandb_run.log(link_summary, step=self.agent_step)
+
+        # Also log individual link for backward compatibility
+        if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
+            training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
+            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
+            link_summary = {
+                "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+            }
+            self.wandb_run.log(link_summary, step=self.agent_step)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
@@ -787,22 +822,19 @@ class MettaTrainer:
             self.grad_stats.clear()
             return
 
-        # convert lists of values (collected across all environments and rollout steps on this GPU)
-        # into single mean values and standard deviations.
-        mean_stats = {}
-        for k, v in self.stats.items():
-            try:
-                mean_stats[k] = np.mean(v)
-                # Add standard deviation with .std_dev suffix
-                mean_stats[f"{k}.std_dev"] = np.std(v)
-            except (TypeError, ValueError) as e:
-                raise RuntimeError(
-                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
-                    f"All collected stats must be numeric values or lists of numeric values. "
-                    f"Error: {e}"
-                ) from e
-        self.stats = mean_stats
+        # Process training stats using shared function
+        processed_stats = process_training_stats(
+            raw_stats=self.stats,
+            losses=self.losses,
+            experience=self.experience,
+            trainer_config=self.trainer_cfg,
+            kickstarter=self.kickstarter,
+        )
 
+        # Update self.stats with mean values for consistency
+        self.stats = processed_stats["mean_stats"]
+
+        # Compute weight stats if on interval
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -811,105 +843,41 @@ class MettaTrainer:
                     if key != "name":
                         weight_stats[f"weights/{key}/{name}"] = value
 
-        elapsed_times = self.timer.get_all_elapsed()
-        wall_time = self.timer.get_elapsed()
-        train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+        # Compute timing stats using shared function
+        timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
 
-        lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
-        wall_time_for_lap = lap_times.pop("global", 0)
-
-        # X-axis values for wandb
-        metric_stats = {
-            "metric/agent_step": self.agent_step * self._world_size,
-            "metric/epoch": self.epoch,
-            "metric/total_time": wall_time,
-            "metric/train_time": train_time,
-        }
-
-        epoch_steps = self.timer.get_lap_steps()
-        assert epoch_steps is not None
-
-        epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-        epoch_steps_per_second *= self._world_size
-        steps_per_second *= self._world_size
-
-        timing_stats = {
-            **{
-                f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
-                for op, lap_elapsed in lap_times.items()
-            },
-            **{
-                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
-                for op, lap_elapsed in lap_times.items()
-            },
-            "timing_per_epoch/sps": epoch_steps_per_second,
-            **{
-                f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
-                for op, elapsed in elapsed_times.items()
-            },
-            "timing_cumulative/sps": steps_per_second,
-        }
-
-        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
-        overview = {
-            "sps": epoch_steps_per_second,
-        }
-
-        # Calculate average reward from all env_task_reward entries
-        task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-        if task_reward_values:
-            mean_reward = sum(task_reward_values) / len(task_reward_values)
-            overview["reward"] = mean_reward
-            overview["reward_vs_total_time"] = mean_reward
-
-        # include custom stats from trainer config
-        if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
-            for k, v in self.trainer_cfg.stats.overview.items():
-                if k in self.stats:
-                    overview[v] = self.stats[k]
-
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
-
-        for category, score in category_scores_map.items():
-            overview[f"{category}_score"] = score
-
-        losses = self.losses.stats()
-
-        # don't plot losses that are unused
-        if self.trainer_cfg.ppo.l2_reg_loss_coef == 0:
-            losses.pop("l2_reg_loss")
-        if self.trainer_cfg.ppo.l2_init_loss_coef == 0:
-            losses.pop("l2_init_loss")
-        if not self.kickstarter.enabled:
-            losses.pop("ks_action_loss")
-            losses.pop("ks_value_loss")
-
+        # Build parameters dictionary
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "epoch_steps": epoch_steps,
+            "epoch_steps": timing_info["epoch_steps"],
             "num_minibatches": self.experience.num_minibatches,
             "generation": self.current_policy_generation,
             "latest_saved_policy_epoch": self.latest_saved_policy_record.metadata.epoch,
         }
 
+        # Include custom stats from trainer config
+        if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
+            for k, v in self.trainer_cfg.stats.overview.items():
+                if k in self.stats:
+                    processed_stats["overview"][v] = self.stats[k]
+
+        # Build complete stats dictionary for wandb
+        all_stats = build_wandb_stats(
+            processed_stats=processed_stats,
+            timing_info=timing_info,
+            weight_stats=weight_stats,
+            grad_stats=self.grad_stats,
+            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
+            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            parameters=parameters,
+            evals=self.evals,
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+        )
+
+        # Log to wandb
         self.wandb_run.log(
-            {
-                **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"experience/{k}": v for k, v in self.experience.stats().items()},
-                **{f"parameters/{k}": v for k, v in parameters.items()},
-                **{f"eval_{k}": v for k, v in self.evals.items()},
-                **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
-                **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
-                **environment_stats,
-                **weight_stats,
-                **timing_stats,
-                **metric_stats,
-                **self.grad_stats,
-            },
+            all_stats,
             # WandB can automatically increment step on each call to log, but we force the value here
             # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
             # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the
@@ -981,8 +949,28 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
+        task = self._curriculum.get_task()
+        env_cfg = task.env_cfg()
 
-        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+        # TODO: relax someday when we support other observation shapes
+        try:
+            game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=True)
+
+            if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
+                raise TypeError("env_cfg.game must be a dict with string keys")
+
+            # map_builder is currently in our game config but it is forbidden by the pydantic model. As we do in
+            # mettagrid, we will deal with this by removing it.
+            # See `mettagrid/src/metta/mettagrid/mettagrid_env.py:__initialize_c_env()` for details
+            if "map_builder" in game_cfg_dict:
+                del game_cfg_dict["map_builder"]
+
+            game_cfg = PyPolicyGameConfig(**game_cfg_dict)  # type: ignore[arg-type]
+
+        except ValidationError as e:
+            raise ValueError(f"env_cfg.game is not compatible with agent requirements: {e}") from e
+
+        num_agents = game_cfg.num_agents
 
         # Calculate batch sizes using helper function
         self.target_batch_size, self.batch_size, num_envs = calculate_batch_sizes(
@@ -1072,64 +1060,7 @@ class MettaTrainer:
             return
 
         with self.timer("grad_stats"):
-            all_gradients = []
-            for param in self.policy.parameters():
-                if param.grad is not None:
-                    all_gradients.append(param.grad.view(-1))
-
-            if not all_gradients:
-                logger.warning("No gradients found to compute stats.")
-                self.grad_stats = {}
-                return
-
-            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-            grad_mean = all_gradients_tensor.mean()
-            grad_variance = all_gradients_tensor.var()
-            grad_norm = all_gradients_tensor.norm(2)
-
-            self.grad_stats = {
-                "grad/mean": grad_mean.item(),
-                "grad/variance": grad_variance.item(),
-                "grad/norm": grad_norm.item(),
-            }
-            logger.info(
-                f"Computed gradient stats at epoch {self.epoch}: "
-                f"mean={self.grad_stats['grad/mean']:.2e}, "
-                f"var={self.grad_stats['grad/variance']:.2e}, "
-                f"norm={self.grad_stats['grad/norm']:.2e}"
-            )
-
-    def _cleanup_old_policies(self, keep_last_n: int = 5):
-        """Clean up old saved policies to prevent memory accumulation.
-
-        Args:
-            keep_last_n: Number of most recent policies to keep
-        """
-        if not self._master or not hasattr(self, "policy_store"):
-            return
-
-        try:
-            # Get checkpoint directory
-            checkpoint_dir = Path(self.trainer_cfg.checkpoint.checkpoint_dir)
-            if not checkpoint_dir.exists():
-                return
-
-            # List all policy files
-            policy_files = sorted(checkpoint_dir.glob("policy_*.pt"))
-
-            # Keep only the most recent ones
-            if len(policy_files) > keep_last_n:
-                files_to_remove = policy_files[:-keep_last_n]
-                for file_path in files_to_remove:
-                    try:
-                        file_path.unlink()
-                        logger.info(f"Removed old policy file: {file_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to remove old policy file {file_path}: {e}")
-
-        except Exception as e:
-            logger.warning(f"Error during policy cleanup: {e}")
+            self.grad_stats = compute_gradient_stats(self.policy)
 
     def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
         """Helper method to initialize a policy to the environment using the appropriate interface."""

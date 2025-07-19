@@ -5,7 +5,7 @@ from metta.agent.metta_agent import MettaAgent
 
 class MockAgent(MettaAgent):
     """
-    A fake agent that does nothing, used to run play without requiring a policy to be trained
+    An agent that always does nothing. Used for tests and to run play without requiring a policy
     """
 
     def __init__(self):
@@ -28,7 +28,7 @@ class MockAgent(MettaAgent):
     ):
         """
         Dummy implementation to satisfy the simulation interface.
-        FakeAgent doesn't need to actually initialize anything.
+        MockAgent doesn't need to actually initialize anything.
         Note: is_training parameter is deprecated and ignored.
         """
         pass

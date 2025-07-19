@@ -13,6 +13,8 @@ from typing import Generator
 
 import requests
 
+ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
+
 
 def extract_asana_urls_from_description(description: str) -> list[str]:
     """Extract Asana task URLs from the description text."""
@@ -198,6 +200,7 @@ def create_asana_task(
     asana_token: str,
     pr_author_field_id: str,
     pr_author_asana: str | None,
+    asana_attachment_secret: str,
 ) -> str:
     """Create a new Asana task with the GitHub URL field populated."""
     url = "https://app.asana.com/api/1.0/tasks"
@@ -235,7 +238,11 @@ def create_asana_task(
 
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 201:
-        return response.json()["data"]["permalink_url"]
+        task_url = response.json()["data"]["permalink_url"]
+        # For the most part, create_asana_task should do the same work as update_asana_task. This
+        # is a specific exception, since it's an extra call and this should be effectively immutable.
+        ensure_github_url_in_asana_task(asana_attachment_secret, project_id, task_url, title, github_url)
+        return task_url
     else:
         print(f"Asana API Error: {response.status_code} - {response.text}")
         sys.exit(1)
@@ -355,6 +362,7 @@ def ensure_asana_task_exists(
     asana_token: str,
     pr_author_field_id: str,
     pr_author_asana: str | None,
+    asana_attachment_secret: str,
 ) -> str:
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
 
@@ -413,9 +421,51 @@ def ensure_asana_task_exists(
         asana_token,
         pr_author_field_id,
         pr_author_asana,
+        asana_attachment_secret,
     )
     print(f"Created new Asana task: {new_task_url}")
     return new_task_url
+
+
+def ensure_github_url_in_asana_task(
+    asana_attachment_secret: str,
+    project_id: str,
+    task_url: str,
+    title: str,
+    github_url: str,
+) -> dict | None:
+    """Ensure the GitHub URL is in the Asana task.
+
+    Asana provides this via https://github.com/Asana/create-app-attachment-github-action, but their
+    workflow only runs in limited contexts. In particular, we don't trust it to pick up the task url
+    from the description when we've added it within the same workflow. So we'll just do it manually.
+    """
+    github_url_number = github_url.split("pull/")[-1]
+    if not github_url_number.isdigit():
+        print(f"Invalid GitHub URL: {github_url}")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {asana_attachment_secret}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "allowedProjects": [project_id],
+        "blockedProjects": [],
+        # This is used in the created attachment story.
+        "pullRequestName": title,
+        # This we fake, since we want Asana to find the right task in the description.
+        "pullRequestDescription": task_url,
+        "pullRequestNumber": int(github_url_number),
+        "pullRequestURL": github_url,
+    }
+    response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Asana API Error: {response.status_code} - {response.text}")
+        return None
 
 
 if __name__ == "__main__":
@@ -435,6 +485,7 @@ if __name__ == "__main__":
     asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
     roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
     pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
+    asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
@@ -471,6 +522,7 @@ if __name__ == "__main__":
         asana_token,
         pr_author_field_id,
         pr_author_asana,
+        asana_attachment_secret,
     )
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:

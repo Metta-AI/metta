@@ -44,7 +44,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
     async def list_tables(user: str = user_or_token) -> List[TableInfo]:
         """List all available tables in the database (excluding migrations)."""
         try:
-            with metta_repo.connect() as con:
+            async with metta_repo.connect() as con:
                 # Get all tables except schema_migrations
                 tables_query = """
                     SELECT
@@ -61,13 +61,15 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY t.table_name
                 """
 
-                tables = execute_query_and_log(con, tables_query, (), "list_tables_metadata")
+                tables = await execute_query_and_log(con, tables_query, (), "list_tables_metadata")
 
                 # Get row counts for each table
                 table_info = []
                 for table_name, column_count in tables:
-                    row_count_query = f"SELECT COUNT(*) FROM {table_name}"
-                    row_count_result = execute_query_and_log(con, row_count_query, (), f"count_rows_{table_name}")
+                    row_count_query = "SELECT reltuples::bigint AS estimate FROM pg_class where relname = %s"
+                    row_count_result = await execute_query_and_log(
+                        con, row_count_query, (table_name,), f"count_rows_{table_name}"
+                    )
                     row_count = row_count_result[0][0]
 
                     table_info.append(TableInfo(table_name=table_name, column_count=column_count, row_count=row_count))
@@ -82,7 +84,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
     async def get_table_schema(table_name: str, user: str = user_or_token) -> TableSchema:
         """Get the schema for a specific table."""
         try:
-            with metta_repo.connect() as con:
+            async with metta_repo.connect() as con:
                 # Verify table exists and is not schema_migrations
                 if table_name == "schema_migrations":
                     raise HTTPException(status_code=403, detail="Access to schema_migrations table is not allowed")
@@ -101,7 +103,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY ordinal_position
                 """
 
-                columns = execute_query_and_log(con, schema_query, (table_name,), f"get_schema_{table_name}")
+                columns = await execute_query_and_log(con, schema_query, (table_name,), f"get_schema_{table_name}")
 
                 if not columns:
                     raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
@@ -145,12 +147,12 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                 )
 
             async def run_query():
-                with metta_repo.connect() as con:
+                async with metta_repo.connect() as con:
                     # Set statement timeout to 20 seconds
-                    con.execute("SET statement_timeout = '20s'")
+                    await con.execute("SET statement_timeout = '20s'")
 
                     # Execute the query
-                    result = con.execute(request.query)
+                    result = await con.execute(request.query)
 
                     # Get column names
                     columns = []
@@ -160,7 +162,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     # Fetch all rows with a limit of 1000
                     rows = []
                     if result.rowcount > 0 or (result.rowcount == -1 and result.description):
-                        rows = result.fetchmany(1000)  # Limit to 1000 rows
+                        rows = await result.fetchmany(1000)  # Limit to 1000 rows
 
                     # Convert rows to list of lists for JSON serialization
                     rows_list = [list(row) for row in rows]

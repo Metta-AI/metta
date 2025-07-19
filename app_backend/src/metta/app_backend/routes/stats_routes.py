@@ -56,6 +56,8 @@ class EpisodeCreate(BaseModel):
     simulation_suite: Optional[str] = None
     replay_url: Optional[str] = None
     attributes: Dict[str, Any] = Field(default_factory=dict)
+    eval_task_id: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class EpisodeResponse(BaseModel):
@@ -76,7 +78,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     ) -> PolicyIdResponse:
         """Get policy IDs for given policy names."""
         try:
-            policy_ids = stats_repo.get_policy_ids(policy_names)
+            policy_ids = await stats_repo.get_policy_ids(policy_names)
             # Convert UUIDs to strings for JSON serialization
             policy_ids_str = {name: str(uuid_val) for name, uuid_val in policy_ids.items()}
             return PolicyIdResponse(policy_ids=policy_ids_str)
@@ -88,7 +90,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     async def create_training_run(training_run: TrainingRunCreate, user: str = user_or_token) -> TrainingRunResponse:
         """Create a new training run."""
         try:
-            run_id = stats_repo.create_training_run(
+            run_id = await stats_repo.create_training_run(
                 name=training_run.name,
                 user_id=user,
                 attributes=training_run.attributes,
@@ -106,7 +108,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         """Create a new policy epoch."""
         try:
             run_id_uuid = uuid.UUID(run_id)
-            epoch_id = stats_repo.create_epoch(
+            epoch_id = await stats_repo.create_epoch(
                 run_id=run_id_uuid,
                 start_training_epoch=epoch.start_training_epoch,
                 end_training_epoch=epoch.end_training_epoch,
@@ -124,7 +126,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         """Create a new policy."""
         try:
             epoch_id_uuid = uuid.UUID(policy.epoch_id) if policy.epoch_id else None
-            policy_id = stats_repo.create_policy(
+            policy_id = await stats_repo.create_policy(
                 name=policy.name, description=policy.description, url=policy.url, epoch_id=epoch_id_uuid
             )
             return PolicyResponse(id=str(policy_id))
@@ -144,8 +146,9 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             }
             primary_policy_id_uuid = uuid.UUID(episode.primary_policy_id)
             stats_epoch_uuid = uuid.UUID(episode.stats_epoch) if episode.stats_epoch else None
+            eval_task_id_uuid = uuid.UUID(episode.eval_task_id) if episode.eval_task_id else None
 
-            episode_id = stats_repo.record_episode(
+            episode_id = await stats_repo.record_episode(
                 agent_policies=agent_policies_uuid,
                 agent_metrics=episode.agent_metrics,
                 primary_policy_id=primary_policy_id_uuid,
@@ -154,6 +157,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 simulation_suite=episode.simulation_suite,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
+                eval_task_id=eval_task_id_uuid,
+                tags=episode.tags,
             )
             return EpisodeResponse(id=str(episode_id))
         except ValueError as e:

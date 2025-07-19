@@ -1,16 +1,18 @@
 import importlib
 from dataclasses import dataclass
-from typing import Generic, List, Optional, TypeVar, get_args, get_origin
+from typing import Generic, Optional, Type, TypeVar, get_args, get_origin
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
+from metta.map.random.int import MaybeSeed
 from metta.map.types import Area, AreaQuery, ChildrenAction, SceneCfg
-from metta.map.utils.random import MaybeSeed
 
 ParamsT = TypeVar("ParamsT", bound=Config)
+
+SceneT = TypeVar("SceneT", bound="Scene")
 
 
 # This class is useful for debugging: we store every scene we produce dynamically.
@@ -47,24 +49,28 @@ class Scene(Generic[ParamsT]):
 
         raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Params class parameter")
 
+    @classmethod
+    def validate_params(cls, params: ParamsT | DictConfig | dict | None) -> ParamsT:
+        if params is None:
+            return cls.Params({})
+        if isinstance(params, DictConfig):
+            return cls.Params(params)
+        elif isinstance(params, dict):
+            return cls.Params(**params)
+        elif isinstance(params, cls.Params):
+            return params
+        else:
+            raise ValueError(f"Invalid params: {params}")
+
     def __init__(
         self,
         area: Area,
         params: ParamsT | DictConfig | dict | None = None,
-        children: Optional[List[ChildrenAction]] = None,
+        children: Optional[list[ChildrenAction]] = None,
         seed: MaybeSeed = None,
     ):
         # Validate params - they can come from untyped yaml or from weakly typed dicts in python code.
-        if params is None:
-            params = {}
-        if isinstance(params, DictConfig):
-            self.params = self.Params(params)
-        elif isinstance(params, dict):
-            self.params = self.Params(**params)
-        elif isinstance(params, self.Params):
-            self.params = params
-        else:
-            raise ValueError(f"Invalid params: {params}")
+        self.params = self.validate_params(params)
 
         # `children` are not scenes, but queries that will be used to select areas and produce scenes in them.
         children = children or []
@@ -74,7 +80,7 @@ class Scene(Generic[ParamsT]):
                 action = ChildrenAction(**action)
             self.children.append(action)
 
-        self.child_scenes: list[ChildInfo] = []
+        self.child_infos: list[ChildInfo] = []
 
         self.area = area
         self.grid = area.grid
@@ -99,7 +105,7 @@ class Scene(Generic[ParamsT]):
         pass
 
     def register_child(self, area: Area, child_scene: "Scene"):
-        self.child_scenes.append(ChildInfo(area=area, scene=child_scene))
+        self.child_infos.append(ChildInfo(area=area, scene=child_scene))
 
     # Render implementations can do two things:
     # - update `self.grid` as it sees fit
@@ -110,7 +116,7 @@ class Scene(Generic[ParamsT]):
     # Subclasses can override this to provide a list of children.
     # By default, children are static, which makes them configurable in the config file, but then can't depend
     # on the specific generated content.
-    def get_children(self) -> List[ChildrenAction]:
+    def get_children(self) -> list[ChildrenAction]:
         return self.children
 
     def get_scene_tree(self) -> dict:
@@ -118,26 +124,28 @@ class Scene(Generic[ParamsT]):
             "type": self.__class__.__name__,
             "params": self.params.model_dump(),
             "area": self.area.as_dict(),
-            "children": [child.scene.get_scene_tree() for child in self.child_scenes],
+            "children": [child.scene.get_scene_tree() for child in self.child_infos],
         }
 
     def print_scene_tree(self, indent=0):
         print(" " * indent + self.__class__.__name__)
         print(" " * indent + f"area: {self.area.as_dict()}")
         print(" " * indent + f"params: {self.params.model_dump()}")
-        for child in self.child_scenes:
+        for child in self.child_infos:
             child.scene.print_scene_tree(indent + 2)
 
     def render_with_children(self):
         self.render()
+
         for query in self.get_children():
             areas = self.select_areas(query)
             for area in areas:
-                child_scene = make_scene(query.scene, area)
+                child_rng = self.rng.spawn(1)[0]
+                child_scene = make_scene(cfg=query.scene, area=area, rng=child_rng)
                 self.register_child(area, child_scene)
                 child_scene.render_with_children()
 
-    def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[List[str]] = None) -> Area:
+    def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[list[str]] = None) -> Area:
         area = Area(
             x=x + self.area.x,
             y=y + self.area.y,
@@ -186,8 +194,7 @@ class Scene(Generic[ParamsT]):
             offset = query.offset
             if order_by == "random":
                 assert offset is None, "offset is not supported for random order"
-                rng = np.random.default_rng(query.order_by_seed)
-                selected_areas = list(rng.choice(selected_areas, size=int(limit), replace=False))  # type: ignore
+                selected_areas = list(self.rng.choice(selected_areas, size=int(limit), replace=False))  # type: ignore
             elif order_by == "first":
                 offset = offset or 0
                 selected_areas = selected_areas[offset : offset + limit]
@@ -205,6 +212,42 @@ class Scene(Generic[ParamsT]):
 
         return selected_areas
 
+    @classmethod
+    def factory(
+        cls: Type[SceneT],
+        params: dict | Config,
+        children: Optional[list[ChildrenAction]] = None,
+        seed: MaybeSeed = None,
+    ) -> SceneCfg:
+        return lambda area, rng: cls(area=area, params=params, seed=seed or rng, children=children)
+
+    @classmethod
+    def intrinsic_size(cls, params: ParamsT) -> tuple[int, int] | None:
+        """
+        Some scenes have a fixed size, which can be used to compute the size of
+        the map.
+
+        For example, an ascii map has a fixed size, which can be used to compute
+        the size of the map.
+
+        This is a class method, because an instantiated scene is already bound
+        to an area, and we can't change it.
+
+        Because of this limitation, the utility of intrinsically sized scenes is
+        limited. The main way of sizing scenes is the top-down algorithm, where
+        the size of the child scenes is computed based on the size of the parent
+        scene, and the size of the top-level scene is determined by MapGen
+        params.
+
+        The returned pair is (height, width), same order as in numpy arrays.
+        """
+
+        return None
+
+    def get_labels(self) -> list[str]:
+        # default: use the scene class name as a label
+        return [self.__class__.__name__]
+
 
 def load_class(full_class_name: str) -> type[Scene]:
     module_name, class_name = full_class_name.rsplit(".", 1)
@@ -215,21 +258,38 @@ def load_class(full_class_name: str) -> type[Scene]:
     return cls
 
 
-def make_scene(cfg: SceneCfg, area: Area) -> Scene:
+def scene_cfg_to_dict(cfg: SceneCfg) -> dict:
     if callable(cfg):
-        # useful for dynamically produced scenes in `get_children()`
-        scene = cfg(area)
-        if not isinstance(scene, Scene):
-            raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
-        return scene
-
+        raise ValueError("Callable scene configs are not supported")
     if isinstance(cfg, str):
         if cfg.startswith("/"):
             cfg = cfg[1:]
-        cfg = OmegaConf.to_container(OmegaConf.load(f"{scenes_root}/{cfg}"))  # type: ignore
+        cfg = OmegaConf.load(f"{scenes_root}/{cfg}")  # type: ignore
+
+    if isinstance(cfg, DictConfig):
+        cfg = OmegaConf.to_container(cfg)  # type: ignore
 
     if not isinstance(cfg, dict):
         raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
 
-    cls = load_class(cfg["type"])
-    return cls(area=area, params=cfg.get("params", {}), children=cfg.get("children", []))
+    return cfg
+
+
+def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
+    if callable(cfg):
+        # Some scene configs are lambdas, usually produced by `Scene.factory()` helper.
+        # These are often useful for dynamically produced children actions in `get_children()`.
+        scene = cfg(area, rng)
+        if not isinstance(scene, Scene):
+            raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
+        return scene
+
+    dict_cfg = scene_cfg_to_dict(cfg)
+
+    cls = load_class(dict_cfg["type"])
+    return cls(
+        area=area,
+        params=dict_cfg.get("params", {}),
+        children=dict_cfg.get("children", []),
+        seed=dict_cfg.get("seed", rng),
+    )

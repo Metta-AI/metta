@@ -5,8 +5,6 @@ defaults:
 name: sweep_eval
 
 simulations:
-  navigation/emptyspace_withinsight:
-    env: env/mettagrid/navigation/evals/emptyspace_withinsight
   simple:
-    env: env/mettagrid/simple
+    env: env/mettagrid/curriculum/basic_easy_shaped
 # selector_type: "latest"

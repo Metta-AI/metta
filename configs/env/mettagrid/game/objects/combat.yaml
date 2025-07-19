@@ -1,18 +1,22 @@
 armory:
   type_id: 9
-  input_ore_red: 3
-  output_armor: 1
+  input_resources:
+    ore_red: 3
+  output_resources:
+    armor: 1
   max_output: 5
   conversion_ticks: 1
   cooldown: 10
-  initial_items: 0
+  initial_resource_count: 0
 
 lasery:
   type_id: 10
-  input_ore_red: 1
-  input_battery_red: 2
-  output_laser: 1
+  input_resources:
+    ore_red: 1
+    battery_red: 2
+  output_resources:
+    laser: 1
   max_output: 5
   conversion_ticks: 1
   cooldown: 10
-  initial_items: 0
+  initial_resource_count: 0

@@ -34,6 +34,15 @@ class ClientEpisodeResponse(BaseModel):
     id: uuid.UUID
 
 
+class _NotAuthenticatedError(ConnectionError):
+    """Exception raised when the stats client is not authenticated."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message or "Unable to authenticate with the stats server. Run `metta status` to configure your token"
+        )
+
+
 class StatsClient:
     """Client for interacting with the stats API."""
 
@@ -57,6 +66,20 @@ class StatsClient:
     def close(self):
         """Close the HTTP client."""
         self.http_client.close()
+
+    def validate_authenticated(self) -> str:
+        auth_user = None
+        try:
+            response = self.http_client.get("/whoami", headers={"X-Auth-Token": self.machine_token})
+            response.raise_for_status()
+            if (auth_user := response.json().get("user_email")) not in ["unknown", None]:
+                return auth_user
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                raise _NotAuthenticatedError(None) from e
+            else:
+                raise e
+        raise _NotAuthenticatedError(auth_user and f"Authenticated as {auth_user}")
 
     def get_policy_ids(self, policy_names: List[str]) -> ClientPolicyIdResponse:
         """
@@ -194,6 +217,8 @@ class StatsClient:
         simulation_suite: Optional[str] = None,
         replay_url: Optional[str] = None,
         attributes: Optional[Dict[str, Any]] = None,
+        eval_task_id: Optional[uuid.UUID] = None,
+        tags: Optional[List[str]] = None,
     ) -> ClientEpisodeResponse:
         """
         Record a new episode with agent policies and metrics.
@@ -207,6 +232,8 @@ class StatsClient:
             simulation_suite: Optional simulation suite identifier
             replay_url: Optional URL to the replay
             attributes: Optional additional attributes
+            eval_task_id: Optional UUID of the eval task this episode is for
+            tags: Optional list of tags to associate with the episode
 
         Returns:
             ClientEpisodeResponse containing the created episode UUID
@@ -219,6 +246,7 @@ class StatsClient:
         primary_policy_id_str = str(primary_policy_id)
         stats_epoch_str = str(stats_epoch) if stats_epoch else None
 
+        eval_task_id_str = str(eval_task_id) if eval_task_id else None
         data = EpisodeCreate(
             agent_policies=agent_policies_str,
             agent_metrics=agent_metrics,
@@ -228,6 +256,8 @@ class StatsClient:
             simulation_suite=simulation_suite,
             replay_url=replay_url,
             attributes=attributes or {},
+            eval_task_id=eval_task_id_str,
+            tags=tags,
         )
         headers = {"X-Auth-Token": self.machine_token}
         response = self.http_client.post("/stats/episodes", json=data.model_dump(), headers=headers)

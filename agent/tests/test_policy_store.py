@@ -24,6 +24,7 @@ def test_policy_save_load_without_pydantic():
             "device": "cpu",
             "run": "test_run",
             "run_dir": tempfile.mkdtemp(),
+            "vectorization": "serial",
             "trainer": {
                 "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
                 "num_workers": 1,
@@ -122,6 +123,7 @@ def test_policy_save_load_with_dict_metadata():
             "device": "cpu",
             "run": "test_run",
             "run_dir": tempfile.mkdtemp(),
+            "vectorization": "serial",
             "trainer": {
                 "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
                 "num_workers": 1,

@@ -1,0 +1,12 @@
+defaults:
+  - basic_poor
+  - /env/mettagrid/game/objects/combat@game.objects
+  - _self_
+
+game:
+  map_builder:
+    root:
+      params:
+        objects:
+          lasery: 1
+          armory: 1

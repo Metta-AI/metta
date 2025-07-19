@@ -6,11 +6,11 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/arena/advanced
   simulation:
-    evaluate_interval: 200
+    evaluate_interval: 300
 
-policy_uri: pytorch:///tmp/puffer_metta.pt
+policy_uri: null
 npc_policy_uri: null
 eval_db_uri: null
 
@@ -31,11 +31,11 @@ analyzer:
 sweep:
   metric: "action.use.altar.agent"
 
-wandb:
-  enabled: true
-  checkpoint_interval: 10
-
 run_id: 6
 run: ${oc.env:USER}.local.${now:MMDD}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+
+replay_job:
+  open_browser_on_start: false
+  policy_uri: "wandb://run/${..run}"

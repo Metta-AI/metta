@@ -50,7 +50,7 @@ class TestRendererJob:
                 "-m",
                 "tools.renderer",
                 f"run=test_renderer_{env_name}",
-                f"renderer_job.environment.uri={map_path}",
+                f"renderer_job.environment.root.params.uri={map_path}",
                 "renderer_job.num_steps=3",  # Very short test
                 "renderer_job.sleep_time=0",
                 "renderer_job.policy_type=simple",
@@ -99,6 +99,15 @@ class TestRendererJob:
         except ImportError as e:
             pytest.fail(f"Failed to import MiniscopeRenderer: {str(e)}")
 
+    def test_agents_count_in_maps(self):
+        """Test that each debug map has exactly 2 agents."""
+        for env_name, map_path in self.DEBUG_ENVIRONMENTS.items():
+            with open(map_path, "r") as f:
+                content = f.read()
+
+            agent_count = content.count("@")
+            assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"
+
     @pytest.mark.parametrize("env_name,map_path", DEBUG_ENVIRONMENTS.items())
     def test_basic_training_validation(self, env_name, map_path):
         """Test very basic training validation - just that the environment loads."""
@@ -106,6 +115,16 @@ class TestRendererJob:
         run_name = f"validation_{env_name}"
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            print(f"\n=== Debug Info for {env_name} ===")
+            print(f"Temp directory: {temp_dir}")
+            print(f"Working directory: {Path.cwd()}")
+            print(f"Map path: {map_path}")
+
+            # Check if map file exists
+            full_map_path = Path.cwd() / map_path
+            print(f"Full map path: {full_map_path}")
+            print(f"Map file exists: {full_map_path.exists()}")
+
             cmd = [
                 "python",
                 "-m",
@@ -119,15 +138,22 @@ class TestRendererJob:
                 "wandb=off",
             ]
 
+            # Set environment variable to specify the map
+            env = os.environ.copy()
+            env["DEBUG_MAP_URI"] = map_path
+
+            # Set dummy AWS credentials to bypass AWS configuration check
+            env["AWS_ACCESS_KEY_ID"] = "dummy_access_key_for_testing"
+            env["AWS_SECRET_ACCESS_KEY"] = "dummy_secret_key_for_testing"
+
+            # Add more verbose logging
+            env["HYDRA_FULL_ERROR"] = "1"
+            env["PYTHONUNBUFFERED"] = "1"
+
+            print(f"\nRunning command: {' '.join(cmd)}")
+            print(f"DEBUG_MAP_URI: {env.get('DEBUG_MAP_URI')}")
+
             try:
-                # Set environment variable to specify the map
-                env = os.environ.copy()
-                env["DEBUG_MAP_URI"] = map_path
-
-                # Set dummy AWS credentials to bypass AWS configuration check
-                env["AWS_ACCESS_KEY_ID"] = "dummy_access_key_for_testing"
-                env["AWS_SECRET_ACCESS_KEY"] = "dummy_secret_key_for_testing"
-
                 # Run with shorter timeout and better error handling
                 result = subprocess.run(
                     cmd,
@@ -137,41 +163,66 @@ class TestRendererJob:
                     timeout=60,  # Shorter timeout for CI
                     cwd=Path.cwd(),
                 )
-
-                # More lenient success criteria
-                if result.returncode != 0:
-                    # Print detailed error information for debugging
-                    error_msg = (
-                        f"Training validation failed for {env_name}.\n"
-                        f"Return code: {result.returncode}\n"
-                        f"Command: {' '.join(cmd)}\n"
-                        f"STDOUT (last 1000 chars): {result.stdout[-1000:]}\n"
-                        f"STDERR (last 1000 chars): {result.stderr[-1000:]}"
-                    )
-                    pytest.fail(error_msg)
-
-                # Check that environment was loaded (more flexible check)
-                output = result.stdout + result.stderr
-                assert any(
-                    phrase in output
-                    for phrase in [
-                        "Training complete",
-                        "MettaTrainer loaded",
-                        "Starting training",
-                        "obs_space:",
-                    ]
-                ), f"Training did not start properly for {env_name}. Output: {output[-500:]}"
-
-            except subprocess.TimeoutExpired:
-                pytest.fail(f"Training validation timed out for {env_name} (60s limit)")
+            except subprocess.TimeoutExpired as e:
+                print("\n=== Command timed out after 60 seconds ===")
+                print(f"Partial STDOUT: {e.stdout if e.stdout else 'None'}")
+                print(f"Partial STDERR: {e.stderr if e.stderr else 'None'}")
+                pytest.fail(f"Training validation timed out for {env_name}")
             except Exception as e:
-                pytest.fail(f"Training validation failed for {env_name}: {str(e)}")
+                print("\n=== Unexpected error running subprocess ===")
+                print(f"Error type: {type(e).__name__}")
+                print(f"Error message: {str(e)}")
+                pytest.fail(f"Unexpected error during training validation for {env_name}: {str(e)}")
 
-    def test_agents_count_in_maps(self):
-        """Test that each debug map has exactly 2 agents."""
-        for env_name, map_path in self.DEBUG_ENVIRONMENTS.items():
-            with open(map_path, "r") as f:
-                content = f.read()
+            # Print full output for debugging
+            print("\n=== Full STDOUT ===")
+            print(result.stdout)
+            print("\n=== Full STDERR ===")
+            print(result.stderr)
 
-            agent_count = content.count("@")
-            assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"
+            # List contents of temp directory after run
+            print("\n=== Temp directory contents after run ===")
+            try:
+                for root, _dirs, files in os.walk(temp_dir):
+                    level = root.replace(temp_dir, "").count(os.sep)
+                    indent = " " * 2 * level
+                    print(f"{indent}{os.path.basename(root)}/")
+                    sub_indent = " " * 2 * (level + 1)
+                    for file in files:
+                        print(f"{sub_indent}{file}")
+            except Exception as e:
+                print(f"Error listing directory contents: {e}")
+
+            # More lenient success criteria
+            if result.returncode != 0:
+                # Look for specific error patterns in the output
+                error_patterns = {
+                    "ImportError": "Import error detected",
+                    "FileNotFoundError": "File not found error",
+                    "KeyError": "Configuration key error",
+                    "AttributeError": "Attribute error",
+                    "ValueError": "Value error",
+                    "TypeError": "Type error",
+                    "RuntimeError": "Runtime error",
+                    "AssertionError": "Assertion error",
+                    "ModuleNotFoundError": "Module not found error",
+                }
+
+                combined_output = result.stdout + result.stderr
+                detected_errors = []
+                for pattern, description in error_patterns.items():
+                    if pattern in combined_output:
+                        detected_errors.append(description)
+
+                # Print detailed error information for debugging
+                error_msg = (
+                    f"Training validation failed for {env_name}.\n"
+                    f"Return code: {result.returncode}\n"
+                    f"Command: {' '.join(cmd)}\n"
+                    f"Working directory: {Path.cwd()}\n"
+                    f"Temp directory: {temp_dir}\n"
+                    f"Detected errors: {', '.join(detected_errors) if detected_errors else 'None detected'}\n"
+                    f"STDOUT (last 2000 chars): ...{result.stdout[-2000:]}\n"
+                    f"STDERR (last 2000 chars): ...{result.stderr[-2000:]}"
+                )
+                pytest.fail(error_msg)

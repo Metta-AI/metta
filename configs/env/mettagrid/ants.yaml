@@ -6,8 +6,9 @@ defaults:
       - mines
   - _self_
 
+group_reward_pct: 0
+
 game:
-  group_reward_pct: 0
   num_agents: 36
   map_builder:
     _target_: metta.map.mapgen.MapGen
@@ -45,29 +46,31 @@ game:
 
   agent:
     rewards:
-      heart: 1
-      heart_max: 1000
-      ore_red: 0.005
-      ore_red_max: 1000
+      inventory:
+        heart: 1
+        ore_red: 0.005
 
   objects:
     altar:
-      input_battery_red: 0
-      input_ore_red: 2
-      output_heart: 1
+      input_resources:
+        battery_red: 0
+        ore_red: 2
+      output_resources:
+        heart: 1
       max_output: 50
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 1
+      initial_resource_count: 1
 
     mine_red:
-      output_ore_red: 1
+      output_resources:
+        ore_red: 1
       color: 0
       max_output: 10
       conversion_ticks: 1
       cooldown: 100
-      initial_items: 10
+      initial_resource_count: 10
 
   groups:
     team_1:
-      group_reward_pct: ${...group_reward_pct}
+      group_reward_pct: ${....group_reward_pct}

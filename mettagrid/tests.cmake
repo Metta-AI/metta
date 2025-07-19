@@ -3,22 +3,29 @@
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.17.0)
+  GIT_TAG v1.17.0
+  GIT_SHALLOW TRUE
+  UPDATE_DISCONNECTED TRUE
+)
 
 FetchContent_MakeAvailable(googletest)
 
 # Disable building Benchmark's own tests
 set(BENCHMARK_ENABLE_TESTING
-    OFF
-    CACHE BOOL "" FORCE)
+  OFF
+  CACHE BOOL "" FORCE)
+
 set(BENCHMARK_ENABLE_GTEST_TESTS
-    OFF
-    CACHE BOOL "" FORCE)
+  OFF
+  CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
   googlebenchmark
   GIT_REPOSITORY https://github.com/google/benchmark.git
-  GIT_TAG v1.9.4)
+  GIT_TAG v1.9.4
+  GIT_SHALLOW TRUE
+  UPDATE_DISCONNECTED TRUE
+)
 
 FetchContent_MakeAvailable(googlebenchmark)
 
@@ -41,8 +48,8 @@ execute_process(
 
 # Helper function to build tests and benchmarks.
 function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
-         LINK_LIBS # semicolon-separated list of target names
-         TEST_TYPE # "test" or "benchmark"
+        LINK_LIBS # semicolon-separated list of target names
+        TEST_TYPE # "test" or "benchmark"
 )
   file(GLOB_RECURSE sources CONFIGURE_DEPENDS ${GLOB_PATTERN})
 
@@ -63,6 +70,9 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
     target_include_directories(${output_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid" ${NUMPY_INCLUDE_DIR})
 
     target_link_libraries(${output_name} PRIVATE ${LINK_LIBS})
+
+    # Apply all flags (including sanitizers) to test executables
+    target_link_libraries(${output_name} PRIVATE mettagrid_all_flags)
 
     set_target_properties(${output_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
 

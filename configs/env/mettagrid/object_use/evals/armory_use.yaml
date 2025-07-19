@@ -1,23 +1,28 @@
 defaults:
   - /env/mettagrid/object_use/evals/defaults@
+  - /env/mettagrid/game/objects/combat@game.objects
   - _self_
 
 game:
   max_steps: 100
   agent:
     rewards:
-      armor: 1
-      ore_red: 0
+      inventory:
+        armor: 1
+        ore_red: 0
   objects:
     mine_red:
-      initial_items: 3
-      output_ore_red: 3
+      initial_resource_count: 3
+      output_resources:
+        ore_red: 3
       cooldown: 255
     armory:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 255
 
   map_builder:
-    objects:
-      armory: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          armory: 1
+          mine_red: 1

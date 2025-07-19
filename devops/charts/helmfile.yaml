@@ -95,3 +95,5 @@ releases:
       enabled: true
       # created by terraform
       lambdaAiSecretName: lambda-ai-credentials
+    storage:
+      size: 50Gi

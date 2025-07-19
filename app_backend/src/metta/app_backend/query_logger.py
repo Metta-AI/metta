@@ -2,10 +2,10 @@
 
 import logging
 import time
-from contextlib import contextmanager
-from typing import Any, Generator, Tuple
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Tuple
 
-from psycopg import Connection, Cursor
+from psycopg import AsyncConnection, AsyncCursor
 from psycopg.abc import Query
 from psycopg.rows import TupleRow
 from psycopg.sql import Composable
@@ -18,31 +18,28 @@ query_logger.setLevel(logging.INFO)
 SLOW_QUERY_THRESHOLD_SECONDS = 1.0
 
 
-@contextmanager
-def timed_query(
-    con: Connection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
-) -> Generator[Cursor, None, None]:
+@asynccontextmanager
+async def timed_query(
+    con: AsyncConnection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
+) -> AsyncGenerator[AsyncCursor, None]:
     """
-    Context manager that executes a database query with timing and logging.
-
-    Logs all queries with their execution time. If a query takes longer than
-    SLOW_QUERY_THRESHOLD_SECONDS, logs a warning with the query and parameters.
+    Async context manager that executes a database query with timing and logging.
 
     Args:
-        con: Database connection
+        con: Async database connection
         query: SQL query string
         params: Query parameters
         description: Optional description for the query
 
     Yields:
-        Cursor with the executed query results
+        AsyncCursor with the executed query results
     """
     start_time = time.time()
     query_id = f"{description} " if description else ""
 
     try:
-        with con.cursor() as cursor:
-            cursor.execute(query, params)
+        async with con.cursor() as cursor:
+            await cursor.execute(query, params)
             execution_time = time.time() - start_time
 
             # Log all queries with timing
@@ -63,16 +60,14 @@ def timed_query(
         raise
 
 
-def execute_query_and_log(
-    con: Connection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
+async def execute_query_and_log(
+    con: AsyncConnection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
 ) -> list[TupleRow]:
     """
-    Execute a query with timing and logging, returning the results.
-
-    This is a convenience function for simple queries that just need results.
+    Execute an async query with timing and logging, returning the results.
 
     Args:
-        con: Database connection
+        con: Async database connection
         query: SQL query string
         params: Query parameters
         description: Optional description for the query
@@ -80,18 +75,18 @@ def execute_query_and_log(
     Returns:
         Query results (fetchall())
     """
-    with timed_query(con, query, params, description) as cursor:
-        return cursor.fetchall()
+    async with timed_query(con, query, params, description) as cursor:
+        return await cursor.fetchall()
 
 
-def execute_single_row_query_and_log(
-    con: Connection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
+async def execute_single_row_query_and_log(
+    con: AsyncConnection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
 ) -> TupleRow | None:
     """
-    Execute a query with timing and logging, returning the first result.
+    Execute an async query with timing and logging, returning the first result.
 
     Args:
-        con: Database connection
+        con: Async database connection
         query: SQL query string
         params: Query parameters
         description: Optional description for the query
@@ -99,5 +94,5 @@ def execute_single_row_query_and_log(
     Returns:
         First query result (fetchone())
     """
-    with timed_query(con, query, params, description) as cursor:
-        return cursor.fetchone()
+    async with timed_query(con, query, params, description) as cursor:
+        return await cursor.fetchone()

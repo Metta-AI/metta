@@ -1,8 +1,8 @@
 from metta.common.util.config import Config
+from metta.map.random.float import FloatDistribution
 from metta.map.scene import Scene
 from metta.map.scenes.random import Random
 from metta.map.types import ChildrenAction
-from metta.map.utils.random import FloatDistribution, sample_float_distribution
 
 
 class RandomObjectsParams(Config):
@@ -21,12 +21,12 @@ class RandomObjects(Scene[RandomObjectsParams]):
         size = self.height * self.width
         objects = {}
         for obj_name, distribution in self.params.object_ranges.items():
-            percentage = sample_float_distribution(distribution, self.rng)
+            percentage = distribution.sample(self.rng)
             objects[obj_name] = int(size * percentage)
 
         return [
             ChildrenAction(
-                scene=lambda area: Random(area=area, params={"objects": objects}, seed=self.rng),
+                scene=Random.factory(params={"objects": objects}),
                 where="full",
             ),
             *self.children,

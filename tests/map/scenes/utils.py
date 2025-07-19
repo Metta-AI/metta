@@ -1,16 +1,23 @@
 import numpy as np
 import pytest
 
+from metta.map.random.int import MaybeSeed
 from metta.map.scene import Scene
 from metta.map.types import Area, ChildrenAction, MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, char_grid_to_lines
 from metta.map.utils.storable_map import grid_to_lines
 
 
-def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], children: list[ChildrenAction] | None = None):
+def render_scene(
+    cls: type[Scene],
+    params: dict,
+    shape: tuple[int, int],
+    children: list[ChildrenAction] | None = None,
+    seed: MaybeSeed = None,
+):
     grid = np.full(shape, "empty", dtype="<U50")
     area = Area.root_area_from_grid(grid)
-    scene = cls(area=area, params=params, children=children or [])
+    scene = cls(area=area, params=params, children=children or [], seed=seed)
     scene.render_with_children()
     return scene
 
@@ -29,7 +36,7 @@ def is_connected(grid: MapGrid):
     """Check if all empty cells in the grid are connected."""
     height, width = grid.shape
 
-    def is_empty(cell: str) -> bool:
+    def is_empty(cell) -> bool:
         return cell == "empty" or cell.startswith("agent")
 
     # Find all empty cells

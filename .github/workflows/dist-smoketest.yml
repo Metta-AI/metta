@@ -12,9 +12,9 @@ on:
         default: "3"
         type: string
       trainer_env:
-        description: "Training environment configuration (e.g., env/mettagrid/simple)"
+        description: "Training environment configuration (e.g., env/mettagrid/arena/advanced)"
         required: false
-        default: "env/mettagrid/simple"
+        default: "env/mettagrid/arena/advanced"
         type: string
       commit_to_run:
         description: "Optional: Full commit hash to run the job against. If empty, uses default branch HEAD."
@@ -54,7 +54,7 @@ jobs:
         id: skylaunch_1gpu
         uses: ./.github/actions/launch-skypilot-job
         with:
-          trainer_env: ${{ github.event.inputs.trainer_env || 'env/mettagrid/simple' }}
+          trainer_env: ${{ github.event.inputs.trainer_env || 'env/mettagrid/arena/advanced' }}
           timeout_hours: ${{ github.event.inputs.timeout_hours || '1.5' }}
           num_gpus: "1"
           run_name: ${{ steps.generate_run_name_1gpu.outputs.run_name }}
@@ -96,7 +96,7 @@ jobs:
         id: skylaunch_4gpu
         uses: ./.github/actions/launch-skypilot-job
         with:
-          trainer_env: ${{ github.event.inputs.trainer_env || 'env/mettagrid/simple' }}
+          trainer_env: ${{ github.event.inputs.trainer_env || 'env/mettagrid/arena/advanced' }}
           timeout_hours: ${{ github.event.inputs.timeout_hours || '1.5' }}
           num_gpus: "4"
           run_name: ${{ steps.generate_run_name_4gpu.outputs.run_name }}

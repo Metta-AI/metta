@@ -30,7 +30,7 @@ class RandomSceneFromDir(Scene[RandomSceneFromDirParams]):
         candidates = [cast(RandomSceneCandidate, {"scene": scene, "weight": 1.0}) for scene in self._scenes]
         return [
             ChildrenAction(
-                scene=lambda area: RandomScene(area=area, params={"candidates": candidates}, seed=self.rng),
+                scene=RandomScene.factory({"candidates": candidates}),
                 where="full",
             ),
             *self.children,

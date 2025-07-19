@@ -8,6 +8,8 @@ from metta.setup.utils import info, success, warning
 
 @register_module
 class WandbSetup(SetupModule):
+    install_once = True
+
     @property
     def description(self) -> str:
         return "Weights & Biases experiment tracking"

@@ -1,26 +1,29 @@
 mine_red:
   type_id: 2
-  output_ore_red: 1
+  output_resources:
+    ore_red: 1
   color: 0
   max_output: 5
   conversion_ticks: 1
   cooldown: 50
-  initial_items: 0
+  initial_resource_count: 0
 
 mine_blue:
   type_id: 3
   color: 1
-  output_ore_blue: 1
+  output_resources:
+    ore_blue: 1
   max_output: 5
   conversion_ticks: 1
   cooldown: 50
-  initial_items: 0
+  initial_resource_count: 0
 
 mine_green:
   type_id: 4
-  output_ore_green: 1
+  output_resources:
+    ore_green: 1
   color: 2
   max_output: 5
   conversion_ticks: 1
   cooldown: 50
-  initial_items: 0
+  initial_resource_count: 0

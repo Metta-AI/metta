@@ -7,9 +7,10 @@ game:
   max_steps: 58
   agent:
     rewards:
-      heart: 0.333
+      inventory:
+        heart: 0.333
   map_builder:
     uri: "configs/env/mettagrid/maps/memory/medium.map"
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1
