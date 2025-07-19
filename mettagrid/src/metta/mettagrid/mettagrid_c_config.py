@@ -147,6 +147,8 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 f"Action '{action_name}' has consumed_resources {missing_consumed} that are not in "
                 f"inventory_item_names. These resources will be ignored, making the action free! "
                 f"Either add these resources to inventory_item_names or disable the action."
+                f"inventory_item_names: {resource_name_to_id}"
+                f"action_config: {action_config}"
             )
 
         action_cpp_params = {

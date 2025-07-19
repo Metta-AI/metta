@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.curriculum.core import Curriculum, Task
-from metta.rl.functions import build_wandb_stats, compute_timing_stats, process_training_stats
+from metta.rl.util.stats import build_wandb_stats, compute_timing_stats, process_training_stats
 
 
 class TestCurriculum(Curriculum):
@@ -93,6 +93,7 @@ def test_curriculum_stats_collection():
     # Process training stats
     processed_stats = process_training_stats(
         raw_stats=stats,
+        curriculum_stats=curriculum.stats(),
         losses=losses,
         experience=experience,
         trainer_config=trainer_config,
@@ -150,15 +151,18 @@ def test_curriculum_stats_collection():
 
     all_stats = build_wandb_stats(
         processed_stats=processed_stats,
+        curriculum_stats=curriculum_stats,
         timing_info=timing_info,
         weight_stats={},
         grad_stats={},
         system_stats={},
         memory_stats={},
         parameters={"learning_rate": 0.001},
+        hyperparameters={},
         evals=EvalRewardSummary(),
         agent_step=1000,
         epoch=10,
+        world_size=1,
     )
 
     # Add curriculum stats

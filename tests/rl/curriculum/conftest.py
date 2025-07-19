@@ -33,7 +33,7 @@ def curriculum_server(request):
     """Fixture that manages curriculum server lifecycle with a unique port."""
     server = None
 
-    def _create_server(curriculum, host="127.0.0.1", port=None):
+    def _create_server(curriculum, host="0.0.0.0", port=None):
         nonlocal server
         if port is None:
             port = find_free_port()
