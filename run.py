@@ -23,7 +23,6 @@ from metta.api import (
     save_experiment_config,
     setup_distributed_training,
     setup_run_directories,
-    wrap_agent_distributed,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
@@ -44,6 +43,7 @@ from metta.rl.functions.optimization import (
     calculate_explained_variance,
     maybe_update_l2_weights,
 )
+from metta.rl.functions.policy_management import wrap_agent_distributed
 from metta.rl.functions.rollout import (
     get_lstm_config,
     get_observation,
