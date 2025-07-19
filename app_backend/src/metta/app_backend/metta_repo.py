@@ -1282,3 +1282,35 @@ class MettaRepo:
                 "retries": row[8],
                 "policy_name": row[9],
             }
+
+    async def get_all_tasks(self, limit: int = 500) -> list[dict[str, Any]]:
+        """Get all tasks regardless of status."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                       et.assignee, et.created_at, et.attributes, et.retries,
+                       p.name as policy_name
+                FROM eval_tasks et
+                LEFT JOIN policies p ON et.policy_id = p.id
+                ORDER BY et.created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = await result.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "policy_id": row[1],
+                    "sim_suite": row[2],
+                    "status": row[3],
+                    "assigned_at": row[4],
+                    "assignee": row[5],
+                    "created_at": row[6],
+                    "attributes": row[7],
+                    "retries": row[8],
+                    "policy_name": row[9],
+                }
+                for row in rows
+            ]

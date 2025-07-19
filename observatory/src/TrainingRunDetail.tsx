@@ -264,11 +264,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!runId || !selectedSuite || !selectedMetric) return
 
       try {
-        const heatmapData = await repo.getTrainingRunHeatmapData(
-          runId,
-          selectedMetric,
-          selectedSuite,
-        )
+        const heatmapData = await repo.getTrainingRunHeatmapData(runId, selectedMetric, selectedSuite)
         setHeatmapData(heatmapData)
       } catch (err: any) {
         setError(`Failed to load heatmap data: ${err.message}`)

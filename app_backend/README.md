@@ -21,6 +21,9 @@ docker run -p 8000:8000 \
   metta-app-backend:latest
 ```
 
+### Postgres
+The app_backend service relies on postgres.
+
 If you are running a postgres instance locally, use `host.docker.internal` as host
 
 ## Environment Variables
