@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -96,8 +96,13 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
     """Global observation configuration."""
 
     episode_completion_pct: bool = Field(default=True)
-    last_action: bool = Field(default=True)  # Controls both last_action and last_action_arg
+
+    # Controls both last_action and last_action_arg
+    last_action: bool = Field(default=True)
     last_reward: bool = Field(default=True)
+
+    # Controls whether resource rewards are included in observations
+    resource_rewards: bool = Field(default=False)
 
 
 class PyWallConfig(BaseModelWithForbidExtra):
@@ -129,8 +134,8 @@ class PyGameConfig(BaseModelWithForbidExtra):
     max_steps: int = Field(ge=0)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
-    obs_width: int = Field(ge=1)
-    obs_height: int = Field(ge=1)
+    obs_width: Literal[3, 5, 7, 9, 11, 13, 15]
+    obs_height: Literal[3, 5, 7, 9, 11, 13, 15]
     num_observation_tokens: int = Field(ge=1)
     agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
@@ -138,3 +143,8 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+
+
+class PyPolicyGameConfig(PyGameConfig):
+    obs_width: Literal[11]
+    obs_height: Literal[11]

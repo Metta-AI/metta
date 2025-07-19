@@ -6,6 +6,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Minimal system deps
 RUN brew install cmake ninja
 
+# Install kubectl for EKS/Kind testing
+RUN brew install kubectl
+
+# Install Docker CLI manually
+RUN mkdir -p /home/linuxbrew/.local/bin && \
+    curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-27.5.1.tgz | tar -xz -C /tmp && \
+    cp /tmp/docker/docker /home/linuxbrew/.local/bin/docker && \
+    chmod +x /home/linuxbrew/.local/bin/docker && \
+    rm -rf /tmp/docker
+
+
 WORKDIR /workspace
 
 # Copy the entire repo
@@ -20,8 +31,7 @@ RUN if [ -d /workspace/metta/.metta ]; then \
 WORKDIR /workspace/metta
 
 # Clean up git config for anonymous access
-RUN git config --remove-section http."https://github.com/" || true && \
-    git remote remove origin && \
+RUN git remote remove origin && \
     git remote add origin https://github.com/Metta-AI/metta.git && \
     git fetch
 
@@ -29,6 +39,6 @@ RUN git config --remove-section http."https://github.com/" || true && \
 # TODO: update `install.sh` to accept a custom path we expect uv to be at.
 ENV PATH="/home/linuxbrew/.local/bin:${PATH}"
 
-RUN bash install.sh
+RUN bash install.sh --profile=softmax-docker
 
 CMD ["/bin/bash"]

@@ -210,7 +210,7 @@ class MettaCLI:
         cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
         if cleanup_script.exists():
             try:
-                subprocess.run([sys.executable, str(cleanup_script)], check=True)
+                subprocess.run([sys.executable, str(cleanup_script), str(self.repo_root)], check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
 
@@ -238,6 +238,8 @@ class MettaCLI:
         if hasattr(args, "local_command") and args.local_command:
             if args.local_command == "build-docker-img":
                 self.local_commands.build_docker_img(args)
+            elif args.local_command == "build-app-backend-img":
+                self.local_commands.build_app_backend_img()
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -521,6 +523,7 @@ Examples:
 
         # Local subcommands
         local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
+        local_subparsers.add_parser("build-app-backend-img", help="Build local development app_backend Docker image")
 
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)
