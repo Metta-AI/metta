@@ -3,25 +3,24 @@ import json
 import secrets
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
+from pydantic import BaseModel, Field
 
 from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.schema_manager import SqlMigration, run_migrations
 
-# Constants
-EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES = 60
+TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
 
 
-@dataclass
-class TaskStatusUpdate:
-    status: str
-    details: dict[str, Any] | None = None
+class TaskStatusUpdate(BaseModel):
+    status: TaskStatus
+    clear_assignee: bool = False
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 # This is a list of migrations that will be applied to the eval database.
@@ -313,6 +312,30 @@ MIGRATIONS = [
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""",
             """CREATE INDEX idx_sweeps_name ON sweeps(name)""",
+        ],
+    ),
+    SqlMigration(
+        version=16,
+        description="Add index on eval_tasks git_hash, assigned_at. And another on assigned_at",
+        sql_statements=[
+            """CREATE INDEX idx_eval_tasks_git_hash_assigned ON eval_tasks((attributes ->> 'git_hash'), assigned_at)""",
+            """CREATE INDEX idx_eval_tasks_assigned_at ON eval_tasks(assigned_at)""",
+        ],
+    ),
+    SqlMigration(
+        version=17,
+        description="Add retries column to eval_tasks table",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN retries INTEGER NOT NULL DEFAULT 0""",
+            """CREATE INDEX idx_eval_tasks_retries ON eval_tasks(retries)""",
+        ],
+    ),
+    SqlMigration(
+        version=18,
+        description="Add index on assignee, assigned_at, status",
+        sql_statements=[
+            """CREATE INDEX idx_eval_tasks_assignee_assigned_at_status
+               ON eval_tasks(assignee, assigned_at, status)""",
         ],
     ),
 ]
@@ -912,7 +935,7 @@ class MettaRepo:
                 INSERT INTO eval_tasks (policy_id, sim_suite, attributes)
                 VALUES (%s, %s, %s)
                 RETURNING id, policy_id, sim_suite, status, assigned_at,
-                         assignee, created_at, attributes
+                         assignee, created_at, attributes, retries
                 """,
                 (policy_id, sim_suite, Jsonb(attributes)),
             )
@@ -928,21 +951,23 @@ class MettaRepo:
                 "assignee": row[5],
                 "created_at": row[6],
                 "attributes": row[7],
+                "retries": row[8],
             }
 
     async def get_available_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                SELECT id, policy_id, sim_suite, status, assigned_at,
-                       assignee, created_at, attributes
-                FROM eval_tasks
+                SELECT et.id, policy_id, sim_suite, status, assigned_at,
+                       assignee, et.created_at, attributes, retries, p.name
+                FROM eval_tasks et
+                JOIN policies p ON et.policy_id = p.id
                 WHERE status = 'unprocessed'
-                  AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
-                ORDER BY created_at ASC
+                  AND assignee IS NULL
+                ORDER BY et.created_at ASC
                 LIMIT %s
                 """,
-                (EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES, limit),
+                (limit,),
             )
             rows = await result.fetchall()
             return [
@@ -955,6 +980,8 @@ class MettaRepo:
                     "assignee": row[5],
                     "created_at": row[6],
                     "attributes": row[7],
+                    "retries": row[8],
+                    "policy_name": row[9],
                 }
                 for row in rows
             ]
@@ -971,42 +998,41 @@ class MettaRepo:
             result = await con.execute(
                 """
                 UPDATE eval_tasks
-                SET assignee = %s, assigned_at = NOW()
+                SET assignee = %s, assigned_at = NOW(), retries = retries +1
                 WHERE id = ANY(%s)
-                  AND status = 'unprocessed'
-                  AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
+                    AND status = 'unprocessed'
+                    AND assignee IS NULL
                 RETURNING id
                 """,
-                (assignee, task_ids, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+                (assignee, task_ids),
             )
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
     async def get_claimed_tasks(self, assignee: str | None = None) -> list[dict[str, Any]]:
         async with self.connect() as con:
-            if assignee is None:
+            if assignee is not None:
                 result = await con.execute(
                     """
-                    SELECT id, policy_id, sim_suite, status, assigned_at,
-                           assignee, created_at, attributes
-                    FROM eval_tasks
-                    WHERE assignee IS NOT NULL
-                      AND assigned_at >= NOW() - INTERVAL '%s minutes'
-                    ORDER BY created_at ASC
+                    SELECT et.id, policy_id, sim_suite, status, assigned_at,
+                            assignee, et.created_at, attributes, retries, p.name
+                    FROM eval_tasks et
+                    JOIN policies p ON et.policy_id = p.id
+                    WHERE assignee = %s AND status = 'unprocessed'
+                    ORDER BY et.created_at ASC
                     """,
-                    (EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES,),
+                    (assignee,),
                 )
             else:
                 result = await con.execute(
                     """
-                    SELECT id, policy_id, sim_suite, status, assigned_at,
-                           assignee, created_at, attributes
-                    FROM eval_tasks
-                    WHERE assignee = %s
-                      AND assigned_at >= NOW() - INTERVAL '%s minutes'
-                    ORDER BY created_at ASC
+                    SELECT et.id, policy_id, sim_suite, status, assigned_at,
+                            assignee, et.created_at, attributes, retries, p.name
+                    FROM eval_tasks et
+                    JOIN policies p ON et.policy_id = p.id
+                    WHERE status = 'unprocessed' AND assignee IS NOT NULL
+                    ORDER BY et.created_at ASC
                     """,
-                    (assignee, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
                 )
             rows = await result.fetchall()
             return [
@@ -1019,71 +1045,73 @@ class MettaRepo:
                     "assignee": row[5],
                     "created_at": row[6],
                     "attributes": row[7],
+                    "retries": row[8],
+                    "policy_name": row[9],
                 }
                 for row in rows
             ]
 
-    async def get_task_by_id(self, task_id: uuid.UUID) -> dict[str, Any] | None:
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, policy_id, sim_suite, status, assigned_at,
-                       assignee, created_at, attributes
-                FROM eval_tasks
-                WHERE id = %s
-                """,
-                (task_id,),
-            )
-            row = await result.fetchone()
-            if row is None:
-                return None
-            return {
-                "id": row[0],
-                "policy_id": row[1],
-                "sim_suite": row[2],
-                "status": row[3],
-                "assigned_at": row[4],
-                "assignee": row[5],
-                "created_at": row[6],
-                "attributes": row[7],
-            }
-
     async def update_task_statuses(
         self,
-        assignee: str,
-        task_updates: dict[uuid.UUID, TaskStatusUpdate],
+        updates: dict[uuid.UUID, TaskStatusUpdate],
+        require_assignee: str | None = None,
     ) -> dict[uuid.UUID, str]:
-        if not task_updates:
+        if not updates:
             return {}
 
         updated = {}
         async with self.connect() as con:
-            for task_id, update in task_updates.items():
-                status = update.status
-                details = update.details
-                if details:
-                    result = await con.execute(
-                        """
-                        UPDATE eval_tasks
-                        SET status = %s,
-                            attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                        WHERE id = %s AND assignee = %s
-                        RETURNING id
-                        """,
-                        (status, json.dumps(details), task_id, assignee),
-                    )
+            for task_id, update in updates.items():
+                if not require_assignee:
+                    if update.clear_assignee:
+                        result = await con.execute(
+                            """
+                            UPDATE eval_tasks
+                            SET status = %s,
+                                assignee = NULL,
+                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
+                            WHERE id = %s
+                            RETURNING id
+                            """,
+                            (update.status, json.dumps(update.attributes), task_id),
+                        )
+                    else:
+                        result = await con.execute(
+                            """
+                            UPDATE eval_tasks
+                            SET status = %s,
+                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
+                            WHERE id = %s
+                            RETURNING id
+                            """,
+                            (update.status, json.dumps(update.attributes), task_id),
+                        )
                 else:
-                    result = await con.execute(
-                        """
-                        UPDATE eval_tasks
-                        SET status = %s
-                        WHERE id = %s AND assignee = %s
-                        RETURNING id
-                        """,
-                        (status, task_id, assignee),
-                    )
+                    if update.clear_assignee:
+                        result = await con.execute(
+                            """
+                            UPDATE eval_tasks
+                            SET status = %s,
+                                assignee = NULL,
+                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
+                            WHERE id = %s AND assignee = %s
+                            RETURNING id
+                            """,
+                            (update.status, json.dumps(update.attributes), task_id, require_assignee),
+                        )
+                    else:
+                        result = await con.execute(
+                            """
+                            UPDATE eval_tasks
+                            SET status = %s,
+                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
+                            WHERE id = %s AND assignee = %s
+                            RETURNING id
+                            """,
+                            (update.status, json.dumps(update.attributes), task_id, require_assignee),
+                        )
                 if result.rowcount > 0:
-                    updated[task_id] = status
+                    updated[task_id] = update.status
 
         return updated
 
@@ -1162,8 +1190,6 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    # Sweep coordination methods
-
     async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> uuid.UUID:
         """Create a new sweep."""
         async with self.connect() as con:
@@ -1225,3 +1251,34 @@ class MettaRepo:
             if row is None:
                 raise ValueError(f"Sweep {sweep_id} not found")
             return row[0]
+
+    async def get_latest_assigned_task_for_worker(self, assignee: str) -> dict[str, Any] | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT et.id, policy_id, sim_suite, status, assigned_at,
+                       assignee, et.created_at, attributes, retries, p.name
+                FROM eval_tasks et
+                JOIN policies p ON et.policy_id = p.id
+                WHERE assignee = %s
+                  AND assigned_at IS NOT NULL
+                ORDER BY assigned_at DESC
+                LIMIT 1
+                """,
+                (assignee,),
+            )
+            row = await result.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "policy_id": row[1],
+                "sim_suite": row[2],
+                "status": row[3],
+                "assigned_at": row[4],
+                "assignee": row[5],
+                "created_at": row[6],
+                "attributes": row[7],
+                "retries": row[8],
+                "policy_name": row[9],
+            }
