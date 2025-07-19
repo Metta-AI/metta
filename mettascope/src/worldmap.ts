@@ -9,6 +9,50 @@ import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
 
+/**
+ * Clamps the map panel's pan position so that the world map always remains at
+ * least partially visible within the panel. 
+ */
+function clampMapPan(panel: PanelInfo) {
+  if (state.replay === null) {
+    return
+  }
+
+  // The bounds of the world map in world-space coordinates. Tiles are drawn
+  // starting at (−TILE_SIZE/2, −TILE_SIZE/2).
+  const mapMinX = -Common.TILE_SIZE / 2
+  const mapMinY = -Common.TILE_SIZE / 2
+  const mapMaxX = state.replay.map_size[0] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+  const mapMaxY = state.replay.map_size[1] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+
+  // Dimensions of the visible area in world-space coordinates.
+  const rect = panel.rectInner()
+  const viewHalfWidth = rect.width / (2 * panel.zoomLevel)
+  const viewHalfHeight = rect.height / (2 * panel.zoomLevel)
+
+  // Current viewport centre in world-space.
+  let cx = -panel.panPos.x()
+  let cy = -panel.panPos.y()
+
+  const mapWidth = mapMaxX - mapMinX
+  const mapHeight = mapMaxY - mapMinY
+
+  // Minimum fraction of the map that must remain visible (25%)
+  const minVisibleFraction = 0.25
+
+  // Clamp horizontally - always allow panning, just ensure some visibility
+  const minCenterX = mapMinX + minVisibleFraction * mapWidth - viewHalfWidth
+  const maxCenterX = mapMaxX - minVisibleFraction * mapWidth + viewHalfWidth
+  cx = Math.max(minCenterX, Math.min(cx, maxCenterX))
+
+  // Clamp vertically - always allow panning, just ensure some visibility  
+  const minCenterY = mapMinY + minVisibleFraction * mapHeight - viewHalfHeight
+  const maxCenterY = mapMaxY - minVisibleFraction * mapHeight + viewHalfHeight
+  cy = Math.max(minCenterY, Math.min(cy, maxCenterY))
+
+  panel.panPos = new Vec2f(-cx, -cy)
+}
+
 /** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
   let n = agentId + Math.PI + Math.E + Math.SQRT2
@@ -763,6 +807,9 @@ export function drawMap(panel: PanelInfo) {
     const y = getAttr(state.selectedGridObject, 'r')
     panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
   }
+
+  // Ensure that at least a portion of the map remains visible.
+  clampMapPan(panel)
 
   ctx.save()
   const rect = panel.rectInner()
