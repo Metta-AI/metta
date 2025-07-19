@@ -14,22 +14,37 @@
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names) {
+  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names, bool recipe_details_obs = false)
+      : recipe_details_obs(recipe_details_obs), inventory_item_count(inventory_item_names.size()) {
     _feature_normalizations = FeatureNormalizations;
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
     assert(_feature_names.size() == _feature_normalizations.size());
+
+    // Add inventory features
     for (size_t i = 0; i < inventory_item_names.size(); i++) {
       auto observation_feature = InventoryFeatureOffset + static_cast<ObservationType>(i);
       _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
       _feature_names.insert({observation_feature, "inv:" + inventory_item_names[i]});
     }
-    if (show_recipe_inputs) {
-      ObservationType feature_offset = InventoryFeatureOffset + inventory_item_names.size();
+
+    if (this->recipe_details_obs) {
+      // Define offsets based on actual inventory item count
+      const ObservationType input_recipe_offset = InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
+      const ObservationType output_recipe_offset = input_recipe_offset + static_cast<ObservationType>(inventory_item_count);
+
+      // Add input recipe features
       for (size_t i = 0; i < inventory_item_names.size(); i++) {
-        auto recipe_feature = feature_offset + static_cast<ObservationType>(i);
-        _feature_normalizations.insert({recipe_feature, DEFAULT_INVENTORY_NORMALIZATION});
-        _feature_names.insert({recipe_feature, "input:" + inventory_item_names[i]});
+        auto input_feature = input_recipe_offset + static_cast<ObservationType>(i);
+        _feature_normalizations.insert({input_feature, DEFAULT_INVENTORY_NORMALIZATION});
+        _feature_names.insert({input_feature, "input:" + inventory_item_names[i]});
+      }
+
+      // Add output recipe features
+      for (size_t i = 0; i < inventory_item_names.size(); i++) {
+        auto output_feature = output_recipe_offset + static_cast<ObservationType>(i);
+        _feature_normalizations.insert({output_feature, DEFAULT_INVENTORY_NORMALIZATION});
+        _feature_names.insert({output_feature, "output:" + inventory_item_names[i]});
       }
     }
   }
@@ -52,15 +67,30 @@ public:
     return append_tokens_if_room_available(tokens, obj->obs_features(), location);
   }
 
-  const std::map<ObservationType, float>& feature_normalizations() const {
+  std::map<ObservationType, float> feature_normalizations() const {
     return _feature_normalizations;
   }
 
-  const std::map<ObservationType, std::string>& feature_names() const {
+  std::map<ObservationType, std::string> feature_names() const {
     return _feature_names;
   }
 
+  size_t get_inventory_item_count() const {
+    return inventory_item_count;
+  }
+
+  ObservationType get_input_recipe_offset() const {
+    return InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
+  }
+
+  ObservationType get_output_recipe_offset() const {
+    return InventoryFeatureOffset + static_cast<ObservationType>(2 * inventory_item_count);
+  }
+
+  bool recipe_details_obs;
+
 private:
+  size_t inventory_item_count;
   std::map<ObservationType, float> _feature_normalizations;
   std::map<ObservationType, std::string> _feature_names;
 };
