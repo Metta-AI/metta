@@ -7,7 +7,7 @@ on:
     # labeled, unlabeled, synchronize, converted_to_draft, locked, unlocked, enqueued, dequeued, milestoned, demilestoned, review_request_removed, auto_merge_enabled, auto_merge_enabled
     # descriptions of these events: https://frontside.com/blog/2020-05-26-github-actions-pull_request/
     # pull request review approved seems to be here: https://stackoverflow.com/questions/77646883/how-to-check-if-pull-request-is-approved
-    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review, synchronize]
   pull_request_review:
     types: [submitted, edited, dismissed]
 
@@ -24,15 +24,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Extract Assignees and Reviewers
-        id: extract-assignees-reviewers
-        run: |
-          assignees=$(echo '${{ toJSON(github.event.pull_request.assignees) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-          reviewers=$(echo '${{ toJSON(github.event.pull_request.requested_reviewers) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-
-          echo "assignees=$assignees" >> $GITHUB_OUTPUT
-          echo "reviewers=$reviewers" >> $GITHUB_OUTPUT
 
       - name: Sync PR Task (GH to Asana)
         id: ensure-asana-task
@@ -63,12 +54,3 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
 
-      - name: Sync PR Review (GH To Asana)
-        if: github.event_name == 'pull_request_review_disabled'
-        uses: ./.github/actions/asana/pr_review_gh_to_asana
-        with:
-          task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
-          state: ${{ github.event.review.state }}
-          author: ${{ github.event.review.user.login }}
-          comment: ${{ github.event.review.body }}
-          asana_token: ${{ secrets.ASANA_API_KEY }}
