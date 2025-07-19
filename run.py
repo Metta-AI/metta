@@ -12,7 +12,6 @@ from metta.api import (
     Agent,
     Environment,
     Optimizer,
-    calculate_anneal_beta,
     cleanup_distributed,
     cleanup_wandb,
     create_evaluation_config_suite,
@@ -24,7 +23,6 @@ from metta.api import (
     save_experiment_config,
     setup_distributed_training,
     setup_run_directories,
-    wrap_agent_distributed,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
@@ -35,21 +33,29 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
+from metta.rl.functions.advantage import compute_advantage
+from metta.rl.functions.batch_utils import (
     calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.functions.losses import process_minibatch_update
+from metta.rl.functions.optimization import (
     calculate_explained_variance,
-    compute_advantage,
-    compute_timing_stats,
+    maybe_update_l2_weights,
+)
+from metta.rl.functions.policy_management import wrap_agent_distributed
+from metta.rl.functions.rollout import (
     get_lstm_config,
     get_observation,
-    maybe_update_l2_weights,
-    process_minibatch_update,
-    process_training_stats,
     run_policy_inference,
-    should_run_on_interval,
 )
+from metta.rl.functions.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
+from metta.rl.functions.utils import should_run
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
@@ -346,7 +352,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Calculate prioritized replay parameters
     prio_cfg = trainer_config.prioritized_experience_replay
-    anneal_beta = calculate_anneal_beta(
+    anneal_beta = calculate_prioritized_sampling_params(
         epoch=epoch,
         total_timesteps=trainer_config.total_timesteps,
         batch_size=trainer_config.batch_size,
@@ -520,7 +526,7 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Record heartbeat periodically (master only)
-    if should_run_on_interval(epoch, 10, is_master):
+    if should_run(epoch, 10, is_master):
         record_heartbeat()
 
     # Update L2 weights if configured
@@ -533,7 +539,7 @@ while agent_step < trainer_config.total_timesteps:
         )
 
     # Save checkpoint periodically
-    if should_run_on_interval(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
         saved_policy_path = save_checkpoint(
             epoch=epoch,
             agent_step=agent_step,
