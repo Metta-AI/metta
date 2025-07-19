@@ -33,7 +33,7 @@ class EvalTaskOrchestrator:
     def __init__(
         self,
         backend_url: str,
-        docker_image: str = "metta/eval-worker:latest",
+        docker_image: str = "metta-local:latest",
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 600.0,
         container_manager: AbstractContainerManager | None = None,
@@ -176,15 +176,11 @@ async def main() -> None:
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "600"))
 
-    # Create the appropriate container manager based on environment
-    container_manager = create_container_manager()
-
     orchestrator = EvalTaskOrchestrator(
         backend_url=backend_url,
         docker_image=docker_image,
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,
-        container_manager=container_manager,
         logger=logger,
     )
 
