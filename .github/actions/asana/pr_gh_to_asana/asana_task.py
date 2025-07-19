@@ -440,7 +440,7 @@ class AsanaTask:
                 },
                 "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
                 "is_pinned": comment.get("is_pinned", False),
-                "review_id": extract_github_review_id(comment.get("text", "")),
+                "review_id": self.extract_github_review_id(comment.get("text", "")),
             }
             for comment in comments
         ]
