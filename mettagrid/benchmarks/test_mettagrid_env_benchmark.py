@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.mettagrid.util.hydra import get_cfg
@@ -47,7 +47,7 @@ def environment(cfg, num_agents):
     print(f"\nConfiguring environment with {num_agents} agents")
     print(OmegaConf.to_yaml(cfg))
 
-    curriculum = SingleTaskCurriculum("test", task_cfg=cfg)
+    curriculum = single_task("test", cfg)
     env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
 
     assert env.initial_grid_hash == expected_grid_hash
@@ -155,7 +155,7 @@ def test_create_env_performance(benchmark, cfg):
 
     def create_and_reset():
         """Create a new environment and reset it."""
-        curriculum = SingleTaskCurriculum("test", task_cfg=cfg)
+        curriculum = single_task("test", cfg)
         env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
         obs = env.reset()
         # Cleanup

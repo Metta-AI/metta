@@ -1,9 +1,14 @@
-_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+name: all_curriculums
+algorithm:
+  type: discrete_random
+  params:
+    initial_weights: [5, 3, 2]
 
-tasks:
-  /env/mettagrid/curriculum/arena/learning_progress: 5
-  /env/mettagrid/curriculum/navigation/prioritize_regressed: 3
-  /env/mettagrid/curriculum/object_use: 2
+# This is a hierarchical curriculum that references other curriculums
+children:
+  - /env/mettagrid/curriculum/arena/learning_progress
+  - /env/mettagrid/curriculum/navigation/prioritize_regressed
+  - /env/mettagrid/curriculum/object_use
 
 env_overrides:
   game:

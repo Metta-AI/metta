@@ -1,6 +1,6 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
-
-tasks:
-  /env/mettagrid/extended_sequence/backchain1: 1
-  /env/mettagrid/extended_sequence/backchain2: 1
-  /env/mettagrid/extended_sequence/backchain3: 1
+name: backchain_seq
+algorithm: prioritize_regressed
+env_paths:
+  - /env/mettagrid/extended_sequence/backchain1
+  - /env/mettagrid/extended_sequence/backchain2
+  - /env/mettagrid/extended_sequence/backchain3

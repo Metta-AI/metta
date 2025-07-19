@@ -21,7 +21,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import MettaAgent
 from metta.common.util.fs import wait_for_file
-from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
+from metta.mettagrid.curriculum import Curriculum, parameter_grid_task_set, single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.functions import (
     cleanup_old_policies,
@@ -270,8 +270,6 @@ def save_experiment_config(
     if torch.distributed.is_initialized() and torch.distributed.get_rank() != 0:
         return
 
-    from omegaconf import OmegaConf
-
     # Build experiment configuration
     experiment_config = {
         "run": dirs.run_name,
@@ -301,27 +299,6 @@ def save_experiment_config(
 # ============================================================================
 # Helper Classes and Functions (used internally by Environment and Agent)
 # ============================================================================
-
-
-class PreBuiltConfigCurriculum(Curriculum):
-    """A curriculum that uses a pre-built config instead of loading from Hydra.
-
-    This allows us to bypass Hydra entirely when running evaluation or replay
-    generation without having Hydra initialized.
-    """
-
-    def __init__(self, env_name: str, pre_built_config: Any):
-        self._env_name = env_name
-        self._cfg_template = pre_built_config
-
-    def get_task(self) -> Task:
-        """Return a task with the pre-built config."""
-        return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
-
-    def get_task_probs(self) -> Dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = f"prebuilt({self._env_name})"
-        return {task_name: 1.0}
 
 
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
@@ -518,45 +495,54 @@ def _get_default_agent_config(device: str = "cuda") -> DictConfig:
     )
 
 
-class NavigationBucketedCurriculum(Curriculum):
-    """Navigation curriculum that cycles through different terrain types without using Hydra."""
+def navigation_bucketed_task_set(
+    base_config: Dict[str, Any],
+    terrain_dirs: List[str],
+    altar_range: Tuple[int, int],
+    name: str = "navigation_bucketed",
+) -> Curriculum:  # Returns Curriculum
+    """Create a navigation task set with terrain and altar variations.
+    Args:
+        base_config: Base environment configuration
+        terrain_dirs: List of terrain directory names to sample from
+        altar_range: Tuple of (min_altars, max_altars) for random sampling
+        name: Name for the Curriculum root
 
-    def __init__(self, base_config: Dict[str, Any], terrain_dirs: List[str], altar_range: Tuple[int, int]):
-        self.base_config = DictConfig(base_config)
-        self.terrain_dirs = terrain_dirs
-        self.altar_range = altar_range
-        self.current_idx = 0
+    Returns:
+        Curriculum with tasks for each terrain/altar combination
+    """
 
-    def get_task(self) -> "Task":
-        import random
+    # Convert terrain_dirs to discrete values
+    terrain_values = terrain_dirs
 
-        from metta.mettagrid.curriculum.core import Task
+    # Convert altar_range to discrete values (sample a few representative values)
+    min_altars, max_altars = altar_range
+    # Create a reasonable sampling of the altar range
+    if max_altars - min_altars <= 10:
+        # Small range: include all values
+        altar_values = list(range(min_altars, max_altars + 1))
+    else:
+        # Large range: sample representative values
+        altar_values = [
+            min_altars,
+            min_altars + (max_altars - min_altars) // 4,
+            min_altars + (max_altars - min_altars) // 2,
+            min_altars + 3 * (max_altars - min_altars) // 4,
+            max_altars,
+        ]
 
-        # Select a random terrain
-        terrain_dir = random.choice(self.terrain_dirs)
+    # Define parameter buckets for the grid
+    buckets = {
+        "game.map_builder.room.dir": {"values": terrain_values},
+        "game.map_builder.room.objects.altar": {"values": altar_values},
+    }
 
-        # Select a random altar count
-        altar_count = random.randint(self.altar_range[0], self.altar_range[1])
-
-        # Create task config
-        task_config = OmegaConf.create(self.base_config)
-        OmegaConf.set_struct(task_config, False)
-
-        # Update the terrain directory
-        task_config.game.map_builder.room.dir = terrain_dir
-
-        # Update the altar count
-        task_config.game.map_builder.room.objects.altar = altar_count
-
-        # Create task name
-        task_name = f"terrain={terrain_dir};altar={altar_count}"
-
-        return Task(task_name, self, task_config)
-
-    def get_task_probs(self) -> dict[str, float]:
-        """Return uniform probabilities for all terrain types."""
-        prob = 1.0 / len(self.terrain_dirs)
-        return {terrain: prob for terrain in self.terrain_dirs}
+    # Create the task set using parameter_grid_task_set
+    return parameter_grid_task_set(
+        name=name,
+        env_cfg_template=DictConfig(base_config),
+        buckets=buckets,
+    )
 
 
 # ============================================================================
@@ -675,22 +661,20 @@ class Environment:
             # Ensure sampling is disabled for evaluation
             template_config["sampling"] = 0
 
-            # Create the custom navigation curriculum
-            curriculum = NavigationBucketedCurriculum(
-                base_config=template_config,
-                terrain_dirs=terrain_dirs,
-                altar_range=(10, 50),
+            # Create the custom navigation curriculum using the new function
+            curriculum = navigation_bucketed_task_set(
+                base_config=template_config, terrain_dirs=terrain_dirs, altar_range=(10, 50), name="navigation_bucketed"
             )
         elif curriculum_path:
             # For other curriculum paths, try to create a simple single-task curriculum
             # by using the path as a task name with the provided config
             task_config = DictConfig(env_config)
-            curriculum = SingleTaskCurriculum(curriculum_path, task_config)
+            curriculum = single_task(curriculum_path, task_config)
         else:
             # Create a single task curriculum with the provided config
             task_config = DictConfig(env_config)
             curriculum_name = "custom_env"
-            curriculum = SingleTaskCurriculum(curriculum_name, task_config)
+            curriculum = single_task(curriculum_name, task_config)
 
         # Create vectorized environment
         vecenv = make_vecenv(
@@ -1180,7 +1164,6 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
     Returns:
         SimulationSuiteConfig with navigation tasks
     """
-    from metta.sim.simulation_config import SimulationSuiteConfig
 
     # Create pre-built navigation evaluation configs
     base_nav_config = _get_default_env_config()
@@ -1285,9 +1268,10 @@ __all__ = [
     "load_checkpoint",
     "wrap_agent_distributed",
     "ensure_initial_policy",
+    # Curriculum functions
+    "navigation_bucketed_task_set",
     # Helper classes
     "RunDirectories",
-    "PreBuiltConfigCurriculum",
     # Evaluation/replay configuration
     "create_evaluation_config_suite",
     "create_replay_config",

@@ -1,3 +1,7 @@
+name: bbc_agents_1
+algorithm: learning_progress
+
+# Inherit from defaults
 defaults:
   - defaults
 

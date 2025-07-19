@@ -100,7 +100,7 @@ class EpisodeReplay:
                 if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
 
-        self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg(), resolve=True)
+        self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_config, resolve=True)
 
         return self.replay_data
 

@@ -1,10 +1,12 @@
 # BBC Learning Progress Curriculum
 
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+name: bbc_laser
+algorithm: discrete_random
 
-env_cfg_template: /env/mettagrid/arena/combat
+env_paths:
+  - /env/mettagrid/arena/combat
 
-buckets:
+parameters:
   game.objects.lasery.input_resources.ore_red: { values: [0, 1, 2] }
   game.objects.lasery.input_resources.battery_red: { values: [0, 1, 2] }
   game.agent.rewards.laser: { values: [0, 1] }

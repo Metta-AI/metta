@@ -10,7 +10,7 @@ import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.mettagrid_env import (
     MettaGridEnv,
     dtype_actions,
@@ -237,7 +237,7 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
     # Create curriculum
     if hasattr(cfg, "env") and cfg.env is not None:
         # Use the env configuration directly
-        curriculum = SingleTaskCurriculum("renderer", cfg.env)
+        curriculum = single_task("renderer", cfg.env)
         print(f"📊 Using environment config: {cfg.env.game.num_agents} agents")
     else:
         # Fall back to the legacy renderer_job.environment approach
@@ -249,7 +249,7 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
             env_cfg.game.map_builder = OmegaConf.create(cfg.renderer_job.environment)
             print(f"📊 Using legacy environment config: {cfg.renderer_job.num_agents} agents")
 
-        curriculum = SingleTaskCurriculum("renderer", env_cfg)
+        curriculum = single_task("renderer", env_cfg)
 
     env = MettaGridEnv(curriculum, render_mode=render_mode)
 

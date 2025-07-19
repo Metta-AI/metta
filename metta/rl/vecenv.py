@@ -6,7 +6,7 @@ import pufferlib.vector
 from pydantic import validate_call
 
 from metta.common.util.resolvers import register_resolvers
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter

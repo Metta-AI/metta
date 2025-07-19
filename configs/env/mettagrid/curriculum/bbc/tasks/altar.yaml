@@ -1,10 +1,12 @@
 # BBC Learning Progress Curriculum
 
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+name: bbc_altar
+algorithm: discrete_random
 
-env_cfg_template: /env/mettagrid/arena/combat
+env_paths:
+  - /env/mettagrid/arena/combat
 
-buckets:
+parameters:
   game.agent.rewards.heart: { values: [1] }
 
   game.objects.altar.input_resources.ore_red: { values: [0, 1, 2] }
