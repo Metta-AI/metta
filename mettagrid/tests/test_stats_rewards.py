@@ -66,6 +66,7 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
         "agent": {
             "default_resource_limit": 10,
+            "initial_inventory": {"laser": 10, "armor": 5},  # Start with resources for combat
         },
     }
 
@@ -96,6 +97,111 @@ class TestStatsRewards:
 
         # Check that we got the movement reward
         assert rewards[0] == pytest.approx(0.1), f"Expected 0.1 reward for move, got {rewards[0]}"
+
+    def test_attack_stats_reward(self):
+        """Test that agents receive rewards for successful attacks."""
+        # Create environment with 2 agents for combat
+        env = create_stats_reward_test_env(num_agents=2)
+        obs, _ = env.reset()
+
+        # Get action indices
+        action_names = env.action_names()
+        attack_idx = action_names.index("attack")
+        rotate_idx = action_names.index("rotate")
+        noop_idx = action_names.index("noop")
+
+        # Red agent is at (1,1) facing right, blue agent is at (1,3)
+        # Red agent needs to rotate to face right to attack blue agent
+        rotate_action = np.array([[rotate_idx, 2], [noop_idx, 0]], dtype=np.int32)  # Red face right, Blue noop
+        env.step(rotate_action)
+
+        # Attack with red agent (index 0)
+        attack_action = np.array([[attack_idx, 0], [noop_idx, 0]], dtype=np.int32)
+        obs, rewards, terminals, truncations, info = env.step(attack_action)
+
+        # Check attack success
+        action_success = env.action_success()
+        assert action_success[0], "Attack should succeed"
+        assert rewards[0] == pytest.approx(1.0), f"Expected 1.0 reward for successful attack, got {rewards[0]}"
+
+    def test_attack_reward_maximum(self):
+        """Test that attack rewards respect the maximum limit."""
+        # Create environment with 2 agents for combat
+        env = create_stats_reward_test_env(num_agents=2)
+        obs, _ = env.reset()
+
+        # Get action indices
+        action_names = env.action_names()
+        attack_idx = action_names.index("attack")
+        rotate_idx = action_names.index("rotate")
+        noop_idx = action_names.index("noop")
+
+        # Rotate red agent to face right
+        rotate_action = np.array([[rotate_idx, 2], [noop_idx, 0]], dtype=np.int32)
+        env.step(rotate_action)
+
+        total_attack_reward = 0.0
+        successful_attacks = 0
+
+        # Keep attacking until we hit the limit (should be 5.0 max)
+        for i in range(10):
+            attack_action = np.array([[attack_idx, 0], [noop_idx, 0]], dtype=np.int32)
+            obs, rewards, terminals, truncations, info = env.step(attack_action)
+            
+            if rewards[0] > 0:
+                total_attack_reward += rewards[0]
+                successful_attacks += 1
+
+        # Should not exceed the max of 5.0
+        assert total_attack_reward <= 5.0, f"Total attack rewards should not exceed 5.0, got {total_attack_reward}"
+        assert total_attack_reward >= 4.0, f"Total attack rewards should be close to 5.0, got {total_attack_reward}"
+        assert successful_attacks >= 4, f"Should have at least 4 successful attacks before hitting limit"
+
+    def test_combined_move_and_attack_rewards(self):
+        """Test that move and attack stat rewards work together."""
+        # Create environment with 2 agents
+        env = create_stats_reward_test_env(num_agents=2)
+        obs, _ = env.reset()
+
+        # Get action indices
+        action_names = env.action_names()
+        move_idx = action_names.index("move")
+        attack_idx = action_names.index("attack")
+        rotate_idx = action_names.index("rotate")
+        noop_idx = action_names.index("noop")
+
+        total_reward = 0.0
+
+        # Move down (0.1 reward)
+        rotate_action = np.array([[rotate_idx, 1], [noop_idx, 0]], dtype=np.int32)  # Red face down
+        env.step(rotate_action)
+        
+        move_action = np.array([[move_idx, 0], [noop_idx, 0]], dtype=np.int32)
+        obs, rewards, _, _, _ = env.step(move_action)
+        total_reward += rewards[0]
+        assert rewards[0] == pytest.approx(0.1), f"Expected 0.1 reward for move, got {rewards[0]}"
+
+        # Rotate to face right
+        rotate_action = np.array([[rotate_idx, 2], [noop_idx, 0]], dtype=np.int32)  # Red face right
+        env.step(rotate_action)
+
+        # Attack (1.0 reward)
+        attack_action = np.array([[attack_idx, 0], [noop_idx, 0]], dtype=np.int32)
+        obs, rewards, _, _, _ = env.step(attack_action)
+        total_reward += rewards[0]
+        assert rewards[0] == pytest.approx(1.0), f"Expected 1.0 reward for attack, got {rewards[0]}"
+
+        # Move right (0.1 reward)
+        move_action = np.array([[move_idx, 0], [noop_idx, 0]], dtype=np.int32)
+        obs, rewards, _, _, _ = env.step(move_action)
+        total_reward += rewards[0]
+        assert rewards[0] == pytest.approx(0.1), f"Expected 0.1 reward for second move, got {rewards[0]}"
+
+        # Total should be 0.1 + 1.0 + 0.1 = 1.2
+        expected_total = 1.2
+        assert total_reward == pytest.approx(expected_total), (
+            f"Expected {expected_total} total reward, got {total_reward}"
+        )
 
     def test_combined_stats_rewards(self):
         """Test that multiple stat rewards can be earned together."""
