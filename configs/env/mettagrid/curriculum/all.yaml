@@ -1,5 +1,8 @@
 name: all_curriculums
-algorithm: discrete_random
+algorithm:
+  type: discrete_random
+  params:
+    initial_weights: [5, 3, 2]
 
 # This is a hierarchical curriculum that references other curriculums
 children:

@@ -1,6 +1,6 @@
 # BBC Learning Progress Curriculum
 name: bbc_curriculum
-algorithm: discrete_random
+algorithm: learning_progress
 
 children:
   - /env/mettagrid/curriculum/bbc/agents/1

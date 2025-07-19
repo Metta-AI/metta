@@ -1,6 +1,6 @@
 # BBC Learning Progress Curriculum - Default agent configuration
 name: bbc_agents_defaults
-algorithm: discrete_random
+algorithm: learning_progress
 
 env_overrides:
   game:

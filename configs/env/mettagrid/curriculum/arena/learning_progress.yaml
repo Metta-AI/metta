@@ -1,20 +1,7 @@
 name: arena_learning_progress
 algorithm: learning_progress
 
-# Uses same tasks as arena/random.yaml
-env_paths:
-  - /env/mettagrid/arena/basic
-  - /env/mettagrid/arena/basic_easy
-  - /env/mettagrid/arena/basic_easy_shaped
-  - /env/mettagrid/arena/basic_poor
-  - /env/mettagrid/arena/combat
-  - /env/mettagrid/arena/combat_easy
-  - /env/mettagrid/arena/combat_easy_shaped
-  - /env/mettagrid/arena/combat_poor
-  - /env/mettagrid/arena/advanced
-  - /env/mettagrid/arena/advanced_easy
-  - /env/mettagrid/arena/advanced_easy_shaped
-  - /env/mettagrid/arena/advanced_poor
-  - /env/mettagrid/arena/tag
-  - /env/mettagrid/arena/tag_easy
-  - /env/mettagrid/arena/tag_easy_shaped
+# Inherit from base random configuration
+defaults:
+  - random
+  - _self_
