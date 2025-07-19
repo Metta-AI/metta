@@ -8,7 +8,7 @@ import { createPostAction } from "@/posts/actions/createPostAction";
  * NewPostForm Component
  * 
  * Allows users to create new posts with rich content including:
- * - Post content with LaTeX support
+ * - Post content with LaTeX support via MathJax
  * - Automatic paper detection from URLs
  * - Simple, clean interface matching the mockup
  */
@@ -32,7 +32,7 @@ export const NewPostForm: FC = () => {
     if (!content.trim()) return;
     
     const formData = new FormData();
-    formData.append('title', 'New Post');
+    formData.append('title', 'New Post'); // Default title
     formData.append('content', content);
     
     execute(formData);
@@ -43,7 +43,7 @@ export const NewPostForm: FC = () => {
       <div className="flex gap-3">
         <textarea
           className="flex-1 min-h-[96px] max-h-32 border border-gray-200 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-400 text-sm leading-relaxed"
-          placeholder={`Poast away....\nInclude arXiv URLs to automatically import papers\nLaTeX supported inline with $...$ or $$...$$`}
+          placeholder={`Poast away....\nInclude arXiv URLs to automatically import papers\nLaTeX supported: $x^2 + y^2 = z^2$ for inline, $$\\alpha + \\beta = \\gamma$$ for display`}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={(e) => {

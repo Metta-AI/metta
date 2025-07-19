@@ -1,8 +1,9 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, lt } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { postsTable } from "@/lib/db/schema/post";
 import { usersTable } from "@/lib/db/schema/auth";
+import { papersTable } from "@/lib/db/schema/paper";
 import { makePaginated, Paginated } from "@/lib/paginated";
 
 type FeedPostRow = typeof postsTable.$inferSelect;
@@ -41,8 +42,9 @@ export type FeedPostDTO = {
   updatedAt: Date;
 };
 
-export function toFeedPostDTO(dbModel: FeedPostRow, usersMap: Map<string, any>): FeedPostDTO {
+export function toFeedPostDTO(dbModel: FeedPostRow, usersMap: Map<string, any>, papersMap: Map<string, any>): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
+  const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
   
   return {
     id: dbModel.id,
@@ -58,27 +60,47 @@ export function toFeedPostDTO(dbModel: FeedPostRow, usersMap: Map<string, any>):
       email: author?.email ?? null,
       image: author?.image ?? null,
     },
+    paper: paper ? {
+      id: paper.id,
+      title: paper.title,
+      abstract: paper.abstract,
+      authors: paper.authors,
+      institutions: paper.institutions,
+      tags: paper.tags,
+      link: paper.link,
+      source: paper.source,
+      externalId: paper.externalId,
+      stars: paper.stars ?? 0,
+      starred: false, // TODO: Get from user interactions
+      pdfS3Url: paper.pdfS3Url,
+      createdAt: paper.createdAt,
+      updatedAt: paper.updatedAt,
+    } : undefined,
     createdAt: dbModel.createdAt,
     updatedAt: dbModel.updatedAt,
   };
 }
 
 export async function loadFeedPosts({
-  limit = 5,
+  limit = 10,
   cursor,
 }: {
   limit?: number;
   cursor?: Date;
 } = {}): Promise<Paginated<FeedPostDTO>> {
+  // Build the query with proper cursor-based pagination
   const rows = await db
     .select()
     .from(postsTable)
-    .where(cursor ? desc(postsTable.createdAt) : undefined)
+    .where(cursor ? lt(postsTable.createdAt, cursor) : undefined)
     .limit(limit + 1)
     .orderBy(desc(postsTable.createdAt));
 
   // Get unique author IDs
   const authorIds = [...new Set(rows.map(row => row.authorId))];
+  
+  // Get unique paper IDs
+  const paperIds = [...new Set(rows.map(row => row.paperId).filter((id): id is string => id !== null))];
   
   // Fetch all users who authored these posts
   const users = authorIds.length > 0 ? await db
@@ -86,12 +108,22 @@ export async function loadFeedPosts({
     .from(usersTable)
     .where(inArray(usersTable.id, authorIds)) : [];
   
-  // Create a map for quick user lookup
+  // Fetch all papers referenced in these posts
+  const papers = paperIds.length > 0 ? await db
+    .select()
+    .from(papersTable)
+    .where(inArray(papersTable.id, paperIds)) : [];
+  
+  // Create maps for quick lookup
   const usersMap = new Map(users.map(user => [user.id, user]));
+  const papersMap = new Map(papers.map(paper => [paper.id, paper]));
 
-  const posts = rows.map(row => toFeedPostDTO(row, usersMap));
+  const posts = rows.map(row => toFeedPostDTO(row, usersMap, papersMap));
 
-  const nextCursor = posts[posts.length - 1]?.createdAt;
+  // Check if there are more posts to load
+  const hasMore = posts.length > limit;
+  const nextCursor = hasMore ? posts[limit - 1]?.createdAt : undefined;
+
   async function loadMore(limit: number) {
     "use server";
     return loadFeedPosts({ cursor: nextCursor, limit });
