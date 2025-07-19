@@ -1,0 +1,192 @@
+name: "Scheduled Tests"
+
+on:
+  schedule:
+    # Run hourly critical tests at :15 past the hour to avoid contention
+    - cron: "15 * * * *"
+    # Run daily comprehensive tests at 2:30 AM UTC (6:30 PM PST / 7:30 PM PDT)
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+    inputs:
+      test_category:
+        description: "Test category to run"
+        type: choice
+        options:
+          - hourly
+          - daily
+          - all
+        default: all
+        required: false
+
+env:
+  HYDRA_FULL_ERROR: 1
+  VENV_PATH: .venv
+  PYTEST_WORKERS: auto
+
+jobs:
+  determine-test-category:
+    name: "Determine Test Category"
+    runs-on: ubuntu-latest
+    outputs:
+      test_category: ${{ steps.determine.outputs.category }}
+    steps:
+      - name: Determine test category
+        id: determine
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "category=${{ github.event.inputs.test_category }}" >> $GITHUB_OUTPUT
+          else
+            # Check cron schedule
+            CRON_SCHEDULE="${{ github.event.schedule }}"
+            if [[ "$CRON_SCHEDULE" == "15 * * * *" ]]; then
+              echo "category=hourly" >> $GITHUB_OUTPUT
+            elif [[ "$CRON_SCHEDULE" == "30 2 * * *" ]]; then
+              echo "category=daily" >> $GITHUB_OUTPUT
+            else
+              echo "category=all" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  hourly-tests:
+    name: "Hourly Critical Tests"
+    needs: determine-test-category
+    if: needs.determine-test-category.outputs.test_category == 'hourly' || needs.determine-test-category.outputs.test_category == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Run hourly tests
+        run: |
+          echo "Running critical hourly tests..."
+          pytest -m "hourly" --maxfail=5 -v
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hourly-test-results
+          path: |
+            pytest-report.xml
+            .coverage
+          retention-days: 7
+
+  daily-tests:
+    name: "Daily Comprehensive Tests"
+    needs: determine-test-category
+    if: needs.determine-test-category.outputs.test_category == 'daily' || needs.determine-test-category.outputs.test_category == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Run daily tests
+        run: |
+          echo "Running comprehensive daily tests..."
+          # Run all tests including slow ones, but exclude hourly-only tests
+          pytest -m "daily or not hourly" -v --cov=metta --cov-report=xml
+
+      - name: Run integration tests
+        run: |
+          echo "Running integration tests..."
+          pytest -m "integration" -v --maxfail=3
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-test-results
+          path: |
+            pytest-report.xml
+            coverage.xml
+            .coverage
+          retention-days: 30
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+          verbose: true
+
+  notify-failures:
+    name: "Notify Test Failures"
+    needs: [hourly-tests, daily-tests]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine failed tests
+        id: failures
+        run: |
+          FAILED_JOBS=""
+          if [[ "${{ needs.hourly-tests.result }}" == "failure" ]]; then
+            FAILED_JOBS="hourly-tests"
+          fi
+          if [[ "${{ needs.daily-tests.result }}" == "failure" ]]; then
+            if [[ -n "$FAILED_JOBS" ]]; then
+              FAILED_JOBS="$FAILED_JOBS, daily-tests"
+            else
+              FAILED_JOBS="daily-tests"
+            fi
+          fi
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const failedJobs = '${{ steps.failures.outputs.failed_jobs }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const issueTitle = `Scheduled Test Failure: ${failedJobs}`;
+            const issueBody = `## Scheduled Test Failure
+
+            **Failed Jobs:** ${failedJobs}
+            **Run URL:** ${runUrl}
+            **Time:** ${new Date().toISOString()}
+
+            ### Action Required
+            Please investigate the test failures and fix them as soon as possible.
+
+            ### Escalation
+            If tests remain broken for more than 24 hours, please escalate to the on-call engineer.
+            `;
+
+            // Check if similar issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'test-failure,automated'
+            });
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title.includes('Scheduled Test Failure')
+            );
+
+            if (existingIssue) {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: issueBody
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: issueBody,
+                labels: ['test-failure', 'automated', 'high-priority']
+              });
+            }
