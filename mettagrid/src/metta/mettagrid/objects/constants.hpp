@@ -47,14 +47,21 @@ constexpr ObservationType LastActionArg = 10;
 constexpr ObservationType LastReward = 11;
 constexpr ObservationType Glyph = 12;
 constexpr ObservationType ResourceRewards = 13;
-constexpr ObservationType ObservationFeatureCount = 14;
+// Recipe input requirements - these will be paired with inventory item IDs
+constexpr ObservationType RecipeInput0 = 14;
+constexpr ObservationType RecipeInput1 = 15;
+constexpr ObservationType RecipeInput2 = 16;
+constexpr ObservationType RecipeInput3 = 17;
+constexpr ObservationType RecipeInput4 = 18;
+constexpr ObservationType RecipeInput5 = 19;
+constexpr ObservationType RecipeInput6 = 20;
+constexpr ObservationType RecipeInput7 = 21;
+constexpr ObservationType RecipeInput8 = 22;
+constexpr ObservationType RecipeInput9 = 23;
+constexpr ObservationType ObservationFeatureCount = 24;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
-
-// Recipe inputs start at offset 50 to avoid collision with inventory items
-// Typically there are fewer than 20 inventory items, so this leaves plenty of room
-const ObservationType RecipeInputFeatureOffset = 50;
 
 const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::TypeId, "type_id"},
@@ -70,7 +77,18 @@ const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::LastActionArg, "last_action_arg"},
     {ObservationFeature::LastReward, "last_reward"},
     {ObservationFeature::Glyph, "agent:glyph"},
-    {ObservationFeature::ResourceRewards, "resource_rewards"}};
+    {ObservationFeature::ResourceRewards, "resource_rewards"},
+    {ObservationFeature::RecipeInput0, "recipe_input_0"},
+    {ObservationFeature::RecipeInput1, "recipe_input_1"},
+    {ObservationFeature::RecipeInput2, "recipe_input_2"},
+    {ObservationFeature::RecipeInput3, "recipe_input_3"},
+    {ObservationFeature::RecipeInput4, "recipe_input_4"},
+    {ObservationFeature::RecipeInput5, "recipe_input_5"},
+    {ObservationFeature::RecipeInput6, "recipe_input_6"},
+    {ObservationFeature::RecipeInput7, "recipe_input_7"},
+    {ObservationFeature::RecipeInput8, "recipe_input_8"},
+    {ObservationFeature::RecipeInput9, "recipe_input_9"},
+};
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
