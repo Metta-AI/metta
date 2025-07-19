@@ -34,20 +34,24 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions import (
+from metta.rl.functions.advantage import compute_advantage
+from metta.rl.functions.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.functions.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
+from metta.rl.functions.training import (
     calculate_batch_sizes,
     calculate_explained_variance,
     calculate_prioritized_sampling_params,
-    compute_advantage,
-    compute_timing_stats,
-    get_lstm_config,
-    get_observation,
     maybe_update_l2_weights,
     process_minibatch_update,
-    process_training_stats,
-    run_policy_inference,
     should_run,
 )
 from metta.rl.kickstarter import Kickstarter

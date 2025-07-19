@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.functions import (
+from metta.rl.functions.stats import (
     build_wandb_stats,
     process_training_stats,
 )
