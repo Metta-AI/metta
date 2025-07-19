@@ -55,11 +55,11 @@ protected:
   }
 
   // Helper function to create test resource_reward_max map
-  std::map<uint8_t, InventoryQuantity> create_test_resource_reward_max() {
-    std::map<uint8_t, InventoryQuantity> resource_reward_max;
-    resource_reward_max[TestItems::ORE] = 10;
-    resource_reward_max[TestItems::LASER] = 10;
-    resource_reward_max[TestItems::ARMOR] = 10;
+  std::map<uint8_t, RewardType> create_test_resource_reward_max() {
+    std::map<uint8_t, RewardType> resource_reward_max;
+    resource_reward_max[TestItems::ORE] = 10.0f;
+    resource_reward_max[TestItems::LASER] = 10.0f;
+    resource_reward_max[TestItems::ARMOR] = 10.0f;
     return resource_reward_max;
   }
 
