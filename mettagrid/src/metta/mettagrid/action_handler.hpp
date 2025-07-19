@@ -24,7 +24,7 @@ struct ActionConfig {
 class ActionHandler {
 public:
   unsigned char priority;
-  Grid* _grid;
+  Grid* _grid{};
 
   ActionHandler(const ActionConfig& cfg, const std::string& action_name)
       : priority(0),
