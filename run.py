@@ -35,6 +35,15 @@ from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions.advantage import compute_advantage
+from metta.rl.functions.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.functions.losses import process_minibatch_update
+from metta.rl.functions.optimization import (
+    calculate_explained_variance,
+    maybe_update_l2_weights,
+)
 from metta.rl.functions.rollout import (
     get_lstm_config,
     get_observation,
@@ -46,14 +55,7 @@ from metta.rl.functions.stats import (
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.functions.training import (
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    calculate_prioritized_sampling_params,
-    maybe_update_l2_weights,
-    process_minibatch_update,
-    should_run,
-)
+from metta.rl.functions.utils import should_run
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (

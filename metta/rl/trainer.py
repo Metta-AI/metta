@@ -32,6 +32,15 @@ from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions.advantage import compute_advantage
+from metta.rl.functions.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.functions.losses import process_minibatch_update
+from metta.rl.functions.optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+)
 from metta.rl.functions.policy_management import (
     cleanup_old_policies,
     validate_policy_environment_match,
@@ -46,13 +55,6 @@ from metta.rl.functions.stats import (
     build_wandb_stats,
     compute_timing_stats,
     process_training_stats,
-)
-from metta.rl.functions.training import (
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    calculate_prioritized_sampling_params,
-    compute_gradient_stats,
-    process_minibatch_update,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
