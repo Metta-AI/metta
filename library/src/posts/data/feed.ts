@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { makePaginated, Paginated } from "@/lib/paginated";
 
 export type FeedPostDTO = {
   id: string;
@@ -33,7 +34,7 @@ export type FeedPostDTO = {
   updatedAt: Date;
 };
 
-export function toFeedPostDTOPrisma(dbModel: any, usersMap: Map<string, any>, papersMap: Map<string, any>): FeedPostDTO {
+export function toFeedPostDTO(dbModel: any, usersMap: Map<string, any>, papersMap: Map<string, any>): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
   
@@ -71,13 +72,13 @@ export function toFeedPostDTOPrisma(dbModel: any, usersMap: Map<string, any>, pa
   };
 }
 
-export async function loadFeedPostsPrisma({
+export async function loadFeedPosts({
   limit = 10,
   cursor,
 }: {
   limit?: number;
   cursor?: Date;
-} = {}): Promise<FeedPostDTO[]> {
+} = {}): Promise<Paginated<FeedPostDTO>> {
   // Build the query with proper cursor-based pagination
   const rows = await prisma.post.findMany({
     where: cursor ? {
@@ -86,9 +87,14 @@ export async function loadFeedPostsPrisma({
       },
     } : undefined,
     take: limit + 1,
-    orderBy: {
-      createdAt: 'desc',
-    },
+    orderBy: [
+      {
+        createdAt: 'desc',
+      },
+      {
+        id: 'desc', // Secondary sort by ID to ensure consistent ordering
+      },
+    ],
     include: {
       author: true,
       paper: true,
@@ -108,8 +114,17 @@ export async function loadFeedPostsPrisma({
       papersMap.set(row.paper.id, row.paper);
     }
 
-    return toFeedPostDTOPrisma(row, usersMap, papersMap);
+    return toFeedPostDTO(row, usersMap, papersMap);
   });
 
-  return posts;
+  // Check if there are more posts to load
+  const hasMore = posts.length > limit;
+  const nextCursor = hasMore ? posts[limit - 1]?.createdAt : undefined;
+
+  async function loadMore(limit: number) {
+    "use server";
+    return loadFeedPosts({ cursor: nextCursor, limit });
+  }
+
+  return makePaginated(posts, limit, loadMore);
 } 
