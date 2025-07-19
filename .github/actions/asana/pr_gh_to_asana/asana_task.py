@@ -43,6 +43,26 @@ class AsanaTask:
         print(f"[task_gid] Extracted task_gid: {gid} from URL: {self.task_url}")
         return gid
 
+    @staticmethod
+    def extract_gid_from_url(task_url: str) -> str:
+        print(f"[extract_gid_from_url] extract_gid_from_url() called with task_url='{task_url}'")
+        # Try Format 1: https://app.asana.com/0/project_id/task_id
+        match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)(?:/|$)", task_url)
+        if match:
+            gid = match.group(1)
+            print(f"[extract_gid_from_url] Extracted GID using Format 1: {gid}")
+            return gid
+
+        # Try Format 2: https://app.asana.com/1/workspace_id/project/project_id/task/task_id
+        match = re.search(r"https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)", task_url)
+        if match:
+            gid = match.group(1)
+            print(f"[extract_gid_from_url] Extracted GID using Format 2: {gid}")
+            return gid
+
+        print(f"[extract_gid_from_url] Could not extract task ID from URL: {task_url}")
+        raise Exception(f"Could not extract task ID from URL: {task_url}")
+
     def ensure(
         self,
         title: str,
@@ -357,31 +377,28 @@ class AsanaTask:
             print(f"[ensure_github_url_in_task] GitHub attachment failed: {response.text}")
             return None
 
+    def extract_github_review_id(self, asana_comment_text):
+        """
+        Extract GitHub review ID from Asana comment text
 
-def extract_github_review_id(asana_comment_text):
-    """
-    Extract GitHub review ID from Asana comment text
+        Args:
+            asana_comment_text: The text content of an Asana comment
 
-    Args:
-        asana_comment_text: The text content of an Asana comment
+        Returns:
+            int: GitHub review ID if found, None otherwise
+        """
 
-    Returns:
-        int: GitHub review ID if found, None otherwise
-    """
+        if not asana_comment_text:
+            return None
 
-    if not asana_comment_text:
+        pattern = r"ID (\d+)"
+
+        match = re.search(pattern, asana_comment_text)
+
+        if match:
+            return int(match.group(1))
+
         return None
-
-    # Look for pattern: "Review #123456789" or "(Review #123456789)"
-    # This matches the format we created in format_github_review_body_for_asana
-    pattern = r"ID (\d+)"
-
-    match = re.search(pattern, asana_comment_text)
-
-    if match:
-        return int(match.group(1))
-
-    return None
 
     def get_comments(self, task_id: str):
         """
@@ -554,23 +571,3 @@ def extract_github_review_id(asana_comment_text):
                         print(payload)
                 else:
                     print(f"[s] Skipped adding comment for review {review_id} due to ordering constraint")
-
-    @staticmethod
-    def extract_gid_from_url(task_url: str) -> str:
-        print(f"[extract_gid_from_url] extract_gid_from_url() called with task_url='{task_url}'")
-        # Try Format 1: https://app.asana.com/0/project_id/task_id
-        match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)(?:/|$)", task_url)
-        if match:
-            gid = match.group(1)
-            print(f"[extract_gid_from_url] Extracted GID using Format 1: {gid}")
-            return gid
-
-        # Try Format 2: https://app.asana.com/1/workspace_id/project/project_id/task/task_id
-        match = re.search(r"https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)", task_url)
-        if match:
-            gid = match.group(1)
-            print(f"[extract_gid_from_url] Extracted GID using Format 2: {gid}")
-            return gid
-
-        print(f"[extract_gid_from_url] Could not extract task ID from URL: {task_url}")
-        raise Exception(f"Could not extract task ID from URL: {task_url}")
