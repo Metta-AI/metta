@@ -1,1 +1,0 @@
-ALTER TABLE "paper" ADD COLUMN "pdf_s3_url" text;

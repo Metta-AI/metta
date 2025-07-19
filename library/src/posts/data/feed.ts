@@ -1,12 +1,4 @@
-import { desc, eq, inArray, lt } from "drizzle-orm";
-
-import { db } from "@/lib/db";
-import { postsTable } from "@/lib/db/schema/post";
-import { usersTable } from "@/lib/db/schema/auth";
-import { papersTable } from "@/lib/db/schema/paper";
-import { makePaginated, Paginated } from "@/lib/paginated";
-
-type FeedPostRow = typeof postsTable.$inferSelect;
+import { prisma } from "@/lib/db/prisma";
 
 export type FeedPostDTO = {
   id: string;
@@ -34,7 +26,6 @@ export type FeedPostDTO = {
     externalId: string | null;
     stars: number;
     starred: boolean;
-    pdfS3Url: string | null;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -42,7 +33,7 @@ export type FeedPostDTO = {
   updatedAt: Date;
 };
 
-export function toFeedPostDTO(dbModel: FeedPostRow, usersMap: Map<string, any>, papersMap: Map<string, any>): FeedPostDTO {
+export function toFeedPostDTOPrisma(dbModel: any, usersMap: Map<string, any>, papersMap: Map<string, any>): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
   
@@ -72,7 +63,6 @@ export function toFeedPostDTO(dbModel: FeedPostRow, usersMap: Map<string, any>, 
       externalId: paper.externalId,
       stars: paper.stars ?? 0,
       starred: false, // TODO: Get from user interactions
-      pdfS3Url: paper.pdfS3Url,
       createdAt: paper.createdAt,
       updatedAt: paper.updatedAt,
     } : undefined,
@@ -81,53 +71,45 @@ export function toFeedPostDTO(dbModel: FeedPostRow, usersMap: Map<string, any>, 
   };
 }
 
-export async function loadFeedPosts({
+export async function loadFeedPostsPrisma({
   limit = 10,
   cursor,
 }: {
   limit?: number;
   cursor?: Date;
-} = {}): Promise<Paginated<FeedPostDTO>> {
+} = {}): Promise<FeedPostDTO[]> {
   // Build the query with proper cursor-based pagination
-  const rows = await db
-    .select()
-    .from(postsTable)
-    .where(cursor ? lt(postsTable.createdAt, cursor) : undefined)
-    .limit(limit + 1)
-    .orderBy(desc(postsTable.createdAt));
+  const rows = await prisma.post.findMany({
+    where: cursor ? {
+      createdAt: {
+        lt: cursor,
+      },
+    } : undefined,
+    take: limit + 1,
+    orderBy: {
+      createdAt: 'desc',
+    },
+    include: {
+      author: true,
+      paper: true,
+    },
+  });
 
-  // Get unique author IDs
-  const authorIds = [...new Set(rows.map(row => row.authorId))];
-  
-  // Get unique paper IDs
-  const paperIds = [...new Set(rows.map(row => row.paperId).filter((id): id is string => id !== null))];
-  
-  // Fetch all users who authored these posts
-  const users = authorIds.length > 0 ? await db
-    .select()
-    .from(usersTable)
-    .where(inArray(usersTable.id, authorIds)) : [];
-  
-  // Fetch all papers referenced in these posts
-  const papers = paperIds.length > 0 ? await db
-    .select()
-    .from(papersTable)
-    .where(inArray(papersTable.id, paperIds)) : [];
-  
-  // Create maps for quick lookup
-  const usersMap = new Map(users.map(user => [user.id, user]));
-  const papersMap = new Map(papers.map(paper => [paper.id, paper]));
+  // Transform the data to match the expected format
+  const posts = rows.map(row => {
+    // Create maps for the lookup (maintaining compatibility with existing toFeedPostDTO function)
+    const usersMap = new Map();
+    if (row.author) {
+      usersMap.set(row.author.id, row.author);
+    }
 
-  const posts = rows.map(row => toFeedPostDTO(row, usersMap, papersMap));
+    const papersMap = new Map();
+    if (row.paper) {
+      papersMap.set(row.paper.id, row.paper);
+    }
 
-  // Check if there are more posts to load
-  const hasMore = posts.length > limit;
-  const nextCursor = hasMore ? posts[limit - 1]?.createdAt : undefined;
+    return toFeedPostDTOPrisma(row, usersMap, papersMap);
+  });
 
-  async function loadMore(limit: number) {
-    "use server";
-    return loadFeedPosts({ cursor: nextCursor, limit });
-  }
-
-  return makePaginated(posts, limit, loadMore);
-}
+  return posts;
+} 

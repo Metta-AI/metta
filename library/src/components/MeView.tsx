@@ -5,6 +5,7 @@ import { PaperWithUserContext, User, UserInteraction } from '@/posts/data/papers
 import { toggleStarAction } from '@/posts/actions/toggleStarAction';
 import { toggleQueueAction } from '@/posts/actions/toggleQueueAction';
 import PaperOverlay from './PaperOverlay';
+import { signOut } from 'next-auth/react';
 
 interface MeViewProps {
   user: {
@@ -89,6 +90,15 @@ export function MeView({
     await handleToggleQueue(paperId);
   };
 
+  // Handle sign out
+  const handleSignOut = async () => {
+    try {
+      await signOut({ callbackUrl: '/' });
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   // Generate user initials for profile circle
   const getUserInitials = (name: string | null, email: string | null) => {
     if (name) {
@@ -110,7 +120,7 @@ export function MeView({
             <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-xl font-semibold flex-shrink-0">
               {getUserInitials(user.name, user.email)}
             </div>
-            <div>
+            <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">Name:</span>
                 <span className="text-lg font-semibold text-gray-900">
@@ -122,6 +132,12 @@ export function MeView({
                 <span className="text-lg text-gray-900">{user.email}</span>
               </div>
             </div>
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
       </div>
