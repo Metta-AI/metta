@@ -232,3 +232,31 @@ def create_or_load_agent(
         logger.info("Created new agent")
 
     return agent, policy_record, agent_step, epoch, checkpoint
+
+
+def wrap_agent_distributed(agent: MettaAgent, device: torch.device) -> MettaAgent:
+    """Wrap agent in DistributedMettaAgent if distributed training is initialized.
+
+    Args:
+        agent: The agent to potentially wrap
+        device: The device to use
+
+    Returns:
+        The agent, possibly wrapped in DistributedMettaAgent
+    """
+    if torch.distributed.is_initialized():
+        from torch.nn.parallel import DistributedDataParallel
+
+        from metta.agent.metta_agent import DistributedMettaAgent
+
+        # For CPU, we need to handle DistributedDataParallel differently
+        if device.type == "cpu":
+            # Convert BatchNorm to SyncBatchNorm
+            agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+            # For CPU, don't pass device_ids
+            agent = DistributedDataParallel(agent)
+        else:
+            # For GPU, use the custom DistributedMettaAgent wrapper
+            agent = DistributedMettaAgent(agent, device)
+
+    return agent
