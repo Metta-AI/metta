@@ -357,6 +357,32 @@ class AsanaTask:
             print(f"[ensure_github_url_in_task] GitHub attachment failed: {response.text}")
             return None
 
+
+def extract_github_review_id(asana_comment_text):
+    """
+    Extract GitHub review ID from Asana comment text
+
+    Args:
+        asana_comment_text: The text content of an Asana comment
+
+    Returns:
+        int: GitHub review ID if found, None otherwise
+    """
+
+    if not asana_comment_text:
+        return None
+
+    # Look for pattern: "Review #123456789" or "(Review #123456789)"
+    # This matches the format we created in format_github_review_body_for_asana
+    pattern = r"ID (\d+)"
+
+    match = re.search(pattern, asana_comment_text)
+
+    if match:
+        return int(match.group(1))
+
+    return None
+
     def get_comments(self, task_id: str):
         """
         Fetches comments for an Asana task
@@ -397,7 +423,7 @@ class AsanaTask:
                 },
                 "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
                 "is_pinned": comment.get("is_pinned", False),
-                "review_id": None,  # You may want to add review_id extraction logic if needed
+                "review_id": extract_github_review_id(comment.get("text", "")),
             }
             for comment in comments
         ]

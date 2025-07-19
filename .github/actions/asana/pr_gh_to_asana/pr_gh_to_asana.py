@@ -10,11 +10,10 @@
 
 import os
 import re
-import logging
-import vcr
-
-from asana_task import AsanaTask
 from datetime import datetime
+
+import vcr
+from asana_task import AsanaTask
 from github_asana_mapping import GithubAsanaMapping
 from pull_request import PullRequest
 
@@ -24,27 +23,28 @@ from pull_request import PullRequest
 # vcr_log.setLevel(logging.DEBUG)
 
 my_vcr = vcr.VCR(
-    record_mode='new_episodes',
-    cassette_library_dir='.',
-    filter_headers=['Authorization'],
-    match_on=['uri', 'method'],
-    filter_query_parameters=['access_token']
+    record_mode="new_episodes",
+    cassette_library_dir=".",
+    filter_headers=["Authorization"],
+    match_on=["uri", "method"],
+    filter_query_parameters=["access_token"],
 )
 
 
 def log_http_interactions(cassette_name):
     """Log HTTP interactions from the VCR cassette"""
     try:
-        import yaml
         import os
-        
+
+        import yaml
+
         # Check if file exists
         if not os.path.exists(cassette_name):
             print(f"VCR cassette file not found: {cassette_name}")
             print(f"Current working directory: {os.getcwd()}")
             print(f"Files in current directory: {os.listdir('.')}")
             return
-            
+
         with open(cassette_name, "r") as f:
             cassette_data = yaml.safe_load(f)
 
@@ -64,6 +64,7 @@ def log_http_interactions(cassette_name):
     except Exception as e:
         print(f"Error logging HTTP interactions: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -90,32 +91,6 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
     # formatted_body = review_body if review_body else "(No comment)"
 
     return "<body>" + header + formatted_body + "</body>"
-
-
-def extract_github_review_id(asana_comment_text):
-    """
-    Extract GitHub review ID from Asana comment text
-
-    Args:
-        asana_comment_text: The text content of an Asana comment
-
-    Returns:
-        int: GitHub review ID if found, None otherwise
-    """
-
-    if not asana_comment_text:
-        return None
-
-    # Look for pattern: "Review #123456789" or "(Review #123456789)"
-    # This matches the format we created in format_github_review_body_for_asana
-    pattern = r"(ID \d+)"
-
-    match = re.search(pattern, asana_comment_text)
-
-    if match:
-        return int(match.group(1))
-
-    return None
 
 
 def convert_basic_markdown(text):
