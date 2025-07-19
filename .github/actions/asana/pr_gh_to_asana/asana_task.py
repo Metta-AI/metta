@@ -458,10 +458,10 @@ class AsanaTask:
     def extract_gid_from_url(url: str) -> str:
         import re
 
-        match = re.search(r"https://app\\.asana\\.com/\\d+/\\d+/(\\d+)(?:/|$)", url)
+        match = re.search(r"https://app\\.asana\\.com/\d+/\d+/(\d+)(?:/|$)", url)
         if match:
             return match.group(1)
-        match = re.search(r"https://app\\.asana\\.com/\\d+/\\d+/project/\\d+/task/(\\d+)(?:/|$)", url)
+        match = re.search(r"https://app\\.asana\\.com/\d+/\d+/project/\d+/task/(\d+)(?:/|$)", url)
         if match:
             return match.group(1)
         raise Exception(f"Could not extract task ID from URL: {url}")
