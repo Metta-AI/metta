@@ -2,35 +2,37 @@
 HTTP client for fetching curriculum tasks from a remote server.
 
 This client implements the Curriculum interface but fetches tasks from
-a remote curriculum server. It includes batching and background prefetching
-to reduce network overhead.
+a remote curriculum server using a background thread for fetching.
 """
 
 import logging
-import queue
+import os
+import random
 import threading
 import time
+from queue import Empty, Queue
+from typing import Optional
 
 import requests
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.retry import retry_function
 from metta.mettagrid.curriculum.core import Curriculum, Task
 
 logger = logging.getLogger(__name__)
 
 
 class CurriculumClient(Curriculum):
-    """Client that fetches curriculum tasks from the server with background prefetching."""
+    """Client that fetches curriculum tasks from the server."""
 
     def __init__(
         self,
         server_url: str,
-        batch_size: int = 100,
-        timeout: float = 30.0,
-        retry_delay: float = 1.0,
-        max_retries: int = 5,
-        prefetch_threshold: float = 0.5,
-        queue_size: int = 1000,
+        batch_size: int = 5,
+        timeout: float = 60.0,
+        max_retries: int = 20,
+        buffer_size: int = 5,
+        poll_interval: float = 10.0,
     ):
         """
         Initialize the curriculum client.
@@ -39,150 +41,156 @@ class CurriculumClient(Curriculum):
             server_url: URL of the curriculum server (e.g., "http://localhost:12346")
             batch_size: Number of tasks to fetch in each request
             timeout: Request timeout in seconds
-            retry_delay: Delay between retries in seconds
             max_retries: Maximum number of retries for failed requests
-            prefetch_threshold: Fraction of batch_size - prefetch when queue drops below this
-            queue_size: Maximum size of the task queue
+            buffer_size: Maximum number of tasks to keep in buffer
         """
-        self.server_url = server_url.rstrip("/")
-        self.batch_size = batch_size
-        self.timeout = timeout
-        self.retry_delay = retry_delay
-        self.max_retries = max_retries
-        self.prefetch_threshold = prefetch_threshold
-        self._task_queue = queue.Queue(maxsize=queue_size)
-        self._session = requests.Session()
-        self._stop_prefetch = threading.Event()
-        self._prefetch_lock = threading.Lock()
-        self._prefetch_thread = None
+        self._server_url = server_url.rstrip("/")
+        self._batch_size = batch_size
+        self._timeout = timeout
+        self._max_retries = max_retries
+        self._poll_interval = poll_interval
+        self._client_id = os.environ.get("RANK", "0") + "_" + str(random.randint(0, 1000000))
+        self._last_task: Optional[Task] = None
+        self._task_queue = Queue(maxsize=buffer_size)
+        self._stop_event = threading.Event()
 
+        # Test connection
         self._wait_for_server()
-        self._start_prefetch_thread()
+
+        # Get initial tasks
+        self._fetch_tasks()
+
+        # Start background fetch thread
+        self._fetch_thread = threading.Thread(target=self._fetch_loop, daemon=True)
+        self._fetch_thread.start()
 
     def _wait_for_server(self):
-        """Wait for the server to be ready. Timeout after 300 seconds."""
+        """Wait for the server to be ready."""
         for _ in range(300):
             try:
-                response = self._session.get(f"{self.server_url}/health", timeout=5.0)
-                response.raise_for_status()
-                logger.info(f"CurriculumClient connected to: {self.server_url}")
+                with requests.Session() as session:
+                    response = session.get(f"{self._server_url}/health", timeout=5.0)
+                    response.raise_for_status()
                 return
             except Exception:
-                time.sleep(1)
-        logger.error(f"Failed to connect to curriculum server: {self.server_url}")
-        raise RuntimeError(f"Failed to connect to curriculum server: {self.server_url}")
+                time.sleep(self._poll_interval)
+        raise RuntimeError(f"{self._client_id}: Failed to connect to curriculum server: {self._server_url}")
 
-    def _start_prefetch_thread(self):
-        """Start the background prefetch thread."""
-        self._prefetch_thread = threading.Thread(target=self._prefetch_worker, daemon=True)
-        self._prefetch_thread.start()
-
-    def _prefetch_worker(self):
-        """Background worker that monitors queue and fetches tasks when needed."""
-        while not self._stop_prefetch.is_set():
+    def _fetch_loop(self):
+        """Background thread that continuously fetches tasks."""
+        while not self._stop_event.is_set():
             try:
-                # Check if we need to fetch more tasks
-                queue_size = self._task_queue.qsize()
-                threshold = int(self.batch_size * self.prefetch_threshold)
-
-                if queue_size < threshold:
-                    with self._prefetch_lock:
-                        # Double-check after acquiring lock and stop flag
-                        if self._task_queue.qsize() < threshold and not self._stop_prefetch.is_set():
-                            self._fetch_tasks()
-
-                # Small sleep to avoid busy waiting
-                time.sleep(0.1)
-
+                # Only fetch if queue is not full
+                if self._task_queue.qsize() < self._task_queue.maxsize * 0.5:
+                    self._fetch_tasks()
+                else:
+                    time.sleep(self._poll_interval)
             except Exception as e:
-                # Only log error if we're not stopping
-                if not self._stop_prefetch.is_set():
-                    logger.error(f"Error in prefetch worker: {e}")
-                time.sleep(1)  # Back off on error
+                logger.error(f"{self._client_id}: Error in fetch loop: {e}")
+                time.sleep(self._poll_interval)
+
+    def _fetch_tasks(self):
+        """Fetch a batch of tasks from the server and add to queue."""
+        if self._stop_event.is_set():
+            return
+
+        def _do_fetch():
+            with requests.Session() as session:
+                response = session.get(
+                    f"{self._server_url}/tasks",
+                    params={"batch_size": self._batch_size, "client_id": self._client_id},
+                    timeout=self._timeout,
+                )
+                response.raise_for_status()
+                return response.json()
+
+        try:
+            data = retry_function(
+                _do_fetch,
+                max_retries=self._max_retries,
+                error_prefix=f"{self._client_id}: Failed to fetch tasks",
+                # logger=logger,
+            )
+
+            if data.get("status") != "ok":
+                raise RuntimeError(f"Server returned error: {data.get('error', 'Unknown error')}")
+
+            # Add tasks to queue
+            tasks_added = 0
+            for task_data in data.get("tasks", []):
+                if self._stop_event.is_set():
+                    return
+
+                env_cfg = OmegaConf.create(task_data["env_cfg"])
+                if not isinstance(env_cfg, DictConfig):
+                    env_cfg = DictConfig(task_data["env_cfg"])
+
+                task = Task(task_data["id"], self, env_cfg)
+                task._name = task_data["name"]
+
+                try:
+                    self._task_queue.put(task, timeout=0.1)
+                    tasks_added += 1
+                except Exception:
+                    # Queue is full, stop adding
+                    break
+
+            if tasks_added > 0:
+                logger.debug(f"{self._client_id}: Added {tasks_added} tasks to buffer {self._task_queue.qsize()}")
+            else:
+                logger.warning(f"{self._client_id}: Server returned empty task batch")
+
+        except Exception as e:
+            logger.error(f"{self._client_id}: Failed to fetch tasks after retries: {e}")
 
     def get_task(self) -> Task:
         """Get a single task from the queue."""
-        # If queue is empty, fetch synchronously
-        if self._task_queue.empty():
-            with self._prefetch_lock:
-                if self._task_queue.empty():
-                    self._fetch_tasks()
-
         try:
-            # Get task from queue with timeout
-            return self._task_queue.get(timeout=5.0)
-        except queue.Empty as e:
-            raise RuntimeError("Failed to get task from queue - server may be down") from e
+            # Try to get from queue with timeout
+            task = self._task_queue.get(timeout=10.0)
+            self._last_task = task
+            return task
+        except Empty:
+            # Queue is empty, return last task if available
+            if self._last_task is not None:
+                logger.warning(
+                    f"{self._client_id}: No new tasks available, returning last task. "
+                    "This may indicate server connectivity issues or task exhaustion."
+                )
+                return self._last_task
 
-    def _fetch_tasks(self) -> None:
-        """Fetch a batch of tasks from the server and add to queue."""
-        url = f"{self.server_url}/tasks"
-        params = {"batch_size": self.batch_size}
-
-        for attempt in range(self.max_retries):
-            try:
-                response = self._session.get(url, params=params, timeout=self.timeout)
-                response.raise_for_status()
-
-                data = response.json()
-                if data.get("status") != "ok":
-                    raise RuntimeError(f"Server returned error: {data.get('error', 'Unknown error')}")
-
-                # Check if server returned any tasks
-                if not data["tasks"]:
-                    logger.warning("Server returned empty task batch")
-                    if attempt == self.max_retries - 1:
-                        raise RuntimeError("Server returned empty task batch")
-                    continue
-
-                # Add tasks to queue
-                tasks_added = 0
-                for task_data in data["tasks"]:
-                    task = Task(task_data["id"], self, OmegaConf.create(task_data["env_cfg"]))
-                    try:
-                        self._task_queue.put_nowait(task)
-                        tasks_added += 1
-                    except queue.Full:
-                        # Queue is full, stop adding
-                        break
-
-                if tasks_added > 0:
-                    logger.debug(f"Added {tasks_added} tasks to queue (fetched {len(data['tasks'])})")
-                    return
-                else:
-                    logger.warning("Could not add any tasks to queue - queue is full")
-                    if attempt == self.max_retries - 1:
-                        raise RuntimeError("Queue is full and cannot add new tasks")
-
-            except requests.exceptions.RequestException as e:
-                # Check if we're stopping before logging/retrying
-                if self._stop_prefetch.is_set():
-                    return
-                logger.warning(f"Failed to fetch tasks (attempt {attempt + 1}/{self.max_retries}): {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay)
-                else:
-                    raise RuntimeError(f"Failed to fetch tasks after {self.max_retries} attempts") from e
+            raise RuntimeError(
+                f"{self._client_id}: Failed to get tasks from server and no previous task available"
+            ) from None
 
     def complete_task(self, id: str, score: float):
+        """Report task completion to the server."""
+
+        def _do_complete():
+            with requests.Session() as session:
+                response = session.post(
+                    f"{self._server_url}/complete",
+                    json={"id": id, "score": float(score), "client_id": self._client_id},
+                    timeout=self._timeout,
+                )
+                response.raise_for_status()
+
         try:
-            self._session.post(f"{self.server_url}/complete", json={"id": id, "score": float(score)})
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Server error when completing task {id}: {e}")
+            retry_function(
+                _do_complete,
+                max_retries=self._max_retries,
+                error_prefix=f"{self._client_id}: Failed to complete task {id}",
+                logger=logger,
+            )
+        except Exception as e:
+            logger.error(f"{self._client_id}: Failed to complete task {id} after retries: {e}")
 
     def stop(self):
-        """Stop the background prefetch thread."""
-        self._stop_prefetch.set()
-        if self._prefetch_thread:
-            self._prefetch_thread.join(timeout=2.0)
-        if hasattr(self, "_session"):
-            self._session.close()
+        """Clean shutdown - stop background thread."""
+        self._stop_event.set()
+        if self._fetch_thread and self._fetch_thread.is_alive():
+            self._fetch_thread.join(timeout=5.0)
 
-    @staticmethod
-    def create(trainer_cfg: DictConfig) -> "CurriculumClient":
-        url = f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}"
-        logger.info(f"CurriculumClient connecting to: {url}")
-        return CurriculumClient(
-            server_url=url,
-            batch_size=trainer_cfg.curriculum_server.batch_size,
-        )
+    def stats(self) -> dict:
+        """Stats are handled by the server, so return empty dict."""
+        return {}

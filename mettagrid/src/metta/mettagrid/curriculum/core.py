@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 class Curriculum:
     def __init__(self):
         self._task_completions = {}
+        self._task_rewards = {}
+        self._task_rewards_moving_avg = {}
+        self._moving_average_decay = 0.99
 
     def get_task(self) -> "Task":
         raise NotImplementedError("Subclasses must implement this method")
@@ -18,19 +21,26 @@ class Curriculum:
         # We don't want this map to get too big, so we don't log it here.
         if len(self._task_completions) > 1000:
             self._task_completions.pop(random.choice(list(self._task_completions.keys())))
-        self._task_completions[id] = self._task_completions.get(id, 0) + 1
 
-        # infos.update(
-        #     {
-        #         f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-        #         f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
-        #     }
-        # logger.info(f"Task completed: {id} -> {score:.5f}")
-        pass
+        self._task_completions[id] = self._task_completions.get(id, 0) + 1
+        self._task_rewards[id] = self._task_rewards.get(id, 0) + score
+
+        self._task_rewards_moving_avg[id] = self._task_rewards_moving_avg.get(
+            id, 0
+        ) * self._moving_average_decay + score * (1 - self._moving_average_decay)
 
     def stats(self) -> dict:
         """Return curriculum statistics for logging purposes (default: empty)."""
-        return {f"task_completions/{id}": value for id, value in self._task_completions.items()}
+        task_rewards = {f"task_rewards/{id}": value for id, value in self._task_rewards.items()}
+        task_rewards_moving_avg = {
+            f"task_rewards_moving_avg/{id}": value for id, value in self._task_rewards_moving_avg.items()
+        }
+        task_completions = {f"task_completions/{id}": value for id, value in self._task_completions.items()}
+        return {
+            **task_rewards,
+            **task_completions,
+            **task_rewards_moving_avg,
+        }
 
 
 class Task:
@@ -70,11 +80,18 @@ class Task:
         self._curricula.append((parent_curriculum, parent_id))
         self._name = f"{parent_id}:{self._name}"
 
+    def clone(self) -> "Task":
+        cloned_task = Task(self._id, self._curricula[0][0], self._env_cfg)
+        cloned_task._curricula = self._curricula
+        cloned_task._name = self._name
+        return cloned_task
+
 
 class SingleTaskCurriculum(Curriculum):
     """Curriculum that only contains a single task."""
 
     def __init__(self, task_id: str, task_cfg: DictConfig):
+        super().__init__()
         self._task_id = task_id
         self._task_cfg = task_cfg
 

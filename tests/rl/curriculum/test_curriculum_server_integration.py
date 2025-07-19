@@ -81,11 +81,14 @@ def test_server_client_with_stats(free_port):
 
         # Get some tasks and "complete" them on server side
         tasks_seen = []
+        task_difficulties = []
         for i in range(15):
             task = client.get_task()
             tasks_seen.append(task.name())
-            # Simulate completing tasks on server side
-            curriculum.complete_task(task.name(), 0.5 + i * 0.03)
+            # Get difficulty from env config
+            task_difficulties.append(task.env_cfg().game.difficulty)
+            # Simulate completing tasks on server side - use the numeric ID
+            curriculum.complete_task(f"{task_difficulties[-1]}_task_{i + 1}", 0.5 + i * 0.03)
 
         # Test client stats (should return empty dicts)
         assert client.stats() == {}
@@ -93,8 +96,8 @@ def test_server_client_with_stats(free_port):
         # Complete task (no-op on client)
 
         # Verify we got a mix of easy and hard tasks
-        easy_count = sum(1 for t in tasks_seen if "easy" in t)
-        hard_count = sum(1 for t in tasks_seen if "hard" in t)
+        easy_count = sum(1 for d in task_difficulties if d == "easy")
+        hard_count = sum(1 for d in task_difficulties if d == "hard")
         assert easy_count > 0
         assert hard_count > 0
 

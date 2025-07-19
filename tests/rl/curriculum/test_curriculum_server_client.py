@@ -45,8 +45,8 @@ def test_curriculum_server_client(free_port):
     curriculum = MockCurriculum()
 
     # Start server
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
-    server.start(background=True)
+    server = CurriculumServer(curriculum, port=free_port)
+    server.start()
 
     # Give server time to start
     time.sleep(0.5)
@@ -60,24 +60,23 @@ def test_curriculum_server_client(free_port):
         for _ in range(10):
             task = client.get_task()
             assert task is not None
+            # Task names come from the MockCurriculum (e.g., "task_1", "task_2", etc.)
             assert task.name().startswith("task_")
             assert hasattr(task, "env_cfg")
             env_cfg = task.env_cfg()
             assert "game" in env_cfg
             assert "width" in env_cfg.game
-            tasks_received.append(task.name)
+            tasks_received.append(task.name())
 
-        # With background prefetching, client may have fetched multiple batches
+        # Tasks should come from batches (batch size is 5)
         unique_tasks = set(tasks_received)
-        assert len(unique_tasks) >= 1  # Should have at least some tasks
+        assert len(unique_tasks) == 10  # Should have exactly 10 different tasks
 
         # Test that complete_task is a no-op on client
-        client.complete_task("task_1", 0.8)  # Should not raise
+        client.complete_task("1", 0.8)  # Should not raise
 
         # Test stats methods (should return empty dicts)
         assert client.stats() == {}
-
-        # Complete task (no-op)
 
     finally:
         # Clean up
@@ -88,8 +87,8 @@ def test_curriculum_server_client(free_port):
 def test_curriculum_server_batch_sizes(free_port):
     """Test different batch sizes."""
     curriculum = MockCurriculum()
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
-    server.start(background=True)
+    server = CurriculumServer(curriculum, port=free_port)
+    server.start()
     time.sleep(0.5)
 
     try:
@@ -100,14 +99,14 @@ def test_curriculum_server_batch_sizes(free_port):
         tasks = []
         for _ in range(5):
             task = client.get_task()
-            tasks.append(task.name)
+            tasks.append(task.name())
 
-        # With batch size 2, we should see tasks from multiple batches
-        # task_1, task_2 from first batch
-        # task_3, task_4 from second batch
-        # task_5, task_6 from third batch
+        # With batch size 2, we need 3 fetches for 5 tasks
+        # Fetch 1: task_1, task_2
+        # Fetch 2: task_3, task_4
+        # Fetch 3: task_5, task_6
         unique_tasks = set(tasks)
-        assert len(unique_tasks) <= 6  # Could be from up to 3 batches
+        assert len(unique_tasks) == 5  # Should get exactly 5 different tasks
 
     finally:
         client.stop()
@@ -117,17 +116,20 @@ def test_curriculum_server_batch_sizes(free_port):
 def test_curriculum_server_error_handling():
     """Test error handling when server is not available."""
     # Try to connect to non-existent server
-    client = CurriculumClient(server_url="http://127.0.0.1:19999", batch_size=5, max_retries=2, retry_delay=0.1)
-
-    # Should raise after retries
     with pytest.raises(RuntimeError) as exc_info:
-        client.get_task()
+        CurriculumClient(server_url="http://127.0.0.1:19999", batch_size=5, max_retries=2)
 
-    assert "Failed to fetch tasks" in str(exc_info.value)
+    assert "Failed to connect to curriculum server" in str(exc_info.value)
 
 
 if __name__ == "__main__":
-    test_curriculum_server_client()
-    test_curriculum_server_batch_sizes()
+    import random
+
+    # Use random ports to avoid conflicts
+    port1 = random.randint(20000, 30000)
+    port2 = random.randint(30001, 40000)
+
+    test_curriculum_server_client(port1)
+    test_curriculum_server_batch_sizes(port2)
     test_curriculum_server_error_handling()
     print("All tests passed!")

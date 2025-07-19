@@ -689,8 +689,8 @@ class Environment:
 
         # Create vectorized environment
         vecenv = make_vecenv(
-            curriculum=curriculum,
             vectorization=vectorization,
+            curriculum=curriculum,
             num_envs=num_envs,
             batch_size=batch_size,
             num_workers=num_workers,

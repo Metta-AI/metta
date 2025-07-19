@@ -123,6 +123,9 @@ class BidirectionalLearningProgress:
 
     def stats(self) -> Dict[str, float]:
         """Return learning progress statistics for logging."""
+        if self._task_dist is None:
+            return {}
+
         return {
             "lp/num_active_tasks": len(self._sample_levels),
             "lp/mean_sample_prob": np.mean(self._task_dist),

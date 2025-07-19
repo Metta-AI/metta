@@ -117,7 +117,7 @@ def test_sampling_curriculum(monkeypatch, env_cfg):
     t1 = curr.get_task()
     t2 = curr.get_task()
 
-    assert t1.id() == "sample(0)"
+    assert t1.id() == "sample"
     assert t1.env_cfg().game.map.width == 10
     assert t1.id() == t2.id()
     assert t1 is not t2
@@ -247,11 +247,11 @@ def test_multi_task_curriculum_completion_rates(env_cfg):
     curr.complete_task("a", 1.0)
     curr.complete_task("a", 1.0)
     curr.complete_task("b", 1.0)
-    rates = curr.get_completion_rates()
+    stats = curr.stats()
     # There are 3 completions, so a:2/3, b:1/3, c:0/3
-    assert abs(rates["task_completions/a"] - 2 / 3) < 1e-6
-    assert abs(rates["task_completions/b"] - 1 / 3) < 1e-6
-    assert abs(rates["task_completions/c"] - 0.0) < 1e-6
+    assert abs(stats["task_completions/a"] - 2 / 3) < 1e-6
+    assert abs(stats["task_completions/b"] - 1 / 3) < 1e-6
+    assert abs(stats["task_completions/c"] - 0.0) < 1e-6
 
 
 # ============================================================================

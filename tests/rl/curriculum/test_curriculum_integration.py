@@ -4,7 +4,6 @@
 import queue
 import time
 
-import pytest
 from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
@@ -57,8 +56,8 @@ def test_curriculum_stats_collection():
     assert curriculum.get_completion_rates()["task_completions/task_1"] == 0.5
 
     # Start server
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=15557)
-    server.start(background=True)
+    server = CurriculumServer(curriculum, port=15557)
+    server.start()
     time.sleep(0.5)
 
     try:
@@ -91,8 +90,8 @@ def test_curriculum_stats_collection():
 def test_multiple_clients():
     """Test multiple clients connecting to the same server."""
     curriculum = TrackedCurriculum()
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=15558)
-    server.start(background=True)
+    server = CurriculumServer(curriculum, port=15558)
+    server.start()
     time.sleep(0.5)
 
     try:
@@ -159,8 +158,8 @@ def test_learning_progress_curriculum():
     lp_curriculum = LearningProgressMock()
 
     # Start server
-    server = CurriculumServer(lp_curriculum, host="127.0.0.1", port=15560)
-    server.start(background=True)
+    server = CurriculumServer(lp_curriculum, port=15560)
+    server.start()
     time.sleep(0.5)
 
     try:
@@ -168,15 +167,22 @@ def test_learning_progress_curriculum():
 
         # Get multiple tasks
         task_names = []
+        task_configs = []
         for _ in range(20):
             task = client.get_task()
             task_names.append(task.name())
+            # Get the task_id from the env config to verify curriculum is working
+            task_configs.append(task.env_cfg().game.task_id)
 
         # Should have gotten tasks from the curriculum
         assert len(task_names) == 20
-        # Tasks should be from our defined set
+        # Task names should match the curriculum task IDs
         for name in task_names:
             assert name in ["task_1", "task_2", "task_3"]
+
+        # Task configs should contain the actual curriculum task IDs
+        for config_task_id in task_configs:
+            assert config_task_id in ["task_1", "task_2", "task_3"]
 
         # Complete some tasks on the server side
         lp_curriculum.complete_task("task_1", 0.9)
@@ -196,14 +202,15 @@ def test_learning_progress_curriculum():
 def test_server_shutdown():
     """Test clean server shutdown."""
     curriculum = TrackedCurriculum()
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=15561)
-    server.start(background=True)
+    server = CurriculumServer(curriculum, port=15561)
+    server.start()
     time.sleep(0.5)
 
     # Create client and get task
     client = CurriculumClient(server_url="http://127.0.0.1:15561", batch_size=5)
     task = client.get_task()
     assert task is not None
+    first_task_name = task.name()
 
     # Stop server
     server.stop()
@@ -216,11 +223,11 @@ def test_server_shutdown():
         except queue.Empty:
             break
 
-    # Now client should fail when trying to get a task
-    with pytest.raises(RuntimeError) as exc_info:
-        client.get_task()
-
-    assert "Failed to fetch tasks" in str(exc_info.value) or "Failed to get task from queue" in str(exc_info.value)
+    # Now client should return the last task with a warning
+    # (not raise an error since we have the last task fallback)
+    task2 = client.get_task()
+    assert task2 is not None
+    assert task2.name() == first_task_name  # Should be the same task
 
     # Clean up
     client.stop()

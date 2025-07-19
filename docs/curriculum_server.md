@@ -54,7 +54,7 @@ if torch.distributed.is_initialized() and cfg.trainer.get("curriculum_server", {
             host="0.0.0.0",
             port=curriculum_server_port
         )
-        curriculum_server.start(background=True)
+        curriculum_server.start()
 
         # Create client for local use
         curriculum_client = CurriculumClient(

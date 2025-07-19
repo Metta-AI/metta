@@ -50,7 +50,7 @@ def test_curriculum_server_client():
 
     # Start server in background
     server = CurriculumServer(curriculum, port=8888)
-    server.start(background=True)
+    server.start()
 
     # Give server time to start
     time.sleep(1)
@@ -97,7 +97,7 @@ def test_batch_prefetching(free_port):
     curriculum = MockCurriculum()
 
     server = CurriculumServer(curriculum, port=free_port)
-    server.start(background=True)
+    server.start()
     time.sleep(1)
 
     # Create client with small batch size
