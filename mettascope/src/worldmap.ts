@@ -8,12 +8,7 @@ import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
-
-/** Generates a color from an agent ID. */
-function colorFromId(agentId: number) {
-  let n = agentId + Math.PI + Math.E + Math.SQRT2
-  return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
-}
+import { renderMinimapObjects } from './minimap.js'
 
 /** Checks to see if an object has any inventory. */
 function hasInventory(obj: any) {
@@ -157,7 +152,7 @@ function drawObject(gridObject: any) {
 
     const agent_id = getAttr(gridObject, 'agent_id')
 
-    ctx.drawSprite('agents/agent.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, colorFromId(agent_id))
+    ctx.drawSprite('agents/agent.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, Common.colorFromId(agent_id))
   } else {
     // Draw regular objects.
 
@@ -772,17 +767,28 @@ export function drawMap(panel: PanelInfo) {
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
-  drawFloor()
-  drawWalls()
-  drawTrajectory()
-  drawObjects()
-  drawActions()
-  drawSelection()
-  drawInventory()
-  drawRewards()
-  drawVisibility()
-  drawGrid()
-  drawThoughtBubbles()
+  if (panel.zoomLevel < Common.MINIMAP_ZOOM_THRESHOLD) {
+    /** Draws a simplified block-based version of the map similar to the standalone
+     * minimap.  This is used when the user zooms out far enough that normal
+     * sprites would be unreadable. */
+    ctx.save()
+    ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
+    renderMinimapObjects(new Vec2f(-0.5, -0.5), 0.5)
+    ctx.restore()
+    drawSelection()
+  } else {
+    drawFloor()
+    drawWalls()
+    drawTrajectory()
+    drawObjects()
+    drawActions()
+    drawSelection()
+    drawInventory()
+    drawRewards()
+    drawVisibility()
+    drawGrid()
+    drawThoughtBubbles()
+  }
 
   if (search.active) {
     // Draw the black overlay over the map.
