@@ -10,16 +10,22 @@
 
 import os
 import re
-from datetime import datetime
-
+import logging
 import vcr
+
 from asana_task import AsanaTask
+from datetime import datetime
 from github_asana_mapping import GithubAsanaMapping
 from pull_request import PullRequest
 
 # VCR configuration for tracking REST traffic
+
+logging.basicConfig(level=logging.INFO)
+vcr_log = logging.getLogger("vcr")
+vcr_log.setLevel(logging.DEBUG)
+
 my_vcr = vcr.VCR(
-    record_mode='all',
+    record_mode='new_episodes',
     cassette_library_dir='.',
     filter_headers=['Authorization'],
     match_on=['uri', 'method'],
