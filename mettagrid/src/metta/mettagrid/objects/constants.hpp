@@ -52,6 +52,10 @@ constexpr ObservationType ObservationFeatureCount = 14;
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
+// Recipe inputs start at offset 50 to avoid collision with inventory items
+// Typically there are fewer than 20 inventory items, so this leaves plenty of room
+const ObservationType RecipeInputFeatureOffset = 50;
+
 const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::TypeId, "type_id"},
     {ObservationFeature::Group, "agent:group"},
