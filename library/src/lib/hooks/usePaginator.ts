@@ -6,6 +6,8 @@ type FullPaginated<T> = {
   items: T[];
   // This is intentionally named `loadNext` instead of `loadMore` to avoid confusion.
   loadNext?: (limit: number) => void;
+  // Loading state for infinite scroll
+  loading: boolean;
   // Helper functions - if the server action has affected some items, and you
   // want to update the list without reloading the page, we need to update the
   // items list.
@@ -24,6 +26,7 @@ type FullPaginated<T> = {
 // The parameter, `initialPage`, is used only on the initial render.
 export function usePaginator<T>(initialPage: Paginated<T>): FullPaginated<T> {
   const [{ items, loadMore }, setPage] = useState(initialPage);
+  const [loading, setLoading] = useState(false);
 
   const prepend = useCallback((newItem: T) => {
     setPage(({ items, loadMore }) => ({
@@ -55,16 +58,25 @@ export function usePaginator<T>(initialPage: Paginated<T>): FullPaginated<T> {
 
   return {
     items,
+    loading,
     loadNext: loadMore
       ? (limit: number) => {
+          setLoading(true);
           loadMore(limit).then(({ items: newItems, loadMore: newLoadMore }) => {
             // In theory, there should be no duplicates, if `loadMore` is implemented correctly.
             // But maybe we should check for duplicate keys and skip them.
             // This would require a separate (optional?) `getKey` parameter to this hook.
-            setPage(({ items }) => ({
-              items: [...items, ...newItems],
-              loadMore: newLoadMore,
-            }));
+            setPage(({ items }) => {
+              const updatedItems = [...items, ...newItems];
+              return {
+                items: updatedItems,
+                loadMore: newLoadMore,
+              };
+            });
+            setLoading(false);
+          }).catch((error) => {
+            console.error('Failed to load more items:', error);
+            setLoading(false);
           });
         }
       : undefined,

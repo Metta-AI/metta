@@ -5,20 +5,23 @@ import { FC, useState } from "react";
 
 import { postRoute } from "@/lib/routes";
 import { FeedPostDTO } from "@/posts/data/feed";
+import { PaperCard } from "@/components/PaperCard";
 
 /**
  * FeedPost Component
  * 
  * Displays a single post in the social feed with rich formatting including:
  * - Author information with avatar
- * - Post content with LaTeX support
+ * - Post content with LaTeX support (rendered by parent component)
  * - Social metrics (likes, retweets, replies)
- * - Paper references when applicable
+ * - Paper references when applicable using PaperCard
  * - Interactive elements
  */
-export const FeedPost: FC<{ post: FeedPostDTO }> = ({ post }) => {
-  const [expandedAbstract, setExpandedAbstract] = useState(false);
-
+export const FeedPost: FC<{ 
+  post: FeedPostDTO;
+  onPaperClick?: (paperId: string) => void;
+  onUserClick?: (userId: string) => void;
+}> = ({ post, onPaperClick, onUserClick }) => {
   // Generate user initials for avatar
   const getUserInitials = (name: string | null, email: string | null) => {
     if (name) {
@@ -68,87 +71,35 @@ export const FeedPost: FC<{ post: FeedPostDTO }> = ({ post }) => {
   if (post.postType === 'pure-paper' && post.paper) {
     return (
       <div className="bg-white border-b border-gray-200 p-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 leading-tight">
-                {post.paper.link ? (
-                  <a 
-                    href={post.paper.link} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="hover:text-blue-600 transition-colors"
-                  >
-                    {post.paper.title}
-                  </a>
-                ) : (
-                  post.paper.title
-                )}
-              </h3>
-              {post.paper.authors && post.paper.authors.length > 0 && (
-                <p className="text-sm text-gray-600 mb-2">
-                  {post.paper.authors.join(', ')}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 ml-4">
-              <button
-                onClick={() => setExpandedAbstract(!expandedAbstract)}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-              >
-                {expandedAbstract ? 'Hide Abstract' : 'Show Abstract'}
-              </button>
-            </div>
-          </div>
-          
-          {expandedAbstract && post.paper.abstract && (
-            <div className="border-t border-gray-100 pt-3">
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                {post.paper.abstract}
-              </p>
-            </div>
-          )}
-          
-          {post.paper.tags && post.paper.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-3">
-              {post.paper.tags.map((tag: string, index: number) => (
-                <span 
-                  key={index} 
-                  className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+        <PaperCard paper={post.paper} onPaperClick={onPaperClick} />
       </div>
     );
   }
 
   // Handle user posts and paper posts with commentary
   return (
-    <div 
-      className={`border-b border-gray-200 p-6 ${
-        post.postType === 'user-post' ? 'bg-blue-50' :
-        post.postType === 'paper-post' ? 'bg-orange-50' : 'bg-white'
-      }`}
-    >
+    <div className="bg-white border-b border-gray-200 p-6">
       {/* Post header with user info */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+        <button 
+          onClick={() => onUserClick?.(post.author.id)}
+          className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+        >
           {getUserInitials(post.author.name, post.author.email)}
-        </div>
+        </button>
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-semibold text-gray-900">
+          <button 
+            onClick={() => onUserClick?.(post.author.id)}
+            className="font-semibold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer"
+          >
             {post.author.name || post.author.email?.split('@')[0] || 'Unknown User'}
-          </span>
+          </button>
           <span className="text-gray-500">·</span>
           <span className="text-gray-500">{formatRelativeTime(post.createdAt)}</span>
         </div>
       </div>
 
-      {/* Post content */}
+      {/* Post content with LaTeX support */}
       {post.content && (
         <div className="text-gray-900 leading-relaxed mb-4 whitespace-pre-wrap">
           {post.content}
@@ -157,59 +108,8 @@ export const FeedPost: FC<{ post: FeedPostDTO }> = ({ post }) => {
 
       {/* Embedded paper card for paper posts */}
       {post.postType === 'paper-post' && post.paper && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1 min-w-0">
-              <h4 className="text-lg font-semibold text-gray-900 mb-2 leading-tight">
-                {post.paper.link ? (
-                  <a 
-                    href={post.paper.link} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="hover:text-blue-600 transition-colors"
-                  >
-                    {post.paper.title}
-                  </a>
-                ) : (
-                  post.paper.title
-                )}
-              </h4>
-              {post.paper.authors && post.paper.authors.length > 0 && (
-                <p className="text-sm text-gray-600 mb-2">
-                  {post.paper.authors.join(', ')}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 ml-4">
-              <button
-                onClick={() => setExpandedAbstract(!expandedAbstract)}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-              >
-                {expandedAbstract ? 'Hide Abstract' : 'Show Abstract'}
-              </button>
-            </div>
-          </div>
-          
-          {expandedAbstract && post.paper.abstract && (
-            <div className="border-t border-gray-100 pt-3">
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                {post.paper.abstract}
-              </p>
-            </div>
-          )}
-          
-          {post.paper.tags && post.paper.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-3">
-              {post.paper.tags.map((tag: string, index: number) => (
-                <span 
-                  key={index} 
-                  className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
+        <div className="mb-4">
+          <PaperCard paper={post.paper} onPaperClick={onPaperClick} />
         </div>
       )}
 

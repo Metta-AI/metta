@@ -7,6 +7,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { FC, PropsWithChildren } from "react";
 
 import { LibraryLayout } from "@/components/LibraryLayout";
+import { MathJaxProvider } from "@/components/MathJaxProvider";
 import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -17,7 +18,11 @@ const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
   // Configure any other global providers here
   return (
     <SessionProvider>
-      <NuqsAdapter>{children}</NuqsAdapter>
+      <NuqsAdapter>
+        <MathJaxProvider>
+          {children}
+        </MathJaxProvider>
+      </NuqsAdapter>
     </SessionProvider>
   );
 };
