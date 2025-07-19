@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { postsTable } from "@/lib/db/schema/post";
 import { usersTable } from "@/lib/db/schema/auth";
+import { papersTable } from "@/lib/db/schema/paper";
 
 import { FeedPostDTO, toFeedPostDTO } from "./feed";
 
@@ -26,12 +27,28 @@ export default async function loadPost(postId: string): Promise<PostDTO> {
     .where(eq(usersTable.id, row[0].authorId))
     .limit(1);
 
-  // Create a map for the user lookup
+  // Fetch the paper information if paperId exists
+  let paper = null;
+  if (row[0].paperId) {
+    const paperResult = await db
+      .select()
+      .from(papersTable)
+      .where(eq(papersTable.id, row[0].paperId))
+      .limit(1);
+    paper = paperResult[0] || null;
+  }
+
+  // Create maps for the lookup
   const usersMap = new Map();
   if (author[0]) {
     usersMap.set(author[0].id, author[0]);
   }
 
-  const post = toFeedPostDTO(row[0], usersMap);
+  const papersMap = new Map();
+  if (paper) {
+    papersMap.set(paper.id, paper);
+  }
+
+  const post = toFeedPostDTO(row[0], usersMap, papersMap);
   return post;
 }
