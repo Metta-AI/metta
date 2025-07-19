@@ -10,13 +10,16 @@
     "lint:prettier": "prettier --check .",
     "format": "prettier --write .",
     "import-papers": "tsx scripts/import-papers.ts",
-    "verify-papers": "tsx scripts/verify-papers.ts"
+    "verify-papers": "tsx scripts/verify-papers.ts",
+    "fetch-arxiv": "tsx scripts/fetch-arxiv-paper.ts",
+    "test-arxiv": "tsx scripts/test-arxiv-fetcher.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
     "@types/mathjax": "^0.0.40",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.0",
+    "fast-xml-parser": "^4.3.2",
     "mathjax": "^3.2.2",
     "next": "15.3.1",
     "next-auth": "5.0.0-beta.29",
