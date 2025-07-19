@@ -457,7 +457,7 @@ class AsanaTask:
                     print(f"[s] Skipped adding comment for review {review_id} due to ordering constraint")
 
     @staticmethod
-    def extract_asana_gid_from_url(task_url: str) -> str:
+    def extract_gid_from_url(task_url: str) -> str:
         # Try Format 1: https://app.asana.com/0/project_id/task_id
         match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)(?:/|$)", task_url)
         if match:
