@@ -97,3 +97,21 @@ releases:
       lambdaAiSecretName: lambda-ai-credentials
     storage:
       size: 50Gi
+
+########## Metta Orchestrator ##########
+- name: metta-orchestrator
+  chart: ./orchestrator
+  version: 0.1.0
+  namespace: metta
+  values:
+  - image:
+      registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+      name: metta-local
+      tag: {{ requiredEnv "ORCHESTRATOR_IMAGE_TAG" }}
+    backendUrl: http://metta-observatory-backend.default.svc.cluster.local:8000
+    # created by terraform
+    secretName: orchestrator-env
+    serviceAccount:
+      annotations:
+        # created by terraform - allows access to ECR and S3
+        eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/metta-orchestrator

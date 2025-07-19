@@ -1,0 +1,44 @@
+# Local development values for Kind deployment
+image:
+  registry: docker.io
+  name: metta-local
+  tag: latest
+  pullPolicy: Never
+
+containerRuntime: k8s
+kubernetesNamespace: default
+
+# Point to the local app_backend service
+backendUrl: http://metta-app-backend:8000
+
+# No image pull secrets needed for local
+imagePullSecrets: []
+
+# Use ConfigMap instead of secret for local development
+useConfigMap: true
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "1"
+
+# Service account configuration remains the same
+serviceAccount:
+  create: true
+  name: orchestrator
+  annotations: {}
+
+rbac:
+  create: true
+
+# Environment variables for local development
+env:
+  - name: WANDB_API_KEY
+    valueFrom:
+      configMapKeyRef:
+        name: orchestrator-config
+        key: wandb_api_key
+        optional: true

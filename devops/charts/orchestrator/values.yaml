@@ -1,0 +1,34 @@
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-local
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+containerRuntime: k8s
+kubernetesNamespace: default
+
+backendUrl: http://metta-observatory-backend:8000
+
+# AWS ECR image pull secret (created by terraform)
+imagePullSecrets: []
+
+# Environment variables from secret (created by terraform)
+secretName: orchestrator-env
+
+resources:
+  requests:
+    memory: "2Gi"
+    cpu: "1"
+  limits:
+    memory: "4Gi"
+    cpu: "2"
+
+# Service account with permissions to manage pods
+serviceAccount:
+  create: true
+  name: orchestrator
+  annotations: {}
+
+# RBAC configuration for pod management
+rbac:
+  create: true

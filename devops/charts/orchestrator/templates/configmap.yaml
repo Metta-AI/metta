@@ -1,0 +1,8 @@
+{{- if .Values.useConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orchestrator-config
+data:
+  wandb_api_key: {{ .Values.localConfig.wandbApiKey | default "" | quote }}
+{{- end }}
