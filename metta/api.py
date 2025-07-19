@@ -23,9 +23,7 @@ from metta.agent.metta_agent import MettaAgent
 from metta.common.util.fs import wait_for_file
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.functions import (
-    cleanup_old_policies,
-)
+from metta.rl.functions.policy_management import cleanup_old_policies
 from metta.rl.trainer_config import (
     TrainerConfig,
 )
@@ -361,11 +359,13 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 },
                 "freeze_duration": 10,
                 "rewards": {
-                    "ore_red": 0.01,
-                    "battery_red": 0.02,
-                    "heart": 1,
-                    "ore_red_max": 10,
-                    "battery_red_max": 10,
+                    "inventory": {
+                        "ore_red": 0.01,
+                        "battery_red": 0.02,
+                        "heart": 1,
+                        "ore_red_max": 10,
+                        "battery_red_max": 10,
+                    }
                 },
             },
             "actions": {
@@ -939,34 +939,6 @@ def save_checkpoint(
     return saved_policy_record
 
 
-def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
-    """Wrap agent in DistributedMettaAgent if distributed training is initialized.
-
-    Args:
-        agent: The agent to potentially wrap
-        device: The device to use
-
-    Returns:
-        The agent, possibly wrapped in DistributedMettaAgent
-    """
-    if torch.distributed.is_initialized():
-        from torch.nn.parallel import DistributedDataParallel
-
-        from metta.agent.metta_agent import DistributedMettaAgent
-
-        # For CPU, we need to handle DistributedDataParallel differently
-        if device.type == "cpu":
-            # Convert BatchNorm to SyncBatchNorm
-            agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-            # For CPU, don't pass device_ids
-            agent = DistributedDataParallel(agent)
-        else:
-            # For GPU, use the custom DistributedMettaAgent wrapper
-            agent = DistributedMettaAgent(agent, device)
-
-    return agent
-
-
 def ensure_initial_policy(
     agent: Any,
     policy_store: Any,
@@ -1283,7 +1255,6 @@ __all__ = [
     "initialize_wandb",
     "cleanup_wandb",
     "load_checkpoint",
-    "wrap_agent_distributed",
     "ensure_initial_policy",
     # Helper classes
     "RunDirectories",

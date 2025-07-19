@@ -10,8 +10,9 @@ import torch
 from metta.api import (
     Agent, Environment, Optimizer,
     setup_device_and_distributed, setup_run_directories,
-    save_checkpoint, load_checkpoint, wrap_agent_distributed,
+    save_checkpoint, load_checkpoint,
 )
+from metta.rl.functions.policy_management import wrap_agent_distributed
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
@@ -94,6 +95,7 @@ device = setup_device_and_distributed("cuda")
 is_master, world_size, rank = setup_distributed_vars()
 
 # Wrap agent for distributed
+from metta.rl.functions.policy_management import wrap_agent_distributed
 agent = wrap_agent_distributed(agent, device)
 
 # Run with torchrun
@@ -156,8 +158,7 @@ The `metta.api` module exports:
 
 **Training**: `perform_rollout_step`, `process_minibatch_update`, `accumulate_rollout_stats`, `compute_advantage`
 
-**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `wrap_agent_distributed`,
-`cleanup_distributed`
+**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `cleanup_distributed`
 
 **Checkpointing**: `save_checkpoint`, `load_checkpoint`
 
