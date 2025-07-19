@@ -4,10 +4,19 @@ import * as Common from './common.js'
 import { ui, state, ctx, setFollowSelection } from './common.js'
 import { getAttr, sendAction } from './replay.js'
 import { PanelInfo } from './panels.js'
-import { onFrame, updateSelection } from './main.js'
+import { onFrame, updateSelection, requestFrame } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
+
+/** Starts a smooth camera animation to the target position. */
+function startCameraAnimation(targetPos: Vec2f, panel: PanelInfo) {
+  ui.cameraStartPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
+  ui.cameraTargetPos = targetPos
+  ui.cameraAnimStartTime = performance.now()
+  ui.cameraAnimating = true
+  requestFrame() // Ensure animation loop continues
+}
 
 /** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
@@ -757,11 +766,31 @@ export function drawMap(panel: PanelInfo) {
     }
   }
 
-  // If we're following a selection, center the map on it.
-  if (state.followSelection && state.selectedGridObject !== null) {
-    const x = getAttr(state.selectedGridObject, 'c')
-    const y = getAttr(state.selectedGridObject, 'r')
-    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
+  // Handle automatic camera panning when following an object.
+  // we don't want to stay fixed to the object as this can be very disorienting.
+  // only move the camera when the agent tries to leave a bounding box and then smoothly pan.
+  // This is similar to how top down games work.
+  if (state.followSelection && state.selectedGridObject !== null && !ui.cameraAnimating) {
+    const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
+    const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
+
+    // Calculate the screen‐space position of the followed object.
+    const rect = panel.rectInner()
+    const screenX = rect.x + rect.width / 2 + (objX + panel.panPos.x()) * panel.zoomLevel
+    const screenY = rect.y + rect.height / 2 + (objY + panel.panPos.y()) * panel.zoomLevel
+
+    // Define an inner bounding box (25 % margin on every side).
+    const marginX = rect.width * Common.CAMERA_FOLLOW_MARGIN
+    const marginY = rect.height * Common.CAMERA_FOLLOW_MARGIN
+    const boxLeft = rect.x + marginX
+    const boxRight = rect.x + rect.width - marginX
+    const boxTop = rect.y + marginY
+    const boxBottom = rect.y + rect.height - marginY
+
+    // Re-center camera only when the object leaves this box.
+    if (screenX < boxLeft || screenX > boxRight || screenY < boxTop || screenY > boxBottom) {
+      startCameraAnimation(new Vec2f(-objX, -objY), panel)
+    }
   }
 
   ctx.save()
