@@ -12,7 +12,6 @@ from metta.api import (
     Agent,
     Environment,
     Optimizer,
-    calculate_anneal_beta,
     cleanup_distributed,
     cleanup_wandb,
     create_evaluation_config_suite,
@@ -40,6 +39,7 @@ from metta.rl.functions import (
     build_wandb_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
+    calculate_prioritized_sampling_params,
     compute_advantage,
     compute_timing_stats,
     get_lstm_config,
@@ -48,7 +48,7 @@ from metta.rl.functions import (
     process_minibatch_update,
     process_training_stats,
     run_policy_inference,
-    should_run_on_interval,
+    should_run,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -346,7 +346,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Calculate prioritized replay parameters
     prio_cfg = trainer_config.prioritized_experience_replay
-    anneal_beta = calculate_anneal_beta(
+    anneal_beta = calculate_prioritized_sampling_params(
         epoch=epoch,
         total_timesteps=trainer_config.total_timesteps,
         batch_size=trainer_config.batch_size,
@@ -520,7 +520,7 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Record heartbeat periodically (master only)
-    if should_run_on_interval(epoch, 10, is_master):
+    if should_run(epoch, 10, is_master):
         record_heartbeat()
 
     # Update L2 weights if configured
@@ -533,7 +533,7 @@ while agent_step < trainer_config.total_timesteps:
         )
 
     # Save checkpoint periodically
-    if should_run_on_interval(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
         saved_policy_path = save_checkpoint(
             epoch=epoch,
             agent_step=agent_step,
