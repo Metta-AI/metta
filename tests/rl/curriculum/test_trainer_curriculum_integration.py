@@ -138,6 +138,7 @@ def test_trainer_stats_collection_with_curriculum():
     # Build complete stats
     all_stats = build_wandb_stats(
         processed_stats=processed_stats,
+        curriculum_stats=curriculum_stats,
         timing_info=timing_info,
         weight_stats={},
         grad_stats={},
@@ -223,14 +224,10 @@ def test_trainer_with_curriculum_server_client():
 def test_curriculum_client_no_server():
     """Test client behavior when server is not available."""
     # Try to create client with non-existent server
-    client = CurriculumClient(server_url="http://localhost:19999", batch_size=10, max_retries=1, retry_delay=0.1)
-
-    # Should raise error when trying to get task
     with pytest.raises(RuntimeError) as exc_info:
-        client.get_task()
+        CurriculumClient(server_url="http://localhost:19999", batch_size=10, max_retries=1, retry_delay=0.1)
 
-    assert "Failed to fetch tasks" in str(exc_info.value)
-    client.stop()
+    assert "Failed to connect to curriculum server" in str(exc_info.value)
 
 
 def test_curriculum_server_concurrent_requests():

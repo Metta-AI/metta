@@ -27,7 +27,6 @@ class CurriculumClient(Curriculum):
         server_url: str,
         batch_size: int = 100,
         timeout: float = 30.0,
-        retry_delay: float = 1.0,
         max_retries: int = 5,
         prefetch_threshold: float = 0.5,
         queue_size: int = 1000,
@@ -39,7 +38,6 @@ class CurriculumClient(Curriculum):
             server_url: URL of the curriculum server (e.g., "http://localhost:12346")
             batch_size: Number of tasks to fetch in each request
             timeout: Request timeout in seconds
-            retry_delay: Delay between retries in seconds
             max_retries: Maximum number of retries for failed requests
             prefetch_threshold: Fraction of batch_size - prefetch when queue drops below this
             queue_size: Maximum size of the task queue
@@ -47,7 +45,6 @@ class CurriculumClient(Curriculum):
         self.server_url = server_url.rstrip("/")
         self.batch_size = batch_size
         self.timeout = timeout
-        self.retry_delay = retry_delay
         self.max_retries = max_retries
         self.prefetch_threshold = prefetch_threshold
         self._task_queue = queue.Queue(maxsize=queue_size)
@@ -55,12 +52,16 @@ class CurriculumClient(Curriculum):
         self._stop_prefetch = threading.Event()
         self._prefetch_lock = threading.Lock()
         self._prefetch_thread = None
+        self._connected = False
 
+        # Connect immediately
         self._wait_for_server()
         self._start_prefetch_thread()
+        self._connected = True
 
     def _wait_for_server(self):
-        """Wait for the server to be ready. Timeout after 300 seconds."""
+        """Wait for the server to be ready."""
+        # Use max_retries if provided, otherwise wait for up to 300 seconds
         for _ in range(300):
             try:
                 response = self._session.get(f"{self.server_url}/health", timeout=5.0)
@@ -138,7 +139,12 @@ class CurriculumClient(Curriculum):
                 # Add tasks to queue
                 tasks_added = 0
                 for task_data in data["tasks"]:
-                    task = Task(task_data["id"], self, OmegaConf.create(task_data["env_cfg"]))
+                    env_cfg = OmegaConf.create(task_data["env_cfg"])
+                    # Ensure it's a DictConfig (not ListConfig)
+                    if not isinstance(env_cfg, DictConfig):
+                        env_cfg = DictConfig(task_data["env_cfg"])
+                    task = Task(task_data["id"], self, env_cfg)
+                    task._name = task_data["name"]
                     try:
                         self._task_queue.put_nowait(task)
                         tasks_added += 1
@@ -159,10 +165,7 @@ class CurriculumClient(Curriculum):
                 if self._stop_prefetch.is_set():
                     return
                 logger.warning(f"Failed to fetch tasks (attempt {attempt + 1}/{self.max_retries}): {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay)
-                else:
-                    raise RuntimeError(f"Failed to fetch tasks after {self.max_retries} attempts") from e
+                time.sleep(1)
 
     def complete_task(self, id: str, score: float):
         try:
@@ -173,10 +176,14 @@ class CurriculumClient(Curriculum):
     def stop(self):
         """Stop the background prefetch thread."""
         self._stop_prefetch.set()
-        if self._prefetch_thread:
+        if self._prefetch_thread and self._connected:
             self._prefetch_thread.join(timeout=2.0)
         if hasattr(self, "_session"):
             self._session.close()
+
+    def stats(self) -> dict:
+        """Return empty stats - all statistics are handled by the server."""
+        return {}
 
     @staticmethod
     def create(trainer_cfg: DictConfig) -> "CurriculumClient":

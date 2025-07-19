@@ -85,7 +85,7 @@ def test_curriculum_server_with_complex_curriculum():
             {"game": {"width": 10, "height": 10, "num_agents": 2, "max_steps": 100}}
         )
 
-        curriculum = BucketedCurriculum(env_cfg_template=env_cfg_template, buckets=buckets, env_overrides=None)
+        curriculum = BucketedCurriculum(env_cfg_template_path=env_cfg_template, buckets=buckets, env_overrides=None)
 
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15558)
     server.start(background=True)
@@ -241,6 +241,6 @@ if __name__ == "__main__":
     test_curriculum_client_trainer_methods()
     test_curriculum_server_with_complex_curriculum()
     test_curriculum_client_batch_exhaustion()
-    test_curriculum_client_concurrent_access()
+    test_curriculum_client_concurrent_access(15560)  # Provide a free port
     test_trainer_stats_collection()
     print("All integration tests passed!")
