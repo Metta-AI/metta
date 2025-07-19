@@ -73,6 +73,7 @@ class SingleTaskCurriculum(Curriculum):
     """Curriculum that only contains a single task."""
 
     def __init__(self, task_id: str, task_cfg: DictConfig):
+        super().__init__()
         self._task_id = task_id
         self._task_cfg = task_cfg
 

@@ -123,11 +123,11 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
+        converting(false),
+        cooling_down(false),
         color(cfg.color),
         show_recipe_inputs(cfg.show_recipe_inputs),
-        event_manager(nullptr),
-        converting(false),
-        cooling_down(false) {
+        event_manager(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types

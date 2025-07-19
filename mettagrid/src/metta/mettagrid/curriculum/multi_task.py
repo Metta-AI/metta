@@ -40,13 +40,16 @@ class MultiTaskCurriculum(Curriculum):
                 stats[f"task_completions/{task}"] += 1
             stats = {k: v / num_completed_tasks for k, v in stats.items()}
 
-        weights_total = sum(self._task_weights.values())
-        if weights_total == 0:
-            # Avoid division by zero, assign uniform probability
-            n = len(self._task_weights)
-            stats.update({f"task_prob/{k}": 1.0 / n for k in self._task_weights})
-        else:
-            stats.update({f"task_prob/{k}": v / weights_total for k, v in self._task_weights.items()})
+        # Only add task_prob stats if _task_weights exists (in subclasses)
+        if hasattr(self, '_task_weights'):
+            task_weights = self._task_weights
+            weights_total = sum(task_weights.values())
+            if weights_total == 0:
+                # Avoid division by zero, assign uniform probability
+                n = len(task_weights)
+                stats.update({f"task_prob/{k}": 1.0 / n for k in task_weights})
+            else:
+                stats.update({f"task_prob/{k}": v / weights_total for k, v in task_weights.items()})
 
         # Sometimes tasks start with '/' and we don't want task_probs//task/...
         stats = {k.replace("//", "/"): v for k, v in stats.items()}
