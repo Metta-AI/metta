@@ -118,6 +118,7 @@ class PullRequest:
     def last_event(self):
         return self.events[-1] if self.events else None
 
+    # probably want to remove some of this as it's now being written to the VCR cassette
     def print_debug_info(self):
         print("Pull request JSON:")
         print(json.dumps(self.data, indent=2))
@@ -138,7 +139,7 @@ class PullRequest:
         # Pattern to match Asana task URLs in the format used by update-pr-description
         # Matches: [Asana Task](https://app.asana.com/0/123456789/123456789)
 
-        asana_pattern = r"\[Asana Task\]\((https://app\.asana\.com/\d+/\d+/\d+(?:\?[^\s\)]*)?)\)"
+        asana_pattern = r"\[Asana Task\]\(https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)\)"
 
         urls = re.findall(asana_pattern, description)
         print(f"Found {len(urls)} Asana URLs in description: {description}")

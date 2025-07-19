@@ -445,7 +445,7 @@ class AsanaTask:
             return match.group(1)
 
         # Try Format 2: https://app.asana.com/1/workspace_id/project/project_id/task/task_id
-        match = re.search(r"https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)(?:/|$)", task_url)
+        match = re.search(r"https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)", task_url)
         if match:
             return match.group(1)
 
