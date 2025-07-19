@@ -449,6 +449,11 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   // Compute observations for next step
   _compute_observations(actions);
 
+  // Compute stat-based rewards for all agents
+  for (auto& agent : _agents) {
+    agent->compute_stat_rewards();
+  }
+
   // Update episode rewards
   auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
   for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
@@ -873,7 +878,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     float,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, RewardType>&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, RewardType>&,
+                    const std::map<std::string, RewardType>&,
+                    const std::map<std::string, RewardType>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -883,7 +890,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("action_failure_penalty") = 0,
            py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
+           py::arg("stat_rewards") = std::map<std::string, RewardType>(),
+           py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
@@ -894,6 +903,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("resource_limits", &AgentConfig::resource_limits)
       .def_readwrite("resource_rewards", &AgentConfig::resource_rewards)
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
+      .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
+      .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct);
 
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
