@@ -751,3 +751,263 @@ def build_wandb_stats(
         **metric_stats,
         **grad_stats,
     }
+
+
+# Add a simple alias for backward compatibility
+def should_run(epoch: int, interval: int, is_master: bool = True) -> bool:
+    """Alias for should_run_on_interval for compatibility."""
+    return should_run_on_interval(epoch, interval, is_master)
+
+
+def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
+    """Wrap agent in DistributedMettaAgent if distributed training is initialized.
+
+    Args:
+        agent: The agent to potentially wrap
+        device: The device to use
+
+    Returns:
+        The agent, possibly wrapped in DistributedMettaAgent
+    """
+    if torch.distributed.is_initialized():
+        from torch.nn.parallel import DistributedDataParallel
+
+        from metta.agent.metta_agent import DistributedMettaAgent
+
+        # For CPU, we need to handle DistributedDataParallel differently
+        if device.type == "cpu":
+            # Convert BatchNorm to SyncBatchNorm
+            agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+            # For CPU, don't pass device_ids
+            agent = DistributedDataParallel(agent)
+        else:
+            # For GPU, use the custom DistributedMettaAgent wrapper
+            agent = DistributedMettaAgent(agent, device)
+
+    return agent
+
+
+def save_policy_with_metadata(
+    policy: Any,
+    policy_store: Any,
+    epoch: int,
+    agent_step: int,
+    evals: dict[str, Any],
+    timer: Any,
+    initial_policy_record: Any | None,
+    run_name: str,
+    is_master: bool = True,
+) -> Any | None:
+    """Save policy with metadata including evaluation scores and training stats.
+
+    Args:
+        policy: The policy/agent to save
+        policy_store: PolicyStore instance
+        epoch: Current epoch
+        agent_step: Current agent step
+        evals: Evaluation scores
+        timer: Stopwatch timer
+        initial_policy_record: Initial policy record for generation tracking
+        run_name: Name of the run
+        is_master: Whether this is the master process
+
+    Returns:
+        The saved policy record if saved, None otherwise
+    """
+    if not is_master:
+        return None
+
+    logger.info(f"Saving policy at epoch {epoch}")
+
+    # Extract the actual policy module from distributed wrapper if needed
+    from torch.nn.parallel import DistributedDataParallel
+
+    from metta.agent.metta_agent import DistributedMettaAgent
+
+    policy_to_save = policy
+    if isinstance(policy, DistributedMettaAgent):
+        policy_to_save = policy.module
+    elif isinstance(policy, DistributedDataParallel):
+        policy_to_save = policy.module
+
+    # Create policy record
+    name = policy_store.make_model_name(epoch)
+    policy_record = policy_store.create_empty_policy_record(name)
+
+    # Add metadata
+    generation = 0
+    if initial_policy_record and hasattr(initial_policy_record, "metadata"):
+        generation = initial_policy_record.metadata.get("generation", 0) + 1
+
+    policy_record.metadata = {
+        "agent_step": agent_step,
+        "epoch": epoch,
+        "generation": generation,
+        "evals": dict(evals) if evals else {},
+        "elapsed_time": timer.elapsed(),
+        "run_name": run_name,
+    }
+
+    policy_record.policy = policy_to_save
+
+    # Save through policy store
+    saved_policy_record = policy_store.save(policy_record)
+    return saved_policy_record
+
+
+def generate_replay(
+    policy_record: Any,
+    policy_store: Any,
+    curriculum: Any,
+    epoch: int,
+    device: torch.device,
+    vectorization: str,
+    replay_dir: str,
+    wandb_run: Any | None = None,
+) -> None:
+    """Generate replay video for the given policy.
+
+    Args:
+        policy_record: Policy record to generate replay for
+        policy_store: PolicyStore instance
+        curriculum: Curriculum object
+        epoch: Current epoch
+        device: Device to run on
+        vectorization: Vectorization mode
+        replay_dir: Directory to save replays
+        wandb_run: Optional wandb run for logging
+    """
+    from metta.sim.simulation import Simulation
+    from metta.sim.simulation_config import SingleEnvSimulationConfig
+
+    # Create replay config from curriculum
+    task = curriculum.get_task()
+    replay_config = SingleEnvSimulationConfig(
+        env="/env/mettagrid/mettagrid",
+        num_episodes=1,
+        env_overrides=task.env_cfg(),
+    )
+
+    # Run simulation
+    replay_simulator = Simulation(
+        name=f"replay_{epoch}",
+        config=replay_config,
+        policy_pr=policy_record,
+        policy_store=policy_store,
+        device=device,
+        vectorization=vectorization,
+        replay_dir=replay_dir,
+    )
+
+    results = replay_simulator.simulate()
+
+    # Get replay URLs from the database
+    replay_urls = results.stats_db.get_replay_urls()
+    if replay_urls:
+        replay_url = replay_urls[0]
+        player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+        logger.info(f"Replay available at: {player_url}")
+
+        # Log to wandb if available
+        if wandb_run:
+            wandb_run.log({"replay/url": player_url, "replay/epoch": epoch})
+
+    results.stats_db.close()
+
+
+def process_stats(
+    stats: dict[str, list[float]],
+    losses: Any,
+    evals: Any,
+    grad_stats: dict[str, float],
+    experience: Any,
+    policy: Any,
+    timer: Any,
+    trainer_cfg: Any,
+    agent_step: int,
+    epoch: int,
+    world_size: int,
+    wandb_run: Any | None,
+    memory_monitor: Any | None,
+    system_monitor: Any | None,
+    latest_saved_policy_record: Any | None,
+    initial_policy_record: Any | None,
+    optimizer: Any,
+    kickstarter: Any,
+) -> None:
+    """Process and log all training statistics.
+
+    This function handles all the statistics processing and logging that happens
+    at the end of each training epoch.
+    """
+    # Process training stats
+    processed_stats = process_training_stats(stats, losses, experience)
+
+    # Compute timing statistics
+    timing_info = compute_timing_stats(
+        agent_step=agent_step,
+        epoch=epoch,
+        world_size=world_size,
+        timer=timer,
+        trainer_cfg=trainer_cfg,
+    )
+
+    # Build complete stats for wandb
+    if wandb_run:
+        # Get current learning rate
+        current_lr = optimizer.param_groups[0]["lr"]
+
+        # Build parameters dictionary
+        current_policy_generation = 0
+        if initial_policy_record and hasattr(initial_policy_record, "metadata"):
+            current_policy_generation = initial_policy_record.metadata.get("generation", 0) + 1
+
+        parameters = {
+            "learning_rate": current_lr,
+            "epoch_steps": timing_info["epoch_steps"],
+            "num_minibatches": experience.num_minibatches,
+            "generation": current_policy_generation,
+        }
+
+        # Get system and memory stats
+        system_stats = system_monitor.stats() if system_monitor else {}
+        memory_stats = memory_monitor.stats() if memory_monitor else {}
+
+        # Build complete stats dictionary
+        all_stats = build_wandb_stats(
+            processed_stats=processed_stats,
+            timing_info=timing_info,
+            weight_stats={},  # Weight stats can be computed separately
+            grad_stats=grad_stats,
+            system_stats=system_stats,
+            memory_stats=memory_stats,
+            parameters=parameters,
+            evals=evals,
+            agent_step=agent_step,
+            epoch=epoch,
+        )
+
+        # Log to wandb
+        wandb_run.log(all_stats, step=agent_step)
+
+    # Log key metrics to console
+    losses_stats = processed_stats["losses_stats"]
+    log_parts = []
+
+    if losses_stats:
+        log_parts.append(
+            f"Loss[P:{losses_stats.get('policy_loss', 0):.3f} "
+            f"V:{losses_stats.get('value_loss', 0):.3f} "
+            f"E:{losses_stats.get('entropy', 0):.3f} "
+            f"EV:{losses_stats.get('explained_variance', 0):.2f}]"
+        )
+
+    if "reward" in processed_stats["overview"]:
+        log_parts.append(f"Reward:{processed_stats['overview']['reward']:.2f}")
+
+    if wandb_run:
+        current_lr = optimizer.param_groups[0]["lr"]
+        log_parts.append(f"LR:{current_lr:.1e}")
+
+    if log_parts:
+        logger.info(" | ".join(log_parts))
