@@ -1,1 +1,0 @@
-ALTER TABLE "user_paper_interaction" ADD CONSTRAINT "user_paper_interaction_userId_paperId_pk" PRIMARY KEY("userId","paperId");

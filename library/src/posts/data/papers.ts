@@ -1,7 +1,4 @@
-import { db } from "@/lib/db";
-import { papersTable, userPaperInteractionsTable } from "@/lib/db/schema/paper";
-import { usersTable } from "@/lib/db/schema/auth";
-import { eq, and } from "drizzle-orm";
+import { prisma } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth";
 
 /**
@@ -19,7 +16,6 @@ export interface Paper {
   externalId: string | null;
   stars: number | null;
   starred: boolean | null;
-  pdfS3Url: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,7 +56,7 @@ export interface PaperWithUserContext extends Paper {
  * This function fetches papers and their associated user interactions,
  * and determines the current user's interaction status for each paper.
  */
-export async function loadPapersWithUserContext(): Promise<{
+export async function loadPapersWithUserContextPrisma(): Promise<{
   papers: PaperWithUserContext[];
   users: User[];
   interactions: UserInteraction[];
@@ -71,21 +67,20 @@ export async function loadPapersWithUserContext(): Promise<{
     const currentUserId = session?.user?.id;
 
     // Fetch all papers
-    const papers = await db.select().from(papersTable);
+    const papers = await prisma.paper.findMany();
     
     // Fetch all users
-    const users = await db.select().from(usersTable);
+    const users = await prisma.user.findMany();
     
     // Fetch all user interactions
-    const interactions = await db.select().from(userPaperInteractionsTable);
+    const interactions = await prisma.userPaperInteraction.findMany();
 
     // If user is logged in, fetch their specific interactions
     let currentUserInteractions: UserInteraction[] = [];
     if (currentUserId) {
-      currentUserInteractions = await db
-        .select()
-        .from(userPaperInteractionsTable)
-        .where(eq(userPaperInteractionsTable.userId, currentUserId));
+      currentUserInteractions = await prisma.userPaperInteraction.findMany({
+        where: { userId: currentUserId },
+      });
     }
 
     // Create a map of current user's interactions for quick lookup
@@ -121,20 +116,20 @@ export async function loadPapersWithUserContext(): Promise<{
  * This function fetches papers and their associated user interactions,
  * transforming the data to match the expected format for the papers view.
  */
-export async function loadPapers(): Promise<{
+export async function loadPapersPrisma(): Promise<{
   papers: Paper[];
   users: User[];
   interactions: UserInteraction[];
 }> {
   try {
     // Fetch all papers
-    const papers = await db.select().from(papersTable);
+    const papers = await prisma.paper.findMany();
     
     // Fetch all users
-    const users = await db.select().from(usersTable);
+    const users = await prisma.user.findMany();
     
     // Fetch all user interactions
-    const interactions = await db.select().from(userPaperInteractionsTable);
+    const interactions = await prisma.userPaperInteraction.findMany();
     
     return {
       papers,
@@ -152,19 +147,18 @@ export async function loadPapers(): Promise<{
  * 
  * @param userId - The ID of the user to load interactions for
  */
-export async function loadPapersForUser(userId: string): Promise<{
+export async function loadPapersForUserPrisma(userId: string): Promise<{
   papers: Paper[];
   userInteractions: UserInteraction[];
 }> {
   try {
     // Fetch all papers
-    const papers = await db.select().from(papersTable);
+    const papers = await prisma.paper.findMany();
     
     // Fetch user interactions for the specific user
-    const userInteractions = await db
-      .select()
-      .from(userPaperInteractionsTable)
-      .where(eq(userPaperInteractionsTable.userId, userId));
+    const userInteractions = await prisma.userPaperInteraction.findMany({
+      where: { userId },
+    });
     
     return {
       papers,
