@@ -8,23 +8,25 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.api import (
-    Agent,
-    Environment,
-    Optimizer,
-    calculate_anneal_beta,
-    cleanup_distributed,
-    cleanup_wandb,
+from metta.api.agent import Agent
+from metta.api.directories import (
+    save_experiment_config,
+    setup_device_and_distributed,
+    setup_run_directories,
+)
+from metta.api.environment import Environment
+from metta.api.evaluation import (
     create_evaluation_config_suite,
     create_replay_config,
+)
+from metta.api.training import (
+    Optimizer,
+    cleanup_distributed,
+    cleanup_wandb,
     ensure_initial_policy,
     initialize_wandb,
     load_checkpoint,
     save_checkpoint,
-    save_experiment_config,
-    setup_distributed_training,
-    setup_run_directories,
-    wrap_agent_distributed,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
@@ -49,6 +51,12 @@ from metta.rl.functions import (
     process_training_stats,
     run_policy_inference,
     should_run_on_interval,
+    wrap_agent_distributed,
+)
+
+# Import additional functions from metta.rl.functions
+from metta.rl.functions import (
+    calculate_prioritized_sampling_params as calculate_anneal_beta,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -69,7 +77,7 @@ logger = logging.getLogger(__name__)
 
 # Set up directories and distributed training
 dirs = setup_run_directories()
-device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
+device, is_master, world_size, rank = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
 
 # Configuration
 # Note: batch_size must be >= total_agents * bptt_horizon

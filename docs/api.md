@@ -9,18 +9,16 @@ The Metta API (`metta.api`) provides a clean way to use Metta's training compone
 import torch
 from metta.api.agent import Agent
 from metta.api.environment import Environment
-from metta.api.directories import setup_run_directories
-from metta.rl.functions import (
-    setup_device_and_distributed,
-    wrap_agent_distributed,
-)
+from metta.api.directories import setup_run_directories, setup_device_and_distributed
+from metta.api.training import Optimizer
+from metta.rl.functions import wrap_agent_distributed
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
 
 # Setup
 dirs = setup_run_directories()
-device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
+device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")[0]
 
 # Create environment and agent
 env = Environment(curriculum_path="/env/mettagrid/curriculum/navigation/bucketed")
@@ -34,6 +32,8 @@ agent = Agent(env, device=str(device))
 ### Environment
 
 ```python
+from metta.api.environment import Environment
+
 # Simple environment
 env = Environment(num_agents=4, width=32, height=32)
 
@@ -44,6 +44,8 @@ env = Environment(curriculum_path="/env/mettagrid/curriculum/navigation/bucketed
 ### Agent
 
 ```python
+from metta.api.agent import Agent
+
 # Default CNN-LSTM agent
 agent = Agent(env, device="cuda")
 
@@ -56,6 +58,8 @@ agent = Agent(env, config=config)
 ### Optimizer
 
 ```python
+from metta.api.training import Optimizer
+
 optimizer = Optimizer(
     optimizer_type="adam",  # or "muon"
     policy=agent,
@@ -86,6 +90,30 @@ accumulate_rollout_stats(info, stats)
 # Train
 advantages = compute_advantage(...)
 loss = process_minibatch_update(...)
+```
+
+### Utilities
+
+```python
+from metta.api.directories import (
+    setup_run_directories,
+    setup_device_and_distributed,
+    save_experiment_config,
+)
+
+from metta.api.training import (
+    initialize_wandb,
+    cleanup_wandb,
+    cleanup_distributed,
+    load_checkpoint,
+    save_checkpoint,
+)
+
+from metta.api.evaluation import (
+    create_evaluation_config_suite,
+    evaluate_policy_suite,
+    generate_replay_simple,
+)
 ```
 
 ## Distributed Training
@@ -139,33 +167,10 @@ trainer_config = TrainerConfig(
 )
 ```
 
-## Complete Example
+## Complete Training Example
 
-See `run.py` for a complete training implementation that includes:
-
-- Environment creation with curriculum
-- Agent initialization
-- Distributed training support
-- Checkpointing and recovery
-- Evaluation and replay generation
-- Monitoring and logging
+See `run.py` for a complete example of training without Hydra configuration files.
 
 ## Key Exports
 
-The `metta.api` module exports:
-
-**Factories**: `Environment`, `Agent`, `Optimizer`
-
-**Training**: `perform_rollout_step`, `process_minibatch_update`, `accumulate_rollout_stats`, `compute_advantage`
-
-**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `wrap_agent_distributed`,
-`cleanup_distributed`
-
-**Checkpointing**: `save_checkpoint`, `load_checkpoint`
-
-**Configuration**: `TrainerConfig`, `PPOConfig`, `OptimizerConfig`, `CheckpointConfig`
-
-**Components**: `Experience`, `Kickstarter`, `Losses`, `Stopwatch`
-
-**Utilities**: `setup_run_directories`, `save_experiment_config`, `create_evaluation_config_suite`,
-`create_replay_config`
+The `metta.api`
