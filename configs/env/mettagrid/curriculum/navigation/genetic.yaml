@@ -1,0 +1,44 @@
+# Genetic Bucketed Curriculum
+# This curriculum maintains a population of tasks and evolves them using genetic algorithms
+
+_target_: metta.mettagrid.curriculum.genetic.GeneticBuckettedCurriculum
+
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy
+
+# Parameter ranges/values for task generation
+buckets:
+  game.map_builder.room.dir:
+    values:
+      [
+        "terrain_maps_nohearts",
+        "varied_terrain/balanced_large",
+        "varied_terrain/balanced_medium",
+        "varied_terrain/balanced_small",
+        "varied_terrain/sparse_large",
+        "varied_terrain/sparse_medium",
+        "varied_terrain/sparse_small",
+        "varied_terrain/dense_large",
+        "varied_terrain/dense_medium",
+        "varied_terrain/dense_small",
+        "varied_terrain/maze_large",
+        "varied_terrain/maze_medium",
+        "varied_terrain/maze_small",
+        "varied_terrain/cylinder-world_large",
+        "varied_terrain/cylinder-world_medium",
+        "varied_terrain/cylinder-world_small",
+      ]
+  game.map_builder.room.objects.altar:
+    range: [2, 50]
+  game.map_builder.room.width:
+    range: [20, 64]
+  game.map_builder.room.height:
+    range: [20, 64]
+
+# Genetic algorithm parameters
+population_size: 50  # Size of the task population
+replacement_rate: 0.1  # Replace 10% of population each generation
+mutation_rate: 0.3  # 30% mutation, 70% crossover
+use_nevergrad: false  # Set to true if nevergrad is installed
+
+env_overrides:
+  sampling: 0
