@@ -17,7 +17,7 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 
 @dataclass
@@ -29,6 +29,7 @@ class CompilerMessage:
     severity: str  # 'warning', 'error', 'note'
     message: str
     flag: Optional[str]  # e.g., '-Wconversion'
+    raw_line: str  # Store the original line for context
 
     @property
     def location(self) -> str:
@@ -52,7 +53,7 @@ class BuildChecker:
         self.project_root = project_root.resolve()
         # The repo root is the parent of mettagrid/
         self.repo_root = self.project_root.parent.resolve()
-        self.messages: List[CompilerMessage] = []
+        self.messages: list[CompilerMessage] = []
         self.build_failed = False
 
     def parse_build_output(self, output: str) -> None:
@@ -60,12 +61,12 @@ class BuildChecker:
         parsed_count = 0
 
         for line in output.splitlines():
-            line = line.strip()
-            if not line:
+            line_stripped = line.strip()
+            if not line_stripped:
                 continue
 
             # Try GCC/Clang pattern
-            match = self.GCC_CLANG_PATTERN.match(line)
+            match = self.GCC_CLANG_PATTERN.match(line_stripped)
             if match:
                 parsed_count += 1
                 message = CompilerMessage(
@@ -74,6 +75,7 @@ class BuildChecker:
                     severity=match.group("severity"),
                     message=match.group("message"),
                     flag=match.group("flag"),
+                    raw_line=line,  # Store original line
                 )
 
                 # Make paths relative to repo root for cleaner output
@@ -94,7 +96,15 @@ class BuildChecker:
 
         print(f"🔍 Parsed {parsed_count} compiler messages from output")
 
-    def get_summary(self) -> Dict:
+    def get_errors(self) -> list[CompilerMessage]:
+        """Get all error messages."""
+        return [msg for msg in self.messages if msg.severity == "error"]
+
+    def get_warnings(self) -> list[CompilerMessage]:
+        """Get all warning messages."""
+        return [msg for msg in self.messages if msg.severity == "warning"]
+
+    def get_summary(self) -> dict:
         """Generate a summary of the build results."""
         # Group messages by severity
         by_severity = defaultdict(list)
@@ -156,6 +166,20 @@ class BuildChecker:
         print(f"  - Warnings: {summary['warnings']}")
         print(f"  - Notes:    {summary['notes']}")
 
+        # Print all errors with details
+        errors = self.get_errors()
+        if errors:
+            print(f"\n❌ ERRORS ({len(errors)}):")
+            print("-" * 80)
+            for i, error in enumerate(errors, 1):
+                print(f"\n[Error {i}/{len(errors)}]")
+                print(f"File: {error.location}")
+                print(f"Message: {error.message}")
+                if error.flag:
+                    print(f"Flag: {error.flag}")
+                print(f"Raw: {error.raw_line}")
+            print("-" * 80)
+
         if summary["warnings"] > 0:
             print("\nWarnings by flag:")
             for flag, count in list(summary["warnings_by_flag"].items())[:10]:
@@ -176,6 +200,7 @@ class BuildChecker:
     def generate_github_summary(self) -> str:
         """Generate a GitHub Actions summary in Markdown format."""
         summary = self.get_summary()
+        errors = self.get_errors()
 
         lines = []
         lines.append("## 🔨 Build Summary\n")
@@ -190,6 +215,36 @@ class BuildChecker:
         lines.append(f"- **Errors:** {summary['errors']}")
         lines.append(f"- **Warnings:** {summary['warnings']}")
         lines.append(f"- **Files with Issues:** {summary['files_with_issues']}")
+
+        # Add detailed error section
+        if errors:
+            lines.append("\n### ❌ Build Errors\n")
+            lines.append("The following errors must be fixed:\n")
+
+            for i, error in enumerate(errors, 1):
+                lines.append(f"#### Error {i} of {len(errors)}\n")
+
+                # Make the file path more prominent
+                lines.append(f"📁 **File:** `{error.location}`\n")
+
+                # Add a box around the error message for visibility
+                lines.append("> **Error Message:**")
+                lines.append("> ```")
+                lines.append(f"> {error.message}")
+                lines.append("> ```\n")
+
+                if error.flag:
+                    lines.append(f"🚩 **Flag:** `{error.flag}`\n")
+
+                # Show the raw compiler output
+                lines.append("**Compiler Output:**")
+                lines.append("```")
+                lines.append(error.raw_line)
+                lines.append("```")
+
+                # Add a horizontal rule between errors for clarity
+                if i < len(errors):
+                    lines.append("\n---\n")
 
         if summary["warnings"] > 0:
             lines.append("\n### ⚠️ Warnings by Type")
@@ -208,14 +263,10 @@ class BuildChecker:
                     escaped_msg = escaped_msg[:80] + "..."
                 lines.append(f"| {count} | {escaped_msg} |")
 
-        if summary["errors"] > 0:
-            lines.append("\n### ❌ Errors")
-            lines.append("Build failed with errors. Check the build log for details.")
-
         return "\n".join(lines)
 
 
-def run_build(project_root: Path) -> Tuple[bool, str]:
+def run_build(project_root: Path) -> tuple[bool, str]:
     """Run the build process and capture output."""
     env = os.environ.copy()
 

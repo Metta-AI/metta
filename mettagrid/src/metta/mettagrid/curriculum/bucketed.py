@@ -12,34 +12,35 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
 
-from .low_reward import LowRewardCurriculum
+from .learning_progress import LearningProgressCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class BucketedCurriculum(LowRewardCurriculum):
+class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
-        env_cfg_template: str,
+        env_cfg_template_path: str,
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
-        moving_avg_decay_rate: float = 0.01,
     ):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
         self._id_to_curriculum = {}
-        base_cfg = config_from_path(env_cfg_template, env_overrides)
+        base_cfg = config_from_path(env_cfg_template_path, env_overrides)
+        # We copy to reset the config's root.
         env_cfg_template = copy_omegaconf_config(base_cfg)
 
         logger.info("Generating bucketed tasks")
         for parameter_values in tqdm(product(*expanded_buckets.values())):
             curriculum_id = get_id(expanded_buckets.keys(), parameter_values)
+            sampling_parameters = {k: v for k, v in zip(expanded_buckets.keys(), parameter_values, strict=True)}
             self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(
-                curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
+                curriculum_id, env_cfg_template, sampling_parameters
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
-        super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+        super().__init__(tasks=tasks, env_overrides=env_overrides)
 
     def _curriculum_from_id(self, id: str) -> Curriculum:
         return self._id_to_curriculum[id]

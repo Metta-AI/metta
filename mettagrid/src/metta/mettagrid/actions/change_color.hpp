@@ -7,30 +7,30 @@
 #include "objects/agent.hpp"
 #include "types.hpp"
 
-class ChangeColorAction : public ActionHandler {
+class ChangeColor : public ActionHandler {
 public:
-  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
+  explicit ChangeColor(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
 
   unsigned char max_arg() const override {
-    return 3;
+    return 3;  // support fine and coarse adjustment
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
+    // Note: 'color' is uint8_t which naturally wraps at 256.
+    // This could be interpreted as circular hue behavior (red -> orange -> ... -> violet -> red)
+
+    // Calculate step size once (integer division is intentional)
+    const uint8_t step_size = static_cast<uint8_t>(255 / (max_arg() + 1));
+
     if (arg == 0) {  // Increment
-      if (actor->color < 255) {
-        actor->color += 1;
-      }
+      actor->color = static_cast<uint8_t>(actor->color + 1);
     } else if (arg == 1) {  // Decrement
-      if (actor->color > 0) {
-        actor->color -= 1;
-      }
-    } else if (arg == 2) {  // Double
-      if (actor->color <= 127) {
-        actor->color *= 2;
-      }
-    } else if (arg == 3) {  // Half
-      actor->color = actor->color / 2;
+      actor->color = static_cast<uint8_t>(actor->color - 1);
+    } else if (arg == 2) {  // Large increment
+      actor->color = static_cast<uint8_t>(actor->color + step_size);
+    } else if (arg == 3) {  // Large decrement
+      actor->color = static_cast<uint8_t>(actor->color - step_size);
     }
 
     return true;

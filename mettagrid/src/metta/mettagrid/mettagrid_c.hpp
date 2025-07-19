@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "grid_object.hpp"
 #include "packed_coordinate.hpp"
 #include "types.hpp"
 
@@ -37,30 +38,42 @@ struct WallConfig;
 struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
+struct AttackActionConfig;
+struct ChangeGlyphActionConfig;
 
 namespace py = pybind11;
 
+struct GlobalObsConfig {
+  bool episode_completion_pct = true;
+  bool last_action = true;  // Controls both last_action and last_action_arg
+  bool last_reward = true;
+  bool resource_rewards = false;  // Controls whether resource rewards are included in observations
+};
+
 struct GameConfig {
-  int num_agents;
+  size_t num_agents;
   unsigned int max_steps;
-  unsigned short obs_width;
-  unsigned short obs_height;
+  bool episode_truncates;
+  ObservationCoord obs_width;
+  ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
   unsigned int num_observation_tokens;
+  GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
 };
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(const GameConfig& cfg, py::list map, int seed);
+  MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
 
-  unsigned short obs_width;
-  unsigned short obs_height;
+  ObservationCoord obs_width;
+  ObservationCoord obs_height;
 
   unsigned int current_step;
   unsigned int max_steps;
+  bool episode_truncates;
 
   std::vector<std::string> inventory_item_names;
   std::vector<std::string> object_type_names;
@@ -77,11 +90,11 @@ public:
   py::dict grid_objects();
   py::list action_names();
 
-  unsigned int map_width();
-  unsigned int map_height();
+  GridCoord map_width();
+  GridCoord map_height();
   py::dict feature_normalizations();
   py::dict feature_spec();
-  unsigned int num_agents();
+  size_t num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
@@ -96,13 +109,17 @@ public:
 
 private:
   // Member variables
+  GlobalObsConfig _global_obs_config;
+  std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
+  std::vector<RewardType> _group_rewards;
+
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
 
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
-  int _num_action_handlers;
+  size_t _num_action_handlers;
   std::vector<unsigned char> _max_action_args;
   unsigned char _max_action_arg;
   unsigned char _max_action_priority;
@@ -110,7 +127,7 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
-  unsigned int _num_observation_tokens;
+  size_t _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
@@ -129,14 +146,14 @@ private:
   std::vector<bool> _action_success;
 
   std::mt19937 _rng;
-  int _seed;
+  unsigned int _seed;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
-  void _compute_observation(unsigned int observer_r,
-                            unsigned int observer_c,
-                            unsigned short obs_width,
-                            unsigned short obs_height,
+  void _compute_observation(GridCoord observer_r,
+                            GridCoord observer_c,
+                            ObservationCoord obs_width,
+                            ObservationCoord obs_height,
                             size_t agent_idx,
                             ActionType action,
                             ActionArg action_arg);

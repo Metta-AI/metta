@@ -1,3 +1,5 @@
+import subprocess
+
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success, warning
@@ -28,8 +30,21 @@ class GridworksSetup(SetupModule):
             warning("Gridworks directory not found")
             return
 
-        # Corepack enable with auto-yes (no prompts needed, runs with current user)
-        self.run_command(["corepack", "enable"], capture_output=False)
+        # Check if pnpm is already available
+        try:
+            self.run_command(["which", "pnpm"], capture_output=True)
+            info("pnpm is already available")
+        except subprocess.CalledProcessError:
+            # Try to enable corepack
+            try:
+                self.run_command(["corepack", "enable"], capture_output=False)
+            except subprocess.CalledProcessError as e:
+                warning("Failed to enable corepack. If Node.js was installed via Homebrew, you may need to run:")
+                warning("  sudo corepack enable")
+                warning("")
+                warning("Alternatively, you can install pnpm directly:")
+                warning("  npm install -g pnpm")
+                raise RuntimeError("pnpm is not available and corepack enable failed") from e
 
         # pnpm install with frozen lockfile to avoid prompts
         self.run_command(["pnpm", "install", "--frozen-lockfile"], cwd=gridworks_dir, capture_output=False)

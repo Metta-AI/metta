@@ -40,6 +40,7 @@ def base_config():
             "put_items": {"enabled": True},  # maps to get_recipe_items
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
+            "change_glyph": {"enabled": True, "number_of_glyphs": 4},
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {

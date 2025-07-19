@@ -11,6 +11,7 @@ class UserType(Enum):
     CLOUD = "cloud"
     SOFTMAX = "softmax"
     SOFTMAX_DOCKER = "softmax-docker"
+    CUSTOM = "custom"
 
     @property
     def is_softmax(self) -> bool:
@@ -22,6 +23,7 @@ class UserType(Enum):
             UserType.CLOUD: "User with own cloud account",
             UserType.SOFTMAX: "Softmax employee",
             UserType.SOFTMAX_DOCKER: "Softmax (Docker)",
+            UserType.CUSTOM: "Custom configuration",
         }
         return descriptions.get(self, self.value)
 
@@ -46,7 +48,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-fe": {"enabled": False},
-            "observatory-cli": {"enabled": False},
+            "observatory-key": {"enabled": False},
             "gridworks": {"enabled": True},
             "aws": {"enabled": False},
             "wandb": {"enabled": False},
@@ -61,7 +63,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-fe": {"enabled": True},
-            "observatory-cli": {"enabled": False},
+            "observatory-key": {"enabled": False},
             "gridworks": {"enabled": True},
             "aws": {"enabled": True},
             "wandb": {"enabled": True},
@@ -76,7 +78,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "githooks": {"enabled": True},
             "mettascope": {"enabled": False},
             "observatory-fe": {"enabled": False},
-            "observatory-cli": {"enabled": False},
+            "observatory-key": {"enabled": False},
             "gridworks": {"enabled": False},
             "aws": {"enabled": True, "expected_connection": "751442549699"},
             "wandb": {"enabled": True, "expected_connection": "metta-research"},
@@ -91,7 +93,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-fe": {"enabled": True},
-            "observatory-cli": {"enabled": True, "expected_connection": "@stem.ai"},
+            "observatory-key": {"enabled": True, "expected_connection": "@stem.ai"},
             "gridworks": {"enabled": True},
             "aws": {"enabled": True, "expected_connection": "751442549699"},
             "wandb": {"enabled": True, "expected_connection": "metta-research"},

@@ -19,9 +19,10 @@ public:
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
     assert(_feature_names.size() == _feature_normalizations.size());
-    for (int i = 0; i < inventory_item_names.size(); i++) {
-      _feature_normalizations.insert({InventoryFeatureOffset + i, DEFAULT_INVENTORY_NORMALIZATION});
-      _feature_names.insert({InventoryFeatureOffset + i, "inv:" + inventory_item_names[i]});
+    for (size_t i = 0; i < inventory_item_names.size(); i++) {
+      auto observation_feature = InventoryFeatureOffset + static_cast<ObservationType>(i);
+      _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
+      _feature_names.insert({observation_feature, "inv:" + inventory_item_names[i]});
     }
   }
 
