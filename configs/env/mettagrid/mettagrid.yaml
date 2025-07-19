@@ -38,6 +38,9 @@ game:
     # - laser
     # - blueprint
 
+  # Show recipe inputs in observations for all converters
+  show_recipe_inputs: false
+
   actions:
     noop:
       enabled: true

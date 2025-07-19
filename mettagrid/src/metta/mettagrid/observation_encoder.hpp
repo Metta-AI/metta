@@ -14,7 +14,8 @@
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names) {
+  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names, bool show_recipe_inputs = false)
+      : show_recipe_inputs(show_recipe_inputs) {
     _feature_normalizations = FeatureNormalizations;
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
@@ -23,6 +24,14 @@ public:
       auto observation_feature = InventoryFeatureOffset + static_cast<ObservationType>(i);
       _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
       _feature_names.insert({observation_feature, "inv:" + inventory_item_names[i]});
+    }
+    if (this->show_recipe_inputs) {
+      ObservationType feature_offset = InventoryFeatureOffset + inventory_item_names.size();
+      for (size_t i = 0; i < inventory_item_names.size(); i++) {
+        auto recipe_feature = feature_offset + static_cast<ObservationType>(i);
+        _feature_normalizations.insert({recipe_feature, DEFAULT_INVENTORY_NORMALIZATION});
+        _feature_names.insert({recipe_feature, "input:" + inventory_item_names[i]});
+      }
     }
   }
 
@@ -53,6 +62,7 @@ public:
   }
 
 private:
+  bool show_recipe_inputs;
   std::map<ObservationType, float> _feature_normalizations;
   std::map<ObservationType, std::string> _feature_names;
 };

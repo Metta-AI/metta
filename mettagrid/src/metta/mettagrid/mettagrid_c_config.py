@@ -104,6 +104,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
                 color=object_config.color,
+                show_recipe_inputs=game_config.show_recipe_inputs,
             )
             objects_cpp_params[object_type] = cpp_converter_config
         elif isinstance(object_config, PyWallConfig):
@@ -164,6 +165,8 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
     # Note: global_observations configuration is handled through the global_obs parameter
+    # Add show_recipe_inputs flag
+    game_cpp_params["show_recipe_inputs"] = game_config.show_recipe_inputs
 
     return CppGameConfig(**game_cpp_params)
 

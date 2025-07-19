@@ -192,6 +192,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
+    show_recipe_inputs: bool = Field(default=False)
     objects: dict[str, PyConverterConfig | PyWallConfig]
 
 
