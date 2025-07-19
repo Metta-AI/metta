@@ -172,7 +172,7 @@ asana task assignment (asana owner) should be the PR author or PR assignee dep w
     - note that this is only for active PRs
     -   if the PR is closed or merged (ie not open), or is a draft, the PR author is the asana owner
     - simplifying this logic:
-    -   asana owner is designee when last_event is None or review_requested
+    -   asana designee is github designee when last_event is None or review_requested
     - ideally we would want to incorporate mergeability
     -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
     -     however, this is not easy to implement because mergeability is computed async and there is no hook
@@ -213,10 +213,9 @@ if __name__ == "__main__":
                 asana_token,
             )
 
-            # todo document this logic
-            author_is_assignee = not (pr.last_event) or pr.last_event["type"] == "review_requested"
+            asana_assignee_is_github_assignee = not (pr.last_event) or pr.last_event["type"] == "review_requested"
             designated_pr_assignee = next((a for a in sorted(pr.assignees) if a != pr.author), pr.author)
-            asana_assignee_github_name = pr.author if author_is_assignee else designated_pr_assignee
+            asana_assignee_github_name = designated_pr_assignee if asana_assignee_is_github_assignee else pr.author
 
             asana_assignee = (
                 mapping.github_login_to_asana_email.get(asana_assignee_github_name) if pr.assignees else None
