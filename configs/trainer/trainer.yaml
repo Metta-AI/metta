@@ -71,9 +71,9 @@ require_contiguous_env_ids: false
 verbose: true
 
 batch_size: 524288
-minibatch_size: 16384
+minibatch_size: 2048 #16384
 bptt_horizon: 64
-update_epochs: 8
+update_epochs: 1
 
 cpu_offload: false
 compile: false
