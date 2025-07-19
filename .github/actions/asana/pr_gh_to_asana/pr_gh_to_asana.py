@@ -3,7 +3,8 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "requests>=2.31.0",
-#   "vcrpy>=6.0.0"
+#   "vcrpy>=6.0.0",
+#   "pyyaml>=6.0.0"
 # ]
 # ///
 
@@ -17,14 +18,28 @@ from github_asana_mapping import GithubAsanaMapping
 from pull_request import PullRequest
 
 # VCR configuration for tracking REST traffic
-my_vcr = vcr.VCR(record_mode=vcr.mode.ALL, cassette_library_dir=".", filter_headers=["Authorization"])
+my_vcr = vcr.VCR(
+    record_mode='all',
+    cassette_library_dir='.',
+    filter_headers=['Authorization'],
+    match_on=['uri', 'method'],
+    filter_query_parameters=['access_token']
+)
 
 
 def log_http_interactions(cassette_name):
     """Log HTTP interactions from the VCR cassette"""
     try:
         import yaml
-
+        import os
+        
+        # Check if file exists
+        if not os.path.exists(cassette_name):
+            print(f"VCR cassette file not found: {cassette_name}")
+            print(f"Current working directory: {os.getcwd()}")
+            print(f"Files in current directory: {os.listdir('.')}")
+            return
+            
         with open(cassette_name, "r") as f:
             cassette_data = yaml.safe_load(f)
 
@@ -43,6 +58,8 @@ def log_http_interactions(cassette_name):
             print(f"No HTTP interactions recorded in {cassette_name}")
     except Exception as e:
         print(f"Error logging HTTP interactions: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def format_github_review_body_for_asana(review_body, github_user, review_state, review_id, github_timestamp):
@@ -160,6 +177,9 @@ if __name__ == "__main__":
 
     run_id = os.getenv("GITHUB_RUN_ID", datetime.now().strftime("%Y%m%d_%H%M%S"))
     cassette_name = f"http_interactions_{run_id}.yaml"
+
+    print(f"Starting VCR recording with cassette: {cassette_name}")
+    print(f"Current working directory: {os.getcwd()}")
 
     with my_vcr.use_cassette(cassette_name):
         try:

@@ -1,11 +1,7 @@
 {
 	"folders": [
 		{
-			"name": "metta",
-			"path": "."
-		},
-		{
-			"path": "personal"
+			"path": ".."
 		}
 	],
 	"settings": {
