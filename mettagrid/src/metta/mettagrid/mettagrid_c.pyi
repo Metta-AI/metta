@@ -65,6 +65,7 @@ class AgentConfig(GridObjectConfig):
     resource_rewards: dict[int, float]
     resource_reward_max: dict[int, float]
     group_reward_pct: float
+    glyph: int
 
 class ConverterConfig(GridObjectConfig):
     type_id: int
