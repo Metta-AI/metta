@@ -6,7 +6,7 @@ Detailed agent behavior metrics including actions taken, items collected, combat
 and other agent-specific events. These metrics help understand what agents are actually doing
 in the environment.
 
-**Total metrics in this section:** 1164
+**Total metrics in this section:** 1169
 
 ## Metric Suffixes
 
@@ -1373,5 +1373,25 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/status.frozen.ticks.agent.updates`
 - `env_agent/status.frozen.ticks.agent.updates.std_dev`
 - `env_agent/status.frozen.ticks.agent.std_dev`
+
+**movement/facing/down:** (1 value / 1 std_dev)
+- `env_agent/movement/facing/down`
+- `env_agent/movement/facing/down.std_dev`
+
+**movement/facing/left:** (1 value / 1 std_dev)
+- `env_agent/movement/facing/left`
+- `env_agent/movement/facing/left.std_dev`
+
+**movement/facing/right:** (1 value / 1 std_dev)
+- `env_agent/movement/facing/right`
+- `env_agent/movement/facing/right.std_dev`
+
+**movement/facing/up:** (1 value / 1 std_dev)
+- `env_agent/movement/facing/up`
+- `env_agent/movement/facing/up.std_dev`
+
+**movement/sequential_rotations:** (1 value / 1 std_dev)
+- `env_agent/movement/sequential_rotations`
+- `env_agent/movement/sequential_rotations.std_dev`
 
 

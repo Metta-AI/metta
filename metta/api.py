@@ -324,7 +324,9 @@ class PreBuiltConfigCurriculum(Curriculum):
         return {task_name: 1.0}
 
 
-def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
+def _get_default_env_config(
+    num_agents: int = 4, width: int = 32, height: int = 32, track_movement_metrics: bool = False
+) -> Dict[str, Any]:
     """Get default environment configuration for navigation training."""
     # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
     TYPE_MINE_RED = 2
@@ -341,6 +343,7 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
             "obs_width": 11,
             "obs_height": 11,
             "num_observation_tokens": 200,
+            "track_movement_metrics": track_movement_metrics,
             "inventory_item_names": [
                 "ore_red",
                 "ore_blue",
@@ -591,6 +594,7 @@ class Environment:
         num_agents: Optional[int] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
+        track_movement_metrics: bool = False,
     ) -> Any:  # Returns pufferlib vecenv wrapper
         """Create a vectorized MettaGrid environment.
 
@@ -610,6 +614,7 @@ class Environment:
             num_agents: Convenience parameter to set number of agents
             width: Convenience parameter to set environment width
             height: Convenience parameter to set environment height
+            track_movement_metrics: Whether to enable movement metrics tracking
 
         Returns:
             Vectorized environment wrapper with reset(), step(), close() methods
@@ -623,6 +628,7 @@ class Environment:
                 num_agents=num_agents or 4,
                 width=width or 32,
                 height=height or 32,
+                track_movement_metrics=track_movement_metrics,
             )
         else:
             # Apply convenience parameter overrides to provided config
@@ -644,6 +650,8 @@ class Environment:
                         env_config["game"]["map_builder"]["room"]["height"] = height
                     else:
                         env_config["game"]["map_builder"]["height"] = height
+            if track_movement_metrics:
+                env_config["game"]["track_movement_metrics"] = track_movement_metrics
 
         # Create curriculum
         if curriculum_path == "/env/mettagrid/curriculum/navigation/bucketed":

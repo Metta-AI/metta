@@ -144,6 +144,11 @@ class PyGameConfig(BaseModelWithForbidExtra):
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
 
+    # Movement metrics configuration
+    track_movement_metrics: bool = Field(
+        default=True, description="Enable movement metrics tracking (direction distribution and sequential rotations)"
+    )
+
 
 class PyPolicyGameConfig(PyGameConfig):
     obs_width: Literal[11]
