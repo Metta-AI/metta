@@ -145,7 +145,7 @@ def main(cfg: DictConfig) -> int:
         )
 
         # Add policy to wandb sweep
-        policy_store.add_to_wandb_sweep(cfg.sweep_run, policy_pr)
+        policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
 
         # Record observation in Protein sweep
         total_time = train_time + eval_time

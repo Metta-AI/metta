@@ -280,22 +280,22 @@ The `tools/sweep_best_params.py` script helps you extract the best performing hy
 
 ```bash
 # Basic usage - generates config patch file
-./tools/sweep_best_params.py sweep_run=my_sweep_name
+./tools/sweep_best_params.py sweep_name=my_sweep_name
 
 # Show top N configurations
-./tools/sweep_best_params.py sweep_run=my_sweep_name --top-n 5
+./tools/sweep_best_params.py sweep_name=my_sweep_name --top-n 5
 
 # Show all run scores
-./tools/sweep_best_params.py sweep_run=my_sweep_name --show-scores
+./tools/sweep_best_params.py sweep_name=my_sweep_name --show-scores
 
 # Custom output directory for patches
-./tools/sweep_best_params.py sweep_run=my_sweep_name --output-dir my_patches
+./tools/sweep_best_params.py sweep_name=my_sweep_name --output-dir my_patches
 
 # Skip patch generation (only show parameters)
-./tools/sweep_best_params.py sweep_run=my_sweep_name --no-patch
+./tools/sweep_best_params.py sweep_name=my_sweep_name --no-patch
 
 # Combine multiple options
-./tools/sweep_best_params.py sweep_run=my_sweep_name --top-n 3 --show-scores
+./tools/sweep_best_params.py sweep_name=my_sweep_name --top-n 3 --show-scores
 
 # Show help
 ./tools/sweep_best_params.py --help
@@ -315,7 +315,7 @@ The `tools/sweep_best_params.py` script helps you extract the best performing hy
 
 #### Available Options
 
-- `sweep_run=<name>` (required): Name of the sweep to analyze
+- `sweep_name=<name>` (required): Name of the sweep to analyze
 - `--top-n <int>`: Number of top runs to analyze (default: 1)
 - `--show-scores`: Show scores for all runs
 - `--no-patch`: Skip generating config patch file
