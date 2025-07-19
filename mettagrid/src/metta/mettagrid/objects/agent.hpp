@@ -151,7 +151,7 @@ public:
           stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
         }
 
-        new_stat_reward += reward_per_unit * stat_value;
+        new_stat_reward += stats_reward;
       }
     }
 
