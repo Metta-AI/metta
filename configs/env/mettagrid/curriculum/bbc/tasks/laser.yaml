@@ -2,7 +2,7 @@
 
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/arena/combat
+env_cfg_template_path: /env/mettagrid/arena/combat
 
 buckets:
   game.objects.lasery.input_resources.ore_red: { values: [0, 1, 2] }
