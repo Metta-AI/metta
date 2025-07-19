@@ -74,7 +74,7 @@ export function Episodes({ repo }: EpisodesProps) {
       setSelectedEpisodes(new Set())
     } else {
       // If currently unchecked, select all episodes on current page
-      setSelectedEpisodes(new Set(episodes.map(ep => ep.id)))
+      setSelectedEpisodes(new Set(episodes.map((ep) => ep.id)))
     }
   }
 
@@ -98,9 +98,7 @@ export function Episodes({ repo }: EpisodesProps) {
       setFilteredSuggestions([])
       setSelectedSuggestionIndex(-1)
     } else {
-      const filtered = allTags.filter(tag =>
-        tag.toLowerCase().includes(value.toLowerCase()) && tag !== value
-      )
+      const filtered = allTags.filter((tag) => tag.toLowerCase().includes(value.toLowerCase()) && tag !== value)
       setFilteredSuggestions(filtered)
       setShowSuggestions(filtered.length > 0)
       setSelectedSuggestionIndex(-1)
@@ -133,13 +131,11 @@ export function Episodes({ repo }: EpisodesProps) {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setSelectedSuggestionIndex(prev =>
-          prev < filteredSuggestions.length - 1 ? prev + 1 : prev
-        )
+        setSelectedSuggestionIndex((prev) => (prev < filteredSuggestions.length - 1 ? prev + 1 : prev))
         break
       case 'ArrowUp':
         e.preventDefault()
-        setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : prev)
+        setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : prev))
         break
       case 'Enter':
         e.preventDefault()
@@ -213,14 +209,16 @@ export function Episodes({ repo }: EpisodesProps) {
 
       {/* Error Display */}
       {error && (
-        <div style={{
-          marginBottom: '20px',
-          padding: '15px',
-          backgroundColor: '#f8d7da',
-          border: '1px solid #f5c6cb',
-          borderRadius: '5px',
-          color: '#721c24'
-        }}>
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '15px',
+            backgroundColor: '#f8d7da',
+            border: '1px solid #f5c6cb',
+            borderRadius: '5px',
+            color: '#721c24',
+          }}
+        >
           <strong>Error:</strong> {error}
         </div>
       )}
@@ -241,7 +239,7 @@ export function Episodes({ repo }: EpisodesProps) {
                 padding: '8px',
                 border: '1px solid #ddd',
                 borderRadius: '4px',
-                fontSize: '14px'
+                fontSize: '14px',
               }}
             />
             <button
@@ -253,7 +251,7 @@ export function Episodes({ repo }: EpisodesProps) {
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: loading ? 'not-allowed' : 'pointer'
+                cursor: loading ? 'not-allowed' : 'pointer',
               }}
             >
               {loading ? 'Applying...' : 'Apply Filter'}
@@ -266,7 +264,8 @@ export function Episodes({ repo }: EpisodesProps) {
           </div>
         )}
         <div style={{ marginTop: '10px', fontSize: '12px', color: '#6c757d' }}>
-          <strong>Available filter fields:</strong> policy_name, policy_description, training_run_name, training_run_status, training_run_user_id, created_at, eval_name, eval_category, env_name, simulation_suite
+          <strong>Available filter fields:</strong> policy_name, policy_description, training_run_name,
+          training_run_status, training_run_user_id, created_at, eval_name, eval_category, env_name, simulation_suite
         </div>
       </div>
 
@@ -288,24 +287,26 @@ export function Episodes({ repo }: EpisodesProps) {
                 padding: '8px',
                 border: '1px solid #ddd',
                 borderRadius: '4px',
-                fontSize: '14px'
+                fontSize: '14px',
               }}
             />
             {showSuggestions && filteredSuggestions.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                backgroundColor: 'white',
-                border: '1px solid #ddd',
-                borderTop: 'none',
-                borderRadius: '0 0 4px 4px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                zIndex: 1000,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  backgroundColor: 'white',
+                  border: '1px solid #ddd',
+                  borderTop: 'none',
+                  borderRadius: '0 0 4px 4px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                }}
+              >
                 {filteredSuggestions.map((suggestion, index) => (
                   <div
                     key={suggestion}
@@ -315,7 +316,7 @@ export function Episodes({ repo }: EpisodesProps) {
                       cursor: 'pointer',
                       fontSize: '14px',
                       borderBottom: '1px solid #eee',
-                      backgroundColor: index === selectedSuggestionIndex ? '#e3f2fd' : 'white'
+                      backgroundColor: index === selectedSuggestionIndex ? '#e3f2fd' : 'white',
                     }}
                     onMouseEnter={(e) => {
                       if (index !== selectedSuggestionIndex) {
@@ -349,15 +350,12 @@ export function Episodes({ repo }: EpisodesProps) {
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: (selectedEpisodes.size === 0 && !selectAllChecked) ? 'not-allowed' : 'pointer',
-              opacity: (selectedEpisodes.size === 0 && !selectAllChecked) ? 0.6 : 1
+              cursor: selectedEpisodes.size === 0 && !selectAllChecked ? 'not-allowed' : 'pointer',
+              opacity: selectedEpisodes.size === 0 && !selectAllChecked ? 0.6 : 1,
             }}
           >
-            {tagAction === 'add' ? 'Add' : 'Remove'} Tag to {
-              selectAllChecked
-                ? `all ${totalCount} filtered episodes`
-                : `${selectedEpisodes.size} episode(s)`
-            }
+            {tagAction === 'add' ? 'Add' : 'Remove'} Tag to{' '}
+            {selectAllChecked ? `all ${totalCount} filtered episodes` : `${selectedEpisodes.size} episode(s)`}
           </button>
         </div>
       </div>
@@ -374,12 +372,7 @@ export function Episodes({ repo }: EpisodesProps) {
             )}
           </p>
           <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={selectAllChecked}
-              onChange={handleSelectAll}
-              style={{ margin: 0 }}
-            />
+            <input type="checkbox" checked={selectAllChecked} onChange={handleSelectAll} style={{ margin: 0 }} />
             Select All ({totalCount} episodes)
           </label>
         </div>
@@ -409,25 +402,13 @@ export function Episodes({ repo }: EpisodesProps) {
                     />
                   </td>
                   <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                      {episode.id.substring(0, 8)}...
-                    </span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{episode.id.substring(0, 8)}...</span>
                   </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    {formatDateTime(episode.created_at)}
-                  </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    {episode.policy_name || 'N/A'}
-                  </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    {episode.training_run_name || 'N/A'}
-                  </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    {episode.eval_category || 'N/A'}
-                  </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>
-                    {episode.env_name || 'N/A'}
-                  </td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{formatDateTime(episode.created_at)}</td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{episode.policy_name || 'N/A'}</td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{episode.training_run_name || 'N/A'}</td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{episode.eval_category || 'N/A'}</td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{episode.env_name || 'N/A'}</td>
                   <td style={{ padding: '12px', border: '1px solid #ddd' }}>
                     {episode.tags.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -440,7 +421,7 @@ export function Episodes({ repo }: EpisodesProps) {
                               color: 'white',
                               fontSize: '12px',
                               borderRadius: '12px',
-                              whiteSpace: 'nowrap'
+                              whiteSpace: 'nowrap',
                             }}
                           >
                             {tag}
@@ -461,7 +442,7 @@ export function Episodes({ repo }: EpisodesProps) {
       {/* Pagination */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
         <button
-          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+          onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
           disabled={currentPage === 1}
           style={{
             padding: '8px 16px',
@@ -469,16 +450,18 @@ export function Episodes({ repo }: EpisodesProps) {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
           }}
         >
           Previous
         </button>
 
-        <span>Page {currentPage} of {totalPages}</span>
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
 
         <button
-          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+          onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
           disabled={currentPage === totalPages}
           style={{
             padding: '8px 16px',
@@ -486,7 +469,7 @@ export function Episodes({ repo }: EpisodesProps) {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
           }}
         >
           Next

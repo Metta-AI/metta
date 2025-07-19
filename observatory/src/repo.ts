@@ -130,6 +130,30 @@ export type AllTagsResponse = {
   tags: string[]
 }
 
+export type EvalTaskCreateRequest = {
+  policy_id: string
+  git_hash: string | null
+  env_overrides?: Record<string, any>
+  sim_suite?: string
+}
+
+export type EvalTask = {
+  id: string
+  policy_id: string
+  sim_suite: string
+  status: 'unprocessed' | 'canceled' | 'done' | 'error'
+  assigned_at: string | null
+  assignee: string | null
+  created_at: string
+  attributes: Record<string, any>
+  policy_name: string | null
+  retries: number
+}
+
+export type EvalTasksResponse = {
+  tasks: EvalTask[]
+}
+
 export type TableInfo = {
   table_name: string
   column_count: number
@@ -169,11 +193,7 @@ export interface Repo {
   getAllMetrics(): Promise<string[]>
   getGroupIds(suite: string): Promise<string[]>
 
-  getHeatmapData(
-    metric: string,
-    suite: string,
-    policySelector?: PolicySelector
-  ): Promise<HeatmapData>
+  getHeatmapData(metric: string, suite: string, policySelector?: PolicySelector): Promise<HeatmapData>
 
   // Token management methods
   createToken(tokenData: TokenCreate): Promise<TokenResponse>
@@ -200,11 +220,7 @@ export interface Repo {
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
   updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  getTrainingRunHeatmapData(
-    runId: string,
-    metric: string,
-    suite: string,
-  ): Promise<HeatmapData>
+  getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData>
 
   // Episode methods
   filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse>
@@ -213,6 +229,10 @@ export interface Repo {
   addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
   removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
   getAllEpisodeTags(): Promise<AllTagsResponse>
+
+  // Eval task methods
+  createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
+  getEvalTasks(): Promise<EvalTask[]>
 }
 
 export class ServerRepo implements Repo {
@@ -279,11 +299,7 @@ export class ServerRepo implements Repo {
     return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`)
   }
 
-  async getHeatmapData(
-    metric: string,
-    suite: string,
-    policySelector: PolicySelector = 'latest'
-  ): Promise<HeatmapData> {
+  async getHeatmapData(metric: string, suite: string, policySelector: PolicySelector = 'latest'): Promise<HeatmapData> {
     // Use POST endpoint for GroupDiff
     const apiData = await this.apiCallWithBody<HeatmapData>(
       `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
@@ -363,13 +379,9 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
-  async getTrainingRunHeatmapData(
-    runId: string,
-    metric: string,
-    suite: string,
-  ): Promise<HeatmapData> {
+  async getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData> {
     return this.apiCall<HeatmapData>(
-      `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
+      `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`
     )
   }
 
@@ -413,5 +425,16 @@ export class ServerRepo implements Repo {
 
   async getAllEpisodeTags(): Promise<AllTagsResponse> {
     return this.apiCall<AllTagsResponse>('/episodes/tags/all')
+  }
+
+  // Eval task methods
+  async createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask> {
+    return this.apiCallWithBody<EvalTask>('/tasks', request)
+  }
+
+  async getEvalTasks(): Promise<EvalTask[]> {
+    // Use the new /all endpoint to get all tasks regardless of status
+    const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
+    return response.tasks
   }
 }
