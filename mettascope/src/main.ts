@@ -331,7 +331,6 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
   // Update the scrubber value (unless told to skip).
   if (!skipScrubberUpdate) {
-    console.info('Scrubber value:', state.step)
     updateTimeline()
   }
   updateAgentTable()
