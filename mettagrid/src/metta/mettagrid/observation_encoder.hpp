@@ -24,13 +24,13 @@ public:
       _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
       _feature_names.insert({observation_feature, "inv:" + inventory_item_names[i]});
     }
-    
+
     // Also add feature names for recipe inputs
     // Recipe inputs use the same inventory items but with different feature IDs
     for (size_t i = 0; i < inventory_item_names.size(); i++) {
       auto recipe_feature = RecipeInputFeatureOffset + static_cast<ObservationType>(i);
       _feature_normalizations.insert({recipe_feature, DEFAULT_INVENTORY_NORMALIZATION});
-      _feature_names.insert({recipe_feature, "recipe:" + inventory_item_names[i]});
+      _feature_names.insert({recipe_feature, "input:" + inventory_item_names[i]});
     }
   }
 

@@ -211,9 +211,23 @@ public:
 
     // Add recipe inputs if configured to do so
     if (this->show_recipe_inputs) {
+      // Map each input resource item to a recipe input feature
+      // We support up to 10 recipe inputs (RecipeInput0 through RecipeInput9)
+      size_t recipe_index = 0;
       for (const auto& [item, amount] : this->input_resources) {
-        features.push_back(
-            {static_cast<ObservationType>(item + RecipeInputFeatureOffset), static_cast<ObservationType>(amount)});
+        if (recipe_index >= 10) {
+          // Too many recipe inputs - skip the rest
+          break;
+        }
+        
+        // Use RecipeInput0-9 as the feature ID, and encode both item ID and amount
+        ObservationType recipe_feature = ObservationFeature::RecipeInput0 + static_cast<ObservationType>(recipe_index);
+        // Encode item ID and amount together: (item_id << 8) | amount
+        // This allows us to encode which item and how much is needed
+        ObservationType encoded_value = (static_cast<ObservationType>(item) << 8) | static_cast<ObservationType>(amount);
+        features.push_back({recipe_feature, encoded_value});
+        
+        recipe_index++;
       }
     }
 
