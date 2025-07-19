@@ -115,24 +115,9 @@ class PPOConfig(BaseModelWithForbidExtra):
 
 
 class CurriculumServerConfig(BaseModelWithForbidExtra):
-    # Whether to use curriculum server (disabled by default for backward compatibility)
-    enabled: bool = False
-    # Server host when running as server
     host: str = "0.0.0.0"
-    # Server port when running as server
-    port: int = 8080
-    # Client configuration
-    server_url: str | None = None  # URL of remote server when running as client
-    batch_size: int = Field(default=100, gt=0)  # Number of tasks to fetch per batch
-    max_retries: int = Field(default=5, gt=0)  # Max retries for failed requests
-    timeout: float = Field(default=30.0, gt=0)  # Request timeout in seconds
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "CurriculumServerConfig":
-        if self.enabled and self.server_url is None:
-            # If enabled but no server_url, we're running as the server
-            pass
-        return self
+    port: int = 12346
+    batch_size: int = Field(default=100, gt=0)
 
 
 class TorchProfilerConfig(BaseModelWithForbidExtra):
