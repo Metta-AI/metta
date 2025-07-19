@@ -10,24 +10,26 @@
 # deprecated and all imports have been migrated to their new locations
 
 # Import everything from the parent functions.py module
-from ..functions import *
+# noqa: F403, F401, TID252 - This is a compatibility layer
+from metta.rl.functions import *  # noqa: F403, TID252
 
 # Also explicitly re-export commonly used functions to ensure they're available
-from ..functions import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    calculate_prioritized_sampling_params,
-    cleanup_old_policies,
-    compute_advantage,
-    compute_gradient_stats,
-    compute_timing_stats,
-    get_lstm_config,
-    get_observation,
-    process_minibatch_update,
-    process_training_stats,
-    run_policy_inference,
-    save_policy_with_metadata,
-    validate_policy_environment_match,
+# noqa comments needed for compatibility layer
+from metta.rl.functions import (  # noqa: TID252
+    accumulate_rollout_stats,  # noqa: F401
+    build_wandb_stats,  # noqa: F401
+    calculate_batch_sizes,  # noqa: F401
+    calculate_explained_variance,  # noqa: F401
+    calculate_prioritized_sampling_params,  # noqa: F401
+    cleanup_old_policies,  # noqa: F401
+    compute_advantage,  # noqa: F401
+    compute_gradient_stats,  # noqa: F401
+    compute_timing_stats,  # noqa: F401
+    get_lstm_config,  # noqa: F401
+    get_observation,  # noqa: F401
+    process_minibatch_update,  # noqa: F401
+    process_training_stats,  # noqa: F401
+    run_policy_inference,  # noqa: F401
+    save_policy_with_metadata,  # noqa: F401
+    validate_policy_environment_match,  # noqa: F401
 )
