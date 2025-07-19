@@ -64,12 +64,15 @@ class Simulation:
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         wandb_policy_name: str | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        episode_tags: list[str] | None = None,
     ):
         self._name = name
         self._sim_suite_name = sim_suite_name
         self._config = config
         self._id = uuid.uuid4().hex[:12]
-
+        self._eval_task_id = eval_task_id
+        self._episode_tags = episode_tags
         self._wandb_policy_name: str | None = None
         self._wandb_uri: str | None = None
         if wandb_policy_name is not None:
@@ -105,8 +108,22 @@ class Simulation:
         self._device = device
 
         # ----------------
-        num_envs = min(config.num_episodes, os.cpu_count() or 1)
-        logger.info(f"Creating vecenv with {num_envs} environments")
+        # Calculate number of parallel environments and episodes per environment
+        # to achieve the target total number of episodes
+        max_envs = os.cpu_count() or 1
+        if config.num_episodes <= max_envs:
+            # If we want fewer episodes than CPUs, create one env per episode
+            num_envs = config.num_episodes
+            episodes_per_env = 1
+        else:
+            # Otherwise, use all CPUs and distribute episodes
+            num_envs = max_envs
+            episodes_per_env = (config.num_episodes + num_envs - 1) // num_envs  # Ceiling division
+
+        logger.info(
+            f"Creating vecenv with {num_envs} environments, {episodes_per_env} "
+            f"episodes per env (total target: {config.num_episodes})"
+        )
 
         if pre_built_config is not None:
             # Use our custom curriculum that doesn't require Hydra
@@ -128,7 +145,7 @@ class Simulation:
         )
 
         self._num_envs = num_envs
-        self._min_episodes = config.num_episodes
+        self._min_episodes = episodes_per_env
         self._max_time_s = config.max_time_s
         self._agents_per_env = env_cfg.game.num_agents
 
@@ -438,6 +455,7 @@ class Simulation:
                     attributes[attr_name] = attr_value
 
                 # Record the episode remotely
+                episode_tags = self._episode_tags if self._episode_tags else None
                 try:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
@@ -448,6 +466,8 @@ class Simulation:
                         simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
+                        eval_task_id=self._eval_task_id,
+                        tags=episode_tags,
                     )
                 except Exception as e:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
@@ -487,3 +507,4 @@ class SimulationResults:
     """
 
     stats_db: SimulationStatsDB
+    replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

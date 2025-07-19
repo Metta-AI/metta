@@ -1,6 +1,7 @@
 # Environment and IDE
 .envrc
 .env
+.env.*
 .vscode/PythonImportHelper-v2-Completion.json
 .idea/
 .task
@@ -14,13 +15,21 @@
 **/__pycache__/
 .coverage
 .coverage.*
+coverage.xml
+htmlcov/
 cython_debug/
 .venv/
+
+# CMake FetchContent cache
+.deps/
 
 # Build artifacts
 *.so
 build/
 build_debug/
+build-release/
+build-debug/
+build-coverage/
 
 # Node.js / Frontend
 node_modules/
@@ -28,6 +37,7 @@ node_modules/
 .pnpm/
 .vite/
 dist/
+*.tsbuildinfo
 
 # Project-specific build outputs
 /mettagrid/dist/
@@ -47,6 +57,7 @@ personal/
 # Test and benchmark
 test_data/
 **/*benchmark_results.json
+.testmondata*
 
 # Logs and profiling
 *.log

@@ -40,3 +40,6 @@ mettascope/dist
 /observatory/.vite/
 
 wandb
+
+# Ignore .metta directory at root (used temporarily during docker build)
+/.metta

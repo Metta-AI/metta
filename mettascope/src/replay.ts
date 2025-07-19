@@ -183,7 +183,7 @@ function fixReplay() {
     var imageItem = 'objects/' + typeName + '.item.png'
     var imageColor = 'objects/' + typeName + '.color.png'
     if (!ctx.hasImage(image)) {
-      console.warn('Object not supported: ', typeName)
+      console.warn('Object name not supported: "' + typeName + '"')
       // Use the "unknown" image.
       image = 'objects/unknown.png'
       imageItem = 'objects/unknown.item.png'
@@ -420,7 +420,7 @@ export function propertyName(key: string) {
 export function propertyIcon(key: string) {
   if (state.replay.object_types.includes(key)) {
     let idx = state.replay.object_types.indexOf(key)
-    return "data/atlas/" + state.replay.object_images[idx][0]
+    return 'data/atlas/' + state.replay.object_images[idx][0]
   } else if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
     return 'data/atlas/resources/' + key.replace('inv:', '').replace('agent:', '') + '.png'
   } else {

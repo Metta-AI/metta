@@ -2,72 +2,22 @@
 
 import asyncio
 import time
-from typing import AsyncGenerator
 
 import httpx
 import pytest
-import pytest_asyncio
 from fastapi import FastAPI
-from testcontainers.postgres import PostgresContainer
 
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
-
+from tests.base_async_test import BaseAsyncTest
 
 @pytest.mark.slow
-class TestSQLConcurrency:
+class TestSQLConcurrency(BaseAsyncTest):
     """Tests for SQL route concurrency to validate async behavior."""
-
-    @pytest.fixture(scope="class")
-    def postgres_container(self):
-        """Create a PostgreSQL container for testing."""
-        try:
-            container = PostgresContainer(
-                image="postgres:17",
-                username="test_user",
-                password="test_password",
-                dbname="test_db",
-                driver=None,
-            )
-            container.start()
-            yield container
-            container.stop()
-        except Exception as e:
-            pytest.skip(f"Failed to start PostgreSQL container: {e}")
-
-    @pytest.fixture(scope="class")
-    def db_uri(self, postgres_container: PostgresContainer) -> str:
-        """Get the database URI for the test container."""
-        return postgres_container.get_connection_url()
-
-    @pytest_asyncio.fixture(scope="function")
-    async def metta_repo(self, db_uri: str) -> AsyncGenerator[MettaRepo, None]:
-        """Create a MettaRepo instance with the test database."""
-        repo = MettaRepo(db_uri)
-        yield repo
-        # Ensure pool is closed gracefully
-        if repo._pool is not None:
-            try:
-                await repo._pool.close()
-            except RuntimeError:
-                # Event loop might be closed, ignore
-                pass
-
-    @pytest.fixture(scope="function")
-    def test_app(self, metta_repo: MettaRepo) -> FastAPI:
-        """Create a test FastAPI app with dependency injection."""
-        return create_app(metta_repo)
 
     @pytest.fixture(scope="function")
     def base_url(self, test_app: FastAPI) -> str:
         """Get the base URL for the test app."""
         # For this test, we'll use httpx.AsyncClient with the app directly
         return "http://test"
-
-    @pytest.fixture(scope="class")
-    def auth_headers(self) -> dict:
-        """Authentication headers for requests."""
-        return {"X-Auth-Request-Email": "test@example.com"}
 
     @pytest.mark.asyncio
     async def test_sql_query_concurrency(self, test_app: FastAPI, auth_headers: dict) -> None:

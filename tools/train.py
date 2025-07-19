@@ -18,7 +18,10 @@ from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.sim.simulation_config import SimulationSuiteConfig
-from tools.sweep_config_utils import load_train_job_config_with_overrides
+from tools.sweep_config_utils import (
+    load_train_job_config_with_overrides,
+    validate_train_job_config,
+)
 
 
 # TODO: populate this more
@@ -49,10 +52,17 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
+def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
+    cfg = load_train_job_config_with_overrides(cfg)
+
+    # Validation must be done after merging
+    # otherwise trainer's default num_workers: null will be override the values
+    # set by _calculate_default_num_workers, and the validation will fail
     if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
-    cfg = load_train_job_config_with_overrides(cfg)
+    cfg = validate_train_job_config(cfg)
+
+    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
@@ -68,6 +78,8 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
 
     policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client is not None:
+        stats_client.validate_authenticated()
 
     # Instantiate the trainer directly with the typed config
     trainer = hydra.utils.instantiate(

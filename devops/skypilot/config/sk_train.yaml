@@ -25,7 +25,7 @@ resources:
   image_id: docker:metta:latest
   job_recovery:
     strategy: EAGER_NEXT_REGION
-    max_restarts_on_errors: 1000
+    max_restarts_on_errors: 20
 
 setup: |
   set -e
@@ -68,6 +68,18 @@ run: |
   export MASTER_PORT=8008
   export NODE_INDEX=$SKYPILOT_NODE_RANK
   export NCCL_SHM_DISABLE=1
+
+    if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+    echo "[RUN] Collecting instance cost..."
+    if python common/src/metta/common/util/cost_monitor.py; then
+      source ~/.bashrc
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    else
+      echo "[RUN] Cost monitor script failed to run."
+    fi
+  else
+    echo "[RUN] Cost monitor script is missing!"
+  fi
 
   echo "[RUN] Running training script..."
   ./devops/$METTA_CMD.sh \

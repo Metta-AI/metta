@@ -1,11 +1,17 @@
 #!/usr/bin/env -S uv run
+
+# NumPy 2.0 compatibility for WandB - must be imported before wandb
+import numpy as np  # noqa: E402
+
+if not hasattr(np, "byte"):
+    np.byte = np.int8
+
 import json
 import os
 import sys
 import time
 
 import hydra
-import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
@@ -14,7 +20,7 @@ from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.sweep.protein_wandb import WandbProtein
+from metta.sweep.protein_metta import MettaProtein
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -38,14 +44,11 @@ def load_file(run_dir, name):
 def main(cfg: DictConfig) -> int:
     logger = get_metta_logger()
 
-    logger.info("Sweep configuration:")
-    logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
-    simulation_suite_cfg = SimulationSuiteConfig(**cfg.sweep_job.evals)
+    simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
     if os.environ.get("NODE_INDEX", "0") != "0":
-        logger.info("Waiting for master to evaluate policy")
         while not os.path.exists(results_path):
             time.sleep(1)
             if time.time() - start_time > 500:
@@ -53,13 +56,24 @@ def main(cfg: DictConfig) -> int:
                 return 1
         return 0
 
+    logger.info(f"Starting evaluation for run: {cfg.run}")
+
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run)
+            # Fetch the latest policy record from the run
+            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run, selector_type="latest")
+            if not policy_pr:
+                raise ValueError(f"No policy record found for run {cfg.run}")
+
+            # Load the policy record directly using its wandb URI
+            # This will download the artifact and give us a local path
+            policy_pr = policy_store.load_from_uri(policy_pr.uri)
+
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
-            WandbProtein._record_failure(wandb_run)
+            # Record failure in WandB directly since we don't have a Protein instance yet
+            wandb_run.summary.update({"protein.state": "failure", "protein.error": f"Policy loading failed: {e}"})
             return 1
 
         eval = SimulationSuite(
@@ -69,6 +83,7 @@ def main(cfg: DictConfig) -> int:
             device=cfg.device,
             vectorization=cfg.vectorization,
         )
+
         # Start evaluation process
         sweep_stats = {}
         start_time = time.time()
@@ -76,7 +91,7 @@ def main(cfg: DictConfig) -> int:
         # Update sweep stats with initial information
         sweep_stats.update(
             {
-                "score.metric": cfg.metric,
+                "score.metric": cfg.sweep.metric,
             }
         )
         if wandb_run:
@@ -86,13 +101,13 @@ def main(cfg: DictConfig) -> int:
         eval_start_time = time.time()
 
         logger.info(f"Evaluating policy {policy_pr.run_name}")
+
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
         results = eval.simulate()
         eval_time = time.time() - eval_start_time
         eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        result = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
-        eval_metric = result if result is not None else float("nan")
+        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.sweep.metric, policy_pr)
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
@@ -130,16 +145,22 @@ def main(cfg: DictConfig) -> int:
         )
 
         # Add policy to wandb sweep
-        policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
+        policy_store.add_to_wandb_sweep(cfg.sweep_run, policy_pr)
 
-        # Record observation in Protein if enabled
+        # Record observation in Protein sweep
         total_time = train_time + eval_time
-        logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
+        protein_wandb = MettaProtein(cfg.sweep, wandb_run)
 
-        WandbProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
+        # Record the observation properly so the Protein learns
+        protein_wandb.record_observation(eval_metric, total_time)
+
+        # Save results for worker nodes
+        if os.environ.get("NODE_INDEX", "0") == "0":
+            OmegaConf.save({"eval_metric": eval_metric, "total_time": total_time}, results_path)
 
         if wandb_run:
             wandb_run.summary.update({"run_time": total_time})
+        logger.info(f"Evaluation complete for run: {cfg.run}, score: {eval_metric}")
         return 0
 
 

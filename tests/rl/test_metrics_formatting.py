@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
-from metta.rl.functions import (
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.rl.functions.stats import (
     build_wandb_stats,
     process_training_stats,
 )
@@ -28,13 +29,14 @@ class TestMetricsFormattingMain:
         memory_stats = {"total_mb": 2048}
         parameters = {"learning_rate": 0.001, "batch_size": 32}
 
-        evals = {
-            "navigation/score": 0.8,
-            "survival/score": 0.6,
-            "navigation/maze": 0.7,
-            "navigation/random": 0.9,
-            "survival/basic": 0.6,
-        }
+        evals = EvalRewardSummary(
+            category_scores={"navigation": 0.8, "survival": 0.6},
+            simulation_scores={
+                ("navigation", "maze"): 0.7,
+                ("navigation", "random"): 0.9,
+                ("survival", "basic"): 0.6,
+            },
+        )
 
         result = build_wandb_stats(
             processed_stats,

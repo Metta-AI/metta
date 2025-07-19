@@ -211,7 +211,7 @@ def make_app(cfg: DictConfig):
             else:
                 raise ValueError(f"Unknown type: {message['type']}")
 
-            if current_step < 1000:
+            if current_step < sim._vecenv.driver_env.max_steps:
                 await send_message(type="message", message="Step!")
 
                 actions = sim.generate_actions()

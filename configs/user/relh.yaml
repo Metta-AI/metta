@@ -24,6 +24,7 @@ pytorch:
 trainer:
   checkpoint:
     checkpoint_interval: 300
+    wandb_checkpoint_interval: 300
   simulation:
     evaluate_interval: 300
     #env: /env/mettagrid/navigation/training/multienv

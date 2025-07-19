@@ -90,7 +90,6 @@ valid_trainer_config = {
     },
     "simulation": {
         "evaluate_interval": 300,
-        "replay_interval": 300,
     },
 }
 
@@ -226,6 +225,58 @@ class TestTypedConfigs:
         # Should use the provided paths, not the runtime defaults
         assert trainer_config.checkpoint.checkpoint_dir == "/custom/checkpoint/path"
         assert trainer_config.simulation.replay_dir == "s3://custom-bucket/replays"
+
+    def test_interval_validation_checks(self):
+        """Test that interval validation checks work correctly."""
+        # Test 1: evaluate_interval < checkpoint_interval should fail
+        config_with_bad_intervals = valid_trainer_config.copy()
+        config_with_bad_intervals["simulation"]["evaluate_interval"] = 30
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 60
+
+        with pytest.raises(ValueError) as err:
+            create_trainer_config(make_cfg(config_with_bad_intervals))
+        assert "evaluate_interval must be at least as large as checkpoint_interval" in str(err.value)
+
+        # Test 2: evaluate_interval < wandb_checkpoint_interval should fail
+        config_with_bad_intervals = valid_trainer_config.copy()
+        config_with_bad_intervals["simulation"]["evaluate_interval"] = 60
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 30  # Lower than evaluate_interval
+        config_with_bad_intervals["checkpoint"]["wandb_checkpoint_interval"] = 90  # Higher than evaluate_interval
+
+        with pytest.raises(ValueError) as err:
+            create_trainer_config(make_cfg(config_with_bad_intervals))
+        assert "evaluate_interval must be at least as large as wandb_checkpoint_interval" in str(err.value)
+
+        # Test 3: wandb_checkpoint_interval < checkpoint_interval should fail
+        config_with_bad_intervals = valid_trainer_config.copy()
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 60
+        config_with_bad_intervals["checkpoint"]["wandb_checkpoint_interval"] = 30
+
+        with pytest.raises(ValueError) as err:
+            create_trainer_config(make_cfg(config_with_bad_intervals))
+        assert "wandb_checkpoint_interval must be at least as large as checkpoint_interval" in str(err.value)
+
+        # Test 4: Valid configuration where evaluate_interval >= both checkpoint intervals
+        config_with_good_intervals = valid_trainer_config.copy()
+        config_with_good_intervals["checkpoint"]["checkpoint_interval"] = 60
+        config_with_good_intervals["checkpoint"]["wandb_checkpoint_interval"] = 120
+        config_with_good_intervals["simulation"]["evaluate_interval"] = 120
+
+        # This should not raise
+        trainer_config = create_trainer_config(make_cfg(config_with_good_intervals))
+        assert trainer_config.simulation.evaluate_interval == 120
+        assert trainer_config.checkpoint.checkpoint_interval == 60
+        assert trainer_config.checkpoint.wandb_checkpoint_interval == 120
+
+        # Test 5: evaluate_interval = 0 (disabled) should always pass
+        config_with_disabled_eval = valid_trainer_config.copy()
+        config_with_disabled_eval["simulation"]["evaluate_interval"] = 0
+        config_with_disabled_eval["checkpoint"]["checkpoint_interval"] = 60
+        config_with_disabled_eval["checkpoint"]["wandb_checkpoint_interval"] = 300
+
+        # This should not raise
+        trainer_config = create_trainer_config(make_cfg(config_with_disabled_eval))
+        assert trainer_config.simulation.evaluate_interval == 0
 
 
 configs_dir = str(Path(__file__).parent.parent.parent / "configs" / "trainer")

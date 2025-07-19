@@ -32,6 +32,9 @@ game:
       enabled: false
     change_color:
       enabled: false
+    change_glyph:
+      enabled: false
+      number_of_glyphs: 4
 
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii
