@@ -48,8 +48,8 @@ def log_http_interactions(cassette_name):
         with open(cassette_name, "r") as f:
             cassette_data = yaml.safe_load(f)
 
-        if cassette_data and "http_interactions" in cassette_data:
-            interactions = cassette_data["http_interactions"]
+        if cassette_data and "interactions" in cassette_data:
+            interactions = cassette_data["interactions"]
             print(f"Recorded {len(interactions)} HTTP interactions in {cassette_name}")
 
             for i, interaction in enumerate(interactions):
