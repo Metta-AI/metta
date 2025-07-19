@@ -211,7 +211,7 @@ public:
 
     // Add recipe inputs if configured to do so.
     if (this->show_recipe_inputs) {
-      ObservationType feature_offset = InventoryFeatureOffset + this->inventory.size();
+      ObservationType feature_offset = InventoryFeatureOffset + this->input_resources.size();
       for (const auto& [item, amount] : this->input_resources) {
         features.push_back(
             {static_cast<ObservationType>(item + feature_offset), static_cast<ObservationType>(amount)});

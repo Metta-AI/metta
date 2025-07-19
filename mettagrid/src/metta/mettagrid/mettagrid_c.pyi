@@ -115,6 +115,7 @@ class GameConfig:
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
+        show_recipe_inputs: bool = False,
     ): ...
     num_agents: int
     max_steps: int
@@ -124,6 +125,7 @@ class GameConfig:
     inventory_item_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
+    show_recipe_inputs: bool
 
 class MettaGrid:
     obs_width: int
