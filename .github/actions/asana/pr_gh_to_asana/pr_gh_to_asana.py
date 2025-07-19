@@ -10,16 +10,21 @@
 
 import os
 import re
-from datetime import datetime
-
+import logging
 import vcr
+
 from asana_task import AsanaTask
+from datetime import datetime
 from github_asana_mapping import GithubAsanaMapping
 from pull_request import PullRequest
 
 # VCR configuration for tracking REST traffic
+# logging.basicConfig(level=logging.INFO)
+# vcr_log = logging.getLogger("vcr")
+# vcr_log.setLevel(logging.DEBUG)
+
 my_vcr = vcr.VCR(
-    record_mode='all',
+    record_mode='new_episodes',
     cassette_library_dir='.',
     filter_headers=['Authorization'],
     match_on=['uri', 'method'],
@@ -43,8 +48,8 @@ def log_http_interactions(cassette_name):
         with open(cassette_name, "r") as f:
             cassette_data = yaml.safe_load(f)
 
-        if cassette_data and "http_interactions" in cassette_data:
-            interactions = cassette_data["http_interactions"]
+        if cassette_data and "interactions" in cassette_data:
+            interactions = cassette_data["interactions"]
             print(f"Recorded {len(interactions)} HTTP interactions in {cassette_name}")
 
             for i, interaction in enumerate(interactions):
@@ -181,8 +186,8 @@ if __name__ == "__main__":
     print(f"Starting VCR recording with cassette: {cassette_name}")
     print(f"Current working directory: {os.getcwd()}")
 
-    with my_vcr.use_cassette(cassette_name):
-        try:
+    try:
+        with my_vcr.use_cassette(cassette_name):
             # Inputs from the Action
             project_id = getenv_or_bust("INPUT_PROJECT_ID")
             workspace_id = getenv_or_bust("INPUT_WORKSPACE_ID")
@@ -258,9 +263,9 @@ if __name__ == "__main__":
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 f.write(f"task_url={task_url}\n")
 
-        except Exception:
-            traceback.print_exc()
-            raise
-        finally:
-            # Log all HTTP interactions
-            log_http_interactions(cassette_name)
+    except Exception:
+        traceback.print_exc()
+        raise
+    finally:
+        # Log all HTTP interactions
+        log_http_interactions(cassette_name)
