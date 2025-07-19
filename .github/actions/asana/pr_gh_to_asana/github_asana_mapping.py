@@ -1,6 +1,16 @@
 from typing import Generator
 
 import requests
+import vcr
+
+# Configure VCR for Asana API calls
+asana_vcr = vcr.VCR(
+    cassette_library_dir="cassettes",
+    record_mode=vcr.mode.ONCE,
+    match_on=["uri", "method"],
+    filter_headers=["authorization"],
+    decode_compressed_response=True,
+)
 
 
 class GithubAsanaMapping:
@@ -41,25 +51,26 @@ class GithubAsanaMapping:
         project_id: str,
         asana_token: str,
     ) -> Generator[dict[str, str], None, None]:
-        url = f"https://app.asana.com/api/1.0/projects/{project_id}/tasks"
-        headers = {
-            "Authorization": f"Bearer {asana_token}",
-            "Content-Type": "application/json",
-        }
-        params = {
-            "opt_fields": "custom_fields",
-            "limit": 100,
-        }
-        while True:
-            response = requests.get(url, headers=headers, params=params, timeout=30)
-            if response.status_code != 200:
-                raise RuntimeError(
-                    f"Asana API Error (_get_task_custom_fields_from_project): {response.status_code} - {response.text}"
-                )
-            data = response.json()
-            tasks = data["data"]
-            for task in tasks:
-                yield task
-            if not data.get("next_page"):
-                break
-            params["offset"] = data["next_page"]["offset"]
+        with asana_vcr.use_cassette(f"project_tasks_{project_id}.yaml"):
+            url = f"https://app.asana.com/api/1.0/projects/{project_id}/tasks"
+            headers = {
+                "Authorization": f"Bearer {asana_token}",
+                "Content-Type": "application/json",
+            }
+            params = {
+                "opt_fields": "custom_fields",
+                "limit": 100,
+            }
+            while True:
+                response = requests.get(url, headers=headers, params=params, timeout=30)
+                if response.status_code != 200:
+                    raise RuntimeError(
+                        f"Asana API Err (_get_task_custom_fields_from_project): {response.status_code}-{response.text}"
+                    )
+                data = response.json()
+                tasks = data["data"]
+                for task in tasks:
+                    yield task
+                if not data.get("next_page"):
+                    break
+                params["offset"] = data["next_page"]["offset"]

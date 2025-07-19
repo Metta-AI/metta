@@ -2,17 +2,28 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#   "requests>=2.31.0",
-#   "VCR>=6.02"
+#   "vcrpy>=6.0.0",
+#   "requests>=2.31.0"
 # ]
 # ///
 
 import os
 import re
 
+import vcr
 from asana_task import AsanaTask
 from github_asana_mapping import GithubAsanaMapping
 from pull_request import PullRequest
+
+# Configure VCR for recording/replaying HTTP interactions
+my_vcr = vcr.VCR(
+    cassette_library_dir="cassettes",
+    record_mode=vcr.mode.ONCE,
+    match_on=["uri", "method"],
+    filter_headers=["authorization", "x-github-api-version"],
+    filter_query_parameters=["access_token"],
+    decode_compressed_response=True,
+)
 
 
 def format_github_review_body_for_asana(review_body, github_user, review_state, review_id, github_timestamp):
