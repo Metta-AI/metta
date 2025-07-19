@@ -125,6 +125,8 @@ def getenv_or_bust(key: str) -> str:
         Exception: If environment variable is not set or is empty
     """
     value = os.getenv(key)
+    print(f"Environment variable '{key}' = {repr(value)}")
+
     if value is None:
         raise Exception(f"Environment variable '{key}' is not set")
 
