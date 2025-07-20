@@ -372,8 +372,16 @@ if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler
     )
 
 # Create hyperparameter scheduler (handles dynamic learning rate and other hyperparameter adjustments)
+# Need to create a config dict that matches what HyperparameterScheduler expects
+scheduler_config = {
+    "ppo": trainer_config.ppo.model_dump(),
+    "optimizer": trainer_config.optimizer.model_dump(),
+    "hyperparameter_scheduler": trainer_config.hyperparameter_scheduler.model_dump()
+    if trainer_config.hyperparameter_scheduler
+    else {},
+}
 hyperparameter_scheduler = HyperparameterScheduler(
-    DictConfig(trainer_config), optimizer, trainer_config.total_timesteps, logging
+    DictConfig(scheduler_config), optimizer, trainer_config.total_timesteps, logging
 )
 
 # Memory and System Monitoring (master only)
