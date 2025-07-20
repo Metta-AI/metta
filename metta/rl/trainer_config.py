@@ -10,8 +10,8 @@ from metta.rl.kickstarter_config import KickstartConfig
 
 class OptimizerConfig(BaseModelWithForbidExtra):
     type: Literal["adam", "muon"] = "adam"
-    # Learning rate: Midpoint between original (0.000457) and sweep result (0.019)
-    learning_rate: float = Field(default=0.0097285, gt=0, le=1.0)
+    # Learning rate: Conservative update - 25% toward sweep result (0.019) from original (0.000457)
+    learning_rate: float = Field(default=0.00509275, gt=0, le=1.0)
     # Beta1: Updated based on Joseph's sweep results (was: Standard Adam default from Kingma & Ba (2014))
     beta1: float = Field(default=0.89, ge=0, le=1.0)  # was: 0.9
     # Beta2: Updated based on Joseph's sweep results (was: Standard Adam default from Kingma & Ba (2014))
@@ -34,8 +34,8 @@ class LRSchedulerConfig(BaseModelWithForbidExtra):
 
 
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
-    # Alpha: Midpoint between disabled (0.0) and sweep result (0.79) for moderate prioritization
-    prio_alpha: float = Field(default=0.395, ge=0, le=1.0)
+    # Alpha: Conservative update - 25% toward sweep result (0.79) from disabled (0.0)
+    prio_alpha: float = Field(default=0.1975, ge=0, le=1.0)
     # Beta0: Updated based on Joseph's sweep results (was: From Schaul et al. 2016 paper)
     prio_beta0: float = Field(default=0.59, ge=0, le=1.0)  # was: 0.6
 
@@ -94,12 +94,12 @@ class PPOConfig(BaseModelWithForbidExtra):
     gamma: float = Field(default=0.99, ge=0, le=1.0)  # was: 0.977
 
     # Training parameters
-    # Gradient clipping: Midpoint between standard (0.5) and sweep result (2.6)
-    max_grad_norm: float = Field(default=1.55, gt=0)
+    # Gradient clipping: Conservative update - 25% toward sweep result (2.6) from standard (0.5)
+    max_grad_norm: float = Field(default=1.025, gt=0)
     # Value function clipping: Updated based on Joseph's sweep results (was: Matches policy clip for consistency)
     vf_clip_coef: float = Field(default=0.16, ge=0)  # was: 0.1
-    # Value coefficient: Midpoint between original (0.44) and sweep result (3.2)
-    vf_coef: float = Field(default=1.82, ge=0)
+    # Value coefficient: Conservative update - 25% toward sweep result (3.2) from original (0.44)
+    vf_coef: float = Field(default=1.13, ge=0)
     # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
