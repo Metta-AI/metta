@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from typing import Any, List
 
@@ -109,6 +108,7 @@ def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
         logger.error(f"Failed to fetch sweeps after all retry attempts. Assuming no existing sweep. Error: {e}")
         # Return None to allow sweep creation to proceed
         return None
+<<<<<<< HEAD
 
 
 def generate_run_id_for_sweep(sweep_id: str, sweep_names_dir: str) -> str:
@@ -155,3 +155,5 @@ def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
     # Sort by score (descending for reward metric)
     runs.sort(key=lambda r: r.summary.get("score", r.summary.get("protein.objective", 0)), reverse=True)
     return runs
+=======
+>>>>>>> a45f2dfbd (feat(sweep): Implement centralized sweep info database for sweep parallel worker support)
