@@ -62,10 +62,10 @@ class LogarithmicSchedule(BaseSchedule):
 
 
 class HyperparameterScheduler:
-    def __init__(self, trainer_cfg: DictConfig, trainer, total_timesteps: int, logging):
+    def __init__(self, trainer_cfg: DictConfig, optimizer, total_timesteps: int, logging):
         """Initialize the hyperparameter scheduler with configuration and total timesteps."""
         self.trainer_cfg = trainer_cfg
-        self.trainer = trainer
+        self.optimizer = optimizer
         self.total_timesteps = total_timesteps
         self.logger = logging.getLogger(__name__)
 
@@ -89,7 +89,10 @@ class HyperparameterScheduler:
                 self.logger.info(f"Initializing scheduler for: {param_name}")
                 self.schedulers[param_name] = hydra.utils.instantiate(schedule_cfg)
             else:
-                initial_value = self.trainer.hyperparameters[param_name]
+                # Get initial value from trainer_cfg
+                initial_value = (
+                    self.trainer_cfg.ppo[param_name] if "ppo" in param_name else self.trainer_cfg.optimizer[param_name]
+                )
                 self.schedulers[param_name] = ConstantSchedule(initial_value)
 
     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
@@ -105,24 +108,23 @@ class HyperparameterScheduler:
             return  # No schedulers configured
 
         updates = {}
-        trainer = self.trainer
         for param_name in self.schedulers.keys():
             new_value = self._compute_scheduled_value(param_name, current_step)
             updates[param_name] = new_value
 
         # Update only the parameters that have schedulers
         if "learning_rate" in updates:
-            trainer.optimizer.param_groups[0]["lr"] = updates["learning_rate"]
+            self.optimizer.param_groups[0]["lr"] = updates["learning_rate"]
         if "ppo_clip_coef" in updates:
-            trainer.trainer_cfg.ppo.clip_coef = updates["ppo_clip_coef"]
+            self.trainer_cfg.ppo.clip_coef = updates["ppo_clip_coef"]
         if "ppo_vf_clip_coef" in updates:
-            trainer.trainer_cfg.ppo.vf_clip_coef = updates["ppo_vf_clip_coef"]
+            self.trainer_cfg.ppo.vf_clip_coef = updates["ppo_vf_clip_coef"]
         if "ppo_ent_coef" in updates:
-            trainer.trainer_cfg.ppo.ent_coef = updates["ppo_ent_coef"]
+            self.trainer_cfg.ppo.ent_coef = updates["ppo_ent_coef"]
         if "ppo_l2_reg_loss_coef" in updates:
-            trainer.trainer_cfg.ppo.l2_reg_loss_coef = updates["ppo_l2_reg_loss_coef"]
+            self.trainer_cfg.ppo.l2_reg_loss_coef = updates["ppo_l2_reg_loss_coef"]
         if "ppo_l2_init_loss_coef" in updates:
-            trainer.trainer_cfg.ppo.l2_init_loss_coef = updates["ppo_l2_init_loss_coef"]
+            self.trainer_cfg.ppo.l2_init_loss_coef = updates["ppo_l2_init_loss_coef"]
 
         if current_step % 10000 == 0 and updates:
             self.logger.info(

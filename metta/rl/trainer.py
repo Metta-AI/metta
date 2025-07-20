@@ -18,6 +18,7 @@ from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_pol
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
@@ -855,19 +856,25 @@ def create_training_components(
     # Create utilities
     timer = Stopwatch(logger)
     timer.start()
-    losses = Losses()
-    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
 
     memory_monitor = None
-    system_monitor = None
     if is_master:
         memory_monitor = MemoryMonitor()
+
+    # Instantiate system monitor (master only)
+    system_monitor = None
+    if is_master:
         system_monitor = SystemMonitor(
             sampling_interval_sec=1.0,
             history_size=100,
             logger=logger,
             auto_start=True,
+            external_timer=timer,
         )
+
+    # Instantiate losses tracker and torch profiler
+    losses = Losses()
+    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
 
     # Create curriculum and vecenv
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
@@ -1018,10 +1025,9 @@ def create_training_components(
         memory_monitor.add(policy, name="Policy", track_attributes=False)
 
     # Create hyperparameter scheduler
-    from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
+    hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, optimizer, trainer_cfg.total_timesteps, logging)
 
-    hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, policy, trainer_cfg.total_timesteps, logging)
-
+    # Return all components in the expected order
     return (
         vecenv,
         policy,

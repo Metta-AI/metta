@@ -378,7 +378,9 @@ if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler
     )
 
 # Create hyperparameter scheduler (handles dynamic learning rate and other hyperparameter adjustments)
-hyperparameter_scheduler = HyperparameterScheduler(trainer_config, agent, trainer_config.total_timesteps, logging)
+hyperparameter_scheduler = HyperparameterScheduler(
+    DictConfig(trainer_config), optimizer, trainer_config.total_timesteps, logging
+)
 
 # Memory and System Monitoring (master only)
 system_monitor = None
@@ -598,6 +600,8 @@ while agent_step < trainer_config.total_timesteps:
             parameters=parameters,
             hyperparameters={},  # Hyperparameters not used in run.py
             evals=evaluation_scores.get(epoch, EvalRewardSummary()),
+            agent_step=agent_step,
+            epoch=epoch,
         )
 
         # Log to wandb if available
