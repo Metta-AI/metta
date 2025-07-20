@@ -31,6 +31,7 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
@@ -99,6 +100,8 @@ class MettaTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
+
+        self.hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, self, trainer_cfg.total_timesteps, logging)
 
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
@@ -288,12 +291,6 @@ class MettaTrainer:
 
         # Validate that policy matches environment
         validate_policy_environment_match(self.policy, metta_grid_env)
-
-        self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
-            )
 
         if checkpoint and checkpoint.optimizer_state_dict:
             try:
@@ -560,8 +557,7 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance using helper function
         self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
@@ -861,6 +857,8 @@ class MettaTrainer:
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
 
+        # Add hyperparameter values
+
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
@@ -870,6 +868,7 @@ class MettaTrainer:
             system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
             memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
             parameters=parameters,
+            hyperparameters=self.hyperparameters,
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
@@ -893,6 +892,17 @@ class MettaTrainer:
         if self._master:
             self._memory_monitor.clear()
             self._system_monitor.stop()
+
+    @property
+    def hyperparameters(self):
+        return {
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+            "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+            "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+            "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+            "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        }
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
