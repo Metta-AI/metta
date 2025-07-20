@@ -70,8 +70,9 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
 
     # The sweep hasn't been registered with the centralized DB
     if wandb_sweep_id is None:
-        # Create the sweep in WandB
-        wandb_sweep_id = create_wandb_sweep(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project)
+        # Create the sweep in WandB with Protein parameters for better visualization
+        sweep_config = cfg.sweep if hasattr(cfg, "sweep") else None
+        wandb_sweep_id = create_wandb_sweep(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project, sweep_config)
         # Register the sweep in the centralized DB
         sweep_client.create_sweep(cfg.sweep_name, cfg.wandb.project, cfg.wandb.entity, wandb_sweep_id)
 
