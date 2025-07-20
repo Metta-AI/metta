@@ -22,7 +22,7 @@ from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
-from metta.common.wandb.wandb_helpers import cleanup_wandb, initialize_wandb
+from metta.common.wandb.wandb_context import WandbContext
 from metta.rl.util.distributed import setup_device_and_distributed
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import (
@@ -124,24 +124,14 @@ def main(cfg: DictConfig) -> int:
     if is_master:
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
-        # Use initialize_wandb helper
-        wandb_cfg = cfg.get("wandb", {})
-        wandb_run, wandb_ctx = initialize_wandb(
-            run_name=cfg.run,
-            run_dir=cfg.run_dir,
-            enabled=wandb_cfg.get("enabled", True),
-            project=wandb_cfg.get("project"),
-            entity=wandb_cfg.get("entity"),
-            config=OmegaConf.to_container(cfg, resolve=False),
-            job_type=wandb_cfg.get("job_type", "train"),
-            tags=wandb_cfg.get("tags", []),
-            notes=wandb_cfg.get("notes", ""),
-        )
+        # Initialize wandb using WandbContext directly
+        wandb_ctx = WandbContext(cfg.wandb, cfg)
+        wandb_run = wandb_ctx.__enter__()
 
         try:
             train(cfg, wandb_run, logger)
         finally:
-            cleanup_wandb(wandb_ctx)
+            wandb_ctx.__exit__(None, None, None)
     else:
         train(cfg, None, logger)
 

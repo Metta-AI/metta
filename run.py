@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import numpy as np
 import torch
+import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
@@ -14,18 +15,16 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.wandb.wandb_helpers import cleanup_wandb, initialize_wandb
+from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.interface.agent import create_or_load_agent
-from metta.interface.directories import (
-    save_experiment_config,
+from metta.interface import (
+    Environment,
+    create_evaluation_config_suite,
     setup_run_directories,
 )
-from metta.interface.environment import Environment
-from metta.interface.evaluation import (
-    create_evaluation_config_suite,
-)
+from metta.interface.agent import create_or_load_agent
+from metta.interface.directories import save_experiment_config
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
@@ -214,34 +213,46 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 # Evaluation configuration
 evaluation_config = create_evaluation_config_suite()
 
-# Initialize wandb if master
-# This uses the helper from api.py that handles all the wandb config setup
+# WandB initialization
 wandb_run = None
 wandb_ctx = None
 if is_master:
     # Build a config similar to what Hydra would create
-    full_config = {
-        "run": dirs.run_name,
-        "run_dir": dirs.run_dir,
-        "cmd": "train",
-        "device": str(device),
-        "seed": 1,  # Default seed
-        "trainer": trainer_config.model_dump(),
-        "train_job": {"evals": evaluation_config.model_dump() if hasattr(evaluation_config, "model_dump") else {}},
-    }
+    wandb_enabled = os.environ.get("WANDB_DISABLED", "").lower() != "true"
 
-    # Use the unified initialize_wandb function
-    wandb_run, wandb_ctx = initialize_wandb(
-        run_name=dirs.run_name,
-        run_dir=dirs.run_dir,
-        enabled=os.environ.get("WANDB_DISABLED", "").lower() != "true",
-        project=os.environ.get("WANDB_PROJECT", "metta"),
-        entity=os.environ.get("WANDB_ENTITY", "metta-research"),
-        config=full_config,
-        job_type="train",
-        tags=[],
-        notes="",
+    if wandb_enabled:
+        wandb_config = DictConfig(
+            {
+                "enabled": True,
+                "project": os.environ.get("WANDB_PROJECT", "metta"),
+                "entity": os.environ.get("WANDB_ENTITY", "metta-research"),
+                "group": dirs.run_name,
+                "name": dirs.run_name,
+                "run_id": dirs.run_name,
+                "data_dir": dirs.run_dir,
+                "job_type": "train",
+                "tags": [],
+                "notes": "",
+            }
+        )
+    else:
+        wandb_config = DictConfig({"enabled": False})
+
+    global_config = DictConfig(
+        {
+            "run": dirs.run_name,
+            "run_dir": dirs.run_dir,
+            "cmd": "train",
+            "device": str(device),
+            "seed": 1,  # Default seed
+            "trainer": trainer_config.model_dump(),
+            "train_job": {"evals": evaluation_config.model_dump() if hasattr(evaluation_config, "model_dump") else {}},
+            "wandb": wandb_config,
+        }
     )
+
+    wandb_ctx = WandbContext(wandb_config, global_config)
+    wandb_run = wandb_ctx.__enter__()
 
 # Create policy store with config structure matching what Hydra provides
 policy_store_config = {
@@ -857,4 +868,4 @@ if torch.distributed.is_initialized():
 
 # Clean up wandb if initialized
 if is_master:
-    cleanup_wandb(wandb_ctx)
+    wandb_ctx.__exit__(None, None, None)
