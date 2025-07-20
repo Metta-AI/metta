@@ -503,14 +503,24 @@ class MettaTrainer:
             if info:
                 raw_infos.extend(info)
 
-        # Log timing summary every 100 epochs
-        if self.epoch % 100 == 0 and rollout_step_times:
+        # Log timing summary every 10 epochs
+        if self.epoch % 10 == 0 and rollout_step_times:
+            total_time = np.mean(rollout_step_times) * 1000
+            get_obs_time = np.mean(get_obs_times) * 1000
+            inference_time = np.mean(inference_times) * 1000
+            store_time = np.mean(store_times) * 1000
+            send_time = np.mean(send_times) * 1000
+
+            # Calculate actual steps per second based on timing
+            avg_step_time_sec = np.mean(rollout_step_times)
+            steps_per_sec = 1.0 / avg_step_time_sec if avg_step_time_sec > 0 else 0
+
             logger.info(f"Rollout timing analysis (avg over {len(rollout_step_times)} steps):")
-            logger.info(f"  - Total step time: {np.mean(rollout_step_times) * 1000:.1f}ms")
-            logger.info(f"  - Get observation: {np.mean(get_obs_times) * 1000:.1f}ms")
-            logger.info(f"  - Policy inference: {np.mean(inference_times) * 1000:.1f}ms")
-            logger.info(f"  - Store experience: {np.mean(store_times) * 1000:.1f}ms")
-            logger.info(f"  - Send actions: {np.mean(send_times) * 1000:.1f}ms")
+            logger.info(f"  - Steps/sec: {steps_per_sec * self._world_size:.0f} (per step: {total_time:.1f}ms)")
+            logger.info(f"  - Get observation: {get_obs_time:.1f}ms ({get_obs_time / total_time * 100:.1f}%)")
+            logger.info(f"  - Policy inference: {inference_time:.1f}ms ({inference_time / total_time * 100:.1f}%)")
+            logger.info(f"  - Store experience: {store_time:.1f}ms ({store_time / total_time * 100:.1f}%)")
+            logger.info(f"  - Send actions: {send_time:.1f}ms ({send_time / total_time * 100:.1f}%)")
 
         # Batch process info dictionaries after rollout
         accumulate_rollout_stats(raw_infos, self.stats)
@@ -1072,16 +1082,20 @@ class MettaTrainer:
         )
 
         # Log environment configuration for debugging
-        logger.info("Environment configuration debug:")
+        logger.info("=" * 60)
+        logger.info("Environment configuration:")
         logger.info(f"  - num_envs: {num_envs} (total environments)")
         logger.info(f"  - batch_size: {self.batch_size} (environments per step)")
         logger.info(f"  - num_workers: {trainer_cfg.num_workers}")
         logger.info(f"  - async_factor: {trainer_cfg.async_factor}")
         logger.info(f"  - zero_copy: {trainer_cfg.zero_copy}")
         logger.info(f"  - vectorization: {self.cfg.vectorization}")
+        logger.info(f"  - num_agents per env: {num_agents}")
         logger.info(f"  - Total agents: {num_envs * num_agents}")
+        logger.info(f"  - forward_pass_minibatch_target_size: {trainer_cfg.forward_pass_minibatch_target_size}")
         if hasattr(self.vecenv, "agents_per_batch"):
             logger.info(f"  - agents_per_batch: {self.vecenv.agents_per_batch}")
+        logger.info("=" * 60)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
