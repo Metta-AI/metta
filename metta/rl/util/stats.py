@@ -319,6 +319,16 @@ def process_stats(
     system_stats = system_monitor.stats() if system_monitor else {}
     memory_stats = memory_monitor.stats() if memory_monitor else {}
 
+    # Current hyperparameter values (after potential scheduler updates)
+    hyperparameters = {
+        "learning_rate": parameters["learning_rate"],
+        "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
+        "ppo_vf_clip_coef": trainer_cfg.ppo.vf_clip_coef,
+        "ppo_ent_coef": trainer_cfg.ppo.ent_coef,
+        "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
+        "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
+    }
+
     # Build complete stats
     all_stats = build_wandb_stats(
         processed_stats=processed_stats,
@@ -327,7 +337,7 @@ def process_stats(
         grad_stats=grad_stats,
         system_stats=system_stats,
         memory_stats=memory_stats,
-        hyperparameters={},
+        hyperparameters=hyperparameters,
         parameters=parameters,
         evals=evals,
         agent_step=agent_step,

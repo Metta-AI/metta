@@ -589,6 +589,16 @@ while agent_step < trainer_config.total_timesteps:
         system_stats = system_monitor.stats() if system_monitor else {}
         memory_stats = memory_monitor.stats() if memory_monitor else {}
 
+        # Current hyperparameter values
+        hyperparameters = {
+            "learning_rate": current_lr,
+            "ppo_clip_coef": trainer_config.ppo.clip_coef,
+            "ppo_vf_clip_coef": trainer_config.ppo.vf_clip_coef,
+            "ppo_ent_coef": trainer_config.ppo.ent_coef,
+            "ppo_l2_reg_loss_coef": trainer_config.ppo.l2_reg_loss_coef,
+            "ppo_l2_init_loss_coef": trainer_config.ppo.l2_init_loss_coef,
+        }
+
         # Build complete stats dictionary
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
@@ -598,7 +608,7 @@ while agent_step < trainer_config.total_timesteps:
             system_stats=system_stats,
             memory_stats=memory_stats,
             parameters=parameters,
-            hyperparameters={},  # Hyperparameters not used in run.py
+            hyperparameters=hyperparameters,
             evals=evaluation_scores.get(epoch, EvalRewardSummary()),
             agent_step=agent_step,
             epoch=epoch,
