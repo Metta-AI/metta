@@ -14,19 +14,18 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.common.wandb.wandb_helpers import cleanup_wandb, initialize_wandb
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import (
     save_experiment_config,
-    setup_device_and_distributed,
     setup_run_directories,
 )
 from metta.interface.environment import Environment
 from metta.interface.evaluation import (
     create_evaluation_config_suite,
 )
-from metta.interface.training import cleanup_wandb, initialize_wandb
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
@@ -51,6 +50,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
+from metta.rl.util.distributed import setup_device_and_distributed
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
