@@ -42,7 +42,7 @@ metta/
 │   └── metta/
 │       └── cogworks/
 │           ├── __init__.py
-│           ├── api.py
+│           ├── interface/
 │           ├── agent/
 │           ├── rl/
 │           └── ...
@@ -87,7 +87,7 @@ metta/
 │   └── metta/
 │       └── cogworks/
 │           ├── __init__.py
-│           ├── api.py          # Main API (from metta/api.py)
+│           ├── interface/      # API module directory (from metta/interface/)
 │           ├── agent/          # From agent/src/metta/agent/
 │           ├── rl/             # From metta/rl/
 │           ├── eval/           # From metta/eval/
@@ -296,7 +296,8 @@ pip install softmax-backend-shared
 
 ```
 # CURRENT LOCATION                      → NEW LOCATION
-metta/api.py                           → cogworks/metta/cogworks/api.py
+metta/interface/                       → cogworks/metta/cogworks/interface/
+metta/rl/functions/                    → cogworks/metta/cogworks/rl/util/
 metta/rl/                              → cogworks/metta/cogworks/rl/
 metta/sweep/                           → cogworks/metta/cogworks/sweep/
 metta/setup/                           → cogworks/metta/cogworks/setup/
