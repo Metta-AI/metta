@@ -8,18 +8,24 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.api.agent import Agent
-from metta.api.directories import (
+from metta.common.profiling.memory_monitor import MemoryMonitor
+from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.system_monitor import SystemMonitor
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_stats_db import EvalStatsDB
+from metta.interface.agent import Agent
+from metta.interface.directories import (
     save_experiment_config,
     setup_device_and_distributed,
     setup_run_directories,
 )
-from metta.api.environment import Environment
-from metta.api.evaluation import (
+from metta.interface.environment import Environment
+from metta.interface.evaluation import (
     create_evaluation_config_suite,
     create_replay_config,
 )
-from metta.api.training import (
+from metta.interface.training import (
     Optimizer,
     cleanup_distributed,
     cleanup_wandb,
@@ -28,12 +34,6 @@ from metta.api.training import (
     load_checkpoint,
     save_checkpoint,
 )
-from metta.common.profiling.memory_monitor import MemoryMonitor
-from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.system_monitor import SystemMonitor
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience

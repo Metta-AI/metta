@@ -1,5 +1,5 @@
 """
-metta.api package - provides a clean API for Metta training components.
+metta.interface package - provides a clean interface for Metta training components.
 
 This package contains modular components for training Metta agents:
 - agent.py: Agent creation and loading
@@ -9,16 +9,16 @@ This package contains modular components for training Metta agents:
 - training.py: Training utilities and helpers
 """
 
-from metta.api.agent import Agent
-from metta.api.directories import RunDirectories, setup_device_and_distributed, setup_run_directories
-from metta.api.environment import Environment, PreBuiltConfigCurriculum
-from metta.api.evaluation import (
+from metta.interface.agent import Agent
+from metta.interface.directories import RunDirectories, setup_device_and_distributed, setup_run_directories
+from metta.interface.environment import Environment, PreBuiltConfigCurriculum
+from metta.interface.evaluation import (
     create_evaluation_config_suite,
     create_replay_config,
     evaluate_policy_suite,
     generate_replay_simple,
 )
-from metta.api.training import Optimizer, load_checkpoint, save_checkpoint
+from metta.interface.training import Optimizer, load_checkpoint, save_checkpoint
 
 __all__ = [
     # Agent

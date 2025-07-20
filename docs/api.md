@@ -1,16 +1,16 @@
-# Metta API Documentation
+# Metta Interface Documentation
 
-The Metta API (`metta.api`) provides a clean way to use Metta's training components without Hydra configuration files.
+The Metta Interface (`metta.interface`) provides a clean way to use Metta's training components without Hydra configuration files.
 
 ## Quick Start
 
 ```python
 #!/usr/bin/env -S uv run
 import torch
-from metta.api.agent import Agent
-from metta.api.environment import Environment
-from metta.api.directories import setup_run_directories, setup_device_and_distributed
-from metta.api.training import Optimizer, save_checkpoint, load_checkpoint
+from metta.interface.agent import Agent
+from metta.interface.environment import Environment
+from metta.interface.directories import setup_run_directories, setup_device_and_distributed
+from metta.interface.training import Optimizer, save_checkpoint, load_checkpoint
 from metta.rl.util.policy_management import wrap_agent_distributed
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
@@ -32,7 +32,7 @@ agent = Agent(env, device=str(device))
 ### Environment
 
 ```python
-from metta.api.environment import Environment
+from metta.interface.environment import Environment
 
 # Simple environment
 env = Environment(num_agents=4, width=32, height=32)
@@ -44,7 +44,7 @@ env = Environment(curriculum_path="/env/mettagrid/curriculum/navigation/bucketed
 ### Agent
 
 ```python
-from metta.api.agent import Agent
+from metta.interface.agent import Agent
 
 # Default CNN-LSTM agent
 agent = Agent(env, device="cuda")
@@ -58,7 +58,7 @@ agent = Agent(env, config=config)
 ### Optimizer
 
 ```python
-from metta.api.training import Optimizer
+from metta.interface.training import Optimizer
 
 optimizer = Optimizer(
     optimizer_type="adam",  # or "muon"
@@ -93,13 +93,13 @@ loss = process_minibatch_update(...)
 ### Utilities
 
 ```python
-from metta.api.directories import (
+from metta.interface.directories import (
     setup_run_directories,
     setup_device_and_distributed,
     save_experiment_config,
 )
 
-from metta.api.training import (
+from metta.interface.training import (
     initialize_wandb,
     cleanup_wandb,
     cleanup_distributed,
@@ -107,7 +107,7 @@ from metta.api.training import (
     save_checkpoint,
 )
 
-from metta.api.evaluation import (
+from metta.interface.evaluation import (
     create_evaluation_config_suite,
     evaluate_policy_suite,
     generate_replay_simple,
@@ -172,7 +172,7 @@ See `run.py` for a complete example of training without Hydra configuration file
 
 ## Key Exports
 
-The `metta.api` module exports:
+The `metta.interface` module exports:
 
 **Factories**: `Environment`, `Agent`, `Optimizer`
 
