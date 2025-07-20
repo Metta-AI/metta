@@ -595,7 +595,7 @@ def train(
                     device=device,
                     timer=timer,
                 )
-                state.agent_step += num_steps
+                state.agent_step += num_steps * world_size
 
                 # Process rollout stats
                 accumulate_rollout_stats(raw_infos, state.stats)
@@ -673,7 +673,7 @@ def train(
 
         logger.info(
             f"Epoch {state.epoch}- "
-            f"{steps_per_sec * world_size:.0f} SPS- "
+            f"{steps_per_sec:.0f} SPS- "
             f"step {state.agent_step}/{total_steps_str}- "
             f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"
         )
