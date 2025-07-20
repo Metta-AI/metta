@@ -127,14 +127,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        game_config_dict = OmegaConf.to_container(task.env_cfg().game, resolve=True)
         assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
         game_config_dict = cast(Dict[str, Any], game_config_dict)
-
-        # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
-        # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
-        if "map_builder" in game_config_dict:
-            del game_config_dict["map_builder"]
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.

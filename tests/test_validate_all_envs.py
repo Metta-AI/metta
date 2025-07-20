@@ -63,7 +63,6 @@ class TestValidateAllEnvs:
         OmegaConf.resolve(cfg)
         game_config_dict = OmegaConf.to_container(cfg, resolve=True)
         assert isinstance(game_config_dict, dict)
-        del game_config_dict["map_builder"]
 
         # uncomment for debugging
         print(OmegaConf.to_yaml(OmegaConf.create(game_config_dict)))
