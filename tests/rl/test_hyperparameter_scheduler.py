@@ -1,5 +1,6 @@
 import logging
 
+import torch
 from omegaconf import DictConfig
 
 from metta.rl.hyperparameter_scheduler import (
@@ -48,12 +49,16 @@ class TestSchedules:
         assert abs(schedule(1.0) - 0.0) < 1e-6
 
 
-class MockTrainer:
-    """Mock trainer for testing hyperparameter scheduler."""
+# Integration tests for the HyperparameterScheduler no longer rely on a mock trainer.
+# Instead, they construct the minimal objects actually consumed by the scheduler:
+# 1. a DictConfig with the relevant PPO and optimizer fields
+# 2. a real `torch.optim.Optimizer` instance whose `param_groups` will be updated.
 
-    def __init__(self):
-        self.optimizer = type("Optimizer", (), {"param_groups": [{"lr": 0.001}]})()
-        self.trainer_cfg = DictConfig(
+
+class TestHyperparameterScheduler:
+    def test_scheduler_integration(self):
+        # Build a minimal trainer configuration
+        trainer_cfg = DictConfig(
             {
                 "ppo": {
                     "clip_coef": 0.2,
@@ -61,74 +66,67 @@ class MockTrainer:
                     "ent_coef": 0.01,
                     "l2_reg_loss_coef": 0.0,
                     "l2_init_loss_coef": 0.0,
-                }
+                },
+                "optimizer": {
+                    "learning_rate": 0.001,
+                },
             }
         )
 
-
-class TestHyperparameterScheduler:
-    def test_scheduler_integration(self):
-        # Create mock trainer
-        trainer = MockTrainer()
-
-        # Create scheduler config
-        scheduler_cfg = DictConfig(
+        # Scheduler sub-configuration
+        trainer_cfg.hyperparameter_scheduler = DictConfig(
             {
-                "hyperparameter_scheduler": {
-                    "learning_rate_schedule": {
-                        "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
-                        "initial_value": 0.001,
-                        "min_value": 0.0001,
-                    },
-                    "ppo_clip_schedule": {
-                        "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
-                        "initial_value": 0.2,
-                    },
-                    "ppo_vf_clip_schedule": {
-                        "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
-                        "initial_value": 0.1,
-                    },
-                    "ppo_ent_coef_schedule": {
-                        "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
-                        "initial_value": 0.01,
-                        "min_value": 0.0,
-                    },
-                    "ppo_l2_reg_loss_schedule": {
-                        "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
-                        "initial_value": 0.0,
-                    },
-                    "ppo_l2_init_loss_schedule": {
-                        "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
-                        "initial_value": 0.0,
-                    },
-                }
+                "learning_rate_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "initial_value": 0.001,
+                    "min_value": 0.0001,
+                },
+                "ppo_clip_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+                    "initial_value": 0.2,
+                },
+                "ppo_vf_clip_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+                    "initial_value": 0.1,
+                },
+                "ppo_ent_coef_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "initial_value": 0.01,
+                    "min_value": 0.0,
+                },
+                "ppo_l2_reg_loss_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+                    "initial_value": 0.0,
+                },
+                "ppo_l2_init_loss_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+                    "initial_value": 0.0,
+                },
             }
         )
 
-        # Add scheduler config to trainer config
-        trainer.trainer_cfg.hyperparameter_scheduler = scheduler_cfg.hyperparameter_scheduler
+        # Simple model and optimizer for testing updates to learning rate
+        model = torch.nn.Linear(1, 1)
+        optimizer = torch.optim.Adam(model.parameters(), lr=trainer_cfg.optimizer.learning_rate)
 
-        # Create scheduler
         total_timesteps = 1000
-        scheduler = HyperparameterScheduler(trainer.trainer_cfg, trainer, total_timesteps, logging)
+        scheduler = HyperparameterScheduler(trainer_cfg, optimizer, total_timesteps, logging)
 
-        # Test initial values
-        assert trainer.optimizer.param_groups[0]["lr"] == 0.001
-        assert trainer.trainer_cfg.ppo.clip_coef == 0.2
-        assert trainer.trainer_cfg.ppo.ent_coef == 0.01
+        # Initial assertions
+        assert optimizer.param_groups[0]["lr"] == 0.001
+        assert trainer_cfg.ppo.clip_coef == 0.2
+        assert trainer_cfg.ppo.ent_coef == 0.01
 
-        # Step halfway through training
+        # Halfway through training
         scheduler.step(500)
 
-        # Check values have been updated appropriately
-        assert abs(trainer.optimizer.param_groups[0]["lr"] - 0.00055) < 1e-6  # Linear from 0.001 to 0.0001
-        assert trainer.trainer_cfg.ppo.clip_coef == 0.2  # Constant
-        assert abs(trainer.trainer_cfg.ppo.ent_coef - 0.005) < 1e-6  # Linear from 0.01 to 0.0
+        assert abs(optimizer.param_groups[0]["lr"] - 0.00055) < 1e-6  # Linear schedule
+        assert trainer_cfg.ppo.clip_coef == 0.2  # Constant schedule
+        assert abs(trainer_cfg.ppo.ent_coef - 0.005) < 1e-6  # Linear schedule
 
-        # Step to end of training
+        # End of training
         scheduler.step(1000)
 
-        # Check final values
-        assert abs(trainer.optimizer.param_groups[0]["lr"] - 0.0001) < 1e-6
-        assert trainer.trainer_cfg.ppo.clip_coef == 0.2
-        assert abs(trainer.trainer_cfg.ppo.ent_coef - 0.0) < 1e-6
+        assert abs(optimizer.param_groups[0]["lr"] - 0.0001) < 1e-6
+        assert trainer_cfg.ppo.clip_coef == 0.2
+        assert abs(trainer_cfg.ppo.ent_coef - 0.0) < 1e-6
