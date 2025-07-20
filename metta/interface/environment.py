@@ -1,8 +1,10 @@
 """Environment factory and helpers for Metta."""
 
 import logging
+import random
 from typing import Any, Dict, Optional
 
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
@@ -43,8 +45,6 @@ class NavigationBucketedCurriculum(Curriculum):
         self.current_idx = 0
 
     def get_task(self) -> Task:
-        import random
-
         # Select a random terrain
         terrain_dir = random.choice(self.terrain_dirs)
 
@@ -319,8 +319,6 @@ class Environment:
 
         # Set seed
         if seed is None:
-            import torch
-
             seed = int(torch.randint(0, 1000000, (1,)).item())
         vecenv.async_reset(seed)
 
