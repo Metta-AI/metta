@@ -14,6 +14,7 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.agent import create_or_load_agent
@@ -244,8 +245,6 @@ if is_master:
     }
 
     # Use WandbContext directly like tools/train.py
-    from metta.common.wandb.wandb_context import WandbContext
-
     wandb_ctx = WandbContext(DictConfig(wandb_config), DictConfig(full_config))
     wandb_run = wandb_ctx.__enter__()
 
@@ -832,8 +831,6 @@ if is_master:
 
 # Save training state (master only)
 if is_master:
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
     extra_args = {}
     if kickstarter.enabled and kickstarter.teacher_uri is not None:
         extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
