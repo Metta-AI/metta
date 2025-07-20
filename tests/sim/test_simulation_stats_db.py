@@ -3,66 +3,83 @@ from __future__ import annotations
 import datetime
 import uuid
 from pathlib import Path
-from typing import Tuple
+from typing import cast
 
+from duckdb import DuckDBPyConnection
+
+from metta.agent.mocks import MockPolicyRecord
+from metta.agent.policy_record import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
-
-
-class MockPolicyRecord:
-    """Mock implementation of PolicyRecord for testing."""
-
-    def __init__(self, policy_key: str, policy_version: int):
-        self._policy_key = policy_key
-        self._policy_version = policy_version
-
-    def key_and_version(self) -> Tuple[str, int]:
-        """Return the policy key and version as a tuple."""
-        return self._policy_key, self._policy_version
-
-
-def _create_worker_db(path: Path, sim_steps: int = 0) -> str:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = SimulationStatsDB(path)
-
-    episode_id = str(uuid.uuid4())
-    attributes = {"seed": "0", "map_w": "1", "map_h": "1"}
-    agent_metrics = {0: {"reward": 1.0}}
-    agent_groups = {0: 0}
-    replay_url = None
-    created_at = datetime.datetime.now()
-
-    db.record_episode(
-        episode_id,
-        attributes,
-        agent_metrics,
-        agent_groups,
-        sim_steps,
-        replay_url,
-        created_at,
-    )
-
-    db.close()
-    return episode_id
-
 
 _DUMMY_AGENT_MAP = {0: ("dummy_policy", 0)}
 
 
+class TestHelpers:
+    """Helper methods for simulation stats database tests."""
+
+    @staticmethod
+    def get_count(con: DuckDBPyConnection, query: str) -> int:
+        result = con.execute(query).fetchone()
+        assert result is not None
+        return result[0]
+
+    @staticmethod
+    def create_worker_db(path: Path, sim_steps: int = 0, replay_url: str | None = None) -> str:
+        """Create a worker database with a single test episode."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        db = SimulationStatsDB(path)
+
+        episode_id = str(uuid.uuid4())
+        attributes = {"seed": "0", "map_w": "1", "map_h": "1"}
+        agent_metrics = {0: {"reward": 1.0}}
+        agent_groups = {0: 0}
+        created_at = datetime.datetime.now()
+
+        db.record_episode(
+            episode_id,
+            attributes,
+            agent_metrics,
+            agent_groups,
+            sim_steps,
+            replay_url,
+            created_at,
+        )
+
+        db.close()
+        return episode_id
+
+    @staticmethod
+    def create_db_with_tables(path: Path) -> SimulationStatsDB:
+        """Create a database with all tables initialized."""
+        db = SimulationStatsDB(path)
+        for _, sql in db.tables().items():
+            db.con.execute(sql)
+        return db
+
+    @staticmethod
+    def verify_episode_exists(db: SimulationStatsDB, episode_id: str) -> bool:
+        """Check if an episode exists in the database."""
+        result = db.con.execute("SELECT COUNT(*) FROM episodes WHERE id = ?", (episode_id,)).fetchone()
+        return result is not None and result[0] > 0
+
+    @staticmethod
+    def get_episode_ids(db: SimulationStatsDB) -> list[str]:
+        """Get all episode IDs from the database."""
+        return [row[0] for row in db.con.execute("SELECT id FROM episodes").fetchall()]
+
+
 def test_from_uri_context_manager(tmp_path: Path):
     db_path = tmp_path / "test_db.duckdb"
-    ep_id = _create_worker_db(db_path)
+    ep_id = TestHelpers.create_worker_db(db_path)
 
     with SimulationStatsDB.from_uri(str(db_path)) as db:
-        episode_ids = [row[0] for row in db.con.execute("SELECT id FROM episodes").fetchall()]
+        episode_ids = TestHelpers.get_episode_ids(db)
         assert ep_id in episode_ids
 
 
 def test_insert_agent_policies(tmp_path: Path):
     db_path = tmp_path / "policies.duckdb"
-    db = SimulationStatsDB(db_path)
-
-    for _, sql in db.tables().items():
-        db.con.execute(sql)
+    db = TestHelpers.create_db_with_tables(db_path)
 
     episode_id = str(uuid.uuid4())
     db.con.execute("INSERT INTO episodes (id) VALUES (?)", (episode_id,))
@@ -70,23 +87,20 @@ def test_insert_agent_policies(tmp_path: Path):
     agent_map = {0: ("policy_a", 1), 1: ("policy_b", 0)}
     db._insert_agent_policies([episode_id], agent_map)
 
-    rows = db.con.execute("SELECT * FROM agent_policies").fetchall()
-    assert len(rows) == 2
+    count = TestHelpers.get_count(db.con, "SELECT COUNT(*) FROM agent_policies")
+    assert count == 2
 
     db.close()
 
 
 def test_insert_agent_policies_empty_inputs(tmp_path: Path):
     db_path = tmp_path / "empty_policies.duckdb"
-    db = SimulationStatsDB(db_path)
-
-    for _, sql in db.tables().items():
-        db.con.execute(sql)
+    db = TestHelpers.create_db_with_tables(db_path)
 
     db._insert_agent_policies([], _DUMMY_AGENT_MAP)
     db._insert_agent_policies([str(uuid.uuid4())], {})
 
-    count = db.con.execute("SELECT COUNT(*) FROM agent_policies").fetchone()[0]
+    count = TestHelpers.get_count(db.con, "SELECT COUNT(*) FROM agent_policies")
     assert count == 0
 
     db.close()
@@ -96,16 +110,15 @@ def test_merge_in(tmp_path: Path):
     db1_path = tmp_path / "db1.duckdb"
     db2_path = tmp_path / "db2.duckdb"
 
-    ep1 = _create_worker_db(db1_path)
-    ep2 = _create_worker_db(db2_path)
+    ep1 = TestHelpers.create_worker_db(db1_path)
+    ep2 = TestHelpers.create_worker_db(db2_path)
 
     db1 = SimulationStatsDB(db1_path)
     db2 = SimulationStatsDB(db2_path)
 
     db1.merge_in(db2)
 
-    episodes = db1.con.execute("SELECT id FROM episodes").fetchall()
-    episode_ids = [row[0] for row in episodes]
+    episode_ids = TestHelpers.get_episode_ids(db1)
     assert len(episode_ids) == 2
     assert sorted(episode_ids) == sorted([ep1, ep2])
 
@@ -128,10 +141,7 @@ def test_tables(tmp_path: Path):
 
 def test_insert_simulation(tmp_path: Path):
     db_path = tmp_path / "sim_table.duckdb"
-    db = SimulationStatsDB(db_path)
-
-    for _, sql in db.tables().items():
-        db.con.execute(sql)
+    db = TestHelpers.create_db_with_tables(db_path)
 
     sim_id = str(uuid.uuid4())
     policy_key = "test_policy"
@@ -140,12 +150,7 @@ def test_insert_simulation(tmp_path: Path):
 
     rows = db.con.execute("SELECT id, name, suite, env, policy_key, policy_version FROM simulations").fetchall()
     assert len(rows) == 1
-    assert rows[0][0] == sim_id
-    assert rows[0][1] == "test_sim"
-    assert rows[0][2] == "test_suite"
-    assert rows[0][3] == "test_env"
-    assert rows[0][4] == policy_key
-    assert rows[0][5] == policy_version
+    assert rows[0] == (sim_id, "test_sim", "test_suite", "test_env", policy_key, policy_version)
 
     db.close()
 
@@ -153,11 +158,7 @@ def test_insert_simulation(tmp_path: Path):
 def test_get_replay_urls(tmp_path: Path):
     """Test retrieving replay URLs with various filters."""
     db_path = tmp_path / "replay_urls.duckdb"
-    db = SimulationStatsDB(db_path)
-
-    # Create tables
-    for _, sql in db.tables().items():
-        db.con.execute(sql)
+    db = TestHelpers.create_db_with_tables(db_path)
 
     # Add the simulation_id column to episodes if it doesn't exist
     db.con.execute("ALTER TABLE episodes ADD COLUMN IF NOT EXISTS simulation_id TEXT")
@@ -241,7 +242,7 @@ def test_from_shards_and_context(tmp_path: Path):
     shard_dir.mkdir(parents=True, exist_ok=True)
 
     shard_path = shard_dir / "shard.duckdb"
-    ep_id = _create_worker_db(shard_path)
+    ep_id = TestHelpers.create_worker_db(shard_path)
 
     # Verify episode was correctly created in the shard
     shard_db = SimulationStatsDB(shard_path)
@@ -273,11 +274,17 @@ def test_from_shards_and_context(tmp_path: Path):
     assert not merged_path.exists(), "Merged DB already exists"
 
     # Create agent map with our mock PolicyRecord
-    agent_map = {0: MockPolicyRecord("test_policy", 1)}
+    agent_map = {0: MockPolicyRecord.from_key_and_version("test_policy", 1)}
 
     # Now call the actual from_shards_and_context method
     merged_db = SimulationStatsDB.from_shards_and_context(
-        "sim_id", shard_dir, agent_map, "test_sim", "test_suite", "env_test", MockPolicyRecord("test_policy", 1)
+        "sim_id",
+        shard_dir,
+        cast(dict[int, PolicyRecord], agent_map),
+        "test_sim",
+        "test_suite",
+        "env_test",
+        cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
     )
 
     # Verify merged database was created
@@ -287,24 +294,23 @@ def test_from_shards_and_context(tmp_path: Path):
     # Rather than looking at SQLite metadata which varies by database type,
     # we'll try to count records in each table
     # Episodes table
-    episodes_count = merged_db.con.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
+    episodes_count = TestHelpers.get_count(merged_db.con, "SELECT COUNT(*) FROM episodes")
     assert episodes_count > 0, "Episodes table exists but is empty"
 
     # Agent metrics table
-    metrics_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_metrics").fetchone()[0]
+    metrics_count = TestHelpers.get_count(merged_db.con, "SELECT COUNT(*) FROM agent_metrics")
     assert metrics_count > 0, "Agent metrics table exists but is empty"
 
     # Simulations table
-    sims_count = merged_db.con.execute("SELECT COUNT(*) FROM simulations").fetchone()[0]
+    sims_count = TestHelpers.get_count(merged_db.con, "SELECT COUNT(*) FROM simulations")
     assert sims_count > 0, "Simulations table exists but is empty"
 
     # Agent policies table
-    policies_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_policies").fetchone()[0]
+    policies_count = TestHelpers.get_count(merged_db.con, "SELECT COUNT(*) FROM agent_policies")
     assert policies_count > 0, "Agent policies table exists but is empty"
 
     # Verify the episode was imported
-    result = merged_db.con.execute("SELECT id FROM episodes").fetchall()
-    episode_ids = [row[0] for row in result]
+    episode_ids = TestHelpers.get_episode_ids(merged_db)
     assert ep_id in episode_ids, f"Episode {ep_id} not found in merged DB"
 
     # Check simulation_id was set correctly
@@ -372,10 +378,7 @@ def test_sequential_policy_merges(tmp_path: Path):
     """
     # Create first database with Policy A
     db1_path = tmp_path / "db1.duckdb"
-    db1 = SimulationStatsDB(db1_path)
-
-    for _, sql in db1.tables().items():
-        db1.con.execute(sql)
+    db1 = TestHelpers.create_db_with_tables(db1_path)
 
     # Add simulation for Policy A
     db1._insert_simulation("sim1", "test_sim", "test_suite", "env_test", "policy_A", 1)
@@ -391,10 +394,7 @@ def test_sequential_policy_merges(tmp_path: Path):
 
     # Now create second database with Policy B
     db2_path = tmp_path / "db2.duckdb"
-    db2 = SimulationStatsDB(db2_path)
-
-    for _, sql in db2.tables().items():
-        db2.con.execute(sql)
+    db2 = TestHelpers.create_db_with_tables(db2_path)
 
     # Add simulation for Policy B
     db2._insert_simulation("sim2", "test_sim", "test_suite", "env_test", "policy_B", 1)
@@ -411,8 +411,7 @@ def test_sequential_policy_merges(tmp_path: Path):
     result_db = SimulationStatsDB(export_path)
 
     # Check if both episodes exist
-    episodes = result_db.con.execute("SELECT id FROM episodes").fetchall()
-    episode_ids = [row[0] for row in episodes]
+    episode_ids = TestHelpers.get_episode_ids(result_db)
     assert episode1_id in episode_ids, f"Episode {episode1_id} (Policy A) not found in result"
     assert episode2_id in episode_ids, f"Episode {episode2_id} (Policy B) not found in result"
 
@@ -443,10 +442,7 @@ def test_export_preserves_all_policies(tmp_path: Path):
     """Test that export correctly preserves all policies when merging."""
     # Create a database with two policies
     db_path = tmp_path / "source.duckdb"
-    db = SimulationStatsDB(db_path)
-
-    for _, sql in db.tables().items():
-        db.con.execute(sql)
+    db = TestHelpers.create_db_with_tables(db_path)
 
     # Add two different policies
     db._insert_simulation("sim1", "test_sim", "test_suite", "env_test", "policy_X", 1)
@@ -473,10 +469,7 @@ def test_export_preserves_all_policies(tmp_path: Path):
 
     # Now create a new database with a third policy
     new_db_path = tmp_path / "new_source.duckdb"
-    new_db = SimulationStatsDB(new_db_path)
-
-    for _, sql in new_db.tables().items():
-        new_db.con.execute(sql)
+    new_db = TestHelpers.create_db_with_tables(new_db_path)
 
     new_db._insert_simulation("sim3", "test_sim", "test_suite", "env_test", "policy_Z", 1)
 

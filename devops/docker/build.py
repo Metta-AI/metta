@@ -5,8 +5,8 @@ import shutil
 import subprocess
 import sys
 
-from common.src.metta.common.fs import cd_repo_root
 from metta.common.util.cli import get_user_confirmation
+from metta.common.util.fs import cd_repo_root
 
 
 def main():

@@ -1,6 +1,7 @@
 # OpenHands Setup for Metta AI
 
-This directory contains setup scripts that automatically configure the Metta AI development environment when starting an OpenHands conversation.
+This directory contains setup scripts that automatically configure the Metta AI development environment when starting an
+OpenHands conversation.
 
 ## Files
 

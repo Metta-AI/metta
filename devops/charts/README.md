@@ -26,6 +26,8 @@ Refer to [helmfile documentation](https://helmfile.readthedocs.io/en/latest/) fo
 
 ### Observatory
 
-Observatory charts (`./observatory` and `./observatory-backend`) are deployed by CI/CD pipelines powered by GitHub Actions.
+Observatory charts (`./observatory` and `./observatory-backend`) are deployed by CI/CD pipelines powered by GitHub
+Actions.
 
-Image tag values are updated on each build, so we can't describe these charts with all up-to-date values statically in `helmfile.yaml`.
+Image tag values are updated on each build, so we can't describe these charts with all up-to-date values statically in
+`helmfile.yaml`.

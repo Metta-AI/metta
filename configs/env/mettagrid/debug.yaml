@@ -1,12 +1,18 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - mettagrid
+  - game/objects:
+      - basic
+      - mines
+      - generators
+      - combat
+      - advanced
   - _self_
 
 game:
   num_agents: 2
 
   agent:
-    default_item_max: 50
+    default_resource_limit: 50
     freeze_duration: 0
 
   actions:
@@ -26,8 +32,11 @@ game:
       enabled: false
     change_color:
       enabled: false
+    change_glyph:
+      enabled: false
+      number_of_glyphs: 4
 
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     uri: ${oc.env:DEBUG_MAP_URI,"configs/env/mettagrid/maps/debug/tiny_two_altars.map"}
     border_width: 0

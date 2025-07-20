@@ -6,9 +6,9 @@ import zlib
 from typing import Optional
 
 import wandb
-from omegaconf import DictConfig
 from wandb.sdk import wandb_run
 
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import write_file
 
@@ -52,7 +52,7 @@ def write_local_map_preview(env: MettaGridEnv):
 
 
 def upload_map_preview(
-    env_config: DictConfig,
+    curriculum: Curriculum,
     s3_path: str,
     wandb_run: Optional[wandb_run.Run] = None,
 ):
@@ -65,7 +65,7 @@ def upload_map_preview(
         wandb_run: Weights & Biases run object for logging
     """
 
-    env = MettaGridEnv(env_config, render_mode=None)
+    env = MettaGridEnv(curriculum, render_mode=None)
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         # Create directory and save compressed file

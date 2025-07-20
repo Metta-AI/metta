@@ -1,0 +1,9 @@
+prey:
+  id: 5
+  sprite: 12
+  props: {}
+
+predator:
+  id: 6
+  sprite: 6
+  props: {}

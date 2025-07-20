@@ -20,10 +20,6 @@ runs:
     - name: Install Bencher CLI
       uses: bencherdev/bencher@main
 
-    - name: Install jq
-      shell: bash
-      run: sudo apt-get install -y jq
-
     - name: Check main branch status
       id: check-main
       shell: bash
@@ -33,11 +29,11 @@ runs:
         # Run the command and capture output
         if bencher branch view ${{ inputs.project_id }} main --token "$BENCHER_API_TOKEN" > /tmp/branch_output.json 2>/dev/null; then
           echo "Branch info retrieved, checking for benchmark data..."
-          
+
           # Debug: show what we got
           echo "Branch data:"
           cat /tmp/branch_output.json | jq '.'
-          
+
           # Check if branch has valid benchmark data
           if jq -e '.head != null' /tmp/branch_output.json > /dev/null; then
             # The key check: try to list reports on the main branch
@@ -45,7 +41,7 @@ runs:
             if bencher report list ${{ inputs.project_id }} \
                 --branch main \
                 --token "$BENCHER_API_TOKEN" > /tmp/reports.json 2>/dev/null; then
-              
+
               # Check if we actually have reports
               report_count=$(jq 'length' /tmp/reports.json)
               if [ "$report_count" -gt 0 ]; then
@@ -81,13 +77,13 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
-          
+
           # Core throughput KPIs (higher is better - alert only on regressions)
           declare -A THROUGHPUT_METRICS=(
             ["agent_rate"]="Main agent performance KPI"
             ["env_rate"]="Main environment performance KPI"
           )
-          
+
           for metric in "${!THROUGHPUT_METRICS[@]}"; do
             echo "Setting regression threshold for ${THROUGHPUT_METRICS[$metric]}: $metric"
             echo "Will alert if performance drops by more than 20%"
@@ -104,7 +100,7 @@ runs:
               --github-actions "$GITHUB_TOKEN" \
               --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set threshold for $metric"
           done
-          
+
           echo "✅ Regression thresholds configured (20% performance drop triggers alert)"
         else
           echo "⚠️ No benchmark file found: ${{ inputs.benchmark_file }}"
@@ -123,13 +119,13 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         echo "📊 Checking for performance improvements (informational only)..."
-        echo "- agent_rate: Checking for >20% improvements" 
+        echo "- agent_rate: Checking for >20% improvements"
         echo "- env_rate: Checking for >20% improvements"
 
         if [ -f "${{ inputs.benchmark_file }}" ]; then
           # Create a temporary branch name for improvement detection
           IMPROVEMENT_BRANCH="${GITHUB_HEAD_REF}-improvements"
-          
+
           # Run without --err to just report improvements
           bencher run \
             --project ${{ inputs.project_id }} \
@@ -146,7 +142,7 @@ runs:
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
             --file "${{ inputs.benchmark_file }}" || echo "📈 Performance improvements detected!"
-            
+
           echo "✅ Improvement check completed"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
@@ -165,7 +161,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         echo "🚨 Checking for performance regressions (will fail if detected)..."
-        echo "- agent_rate: Will fail if >20% slower than baseline" 
+        echo "- agent_rate: Will fail if >20% slower than baseline"
         echo "- env_rate: Will fail if >20% slower than baseline"
 
         if [ -f "${{ inputs.benchmark_file }}" ]; then
@@ -182,7 +178,7 @@ runs:
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
             --file "${{ inputs.benchmark_file }}"
-            
+
           echo "✅ No performance regressions detected in KPIs"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
@@ -214,7 +210,7 @@ runs:
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
             --file "${{ inputs.benchmark_file }}"
-            
+
           echo "✅ PR benchmark data uploaded successfully"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"

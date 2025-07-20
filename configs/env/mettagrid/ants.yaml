@@ -1,15 +1,20 @@
 defaults:
   - mettagrid
+  - override game/groups: teams
+  - override game/objects:
+      - basic
+      - mines
   - _self_
 
+group_reward_pct: 0
+
 game:
-  group_reward_pct: 0
   num_agents: 36
   map_builder:
     _target_: metta.map.mapgen.MapGen
 
-    width: ${sampling:50,100,50}
-    height: ${sampling:50,100,50}
+    width: 50
+    height: 50
 
     border_width: 6
 
@@ -17,12 +22,12 @@ game:
       type: metta.map.scenes.room_grid.RoomGrid
 
       params:
-        rows: ${sampling:4,7,4}
-        columns: ${sampling:4,7,4}
+        rows: 4
+        columns: 4
         border_width: 0
 
       children:
-        - limit: ${sampling:1,4,1}
+        - limit: 1
           scene:
             type: metta.map.scenes.random.Random
             params:
@@ -41,29 +46,31 @@ game:
 
   agent:
     rewards:
-      heart: 1
-      heart_max: 1000
-      ore.red: 0.005
-      ore.red_max: 1000
+      inventory:
+        heart: 1
+        ore_red: 0.005
 
   objects:
     altar:
-      input_battery.red: 0
-      input_ore.red: ${sampling:1,10,2}
-      output_heart: 1
+      input_resources:
+        battery_red: 0
+        ore_red: 2
+      output_resources:
+        heart: 1
       max_output: 50
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 1
+      initial_resource_count: 1
 
     mine_red:
-      output_ore.red: 1
+      output_resources:
+        ore_red: 1
       color: 0
       max_output: 10
       conversion_ticks: 1
       cooldown: 100
-      initial_items: 10
+      initial_resource_count: 10
 
   groups:
     team_1:
-      group_reward_pct: ${...group_reward_pct}
+      group_reward_pct: ${....group_reward_pct}

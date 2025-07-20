@@ -5,9 +5,12 @@ defaults:
 game:
   max_steps: 80
   map_builder:
-    objects:
-      altar: 1
+    root:
+      params:
+        objects:
+          altar: 1
+
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1
       cooldown: 255

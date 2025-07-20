@@ -1,157 +1,63 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { TrainingRun, Repo } from './repo'
-
-const TRAINING_RUNS_CSS = `
-.training-runs-container {
-  padding: 20px;
-  background: #f8f9fa;
-  min-height: calc(100vh - 60px);
-}
-
-.training-runs-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  background: #fff;
-  padding: 20px;
-  border-radius: 5px;
-  box-shadow: 0 2px 4px rgba(0,0,0,.1);
-}
-
-.training-runs-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #eee;
-}
-
-.training-runs-title {
-  margin: 0;
-  color: #333;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.training-runs-count {
-  color: #666;
-  font-size: 14px;
-}
-
-.search-box {
-  width: 300px;
-  padding: 8px 12px;
-  font-size: 14px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  outline: none;
-  margin-bottom: 10px;
-}
-
-.search-box:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.training-runs-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0;
-}
-
-.training-runs-table th,
-.training-runs-table td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid #eee;
-}
-
-.training-runs-table th {
-  background: #f8f9fa;
-  font-weight: 600;
-  color: #333;
-  font-size: 14px;
-}
-
-.training-runs-table td {
-  font-size: 14px;
-  color: #666;
-}
-
-.training-run-name {
-  color: #007bff;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.training-run-name:hover {
-  text-decoration: underline;
-}
-
-.training-run-status {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-.training-run-status.running {
-  background: #e3f2fd;
-  color: #1976d2;
-}
-
-.training-run-status.completed {
-  background: #e8f5e8;
-  color: #2e7d32;
-}
-
-.training-run-status.failed {
-  background: #ffebee;
-  color: #c62828;
-}
-
-.training-run-user {
-  font-family: monospace;
-  font-size: 12px;
-}
-
-.loading-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 300px;
-  color: #666;
-}
-
-.error-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 300px;
-  color: #c62828;
-  text-align: center;
-}
-`
+import styles from './TrainingRuns.module.css'
+import { SearchAndFiltersSidebar } from './SearchAndFiltersSidebar'
+import { TrainingRunRow } from './TrainingRunRow'
 
 interface TrainingRunsProps {
   repo: Repo
 }
 
 export function TrainingRuns({ repo }: TrainingRunsProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [trainingRuns, setTrainingRuns] = useState<TrainingRun[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [selectedTagFilters, setSelectedTagFilters] = useState<string[]>([])
+
+  // Initialize tag filters from URL parameters
+  useEffect(() => {
+    const tagFilters = searchParams.get('tag_filters')
+    if (tagFilters) {
+      // Parse comma-separated values
+      const tags = tagFilters
+        .split(',')
+        .map((tag) => decodeURIComponent(tag.trim()))
+        .filter((tag) => tag.length > 0)
+      if (tags.length > 0) {
+        setSelectedTagFilters(tags)
+      }
+    }
+  }, [searchParams])
+
+  // Update URL when tag filters change
+  useEffect(() => {
+    const newSearchParams = new URLSearchParams(searchParams)
+
+    if (selectedTagFilters.length > 0) {
+      // Join tags with commas and URL encode each tag
+      const tagParam = selectedTagFilters.map((tag) => encodeURIComponent(tag)).join(',')
+      newSearchParams.set('tag_filters', tagParam)
+    } else {
+      newSearchParams.delete('tag_filters')
+    }
+
+    setSearchParams(newSearchParams, { replace: true })
+  }, [selectedTagFilters, searchParams, setSearchParams])
 
   useEffect(() => {
-    const loadTrainingRuns = async () => {
+    const loadData = async () => {
       try {
         setLoading(true)
-        const response = await repo.getTrainingRuns()
+        const [response, userResponse] = await Promise.all([
+          repo.getTrainingRuns(),
+          repo.whoami().catch(() => ({ user_email: '' })),
+        ])
         setTrainingRuns(response.training_runs)
+        setCurrentUser(userResponse.user_email)
         setError(null)
       } catch (err: any) {
         setError(`Failed to load training runs: ${err.message}`)
@@ -160,41 +66,47 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
       }
     }
 
-    loadTrainingRuns()
+    loadData()
   }, [repo])
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+  const canEditRun = (run: TrainingRun) => {
+    return Boolean(currentUser && run.user_id === currentUser)
   }
 
-  const getStatusClass = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'running':
-        return 'running'
-      case 'completed':
-        return 'completed'
-      case 'failed':
-        return 'failed'
-      default:
-        return ''
-    }
+  const handleRunUpdate = (updatedRun: TrainingRun) => {
+    setTrainingRuns((prev) => prev.map((run) => (run.id === updatedRun.id ? updatedRun : run)))
   }
 
-  const filteredTrainingRuns = trainingRuns.filter(run => {
+  // Get all unique tags from all training runs
+  const getAllTags = () => {
+    const allTags = new Set<string>()
+    trainingRuns.forEach((run) => {
+      run.tags.forEach((tag) => allTags.add(tag))
+    })
+    return Array.from(allTags).sort()
+  }
+
+  const filteredTrainingRuns = trainingRuns.filter((run) => {
     const query = searchQuery.toLowerCase()
-    return (
+    const matchesSearch =
       run.name.toLowerCase().includes(query) ||
       run.status.toLowerCase().includes(query) ||
-      run.user_id.toLowerCase().includes(query)
-    )
+      run.user_id.toLowerCase().includes(query) ||
+      (run.description && run.description.toLowerCase().includes(query)) ||
+      run.tags.some((tag) => tag.toLowerCase().includes(query))
+
+    // Check if run has ALL selected tag filters
+    const matchesTagFilters =
+      selectedTagFilters.length === 0 || selectedTagFilters.every((filterTag) => run.tags.includes(filterTag))
+
+    return matchesSearch && matchesTagFilters
   })
 
   if (loading) {
     return (
-      <div className="training-runs-container">
-        <style>{TRAINING_RUNS_CSS}</style>
-        <div className="training-runs-content">
-          <div className="loading-container">
+      <div className={styles.trainingRunsContainer}>
+        <div className={styles.trainingRunsContent}>
+          <div className={styles.loadingContainer}>
             <div>Loading training runs...</div>
           </div>
         </div>
@@ -204,10 +116,9 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
 
   if (error) {
     return (
-      <div className="training-runs-container">
-        <style>{TRAINING_RUNS_CSS}</style>
-        <div className="training-runs-content">
-          <div className="error-container">
+      <div className={styles.trainingRunsContainer}>
+        <div className={styles.trainingRunsContent}>
+          <div className={styles.errorContainer}>
             <div>{error}</div>
           </div>
         </div>
@@ -216,70 +127,64 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
   }
 
   return (
-    <div className="training-runs-container">
-      <style>{TRAINING_RUNS_CSS}</style>
-      <div className="training-runs-content">
-        <div className="training-runs-header">
-          <h1 className="training-runs-title">Training Runs</h1>
-          <div>
-            <input
-              type="text"
-              placeholder="Search training runs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-box"
-            />
-            <div className="training-runs-count">
-              {searchQuery ?
-                `${filteredTrainingRuns.length} of ${trainingRuns.length} training runs` :
-                `${trainingRuns.length} training run${trainingRuns.length !== 1 ? 's' : ''}`
-              }
+    <div className={styles.trainingRunsContainer}>
+      <div className={styles.trainingRunsContent}>
+        {/* Search and Filters Sidebar */}
+        <SearchAndFiltersSidebar
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          selectedTagFilters={selectedTagFilters}
+          onTagFiltersChange={setSelectedTagFilters}
+          availableTags={getAllTags()}
+        />
+
+        {/* Main Content */}
+        <div className={styles.mainContent}>
+          <div className={styles.trainingRunsHeader}>
+            <h1 className={styles.trainingRunsTitle}>Training Runs</h1>
+            <div className={styles.trainingRunsCount}>
+              {searchQuery || selectedTagFilters.length > 0
+                ? `${filteredTrainingRuns.length} of ${trainingRuns.length} training runs`
+                : `${trainingRuns.length} training run${trainingRuns.length !== 1 ? 's' : ''}`}
             </div>
           </div>
-        </div>
 
-        {trainingRuns.length === 0 ? (
-          <div className="loading-container">
-            <div>No training runs found.</div>
-          </div>
-        ) : filteredTrainingRuns.length === 0 ? (
-          <div className="loading-container">
-            <div>No training runs match your search.</div>
-          </div>
-        ) : (
-          <table className="training-runs-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Finished</th>
-                <th>User</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTrainingRuns.map((run) => (
-                <tr key={run.id}>
-                  <td>
-                    <Link to={`/training-run/${run.id}`} className="training-run-name">
-                      {run.name}
-                    </Link>
-                  </td>
-                  <td>
-                    <span className={`training-run-status ${getStatusClass(run.status)}`}>
-                      {run.status}
-                    </span>
-                  </td>
-                  <td>{formatDate(run.created_at)}</td>
-                  <td>{run.finished_at ? formatDate(run.finished_at) : '—'}</td>
-                  <td>
-                    <span className="training-run-user">{run.user_id}</span>
-                  </td>
+          {trainingRuns.length === 0 ? (
+            <div className={styles.loadingContainer}>
+              <div>No training runs found.</div>
+            </div>
+          ) : filteredTrainingRuns.length === 0 ? (
+            <div className={styles.loadingContainer}>
+              <div>No training runs match your search.</div>
+            </div>
+          ) : (
+            <table className={styles.trainingRunsTable}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Tags</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Finished</th>
+                  <th>User</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {filteredTrainingRuns.map((run) => (
+                  <TrainingRunRow
+                    key={run.id}
+                    run={run}
+                    canEdit={canEditRun(run)}
+                    repo={repo}
+                    onRunUpdate={handleRunUpdate}
+                    onError={setError}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   )

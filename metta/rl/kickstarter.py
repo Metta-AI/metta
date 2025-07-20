@@ -5,11 +5,12 @@ from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
 
 
 class Kickstarter:
-    def __init__(self, cfg: KickstartConfig, device: str, policy_store: PolicyStore, action_names, action_max_params):
+    def __init__(self, cfg: KickstartConfig, device: str, policy_store: PolicyStore, metta_grid_env: MettaGridEnv):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
@@ -24,6 +25,7 @@ class Kickstarter:
         although this hunch hasn't been tested yet.
         """
         self.device = device
+        self.metta_grid_env = metta_grid_env
         self.teacher_cfgs = cfg.additional_teachers
         self.anneal_ratio = cfg.anneal_ratio
         assert 0 <= self.anneal_ratio <= 1, "Anneal_ratio must be between 0 and 1."
@@ -47,8 +49,6 @@ class Kickstarter:
 
         self.policy_store: PolicyStore = policy_store
         self.kickstart_steps: int = cfg.kickstart_steps
-        self.action_names: list[str] = action_names
-        self.action_max_params: list[int] = action_max_params
         self.anneal_factor = 1.0
 
         if self.anneal_ratio > 0:
@@ -67,7 +67,14 @@ class Kickstarter:
             policy: nn.Module = policy_record.policy
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
-            policy.activate_actions(self.action_names, self.action_max_params, self.device)
+            # Support both new and old initialization methods
+            if hasattr(policy, "initialize_to_environment"):
+                # Note: We don't have features here, so we pass None
+                # The policy should handle this gracefully
+                features = self.metta_grid_env.get_observation_features()
+                policy.initialize_to_environment(
+                    features, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device
+                )
             self.teachers.append(policy)
 
     def loss(

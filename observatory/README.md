@@ -8,7 +8,7 @@ Talks to the server in `/app_backend` - see instructions on how to run it in `/a
 Ensure Observatory is installed through the Metta setup tool:
 ```bash
 # From the metta root directory
-./metta.sh install observatory-fe
+metta install observatory-fe
 ```
 
 ## Development

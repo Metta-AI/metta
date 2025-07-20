@@ -1,5 +1,9 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - /env/mettagrid/game/objects/combat@game.objects
+  - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
 sampling: 1
@@ -7,49 +11,45 @@ sampling: 1
 game:
   num_agents: 4
   agent:
-    default_item_max: 5
+    default_resource_limit: 5
     rewards:
-      # action_failure_penalty: 0.00001
-      action_failure_penalty: 0
-      ore.red: 0.01
-      battery.red: 0.1
-      battery.red_max: 5
-      laser: 0.1
-      armor: 0.1
-      blueprint: 0.1
-      heart: 1
-      heart_max: 1000
+      inventory:
+        ore_red: 0.01
+        battery_red: 0.1
+        battery_red_max: 5
+        laser: 0.1
+        armor: 0.1
+        blueprint: 0.1
+        heart: 1
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    _target_: metta.map.mapgen.MapGen
+    instances: ${..num_agents}
+    width: 30
+    height: 30
 
-    border_width: 6
+    root:
+      type: metta.map.scenes.random.Random
+      params:
+        agents: 1
+        objects:
+          mine_red: 2
+          generator_red: 3
+          altar: 1
+          armory: 1
+          lasery: 1
+          lab: 1
+          factory: 1
+          temple: 1
 
-    room:
-      _target_: metta.mettagrid.room.random.Random
-      width: 30
-      height: 30
-      border_width: 3
-      agents: 1
-      objects:
-        mine_red: 2
-        generator_red: 3
-        altar: 1
-        armory: 1
-        lasery: 1
-        lab: 1
-        factory: 1
-        temple: 1
-
-        block: 3
-        wall: 3
+          block: 3
+          wall: 3
 
   objects:
     altar:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 25
     generator_red:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 30
     mine_red:
       cooldown: 30

@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 
@@ -71,10 +72,8 @@ class CheckpointConfig(BaseModelWithForbidExtra):
 
 
 class SimulationConfig(BaseModelWithForbidExtra):
-    # Evaluate interval: Type 2 arbitrary default
+    # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
-    # Replay interval: Type 2 arbitrary default
-    replay_interval: int = Field(default=300, gt=0)
     replay_dir: str = Field(default="")
 
     @model_validator(mode="after")
@@ -114,6 +113,21 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
+class TorchProfilerConfig(BaseModelWithForbidExtra):
+    interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
+    # Upload location: None disables uploads, supports s3:// or local paths
+    profile_dir: str = Field(default="")
+
+    @property
+    def enabled(self) -> bool:
+        return self.interval_epochs > 0
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "TorchProfilerConfig":
+        assert self.profile_dir, "profile_dir must be set"
+        return self
+
+
 class TrainerConfig(BaseModelWithForbidExtra):
     # Target for hydra instantiation
     target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
@@ -138,7 +152,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     # System configuration
-    # Zero copy: Performance optimization to avoid memory copies
+    # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)
     zero_copy: bool = True
     # Contiguous env IDs not required: More flexible env management
     require_contiguous_env_ids: bool = False
@@ -165,13 +179,17 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Reduce-overhead mode: Best for training loops when compile is enabled
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     # Profile every 10K epochs: Infrequent to minimize overhead
-    profiler_interval_epochs: int = Field(default=10000, gt=0)
+    profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     # Distributed training
     # Forward minibatch: Type 2 default chosen arbitrarily
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
+    #   (default assumes multiprocessing)
     async_factor: int = Field(default=2, gt=0)
+
+    # scheduler registry
+    hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
@@ -211,6 +229,35 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if not self.curriculum and not self.env:
             raise ValueError("curriculum or env must be set")
 
+        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
+            )
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
+            )
+        # Validate that we save policies locally at least as often as we upload to wandb
+        if (
+            self.checkpoint.wandb_checkpoint_interval != 0
+            and self.checkpoint.checkpoint_interval != 0
+            and self.checkpoint.wandb_checkpoint_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                f"to ensure policies exist locally before uploading to wandb "
+                f"({self.checkpoint.wandb_checkpoint_interval} < {self.checkpoint.checkpoint_interval})"
+            )
+
         return self
 
     @property
@@ -222,10 +269,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         raise ValueError("curriculum or env must be set")
 
 
-def parse_trainer_config(
+def create_trainer_config(
     cfg: DictConfig,
 ) -> TrainerConfig:
-    """Parse trainer config from Hydra config.
+    """Create trainer config from Hydra config.
 
     Args:
         cfg: The complete Hydra config (must contain trainer, run, and run_dir)
@@ -247,11 +294,19 @@ def parse_trainer_config(
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
 
+    # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
+    if cfg.vectorization == "serial":
+        config_dict["async_factor"] = 1
+        config_dict["zero_copy"] = False
+
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
         config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
         config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
+
+    if "profile_dir" not in config_dict.setdefault("profiler", {}):
+        config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
 
     return TrainerConfig.model_validate(config_dict)

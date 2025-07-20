@@ -1,0 +1,13 @@
+defaults:
+  - combat
+  - /env/mettagrid/game/objects/advanced@game.objects
+  - _self_
+
+game:
+  map_builder:
+    root:
+      params:
+        objects:
+          lab: 1
+          factory: 1
+          temple: 1

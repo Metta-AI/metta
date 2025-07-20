@@ -48,6 +48,15 @@ export function findAttr(element: HTMLElement, attribute: string): string {
   return ''
 }
 
+/** Toggles the opacity of a button. */
+export function toggleOpacity(button: HTMLElement, show: boolean) {
+  if (show) {
+    button.classList.remove('transparent')
+  } else {
+    button.classList.add('transparent')
+  }
+}
+
 /**
  * I don't like how the DOM handles events. I think they should be done
  * via CSS selectors rather than handlers that one attaches and detaches all the time.
@@ -207,11 +216,7 @@ export function initHighDpiMode() {
 
   function swapToHighDpiImage(img: HTMLImageElement) {
     let src = img.src
-    if (
-      !src.endsWith('@2x.png') &&
-      src.endsWith('.png') &&
-      src.includes('data/ui/')
-    ) {
+    if (!src.endsWith('@2x.png') && src.endsWith('.png') && src.includes('data/ui/')) {
       src = src.replace(/\.png$/, '@2x.png')
       img.src = src
     }
@@ -234,9 +239,8 @@ export function initHighDpiMode() {
           if (node instanceof HTMLImageElement) {
             swapToHighDpiImage(node)
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            ; (node as HTMLElement)
-              .querySelectorAll('img')
-              .forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
+            let e = node as HTMLElement
+            e.querySelectorAll('img').forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
           }
         }
       }

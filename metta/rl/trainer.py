@@ -1,44 +1,69 @@
 import logging
 import os
-import time
+import traceback
 from collections import defaultdict
-from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Set
+from typing import Any
 from uuid import UUID
 
-import einops
 import numpy as np
 import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationError
 
-from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.common.memory_monitor import MemoryMonitor
-from metta.common.stopwatch import Stopwatch, with_instance_timer
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
+from metta.common.profiling.memory_monitor import MemoryMonitor
+from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.util.wandb.wandb_context import WandbRun
-from metta.eval.eval_stats_db import EvalStatsDB
+from metta.common.wandb.wandb_context import WandbRun
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import parse_trainer_config
+from metta.rl.trainer_config import create_trainer_config
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+)
+from metta.rl.util.policy_management import (
+    cleanup_old_policies,
+    validate_policy_environment_match,
+)
+from metta.rl.util.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.util.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.simulation_suite import SimulationSuite
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -74,57 +99,39 @@ class MettaTrainer:
             logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
         self.cfg = cfg
-        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg)
+        self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
 
-        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
-        if (
-            trainer_cfg.simulation.evaluate_interval != 0
-            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.checkpoint_interval
-        ):
-            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
-
-        if (
-            trainer_cfg.simulation.evaluate_interval != 0
-            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.wandb_checkpoint_interval
-        ):
-            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
-
-        # Validate that we save policies locally at least as often as we upload to wandb
-        if (
-            trainer_cfg.checkpoint.wandb_checkpoint_interval != 0
-            and trainer_cfg.checkpoint.checkpoint_interval != 0
-            and trainer_cfg.checkpoint.wandb_checkpoint_interval < trainer_cfg.checkpoint.checkpoint_interval
-        ):
-            raise ValueError(
-                "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                "to ensure policies exist locally before uploading to wandb"
-            )
+        self.hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, self, trainer_cfg.total_timesteps, logging)
 
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
 
-        self.sim_suite_config = sim_suite_config
+        self._sim_suite_config = sim_suite_config
         self._stats_client = stats_client
 
-        self._master = True
-        self._world_size = 1
-        self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
-        self._batch_size = trainer_cfg.batch_size
-        self._minibatch_size = trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
-            self._master = int(os.environ["RANK"]) == 0
+            self._master = torch.distributed.get_rank() == 0
             self._world_size = torch.distributed.get_world_size()
+            self._rank = torch.distributed.get_rank()
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
+        else:
+            self._master = True
+            self._world_size = 1
+            self._rank = 0
 
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
+        self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
+        self._batch_size = trainer_cfg.batch_size
+        self._minibatch_size = trainer_cfg.minibatch_size
+
+        self.torch_profiler = TorchProfiler(self._master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
         self.losses = Losses()
         self.stats = defaultdict(list)
         self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.evals: dict[str, float] = {}
+        self.evals = EvalRewardSummary()
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -136,11 +143,20 @@ class MettaTrainer:
                 history_size=100,  # Keep last 100 samples
                 logger=logger,
                 auto_start=True,  # Start monitoring immediately
+                external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Add training task to the suite
+        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -160,46 +176,80 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
-        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names
-        actions_max_params = metta_grid_env.max_action_args
-
         # Load or create policy with distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
 
         if policy_record is not None:
-            logging.info(f"LOADED {policy_record.uri}")
+            logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
             self.latest_saved_policy_record = policy_record
-            self.initial_policy_record = policy_record
+
+            # Get the policy from the record
             self.policy = policy_record.policy
-            self.policy.activate_actions(actions_names, actions_max_params, self.device)
+
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(self.policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+                logger.info(f"Rank {self._rank}: Restored original_feature_mapping")
+
+            # Initialize the policy to the environment
+            self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+
+            self.initial_policy_record = policy_record
+
         else:
+            logger.info(f"Rank {self._rank}: No existing policy found, creating new one")
             # In distributed mode, handle policy creation/loading differently
             if torch.distributed.is_initialized() and not self._master:
                 # Non-master ranks wait for master to create and save the policy
                 default_policy_path = os.path.join(
                     trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0)
                 )
-                logger.info(f"Non-master rank waiting for policy to be created at {default_policy_path}")
+                logger.info(f"Rank {self._rank}: Waiting for master to create policy at {default_policy_path}")
 
-                policy_record = self._wait_for_policy_record(default_policy_path)
-                if policy_record is None:
-                    raise RuntimeError(f"Failed to load policy from {default_policy_path} after waiting")
+                # Synchronize with master before attempting to load
+                torch.distributed.barrier()
+
+                def log_progress(elapsed: float, status: str) -> None:
+                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                    elif status == "found":
+                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
+                    elif status == "stable":
+                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
+
+                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+                    raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
+
+                try:
+                    policy_record = self.policy_store.policy_record(default_policy_path)
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Rank {self._rank}: Failed to load policy from {default_policy_path}: {e}"
+                    ) from e
 
                 self.initial_policy_record = policy_record
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
-                self.policy.activate_actions(actions_names, actions_max_params, self.device)
+
+                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
             else:
                 # Master creates and saves new policy
                 policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
                 self.initial_policy_record = policy_record
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
-                self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
-        logging.info(f"USING {self.latest_saved_policy_record.uri}")
+                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+
+                # Synchronize with non-master ranks after saving
+                if torch.distributed.is_initialized():
+                    logger.info("Master rank: Policy saved, synchronizing with other ranks")
+                    torch.distributed.barrier()
+
+        logging.info(f"Rank {self._rank}: USING {self.initial_policy_record.uri}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -212,13 +262,14 @@ class MettaTrainer:
             trainer_cfg.kickstart,
             self.device,
             policy_store,
-            actions_names,
-            actions_max_params,
+            metta_grid_env,
         )
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             self.policy = DistributedMettaAgent(self.policy, self.device)
+            # Ensure all ranks have initialized DDP before proceeding
+            torch.distributed.barrier()
 
         self._make_experience_buffer()
 
@@ -238,11 +289,8 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
-        self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
-            )
+        # Validate that policy matches environment
+        validate_policy_environment_match(self.policy, metta_grid_env)
 
         if checkpoint and checkpoint.optimizer_state_dict:
             try:
@@ -268,6 +316,11 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+            # Log model parameters
+            num_params = sum(p.numel() for p in self.policy.parameters())
+            if wandb_run.summary:
+                wandb_run.summary["model/total_parameters"] = num_params
+
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
@@ -278,10 +331,21 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
 
         if self._stats_client is not None:
-            name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
-            url = self.wandb_run.url if self.wandb_run is not None else None
+            if self.wandb_run is not None:
+                name = self.wandb_run.name if self.wandb_run.name is not None else "unknown"
+                url = self.wandb_run.url
+                tags: list[str] | None = list(self.wandb_run.tags) if self.wandb_run.tags is not None else None
+                description = self.wandb_run.notes
+            else:
+                name = "unknown"
+                url = None
+                tags = None
+                description = None
+
             try:
-                self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+                self._stats_run_id = self._stats_client.create_training_run(
+                    name=name, attributes={}, url=url, description=description, tags=tags
+                ).id
             except Exception as e:
                 logger.warning(f"Failed to create training run: {e}")
 
@@ -312,7 +376,7 @@ class MettaTrainer:
             stats_pct = (stats_time / total_time) * 100
 
             logger.info(
-                f"Epoch {self.epoch} - "
+                f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
@@ -323,7 +387,6 @@ class MettaTrainer:
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
-            self._maybe_generate_replay()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -340,72 +403,41 @@ class MettaTrainer:
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
 
+        if self._stats_epoch_start < self.epoch:
+            # If we have not just evaluated the latest policy, evaluate it
+            self._maybe_evaluate_policy(force=True)
+
     def _on_train_step(self):
         pass
 
     @with_instance_timer("_rollout")
     def _rollout(self):
+        """Perform rollout phase of training."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
-        device = self.device
 
-        policy = self.policy
-        infos = defaultdict(list)
+        raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
         while not experience.ready_for_training:
-            with self.timer("_rollout.env"):
-                o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                if trainer_cfg.require_contiguous_env_ids:
-                    raise ValueError(
-                        "We are assuming contiguous eng id is always False. async_factor == num_workers = "
-                        f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
-                    )
+            # Check for contiguous env ids constraint
+            if trainer_cfg.require_contiguous_env_ids:
+                raise ValueError(
+                    "We are assuming contiguous eng id is always False. async_factor == num_workers = "
+                    f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
+                )
 
-                training_env_id = slice(env_id[0], env_id[-1] + 1)
+            # Perform single rollout step
+            # Receive environment data
+            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
+            self.agent_step += num_steps * self._world_size
 
-            # Convert mask to tensor once
-            mask = torch.as_tensor(mask)
-            num_steps = int(mask.sum().item())
-            self.agent_step += num_steps
+            # Run policy inference
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                self.policy, o, experience, training_env_id.start, self.device
+            )
 
-            # Convert to tensors once
-            o = torch.as_tensor(o).to(device, non_blocking=True)
-            r = torch.as_tensor(r).to(device, non_blocking=True)
-            d = torch.as_tensor(d).to(device, non_blocking=True)
-            t = torch.as_tensor(t).to(device, non_blocking=True)
-
-            with torch.no_grad():
-                state = PolicyState()
-
-                # Use LSTM state access for performance
-                lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
-                if lstm_h is not None:
-                    state.lstm_h = lstm_h
-                    state.lstm_c = lstm_c
-
-                # Use pre-moved tensor
-                actions, selected_action_log_probs, _, value, _ = policy(o, state)
-
-                if __debug__:
-                    # Check for NaN/Inf values in outputs
-                    if torch.isnan(actions).any() or torch.isinf(actions).any():
-                        logger.error("NaN or Inf detected in actions!")
-                    if torch.isnan(value).any() or torch.isinf(value).any():
-                        logger.error("NaN or Inf detected in values!")
-
-                # Store LSTM state for performance
-                lstm_state_to_store = None
-                if state.lstm_h is not None:
-                    lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
-
-                if str(self.device).startswith("cuda"):
-                    torch.cuda.synchronize()
-
-            value = value.flatten()
-            # mask already converted to tensor above
-
-            # All tensors are already on device, avoid redundant transfers
+            # Store experience
             experience.store(
                 obs=o,
                 actions=actions,
@@ -413,51 +445,29 @@ class MettaTrainer:
                 rewards=r,
                 dones=d,
                 truncations=t,
-                values=value,
+                values=values,
                 env_id=training_env_id,
                 mask=mask,
                 lstm_state=lstm_state_to_store,
             )
 
-            # At this point, infos contains lists of values collected across:
-            # 1. All agents in the environment
-            # 2. All rollout steps
-            # Each info is a dict mapping metric names to values.
-            # We need to flatten these into arrays for aggregation.
-            # This happens later, after the rollout is complete (see below).
-            if info:
-                # Process info dicts immediately to avoid memory accumulation
-                for i in info:
-                    for k, v in unroll_nested_dict(i):
-                        # Detach any tensors to prevent gradient accumulation
-                        if torch.is_tensor(v):
-                            v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
-                        infos[k].append(v)
-
+            # Send actions back to environment
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
-        # Batch process stats more efficiently
-        for k, v in infos.items():
-            if isinstance(v, np.ndarray):
-                v = v.tolist()
+            # Collect info for batch processing
+            if info:
+                raw_infos.extend(info)
 
-            if isinstance(v, list):
-                self.stats.setdefault(k, []).extend(v)
-            else:
-                if k not in self.stats:
-                    self.stats[k] = v
-                else:
-                    try:
-                        self.stats[k] += v
-                    except TypeError:
-                        self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+        # Batch process info dictionaries after rollout
+        accumulate_rollout_stats(raw_infos, self.stats)
 
         # TODO: Better way to enable multiple collects
-        return self.stats, infos
+        return self.stats, self.stats
 
     @with_instance_timer("_train")
     def _train(self):
+        """Perform training phase."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
 
@@ -470,10 +480,13 @@ class MettaTrainer:
         experience.reset_importance_sampling_ratios()
 
         # Prioritized sampling parameters
-        b0 = prio_cfg.prio_beta0
-        a = prio_cfg.prio_alpha
-        total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
-        anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
+        anneal_beta = calculate_prioritized_sampling_params(
+            epoch=self.epoch,
+            total_timesteps=trainer_cfg.total_timesteps,
+            batch_size=trainer_cfg.batch_size,
+            prio_alpha=prio_cfg.prio_alpha,
+            prio_beta0=prio_cfg.prio_beta0,
+        )
 
         # Compute advantages using puff_advantage
         advantages = torch.zeros(experience.values.shape, device=self.device)
@@ -481,7 +494,7 @@ class MettaTrainer:
         # Initial importance sampling ratio is all ones
         initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
-        advantages = self._compute_advantage(
+        advantages = compute_advantage(
             experience.values,
             experience.rewards,
             experience.dones,
@@ -491,6 +504,7 @@ class MettaTrainer:
             trainer_cfg.ppo.gae_lambda,
             vtrace_cfg.vtrace_rho_clip,
             vtrace_cfg.vtrace_c_clip,
+            self.device,
         )
 
         # Optimizing the policy and value network
@@ -501,110 +515,24 @@ class MettaTrainer:
             for _ in range(experience.num_minibatches):
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
-                    prio_alpha=a,
+                    prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
                     minibatch_idx=minibatch_idx,
                     total_minibatches=_total_minibatches,
                 )
 
-                obs = minibatch["obs"]
-
-                lstm_state = PolicyState()
-                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
-                    obs, lstm_state, action=minibatch["actions"]
+                # Use the helper function to process minibatch update
+                loss = process_minibatch_update(
+                    policy=self.policy,
+                    experience=experience,
+                    minibatch=minibatch,
+                    advantages=advantages,
+                    trainer_cfg=trainer_cfg,
+                    kickstarter=self.kickstarter,
+                    agent_step=self.agent_step,
+                    losses=self.losses,
+                    device=self.device,
                 )
-
-                new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-                logratio = new_logprobs - minibatch["logprobs"]
-                importance_sampling_ratio = logratio.exp()
-                experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
-
-                with torch.no_grad():
-                    approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-                    clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.ppo.clip_coef).float().mean()
-
-                # Re-compute advantages with new ratios (V-trace)
-                adv = self._compute_advantage(
-                    minibatch["values"],
-                    minibatch["rewards"],
-                    minibatch["dones"],
-                    importance_sampling_ratio,
-                    minibatch["advantages"],
-                    trainer_cfg.ppo.gamma,
-                    trainer_cfg.ppo.gae_lambda,
-                    vtrace_cfg.vtrace_rho_clip,
-                    vtrace_cfg.vtrace_c_clip,
-                )
-
-                # Normalize advantages with distributed support, then apply prioritized weights
-                adv = self._normalize_advantage_distributed(adv)
-                adv = minibatch["prio_weights"] * adv
-
-                # Policy loss
-                pg_loss1 = -adv * importance_sampling_ratio
-                pg_loss2 = -adv * torch.clamp(
-                    importance_sampling_ratio, 1 - trainer_cfg.ppo.clip_coef, 1 + trainer_cfg.ppo.clip_coef
-                )
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                # Value loss
-                newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-                if trainer_cfg.ppo.clip_vloss:
-                    v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
-                    vf_clip_coef = trainer_cfg.ppo.vf_clip_coef
-                    v_clipped = minibatch["values"] + torch.clamp(
-                        newvalue_reshaped - minibatch["values"],
-                        -vf_clip_coef,
-                        vf_clip_coef,
-                    )
-                    v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
-                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-                else:
-                    v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
-
-                entropy_loss = entropy.mean()
-
-                ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
-                )
-
-                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.ppo.l2_reg_loss_coef > 0:
-                    l2_reg_loss = trainer_cfg.ppo.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
-                l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.ppo.l2_init_loss_coef > 0:
-                    l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
-
-                loss = (
-                    pg_loss
-                    - trainer_cfg.ppo.ent_coef * entropy_loss
-                    + v_loss * trainer_cfg.ppo.vf_coef
-                    + l2_reg_loss
-                    + l2_init_loss
-                    + ks_action_loss
-                    + ks_value_loss
-                )
-
-                # Update values in experience buffer
-                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
-
-                if self.losses is None:
-                    raise ValueError("self.losses is None")
-
-                # Update loss tracking for logging
-                self.losses.policy_loss_sum += pg_loss.item()
-                self.losses.value_loss_sum += v_loss.item()
-                self.losses.entropy_sum += entropy_loss.item()
-                self.losses.approx_kl_sum += approx_kl.item()
-                self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
-                self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-                self.losses.ks_action_loss_sum += ks_action_loss.item()
-                self.losses.ks_value_loss_sum += ks_value_loss.item()
-                self.losses.importance_sum += importance_sampling_ratio.mean().item()
-                self.losses.minibatches_processed += 1
-
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
@@ -629,15 +557,10 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        self.hyperparameter_scheduler.step(self.agent_step)
 
-        # Calculate explained variance
-        y_pred = experience.values.flatten()
-        y_true = advantages.flatten() + experience.values.flatten()
-        var_y = y_true.var()
-        explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
-        self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
+        # Calculate explained variance using helper function
+        self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
         """Check if a periodic task should run based on interval and force flag."""
@@ -650,14 +573,22 @@ class MettaTrainer:
         return self.epoch % interval == 0
 
     def _maybe_record_heartbeat(self, force=False):
-        if not self._should_run(10, force):
-            return
-
-        record_heartbeat()
+        if force or (self.epoch % 10 == 0):
+            record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
-        if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
+        # Check interval for all ranks to ensure synchronization
+        if not force and self.trainer_cfg.checkpoint.checkpoint_interval:
+            if self.epoch % self.trainer_cfg.checkpoint.checkpoint_interval != 0:
+                return
+
+        # Now all ranks that should save are here
+        # Only master saves training state, but all ranks must participate in barrier
+        if not self._master:
+            # Non-master ranks need to participate in the barrier below
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
             return
 
         extra_args = {}
@@ -667,7 +598,6 @@ class MettaTrainer:
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
-            total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             stopwatch_state=self.timer.save_state(),
             policy_path=self.latest_saved_policy_uri,
@@ -676,13 +606,23 @@ class MettaTrainer:
         checkpoint.save(self.cfg.run_dir)
         logger.info(f"Saved training state at epoch {self.epoch}")
 
+        # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
     def _maybe_save_policy(self, force=False):
         """Save policy locally if on checkpoint interval"""
-        if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
-            return
+        # Check interval for all ranks to ensure synchronization
+        if not force and self.trainer_cfg.checkpoint.checkpoint_interval:
+            if self.epoch % self.trainer_cfg.checkpoint.checkpoint_interval != 0:
+                return
 
-        # Only master saves policies
+        # Now all ranks that should save are here
+        # Only master saves policies, but all ranks must participate in barrier
         if not self._master:
+            # Non-master ranks need to participate in the barrier below
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
             return
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -692,7 +632,7 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+        category_scores_map = self.evals.category_scores.copy()
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
@@ -708,57 +648,37 @@ class MettaTrainer:
             eval_scores=category_scores_map,
         )
 
+        # Extract the actual policy module from distributed wrapper if needed
+        if isinstance(self.policy, DistributedMettaAgent):
+            policy_to_save = self.policy.module
+        else:
+            policy_to_save = self.policy
+
+        # Save the original feature mapping in metadata
+        if hasattr(policy_to_save, "get_original_feature_mapping"):
+            original_feature_mapping = policy_to_save.get_original_feature_mapping()
+            if original_feature_mapping is not None:
+                metadata["original_feature_mapping"] = original_feature_mapping
+                logger.info(
+                    f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
+                )
+
         # Create a policy record and assign our current policy to it
         policy_record = self.policy_store.create_empty_policy_record(name)
         policy_record.metadata = metadata
+        policy_record.policy = policy_to_save
 
-        # Extract the actual policy module from distributed wrapper if needed
-        if isinstance(self.policy, DistributedMettaAgent):
-            policy_record.policy = self.policy.module
-        else:
-            policy_record.policy = self.policy
-
-        # Save the policy record
+        # Save the policy
         self.latest_saved_policy_record = self.policy_store.save(policy_record)
         logger.info(f"Successfully saved policy at epoch {self.epoch}")
 
         # Clean up old policies to prevent disk space issues
         if self.epoch % 10 == 0:  # Clean up every 10 epochs
-            self._cleanup_old_policies(keep_last_n=5)
+            cleanup_old_policies(self.trainer_cfg.checkpoint.checkpoint_dir, keep_last_n=5)
 
-    def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
-        """Wait for a policy file to be created by the master rank.
-
-        Args:
-            policy_path: Path to the policy file to wait for
-            timeout: Maximum time to wait in seconds
-
-        Returns:
-            PolicyRecord if found, None if timeout
-        """
-        if self._master:
-            # Master doesn't need to wait
-            return None
-
-        logger.info(f"Non-master rank waiting for policy at {policy_path}")
-        start_time = time.time()
-
-        while not os.path.exists(policy_path):
-            time.sleep(1)
-            elapsed = time.time() - start_time
-
-            if elapsed > timeout:
-                logger.error(f"Timeout after {timeout}s waiting for policy at {policy_path}")
-                return None
-
-            if int(elapsed) % 10 == 0:  # Log every 10 seconds
-                logger.info(f"Still waiting for policy... ({elapsed:.0f}s elapsed)")
-
-        # File exists, but may still be writing. Wait a bit more to ensure it's complete.
-        time.sleep(2)
-
-        logger.info(f"Policy file found after {time.time() - start_time:.1f}s, loading...")
-        return self.policy_store.policy_record(policy_path)
+        # Synchronize all ranks to ensure the policy is fully saved before continuing
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""
@@ -792,6 +712,7 @@ class MettaTrainer:
                 self._evaluate_policy(wandb_policy_name)
             except Exception as e:
                 logger.error(f"Error evaluating policy: {e}")
+                logger.error(traceback.format_exc())
 
             self._stats_epoch_start = self.epoch + 1
 
@@ -805,79 +726,90 @@ class MettaTrainer:
                 attributes={},
             ).id
 
-        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(
-            config=self.sim_suite_config,
-            policy_pr=self.latest_saved_policy_record,
-            policy_store=self.policy_store,
+        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
+        evaluation_results = evaluate_policy(
+            policy_record=self.latest_saved_policy_record,
+            simulation_suite=self._sim_suite_config,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            stats_dir="/tmp/stats",
-            stats_client=self._stats_client,
+            replay_dir=self.trainer_cfg.simulation.replay_dir,  # Pass replay_dir to enable replay generation
             stats_epoch_id=self._stats_epoch_id,
             wandb_policy_name=wandb_policy_name,
-        )
-        result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-        logger.info("Simulation complete")
-
-        # Build evaluation metrics
-        self.evals = {}  # used for wandb
-        categories: Set[str] = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
-
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter(
-                "reward", self.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
-            )
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is None:
-                continue
-            self.evals[f"{category}/score"] = score
-
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.latest_saved_policy_record, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            self.evals[f"{category}/{sim_short_name}"] = score
-
-    def _maybe_generate_replay(self, force=False):
-        """Generate replay if on replay interval"""
-        if self._should_run(self.trainer_cfg.simulation.replay_interval, force):
-            self._generate_and_upload_replay()
-
-    @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
-    def _generate_and_upload_replay(self):
-        replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
-        replay_simulator = Simulation(
-            name=f"replay_{self.epoch}",
-            config=replay_sim_config,
-            policy_pr=self.latest_saved_policy_record,
             policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            replay_dir=self.trainer_cfg.simulation.replay_dir,
+            stats_client=self._stats_client,
+            logger=logger,
         )
-        results = replay_simulator.simulate()
+        logger.info("Simulation complete")
+        self.evals = evaluation_results.scores
 
-        if self.wandb_run is not None:
-            key, version = self.latest_saved_policy_record.key_and_version()
-            replay_urls = results.stats_db.get_replay_urls(key, version)
-            if len(replay_urls) > 0:
-                replay_url = replay_urls[0]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
+        # Get target metric (for logging) from sweep config
+        # and write top-level score for policy selection.
+        # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
+        target_metric = getattr(self.cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
+        category_scores = list(self.evals.category_scores.values())
+        if category_scores and self.latest_saved_policy_record:
+            self.latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+            logger.info(
+                f"Set policy metadata score to "
+                f"{self.latest_saved_policy_record.metadata['score']} using {target_metric} metric"
+            )
+
+        # Generate and upload replay HTML if we have wandb
+        if self.wandb_run is not None and evaluation_results.replay_urls:
+            self._upload_replay_html(evaluation_results.replay_urls)
+
+    def _upload_replay_html(self, replay_urls: dict[str, list[str]]):
+        """Upload replay HTML to wandb"""
+        # Create unified HTML with all replay links on a single line
+        if replay_urls:
+            # Group replays by base name
+            replay_groups = {}
+
+            for sim_name, urls in sorted(replay_urls.items()):
+                if "training_task" in sim_name:
+                    # Training replays
+                    if "training" not in replay_groups:
+                        replay_groups["training"] = []
+                    replay_groups["training"].extend(urls)
+                else:
+                    # Evaluation replays - clean up the display name
+                    display_name = sim_name.replace("eval/", "")
+                    if display_name not in replay_groups:
+                        replay_groups[display_name] = []
+                    replay_groups[display_name].extend(urls)
+
+            # Build HTML with episode numbers
+            links = []
+            for name, urls in replay_groups.items():
+                if len(urls) == 1:
+                    # Single episode - just show the name
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                    links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
+                else:
+                    # Multiple episodes - show with numbers
+                    episode_links = []
+                    for i, url in enumerate(urls, 1):
+                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                        episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
+                    links.append(f"{name} [{' '.join(episode_links)}]")
+
+            # Join all links with " | " separator and add epoch prefix
+            html_content = f"epoch {self.epoch}: " + " | ".join(links)
+        else:
+            html_content = f"epoch {self.epoch}: No replays available."
+
+        # Log the unified HTML with step parameter for wandb's epoch slider
+        link_summary = {"replays/all_links": wandb.Html(html_content)}
+        self.wandb_run.log(link_summary, step=self.agent_step)
+
+        # Also log individual link for backward compatibility
+        if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
+            training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
+            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
+            link_summary = {
+                "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+            }
+            self.wandb_run.log(link_summary, step=self.agent_step)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
@@ -886,22 +818,19 @@ class MettaTrainer:
             self.grad_stats.clear()
             return
 
-        # convert lists of values (collected across all environments and rollout steps on this GPU)
-        # into single mean values and standard deviations.
-        mean_stats = {}
-        for k, v in self.stats.items():
-            try:
-                mean_stats[k] = np.mean(v)
-                # Add standard deviation with .std_dev suffix
-                mean_stats[f"{k}.std_dev"] = np.std(v)
-            except (TypeError, ValueError) as e:
-                raise RuntimeError(
-                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
-                    f"All collected stats must be numeric values or lists of numeric values. "
-                    f"Error: {e}"
-                ) from e
-        self.stats = mean_stats
+        # Process training stats using shared function
+        processed_stats = process_training_stats(
+            raw_stats=self.stats,
+            losses=self.losses,
+            experience=self.experience,
+            trainer_config=self.trainer_cfg,
+            kickstarter=self.kickstarter,
+        )
 
+        # Update self.stats with mean values for consistency
+        self.stats = processed_stats["mean_stats"]
+
+        # Compute weight stats if on interval
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -910,105 +839,44 @@ class MettaTrainer:
                     if key != "name":
                         weight_stats[f"weights/{key}/{name}"] = value
 
-        elapsed_times = self.timer.get_all_elapsed()
-        wall_time = self.timer.get_elapsed()
-        train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+        # Compute timing stats using shared function
+        timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
 
-        lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
-        wall_time_for_lap = lap_times.pop("global", 0)
-
-        # X-axis values for wandb
-        metric_stats = {
-            "metric/agent_step": self.agent_step * self._world_size,
-            "metric/epoch": self.epoch,
-            "metric/total_time": wall_time,
-            "metric/train_time": train_time,
+        # Build parameters dictionary
+        parameters = {
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "epoch_steps": timing_info["epoch_steps"],
+            "num_minibatches": self.experience.num_minibatches,
+            "generation": self.current_policy_generation,
+            "latest_saved_policy_epoch": self.latest_saved_policy_record.metadata.epoch,
         }
 
-        epoch_steps = self.timer.get_lap_steps()
-        assert epoch_steps is not None
-
-        epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-        epoch_steps_per_second *= self._world_size
-        steps_per_second *= self._world_size
-
-        timing_stats = {
-            **{
-                f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
-                for op, lap_elapsed in lap_times.items()
-            },
-            **{
-                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
-                for op, lap_elapsed in lap_times.items()
-            },
-            "timing_per_epoch/sps": epoch_steps_per_second,
-            **{
-                f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
-                for op, elapsed in elapsed_times.items()
-            },
-            "timing_cumulative/sps": steps_per_second,
-        }
-
-        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
-        overview = {
-            "sps": epoch_steps_per_second,
-        }
-
-        # Calculate average reward from all env_task_reward entries
-        task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-        if task_reward_values:
-            mean_reward = sum(task_reward_values) / len(task_reward_values)
-            overview["reward"] = mean_reward
-            overview["reward_vs_total_time"] = mean_reward
-
-        # include custom stats from trainer config
+        # Include custom stats from trainer config
         if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
             for k, v in self.trainer_cfg.stats.overview.items():
                 if k in self.stats:
-                    overview[v] = self.stats[k]
+                    processed_stats["overview"][v] = self.stats[k]
 
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+        # Add hyperparameter values
 
-        for category, score in category_scores_map.items():
-            overview[f"{category}_score"] = score
+        # Build complete stats dictionary for wandb
+        all_stats = build_wandb_stats(
+            processed_stats=processed_stats,
+            timing_info=timing_info,
+            weight_stats=weight_stats,
+            grad_stats=self.grad_stats,
+            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
+            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            parameters=parameters,
+            hyperparameters=self.hyperparameters,
+            evals=self.evals,
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+        )
 
-        losses = self.losses.stats()
-
-        # don't plot losses that are unused
-        if self.trainer_cfg.ppo.l2_reg_loss_coef == 0:
-            losses.pop("l2_reg_loss")
-        if self.trainer_cfg.ppo.l2_init_loss_coef == 0:
-            losses.pop("l2_init_loss")
-        if not self.kickstarter.enabled:
-            losses.pop("ks_action_loss")
-            losses.pop("ks_value_loss")
-
-        parameters = {
-            "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "epoch_steps": epoch_steps,
-            "num_minibatches": self.experience.num_minibatches,
-            "generation": self.current_policy_generation,
-            "policy_record_version": self.latest_saved_policy_record.key_and_version()[1],
-        }
-
+        # Log to wandb
         self.wandb_run.log(
-            {
-                **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"experience/{k}": v for k, v in self.experience.stats().items()},
-                **{f"parameters/{k}": v for k, v in parameters.items()},
-                **{f"eval_{k}": v for k, v in self.evals.items()},
-                **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
-                **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
-                **environment_stats,
-                **weight_stats,
-                **timing_stats,
-                **metric_stats,
-                **self.grad_stats,
-            },
+            all_stats,
             # WandB can automatically increment step on each call to log, but we force the value here
             # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
             # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the
@@ -1019,78 +887,22 @@ class MettaTrainer:
         self.stats.clear()
         self.grad_stats.clear()
 
-    def _compute_advantage(
-        self,
-        values,
-        rewards,
-        dones,
-        importance_sampling_ratio,
-        advantages,
-        gamma,
-        gae_lambda,
-        vtrace_rho_clip,
-        vtrace_c_clip,
-    ):
-        # Get correct device for this process
-        device = torch.device(self.device) if isinstance(self.device, str) else self.device
-
-        # Move tensors to device and compute advantage
-        tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
-        tensors = [t.to(device) for t in tensors]
-        values, rewards, dones, importance_sampling_ratio, advantages = tensors
-
-        # Create context manager that only applies CUDA device context if needed
-        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
-        with device_context:
-            torch.ops.pufferlib.compute_puff_advantage(
-                values,
-                rewards,
-                dones,
-                importance_sampling_ratio,
-                advantages,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
-
-        return advantages
-
-    def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
-        """Normalize advantages with distributed training support while preserving shape."""
-        if not self.trainer_cfg.ppo.norm_adv:
-            return adv
-
-        if torch.distributed.is_initialized():
-            # Compute local statistics
-            adv_flat = adv.view(-1)
-            local_sum = einops.rearrange(adv_flat.sum(), "-> 1")
-            local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> 1")
-            local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
-
-            # Combine statistics for single all_reduce
-            stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
-            torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
-
-            # Extract global statistics
-            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
-            global_mean = global_sum / global_count
-            global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
-            global_std = torch.sqrt(global_var.clamp(min=1e-8))
-
-            # Normalize and reshape back
-            adv = (adv - global_mean) / (global_std + 1e-8)
-        else:
-            # Local normalization
-            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-
-        return adv
-
     def close(self):
         self.vecenv.close()
         if self._master:
             self._memory_monitor.clear()
             self._system_monitor.stop()
+
+    @property
+    def hyperparameters(self):
+        return {
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+            "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+            "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+            "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+            "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        }
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
@@ -1125,15 +937,8 @@ class MettaTrainer:
         # Calculate minibatch parameters
         max_minibatch_size = trainer_cfg.minibatch_size
 
-        # Get LSTM parameters
-        hidden_size = getattr(self.policy, "hidden_size", 256)
-        num_lstm_layers = 2  # Default value
-
-        # Try to get actual number of LSTM layers from policy
-        if hasattr(self.policy, "components") and "_core_" in self.policy.components:
-            lstm_module = self.policy.components["_core_"]
-            if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
-                num_lstm_layers = lstm_module._net.num_layers
+        # Get LSTM parameters using helper function
+        hidden_size, num_lstm_layers = get_lstm_config(self.policy)
 
         # Create experience buffer
         self.experience = Experience(
@@ -1154,25 +959,47 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
+        task = self._curriculum.get_task()
+        env_cfg = task.env_cfg()
 
-        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+        # TODO: relax someday when we support other observation shapes
+        try:
+            game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=True)
 
-        self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if self.target_batch_size < max(2, trainer_cfg.num_workers):  # pufferlib bug requires batch size >= 2
-            self.target_batch_size = trainer_cfg.num_workers
+            if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
+                raise TypeError("env_cfg.game must be a dict with string keys")
+
+            # map_builder is currently in our game config but it is forbidden by the pydantic model. As we do in
+            # mettagrid, we will deal with this by removing it.
+            # See `mettagrid/src/metta/mettagrid/mettagrid_env.py:__initialize_c_env()` for details
+            if "map_builder" in game_cfg_dict:
+                del game_cfg_dict["map_builder"]
+
+            game_cfg = PyPolicyGameConfig(**game_cfg_dict)  # type: ignore[arg-type]
+
+        except ValidationError as e:
+            raise ValueError(f"env_cfg.game is not compatible with agent requirements: {e}") from e
+
+        num_agents = game_cfg.num_agents
+
+        # Calculate batch sizes using helper function
+        self.target_batch_size, self.batch_size, num_envs = calculate_batch_sizes(
+            forward_pass_minibatch_target_size=trainer_cfg.forward_pass_minibatch_target_size,
+            num_agents=num_agents,
+            num_workers=trainer_cfg.num_workers,
+            async_factor=trainer_cfg.async_factor,
+        )
 
         logger.info(
             f"target_batch_size: {self.target_batch_size} = "
             f"min ({trainer_cfg.forward_pass_minibatch_target_size} // {num_agents} , {trainer_cfg.num_workers})"
         )
 
-        self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
         logger.info(
             f"forward_pass_batch_size: {self.batch_size} = "
             f"({self.target_batch_size} // {trainer_cfg.num_workers}) * {trainer_cfg.num_workers}"
         )
 
-        num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
@@ -1243,64 +1070,17 @@ class MettaTrainer:
             return
 
         with self.timer("grad_stats"):
-            all_gradients = []
-            for param in self.policy.parameters():
-                if param.grad is not None:
-                    all_gradients.append(param.grad.view(-1))
+            self.grad_stats = compute_gradient_stats(self.policy)
 
-            if not all_gradients:
-                logger.warning("No gradients found to compute stats.")
-                self.grad_stats = {}
-                return
-
-            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-            grad_mean = all_gradients_tensor.mean()
-            grad_variance = all_gradients_tensor.var()
-            grad_norm = all_gradients_tensor.norm(2)
-
-            self.grad_stats = {
-                "grad/mean": grad_mean.item(),
-                "grad/variance": grad_variance.item(),
-                "grad/norm": grad_norm.item(),
-            }
-            logger.info(
-                f"Computed gradient stats at epoch {self.epoch}: "
-                f"mean={self.grad_stats['grad/mean']:.2e}, "
-                f"var={self.grad_stats['grad/variance']:.2e}, "
-                f"norm={self.grad_stats['grad/norm']:.2e}"
+    def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
+        """Helper method to initialize a policy to the environment using the appropriate interface."""
+        if hasattr(policy, "initialize_to_environment"):
+            features = metta_grid_env.get_observation_features()
+            policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, device
             )
-
-    def _cleanup_old_policies(self, keep_last_n: int = 5):
-        """Clean up old saved policies to prevent memory accumulation.
-
-        Args:
-            keep_last_n: Number of most recent policies to keep
-        """
-        if not self._master or not hasattr(self, "policy_store"):
-            return
-
-        try:
-            # Get checkpoint directory
-            checkpoint_dir = Path(self.trainer_cfg.checkpoint.checkpoint_dir)
-            if not checkpoint_dir.exists():
-                return
-
-            # List all policy files
-            policy_files = sorted(checkpoint_dir.glob("policy_*.pt"))
-
-            # Keep only the most recent ones
-            if len(policy_files) > keep_last_n:
-                files_to_remove = policy_files[:-keep_last_n]
-                for file_path in files_to_remove:
-                    try:
-                        file_path.unlink()
-                        logger.info(f"Removed old policy file: {file_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to remove old policy file {file_path}: {e}")
-
-        except Exception as e:
-            logger.warning(f"Error during policy cleanup: {e}")
+        else:
+            policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
 
 class AbortingTrainer(MettaTrainer):

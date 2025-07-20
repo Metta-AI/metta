@@ -1,0 +1,42 @@
+# Altars take hearts as input, so the only way to get more hearts is to freeze
+# other agents.
+
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects@game.objects:
+      - basic
+      - mines
+      - generators
+      - combat
+  - _self_
+
+game:
+  num_agents: 24
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+
+    width: 25
+    height: 25
+    instances: 4
+    instance_border_width: 0
+
+    root:
+      type: metta.map.scenes.random.Random
+      params:
+        agents: 6
+        objects:
+          mine_red: 10
+          generator_red: 5
+          altar: 2
+          lasery: 2
+          armory: 2
+
+          block: 20
+          wall: 20
+
+  objects:
+    altar:
+      input_resources:
+        blueprint: 1
+      initial_resource_count: 1
+      cooldown: 1

@@ -1,5 +1,6 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 sampling: 1
@@ -8,22 +9,22 @@ game:
   max_steps: 200
   num_agents: 4
   agent:
-    ore.red_max: 1
-    ore.blue_max: 1
-    ore.green_max: 1
-    battery.red_max: 1
-    battery.blue_max: 1
-    battery.green_max: 1
+    resource_limits:
+      ore_red: 1
+      ore_blue: 1
+      ore_green: 1
+      battery_red: 1
+      battery_blue: 1
+      battery_green: 1
     rewards:
-      action_failure_penalty: 0
-      ore.red: ${sampling:0.005,0.1,0.01}
-      battery.red: ${sampling:0.01,0.3,0.1}
-      ore.blue: ${sampling:0.005,0.1,0.01}
-      battery.blue: ${sampling:0.01,0.3,0.1}
-      ore.green: ${sampling:0.005,0.1,0.01}
-      battery.green: ${sampling:0.01,0.3,0.1}
-      heart: 1
-      heart_max: 1000
+      inventory:
+        ore_red: ${sampling:0.005,0.1,0.01}
+        battery_red: ${sampling:0.01,0.3,0.1}
+        ore_blue: ${sampling:0.005,0.1,0.01}
+        battery_blue: ${sampling:0.01,0.3,0.1}
+        ore_green: ${sampling:0.005,0.1,0.01}
+        battery_green: ${sampling:0.01,0.3,0.1}
+        heart: 1
 
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
@@ -49,14 +50,17 @@ game:
   objects:
     altar:
       cooldown: 10
-      input_battery.red: 1
-      output_heart: 1
+      input_resources:
+        battery_red: 1
+      output_resources:
+        heart: 1
       max_output: 1
       conversion_ticks: 1
-      initial_items: 0
+      initial_resource_count: 0
     generator_red:
       cooldown: ${sampling:6,20,3}
-      output_battery.red: 1
+      output_resources:
+        battery_red: 1
       max_output: 1
       conversion_ticks: 1
-      initial_items: 1
+      initial_resource_count: 1

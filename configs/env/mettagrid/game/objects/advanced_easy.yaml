@@ -1,0 +1,10 @@
+lab:
+  input_resources:
+    ore_red: 1
+    battery_red: 1
+
+factory:
+  input_resources:
+    blueprint: 1
+    ore_red: 1
+    battery_red: 1

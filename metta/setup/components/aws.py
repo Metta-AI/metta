@@ -2,28 +2,27 @@ import json
 from pathlib import Path
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import UserType
 from metta.setup.registry import register_module
 from metta.setup.utils import info
 
 
 @register_module
 class AWSSetup(SetupModule):
+    install_once = True
+
     @property
     def description(self) -> str:
         return "AWS configuration and credentials"
 
     @property
     def setup_script_location(self) -> str | None:
-        if self.config.user_type == UserType.SOFTMAX:
+        if self.config.user_type.is_softmax:
             return "devops/aws/setup_aws_profiles.sh"
         return None
 
     def is_applicable(self) -> bool:
-        return self.config.user_type in [
-            UserType.SOFTMAX,
-            UserType.CLOUD,
-        ] and self.config.is_component_enabled("aws")
+        # Skypilot is a dependency of AWS
+        return any(self.config.is_component_enabled(dep) for dep in ["aws", "skypilot"])
 
     def check_installed(self) -> bool:
         aws_config = Path.home() / ".aws" / "config"
@@ -33,7 +32,7 @@ class AWSSetup(SetupModule):
         return True
 
     def install(self) -> None:
-        if self.config.user_type == UserType.SOFTMAX:
+        if self.config.user_type.is_softmax:
             info("""
                 Your AWS access should have been provisioned.
                 If you don't have access, contact your team lead.

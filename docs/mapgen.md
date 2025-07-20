@@ -40,6 +40,9 @@ Same heuristics about detecting if the URI is a file apply here.
 
 ### Loading maps in map_builder configs
 
-You can load a random map from an S3 directory in your YAML configs by using `metta.map.load_random.LoadRandom` as a map builder.
+You can load a random map from an S3 directory in your YAML configs by using `metta.map.load_random.LoadRandom` as a map
+builder.
 
-`LoadRandom` allows you to modify the map by applying additional scenes to it. Check out `configs/env/mettagrid/map_builder/load_random.yaml` for an example config that modifies the number of agents in the map.
+`LoadRandom` allows you to modify the map by applying additional scenes to it. Check out
+`configs/env/mettagrid/map_builder/load_random.yaml` for an example config that modifies the number of agents in the
+map.

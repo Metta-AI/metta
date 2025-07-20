@@ -17,7 +17,9 @@ dependencies = [
   "imageio>=2.37.0",
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",
+  "metta-app-backend",
   "metta-mettagrid",
+  "metta-agent",
   "metta-common",
   "numpy>=2.2.6",
   "omegaconf>=2.4.0.dev3",
@@ -30,15 +32,10 @@ dependencies = [
   "pybind11>=2.10.4",
   "pydantic>=2.11.5",
   "pynvml>=11.5.3",
-  "pyright>=1.1.401",
-  "pytest>=8.3.3",
-  "pytest-benchmark>=5.1.0",
-  "pytest-cov>=6.1.1",
   "python-dotenv>=1.1.0",
   "pyyaml>=6.0.2",
   "pyro-ppl>=1.9.1",
   "rich>=13.9.4",
-  "ruff>=0.11.13",
   "scipy>=1.15.3",
   "setuptools>=80.9.0",
   "shimmy>=2.0.0",
@@ -62,16 +59,33 @@ requires-python = "==3.11.7"
 license = "MIT"
 
 [dependency-groups]
-dev = ["skypilot==0.9.3"]
+dev = [
+  "pytest>=8.3.3",
+  "pytest-benchmark>=5.1.0",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "pyright>=1.1.401",
+  "ruff>=0.11.13",
+  "skypilot==0.9.3",
+  "pytest-testmon>=2.1.3",
+  "ipython>=9.4.0",
+]
 
 [project.scripts]
+metta = "metta.setup.metta_cli:main"
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
 mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
-source = ["metta", "metta.mettagrid", "metta.common"]
+source = [
+  "metta",
+  "metta.mettagrid",
+  "metta.common",
+  "metta.agent",
+  "metta.app_backend",
+]
 
 [tool.scikit-build.cmake.define]
 CMAKE_BUILD_TYPE = "Release"
@@ -93,9 +107,11 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
+members = ["mettagrid", "app_backend", "common", "agent"]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
-app_backend = { path = "app_backend", editable = true }
-metta-mettagrid = { path = "mettagrid", editable = true }
-metta-common = { path = "common", editable = true }
+metta-app-backend = { workspace = true }
+metta-mettagrid = { workspace = true }
+metta-common = { workspace = true }
+metta-agent = { workspace = true }

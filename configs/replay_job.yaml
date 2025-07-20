@@ -1,17 +1,19 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: simple
+  - /sim/sim_single@replay_job.sim
   - _self_
 
 run: ???
 policy_uri: ???
 
 replay_job:
-  sim: ${sim}
+  sim:
+    env: /env/mettagrid/arena/advanced
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats
   replay_dir: ${run_dir}/replays/local
+  open_browser_on_start: true
 
 cmd: play

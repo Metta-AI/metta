@@ -7,7 +7,11 @@
 #include <random>
 #include <vector>
 
+#include "actions/attack.hpp"
+#include "actions/change_glyph.hpp"
 #include "mettagrid_c.hpp"
+#include "objects/agent.hpp"
+#include "objects/wall.hpp"
 
 namespace py = pybind11;
 
@@ -23,35 +27,21 @@ namespace py = pybind11;
 // We'll know we've succeeded when this file has zero references to pybind11!
 
 // Helper functions for creating configuration and map
-py::dict CreateBenchmarkConfig(int num_agents) {
-  py::dict game_cfg;
+GameConfig CreateBenchmarkConfig(size_t num_agents) {
+  std::vector<std::string> inventory_item_names = {"ore", "heart"};
 
-  // Basic game configuration
-  game_cfg["num_agents"] = num_agents;
-  game_cfg["max_steps"] = 10000;
-  game_cfg["obs_width"] = 11;
-  game_cfg["obs_height"] = 11;
-  game_cfg["num_observation_tokens"] = 100;
+  std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
+      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>());
 
-  // Inventory item names configuration
-  py::list inventory_item_names;
-  inventory_item_names.append("ore");
-  inventory_item_names.append("heart");
-  game_cfg["inventory_item_names"] = inventory_item_names;
+  std::shared_ptr<AttackActionConfig> attack_cfg =
+      std::make_shared<AttackActionConfig>(std::map<InventoryItem, InventoryQuantity>(),
+                                           std::map<InventoryItem, InventoryQuantity>(),
+                                           std::map<InventoryItem, InventoryQuantity>());
 
-  // Actions configuration
-  py::dict actions_cfg;
-  py::dict action_cfg;
-  py::dict attack_cfg;
+  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
+      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>(), 4);
 
-  action_cfg["enabled"] = true;
-  action_cfg["consumed_resources"] = py::dict();
-  action_cfg["required_resources"] = py::dict();
-
-  attack_cfg["enabled"] = true;
-  attack_cfg["consumed_resources"] = py::dict();
-  attack_cfg["required_resources"] = py::dict();
-  attack_cfg["defense_resources"] = py::dict();
+  std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
   actions_cfg["noop"] = action_cfg;
   actions_cfg["move"] = action_cfg;
@@ -61,53 +51,48 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   actions_cfg["put_items"] = action_cfg;
   actions_cfg["get_items"] = action_cfg;
   actions_cfg["change_color"] = action_cfg;
+  actions_cfg["change_glyph"] = change_glyph_cfg;
 
-  game_cfg["actions"] = actions_cfg;
+  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
-  // Groups configuration
-  py::dict agent_group1, agent_group2;
+  objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
+  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             0,
+                                                             "team1",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             std::map<InventoryItem, RewardType>(),
+                                                             std::map<InventoryItem, RewardType>(),
+                                                             std::map<std::string, RewardType>(),
+                                                             std::map<std::string, RewardType>(),
+                                                             0.0f);
+  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             1,
+                                                             "team2",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             std::map<InventoryItem, RewardType>(),
+                                                             std::map<InventoryItem, RewardType>(),
+                                                             std::map<std::string, RewardType>(),
+                                                             std::map<std::string, RewardType>(),
+                                                             0.0f);
 
-  agent_group1["freeze_duration"] = 0;
-  agent_group1["action_failure_penalty"] = 0;
-  agent_group1["max_items_per_type"] = py::dict();
-  agent_group1["resource_rewards"] = py::dict();
-  agent_group1["resource_reward_max"] = py::dict();
-  agent_group1["group_name"] = "team1";
-  agent_group1["group_id"] = 0;
-  agent_group1["group_reward_pct"] = 0.0f;
-  agent_group1["type_id"] = 0;
-  agent_group1["type_name"] = "agent";
-  agent_group1["object_type"] = "agent";
+  // Create default global observation config
+  GlobalObsConfig global_obs_config;
+  global_obs_config.episode_completion_pct = true;
+  global_obs_config.last_action = true;
+  global_obs_config.last_reward = true;
+  global_obs_config.resource_rewards = true;
 
-  agent_group2["freeze_duration"] = 0;
-  agent_group2["action_failure_penalty"] = 0;
-  agent_group2["max_items_per_type"] = py::dict();
-  agent_group2["resource_rewards"] = py::dict();
-  agent_group2["resource_reward_max"] = py::dict();
-  agent_group2["group_name"] = "team2";
-  agent_group2["group_id"] = 1;
-  agent_group2["group_reward_pct"] = 0.0f;
-  agent_group2["type_id"] = 0;
-  agent_group2["type_name"] = "agent";
-  agent_group2["object_type"] = "agent";
-
-  // Objects configuration
-  py::dict objects_cfg;
-  py::dict wall_cfg;
-
-  objects_cfg["wall"] = wall_cfg;
-  objects_cfg["wall"]["type_id"] = 1;
-  objects_cfg["wall"]["type_name"] = "wall";
-  objects_cfg["wall"]["object_type"] = "wall";
-  objects_cfg["agent.team1"] = agent_group1;
-  objects_cfg["agent.team2"] = agent_group2;
-
-  game_cfg["objects"] = objects_cfg;
-
-  return game_cfg;
+  return GameConfig(
+      num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
 
-py::list CreateDefaultMap(int num_agents_per_team = 2) {
+py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
   py::list map;
   const int width = 32;
   const int height = 32;
@@ -126,11 +111,11 @@ py::list CreateDefaultMap(int num_agents_per_team = 2) {
   }
 
   // Place agents symmetrically
-  int agents_placed = 0;
-  std::vector<std::pair<int, int>> positions = {{8, 8},   {8, 24},  {24, 8},  {24, 24}, {16, 8},  {16, 24}, {8, 16},
-                                                {24, 16}, {12, 12}, {12, 20}, {20, 12}, {20, 20}, {16, 16}, {16, 12},
-                                                {16, 20}, {12, 16}, {20, 16}, {10, 10}, {10, 22}, {22, 10}, {22, 22},
-                                                {14, 14}, {14, 18}, {18, 14}, {18, 18}};
+  size_t agents_placed = 0;
+  std::vector<std::pair<size_t, size_t>> positions = {
+      {8, 8},   {8, 24},  {24, 8},  {24, 24}, {16, 8},  {16, 24}, {8, 16},  {24, 16}, {12, 12},
+      {12, 20}, {20, 12}, {20, 20}, {16, 16}, {16, 12}, {16, 20}, {12, 16}, {20, 16}, {10, 10},
+      {10, 22}, {22, 10}, {22, 22}, {14, 14}, {14, 18}, {18, 14}, {18, 18}};
 
   for (size_t i = 0; i < positions.size() && agents_placed < num_agents_per_team * 2; ++i) {
     auto [r, c] = positions[i];
@@ -144,10 +129,10 @@ py::list CreateDefaultMap(int num_agents_per_team = 2) {
 }
 
 // Utility function to generate valid random actions
-py::array_t<int> GenerateValidRandomActions(MettaGrid* env, int num_agents, std::mt19937* gen) {
+py::array_t<int> GenerateValidRandomActions(MettaGrid* env, size_t num_agents, std::mt19937* gen) {
   // Get the maximum argument values for each action type
   py::list max_args = env->max_action_args();
-  int num_actions = py::len(env->action_names());
+  size_t num_actions = py::len(env->action_names());
 
   // Create actions array
   std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
@@ -155,14 +140,14 @@ py::array_t<int> GenerateValidRandomActions(MettaGrid* env, int num_agents, std:
   auto actions_ptr = static_cast<int*>(actions.request().ptr);
 
   // Initialize distributions
-  std::uniform_int_distribution<> action_dist(0, num_actions - 1);
+  std::uniform_int_distribution<> action_dist(0, static_cast<int>(num_actions) - 1);
 
-  for (int i = 0; i < num_agents; ++i) {
+  for (size_t i = 0; i < num_agents; ++i) {
     // Choose random action type
     int action_type = action_dist(*gen);
 
     // Get max allowed argument for this action type
-    int max_arg = py::cast<int>(max_args[action_type]);
+    int max_arg = py::cast<int>(max_args[static_cast<size_t>(action_type)]);
 
     // Choose random valid argument (0 to max_arg inclusive)
     int action_arg = 0;
@@ -180,14 +165,14 @@ py::array_t<int> GenerateValidRandomActions(MettaGrid* env, int num_agents, std:
 }
 
 // Pre-generate a sequence of actions for the benchmark
-std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, int num_agents, int sequence_length) {
+std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, size_t num_agents, size_t sequence_length) {
   std::vector<py::array_t<int>> action_sequence;
-  action_sequence.reserve(sequence_length);
+  action_sequence.reserve(static_cast<size_t>(sequence_length));
 
   // Use a deterministic seed for reproducible benchmarks
   std::mt19937 gen(42);
 
-  for (int i = 0; i < sequence_length; ++i) {
+  for (size_t i = 0; i < sequence_length; ++i) {
     action_sequence.push_back(GenerateValidRandomActions(env, num_agents, &gen));
   }
 
@@ -196,8 +181,11 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, int num_
 
 // Matching Python test_step_performance_no_reset
 static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
+  // Ensure we have the GIL for all Python operations
+  py::gil_scoped_acquire acquire;
+
   // Setup with default 4 agents (matching Python benchmark config)
-  int num_agents = 4;
+  size_t num_agents = 4;
   auto cfg = CreateBenchmarkConfig(num_agents);
   auto map = CreateDefaultMap(2);
 
@@ -236,18 +224,26 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   }
 
   // Report steps/second as custom counters
-  state.counters["env_rate"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_rate"] = benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
+  state.counters["env_rate"] = benchmark::Counter(static_cast<double>(state.iterations()), benchmark::Counter::kIsRate);
+  state.counters["agent_rate"] = benchmark::Counter(
+      static_cast<double>(state.iterations()) * static_cast<double>(num_agents), benchmark::Counter::kIsRate);
 }
-
-// Register benchmarks to match Python tests
-BENCHMARK(BM_MettaGridStep)->Unit(benchmark::kMillisecond);
 
 // Custom main that properly initializes Python
 int main(int argc, char** argv) {
+  // Initialize Python interpreter first, before any benchmark registration
   py::scoped_interpreter guard{};
 
+  // Initialize benchmark framework
   ::benchmark::Initialize(&argc, argv);
+
+  // Register benchmarks after Python is initialized
+  // Use Threads(1) to ensure single-threaded execution for Python GIL safety
+  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)
+      ->Unit(benchmark::kMillisecond)
+      ->Threads(1);
+
+  // Run benchmarks
   ::benchmark::RunSpecifiedBenchmarks();
   ::benchmark::Shutdown();
 

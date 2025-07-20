@@ -1,235 +1,172 @@
 import copy
-from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import Field, RootModel, conint
-
-from metta.common.util.typed_config import BaseModelWithForbidExtra
-from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
-from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
-from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
-
-Byte = conint(ge=0, le=255)
-FeatureId = Byte
-
-
-class ActionConfig_cpp(BaseModelWithForbidExtra):
-    """Action configuration."""
-
-    # Required resources should be a superset of consumed resources.
-    # E.g., maybe you need a laser and a battery to attack, but only consume the laser.
-    required_resources: Dict[FeatureId, int]
-    consumed_resources: Dict[FeatureId, int]
-    enabled: bool
+from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
+from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
+from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
+from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
+from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
+from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
+from metta.mettagrid.mettagrid_config import PyConverterConfig, PyGameConfig, PyWallConfig
 
 
-class AttackActionConfig_cpp(ActionConfig_cpp):
-    """Attack action configuration."""
+def convert_to_cpp_game_config(mettagrid_config_dict: dict):
+    """Convert a PyGameConfig to a CppGameConfig."""
 
-    # If there are no defense resources, the attack will always succeed.
-    # Otherwise, you need to have enough defense resources to block the attack.
-    defense_resources: Dict[FeatureId, int]
+    game_config = PyGameConfig(**mettagrid_config_dict)
 
+    resource_names = list(game_config.inventory_item_names)
+    resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
-class ActionsConfig_cpp(BaseModelWithForbidExtra):
-    """Actions configuration."""
+    objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
 
-    noop: ActionConfig_cpp
-    move: ActionConfig_cpp
-    rotate: ActionConfig_cpp
-    put_items: ActionConfig_cpp
-    get_items: ActionConfig_cpp
-    attack: AttackActionConfig_cpp
-    swap: ActionConfig_cpp
-    change_color: ActionConfig_cpp
-
-
-class ObjectConfig_cpp(BaseModelWithForbidExtra):
-    """Object configuration."""
-
-    object_type: Literal["agent", "converter", "wall"]
-    # type_id is meant for consumption by the agents, and it should show up in features.
-    type_id: int
-    # type_name is meant for consumption by humans, and will be used in stats and the viewer.
-    type_name: str
-
-
-class AgentGroupConfig_cpp(ObjectConfig_cpp):
-    """Agent group configuration."""
-
-    object_type: Literal["agent"] = "agent"
-    freeze_duration: int = Field(ge=0)
-    action_failure_penalty: float = Field(default=0, ge=0)
-    max_items_per_type: Dict[FeatureId, int] = Field(default_factory=dict)
-    resource_rewards: Dict[FeatureId, float] = Field(default_factory=dict)
-    resource_reward_max: Dict[FeatureId, float] = Field(default_factory=dict)
-    group_name: str
-    group_id: int
-    group_reward_pct: float = Field(ge=0, le=1)
-    type_id: int = 0
-
-
-class WallConfig_cpp(ObjectConfig_cpp):
-    """Wall/Block configuration."""
-
-    object_type: Literal["wall"] = "wall"
-    swappable: Optional[bool] = None
-    type_id: Byte
-
-
-class ConverterConfig_cpp(ObjectConfig_cpp):
-    """Converter configuration for objects that convert items."""
-
-    object_type: Literal["converter"] = "converter"
-    recipe_input: Dict[FeatureId, int] = Field(default_factory=dict)
-    recipe_output: Dict[FeatureId, int] = Field(default_factory=dict)
-    max_output: int = Field(ge=-1)
-    conversion_ticks: int = Field(ge=0)
-    cooldown: int = Field(ge=0)
-    initial_items: int = Field(ge=0)
-    color: Byte = Field(default=0)
-    type_id: Byte
-
-
-class RewardSharingGroup_cpp(RootModel[Dict[str, float]]):
-    """Reward sharing configuration for a group."""
-
-    pass
-
-
-class RewardSharingConfig_cpp(BaseModelWithForbidExtra):
-    """Reward sharing configuration."""
-
-    groups: Optional[Dict[str, RewardSharingGroup_cpp]] = None
-
-
-class GameConfig_cpp(BaseModelWithForbidExtra):
-    """Game configuration."""
-
-    inventory_item_names: List[str]
-    num_agents: int = Field(ge=1)
-    max_steps: int = Field(ge=0)
-    obs_width: int = Field(ge=1)
-    obs_height: int = Field(ge=1)
-    num_observation_tokens: int = Field(ge=1)
-    actions: ActionsConfig_cpp
-    objects: Dict[str, AgentGroupConfig_cpp | ConverterConfig_cpp | WallConfig_cpp]
-    reward_sharing: Optional[RewardSharingConfig_cpp] = None
-
-
-def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
-    """Convert a mettagrid_config.GameConfig to a mettagrid_c_config.GameConfig."""
-
-    inventory_item_names = list(mettagrid_config.inventory_item_names)
-    inventory_item_ids = dict((name, i) for i, name in enumerate(inventory_item_names))
-
-    object_configs = {}
-
-    # these are the baseline settings for all agents
-    agent_default_config_dict = mettagrid_config.agent.model_dump(by_alias=True, exclude_unset=True)
+    # These are the baseline settings for all agents
+    default_agent_config_dict = game_config.agent.model_dump()
+    default_resource_limit = default_agent_config_dict["default_resource_limit"]
 
     # Group information is more specific than the defaults, so it should override
-    for group_name, group_config in mettagrid_config.groups.items():
-        group_config_dict = group_config.model_dump(by_alias=True, exclude_unset=True)
-        merged_config = copy.deepcopy(agent_default_config_dict)
-        # update, but in a nested way
-        for key, value in group_config_dict.get("props", {}).items():
-            if isinstance(value, dict):
-                # At the time of writing, this should only be the rewards field
-                merged_config[key] = value
-            else:
-                merged_config[key] = value
+    for group_name, group_config in game_config.groups.items():
+        agent_group_props = copy.deepcopy(default_agent_config_dict)
 
-        default_item_max = merged_config.get("default_item_max", 0)
+        # Update, but in a nested way
+        for key, value in group_config.props.model_dump(exclude_unset=True).items():
+            agent_group_props[key] = value
 
-        agent_group_config = {
-            "freeze_duration": merged_config.get("freeze_duration", 0),
+        # Extract inventory rewards - handle both old and new format for backward compatibility
+        inventory_rewards = {}
+        inventory_reward_max = {}
+
+        rewards_config = agent_group_props.get("rewards", {})
+        if rewards_config:
+            inventory_rewards_dict = rewards_config.get("inventory", {})
+
+            # Process inventory rewards
+            for k, v in inventory_rewards_dict.items():
+                if v is not None and not k.endswith("_max"):
+                    if k in resource_name_to_id:
+                        inventory_rewards[resource_name_to_id[k]] = v
+                elif k.endswith("_max") and v is not None:
+                    item_name = k[:-4]
+                    if item_name in resource_name_to_id:
+                        inventory_reward_max[resource_name_to_id[item_name]] = v
+
+        # Process stats rewards
+        stat_rewards = {}
+        stat_reward_max = {}
+        stats_rewards_dict = rewards_config.get("stats", {}) if rewards_config else {}
+
+        for k, v in stats_rewards_dict.items():
+            if v is not None and not k.endswith("_max"):
+                stat_rewards[k] = v
+            elif k.endswith("_max") and v is not None:
+                stat_name = k[:-4]
+                stat_reward_max[stat_name] = v
+
+        agent_cpp_params = {
+            "freeze_duration": agent_group_props["freeze_duration"],
             "group_id": group_config.id,
             "group_name": group_name,
-            "action_failure_penalty": merged_config.get("rewards", {}).get("action_failure_penalty", 0),
-            "max_items_per_type": dict(
-                (item_id, merged_config.get(item_name + "_max", default_item_max))
-                for (item_id, item_name) in enumerate(inventory_item_names)
-            ),
-            "resource_rewards": dict(
-                (inventory_item_ids[k], v)
-                for k, v in merged_config.get("rewards", {}).items()
-                if not k.endswith("_max") and k != "action_failure_penalty"
-            ),
-            "resource_reward_max": dict(
-                (inventory_item_ids[k[:-4]], v)
-                for k, v in merged_config.get("rewards", {}).items()
-                if k.endswith("_max")
-            ),
-            "group_reward_pct": group_config.group_reward_pct or 0,
+            "action_failure_penalty": agent_group_props["action_failure_penalty"],
+            "resource_limits": {
+                resource_id: agent_group_props["resource_limits"].get(resource_name, default_resource_limit)
+                for resource_id, resource_name in enumerate(resource_names)
+            },
+            "resource_rewards": inventory_rewards,
+            "resource_reward_max": inventory_reward_max,
+            "stat_rewards": stat_rewards,
+            "stat_reward_max": stat_reward_max,
+            "group_reward_pct": group_config.group_reward_pct,
+            "type_id": 0,
+            "type_name": "agent",
         }
 
-        # #HardCodedConfig
-        # these defaults should be moved elsewhere!
-        for k in agent_group_config["resource_rewards"]:
-            if k not in agent_group_config["resource_reward_max"]:
-                agent_group_config["resource_reward_max"][k] = 1000
+        objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
 
-        # #HardCodedConfig
-        agent_group_config["type_id"] = 0
-        agent_group_config["type_name"] = "agent"
-        object_configs["agent." + group_name] = AgentGroupConfig_cpp(**agent_group_config)
-
-    for object_type, object_config in mettagrid_config.objects.items():
-        if isinstance(object_config, ConverterConfig_py):
-            converter_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            converter_config_cpp_dict = {
-                "recipe_input": {},
-                "recipe_output": {},
-            }
-            for k, v in converter_config_dict.items():
-                if k.startswith("input_"):
-                    converter_config_cpp_dict["recipe_input"][inventory_item_ids[k[6:]]] = v
-                elif k.startswith("output_"):
-                    converter_config_cpp_dict["recipe_output"][inventory_item_ids[k[7:]]] = v
-                else:
-                    converter_config_cpp_dict[k] = v
-            converter_config_cpp_dict["type_name"] = object_type
-            object_configs[object_type] = ConverterConfig_cpp(**converter_config_cpp_dict)
-        elif isinstance(object_config, WallConfig_py):
-            object_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            object_config_dict["type_name"] = object_type
-            object_configs[object_type] = WallConfig_cpp(**object_config_dict)
+    # Convert other objects
+    for object_type, object_config in game_config.objects.items():
+        if isinstance(object_config, PyConverterConfig):
+            cpp_converter_config = CppConverterConfig(
+                type_id=object_config.type_id,
+                type_name=object_type,
+                input_resources={
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.input_resources.items()
+                    if v > 0 and k in resource_name_to_id
+                },
+                output_resources={
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.output_resources.items()
+                    if v > 0 and k in resource_name_to_id
+                },
+                max_output=object_config.max_output,
+                conversion_ticks=object_config.conversion_ticks,
+                cooldown=object_config.cooldown,
+                initial_resource_count=object_config.initial_resource_count,
+                color=object_config.color,
+            )
+            objects_cpp_params[object_type] = cpp_converter_config
+        elif isinstance(object_config, PyWallConfig):
+            cpp_wall_config = CppWallConfig(
+                type_id=object_config.type_id,
+                type_name=object_type,
+                swappable=object_config.swappable,
+            )
+            objects_cpp_params[object_type] = cpp_wall_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
-    game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
+    game_cpp_params = game_config.model_dump(exclude_none=True)
+    del game_cpp_params["agent"]
+    del game_cpp_params["groups"]
 
-    # Add required and consumed resources to the attack action
-    for action_name, action_config in game_config["actions"].items():
-        game_config["actions"][action_name]["consumed_resources"] = dict(
-            (inventory_item_ids[k], v) for k, v in action_config["consumed_resources"].items()
-        )
-        if action_config.get("required_resources", None) is not None:
-            game_config["actions"][action_name]["required_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config["required_resources"].items()
-            )
-        else:
-            game_config["actions"][action_name]["required_resources"] = game_config["actions"][action_name][
-                "consumed_resources"
-            ]
+    # Convert global_obs configuration
+    global_obs_config = game_config.global_obs
+    global_obs_cpp = CppGlobalObsConfig(
+        episode_completion_pct=global_obs_config.episode_completion_pct,
+        last_action=global_obs_config.last_action,
+        last_reward=global_obs_config.last_reward,
+        resource_rewards=global_obs_config.resource_rewards,
+    )
+    game_cpp_params["global_obs"] = global_obs_cpp
+
+    actions_cpp_params = {}
+    for action_name, action_config in game_cpp_params["actions"].items():
+        if not action_config["enabled"]:
+            continue
+
+        action_cpp_params = {
+            "consumed_resources": {
+                resource_name_to_id[k]: v
+                for k, v in action_config["consumed_resources"].items()
+                if k in resource_name_to_id
+            },
+            "required_resources": {
+                resource_name_to_id[k]: v
+                for k, v in (action_config.get("required_resources") or action_config["consumed_resources"]).items()
+                if k in resource_name_to_id
+            },
+        }
+
         if action_name == "attack":
-            game_config["actions"][action_name]["defense_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config["defense_resources"].items()
-            )
+            action_cpp_params["defense_resources"] = {
+                resource_name_to_id[k]: v
+                for k, v in action_config["defense_resources"].items()
+                if k in resource_name_to_id
+            }
+            actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
+        elif action_name == "change_glyph":
+            action_cpp_params["number_of_glyphs"] = action_config["number_of_glyphs"]
+            actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**action_cpp_params)
+        else:
+            actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
-    del game_config["agent"]
-    del game_config["groups"]
-    game_config["objects"] = object_configs
+    game_cpp_params["actions"] = actions_cpp_params
+    game_cpp_params["objects"] = objects_cpp_params
+    # Note: global_observations configuration is handled through the global_obs parameter
 
-    return GameConfig_cpp(**game_config)
+    return CppGameConfig(**game_cpp_params)
 
 
-def cpp_config_dict(game_config_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Validates a config dict and returns a config_c dict.
-
-    In particular, this function converts from the style of config we have in yaml to the style of config we expect
-    in cpp; and validates along the way.
-    """
-    game_config = GameConfig_py(**game_config_dict)
-
-    return from_mettagrid_config(game_config).model_dump(by_alias=True, exclude_none=True)
+# Alias for backward compatibility
+from_mettagrid_config = convert_to_cpp_game_config

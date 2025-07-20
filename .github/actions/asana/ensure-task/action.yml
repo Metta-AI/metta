@@ -44,7 +44,12 @@ inputs:
   asana_email_field_id:
     description: "The Asana custom field ID for the 'Asana Email' field in the roster project. This is used to map GitHub logins to Asana emails."
     required: true
-
+  pr_author_field_id:
+    description: "The Asana custom field ID for the 'PR Author' field in the roster project."
+    required: true
+  asana_attachment_secret:
+    description: "The Asana attachment secret. This is used to authenticate the Asana attachment action."
+    required: true
 
 outputs:
   task_url:
@@ -79,4 +84,6 @@ runs:
         INPUT_ROSTER_PROJECT_ID: ${{ inputs.roster_project_id }}
         INPUT_GH_LOGIN_FIELD_ID: ${{ inputs.gh_login_field_id }}
         INPUT_ASANA_EMAIL_FIELD_ID: ${{ inputs.asana_email_field_id }}
+        INPUT_PR_AUTHOR_FIELD_ID: ${{ inputs.pr_author_field_id }}
+        INPUT_ASANA_ATTACHMENT_SECRET: ${{ inputs.asana_attachment_secret }}
 

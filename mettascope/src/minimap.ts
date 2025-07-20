@@ -12,23 +12,22 @@ export function drawMiniMap(panel: PanelInfo) {
   }
 
   if (ui.mouseDown && panel.inside(ui.mousePos)) {
-    const localMousePos = panel.transformOuter(ui.mousePos)
+    const localMousePos = new Vec2f(ui.mousePos.x() - panel.x, ui.mousePos.y() - panel.y)
     // Pan the main map to the minimap's mouse position.
     const miniMapMousePos = new Vec2f(
       Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),
       Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE)
     )
-    ui.mapPanel.panPos = new Vec2f(
-      -miniMapMousePos.x() * Common.TILE_SIZE - (state.replay.map_size[0] * Common.TILE_SIZE) / 2,
-      -miniMapMousePos.y() * Common.TILE_SIZE - (state.replay.map_size[1] * Common.TILE_SIZE) / 2
-    )
+    ui.mapPanel.panPos = new Vec2f(-miniMapMousePos.x() * Common.TILE_SIZE, -miniMapMousePos.y() * Common.TILE_SIZE)
     state.followSelection = false
   }
 
   // The minimap is always drawn as colored rectangles.
   ctx.save()
-  ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height)
-  ctx.translate(panel.x, panel.y)
+  const rect = panel.rectInner()
+  ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
+  ctx.translate(rect.x, rect.y)
+  ctx.scale(ui.dpr, ui.dpr)
 
   // Draw a background rect that's the size of the map.
   ctx.drawSolidRect(

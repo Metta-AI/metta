@@ -139,6 +139,13 @@ async function loadReplayText(url: string, replayData: string) {
 // adding missing keys, recomputing invalid values, etc.
 // It also creates some internal data structures for faster access to images.
 function fixReplay() {
+  // Fix "agent.agent" -> "agent".
+  for (let i = 0; i < state.replay.object_types.length; i++) {
+    if (state.replay.object_types[i] == 'agent.agent') {
+      state.replay.object_types[i] = 'agent'
+    }
+  }
+
   // Create action image mappings for faster access.
   state.replay.action_images = []
   for (const actionName of state.replay.action_names) {
@@ -176,7 +183,7 @@ function fixReplay() {
     var imageItem = 'objects/' + typeName + '.item.png'
     var imageColor = 'objects/' + typeName + '.color.png'
     if (!ctx.hasImage(image)) {
-      console.warn('Object not supported: ', typeName)
+      console.warn('Object name not supported: "' + typeName + '"')
       // Use the "unknown" image.
       image = 'objects/unknown.png'
       imageItem = 'objects/unknown.item.png'
@@ -390,5 +397,33 @@ export function sendAction(actionName: string, actionParam: number) {
     )
   } else {
     console.error('No selected grid object')
+  }
+}
+
+/**
+ * Capitalize the first letter of every word in a string.
+ * Example: "hello world" -> "Hello World"
+ */
+function capitalize(str: string) {
+  return str
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+/** Gets a nice english name of a resource, type or any other property. */
+export function propertyName(key: string) {
+  return capitalize(key.replace('inv:', '').replace('agent:', '').replace('.', ' ').replace('_', ' '))
+}
+
+/** Gets the icon of a resource, type or any other property. */
+export function propertyIcon(key: string) {
+  if (state.replay.object_types.includes(key)) {
+    let idx = state.replay.object_types.indexOf(key)
+    return 'data/atlas/' + state.replay.object_images[idx][0]
+  } else if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
+    return 'data/atlas/resources/' + key.replace('inv:', '').replace('agent:', '') + '.png'
+  } else {
+    return 'data/ui/table/' + key.replace('agent:', '') + '.png'
   }
 }

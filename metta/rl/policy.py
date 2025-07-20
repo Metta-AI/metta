@@ -2,12 +2,12 @@ import logging
 from types import SimpleNamespace
 
 import torch
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pufferlib.pytorch import sample_logits
 from torch import nn
 
 from metta.agent.policy_state import PolicyState
+from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger("policy")
 
@@ -18,7 +18,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     Args:
         path: Path to the checkpoint file
         device: Device to load the policy on
-        pytorch_cfg: Configuration for the PyTorch policy (formerly 'puffer')
+        pytorch_cfg: Configuration for the PyTorch policy with _target_ field
 
     Returns:
         PytorchAgent wrapping the loaded policy
@@ -31,20 +31,38 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
     except Exception as e:
         logger.warning(f"Failed automatic parse from weights: {e}")
-        # TODO -- fix all magic numbers
-        num_actions, num_action_args = 9, 10
-        _, obs_channels = 128, 34
+        logger.warning("Using defaults from config")
+        num_actions = 9
+        hidden_size = 512
+        num_action_args = 10
+        obs_channels = 24
 
-    # Create environment namespace
     env = SimpleNamespace(
+        observation_space=SimpleNamespace(shape=(11, 11, obs_channels)),
+        action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+        single_observation_space=SimpleNamespace(shape=(11, 11, obs_channels)),
         single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(
-            shape=tuple(torch.tensor([obs_channels, 11, 11], dtype=torch.long).tolist())
-        ),
     )
 
-    policy = instantiate(pytorch_cfg, env=env, policy=None)
+    # Use common instantiate function
+    if pytorch_cfg is None:
+        # Default to Recurrent policy if no config provided
+        from metta.agent.external.example import Recurrent
+
+        policy = Recurrent(
+            env=env,
+            policy=None,
+            hidden_size=hidden_size,
+            conv_depth=2,
+            conv_channels=32,
+        )
+    else:
+        # Use the common instantiate utility
+        policy = instantiate(pytorch_cfg, env=env, policy=None)
+
     policy.load_state_dict(weights)
+
+    # Wrap in PytorchAgent and move to device
     policy = PytorchAgent(policy).to(device)
     return policy
 
@@ -77,6 +95,27 @@ class PytorchAgent(nn.Module):
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Forward to wrapped policy if it has this method."""
         if hasattr(self.policy, "activate_actions"):
+            self.policy.activate_actions(action_names, action_max_params, device)
+        self.device = device
+
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
+    ):
+        """Initialize to environment - forward to wrapped policy if it has this method."""
+        # is_training parameter is deprecated and ignored - mode is auto-detected
+
+        # TODO: This hasattr pattern is a transitional state to support both old and new interfaces.
+        # Once all policies have been migrated to implement initialize_to_environment,
+        # we should remove these checks and make the interface mandatory.
+        if hasattr(self.policy, "initialize_to_environment"):
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device)
+        elif hasattr(self.policy, "activate_actions"):
+            # Fallback to old interface if available
             self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
 

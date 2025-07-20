@@ -6,9 +6,16 @@ locals {
     Terraform = "true"
   }
 
+  # Add new roles here to grant them access to the EKS cluster.
   admins = [
-    "arn:aws:iam::751442549699:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_ac2ae6482eae17c4"
+    "arn:aws:iam::751442549699:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_ac2ae6482eae17c4",
+    "arn:aws:iam::751442549699:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_PowerUserAccess_765d58f6b3d9465f",
+    data.aws_iam_role.github_actions.arn
   ]
+}
+
+data "aws_iam_role" "github_actions" {
+  name = "github-actions"
 }
 
 data "aws_availability_zones" "available" {
@@ -39,7 +46,7 @@ module "eks" {
     enabled    = true
     node_pools = ["general-purpose"]
   }
-  
+
   # https://www.reddit.com/r/Terraform/comments/znomk4/ebs_csi_driver_entirely_from_terraform_on_aws_eks/
   cluster_addons = {
     aws-ebs-csi-driver = {

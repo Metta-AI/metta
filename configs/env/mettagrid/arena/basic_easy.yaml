@@ -1,0 +1,7 @@
+# Simple map with mines / generators / altar
+# But with converters that are easier to use.
+
+defaults:
+  - basic
+  - /env/mettagrid/game/objects/basic_easy@game.objects
+  - _self_

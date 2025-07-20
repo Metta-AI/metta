@@ -6,12 +6,12 @@ game:
   num_observation_tokens: 100
 
   inventory_item_names:
-    - ore.red
-    - ore.blue
-    - ore.green
-    - battery.red
-    - battery.blue
-    - battery.green
+    - ore_red
+    - ore_blue
+    - ore_green
+    - battery_red
+    - battery_blue
+    - battery_green
     - heart
     - armor
     - laser
@@ -42,11 +42,13 @@ game:
       props: {}
 
   agent:
-    default_item_max: 5
-    heart_max: 255
+    default_resource_limit: 5
+    resource_limits:
+      heart: 255
     freeze_duration: 10
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
 
   objects:
     altar:
@@ -54,14 +56,14 @@ game:
       cooldown: 2
       max_output: 100
       conversion_ticks: 1
-      initial_items: 100
+      initial_resource_count: 100
 
     generator_red:
       type_id: 2
       cooldown: 5
       max_output: 100
       conversion_ticks: 1
-      initial_items: 30
+      initial_resource_count: 30
 
     wall:
       type_id: 1
@@ -87,3 +89,6 @@ game:
       enabled: true
     change_color:
       enabled: true
+    change_glyph:
+      enabled: true
+      number_of_glyphs: 4

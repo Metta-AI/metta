@@ -11,6 +11,12 @@
         "+hardware=macbook",
         "+user=${env:USER}"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -23,6 +29,12 @@
         "+user=${env:USER}",
         "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -32,9 +44,15 @@
       "module": "tools.sweep_eval",
       "args": [
         "+hardware=macbook",
-        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
-        "+user=${env:USER}"
+        "+user=${env:USER}",
+        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -48,6 +66,12 @@
         "data_dir=./train_dir/sweep/${sweep_name}/runs",
         "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -60,6 +84,12 @@
         "+hardware=macbook",
         "cmd=sim"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -71,6 +101,12 @@
         "+user=${env:USER}",
         "+hardware=macbook"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -83,6 +119,12 @@
         "+hardware=macbook",
         "cmd=analyze"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -94,6 +136,12 @@
         "+user=${env:USER}",
         "+hardware=macbook"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -105,6 +153,12 @@
         "+user=${env:USER}",
         "+hardware=macbook"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -117,6 +171,12 @@
         "-s",
         "./tests"
       ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -126,6 +186,11 @@
       "module": "pytest",
       "args": [],
       "cwd": "${workspaceFolder}/mettagrid",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
     }
   ]
