@@ -16,7 +16,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
-from metta.rl.functions import setup_device_and_distributed
+from metta.rl.util.distributed import setup_device_and_distributed
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
