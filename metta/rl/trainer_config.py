@@ -12,12 +12,12 @@ class OptimizerConfig(BaseModelWithForbidExtra):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Conservative update - 25% toward sweep result (0.019) from original (0.000457)
     learning_rate: float = Field(default=0.00509275, gt=0, le=1.0)
-    # Beta1: Updated based on Joseph's sweep results (was: Standard Adam default from Kingma & Ba (2014))
-    beta1: float = Field(default=0.89, ge=0, le=1.0)  # was: 0.9
-    # Beta2: Updated based on Joseph's sweep results (was: Standard Adam default from Kingma & Ba (2014))
-    beta2: float = Field(default=0.96, ge=0, le=1.0)  # was: 0.999
-    # Epsilon: Updated based on Joseph's sweep results
-    eps: float = Field(default=1.4e-7, gt=0)  # was: 1e-12
+    # Beta1: Conservative update - 25% toward sweep result (0.89) from original (0.9)
+    beta1: float = Field(default=0.8975, ge=0, le=1.0)
+    # Beta2: Conservative update - 25% toward sweep result (0.96) from original (0.999)
+    beta2: float = Field(default=0.98925, ge=0, le=1.0)
+    # Epsilon: Conservative update - 25% toward sweep result (1.4e-7) from original (1e-12)
+    eps: float = Field(default=3.5e-8, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
 
@@ -36,15 +36,15 @@ class LRSchedulerConfig(BaseModelWithForbidExtra):
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
     # Alpha: Conservative update - 25% toward sweep result (0.79) from disabled (0.0)
     prio_alpha: float = Field(default=0.1975, ge=0, le=1.0)
-    # Beta0: Updated based on Joseph's sweep results (was: From Schaul et al. 2016 paper)
-    prio_beta0: float = Field(default=0.59, ge=0, le=1.0)  # was: 0.6
+    # Beta0: Conservative update - 25% toward sweep result (0.59) from original (0.6)
+    prio_beta0: float = Field(default=0.5975, ge=0, le=1.0)
 
 
 class VTraceConfig(BaseModelWithForbidExtra):
-    # V-trace rho clipping: Updated based on Joseph's sweep results (2.3 allows more off-policy correction)
-    vtrace_rho_clip: float = Field(default=2.3, gt=0)  # was: 1.0 (standard for on-policy from IMPALA paper)
-    # V-trace c clipping: Updated based on Joseph's sweep results (2.1 allows more off-policy bootstrapping)
-    vtrace_c_clip: float = Field(default=2.1, gt=0)  # was: 1.0 (standard for on-policy from IMPALA paper)
+    # V-trace rho clipping: Conservative update - 25% toward sweep result (2.3) from standard (1.0)
+    vtrace_rho_clip: float = Field(default=1.325, gt=0)
+    # V-trace c clipping: Conservative update - 25% toward sweep result (2.1) from standard (1.0)
+    vtrace_c_clip: float = Field(default=1.275, gt=0)
 
 
 class InitialPolicyConfig(BaseModelWithForbidExtra):
@@ -84,20 +84,20 @@ class SimulationConfig(BaseModelWithForbidExtra):
 
 class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
-    # Clip coefficient: Updated based on Joseph's sweep results (was: 0.1 conservative from PPO paper)
-    clip_coef: float = Field(default=0.15, gt=0, le=1.0)  # was: 0.1
-    # Entropy coefficient: Updated based on Joseph's sweep results
-    ent_coef: float = Field(default=0.017, ge=0)  # was: 0.0021
-    # GAE lambda: Updated based on Joseph's sweep results (was: deviates from typical 0.95, bias/variance tradeoff)
-    gae_lambda: float = Field(default=0.84, ge=0, le=1.0)  # was: 0.916
-    # Gamma: Updated based on Joseph's sweep results (0.99 is standard) (was: suggests shorter effective horizon)
-    gamma: float = Field(default=0.99, ge=0, le=1.0)  # was: 0.977
+    # Clip coefficient: Conservative update - 25% toward sweep result (0.15) from original (0.1)
+    clip_coef: float = Field(default=0.1125, gt=0, le=1.0)
+    # Entropy coefficient: Conservative update - 25% toward sweep result (0.017) from original (0.0021)
+    ent_coef: float = Field(default=0.005825, ge=0)
+    # GAE lambda: Conservative update - 25% toward sweep result (0.84) from original (0.916)
+    gae_lambda: float = Field(default=0.897, ge=0, le=1.0)
+    # Gamma: Conservative update - 25% toward sweep result (0.99) from original (0.977)
+    gamma: float = Field(default=0.98025, ge=0, le=1.0)
 
     # Training parameters
     # Gradient clipping: Conservative update - 25% toward sweep result (2.6) from standard (0.5)
     max_grad_norm: float = Field(default=1.025, gt=0)
-    # Value function clipping: Updated based on Joseph's sweep results (was: Matches policy clip for consistency)
-    vf_clip_coef: float = Field(default=0.16, ge=0)  # was: 0.1
+    # Value function clipping: Conservative update - 25% toward sweep result (0.16) from original (0.1)
+    vf_clip_coef: float = Field(default=0.115, ge=0)
     # Value coefficient: Conservative update - 25% toward sweep result (3.2) from original (0.44)
     vf_coef: float = Field(default=1.13, ge=0)
     # L2 regularization: Disabled by default, common in RL
@@ -133,8 +133,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
     target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
 
     # Core training parameters
-    # Total timesteps: Updated based on Joseph's sweep results
-    total_timesteps: int = Field(default=50_000_000_000, gt=0)  # was: 10_000_000_000
+    # Total timesteps: Conservative update - 25% toward sweep result (50B) from original (10B)
+    total_timesteps: int = Field(default=20_000_000_000, gt=0)
 
     # PPO configuration
     ppo: PPOConfig = Field(default_factory=PPOConfig)

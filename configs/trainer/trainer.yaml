@@ -22,13 +22,13 @@ simulation:
 
 grad_mean_variance_interval: 0 # 0 to disable
 
-total_timesteps: 50_000_000_000  # was: 10_000_000_000
+total_timesteps: 20_000_000_000  # 25% toward sweep: 10_000_000_000 (original) -> 50_000_000_000 (sweep)
 
 optimizer:
   type: adam
-  beta1: 0.89  # was: 0.9
-  beta2: 0.96  # was: 0.999
-  eps: 1.4e-7  # was: 1e-12
+  beta1: 0.8975  # 25% toward sweep: 0.9 (original) -> 0.89 (sweep)
+  beta2: 0.98925  # 25% toward sweep: 0.999 (original) -> 0.96 (sweep)
+  eps: 3.5e-8  # 25% toward sweep: 1e-12 (original) -> 1.4e-7 (sweep)
   learning_rate: 0.00509275  # 25% toward sweep: 0.000457 (original) -> 0.019 (sweep)
   weight_decay: 0
 
@@ -40,14 +40,14 @@ lr_scheduler:
 
 ppo:
   # Core PPO hyperparameters
-  clip_coef: 0.15  # was: 0.1
-  ent_coef: 0.017  # was: 0.0021
-  gae_lambda: 0.84  # was: 0.916
-  gamma: 0.99  # was: 0.977
+  clip_coef: 0.1125  # 25% toward sweep: 0.1 (original) -> 0.15 (sweep)
+  ent_coef: 0.005825  # 25% toward sweep: 0.0021 (original) -> 0.017 (sweep)
+  gae_lambda: 0.897  # 25% toward sweep: 0.916 (original) -> 0.84 (sweep)
+  gamma: 0.98025  # 25% toward sweep: 0.977 (original) -> 0.99 (sweep)
 
   # Training parameters
   max_grad_norm: 1.025  # 25% toward sweep: 0.5 (original) -> 2.6 (sweep)
-  vf_clip_coef: 0.16  # was: 0.1
+  vf_clip_coef: 0.115  # 25% toward sweep: 0.1 (original) -> 0.16 (sweep)
   vf_coef: 1.13  # 25% toward sweep: 0.44 (original) -> 3.2 (sweep)
   l2_reg_loss_coef: 0
   l2_init_loss_coef: 0
@@ -58,12 +58,12 @@ ppo:
 # Prioritized experience replay parameters
 prioritized_experience_replay:
   prio_alpha: 0.1975  # 25% toward sweep: 0.0 (original) -> 0.79 (sweep)
-  prio_beta0: 0.59  # was: 0.6 - Initial importance sampling correction
+  prio_beta0: 0.5975  # 25% toward sweep: 0.6 (original) -> 0.59 (sweep)
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:
-  vtrace_rho_clip: 2.3  # was: 1.0 - Default: on-policy (no off-policy correction)
-  vtrace_c_clip: 2.1  # was: 1.0 - Default: on-policy bootstrapping
+  vtrace_rho_clip: 1.325  # 25% toward sweep: 1.0 (original) -> 2.3 (sweep)
+  vtrace_c_clip: 1.275  # 25% toward sweep: 1.0 (original) -> 2.1 (sweep)
 
 zero_copy: true
 require_contiguous_env_ids: false
