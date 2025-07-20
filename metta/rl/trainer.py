@@ -10,7 +10,7 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -832,16 +832,6 @@ def create_training_components(
         files = sorted(os.listdir(checkpoints_dir))
         recent_files = files[-3:] if len(files) >= 3 else files
         logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
-
-    # Apply batch size scaling BEFORE creating trainer config
-    # This matches the behavior in tools/train.py
-    if torch.distributed.is_initialized() and cfg.trainer.get("scale_batches_by_world_size", False):
-        world_size = torch.distributed.get_world_size()
-        # Make a mutable copy of the config to modify
-        OmegaConf.set_struct(cfg, False)
-        cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
-        cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
-        OmegaConf.set_struct(cfg, True)
 
     trainer_cfg = create_trainer_config(cfg)
 
