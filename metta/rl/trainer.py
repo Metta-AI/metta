@@ -1020,7 +1020,7 @@ def create_training_components(
     # Create hyperparameter scheduler
     from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 
-    hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, policy, trainer_cfg.total_timesteps, logger)
+    hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, policy, trainer_cfg.total_timesteps, logging)
 
     return (
         vecenv,

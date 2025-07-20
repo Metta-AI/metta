@@ -29,6 +29,7 @@ from metta.interface.evaluation import (
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
@@ -376,6 +377,9 @@ if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler
         optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
 
+# Create hyperparameter scheduler (handles dynamic learning rate and other hyperparameter adjustments)
+hyperparameter_scheduler = HyperparameterScheduler(trainer_config, agent, trainer_config.total_timesteps, logging)
+
 # Memory and System Monitoring (master only)
 system_monitor = None
 memory_monitor = None
@@ -536,6 +540,9 @@ while agent_step < trainer_config.total_timesteps:
 
     if lr_scheduler is not None:
         lr_scheduler.step()
+
+    # Update hyperparameter scheduler
+    hyperparameter_scheduler.step(agent_step)
 
     losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
