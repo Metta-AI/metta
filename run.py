@@ -32,7 +32,6 @@ from metta.interface import (
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config
 from metta.mettagrid import mettagrid_c  # noqa: F401
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -430,12 +429,10 @@ grad_stats = {}
 current_policy_generation = initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0
 
 # After environment is initialized but before training loop
-if is_master and wandb_run and trainer_config.curriculum:
-    try:
-        curr_tmp = curriculum_from_config_path(trainer_config.curriculum, DictConfig(trainer_config.env_overrides))
-        upload_env_configs(curriculum=curr_tmp, wandb_run=wandb_run)
-    except Exception as e:
-        logger.warning(f"Failed to upload env configs: {e}")
+if is_master and wandb_run:
+    curr_obj = getattr(metta_grid_env, "_curriculum", None)
+    if curr_obj is not None:
+        upload_env_configs(curriculum=curr_obj, wandb_run=wandb_run)
 
 # Create torch profiler (matches trainer.py)
 torch_profiler = TorchProfiler(is_master, trainer_config.profiler, wandb_run, dirs.run_dir)
@@ -834,21 +831,13 @@ while agent_step < trainer_config.total_timesteps:
         if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
 
-            # Generate replay using the same function as trainer.py
-            # For now, skip replay generation as it requires a curriculum object
-            # In a production setup, you'd create a curriculum object or use an alternative approach
-            if trainer_config.curriculum is None:
-                logger.info("Skipping replay generation in run.py - requires curriculum object")
-            else:
-                # Generate replay with curriculum similar to trainer.py
-                curriculum = curriculum_from_config_path(
-                    trainer_config.curriculum, DictConfig(trainer_config.env_overrides)
-                )
-
+            # Generate replay using curriculum already in environment
+            curr_obj = getattr(metta_grid_env, "_curriculum", None)
+            if curr_obj is not None:
                 generate_replay(
                     policy_record=latest_saved_policy_record,
                     policy_store=policy_store,
-                    curriculum=curriculum,
+                    curriculum=curr_obj,
                     epoch=epoch,
                     device=device,
                     vectorization="serial",

@@ -97,9 +97,16 @@ class HyperparameterScheduler:
         if scheduler_config is None:
             scheduler_config = HyperparameterSchedulerConfig()
 
-        # Build config dict that BaseHyperparameterScheduler expects
+        # Build config dict with keys expected by BaseHyperparameterScheduler
+        ppo_dict = {
+            "ppo_clip_coef": ppo_config.clip_coef,
+            "ppo_ent_coef": ppo_config.ent_coef,
+            "ppo_vf_clip_coef": ppo_config.vf_clip_coef,
+            "ppo_l2_reg_loss_coef": ppo_config.l2_reg_loss_coef,
+            "ppo_l2_init_loss_coef": ppo_config.l2_init_loss_coef,
+        }
         config_dict = {
-            "ppo": ppo_config.model_dump(),
+            "ppo": ppo_dict,
             "optimizer": {"learning_rate": learning_rate},
             "hyperparameter_scheduler": scheduler_config.model_dump(),
         }
