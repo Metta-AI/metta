@@ -7,6 +7,7 @@ from collections import defaultdict
 import numpy as np
 import torch
 import torch.distributed
+import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
@@ -27,6 +28,7 @@ from metta.interface import (
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config
 from metta.mettagrid import mettagrid_c  # noqa: F401
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -50,6 +52,7 @@ from metta.rl.util.batch_utils import (
     calculate_prioritized_sampling_params,
 )
 from metta.rl.util.distributed import setup_device_and_distributed
+from metta.rl.util.evaluation import generate_replay
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
@@ -711,6 +714,29 @@ while agent_step < trainer_config.total_timesteps:
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
+    # Upload latest policy to wandb (master only)
+    if (
+        is_master
+        and wandb_run
+        and latest_saved_policy_record
+        and should_run(epoch, trainer_config.checkpoint.wandb_checkpoint_interval, True)
+    ):
+        try:
+            policy_store.add_to_wandb_run(wandb_run.name, latest_saved_policy_record)
+            logger.info(f"Uploaded policy to wandb at epoch {epoch}")
+        except Exception as e:
+            logger.warning(f"Failed to upload policy to wandb: {e}")
+
+    # Abort check via wandb tag (master only)
+    if is_master and wandb_run:
+        try:
+            run_obj = wandb.Api().run(wandb_run.path)
+            if "abort" in run_obj.tags:
+                logger.info("Abort tag detected. Stopping the run.")
+                break
+        except Exception:
+            pass
+
     # Policy evaluation (master only)
     if (
         is_master
@@ -799,7 +825,24 @@ while agent_step < trainer_config.total_timesteps:
             # Generate replay using the same function as trainer.py
             # For now, skip replay generation as it requires a curriculum object
             # In a production setup, you'd create a curriculum object or use an alternative approach
-            logger.info("Skipping replay generation in run.py - requires curriculum object")
+            if trainer_config.curriculum is None:
+                logger.info("Skipping replay generation in run.py - requires curriculum object")
+            else:
+                # Generate replay with curriculum similar to trainer.py
+                curriculum = curriculum_from_config_path(
+                    trainer_config.curriculum, DictConfig(trainer_config.env_overrides)
+                )
+
+                generate_replay(
+                    policy_record=latest_saved_policy_record,
+                    policy_store=policy_store,
+                    curriculum=curriculum,
+                    epoch=epoch,
+                    device=device,
+                    vectorization="serial",
+                    replay_dir=trainer_config.simulation.replay_dir,
+                    wandb_run=wandb_run,
+                )
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
