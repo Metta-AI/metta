@@ -8,8 +8,8 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.rl.experience import Experience
-from metta.rl.functions.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.losses import Losses
+from metta.rl.util.advantage import compute_advantage, normalize_advantage_distributed
 
 logger = logging.getLogger(__name__)
 
