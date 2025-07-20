@@ -44,19 +44,12 @@ ppo:
   ent_coef: 0.017
   gae_lambda: 0.84
   gamma: 0.99
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> origin/richard-update-to-joseph
   # Training parameters
   max_grad_norm: 2.6
   vf_clip_coef: 0.16
   vf_coef: 3.2
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/richard-update-to-joseph
   l2_reg_loss_coef: 0
   l2_init_loss_coef: 0
   norm_adv: true
