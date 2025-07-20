@@ -6,33 +6,32 @@
 #include <string>
 #include <vector>
 
-// using namespace std;  // Removed per cpplint
+#include "objects/constants.hpp"
+#include "types.hpp"
 
-typedef unsigned short Layer;
-typedef uint8_t TypeId;
-typedef unsigned int GridCoord;
-using ObsType = uint8_t;
-using InventoryItem = uint8_t;
+using Layer = ObservationType;
+using TypeId = ObservationType;
+using ObservationCoord = ObservationType;
+
+struct PartialObservationToken {
+  ObservationType feature_id = EmptyTokenByte;
+  ObservationType value = EmptyTokenByte;
+};
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
-  uint8_t location;
-  uint8_t feature_id;
-  uint8_t value;
+  ObservationType location = EmptyTokenByte;
+  ObservationType feature_id = EmptyTokenByte;
+  ObservationType value = EmptyTokenByte;
 };
 
 // The alignas should make sure of this, but let's be explicit.
 // We're going to be reinterpret_casting things to this type, so
 // it'll be bad if the compiler pads this type.
-static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes");
+static_assert(sizeof(ObservationToken) == 3 * sizeof(uint8_t), "ObservationToken must be 3 bytes");
 
 using ObservationTokens = std::span<ObservationToken>;
-
-struct PartialObservationToken {
-  uint8_t feature_id;
-  uint8_t value;
-};
 
 class GridLocation {
 public:
@@ -52,8 +51,6 @@ enum Orientation {
   Right = 3
 };
 
-typedef unsigned int GridObjectId;
-
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
@@ -65,20 +62,26 @@ struct GridObjectConfig {
 
 class GridObject {
 public:
-  GridObjectId id;
-  GridLocation location;
-  TypeId type_id;
+  GridObjectId id{};
+  GridLocation location{};
+  TypeId type_id{};
   std::string type_name;
 
   virtual ~GridObject() = default;
 
-  void init(TypeId type_id, const std::string& type_name, const GridLocation& loc) {
-    this->type_id = type_id;
-    this->type_name = type_name;
-    this->location = loc;
+  void init(TypeId object_type_id, const std::string& object_type_name, const GridLocation& object_location) {
+    this->type_id = object_type_id;
+    this->type_name = object_type_name;
+    this->location = object_location;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const = 0;
+  virtual bool swappable() const {
+    return false;
+  }
+
+  virtual std::vector<PartialObservationToken> obs_features() const {
+    return {};  // Default: no observable features
+  }
 };
 
 #endif  // GRID_OBJECT_HPP_

@@ -6,9 +6,10 @@ game:
   max_steps: 200
   agent:
     rewards:
-      heart: 1
-      ore_red: 0
-      battery_red: 0
+      inventory:
+        heart: 1
+        ore_red: 0
+        battery_red: 0
   objects:
     generator_red:
       initial_resource_count: 0
@@ -20,7 +21,9 @@ game:
       cooldown: 1
 
   map_builder:
-    objects:
-      altar: 1
-      generator_red: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          altar: 1
+          generator_red: 1
+          mine_red: 1

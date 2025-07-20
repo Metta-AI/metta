@@ -6,7 +6,6 @@
 
 #include "../grid_object.hpp"
 #include "constants.hpp"
-#include "metta_object.hpp"
 
 // #MettagridConfig
 struct WallConfig : public GridObjectConfig {
@@ -16,27 +15,29 @@ struct WallConfig : public GridObjectConfig {
   bool swappable;
 };
 
-class Wall : public MettaObject {
+class Wall : public GridObject {
 public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->_swappable = cfg.swappable;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
     features.reserve(2);
-    features.push_back({ObservationFeature::TypeId, type_id});
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+
     if (_swappable) {
-      // Only emit the token if it's swappable, to reduce the number of tokens.
-      features.push_back({ObservationFeature::Swappable, 1});
+      // Only emit the swappable observation feature when True to reduce the number of tokens.
+      features.push_back({ObservationFeature::Swappable, static_cast<ObservationType>(1)});
     }
+
     return features;
   }
 
-  virtual bool swappable() const override {
+  bool swappable() const override {
     return this->_swappable;
   }
 };

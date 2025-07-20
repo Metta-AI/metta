@@ -7,8 +7,9 @@ game:
   max_steps: 100
   agent:
     rewards:
-      armor: 1
-      ore_red: 0
+      inventory:
+        armor: 1
+        ore_red: 0
   objects:
     mine_red:
       initial_resource_count: 3
@@ -20,6 +21,8 @@ game:
       cooldown: 255
 
   map_builder:
-    objects:
-      armory: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          armory: 1
+          mine_red: 1

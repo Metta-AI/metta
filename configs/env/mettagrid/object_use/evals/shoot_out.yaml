@@ -8,7 +8,8 @@ game:
   max_steps: 400
   agent:
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
   objects:
     altar:
       cooldown: 255
@@ -16,6 +17,6 @@ game:
     lasery:
       initial_resource_count: 20
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1
     uri: "configs/env/mettagrid/maps/object_use/shoot_out.map"

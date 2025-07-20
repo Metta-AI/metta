@@ -25,62 +25,35 @@ echo "🔧 Configuring git..."
 git config --global user.name "openhands" 2>/dev/null || true
 git config --global user.email "openhands@all-hands.dev" 2>/dev/null || true
 
-# Install uv if not present (required by setup_dev.sh)
-if ! command -v uv &> /dev/null; then
-    echo "📦 Installing uv package manager..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    
-    # Add uv to PATH for current session
-    export PATH="$HOME/.cargo/bin:$PATH"
-    
-    # Verify installation
-    if ! command -v uv &> /dev/null; then
-        echo "❌ Failed to install uv"
-        exit 1
-    fi
-    echo "✅ uv installed successfully"
-else
-    echo "✅ uv already available"
-fi
-
-# Use the existing comprehensive setup script
-echo "🛠️  Running Metta development setup script..."
-echo "ℹ️  This will install all dependencies and configure the environment"
-
 # Set environment variable to indicate we're in Docker/container (OpenHands environment)
 export IS_DOCKER=1
 
-# Run the official setup script
-if bash devops/setup_dev.sh; then
-    echo "✅ Development setup completed successfully"
+# Run the main install script with external profile (suitable for OpenHands)
+echo "🛠️  Running Metta installation script..."
+if bash ./install.sh --profile=external; then
+    echo "✅ Installation completed successfully"
 else
-    echo "⚠️  Setup script completed with warnings (this may be normal)"
+    echo "❌ Installation failed"
+    exit 1
 fi
 
 # Quick verification
 echo "🧪 Verifying installation..."
-uv run python -c "
+if uv run python -c "
+import metta
+print('✅ Core metta package imported successfully')
 try:
-    import metta
-    print('✅ Core metta package imported successfully')
-    try:
-        import metta.mettagrid
-        print('✅ Metta mettagrid module imported successfully')
-    except ImportError as e:
-        print(f'⚠️  Mettagrid module import issue: {e}')
-    
-    try:
-        import metta.rl.fast_gae
-        print('✅ C++ extensions (fast_gae) imported successfully')
-    except ImportError as e:
-        print(f'⚠️  C++ extensions import issue: {e}')
-        
-    print('✅ Setup verification completed - Metta is ready to use!')
+    import metta.mettagrid
+    print('✅ Metta mettagrid module imported successfully')
 except ImportError as e:
-    print(f'❌ Critical error - Metta package not found: {e}')
-    print('Setup may have failed. Please check the output above for errors.')
-    exit 1
-" 2>/dev/null
+    print(f'⚠️  Mettagrid module import issue: {e}')
+
+print('✅ Setup verification completed - Metta is ready to use!')
+" 2>&1; then
+    echo ""
+else
+    echo "⚠️  Some imports failed, but this may be expected in certain environments"
+fi
 
 # Display helpful information
 echo ""
@@ -94,7 +67,4 @@ echo "  • Format code:       uv run ruff format && uv run ruff check"
 echo ""
 echo "📚 Documentation: https://github.com/Metta-AI/metta"
 echo "💬 Discord: https://discord.gg/mQzrgwqmwy"
-echo ""
-echo "🔧 To run commands, use: uv run <command>"
-echo "   Example: uv run python -c 'import metta; print(metta.__file__)'"
 echo ""

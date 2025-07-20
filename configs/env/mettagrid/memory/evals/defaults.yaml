@@ -11,11 +11,12 @@ game:
   num_agents: 1
   agent:
     rewards:
-      heart: 1
-      ore_red: 0
-      battery_red: 0
+      inventory:
+        heart: 1
+        ore_red: 0
+        battery_red: 0
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 3
   objects:
     altar:

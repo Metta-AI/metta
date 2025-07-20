@@ -8,7 +8,10 @@ game:
   max_steps: 80
   agent:
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
   map_builder:
-    objects:
-      temple: 1
+    root:
+      params:
+        objects:
+          temple: 1

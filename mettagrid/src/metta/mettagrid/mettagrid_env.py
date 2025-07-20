@@ -9,13 +9,13 @@ from typing import Any, Dict, Optional, cast
 import numpy as np
 from gymnasium import Env as GymEnv
 from gymnasium import spaces
-from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.instantiate import instantiate
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
@@ -86,7 +86,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
-        self._current_seed = 0
+        self._current_seed: int = 0  # must be unsigned
 
         self.labels: list[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
@@ -118,7 +118,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+                map_builder = instantiate(map_builder_config, _recursive_=True)
                 level = map_builder.build()
 
         # Validate the level
@@ -128,6 +128,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         )
 
         game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
+        game_config_dict = cast(Dict[str, Any], game_config_dict)
+
         # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
         # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
         if "map_builder" in game_config_dict:
@@ -136,7 +139,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if self._is_training and self._resets == 0:
+        if isinstance(game_config_dict, dict) and self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
             # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
@@ -146,7 +149,15 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(from_mettagrid_config(game_config_dict), level.grid.tolist(), self._current_seed)
+            c_cfg = None
+            try:
+                c_cfg = from_mettagrid_config(game_config_dict)
+            except Exception as e:
+                logger.error(f"Error initializing C++ environment: {e}")
+                logger.error(f"Game config: {game_config_dict}")
+                raise e
+
+            self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 
@@ -273,7 +284,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
-            "completion_time": time.time(),
+            "completion_time": int(time.time()),
         }
         infos["attributes"] = attributes
 
@@ -366,9 +377,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         Return the observation space for a single agent.
         Returns:
-            Box: A Box space with shape depending on whether observation tokens are used.
-                If using tokens: (num_agents, num_observation_tokens, 3)
-                Otherwise: (obs_height, obs_width, num_grid_features)
+            Box: A Box space with shape (num_agents, num_observation_tokens, 3)
         """
         return self._c_env.observation_space
 
@@ -382,8 +391,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         return self._c_env.action_space
 
-    # obs_width and obs_height correspond to the view window size, and should indicate the grid from which
-    # tokens are being computed.
     @property
     def obs_width(self):
         return self._c_env.obs_width
@@ -416,7 +423,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
-    def get_observation_features(self) -> dict[str, dict]:
+    def get_observation_features(self) -> dict[str, dict[str, int | float]]:
         """
         Build the features dictionary for initialize_to_environment.
 
@@ -428,7 +435,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
-            feature_dict = {"id": feature_info["id"]}
+            feature_dict: dict[str, int | float] = {"id": feature_info["id"]}
 
             # Add normalization if present
             if "normalization" in feature_info:

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
 import { Dashboard } from './Dashboard'
+import { Episodes } from './Episodes'
 import { TokenManager } from './TokenManager'
 import { SavedDashboards } from './SavedDashboards'
 import { SQLQuery } from './SQLQuery'
@@ -201,6 +202,12 @@ function App() {
               >
                 Training Runs
               </Link>
+              <Link
+                to="/episodes"
+                className={`nav-tab ${location.pathname === '/episodes' ? 'active' : ''}`}
+              >
+                Episodes
+              </Link>
               <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
                 Saved Dashboards
               </Link>
@@ -219,6 +226,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
             <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
             <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
+            <Route path="/episodes" element={<Episodes repo={state.repo} />} />
             <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />

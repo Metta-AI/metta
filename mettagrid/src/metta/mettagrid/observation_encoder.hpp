@@ -19,16 +19,16 @@ public:
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
     assert(_feature_names.size() == _feature_normalizations.size());
-    for (int i = 0; i < inventory_item_names.size(); i++) {
-      _feature_normalizations.insert(
-          {static_cast<uint8_t>(InventoryFeatureOffset + i), DEFAULT_INVENTORY_NORMALIZATION});
-      _feature_names.insert({static_cast<uint8_t>(InventoryFeatureOffset + i), "inv:" + inventory_item_names[i]});
+    for (size_t i = 0; i < inventory_item_names.size(); i++) {
+      auto observation_feature = InventoryFeatureOffset + static_cast<ObservationType>(i);
+      _feature_normalizations.insert({observation_feature, DEFAULT_INVENTORY_NORMALIZATION});
+      _feature_names.insert({observation_feature, "inv:" + inventory_item_names[i]});
     }
   }
 
   size_t append_tokens_if_room_available(ObservationTokens tokens,
                                          const std::vector<PartialObservationToken>& tokens_to_append,
-                                         uint8_t location) {
+                                         ObservationType location) {
     size_t tokens_to_write = std::min(tokens.size(), tokens_to_append.size());
     for (size_t i = 0; i < tokens_to_write; i++) {
       tokens[i].location = location;
@@ -40,21 +40,21 @@ public:
 
   // Returns the number of tokens that were available to write. This will be the number of tokens actually
   // written if there was enough space -- or a greater number if there was not enough space.
-  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens, uint8_t location) {
+  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens, ObservationType location) {
     return append_tokens_if_room_available(tokens, obj->obs_features(), location);
   }
 
-  const std::map<uint8_t, float>& feature_normalizations() const {
+  const std::map<ObservationType, float>& feature_normalizations() const {
     return _feature_normalizations;
   }
 
-  const std::map<uint8_t, std::string>& feature_names() const {
+  const std::map<ObservationType, std::string>& feature_names() const {
     return _feature_names;
   }
 
 private:
-  std::map<uint8_t, float> _feature_normalizations;
-  std::map<uint8_t, std::string> _feature_names;
+  std::map<ObservationType, float> _feature_normalizations;
+  std::map<ObservationType, std::string> _feature_names;
 };
 
 #endif  // OBSERVATION_ENCODER_HPP_

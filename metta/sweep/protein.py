@@ -158,13 +158,6 @@ class Hyperparameters:
         self.min_bounds = np.array([e.norm_min for e in self.flat_spaces.values()])
         self.max_bounds = np.array([e.norm_max for e in self.flat_spaces.values()])
         self.search_scales = np.array([e.scale for e in self.flat_spaces.values()])
-        if verbose:
-            print("Min random sample:")
-            for name, space in self.flat_spaces.items():
-                print(f"\t{name}: {space.unnormalize(max(space.norm_mean - space.scale, space.norm_min))}")
-            print("Max random sample:")
-            for name, space in self.flat_spaces.items():
-                print(f"\t{name}: {space.unnormalize(min(space.norm_mean + space.scale, space.norm_max))}")
 
     def sample(self, n, mu=None, scale=1):
         if mu is None:
@@ -195,6 +188,9 @@ class Hyperparameters:
     def _fill(self, params, spaces, flat_sample, idx=0):
         for name, space in spaces.items():
             if isinstance(space, dict):
+                # Create nested dict if it doesn't exist
+                if name not in params:
+                    params[name] = {}
                 idx = self._fill(params[name], spaces[name], flat_sample, idx=idx)
             else:
                 params[name] = spaces[name].unnormalize(flat_sample[idx])
@@ -395,12 +391,6 @@ class Protein:
             cost=gp_c[best_idx].item(),
             score=gp_y[best_idx].item(),
             rating=suggestion_scores[best_idx].item(),
-        )
-        print(
-            "Predicted -- ",
-            f"Score: {info['score']:.3f}",
-            f"Cost: {info['cost']:.3f}",
-            f"Rating: {info['rating']:.3f}",
         )
         best = suggestions[best_idx].numpy()
         return self.hyperparameters.to_dict(best, fill), info

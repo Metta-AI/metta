@@ -11,19 +11,19 @@
 #include "agent.hpp"
 #include "constants.hpp"
 #include "has_inventory.hpp"
-#include "metta_object.hpp"
 
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
                   const std::string& type_name,
-                  const std::map<InventoryItem, uint8_t>& input_resources,
-                  const std::map<InventoryItem, uint8_t>& output_resources,
+                  const std::map<InventoryItem, InventoryQuantity>& input_resources,
+                  const std::map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
-                  unsigned char initial_resource_count,
-                  ObsType color)
+                  InventoryQuantity initial_resource_count,
+                  ObservationType color,
+                  bool show_recipe_inputs = false)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -31,15 +31,17 @@ struct ConverterConfig : public GridObjectConfig {
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
-        color(color) {}
+        color(color),
+        show_recipe_inputs(show_recipe_inputs) {}
 
-  std::map<InventoryItem, uint8_t> input_resources;
-  std::map<InventoryItem, uint8_t> output_resources;
+  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
   unsigned short conversion_ticks;
   unsigned short cooldown;
-  unsigned char initial_resource_count;
-  ObsType color;
+  InventoryQuantity initial_resource_count;
+  ObservationType color;
+  bool show_recipe_inputs;
 };
 
 class Converter : public HasInventory {
@@ -49,7 +51,7 @@ private:
   void maybe_start_converting() {
     // We can't start converting if there's no event manager, since we won't
     // be able to schedule the finishing event.
-    assert(this->event_manager != nullptr);
+    assert(this->event_manager);
     // We also need to have an id to schedule the finishing event. If our id
     // is zero, we probably haven't been added to the grid yet.
     assert(this->id != 0);
@@ -89,7 +91,7 @@ private:
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
-      stats.add(stats.inventory_item_name(item) + ".consumed", amount);
+      stats.add(stats.inventory_item_name(item) + ".consumed", static_cast<float>(amount));
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -99,8 +101,8 @@ private:
   }
 
 public:
-  std::map<InventoryItem, uint8_t> input_resources;
-  std::map<InventoryItem, uint8_t> output_resources;
+  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::map<InventoryItem, InventoryQuantity> output_resources;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
@@ -111,6 +113,7 @@ public:
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
+  bool show_recipe_inputs;
   EventManager* event_manager;
   StatsTracker stats;
 
@@ -120,19 +123,21 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
-    this->converting = false;
-    this->cooling_down = false;
+        color(cfg.color),
+        show_recipe_inputs(cfg.show_recipe_inputs),
+        event_manager(nullptr),
+        converting(false),
+        cooling_down(false) {
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
-      HasInventory::update_inventory(item, cfg.initial_resource_count);
+      HasInventory::update_inventory(item, static_cast<InventoryDelta>(cfg.initial_resource_count));
     }
   }
 
-  void set_event_manager(EventManager* event_manager) {
-    this->event_manager = event_manager;
+  void set_event_manager(EventManager* event_manager_ptr) {
+    this->event_manager = event_manager_ptr;
     this->maybe_start_converting();
   }
 
@@ -142,8 +147,8 @@ public:
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      HasInventory::update_inventory(item, amount);
-      stats.add(stats.inventory_item_name(item) + ".produced", amount);
+      HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
+      stats.add(stats.inventory_item_name(item) + ".produced", static_cast<float>(amount));
     }
 
     if (this->cooldown > 0) {
@@ -167,8 +172,8 @@ public:
     this->maybe_start_converting();
   }
 
-  int update_inventory(InventoryItem item, short amount) override {
-    int delta = HasInventory::update_inventory(item, amount);
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
+    InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
     if (delta != 0) {
       if (delta > 0) {
         stats.add(stats.inventory_item_name(item) + ".added", delta);
@@ -180,17 +185,38 @@ public:
     return delta;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
-    features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, type_id});
-    features.push_back({ObservationFeature::Color, color});
-    features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+  std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
+
+    // Calculate the capacity needed
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs
+    size_t capacity = 3 + this->inventory.size();
+    if (this->show_recipe_inputs) {
+      capacity += this->input_resources.size();
+    }
+    features.reserve(capacity);
+
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->color)});
+    features.push_back({ObservationFeature::ConvertingOrCoolingDown,
+                        static_cast<ObservationType>(this->converting || this->cooling_down)});
+
+    // Add current inventory
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      features.push_back({static_cast<uint8_t>(item + InventoryFeatureOffset), amount});
+      features.push_back(
+          {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
+
+    // Add recipe inputs if configured to do so
+    if (this->show_recipe_inputs) {
+      for (const auto& [item, amount] : this->input_resources) {
+        features.push_back(
+            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+      }
+    }
+
     return features;
   }
 };

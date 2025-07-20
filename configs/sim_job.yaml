@@ -4,7 +4,7 @@ defaults:
   - sim: all
   - _self_
 
-run: ???
+run: null # Auto-generated if not provided
 policy_uri: ???
 
 sim_job:
@@ -14,5 +14,7 @@ sim_job:
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: ${run_dir}/replays/evals
+
+eval_task_id: null
 
 cmd: sim

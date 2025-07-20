@@ -28,6 +28,12 @@ def grid_to_lines(grid: MapGrid, border: bool = False) -> list[str]:
     return lines
 
 
+def print_grid(grid: MapGrid, border=True):
+    lines = grid_to_lines(grid, border=border)
+    for line in lines:
+        print(line)
+
+
 def lines_to_grid(lines: list[str]) -> MapGrid:
     grid = np.full((len(lines), len(lines[0])), "empty", dtype="<U50")
     for r, line in enumerate(lines):

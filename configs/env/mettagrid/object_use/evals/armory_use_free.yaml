@@ -7,10 +7,13 @@ game:
   max_steps: 80
   agent:
     rewards:
-      armor: 1
+      inventory:
+        armor: 1
   map_builder:
-    objects:
-      armory: 1
+    root:
+      params:
+        objects:
+          armory: 1
   objects:
     armory:
       cooldown: 255

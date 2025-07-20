@@ -2,12 +2,12 @@ import logging
 from types import SimpleNamespace
 
 import torch
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pufferlib.pytorch import sample_logits
 from torch import nn
 
 from metta.agent.policy_state import PolicyState
+from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger("policy")
 
@@ -18,7 +18,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     Args:
         path: Path to the checkpoint file
         device: Device to load the policy on
-        pytorch_cfg: Configuration for the PyTorch policy (formerly 'puffer')
+        pytorch_cfg: Configuration for the PyTorch policy with _target_ field
 
     Returns:
         PytorchAgent wrapping the loaded policy
@@ -31,20 +31,38 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
     except Exception as e:
         logger.warning(f"Failed automatic parse from weights: {e}")
-        # TODO -- fix all magic numbers
-        num_actions, num_action_args = 9, 10
-        _, obs_channels = 128, 34
+        logger.warning("Using defaults from config")
+        num_actions = 9
+        hidden_size = 512
+        num_action_args = 10
+        obs_channels = 24
 
-    # Create environment namespace
     env = SimpleNamespace(
+        observation_space=SimpleNamespace(shape=(11, 11, obs_channels)),
+        action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+        single_observation_space=SimpleNamespace(shape=(11, 11, obs_channels)),
         single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(
-            shape=tuple(torch.tensor([obs_channels, 11, 11], dtype=torch.long).tolist())
-        ),
     )
 
-    policy = instantiate(pytorch_cfg, env=env, policy=None)
+    # Use common instantiate function
+    if pytorch_cfg is None:
+        # Default to Recurrent policy if no config provided
+        from metta.agent.external.example import Recurrent
+
+        policy = Recurrent(
+            env=env,
+            policy=None,
+            hidden_size=hidden_size,
+            conv_depth=2,
+            conv_channels=32,
+        )
+    else:
+        # Use the common instantiate utility
+        policy = instantiate(pytorch_cfg, env=env, policy=None)
+
     policy.load_state_dict(weights)
+
+    # Wrap in PytorchAgent and move to device
     policy = PytorchAgent(policy).to(device)
     return policy
 

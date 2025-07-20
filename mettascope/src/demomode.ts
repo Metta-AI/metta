@@ -45,8 +45,7 @@ class Shot {
 /** Current active shot. */
 var shot: Shot | null = null
 
-export function initDemoMode() {
-}
+export function initDemoMode() {}
 
 export function startDemoMode() {
   state.demoMode = true
@@ -79,12 +78,7 @@ export function doDemoMode() {
   if (shot == null || shot.startTime + shot.duration < epochTime()) {
     if (Math.random() < 0.1) {
       // Create a shot that just shows the overall view.
-      shot = new Shot(
-        ShotType.SHOW_OVERALL_VIEW,
-        0,
-        3,
-        0
-      )
+      shot = new Shot(ShotType.SHOW_OVERALL_VIEW, 0, 3, 0)
       state.selectedGridObject = null
       state.followSelection = false
       focusFullMap(ui.mapPanel)
@@ -122,12 +116,7 @@ export function doDemoMode() {
       }
 
       // Create a new shot that focuses on the agent.
-      shot = new Shot(
-        ShotType.FOCUS_AGENT,
-        agentId,
-        3,
-        choose([-0.1, 0.1])
-      )
+      shot = new Shot(ShotType.FOCUS_AGENT, agentId, 3, choose([-0.1, 0.1]))
       state.selectedGridObject = state.replay.agents[shot.agentId]
       state.followSelection = true
       focusMap(0, 0, 11 * Common.TILE_SIZE, 11 * Common.TILE_SIZE)
@@ -137,7 +126,7 @@ export function doDemoMode() {
 
   let t = (epochTime() - shot.startTime) / shot.duration
   if (shot != null) {
-    ui.mapPanel.zoomLevel = (shot.zoomLevel - shot.zooming) + shot.zooming * easeInOut(t)
+    ui.mapPanel.zoomLevel = shot.zoomLevel - shot.zooming + shot.zooming * easeInOut(t)
   }
 
   requestFrame()
