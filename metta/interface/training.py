@@ -1,13 +1,17 @@
 """Training utilities for Metta API."""
 
+import logging
 import os
 from typing import Any, Dict, Optional, Tuple
 
 import torch
 from heavyball import ForeachMuon
+from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler as BaseHyperparameterScheduler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.trainer_config import HyperparameterSchedulerConfig, PPOConfig
 from metta.rl.util.policy_management import cleanup_old_policies, save_policy_with_metadata
 
 
@@ -58,6 +62,54 @@ class Optimizer:
 
     def load_state_dict(self, state_dict):
         self.optimizer.load_state_dict(state_dict)
+
+
+class HyperparameterScheduler:
+    """Simple wrapper for HyperparameterScheduler that handles configuration."""
+
+    def __init__(
+        self,
+        optimizer: torch.optim.Optimizer,
+        total_timesteps: int,
+        learning_rate: Optional[float] = None,
+        ppo_config: Optional[PPOConfig] = None,
+        scheduler_config: Optional[HyperparameterSchedulerConfig] = None,
+    ):
+        """Initialize hyperparameter scheduler with sensible defaults.
+
+        Args:
+            optimizer: PyTorch optimizer to manage
+            total_timesteps: Total training timesteps
+            learning_rate: Initial learning rate (defaults to optimizer's current lr)
+            ppo_config: PPO configuration (uses defaults if not provided)
+            scheduler_config: Scheduler configuration (uses defaults if not provided)
+        """
+        # Get current learning rate from optimizer if not provided
+        if learning_rate is None:
+            learning_rate = optimizer.param_groups[0]["lr"]
+
+        # Use default PPO config if not provided
+        if ppo_config is None:
+            ppo_config = PPOConfig()
+
+        # Use default scheduler config if not provided
+        if scheduler_config is None:
+            scheduler_config = HyperparameterSchedulerConfig()
+
+        # Build config dict that BaseHyperparameterScheduler expects
+        config_dict = {
+            "ppo": ppo_config.model_dump(),
+            "optimizer": {"learning_rate": learning_rate},
+            "hyperparameter_scheduler": scheduler_config.model_dump(),
+        }
+
+        # Create DictConfig and initialize base scheduler
+        cfg = DictConfig(config_dict)
+        self._scheduler = BaseHyperparameterScheduler(cfg, optimizer, total_timesteps, logging)
+
+    def step(self, current_timestep: int) -> None:
+        """Update hyperparameters for current timestep."""
+        self._scheduler.step(current_timestep)
 
 
 def cleanup_distributed():

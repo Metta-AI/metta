@@ -20,6 +20,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface import (
     Environment,
+    HyperparameterScheduler,
     create_evaluation_config_suite,
     setup_run_directories,
 )
@@ -28,7 +29,6 @@ from metta.interface.directories import save_experiment_config
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
@@ -382,17 +382,14 @@ if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler
         optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
 
-# Create hyperparameter scheduler (handles dynamic learning rate and other hyperparameter adjustments)
-# Need to create a config dict that matches what HyperparameterScheduler expects
-scheduler_config = {
-    "ppo": trainer_config.ppo.model_dump(),
-    "optimizer": trainer_config.optimizer.model_dump(),
-    "hyperparameter_scheduler": trainer_config.hyperparameter_scheduler.model_dump()
-    if trainer_config.hyperparameter_scheduler
-    else {},
-}
+# Create hyperparameter scheduler with simple interface
+
 hyperparameter_scheduler = HyperparameterScheduler(
-    DictConfig(scheduler_config), optimizer, trainer_config.total_timesteps, logging
+    optimizer=optimizer,
+    total_timesteps=trainer_config.total_timesteps,
+    learning_rate=trainer_config.optimizer.learning_rate,
+    ppo_config=trainer_config.ppo,
+    scheduler_config=trainer_config.hyperparameter_scheduler,
 )
 
 # Memory and System Monitoring (master only)
@@ -875,5 +872,5 @@ if torch.distributed.is_initialized():
     torch.distributed.destroy_process_group()
 
 # Clean up wandb if initialized
-if is_master:
+if is_master and wandb_ctx:
     wandb_ctx.__exit__(None, None, None)
