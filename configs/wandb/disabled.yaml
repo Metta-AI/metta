@@ -1,0 +1,12 @@
+enabled: false
+
+# Dummy values to prevent validation errors if needed
+project: "disabled"
+entity: "disabled"
+group: "disabled"
+name: "disabled"
+run_id: "disabled"
+data_dir: "${run_dir}"
+job_type: "disabled"
+tags: []
+notes: ""
