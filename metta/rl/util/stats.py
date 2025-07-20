@@ -191,6 +191,7 @@ def build_wandb_stats(
     system_stats: Dict[str, Any],
     memory_stats: Dict[str, Any],
     parameters: Dict[str, Any],
+    hyperparameters: Dict[str, Any],
     evals: EvalRewardSummary,
     agent_step: int,
     epoch: int,
@@ -206,6 +207,7 @@ def build_wandb_stats(
         system_stats: System monitor statistics
         memory_stats: Memory monitor statistics
         parameters: Training parameters
+        hyperparameters: Current hyperparameter values
         evals: Evaluation scores
         agent_step: Current agent step
         epoch: Current epoch
@@ -242,6 +244,7 @@ def build_wandb_stats(
         **{f"losses/{k}": v for k, v in processed_stats["losses_stats"].items()},
         **{f"experience/{k}": v for k, v in processed_stats["experience_stats"].items()},
         **{f"parameters/{k}": v for k, v in parameters.items()},
+        **{f"hyperparameters/{k}": v for k, v in hyperparameters.items()},
         **{f"eval_{k}": v for k, v in evals.to_wandb_metrics_format().items()},
         **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
         **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
