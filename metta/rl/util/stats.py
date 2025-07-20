@@ -327,6 +327,7 @@ def process_stats(
         grad_stats=grad_stats,
         system_stats=system_stats,
         memory_stats=memory_stats,
+        hyperparameters={},
         parameters=parameters,
         evals=evals,
         agent_step=agent_step,
