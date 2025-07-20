@@ -16,12 +16,13 @@ class SweepClient:
 
     def __init__(self, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None):
         """
-        Initialize the sweep client.
+        Initialize the sweep client with automatic authentication if no token provided.
 
         Args:
             base_url: Base URL of the API server
-            auth_token: Authentication token (machine token or user session)
+            auth_token: Authentication token.
         """
+        # Get machine token if no auth_token provided
         self.base_url = base_url.rstrip("/")
         self.headers = {}
         if auth_token:
@@ -59,15 +60,6 @@ class SweepClient:
         response.raise_for_status()
         data = RunIdResponse(**response.json())
         return data.run_id
-
-
-# Example usage for generate_run_id_for_sweep():
-def generate_run_id_for_sweep(
-    sweep_name: str, api_url: str = "http://localhost:8000", auth_token: Optional[str] = None
-) -> str:
-    """Generate a unique run ID for a sweep using the coordination API."""
-    client = SweepClient(api_url, auth_token)
-    return client.get_next_run_id(sweep_name)
 
 
 if __name__ == "__main__":
