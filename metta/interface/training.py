@@ -1,12 +1,13 @@
 """Training utilities for Metta API."""
 
+import json
 import logging
 import os
 from typing import Any, Dict, Optional, Tuple
 
 import torch
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.rl.hyperparameter_scheduler import HyperparameterScheduler as BaseHyperparameterScheduler
@@ -227,3 +228,24 @@ def ensure_initial_policy(
     # Ensure all ranks synchronize
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
+
+
+def upload_env_configs(curriculum: Any, wandb_run) -> None:
+    """Upload fully-resolved env configs per bucket to the current wandb run files."""
+    if wandb_run is None:
+        return
+    try:
+        env_cfgs = curriculum.get_env_cfg_by_bucket()  # dict[str, DictConfig]
+        # Resolve and convert each DictConfig to plain dict
+        resolved = {k: OmegaConf.to_container(v, resolve=True) for k, v in env_cfgs.items()}
+        payload = json.dumps(resolved, indent=2)
+        file_path = os.path.join(wandb_run.dir, "env_configs.json")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(payload)
+        try:
+            wandb_run.save(file_path, base_path=wandb_run.dir, policy="now")
+        except Exception:
+            # save() may fail in offline mode – that's okay.
+            pass
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to upload env configs: {e}")

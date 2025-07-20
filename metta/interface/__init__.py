@@ -18,7 +18,12 @@ from metta.interface.evaluation import (
     evaluate_policy_suite,
     generate_replay_simple,
 )
-from metta.interface.training import HyperparameterScheduler, Optimizer, load_checkpoint, save_checkpoint
+from metta.interface.training import (
+    HyperparameterScheduler,
+    Optimizer,
+    load_checkpoint,
+    save_checkpoint,
+)
 
 __all__ = [
     # Agent

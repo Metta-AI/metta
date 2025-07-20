@@ -7,7 +7,6 @@ from collections import defaultdict
 import numpy as np
 import torch
 import torch.distributed
-import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
@@ -16,6 +15,11 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.common.wandb.helpers import (
+    abort_requested,
+    add_policy_artifact,
+    upload_env_configs,
+)
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -34,6 +38,7 @@ from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
+from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
@@ -424,6 +429,17 @@ stats = defaultdict(list)  # Use defaultdict like trainer.py
 grad_stats = {}
 current_policy_generation = initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0
 
+# After environment is initialized but before training loop
+if is_master and wandb_run and trainer_config.curriculum:
+    try:
+        curr_tmp = curriculum_from_config_path(trainer_config.curriculum, DictConfig(trainer_config.env_overrides))
+        upload_env_configs(curriculum=curr_tmp, wandb_run=wandb_run)
+    except Exception as e:
+        logger.warning(f"Failed to upload env configs: {e}")
+
+# Create torch profiler (matches trainer.py)
+torch_profiler = TorchProfiler(is_master, trainer_config.profiler, wandb_run, dirs.run_dir)
+
 while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
 
@@ -722,20 +738,16 @@ while agent_step < trainer_config.total_timesteps:
         and should_run(epoch, trainer_config.checkpoint.wandb_checkpoint_interval, True)
     ):
         try:
-            policy_store.add_to_wandb_run(wandb_run.name, latest_saved_policy_record)
+            add_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
             logger.info(f"Uploaded policy to wandb at epoch {epoch}")
         except Exception as e:
             logger.warning(f"Failed to upload policy to wandb: {e}")
 
     # Abort check via wandb tag (master only)
-    if is_master and wandb_run:
-        try:
-            run_obj = wandb.Api().run(wandb_run.path)
-            if "abort" in run_obj.tags:
-                logger.info("Abort tag detected. Stopping the run.")
-                break
-        except Exception:
-            pass
+    if is_master and wandb_run and should_run(epoch, 5, True):
+        if abort_requested(wandb_run, 60):
+            logger.info("Abort tag detected. Stopping the run.")
+            break
 
     # Policy evaluation (master only)
     if (
@@ -843,6 +855,8 @@ while agent_step < trainer_config.total_timesteps:
                     replay_dir=trainer_config.simulation.replay_dir,
                     wandb_run=wandb_run,
                 )
+
+    torch_profiler.on_epoch_end(epoch)
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
