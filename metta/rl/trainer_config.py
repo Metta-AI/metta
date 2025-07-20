@@ -10,8 +10,8 @@ from metta.rl.kickstarter_config import KickstartConfig
 
 class OptimizerConfig(BaseModelWithForbidExtra):
     type: Literal["adam", "muon"] = "adam"
-    # Learning rate: Updated based on Joseph's sweep results
-    learning_rate: float = Field(default=0.019, gt=0, le=1.0)  # was: 0.0004573146765703167
+    # Learning rate: Type 2 default chosen by sweep
+    learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
     # Beta1: Updated based on Joseph's sweep results (was: Standard Adam default from Kingma & Ba (2014))
     beta1: float = Field(default=0.89, ge=0, le=1.0)  # was: 0.9
     # Beta2: Updated based on Joseph's sweep results (was: Standard Adam default from Kingma & Ba (2014))
@@ -34,8 +34,8 @@ class LRSchedulerConfig(BaseModelWithForbidExtra):
 
 
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
-    # Alpha: Updated based on Joseph's sweep results (0.79 enables strong prioritization)
-    prio_alpha: float = Field(default=0.79, ge=0, le=1.0)  # was: 0.0 (disabled prioritization)
+    # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
+    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     # Beta0: Updated based on Joseph's sweep results (was: From Schaul et al. 2016 paper)
     prio_beta0: float = Field(default=0.59, ge=0, le=1.0)  # was: 0.6
 
@@ -94,12 +94,12 @@ class PPOConfig(BaseModelWithForbidExtra):
     gamma: float = Field(default=0.99, ge=0, le=1.0)  # was: 0.977
 
     # Training parameters
-    # Gradient clipping: Updated based on Joseph's sweep results (was: 0.5 is standard PPO default)
-    max_grad_norm: float = Field(default=2.6, gt=0)  # was: 0.5
+    # Gradient clipping: 0.5 is standard PPO default to prevent instability
+    max_grad_norm: float = Field(default=0.5, gt=0)
     # Value function clipping: Updated based on Joseph's sweep results (was: Matches policy clip for consistency)
     vf_clip_coef: float = Field(default=0.16, ge=0)  # was: 0.1
-    # Value coefficient: Updated based on Joseph's sweep results (was: balances policy vs value loss)
-    vf_coef: float = Field(default=3.2, ge=0)  # was: 0.44
+    # Value coefficient: Type 2 default chosen from sweep, balances policy vs value loss
+    vf_coef: float = Field(default=0.44, ge=0)
     # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)

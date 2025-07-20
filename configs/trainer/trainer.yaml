@@ -29,7 +29,7 @@ optimizer:
   beta1: 0.89  # was: 0.9
   beta2: 0.96  # was: 0.999
   eps: 1.4e-7  # was: 1e-12
-  learning_rate: 0.019  # was: 0.000457
+  learning_rate: 0.000457
   weight_decay: 0
 
 lr_scheduler:
@@ -46,9 +46,9 @@ ppo:
   gamma: 0.99  # was: 0.977
 
   # Training parameters
-  max_grad_norm: 2.6  # was: 0.5
+  max_grad_norm: 0.5
   vf_clip_coef: 0.16  # was: 0.1
-  vf_coef: 3.2  # was: 0.44
+  vf_coef: 0.44
   l2_reg_loss_coef: 0
   l2_init_loss_coef: 0
   norm_adv: true
@@ -57,7 +57,7 @@ ppo:
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
-  prio_alpha: 0.79  # was: 0.0 - Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+  prio_alpha: 0.0 # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
   prio_beta0: 0.59  # was: 0.6 - Initial importance sampling correction
 
 # V-trace clipping parameters (for off-policy corrections)
