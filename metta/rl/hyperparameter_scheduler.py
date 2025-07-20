@@ -124,7 +124,7 @@ class HyperparameterScheduler:
         if "ppo_l2_init_loss_coef" in updates:
             trainer.trainer_cfg.ppo.l2_init_loss_coef = updates["ppo_l2_init_loss_coef"]
 
-        if current_step % 1000 == 0 and updates:
+        if current_step % 10000 == 0 and updates:
             self.logger.info(
                 f"Step {current_step}: Updated hyperparameters: "
                 + ", ".join(f"{k}={v:.6f}" for k, v in updates.items())
