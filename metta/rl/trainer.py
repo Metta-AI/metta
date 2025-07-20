@@ -19,10 +19,10 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
+from metta.interface import HyperparameterScheduler as SimpleHyperparameterScheduler
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
@@ -1011,7 +1011,14 @@ def create_training_components(
         memory_monitor.add(policy, name="Policy", track_attributes=False)
 
     # Create hyperparameter scheduler
-    hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, optimizer, trainer_cfg.total_timesteps, logging)
+    # Use the simple interface wrapper like run.py does
+    hyperparameter_scheduler = SimpleHyperparameterScheduler(
+        optimizer=optimizer,
+        total_timesteps=trainer_cfg.total_timesteps,
+        learning_rate=trainer_cfg.optimizer.learning_rate,
+        ppo_config=trainer_cfg.ppo,
+        scheduler_config=trainer_cfg.hyperparameter_scheduler,
+    )
 
     # Return all components in the expected order
     return (
