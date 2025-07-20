@@ -2,6 +2,10 @@
 # sweep.sh - Continuous sweep execution with retry logic
 set -e
 
+# Generate unique process ID for this sweep worker
+SWEEP_PROCESS_ID=$(python -c "import uuid; print(uuid.uuid4().hex[:8])")
+echo "[INFO] Generated sweep process ID: $SWEEP_PROCESS_ID"
+
 # Parse arguments
 args="${@:1}"
 
@@ -17,9 +21,10 @@ fi
 # Extract sweep name from run
 sweep_name=$(echo "$args" | grep -E -o '(^|[[:space:]])run=[^ ]*' | sed 's/.*run=//')
 
-
 # Replace run=<name> with sweep_name=<name> - handle both start of string and after space
 args_for_rollout=$(echo "$args" | sed 's/^run=/sweep_name=/' | sed 's/ run=/ sweep_name=/g')
+# Add process ID to arguments (not as environment variable)
+args_for_rollout="$args_for_rollout sweep_process_id=$SWEEP_PROCESS_ID"
 
 source ./devops/setup.env # TODO: Make sure that this is the right source-ing.
 

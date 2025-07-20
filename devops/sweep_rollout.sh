@@ -12,15 +12,21 @@ if [ -z "$sweep_name" ]; then
   exit 1
 fi
 
+# Extract sweep process ID
+sweep_process_id=$(echo "$args" | grep -o 'sweep_process_id=[^ ]*' | sed 's/sweep_process_id=//' || echo "")
+if [ -z "$sweep_process_id" ]; then
+  # Fallback to DIST_ID for backward compatibility
+  sweep_process_id=${DIST_ID:-localhost}
+fi
+
 # Extract hardware argument if present
 # This is needed for local sweeps.
 hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
 
 source ./devops/setup.env # TODO: Check this is the right sourcing.
 
-# Parse distributed config path
-DIST_ID=${DIST_ID:-localhost}
-DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_name/dist_$DIST_ID.yaml"
+# Parse distributed config path using process-specific ID
+DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_name/dist_$sweep_process_id.yaml"
 
 echo "[INFO] Starting sweep rollout: $sweep_name"
 

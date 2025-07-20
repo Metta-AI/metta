@@ -16,7 +16,8 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.sweep.wandb_utils import create_wandb_sweep, sweep_id_from_name
+from metta.sweep.metta_client_utils import create_sweep_in_metta, get_sweep_id_from_metta
+from metta.sweep.wandb_utils import create_wandb_sweep
 
 logger = setup_mettagrid_logger("sweep_setup")
 
@@ -35,22 +36,21 @@ def main(cfg: DictConfig | ListConfig) -> int:
 def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     Create a new sweep with the given name. If the sweep already exists, skip creation.
-    Save the sweep configuration to sweep_dir/config.yaml.
+    Save the sweep configuration to sweep_dir/metadata.yaml.
     """
     # Check if sweep already exists
-    wandb_sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, cfg.sweep_name)
+    wandb_sweep_id = get_sweep_id_from_metta(cfg.sweep_name)
 
-    if wandb_sweep_id is not None:
-        logger.info(f"Sweep already exists in WandB, skipping creation for: {cfg.sweep_name}")
-
-    else:
-        logger.info(f"Creating new WandB sweep: {cfg.sweep_name}: {cfg.sweep_dir}")
-
-        # Create sweep using static methods from protein_wandb (Protein will control all parameters)
+    # The sweep hasn't been registered with the centralized DB
+    if wandb_sweep_id is None:
+        # Create the sweep in WandB
         wandb_sweep_id = create_wandb_sweep(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project)
+        # Register the sweep in the centralized DB
+        create_sweep_in_metta(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project, wandb_sweep_id)
 
     # Save sweep metadata locally
     # in join(cfg.sweep_dir, "metadata.yaml"
+    # Creating runs_dir creates the sweep_dir
     os.makedirs(cfg.runs_dir, exist_ok=True)
     OmegaConf.save(
         {

@@ -9,6 +9,7 @@ defaults:
 
 cmd: sweep
 sweep_name: ???  # Will be set via command line override
+sweep_process_id: localhost  # Process-specific ID for parallel workers, overridden via CLI
 
 trainer:
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)

@@ -20,8 +20,8 @@ from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
 from metta.common.wandb.wandb_context import WandbContext
+from metta.sweep.metta_client_utils import get_next_run_id_from_metta
 from metta.sweep.protein_metta import MettaProtein
-from metta.sweep.wandb_utils import generate_run_id_for_sweep
 
 logger = setup_mettagrid_logger("sweep_prepare_run")
 
@@ -41,8 +41,8 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     sweep_metadata = OmegaConf.load(os.path.join(cfg.sweep_dir, "metadata.yaml"))
 
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
-    # TODO: Use sweep_id instead of sweep_path, currently very confusing.
-    run_id = generate_run_id_for_sweep(sweep_metadata.wandb_path, cfg.runs_dir)
+    # Use centralized database for atomic run ID generation
+    run_id = get_next_run_id_from_metta(cfg.sweep_name)
     logger.info(f"Creating new run: {run_id}")
 
     run_dir = os.path.join(cfg.runs_dir, run_id)
@@ -83,7 +83,10 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             assert isinstance(sweep_job_container, dict), "sweep_job must be a dictionary structure"
             sweep_job_copy = DictConfig(sweep_job_container)
             apply_protein_suggestion(sweep_job_copy, clean_suggestion)
-            save_path = os.path.join(run_dir, "train_config_overrides.yaml")
+
+            # Use process-specific path for config overrides to avoid conflicts
+            process_id = getattr(cfg, "sweep_process_id", "localhost")
+            save_path = os.path.join(run_dir, f"train_config_overrides_{process_id}.yaml")
             run_seed = random.randint(0, 2**31 - 1)  # TODO: Seeding is trough metta_script.
 
             # Save the merged config that will be used for training

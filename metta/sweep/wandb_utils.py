@@ -111,6 +111,10 @@ def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
 
 
 def generate_run_id_for_sweep(sweep_id: str, sweep_names_dir: str) -> str:
+    """DEPRECATED: Use get_next_run_id_from_metta() from metta.sweep.metta_client_utils instead.
+
+    This function has race conditions and should not be used in production.
+    """
     api = wandb.Api()
     sweep = api.sweep(sweep_id)
 
