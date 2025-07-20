@@ -71,6 +71,9 @@ def upload_env_configs(curriculum: Any, wandb_run: wandb.sdk.wandb_run.Run | Non
     if wandb_run is None:
         return
     try:
+        if not hasattr(curriculum, "get_env_cfg_by_bucket"):
+            logger.debug("Curriculum does not implement get_env_cfg_by_bucket; skipping env config upload")
+            return
         env_cfgs: Dict[str, Any] = curriculum.get_env_cfg_by_bucket()  # type: ignore[attr-defined]
         resolved = {k: OmegaConf.to_container(v, resolve=True) for k, v in env_cfgs.items()}
         payload = json.dumps(resolved, indent=2)
