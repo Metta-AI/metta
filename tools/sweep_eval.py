@@ -125,6 +125,7 @@ def main(cfg: DictConfig) -> int:
                 "time.total": train_time + eval_time,
                 "uri": policy_pr.uri,
                 "score": eval_metric,
+                cfg.sweep.metric: eval_metric,
             }
 
             sweep_stats.update(stats_update)

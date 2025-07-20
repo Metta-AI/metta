@@ -3,7 +3,7 @@ import time
 from typing import Any, Optional
 
 import wandb
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.retry import retry_on_exception
 
@@ -80,7 +80,7 @@ def create_wandb_sweep(
         str: The ID of the created sweep.
     """
     # Extract metric and goal information from sweep config
-    metric_name = "protein.objective"  # Default fallback
+    metric_name = "score"  # Default to what sweep_eval.py logs to WandB
     metric_goal = "maximize"  # Default fallback
     method = "bayes"  # Default fallback
 
@@ -88,33 +88,26 @@ def create_wandb_sweep(
     wandb_parameters = {"dummy_param": {"values": [1]}}  # Fallback
 
     if sweep_config and hasattr(sweep_config, "parameters"):
-        try:
-            # Use the same conversion pattern as protein_metta.py
-            from omegaconf import OmegaConf
+        # Use the same conversion pattern as protein_metta.py
+        parameters_dict = OmegaConf.to_container(sweep_config.parameters, resolve=True)
 
-            parameters_dict = OmegaConf.to_container(sweep_config.parameters, resolve=True)
+        # Convert Protein parameter format to WandB format for visualization
+        wandb_parameters = _convert_protein_to_wandb_params(parameters_dict)
 
-            # Convert Protein parameter format to WandB format for visualization
-            wandb_parameters = _convert_protein_to_wandb_params(parameters_dict)
-
-            # Extract other config values
-            if hasattr(sweep_config, "metric"):
-                metric_name = sweep_config.metric
-            if hasattr(sweep_config, "goal"):
-                metric_goal = sweep_config.goal
-            if hasattr(sweep_config, "method"):
-                method = sweep_config.method
-
-        except Exception as e:
-            logger.warning(f"Failed to convert sweep parameters, using dummy: {e}")
-            wandb_parameters = {"dummy_param": {"values": [1]}}
+        # Extract other config values
+        if hasattr(sweep_config, "metric"):
+            metric_name = sweep_config.metric
+        if hasattr(sweep_config, "goal"):
+            metric_goal = sweep_config.goal
+        if hasattr(sweep_config, "method"):
+            method = sweep_config.method
 
     logger.info(f"Creating WandB sweep '{sweep_name}' with {len(wandb_parameters)} parameters")
 
     sweep_id = wandb.sweep(
         sweep={
             "name": sweep_name,
-            "method": method,  # Protein will override suggestions regardless
+            "method": method,
             "metric": {"name": metric_name, "goal": metric_goal},
             "parameters": wandb_parameters,
         },
