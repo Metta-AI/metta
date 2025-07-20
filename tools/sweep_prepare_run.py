@@ -42,7 +42,8 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
     # Use centralized database for atomic run ID generation
-    run_id = get_next_run_id_from_metta(cfg.sweep_name)
+    backend_url = cfg.stats_server_uri if hasattr(cfg, "stats_server_uri") else None
+    run_id = get_next_run_id_from_metta(cfg.sweep_name, backend_url=backend_url)
     logger.info(f"Creating new run: {run_id}")
 
     run_dir = os.path.join(cfg.runs_dir, run_id)
@@ -83,10 +84,10 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             assert isinstance(sweep_job_container, dict), "sweep_job must be a dictionary structure"
             sweep_job_copy = DictConfig(sweep_job_container)
             apply_protein_suggestion(sweep_job_copy, clean_suggestion)
-
-            # Use process-specific path for config overrides to avoid conflicts
-            process_id = getattr(cfg, "sweep_process_id", "localhost")
-            save_path = os.path.join(run_dir, f"train_config_overrides_{process_id}.yaml")
+            # NOTE: Overrides are expected to be in the run_dir as `train_config_overrides.yaml`.
+            # In particular, we don't need the sweep_process_id here, since each sweep process
+            # deals with its assigned run.
+            save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             run_seed = random.randint(0, 2**31 - 1)  # TODO: Seeding is trough metta_script.
 
             # Save the merged config that will be used for training

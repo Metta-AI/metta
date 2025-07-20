@@ -1,5 +1,26 @@
 #!/usr/bin/env -S uv run
 
+"""Setup and initialize a hyperparameter optimization sweep.
+
+This tool sets up the initial state for a distributed hyperparameter sweep:
+1. Creates or verifies WandB sweep exists
+2. Registers sweep in centralized coordination database
+3. Creates local directory structure and metadata files
+
+Backend URL Configuration:
+- By default, uses stats_server_uri from your Hydra config (e.g., from common.yaml)
+- Production: stats_server_uri: https://api.observatory.softmax-research.net
+- Local development: stats_server_uri: http://localhost:8000
+- Authentication uses machine tokens from ~/.metta/observatory_tokens.yaml
+
+Example usage:
+  # Use production backend (default from common.yaml)
+  uv run python tools/sweep_setup.py sweep_name=my_sweep
+
+  # Override to use local backend
+  uv run python tools/sweep_setup.py sweep_name=my_sweep stats_server_uri=http://localhost:8000
+"""
+
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
 import sys
 
@@ -39,14 +60,17 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     Save the sweep configuration to sweep_dir/metadata.yaml.
     """
     # Check if sweep already exists
-    wandb_sweep_id = get_sweep_id_from_metta(cfg.sweep_name)
+    backend_url = cfg.stats_server_uri if hasattr(cfg, "stats_server_uri") else None
+    wandb_sweep_id = get_sweep_id_from_metta(cfg.sweep_name, backend_url=backend_url)
 
     # The sweep hasn't been registered with the centralized DB
     if wandb_sweep_id is None:
         # Create the sweep in WandB
         wandb_sweep_id = create_wandb_sweep(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project)
         # Register the sweep in the centralized DB
-        create_sweep_in_metta(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project, wandb_sweep_id)
+        create_sweep_in_metta(
+            cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project, wandb_sweep_id, backend_url=backend_url
+        )
 
     # Save sweep metadata locally
     # in join(cfg.sweep_dir, "metadata.yaml"

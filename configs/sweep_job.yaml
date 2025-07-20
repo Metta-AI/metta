@@ -11,6 +11,9 @@ cmd: sweep
 sweep_name: ???  # Will be set via command line override
 sweep_process_id: localhost  # Process-specific ID for parallel workers, overridden via CLI
 
+# Override stats_server_uri from common.yaml to use localhost for sweep coordination
+stats_server_uri: http://localhost:8000
+
 trainer:
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
   curriculum: /env/mettagrid/arena/basic_easy_shaped # This won't be used, but needed for Pydantic
@@ -43,3 +46,4 @@ sweep_job:
 # TODO: Remove and update references.
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"
+
