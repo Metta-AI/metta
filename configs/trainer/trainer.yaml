@@ -22,14 +22,14 @@ simulation:
 
 grad_mean_variance_interval: 0 # 0 to disable
 
-total_timesteps: 20_000_000_000  # 25% toward sweep: 10_000_000_000 (original) -> 50_000_000_000 (sweep)
+total_timesteps: 14_000_000_000  # 10% toward sweep: 10B (original) -> 50B (sweep)
 
 optimizer:
   type: adam
-  beta1: 0.8975  # 25% toward sweep: 0.9 (original) -> 0.89 (sweep)
-  beta2: 0.98925  # 25% toward sweep: 0.999 (original) -> 0.96 (sweep)
-  eps: 7e-12  # CONSERVATIVE 5% toward sweep: 1e-12 (original) -> 1.4e-7 (sweep)
-  learning_rate: 0.00509275  # 25% toward sweep: 0.000457 (original) -> 0.019 (sweep)
+  beta1: 0.899  # 10% toward sweep: 0.9 (original) -> 0.89 (sweep)
+  beta2: 0.9951  # 10% toward sweep: 0.999 (original) -> 0.96 (sweep)
+  eps: 1.4e-8  # 10% toward sweep: 1e-12 (original) -> 1.4e-7 (sweep)
+  learning_rate: 0.0023113  # 10% toward sweep: 0.000457 (original) -> 0.019 (sweep)
   weight_decay: 0
 
 lr_scheduler:
@@ -40,15 +40,15 @@ lr_scheduler:
 
 ppo:
   # Core PPO hyperparameters
-  clip_coef: 0.1125  # 25% toward sweep: 0.1 (original) -> 0.15 (sweep)
-  ent_coef: 0.00447  # CONSERVATIVE 15% toward sweep: 0.0021 (original) -> 0.017 (sweep)
-  gae_lambda: 0.897  # 25% toward sweep: 0.916 (original) -> 0.84 (sweep)
-  gamma: 0.98025  # 25% toward sweep: 0.977 (original) -> 0.99 (sweep)
+  clip_coef: 0.105  # 10% toward sweep: 0.1 (original) -> 0.15 (sweep)
+  ent_coef: 0.00359  # 10% toward sweep: 0.0021 (original) -> 0.017 (sweep)
+  gae_lambda: 0.9084  # 10% toward sweep: 0.916 (original) -> 0.84 (sweep)
+  gamma: 0.9783  # 10% toward sweep: 0.977 (original) -> 0.99 (sweep)
 
   # Training parameters
-  max_grad_norm: 0.71  # CONSERVATIVE 10% toward sweep: 0.5 (original) -> 2.6 (sweep) - paired with high LR
-  vf_clip_coef: 0.115  # 25% toward sweep: 0.1 (original) -> 0.16 (sweep)
-  vf_coef: 1.13  # 25% toward sweep: 0.44 (original) -> 3.2 (sweep)
+  max_grad_norm: 0.71  # 10% toward sweep: 0.5 (original) -> 2.6 (sweep)
+  vf_clip_coef: 0.106  # 10% toward sweep: 0.1 (original) -> 0.16 (sweep)
+  vf_coef: 0.716  # 10% toward sweep: 0.44 (original) -> 3.2 (sweep)
   l2_reg_loss_coef: 0
   l2_init_loss_coef: 0
   norm_adv: true
@@ -57,13 +57,13 @@ ppo:
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
-  prio_alpha: 0.1975  # 25% toward sweep: 0.0 (original) -> 0.79 (sweep)
-  prio_beta0: 0.5975  # 25% toward sweep: 0.6 (original) -> 0.59 (sweep)
+  prio_alpha: 0.079  # 10% toward sweep: 0.0 (original) -> 0.79 (sweep)
+  prio_beta0: 0.599  # 10% toward sweep: 0.6 (original) -> 0.59 (sweep)
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:
-  vtrace_rho_clip: 1.325  # 25% toward sweep: 1.0 (original) -> 2.3 (sweep)
-  vtrace_c_clip: 1.275  # 25% toward sweep: 1.0 (original) -> 2.1 (sweep)
+  vtrace_rho_clip: 1.13  # 10% toward sweep: 1.0 (original) -> 2.3 (sweep)
+  vtrace_c_clip: 1.11  # 10% toward sweep: 1.0 (original) -> 2.1 (sweep)
 
 zero_copy: true
 require_contiguous_env_ids: false
