@@ -14,7 +14,6 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.agent import create_or_load_agent
@@ -27,6 +26,7 @@ from metta.interface.environment import Environment
 from metta.interface.evaluation import (
     create_evaluation_config_suite,
 )
+from metta.interface.training import cleanup_wandb, initialize_wandb
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
@@ -230,23 +230,18 @@ if is_master:
         "train_job": {"evals": evaluation_config.model_dump() if hasattr(evaluation_config, "model_dump") else {}},
     }
 
-    # Create wandb config like tools/train.py
-    wandb_config = {
-        "enabled": os.environ.get("WANDB_DISABLED", "").lower() != "true",
-        "project": os.environ.get("WANDB_PROJECT", "metta"),
-        "entity": os.environ.get("WANDB_ENTITY", "metta-research"),
-        "group": dirs.run_name,
-        "name": dirs.run_name,
-        "run_id": dirs.run_name,
-        "data_dir": dirs.run_dir,
-        "job_type": "train",
-        "tags": [],
-        "notes": "",
-    }
-
-    # Use WandbContext directly like tools/train.py
-    wandb_ctx = WandbContext(DictConfig(wandb_config), DictConfig(full_config))
-    wandb_run = wandb_ctx.__enter__()
+    # Use the unified initialize_wandb function
+    wandb_run, wandb_ctx = initialize_wandb(
+        run_name=dirs.run_name,
+        run_dir=dirs.run_dir,
+        enabled=os.environ.get("WANDB_DISABLED", "").lower() != "true",
+        project=os.environ.get("WANDB_PROJECT", "metta"),
+        entity=os.environ.get("WANDB_ENTITY", "metta-research"),
+        config=full_config,
+        job_type="train",
+        tags=[],
+        notes="",
+    )
 
 # Create policy store with config structure matching what Hydra provides
 policy_store_config = {
@@ -861,5 +856,5 @@ if torch.distributed.is_initialized():
     torch.distributed.destroy_process_group()
 
 # Clean up wandb if initialized
-if is_master and wandb_ctx:
-    wandb_ctx.__exit__(None, None, None)
+if is_master:
+    cleanup_wandb(wandb_ctx)

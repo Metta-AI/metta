@@ -1,4 +1,11 @@
 #!/usr/bin/env -S uv run
+
+# NumPy 2.0 compatibility for WandB - must be imported before wandb
+import numpy as np  # noqa: E402
+
+if not hasattr(np, "byte"):
+    np.byte = np.int8
+
 import multiprocessing
 import os
 import sys
@@ -15,7 +22,7 @@ from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
-from metta.common.wandb.wandb_context import WandbContext, WandbRun
+from metta.interface.training import cleanup_wandb, initialize_wandb
 from metta.rl.util.distributed import setup_device_and_distributed
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import (
@@ -52,7 +59,7 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
+def train(cfg: DictConfig | ListConfig, wandb_run, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
     # Validation must be done after merging
@@ -116,8 +123,25 @@ def main(cfg: DictConfig) -> int:
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if is_master:
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
-        with WandbContext(cfg.wandb, cfg) as wandb_run:
+
+        # Use initialize_wandb helper
+        wandb_cfg = cfg.get("wandb", {})
+        wandb_run, wandb_ctx = initialize_wandb(
+            run_name=cfg.run,
+            run_dir=cfg.run_dir,
+            enabled=wandb_cfg.get("enabled", True),
+            project=wandb_cfg.get("project"),
+            entity=wandb_cfg.get("entity"),
+            config=OmegaConf.to_container(cfg, resolve=False),
+            job_type=wandb_cfg.get("job_type", "train"),
+            tags=wandb_cfg.get("tags", []),
+            notes=wandb_cfg.get("notes", ""),
+        )
+
+        try:
             train(cfg, wandb_run, logger)
+        finally:
+            cleanup_wandb(wandb_ctx)
     else:
         train(cfg, None, logger)
 
