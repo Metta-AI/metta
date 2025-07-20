@@ -494,8 +494,6 @@ class TestConfigIntegration:
 
 def test_date_format_resolver():
     """Test the date_format resolver with various formats"""
-    import datetime
-
     from metta.common.util.resolvers import oc_date_format
 
     # Get the current date for verification

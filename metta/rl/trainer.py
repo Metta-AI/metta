@@ -2,6 +2,7 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -9,8 +10,11 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
+from metta.agent.metta_agent import DistributedMettaAgent
+from metta.common.profiling.memory_monitor import MemoryMonitor
+from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
@@ -820,12 +824,6 @@ def create_training_components(
     stats_client: Optional[Any] = None,
 ) -> Tuple[Any, ...]:
     """Create training components individually, similar to run.py."""
-    from pathlib import Path
-
-    from metta.agent.metta_agent import DistributedMettaAgent
-    from metta.common.profiling.memory_monitor import MemoryMonitor
-    from metta.common.profiling.stopwatch import Stopwatch
-
     logger.info(f"run_dir = {cfg.run_dir}")
 
     # Log recent checkpoints like the MettaTrainer did
@@ -840,8 +838,6 @@ def create_training_components(
     if torch.distributed.is_initialized() and cfg.trainer.get("scale_batches_by_world_size", False):
         world_size = torch.distributed.get_world_size()
         # Make a mutable copy of the config to modify
-        from omegaconf import OmegaConf
-
         OmegaConf.set_struct(cfg, False)
         cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
         cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
