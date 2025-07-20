@@ -8,47 +8,35 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.api import (
-    Agent,
-    Environment,
-    Optimizer,
-    calculate_anneal_beta,
-    cleanup_distributed,
-    cleanup_wandb,
-    create_evaluation_config_suite,
-    create_replay_config,
-    ensure_initial_policy,
-    initialize_wandb,
-    load_checkpoint,
-    save_checkpoint,
-    save_experiment_config,
-    setup_distributed_training,
-    setup_run_directories,
-    wrap_agent_distributed,
-)
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.interface.agent import Agent
+from metta.interface.directories import (
+    save_experiment_config,
+    setup_device_and_distributed,
+    setup_run_directories,
+)
+from metta.interface.environment import Environment
+from metta.interface.evaluation import (
+    create_evaluation_config_suite,
+    create_replay_config,
+)
+from metta.interface.training import (
+    Optimizer,
+    cleanup_distributed,
+    cleanup_wandb,
+    ensure_initial_policy,
+    initialize_wandb,
+    load_checkpoint,
+    save_checkpoint,
+)
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    compute_advantage,
-    compute_timing_stats,
-    get_lstm_config,
-    get_observation,
-    maybe_update_l2_weights,
-    process_minibatch_update,
-    process_training_stats,
-    run_policy_inference,
-    should_run_on_interval,
-)
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
@@ -59,6 +47,29 @@ from metta.rl.trainer_config import (
     TorchProfilerConfig,
     TrainerConfig,
 )
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.optimization import (
+    calculate_explained_variance,
+    maybe_update_l2_weights,
+)
+from metta.rl.util.policy_management import wrap_agent_distributed
+from metta.rl.util.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.util.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
+from metta.rl.util.utils import should_run as should_run_on_interval
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_suite import SimulationSuite
 
@@ -68,7 +79,7 @@ logger = logging.getLogger(__name__)
 
 # Set up directories and distributed training
 dirs = setup_run_directories()
-device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
+device, is_master, world_size, rank = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
 
 # Configuration
 # Note: batch_size must be >= total_agents * bptt_horizon
@@ -97,7 +108,6 @@ trainer_config = TrainerConfig(
     ),
     simulation=SimulationConfig(
         evaluate_interval=300,
-        replay_interval=300,
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
@@ -282,6 +292,7 @@ if is_master:
         history_size=100,
         logger=logger,
         auto_start=True,
+        external_timer=timer,  # Pass timer for persistent elapsed time across restarts
     )
 
 # Training loop
@@ -345,7 +356,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Calculate prioritized replay parameters
     prio_cfg = trainer_config.prioritized_experience_replay
-    anneal_beta = calculate_anneal_beta(
+    anneal_beta = calculate_prioritized_sampling_params(
         epoch=epoch,
         total_timesteps=trainer_config.total_timesteps,
         batch_size=trainer_config.batch_size,
@@ -437,7 +448,6 @@ while agent_step < trainer_config.total_timesteps:
     timing_info = compute_timing_stats(
         timer=timer,
         agent_step=agent_step,
-        world_size=world_size,
     )
 
     # Build complete stats for wandb
@@ -470,10 +480,10 @@ while agent_step < trainer_config.total_timesteps:
             system_stats=system_stats,
             memory_stats=memory_stats,
             parameters=parameters,
-            evals=evaluation_scores.get(epoch, {}),
+            hyperparameters={},  # Hyperparameters not used in run.py
+            evals=evaluation_scores.get(epoch, EvalRewardSummary()),
             agent_step=agent_step,
             epoch=epoch,
-            world_size=world_size,
         )
 
         # Log to wandb if available
@@ -577,7 +587,7 @@ while agent_step < trainer_config.total_timesteps:
         logger.info("Evaluation complete")
 
         # Build evaluation metrics
-        eval_scores = {}
+        category_scores: dict[str, float] = {}
         categories = set()
         for sim_name in evaluation_config.simulations.keys():
             categories.add(sim_name.split("/")[0])
@@ -587,50 +597,49 @@ while agent_step < trainer_config.total_timesteps:
             logger.info(f"{category} score: {score}")
             record_heartbeat()
             if score is not None:
-                eval_scores[f"{category}/score"] = score
+                category_scores[category] = score
 
         # Get detailed per-simulation scores
+        per_sim_scores: dict[tuple[str, str], float] = {}
         all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
-            eval_scores[f"{category}/{sim_short_name}"] = score
+            per_sim_scores[(category, sim_short_name)] = score
 
-        evaluation_scores[epoch] = eval_scores
+        evaluation_scores[epoch] = EvalRewardSummary(
+            category_scores=category_scores,
+            simulation_scores=per_sim_scores,
+        )
         stats_db.close()
 
-    # Replay generation (master only)
-    if (
-        is_master
-        and trainer_config.simulation.replay_interval > 0
-        and epoch % trainer_config.simulation.replay_interval == 0
-        and saved_policy_path
-    ):
-        logger.info(f"Generating replay at epoch {epoch}")
+        # Replay generation (master only)
+        if is_master and saved_policy_path:
+            logger.info(f"Generating replay at epoch {epoch}")
 
-        # Generate replay on the bucketed curriculum environment
-        replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
+            # Generate replay on the bucketed curriculum environment
+            replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
 
-        replay_simulator = Simulation(
-            name=f"replay_{epoch}",
-            config=replay_sim_config,
-            policy_pr=saved_policy_path,
-            policy_store=policy_store,
-            device=device,
-            vectorization="serial",
-            replay_dir=dirs.replay_dir,
-        )
+            replay_simulator = Simulation(
+                name=f"replay_{epoch}",
+                config=replay_sim_config,
+                policy_pr=saved_policy_path,
+                policy_store=policy_store,
+                device=device,
+                vectorization="serial",
+                replay_dir=dirs.replay_dir,
+            )
 
-        results = replay_simulator.simulate()
+            results = replay_simulator.simulate()
 
-        # Get replay URLs from the database
-        replay_urls = results.stats_db.get_replay_urls()
-        if replay_urls:
-            replay_url = replay_urls[0]
-            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-            logger.info(f"Replay available at: {player_url}")
+            # Get replay URLs from the database
+            replay_urls = results.stats_db.get_replay_urls()
+            if replay_urls:
+                replay_url = replay_urls[0]
+                player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+                logger.info(f"Replay available at: {player_url}")
 
-        results.stats_db.close()
+            results.stats_db.close()
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time

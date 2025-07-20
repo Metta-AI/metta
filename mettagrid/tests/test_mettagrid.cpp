@@ -55,11 +55,11 @@ protected:
   }
 
   // Helper function to create test resource_reward_max map
-  std::map<uint8_t, InventoryQuantity> create_test_resource_reward_max() {
-    std::map<uint8_t, InventoryQuantity> resource_reward_max;
-    resource_reward_max[TestItems::ORE] = 10;
-    resource_reward_max[TestItems::LASER] = 10;
-    resource_reward_max[TestItems::ARMOR] = 10;
+  std::map<uint8_t, RewardType> create_test_resource_reward_max() {
+    std::map<uint8_t, RewardType> resource_reward_max;
+    resource_reward_max[TestItems::ORE] = 10.0f;
+    resource_reward_max[TestItems::LASER] = 10.0f;
+    resource_reward_max[TestItems::ARMOR] = 10.0f;
     return resource_reward_max;
   }
 
@@ -73,6 +73,8 @@ protected:
                        create_test_resource_limits(),      // resource_limits
                        create_test_rewards(),              // resource_rewards
                        create_test_resource_reward_max(),  // resource_reward_max
+                       {},                                 // stat_rewards
+                       {},                                 // stat_reward_max
                        0.0f);                              // group_reward_pct
   }
 };
@@ -150,7 +152,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_Rewards) {
 // ==================== Grid Tests ====================
 
 TEST_F(MettaGridCppTest, GridCreation) {
-  Grid grid(10, 5);
+  Grid grid(5, 10);  // row/height, col/width
 
   EXPECT_EQ(grid.width, 10);
   EXPECT_EQ(grid.height, 5);
@@ -174,7 +176,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(retrieved_agent, agent);
 
   // Verify it's at the expected location
-  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::Agent_Layer));
+  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::AgentLayer));
   EXPECT_EQ(agent_at_location, agent);
 }
 

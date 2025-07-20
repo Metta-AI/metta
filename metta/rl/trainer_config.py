@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 
@@ -71,10 +72,8 @@ class CheckpointConfig(BaseModelWithForbidExtra):
 
 
 class SimulationConfig(BaseModelWithForbidExtra):
-    # Evaluate interval: Type 2 arbitrary default
+    # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
-    # Replay interval: Type 2 arbitrary default
-    replay_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
 
     @model_validator(mode="after")
@@ -190,6 +189,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
     #   (default assumes multiprocessing)
     async_factor: int = Field(default=2, gt=0)
 
+    # scheduler registry
+    hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
+
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
 
@@ -227,6 +229,35 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
         if not self.curriculum and not self.env:
             raise ValueError("curriculum or env must be set")
+
+        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
+            )
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
+            )
+        # Validate that we save policies locally at least as often as we upload to wandb
+        if (
+            self.checkpoint.wandb_checkpoint_interval != 0
+            and self.checkpoint.checkpoint_interval != 0
+            and self.checkpoint.wandb_checkpoint_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                f"to ensure policies exist locally before uploading to wandb "
+                f"({self.checkpoint.wandb_checkpoint_interval} < {self.checkpoint.checkpoint_interval})"
+            )
 
         return self
 

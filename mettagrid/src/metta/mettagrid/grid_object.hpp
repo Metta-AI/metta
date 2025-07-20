@@ -6,23 +6,24 @@
 #include <string>
 #include <vector>
 
+#include "objects/constants.hpp"
 #include "types.hpp"
 
 using Layer = ObservationType;
 using TypeId = ObservationType;
-using GridCoord = ObservationType;
+using ObservationCoord = ObservationType;
 
 struct PartialObservationToken {
-  ObservationType feature_id;
-  ObservationType value;
+  ObservationType feature_id = EmptyTokenByte;
+  ObservationType value = EmptyTokenByte;
 };
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
-  ObservationType location;
-  ObservationType feature_id;
-  ObservationType value;
+  ObservationType location = EmptyTokenByte;
+  ObservationType feature_id = EmptyTokenByte;
+  ObservationType value = EmptyTokenByte;
 };
 
 // The alignas should make sure of this, but let's be explicit.
@@ -50,8 +51,6 @@ enum Orientation {
   Right = 3
 };
 
-using GridObjectId = unsigned int;
-
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
@@ -63,20 +62,26 @@ struct GridObjectConfig {
 
 class GridObject {
 public:
-  GridObjectId id;
-  GridLocation location;
-  TypeId type_id;
+  GridObjectId id{};
+  GridLocation location{};
+  TypeId type_id{};
   std::string type_name;
 
   virtual ~GridObject() = default;
 
-  void init(TypeId type_id, const std::string& type_name, const GridLocation& loc) {
-    this->type_id = type_id;
-    this->type_name = type_name;
-    this->location = loc;
+  void init(TypeId object_type_id, const std::string& object_type_name, const GridLocation& object_location) {
+    this->type_id = object_type_id;
+    this->type_name = object_type_name;
+    this->location = object_location;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const = 0;
+  virtual bool swappable() const {
+    return false;
+  }
+
+  virtual std::vector<PartialObservationToken> obs_features() const {
+    return {};  // Default: no observable features
+  }
 };
 
 #endif  // GRID_OBJECT_HPP_

@@ -18,7 +18,6 @@ checkpoint:
 
 simulation:
   evaluate_interval: 200
-  replay_interval: 50
   replay_dir: s3://softmax-public/replays/${run}
 
 grad_mean_variance_interval: 0 # 0 to disable
@@ -85,6 +84,37 @@ profiler:
 forward_pass_minibatch_target_size: 4096
 async_factor: 2
 scale_batches_by_world_size: false
+
+# Hyperparameter scheduler configuration
+hyperparameter_scheduler:
+  learning_rate_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.CosineSchedule
+    min_value: 0.00003
+    initial_value: ${...optimizer.learning_rate}
+
+  ppo_clip_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LogarithmicSchedule
+    min_value: 0.05
+    decay_rate: 0.1
+    initial_value: ${...ppo.clip_coef}
+
+  ppo_ent_coef_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+    min_value: 0.0
+    initial_value: ${...ppo.ent_coef}
+
+  ppo_vf_clip_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+    min_value: 0.05
+    initial_value: ${...ppo.vf_clip_coef}
+
+  ppo_l2_reg_loss_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+    initial_value: ${...ppo.l2_reg_loss_coef}
+
+  ppo_l2_init_loss_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+    initial_value: ${...ppo.l2_init_loss_coef}
 
 kickstart:
   teacher_uri: null

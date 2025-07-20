@@ -19,14 +19,14 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
-    target_loc.layer = GridLayer::Object_Layer;
+    target_loc.layer = GridLayer::ObjectLayer;
     // get_output only works on Converters, since only Converters have an output.
     // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
     // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
-    if (converter == nullptr) {
+    if (!converter) {
       return false;
     }
 
@@ -46,7 +46,7 @@ protected:
       InventoryDelta taken = actor->update_inventory(item, resources_available);
 
       if (taken > 0) {
-        actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);
+        actor->stats.add(actor->stats.inventory_item_name(item) + ".get", static_cast<float>(taken));
         converter->update_inventory(item, -taken);
         resources_taken = true;
       }

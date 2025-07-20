@@ -6,9 +6,9 @@
 #include <string>
 
 #include "constants.hpp"
-#include "metta_object.hpp"
+#include "grid_object.hpp"
 
-class HasInventory : public MettaObject {
+class HasInventory : public GridObject {
 public:
   std::map<InventoryItem, InventoryQuantity> inventory;
 

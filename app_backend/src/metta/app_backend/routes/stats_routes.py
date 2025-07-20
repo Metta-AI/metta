@@ -56,6 +56,8 @@ class EpisodeCreate(BaseModel):
     simulation_suite: Optional[str] = None
     replay_url: Optional[str] = None
     attributes: Dict[str, Any] = Field(default_factory=dict)
+    eval_task_id: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class EpisodeResponse(BaseModel):
@@ -144,6 +146,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             }
             primary_policy_id_uuid = uuid.UUID(episode.primary_policy_id)
             stats_epoch_uuid = uuid.UUID(episode.stats_epoch) if episode.stats_epoch else None
+            eval_task_id_uuid = uuid.UUID(episode.eval_task_id) if episode.eval_task_id else None
 
             episode_id = await stats_repo.record_episode(
                 agent_policies=agent_policies_uuid,
@@ -154,6 +157,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 simulation_suite=episode.simulation_suite,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
+                eval_task_id=eval_task_id_uuid,
+                tags=episode.tags,
             )
             return EpisodeResponse(id=str(episode_id))
         except ValueError as e:

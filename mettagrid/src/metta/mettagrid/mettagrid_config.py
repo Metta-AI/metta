@@ -1,12 +1,14 @@
-from typing import Any, Dict, List, Optional
+from typing import Literal, Optional
 
-from pydantic import Field, RootModel
+from pydantic import Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 
+# ===== Python Configuration Models =====
 
-class AgentRewards(BaseModelWithForbidExtra):
-    """Agent reward configuration."""
+
+class PyInventoryRewards(BaseModelWithForbidExtra):
+    """Inventory-based reward configuration."""
 
     ore_red: Optional[float] = Field(default=None)
     ore_blue: Optional[float] = Field(default=None)
@@ -30,93 +32,169 @@ class AgentRewards(BaseModelWithForbidExtra):
     blueprint_max: Optional[int] = Field(default=None)
 
 
-class AgentConfig(BaseModelWithForbidExtra):
-    """Agent configuration."""
+class PyStatsRewards(BaseModelWithForbidExtra):
+    """Agent stats-based reward configuration.
 
-    default_resource_limit: Optional[int] = Field(default=None, ge=0)
-    resource_limits: Optional[Dict[str, int]] = Field(default_factory=dict)
-    freeze_duration: Optional[int] = Field(default=None, ge=-1)
-    rewards: Optional[AgentRewards] = None
-    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
+    Maps stat names to reward values. Stats are tracked by the StatsTracker
+    and can include things like 'action.attack.agent', 'inventory.armor.gained', etc.
+    Each entry can have:
+    - stat_name: reward_per_unit
+    - stat_name_max: maximum cumulative reward for this stat
+    """
 
-
-class GroupProps(RootModel[Dict[str, Any]]):
-    """Group properties configuration."""
-
-    pass
+    class Config:
+        extra = "allow"  # Allow any stat names to be added dynamically
 
 
-class GroupConfig(BaseModelWithForbidExtra):
-    """Group configuration."""
+class PyAgentRewards(BaseModelWithForbidExtra):
+    """Agent reward configuration with separate inventory and stats rewards."""
+
+    inventory: Optional[PyInventoryRewards] = Field(default_factory=PyInventoryRewards)
+    stats: Optional[PyStatsRewards] = Field(default_factory=PyStatsRewards)
+
+    # For backward compatibility, handle old format
+    def __init__(self, **data):
+        # If we have direct inventory reward keys, move them to inventory
+        inventory_keys = [
+            "ore_red",
+            "ore_blue",
+            "ore_green",
+            "battery_red",
+            "battery_blue",
+            "battery_green",
+            "heart",
+            "armor",
+            "laser",
+            "blueprint",
+        ]
+        inventory_max_keys = [f"{k}_max" for k in inventory_keys]
+
+        # Check if this is the old format (has direct reward keys)
+        if any(k in data for k in inventory_keys + inventory_max_keys):
+            # Old format - move to inventory
+            if "inventory" not in data:
+                data["inventory"] = {}
+
+            for key in list(data.keys()):
+                if key in inventory_keys or key in inventory_max_keys:
+                    data["inventory"][key] = data.pop(key)
+
+        super().__init__(**data)
+
+
+class PyAgentConfig(BaseModelWithForbidExtra):
+    """Python agent configuration."""
+
+    default_resource_limit: Optional[int] = Field(default=0, ge=0)
+    resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
+    freeze_duration: Optional[int] = Field(default=0, ge=-1)
+    rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
+    action_failure_penalty: Optional[float] = Field(default=0, ge=0)
+
+
+class PyGroupConfig(BaseModelWithForbidExtra):
+    """Python group configuration."""
 
     id: int
     sprite: Optional[int] = Field(default=None)
-    # Values outside of 0 and 1 are probably mistakes, and are probably
+    # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
-    group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
-    props: Optional[GroupProps] = None
+    group_reward_pct: float = Field(default=0, ge=0, le=1)
+    props: PyAgentConfig = Field(default_factory=PyAgentConfig)
 
 
-class ActionConfig(BaseModelWithForbidExtra):
-    """Action configuration."""
+class PyActionConfig(BaseModelWithForbidExtra):
+    """Python action configuration."""
 
     enabled: bool
-    # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
-    required_resources: Optional[Dict[str, int]] = None
-    consumed_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
+    # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
+    required_resources: Optional[dict[str, int]] = Field(default=None)
+    consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class AttackActionConfig(ActionConfig):
-    """Attack action configuration."""
+class PyAttackActionConfig(PyActionConfig):
+    """Python attack action configuration."""
 
-    defense_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
-
-
-class ActionsConfig(BaseModelWithForbidExtra):
-    """Actions configuration."""
-
-    noop: ActionConfig
-    move: ActionConfig
-    rotate: ActionConfig
-    put_items: ActionConfig
-    get_items: ActionConfig
-    attack: AttackActionConfig
-    swap: ActionConfig
-    change_color: ActionConfig
+    defense_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class WallConfig(BaseModelWithForbidExtra):
-    """Wall/Block configuration."""
+class PyChangeGlyphActionConfig(PyActionConfig):
+    """Change glyph action configuration."""
+
+    number_of_glyphs: int = Field(default=0, ge=0, le=255)
+
+
+class PyActionsConfig(BaseModelWithForbidExtra):
+    """
+    Actions configuration.
+
+    Omitted actions are disabled by default.
+    """
+
+    noop: Optional[PyActionConfig] = None
+    move: Optional[PyActionConfig] = None
+    rotate: Optional[PyActionConfig] = None
+    put_items: Optional[PyActionConfig] = None
+    get_items: Optional[PyActionConfig] = None
+    attack: Optional[PyAttackActionConfig] = None
+    swap: Optional[PyActionConfig] = None
+    change_color: Optional[PyActionConfig] = None
+    change_glyph: Optional[PyChangeGlyphActionConfig] = None
+
+
+class PyGlobalObsConfig(BaseModelWithForbidExtra):
+    """Global observation configuration."""
+
+    episode_completion_pct: bool = Field(default=True)
+
+    # Controls both last_action and last_action_arg
+    last_action: bool = Field(default=True)
+    last_reward: bool = Field(default=True)
+
+    # Controls whether resource rewards are included in observations
+    resource_rewards: bool = Field(default=False)
+
+
+class PyWallConfig(BaseModelWithForbidExtra):
+    """Python wall/block configuration."""
 
     type_id: int
-    swappable: Optional[bool] = None
+    swappable: bool = Field(default=False)
 
 
-class ConverterConfig(BaseModelWithForbidExtra):
-    """Converter configuration for objects that convert items."""
+class PyConverterConfig(BaseModelWithForbidExtra):
+    """Python converter configuration."""
 
-    input_resources: Dict[str, int] = Field(default_factory=dict)
-    output_resources: Dict[str, int] = Field(default_factory=dict)
-    type_id: int
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
+    type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)
-    color: Optional[int] = Field(default=0, ge=0, le=255)
+    color: int = Field(default=0, ge=0, le=255)
 
 
-class GameConfig(BaseModelWithForbidExtra):
-    """Game configuration."""
+class PyGameConfig(BaseModelWithForbidExtra):
+    """Python game configuration."""
 
-    inventory_item_names: List[str]
+    inventory_item_names: list[str]
     num_agents: int = Field(ge=1)
-    # zero means "no limit"
+    # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0)
-    obs_width: int = Field(ge=1)
-    obs_height: int = Field(ge=1)
+    # default is that we terminate / use "done" vs truncation
+    episode_truncates: bool = Field(default=False)
+    obs_width: Literal[3, 5, 7, 9, 11, 13, 15]
+    obs_height: Literal[3, 5, 7, 9, 11, 13, 15]
     num_observation_tokens: int = Field(ge=1)
-    agent: AgentConfig
+    agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
-    groups: Dict[str, GroupConfig] = Field(min_length=1)
-    actions: ActionsConfig
-    objects: Dict[str, ConverterConfig | WallConfig]
+    groups: dict[str, PyGroupConfig] = Field(min_length=1)
+    actions: PyActionsConfig
+    global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
+    objects: dict[str, PyConverterConfig | PyWallConfig]
+
+
+class PyPolicyGameConfig(PyGameConfig):
+    obs_width: Literal[11]
+    obs_height: Literal[11]

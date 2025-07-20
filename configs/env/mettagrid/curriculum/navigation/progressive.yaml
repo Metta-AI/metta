@@ -11,7 +11,6 @@ tasks:
 
 # Navigation-specific env_overrides (extends base env_overrides)
 env_overrides:
-  desync_episodes: true
   game:
     num_agents: 4
 
