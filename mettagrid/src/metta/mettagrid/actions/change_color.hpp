@@ -1,5 +1,6 @@
 #ifndef ACTIONS_CHANGE_COLOR_HPP_
 #define ACTIONS_CHANGE_COLOR_HPP_
+
 #include <string>
 
 #include "action_handler.hpp"
@@ -16,16 +17,22 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Note: 'color' is interpreted as HSV hue (0-255 range, wrapping)
+    // Note: 'color' is uint8_t which naturally wraps at 256.
+    // This could be interpreted as circular hue behavior (red -> orange -> ... -> violet -> red)
+
+    // Calculate step size once (integer division is intentional)
+    const uint8_t step_size = static_cast<uint8_t>(255 / (max_arg() + 1));
+
     if (arg == 0) {  // Increment
-      actor->color = (actor->color + 1) % 256;
-    } else if (arg == 1) {                        // Decrement
-      actor->color = (actor->color + 255) % 256;  // Equivalent to -1 with wrapping
-    } else if (arg == 2) {                        // Large increment
-      actor->color = (actor->color + 255 / (max_arg() + 1)) % 256;
+      actor->color = static_cast<uint8_t>(actor->color + 1);
+    } else if (arg == 1) {  // Decrement
+      actor->color = static_cast<uint8_t>(actor->color - 1);
+    } else if (arg == 2) {  // Large increment
+      actor->color = static_cast<uint8_t>(actor->color + step_size);
     } else if (arg == 3) {  // Large decrement
-      actor->color = (actor->color + 256 - (255 / (max_arg() + 1))) % 256;
+      actor->color = static_cast<uint8_t>(actor->color - step_size);
     }
+
     return true;
   }
 };

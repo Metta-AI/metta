@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from metta.rl import mps
-from metta.rl.functions import compute_advantage
+from metta.rl.util.advantage import compute_advantage
 
 
 class TestAdvantage:

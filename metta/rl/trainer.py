@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.distributed
 import wandb
+from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from metta.common.util.heartbeat import record_heartbeat
@@ -15,33 +16,42 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import dtype_actions
-from metta.rl.functions import (
-    accumulate_rollout_stats,
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    calculate_prioritized_sampling_params,
-    cleanup_old_policies,
-    compute_advantage,
-    compute_gradient_stats,
-    generate_replay,
-    get_lstm_config,
-    get_observation,
-    maybe_load_checkpoint,
-    maybe_update_l2_weights,
-    process_minibatch_update,
-    process_stats,
-    run_policy_inference,
-    save_policy_with_metadata,
-    setup_distributed_vars,
-    should_run,
-    validate_policy_environment_match,
-)
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.util.distributed import setup_distributed_vars
+from metta.rl.util.evaluation import generate_replay
+from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+    maybe_update_l2_weights,
+)
+from metta.rl.util.policy_management import (
+    cleanup_old_policies,
+    maybe_load_checkpoint,
+    save_policy_with_metadata,
+    validate_policy_environment_match,
+)
+from metta.rl.util.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.util.stats import (
+    accumulate_rollout_stats,
+    process_stats,
+)
+from metta.rl.util.utils import should_run
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
@@ -99,7 +109,6 @@ def _maybe_save_training_state(
         if epoch % trainer_cfg.checkpoint.checkpoint_interval != 0:
             return
 
-    # Now all ranks that should save are here
     # Only master saves training state, but all ranks must participate in barrier
     if not is_master:
         # Non-master ranks need to participate in the barrier below
@@ -425,7 +434,6 @@ def _upload_replay_html(
     wandb_run: Any,
 ) -> None:
     """Upload replay HTML to wandb with unified view of all replay links."""
-    import wandb
 
     # Create unified HTML with all replay links on a single line
     if replay_urls:
@@ -541,6 +549,7 @@ def train(
         experience,
         kickstarter,
         lr_scheduler,
+        hyperparameter_scheduler,
         losses,
         timer,
         torch_profiler,
@@ -604,6 +613,9 @@ def train(
                 # Update learning rate scheduler
                 if lr_scheduler is not None:
                     lr_scheduler.step()
+
+                # Update hyperparameter scheduler
+                hyperparameter_scheduler.step(state.agent_step)
 
         torch_profiler.on_epoch_end(state.epoch)
 
@@ -812,8 +824,6 @@ def create_training_components(
     from metta.agent.metta_agent import DistributedMettaAgent
     from metta.common.profiling.memory_monitor import MemoryMonitor
     from metta.common.profiling.stopwatch import Stopwatch
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
-    from metta.rl.experience import Experience
 
     logger.info(f"run_dir = {cfg.run_dir}")
 
@@ -958,7 +968,6 @@ def create_training_components(
     )
 
     # Create optimizer
-    from heavyball import ForeachMuon
 
     optimizer_type = trainer_cfg.optimizer.type
     opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
@@ -1008,6 +1017,11 @@ def create_training_components(
         memory_monitor.add(experience, name="Experience", track_attributes=True)
         memory_monitor.add(policy, name="Policy", track_attributes=False)
 
+    # Create hyperparameter scheduler
+    from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
+
+    hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, policy, trainer_cfg.total_timesteps, logger)
+
     return (
         vecenv,
         policy,
@@ -1015,6 +1029,7 @@ def create_training_components(
         experience,
         kickstarter,
         lr_scheduler,
+        hyperparameter_scheduler,
         losses,
         timer,
         torch_profiler,

@@ -16,3 +16,7 @@ brew "uv"
 brew "node@24"
 brew "npm"
 brew "gh"
+
+# Kubernetes local testing tools
+brew "kubectl"
+brew "kind"
