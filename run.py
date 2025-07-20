@@ -17,7 +17,6 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.agent import Agent
 from metta.interface.directories import (
     save_experiment_config,
-    setup_device_and_distributed,
     setup_run_directories,
 )
 from metta.interface.environment import Environment
@@ -52,6 +51,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
+from metta.rl.util.distributed import setup_device_and_distributed
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
@@ -276,7 +276,8 @@ timer.start()
 lr_scheduler = None
 if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler.enabled:
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
+        optimizer.optimizer,
+        T_max=trainer_config.total_timesteps // trainer_config.batch_size,
     )
 
 # Memory and System Monitoring (master only)

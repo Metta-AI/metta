@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 import traceback
 from collections import defaultdict
 from pathlib import Path
@@ -177,7 +178,29 @@ class MettaTrainer:
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
         # Load or create policy with distributed coordination
-        policy_record = self._load_policy(checkpoint, policy_store)
+        if checkpoint and checkpoint.policy_path:
+            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+            policy_record = policy_store.policy_record(checkpoint.policy_path)
+        elif trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
+            logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
+            policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
+        else:
+            # Try default checkpoint path
+            policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
+            if os.path.exists(policy_path):
+                logger.info(f"Loading policy from checkpoint: {policy_path}")
+                policy_record = policy_store.policy_record(policy_path)
+            else:
+                # Create new policy
+                logger.info("Creating new policy")
+                name = policy_store.make_model_name(0)
+                policy_record = policy_store.create_empty_policy_record(name)
+                policy_record.policy = make_policy(metta_grid_env, DictConfig(cfg))
+                policy_record = policy_store.save(policy_record)
+                logger.info(f"Successfully saved initial policy to {policy_record.uri}")
+
+        # Load policy
+        _ = policy_record.policy
 
         if policy_record is not None:
             logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
@@ -419,6 +442,13 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
+        # Debug timing
+        rollout_step_times = []
+        get_obs_times = []
+        inference_times = []
+        store_times = []
+        send_times = []
+
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
             if trainer_cfg.require_contiguous_env_ids:
@@ -429,15 +459,21 @@ class MettaTrainer:
 
             # Perform single rollout step
             # Receive environment data
+            step_start = time.time()
+            get_obs_start = time.time()
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
+            get_obs_times.append(time.time() - get_obs_start)
             self.agent_step += num_steps * self._world_size
 
             # Run policy inference
+            inference_start = time.time()
             actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
                 self.policy, o, experience, training_env_id.start, self.device
             )
+            inference_times.append(time.time() - inference_start)
 
             # Store experience
+            store_start = time.time()
             experience.store(
                 obs=o,
                 actions=actions,
@@ -450,14 +486,31 @@ class MettaTrainer:
                 mask=mask,
                 lstm_state=lstm_state_to_store,
             )
+            store_times.append(time.time() - store_start)
 
             # Send actions back to environment
             with self.timer("_rollout.env"):
+                send_start = time.time()
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+                send_time = time.time() - send_start
+                send_times.append(send_time)
+                if send_time > 0.1 and self.epoch % 10 == 0:  # Log slow sends
+                    logger.warning(f"Slow env send: {send_time:.3f}s for {num_steps} steps")
+
+            rollout_step_times.append(time.time() - step_start)
 
             # Collect info for batch processing
             if info:
                 raw_infos.extend(info)
+
+        # Log timing summary every 100 epochs
+        if self.epoch % 100 == 0 and rollout_step_times:
+            logger.info(f"Rollout timing analysis (avg over {len(rollout_step_times)} steps):")
+            logger.info(f"  - Total step time: {np.mean(rollout_step_times) * 1000:.1f}ms")
+            logger.info(f"  - Get observation: {np.mean(get_obs_times) * 1000:.1f}ms")
+            logger.info(f"  - Policy inference: {np.mean(inference_times) * 1000:.1f}ms")
+            logger.info(f"  - Store experience: {np.mean(store_times) * 1000:.1f}ms")
+            logger.info(f"  - Send actions: {np.mean(send_times) * 1000:.1f}ms")
 
         # Batch process info dictionaries after rollout
         accumulate_rollout_stats(raw_infos, self.stats)
@@ -1017,6 +1070,18 @@ class MettaTrainer:
             zero_copy=trainer_cfg.zero_copy,
             is_training=True,
         )
+
+        # Log environment configuration for debugging
+        logger.info("Environment configuration debug:")
+        logger.info(f"  - num_envs: {num_envs} (total environments)")
+        logger.info(f"  - batch_size: {self.batch_size} (environments per step)")
+        logger.info(f"  - num_workers: {trainer_cfg.num_workers}")
+        logger.info(f"  - async_factor: {trainer_cfg.async_factor}")
+        logger.info(f"  - zero_copy: {trainer_cfg.zero_copy}")
+        logger.info(f"  - vectorization: {self.cfg.vectorization}")
+        logger.info(f"  - Total agents: {num_envs * num_agents}")
+        if hasattr(self.vecenv, "agents_per_batch"):
+            logger.info(f"  - agents_per_batch: {self.vecenv.agents_per_batch}")
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
