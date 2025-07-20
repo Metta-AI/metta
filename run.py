@@ -37,31 +37,6 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions.advantage import compute_advantage
-from metta.rl.functions.batch_utils import (
-    calculate_batch_sizes,
-    calculate_prioritized_sampling_params,
-)
-from metta.rl.functions.losses import process_minibatch_update
-from metta.rl.functions.optimization import (
-    calculate_explained_variance,
-    maybe_update_l2_weights,
-)
-from metta.rl.functions.policy_management import (
-    wrap_agent_distributed,
-)
-from metta.rl.functions.rollout import (
-    get_lstm_config,
-    get_observation,
-    run_policy_inference,
-)
-from metta.rl.functions.stats import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    compute_timing_stats,
-    process_training_stats,
-)
-from metta.rl.functions.utils import should_run as should_run_on_interval
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
@@ -72,6 +47,29 @@ from metta.rl.trainer_config import (
     TorchProfilerConfig,
     TrainerConfig,
 )
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.optimization import (
+    calculate_explained_variance,
+    maybe_update_l2_weights,
+)
+from metta.rl.util.policy_management import wrap_agent_distributed
+from metta.rl.util.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.util.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
+from metta.rl.util.utils import should_run as should_run_on_interval
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_suite import SimulationSuite
 

@@ -9,8 +9,8 @@ from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
 from metta.common.wandb.wandb_context import WandbContext
-from metta.rl.functions import cleanup_old_policies, save_policy_with_metadata
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.util.policy_management import cleanup_old_policies, save_policy_with_metadata
 
 
 class Optimizer:
