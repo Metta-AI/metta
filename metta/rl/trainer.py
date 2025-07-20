@@ -672,10 +672,10 @@ def train(
             total_steps_str = f"{total_timesteps:,}"
 
         logger.info(
-            f"Epoch {state.epoch}, "
-            f"{steps_per_sec * world_size:.0f} steps/sec, "
-            f"Agent step {state.agent_step}/{total_steps_str} "
-            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
+            f"Agent step {state.agent_step}/{total_steps_str} - "
+            f"Epoch {state.epoch} - "
+            f"{steps_per_sec * world_size:.0f} steps/sec - "
+            f"{train_pct:.0f}% train - {rollout_pct:.0f}% rollout - {stats_pct:.0f}% stats"
         )
 
         # Periodic tasks

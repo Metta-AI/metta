@@ -661,8 +661,9 @@ while agent_step < trainer_config.total_timesteps:
     stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
 
     logger.info(
-        f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec "
-        f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
+        f"Agent step {agent_step}/{trainer_config.total_timesteps:,} - "
+        f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec - "
+        f"{train_pct:.0f}% train - {rollout_pct:.0f}% rollout - {stats_pct:.0f}% stats"
     )
 
     # Record heartbeat periodically (master only)
