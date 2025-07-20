@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 
+import argparse
 import asyncio
 import os
 import sys
@@ -286,9 +287,7 @@ def migrate_legacy_token(authenticator: CLIAuthenticator) -> None:
 
 def main():
     """Main CLI entry point"""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="CLI OAuth2 Authentication")
+    parser = argparse.ArgumentParser(description="Authenticate with Observatory")
     parser.add_argument(
         "auth_server_url",
         help="OAuth2-proxy protected route URL (e.g., https://observatory.softmax-research.net/api or http://localhost:8000)",

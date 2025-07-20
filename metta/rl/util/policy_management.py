@@ -7,6 +7,8 @@ from typing import Any, Optional, Tuple
 
 import torch
 
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,8 +58,6 @@ def save_policy_with_metadata(
     logger.info(f"Saving policy at epoch {epoch}")
 
     # Extract the actual policy module from distributed wrapper if needed
-    from metta.agent.metta_agent import DistributedMettaAgent
-
     policy_to_save = policy
     if isinstance(policy, DistributedMettaAgent):
         policy_to_save = policy.module
@@ -118,8 +118,6 @@ def save_policy_with_metadata(
 
 def validate_policy_environment_match(policy: Any, env: Any) -> None:
     """Validate that policy's observation shape matches environment's."""
-    from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
-
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):
         agent = policy
