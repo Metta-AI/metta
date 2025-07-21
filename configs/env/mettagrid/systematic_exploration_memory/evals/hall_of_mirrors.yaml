@@ -3,11 +3,6 @@ defaults:
 
 game:
   num_agents: 1
-<<<<<<< HEAD
-  max_steps: 300
-=======
   max_steps: 150
->>>>>>> 934e1097ef96dc790889ae5ee65f86437c605b33
   map_builder:
     uri: "configs/env/mettagrid/maps/systematic_exploration_memory/hall_of_mirrors.map"
-
