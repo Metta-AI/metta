@@ -37,8 +37,6 @@ def seed_everything(seed, torch_deterministic, rank: int = 0):
     if torch_deterministic:
         # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
         # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
-        import os
-
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 
@@ -58,8 +56,6 @@ def setup_mettagrid_environment(cfg: DictConfig) -> None:
     # Check if CUDA is requested but not available
     if device.startswith("cuda"):
         try:
-            import torch
-
             if not torch.cuda.is_available():
                 raise RuntimeError(
                     f"Device '{device}' was requested but CUDA is not available. "

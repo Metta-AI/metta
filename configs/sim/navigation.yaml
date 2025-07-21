@@ -57,8 +57,6 @@ simulations:
     env: env/mettagrid/navigation/evals/walkaround
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
-  systematic_exploration_memory/access_cross:
-    env: env/mettagrid/systematic_exploration_memory/evals/access_cross
   systematic_exploration_memory/boxout:
     env: env/mettagrid/systematic_exploration_memory/evals/boxout
   systematic_exploration_memory/choose_wisely:
@@ -81,7 +79,7 @@ simulations:
     env: env/mettagrid/systematic_exploration_memory/evals/memory_swirls
   systematic_exploration_memory/passing_things:
     env: env/mettagrid/systematic_exploration_memory/evals/passing_things
-  systematic_exploration_memory/roomy_memory:
+  systematic_exploration_memory/rooms:
     env: env/mettagrid/systematic_exploration_memory/evals/rooms
   systematic_exploration_memory/spacey_memory:
     env: env/mettagrid/systematic_exploration_memory/evals/spacey_memory
@@ -89,8 +87,5 @@ simulations:
     env: env/mettagrid/systematic_exploration_memory/evals/tease
   systematic_exploration_memory/venture_out:
     env: env/mettagrid/systematic_exploration_memory/evals/venture_out
-  systematic_exploration_memory/which_way:
-    env: env/mettagrid/systematic_exploration_memory/evals/which_way
   systematic_exploration_memory/you_shall_not_pass:
     env: env/mettagrid/systematic_exploration_memory/evals/you_shall_not_pass
-# selector_type: "latest"

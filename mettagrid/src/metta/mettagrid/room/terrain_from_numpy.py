@@ -78,11 +78,13 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         border_width: int = 0,
         border_object: str = "wall",
+        group_agents: bool = False,
     ):
         self._dir = dir
         self._file = file
         self._agents = agents
         self._objects = objects
+        self._group_agents = group_agents
         super().__init__(border_width=border_width, border_object=border_object)
 
     def get_valid_positions(self, level):
@@ -152,17 +154,17 @@ class TerrainFromNumpy(Room):
 
         valid_positions = self.get_valid_positions(level)
 
-        # 5. Place agents in first slice
-        # Take first position and its neighbor for agents
-        agent_positions = [valid_positions[0], valid_positions[1]]
+        # Agents are placed together initially ("head-to-head")
+        if not self._group_agents:
+            random.shuffle(valid_positions)
 
+        agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=True):
             level[pos] = label
 
+        # randomize the rest of the objects
         valid_positions = valid_positions.copy()[num_agents:]
         random.shuffle(valid_positions)
-
-        # Convert to set for O(1) removal operations
         valid_positions_set = set(valid_positions)
 
         for obj_name, count in self._objects.items():

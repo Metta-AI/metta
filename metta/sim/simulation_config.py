@@ -35,6 +35,7 @@ class SimulationSuiteConfig(SimulationConfig):
 
     name: str
     simulations: Dict[str, SingleEnvSimulationConfig]
+    episode_tags: list[str] = []
 
     @model_validator(mode="before")
     @classmethod

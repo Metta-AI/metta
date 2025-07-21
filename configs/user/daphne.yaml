@@ -12,10 +12,16 @@
 defaults:
   - _self_
 
+sim: systematic_exploration
+
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation/bucketed
 
+<<<<<<< HEAD
 policy_uri: wandb://run/george.navigation.bucketed.07-14
+=======
+policy_uri: wandb://run/george.navigation.bucketed.07-10
+>>>>>>> 934e1097ef96dc790889ae5ee65f86437c605b33
 
 run_id: 4
 run: ${oc.env:USER}.local.${run_id}

@@ -25,7 +25,7 @@ get_project_root() {
 # Setup UV project environment
 setup_uv_project_env() {
   local project_root="$(get_project_root)"
-  export UV_PROJECT_ENVIRONMENT="${project_root}/.venv"
+  export UV_PROJECT_ENVIRONMENT="$(cd "${project_root}/.venv" && pwd)"
 }
 
 # Setup UV environment paths

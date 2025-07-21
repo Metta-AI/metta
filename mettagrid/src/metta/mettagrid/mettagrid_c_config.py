@@ -1,5 +1,4 @@
 import copy
-from typing import Any
 
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
@@ -7,11 +6,12 @@ from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionCon
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
+from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import PyConverterConfig, PyGameConfig, PyWallConfig
 
 
-def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfig:
+def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     """Convert a PyGameConfig to a CppGameConfig."""
 
     game_config = PyGameConfig(**mettagrid_config_dict)
@@ -22,39 +22,61 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
 
     # These are the baseline settings for all agents
-    default_agent_config_dict = game_config.agent.model_dump(by_alias=True, exclude_unset=True)
-    default_resource_limit = default_agent_config_dict.get("default_resource_limit", 0)
+    default_agent_config_dict = game_config.agent.model_dump()
+    default_resource_limit = default_agent_config_dict["default_resource_limit"]
 
     # Group information is more specific than the defaults, so it should override
     for group_name, group_config in game_config.groups.items():
         agent_group_props = copy.deepcopy(default_agent_config_dict)
 
-        group_config_dict = group_config.model_dump(by_alias=True, exclude_unset=True)
-
         # Update, but in a nested way
-        for key, value in group_config_dict.get("props", {}).items():
+        for key, value in group_config.props.model_dump(exclude_unset=True).items():
             agent_group_props[key] = value
 
+        # Extract inventory rewards - handle both old and new format for backward compatibility
+        inventory_rewards = {}
+        inventory_reward_max = {}
+
+        rewards_config = agent_group_props.get("rewards", {})
+        if rewards_config:
+            inventory_rewards_dict = rewards_config.get("inventory", {})
+
+            # Process inventory rewards
+            for k, v in inventory_rewards_dict.items():
+                if v is not None and not k.endswith("_max"):
+                    if k in resource_name_to_id:
+                        inventory_rewards[resource_name_to_id[k]] = v
+                elif k.endswith("_max") and v is not None:
+                    item_name = k[:-4]
+                    if item_name in resource_name_to_id:
+                        inventory_reward_max[resource_name_to_id[item_name]] = v
+
+        # Process stats rewards
+        stat_rewards = {}
+        stat_reward_max = {}
+        stats_rewards_dict = rewards_config.get("stats", {}) if rewards_config else {}
+
+        for k, v in stats_rewards_dict.items():
+            if v is not None and not k.endswith("_max"):
+                stat_rewards[k] = v
+            elif k.endswith("_max") and v is not None:
+                stat_name = k[:-4]
+                stat_reward_max[stat_name] = v
+
         agent_cpp_params = {
-            "freeze_duration": agent_group_props.get("freeze_duration", 0),
+            "freeze_duration": agent_group_props["freeze_duration"],
             "group_id": group_config.id,
             "group_name": group_name,
-            "action_failure_penalty": agent_group_props.get("action_failure_penalty", 0),
+            "action_failure_penalty": agent_group_props["action_failure_penalty"],
             "resource_limits": {
-                resource_id: agent_group_props.get("resource_limits", {}).get(resource_name, default_resource_limit)
+                resource_id: agent_group_props["resource_limits"].get(resource_name, default_resource_limit)
                 for resource_id, resource_name in enumerate(resource_names)
             },
-            "resource_rewards": {
-                resource_name_to_id[k]: v
-                for k, v in agent_group_props.get("rewards", {}).items()
-                if not k.endswith("_max")
-            },
-            "resource_reward_max": {
-                resource_name_to_id[k[:-4]]: v
-                for k, v in agent_group_props.get("rewards", {}).items()
-                if k.endswith("_max") and v is not None
-            },
-            "group_reward_pct": group_config.group_reward_pct or 0,
+            "resource_rewards": inventory_rewards,
+            "resource_reward_max": inventory_reward_max,
+            "stat_rewards": stat_rewards,
+            "stat_reward_max": stat_reward_max,
+            "group_reward_pct": group_config.group_reward_pct,
             "type_id": 0,
             "type_name": "agent",
         }
@@ -67,9 +89,15 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
             cpp_converter_config = CppConverterConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                input_resources={resource_name_to_id[k]: v for k, v in object_config.input_resources.items() if v > 0},
+                input_resources={
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.input_resources.items()
+                    if v > 0 and k in resource_name_to_id
+                },
                 output_resources={
-                    resource_name_to_id[k]: v for k, v in object_config.output_resources.items() if v > 0
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.output_resources.items()
+                    if v > 0 and k in resource_name_to_id
                 },
                 max_output=object_config.max_output,
                 conversion_ticks=object_config.conversion_ticks,
@@ -88,9 +116,19 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
-    game_cpp_params = game_config.model_dump(by_alias=True, exclude_none=True)
+    game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]
     del game_cpp_params["groups"]
+
+    # Convert global_obs configuration
+    global_obs_config = game_config.global_obs
+    global_obs_cpp = CppGlobalObsConfig(
+        episode_completion_pct=global_obs_config.episode_completion_pct,
+        last_action=global_obs_config.last_action,
+        last_reward=global_obs_config.last_reward,
+        resource_rewards=global_obs_config.resource_rewards,
+    )
+    game_cpp_params["global_obs"] = global_obs_cpp
 
     actions_cpp_params = {}
     for action_name, action_config in game_cpp_params["actions"].items():
@@ -98,16 +136,23 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
             continue
 
         action_cpp_params = {
-            "consumed_resources": {resource_name_to_id[k]: v for k, v in action_config["consumed_resources"].items()},
+            "consumed_resources": {
+                resource_name_to_id[k]: v
+                for k, v in action_config["consumed_resources"].items()
+                if k in resource_name_to_id
+            },
             "required_resources": {
                 resource_name_to_id[k]: v
                 for k, v in (action_config.get("required_resources") or action_config["consumed_resources"]).items()
+                if k in resource_name_to_id
             },
         }
 
         if action_name == "attack":
             action_cpp_params["defense_resources"] = {
-                resource_name_to_id[k]: v for k, v in action_config["defense_resources"].items()
+                resource_name_to_id[k]: v
+                for k, v in action_config["defense_resources"].items()
+                if k in resource_name_to_id
             }
             actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
         elif action_name == "change_glyph":
@@ -118,5 +163,10 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
+    # Note: global_observations configuration is handled through the global_obs parameter
 
     return CppGameConfig(**game_cpp_params)
+
+
+# Alias for backward compatibility
+from_mettagrid_config = convert_to_cpp_game_config
