@@ -13,6 +13,8 @@ for seed in 0; do
     --nodes=8 \
     --no-spot \
     +USER=greg \
+    ++trainer.ppo.gamma=0.999 \
+    ++trainer.minibatch_size=2048 \
     ++trainer.env_overrides.special_reward_mode=ffa \
     ++trainer.env_overrides.game.map_builder.room.agent_cluster_type=${agent_cluster_type} \
     ++trainer.env_overrides.game.num_agents=$((num_agents_per_room * num_rooms)) \
