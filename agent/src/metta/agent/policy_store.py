@@ -16,6 +16,7 @@ import random
 import sys
 from types import SimpleNamespace
 from typing import Any, List, Optional, Union
+import json
 
 import gymnasium as gym
 import numpy as np
@@ -208,42 +209,100 @@ class PolicyStore:
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
-        """Save a policy record using the simple torch.save approach with atomic file operations."""
+        """Save a policy record using standard PyTorch format with metadata sidecar.
+        
+        Creates two files:
+        - {name}.pt: Contains only model.state_dict() for standard PyTorch compatibility
+        - {name}.json: Contains all metadata including model architecture info
+        """
         if path is None:
             if hasattr(pr, "file_path"):
                 path = pr.file_path
             else:
                 path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
 
-        logger.info(f"Saving policy to {path}")
+        logger.info(f"Saving policy to {path} using new format (.pt + .json sidecar)")
 
         # Ensure directory exists
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
-        # Save to a temporary file first to ensure atomic writes
-        temp_path = path + ".tmp"
+        # Get the model from the policy record
+        if pr._cached_policy is None:
+            raise ValueError("Cannot save PolicyRecord without a loaded policy")
+        
+        model = pr._cached_policy
 
-        # Temporarily remove the policy store reference to avoid pickling issues
-        pr._policy_store = None
-        try:
-            torch.save(pr, temp_path)
-            # Atomically replace the file (works even if target exists)
-            # os.replace is atomic on POSIX systems and handles existing files
-            os.replace(temp_path, path)
-        finally:
-            pr._policy_store = self
-            # Clean up temp file if it still exists (in case of error)
+        # Save model state_dict to .pt file
+        model_path = path
+        temp_model_path = model_path + ".tmp"
+        
+        # Save only the state dict for standard PyTorch compatibility
+        torch.save(model.state_dict(), temp_model_path)
+        
+        # Save metadata to .json sidecar
+        # Change extension from .pt to .json for metadata
+        base_path = path[:-3] if path.endswith('.pt') else path
+        metadata_path = base_path + '.json'
+        temp_metadata_path = metadata_path + ".tmp"
+        
+        # Prepare metadata dict with all information needed for reconstruction
+        metadata_dict = dict(pr.metadata)  # Convert PolicyMetadata to dict
+        metadata_dict['run_name'] = pr.run_name
+        metadata_dict['uri'] = pr.uri
+        
+        # Add model architecture info for reconstruction
+        # This allows us to recreate the model without needing the full Metta codebase
+        metadata_dict['model_info'] = {
+            'type': type(model).__name__,
+            'hidden_size': getattr(model, 'hidden_size', None),
+            'core_num_layers': getattr(model, 'core_num_layers', None),
+            'agent_attributes': getattr(model, 'agent_attributes', {}),
+        }
+        
+        # Convert action_space nvec to list if it's a numpy array
+        if 'action_space' in metadata_dict['model_info']['agent_attributes']:
+            action_space = metadata_dict['model_info']['agent_attributes']['action_space']
+            if hasattr(action_space, 'nvec'):
+                import numpy as np
+                if isinstance(action_space.nvec, np.ndarray):
+                    metadata_dict['model_info']['agent_attributes']['action_space'] = {
+                        'type': 'MultiDiscrete',
+                        'nvec': action_space.nvec.tolist()
+                    }
+        
+        # Add action names if available (needed for proper model reconstruction)
+        if 'action_names' not in metadata_dict and hasattr(model, '_action_names'):
+            metadata_dict['action_names'] = model._action_names
+        
+        # Write metadata JSON with proper formatting
+        # Use default=str to handle any non-serializable types (e.g., numpy arrays)
+        with open(temp_metadata_path, 'w') as f:
+            json.dump(metadata_dict, f, indent=2, default=str)
+        
+        # Atomically replace both files to prevent corruption
+        os.replace(temp_model_path, model_path)
+        os.replace(temp_metadata_path, metadata_path)
+        
+        # Clean up temp files if they still exist
+        for temp_path in [temp_model_path, temp_metadata_path]:
             if os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
                 except OSError:
                     pass
 
-        # Don't cache the policy that we just saved,
-        # since it might be updated later. We always
-        # load the policy from the file when needed.
+        logger.info(f"Saved model weights to {model_path}")
+        logger.info(f"Saved metadata to {metadata_path}")
+
+        # Update the URI to point to the saved file
+        pr.uri = f"file://{model_path}"
+        
+        # Don't cache the policy that we just saved to free memory
         pr._cached_policy = None
+        
+        # Cache the policy record for faster loading
         self._cached_prs.put(path, pr)
+        
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
@@ -262,6 +321,13 @@ class PolicyStore:
 
         artifact = wandb.Artifact(name, type=type, metadata=metadata)
         artifact.add_file(file_path, name="model.pt")
+        
+        # Also add the metadata JSON file if it exists (new format)
+        base_path = file_path[:-3] if file_path.endswith('.pt') else file_path
+        metadata_path = base_path + '.json'
+        if os.path.exists(metadata_path):
+            artifact.add_file(metadata_path, name="model.json")
+            
         for file in additional_files:
             artifact.add_file(file)
         artifact.save()
@@ -389,7 +455,7 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        """Load a PolicyRecord from a file using simple torch.load."""
+        """Load a PolicyRecord from a file using simple torch.load or new format."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
             if metadata_only or cached_pr._cached_policy is not None:
@@ -405,11 +471,74 @@ class PolicyStore:
         # Make codebase backwards compatible before loading
         self._make_codebase_backwards_compatible()
 
-        # Load checkpoint - could be PolicyRecord or legacy format
+        # Check if metadata sidecar exists (new format)
+        base_path = path[:-3] if path.endswith('.pt') else path
+        metadata_path = base_path + '.json'
+        
+        if os.path.exists(metadata_path):
+            # New format: separate .pt and .json files
+            logger.info(f"Loading policy using new format from {path}")
+            
+            # Load metadata from JSON
+            with open(metadata_path, 'r') as f:
+                metadata_dict = json.load(f)
+            
+            # Extract PolicyMetadata fields
+            metadata_fields = {
+                k: v for k, v in metadata_dict.items() 
+                if k in PolicyMetadata._REQUIRED_FIELDS or k in ['action_names', 'evals', 'avg_reward', 'total_time', 'total_train_time', 'run', 'initial_pr', 'original_feature_mapping']
+            }
+            metadata = PolicyMetadata(**metadata_fields)
+            
+            # Create PolicyRecord
+            run_name = metadata_dict.get('run_name', os.path.basename(path))
+            uri = metadata_dict.get('uri', f"file://{path}")
+            pr = PolicyRecord(self, run_name, uri, metadata)
+            
+            if not metadata_only:
+                # Load model state_dict
+                state_dict = torch.load(path, map_location=self._device, weights_only=True)
+                
+                # Reconstruct model using saved architecture info
+                model_info = metadata_dict.get('model_info', {})
+                
+                # Create environment for policy creation
+                agent_attributes = model_info.get('agent_attributes', {})
+                obs_shape = agent_attributes.get('obs_shape', [34, 11, 11])
+                
+                # Reconstruct action_space if it's in the new format
+                action_space_info = agent_attributes.get('action_space', {})
+                if isinstance(action_space_info, dict) and action_space_info.get('type') == 'MultiDiscrete':
+                    action_space = gym.spaces.MultiDiscrete(action_space_info['nvec'])
+                else:
+                    # Fallback to default
+                    action_space = gym.spaces.MultiDiscrete([9, 10])
+                
+                env = SimpleNamespace(
+                    single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+                    obs_width=agent_attributes.get('obs_width', obs_shape[1]),
+                    obs_height=agent_attributes.get('obs_height', obs_shape[2]),
+                    single_action_space=action_space,
+                    feature_normalizations=agent_attributes.get('feature_normalizations', {}),
+                    global_features=[],
+                )
+                
+                # Create policy
+                policy = make_policy(env, self._cfg)
+                
+                # Load state dict
+                policy.load_state_dict(state_dict)
+                pr._cached_policy = policy
+                logger.info("Successfully loaded policy using new format")
+                
+            self._cached_prs.put(path, pr)
+            return pr
+        
+        # Old format: try loading as legacy checkpoint
         checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
         if isinstance(checkpoint, PolicyRecord):
-            # New format - PolicyRecord object
+            # Old format - PolicyRecord object
             pr = checkpoint
             pr._policy_store = self
 
@@ -510,3 +639,66 @@ class PolicyStore:
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
         return pr
+
+    def migrate_checkpoint(self, old_path: str, new_path: str | None = None) -> str:
+        """Migrate a checkpoint from old format to new format.
+        
+        Args:
+            old_path: Path to the old format checkpoint
+            new_path: Optional path for the new format checkpoint. 
+                     If None, creates .new.pt and .new.json files
+                     
+        Returns:
+            Path to the new format checkpoint
+        """
+        logger.info(f"Migrating checkpoint from {old_path}")
+        
+        # Load using old format (don't use new format loading)
+        checkpoint = torch.load(old_path, map_location=self._device, weights_only=False)
+        
+        if isinstance(checkpoint, PolicyRecord):
+            # Extract policy record
+            pr = checkpoint
+            pr._policy_store = self
+            
+            # Ensure we have the policy loaded
+            if pr._cached_policy is None:
+                # Try to find policy under various attributes
+                for attr in ["_cached_policy", "_policy", "policy_cache"]:
+                    if hasattr(pr, attr):
+                        policy = getattr(pr, attr)
+                        if policy is not None:
+                            pr._cached_policy = policy
+                            break
+                            
+                if pr._cached_policy is None:
+                    raise ValueError(f"Cannot migrate {old_path}: no policy found in PolicyRecord")
+            
+            # Determine new path
+            if new_path is None:
+                base = old_path[:-3] if old_path.endswith('.pt') else old_path
+                new_path = base + '.new.pt'
+            
+            # Save in new format
+            self.save(pr, new_path)
+            logger.info(f"Successfully migrated to {new_path}")
+            
+            return new_path
+            
+        else:
+            # Legacy dict format
+            logger.info("Migrating legacy dict format checkpoint")
+            
+            # First load it properly to get a PolicyRecord
+            pr = self._load_legacy_checkpoint(old_path, checkpoint, metadata_only=False)
+            
+            # Determine new path
+            if new_path is None:
+                base = old_path[:-3] if old_path.endswith('.pt') else old_path
+                new_path = base + '.new.pt'
+            
+            # Save in new format
+            self.save(pr, new_path)
+            logger.info(f"Successfully migrated to {new_path}")
+            
+            return new_path
