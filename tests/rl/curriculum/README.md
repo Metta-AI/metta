@@ -1,75 +1,74 @@
 # Curriculum Tests Organization
 
-This directory contains all curriculum-related tests, organized as follows:
+This directory contains tests for the curriculum learning system in Metta. The tests have been reorganized to eliminate duplicates and improve clarity.
 
-## Test Files
+## Final Organization
 
-### Core Tests
-- **`test_curriculum_core.py`** - Tests core curriculum functionality:
-  - Basic operations (get_task, complete_task)
-  - Stats collection and reporting
-  - Task configuration variation
-  - Learning adaptation behavior
-  - Task interface compliance
+### Test Files (66 tests total)
 
-- **`test_curriculum_algorithms.py`** - Tests specific curriculum algorithm implementations:
-  - SingleTaskCurriculum
-  - RandomCurriculum  
-  - PrioritizeRegressedCurriculum
-  - SamplingCurriculum
-  - ProgressiveCurriculum
-  - BucketedCurriculum
-  - MultiTaskCurriculum
-  - SampledTaskCurriculum
+1. **`conftest.py`** - Shared fixtures, mock classes, and test utilities:
+   - `MockCurriculum` - Simple mock for basic functionality testing
+   - `StatefulCurriculum` - Mock with comprehensive state tracking and stats
+   - Score generators for testing curriculum behavior patterns
+   - Test utilities (run_curriculum_simulation, create_mock_curricula, etc.)
+   - `free_port` fixture - Provides available ports for server testing
 
-### Scenario Tests
+2. **`test_curriculum_core.py`** (5 tests) - Core curriculum interface tests:
+   - Basic curriculum operations (get_task, complete_task)
+   - Stats methods functionality
+   - Task configuration variation
+   - Learning adaptation based on performance
+   - Task interface validation
 
-- **`test_curriculum_progressive_scenarios.py`** - Progressive curriculum behavior scenarios:
-  - Monotonic linear signal progression
-  - Zero signal behavior (should stay on first task)
-  - Random signal progression patterns
+3. **`test_curriculum_algorithms.py`** (9 tests) - Algorithm implementation tests:
+   - SingleTaskCurriculum
+   - RandomCurriculum
+   - PrioritizeRegressedCurriculum
+   - SamplingCurriculum
+   - ProgressiveCurriculum
+   - BucketedCurriculum
+   - MultiTaskCurriculum
+   - SampledTaskCurriculum
+   - Helper function tests
 
-- **`test_curriculum_learning_progress_scenarios.py`** - Learning progress curriculum scenarios:
-  - Conditional linear scores testing
-  - Threshold-dependent task progression
+4. **`test_server_client.py`** (11 tests) - Server/client communication tests:
+   - Basic communication
+   - Batch prefetching
+   - Error handling
+   - Client returns empty stats
+   - Concurrent client access (sequential and threaded)
+   - Server lifecycle management (restart, shutdown)
+   - Complex curriculum integration (BucketedCurriculum, RandomCurriculum)
+   - Empty batch handling
 
-- **`test_curriculum_prioritize_regressed_scenarios.py`** - Prioritize regressed curriculum scenarios:
-  - Task weight adjustment based on performance regression
-  - Independent linear progression for multiple tasks
+5. **`test_trainer_integration.py`** (5 tests) - Trainer integration tests:
+   - Trainer expected methods validation
+   - Stats collection and processing with curriculum
+   - Training simulation with learning progress
+   - Server/client workflow from trainer perspective
+   - Batch exhaustion and prefetching behavior
 
-### Server/Client Tests
+6. **`test_validate_all_curriculums.py`** (36 tests) - Configuration validation:
+   - Tests all curriculum YAML configurations can be instantiated
+   - Covers all environments and task configurations
 
-- **`test_server_client.py`** - Consolidated server/client tests:
-  - Basic communication tests
-  - Batch prefetching
-  - Error handling
-  - Client returns empty stats
-  - Concurrent client access (sequential and threaded)
-  - Server lifecycle management (restart, shutdown)
-  - Complex curriculum integration (BucketedCurriculum, RandomCurriculum)
-  - Empty batch handling scenarios
+## Consolidation Summary
 
-### Integration Tests
+The reorganization successfully eliminated numerous duplicate tests:
 
-- **`test_trainer_integration.py`** - Comprehensive trainer integration tests:
-  - Trainer expected methods validation
-  - Stats collection and processing with curriculum
-  - Training simulation with learning progress
-  - Server/client workflow from trainer perspective
-  - Batch exhaustion and prefetching behavior
+### Removed Duplicates:
+- `test_curriculum_stats_collection` (was in 3 files)
+- `test_curriculum_stats_methods` (was in 2 files)
+- Multiple client tests (was in 3 files)
+- Server restart/shutdown tests (was in 2 files)
+- Trainer integration tests (was scattered across 4 files)
 
-### Validation Tests
-
-- **`test_validate_all_curriculums.py`** - Validates all curriculum configurations can be instantiated
-
-## Test Organization Summary
-
-The reorganization successfully:
-1. Consolidated duplicate tests across multiple files
-2. Created a comprehensive conftest.py with all shared utilities
-3. Organized tests by functionality (core, algorithms, scenarios, integration)
-4. Improved test naming and documentation
-5. Maintained clear separation between unit and integration tests
+### Key Improvements:
+1. **Reduced file count** from ~15 test files to 6 focused test files
+2. **Consolidated utilities** into a comprehensive conftest.py
+3. **Clear separation** between unit tests and integration tests
+4. **Improved naming** and organization by functionality
+5. **Maintained coverage** while eliminating redundancy
 
 ## Running Tests
 
@@ -80,18 +79,18 @@ pytest tests/rl/curriculum/ -v
 
 Run specific test categories:
 ```bash
-# Algorithm tests
-pytest tests/rl/curriculum/test_curriculum_algorithms.py -v
-
-# Server/Client tests
-pytest tests/rl/curriculum/test_server_client.py -v
-
-# Trainer integration tests
-pytest tests/rl/curriculum/test_trainer_integration.py -v
-
-# Core curriculum tests
+# Core functionality
 pytest tests/rl/curriculum/test_curriculum_core.py -v
 
-# Scenario tests
-pytest tests/rl/curriculum/test_curriculum_*_scenarios.py -v
+# Algorithm implementations
+pytest tests/rl/curriculum/test_curriculum_algorithms.py -v
+
+# Server/Client communication
+pytest tests/rl/curriculum/test_server_client.py -v
+
+# Trainer integration
+pytest tests/rl/curriculum/test_trainer_integration.py -v
+
+# Configuration validation
+pytest tests/rl/curriculum/test_validate_all_curriculums.py -v
 ```
