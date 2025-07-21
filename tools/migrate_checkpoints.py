@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """
-Migrate Metta checkpoints from old format to new format.
+Migrate Metta checkpoints from old format to new standard PyTorch format.
 
-This tool converts checkpoints from the old pickle-based format (entire PolicyRecord)
-to the new standard PyTorch format (separate .pt and .json files).
+This tool converts checkpoints from the old format (single file with pickled PolicyRecord)
+to the new format (separate .pt file with state_dict and .json file with metadata).
+
+Usage:
+    # Dry run to see what would be migrated
+    python tools/migrate_checkpoints.py checkpoints/ --dry-run
+    
+    # Actually migrate all checkpoints
+    python tools/migrate_checkpoints.py checkpoints/
+    
+    # Migrate a specific checkpoint
+    python tools/migrate_checkpoints.py checkpoints/model_0000.pt
 """
 
 import argparse
@@ -12,149 +22,133 @@ import os
 import sys
 from pathlib import Path
 
-from omegaconf import OmegaConf
+from omegaconf import DictConfig
 
-from metta.agent.policy_store import PolicyStore
+# Add parent directory to path so we can import from metta
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+from metta.agent.policy_store import PolicyStore, migrate_all_checkpoints_in_dir
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 
-def migrate_single_checkpoint(policy_store: PolicyStore, checkpoint_path: str, replace: bool = False) -> bool:
-    """Migrate a single checkpoint file.
-    
-    Args:
-        policy_store: PolicyStore instance
-        checkpoint_path: Path to checkpoint to migrate
-        replace: If True, replace original file. If False, create .new.pt file
-        
-    Returns:
-        True if migration successful, False otherwise
-    """
-    try:
-        # Check if already in new format
-        base_path = checkpoint_path[:-3] if checkpoint_path.endswith('.pt') else checkpoint_path
-        metadata_path = base_path + '.json'
-        
-        if os.path.exists(metadata_path):
-            logger.info(f"Skipping {checkpoint_path} - already in new format")
-            return True
-        
-        # Migrate the checkpoint
-        if replace:
-            # Create temporary new path
-            temp_path = base_path + '.tmp.pt'
-            policy_store.migrate_checkpoint(checkpoint_path, temp_path)
-            
-            # Move files to final locations
-            os.rename(temp_path, checkpoint_path)
-            os.rename(base_path + '.tmp.json', base_path + '.json')
-            logger.info(f"Migrated {checkpoint_path} in place")
-        else:
-            # Create .new.pt file
-            new_path = policy_store.migrate_checkpoint(checkpoint_path)
-            logger.info(f"Created migrated checkpoint at {new_path}")
-            
-        return True
-        
-    except Exception as e:
-        logger.error(f"Failed to migrate {checkpoint_path}: {e}")
-        return False
+def create_minimal_config(device: str = "cpu") -> DictConfig:
+    """Create minimal config for PolicyStore initialization."""
+    return DictConfig({
+        "device": device,
+        "run": "migration",
+        "run_dir": os.getcwd(),
+        "trainer": {
+            "checkpoint": {"checkpoint_dir": os.getcwd()},
+            "num_workers": 1,
+        },
+        "data_dir": os.getcwd(),
+        "agent": {
+            "type": "metta",
+            "hidden_size": 256,
+            "num_layers": 2,
+        },
+    })
 
 
-def migrate_directory(policy_store: PolicyStore, directory: str, replace: bool = False, recursive: bool = False) -> tuple[int, int]:
-    """Migrate all checkpoints in a directory.
-    
-    Args:
-        policy_store: PolicyStore instance
-        directory: Directory to search for checkpoints
-        replace: If True, replace original files
-        recursive: If True, search subdirectories
+def migrate_single_checkpoint(checkpoint_path: str, policy_store: PolicyStore) -> str:
+    """Migrate a single checkpoint file."""
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
         
-    Returns:
-        Tuple of (successful_count, failed_count)
-    """
-    success_count = 0
-    failed_count = 0
-    
-    pattern = '**/*.pt' if recursive else '*.pt'
-    checkpoint_files = list(Path(directory).glob(pattern))
-    
-    logger.info(f"Found {len(checkpoint_files)} checkpoint files")
-    
-    for checkpoint_path in checkpoint_files:
-        if migrate_single_checkpoint(policy_store, str(checkpoint_path), replace):
-            success_count += 1
-        else:
-            failed_count += 1
-            
-    return success_count, failed_count
+    # Check if already in new format
+    base_path = checkpoint_path[:-3] if checkpoint_path.endswith('.pt') else checkpoint_path
+    if os.path.exists(base_path + '.json'):
+        logger.info(f"Checkpoint {checkpoint_path} is already in new format")
+        return checkpoint_path
+        
+    # Migrate
+    new_path = policy_store.migrate_checkpoint(checkpoint_path)
+    return new_path
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Migrate Metta checkpoints to new format')
-    parser.add_argument('paths', nargs='+', help='Checkpoint files or directories to migrate')
-    parser.add_argument('--replace', action='store_true', help='Replace original files (default: create .new.pt files)')
-    parser.add_argument('--recursive', '-r', action='store_true', help='Recursively search directories')
-    parser.add_argument('--device', default='cpu', help='Device to use for loading (default: cpu)')
-    parser.add_argument('--dry-run', action='store_true', help='Show what would be migrated without doing it')
+    parser = argparse.ArgumentParser(
+        description="Migrate Metta checkpoints to new PyTorch standard format"
+    )
+    parser.add_argument(
+        "path",
+        help="Path to checkpoint file or directory containing checkpoints"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be migrated without actually doing it"
+    )
+    parser.add_argument(
+        "--device",
+        default="cpu",
+        help="Device to use for loading checkpoints (default: cpu)"
+    )
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Replace original files instead of creating .new.pt files"
+    )
     
     args = parser.parse_args()
     
-    # Create minimal config for PolicyStore
-    cfg = OmegaConf.create({
-        'device': args.device,
-        'data_dir': '/tmp/metta_migration',
-        'policy_cache_size': 1,  # Minimal cache
-    })
+    # Create PolicyStore with minimal config
+    config = create_minimal_config(args.device)
+    policy_store = PolicyStore(config, wandb_run=None)
     
-    policy_store = PolicyStore(cfg, wandb_run=None)
+    path = Path(args.path)
     
-    total_success = 0
-    total_failed = 0
-    
-    for path in args.paths:
-        if os.path.isfile(path):
-            if path.endswith('.pt'):
-                if args.dry_run:
-                    base_path = path[:-3] if path.endswith('.pt') else path
-                    metadata_path = base_path + '.json'
-                    if os.path.exists(metadata_path):
-                        logger.info(f"Would skip {path} - already in new format")
-                    else:
-                        logger.info(f"Would migrate {path}")
-                else:
-                    if migrate_single_checkpoint(policy_store, path, args.replace):
-                        total_success += 1
-                    else:
-                        total_failed += 1
-            else:
-                logger.warning(f"Skipping {path} - not a .pt file")
-                
-        elif os.path.isdir(path):
-            if args.dry_run:
-                pattern = '**/*.pt' if args.recursive else '*.pt'
-                checkpoint_files = list(Path(path).glob(pattern))
-                for cp in checkpoint_files:
-                    base_path = str(cp)[:-3]
-                    metadata_path = base_path + '.json'
-                    if os.path.exists(metadata_path):
-                        logger.info(f"Would skip {cp} - already in new format")
-                    else:
-                        logger.info(f"Would migrate {cp}")
-            else:
-                success, failed = migrate_directory(policy_store, path, args.replace, args.recursive)
-                total_success += success
-                total_failed += failed
+    if path.is_file():
+        # Migrate single file
+        if args.dry_run:
+            base_path = str(path)[:-3] if str(path).endswith('.pt') else str(path)
+            new_path = base_path + '.new.pt'
+            logger.info(f"Would migrate: {path} -> {new_path}")
         else:
-            logger.error(f"Path does not exist: {path}")
-            total_failed += 1
-    
-    if not args.dry_run:
-        logger.info(f"\nMigration complete: {total_success} successful, {total_failed} failed")
-    
-    return 0 if total_failed == 0 else 1
+            try:
+                new_path = migrate_single_checkpoint(str(path), policy_store)
+                logger.info(f"Successfully migrated {path} to {new_path}")
+                
+                if args.replace:
+                    # Move new files to original names
+                    base_path = str(path)[:-3]
+                    os.rename(new_path, str(path))
+                    os.rename(base_path + '.new.json', base_path + '.json')
+                    logger.info(f"Replaced original files")
+                    
+            except Exception as e:
+                logger.error(f"Failed to migrate {path}: {e}")
+                sys.exit(1)
+                
+    elif path.is_dir():
+        # Migrate all checkpoints in directory
+        logger.info(f"Scanning directory: {path}")
+        migrated = migrate_all_checkpoints_in_dir(str(path), policy_store, dry_run=args.dry_run)
+        
+        if args.dry_run:
+            logger.info(f"Would migrate {len(migrated)} checkpoint(s)")
+        else:
+            logger.info(f"Migrated {len(migrated)} checkpoint(s)")
+            
+            if args.replace and migrated:
+                # Replace original files
+                for old_path, new_path in migrated:
+                    base_path = old_path[:-3]
+                    os.rename(new_path, old_path)
+                    os.rename(base_path + '.new.json', base_path + '.json')
+                logger.info(f"Replaced {len(migrated)} original files")
+                
+    else:
+        logger.error(f"Path does not exist: {path}")
+        sys.exit(1)
+        
+    logger.info("Migration complete!")
 
 
-if __name__ == '__main__':
-    sys.exit(main())
+if __name__ == "__main__":
+    main()

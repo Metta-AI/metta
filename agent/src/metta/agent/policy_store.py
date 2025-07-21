@@ -254,25 +254,69 @@ class PolicyStore:
         # This allows us to recreate the model without needing the full Metta codebase
         metadata_dict['model_info'] = {
             'type': type(model).__name__,
-            'hidden_size': getattr(model, 'hidden_size', None),
-            'core_num_layers': getattr(model, 'core_num_layers', None),
-            'agent_attributes': getattr(model, 'agent_attributes', {}),
+            'module_name': type(model).__module__,
         }
         
-        # Convert action_space nvec to list if it's a numpy array
-        if 'action_space' in metadata_dict['model_info']['agent_attributes']:
-            action_space = metadata_dict['model_info']['agent_attributes']['action_space']
-            if hasattr(action_space, 'nvec'):
-                import numpy as np
-                if isinstance(action_space.nvec, np.ndarray):
-                    metadata_dict['model_info']['agent_attributes']['action_space'] = {
+        # Extract key model attributes needed for reconstruction
+        if hasattr(model, 'hidden_size'):
+            metadata_dict['model_info']['hidden_size'] = model.hidden_size
+        if hasattr(model, 'core_num_layers'):
+            metadata_dict['model_info']['core_num_layers'] = model.core_num_layers
+        if hasattr(model, 'num_lstm_layers'):
+            metadata_dict['model_info']['num_lstm_layers'] = model.num_lstm_layers
+        if hasattr(model, 'use_lstm'):
+            metadata_dict['model_info']['use_lstm'] = model.use_lstm
+        if hasattr(model, 'use_prev_action'):
+            metadata_dict['model_info']['use_prev_action'] = model.use_prev_action
+        if hasattr(model, 'use_prev_reward'):
+            metadata_dict['model_info']['use_prev_reward'] = model.use_prev_reward
+            
+        # Save agent_attributes if available
+        if hasattr(model, 'agent_attributes'):
+            agent_attrs = model.agent_attributes.copy()
+            
+            # Convert action_space to serializable format
+            if 'action_space' in agent_attrs:
+                action_space = agent_attrs['action_space']
+                if hasattr(action_space, 'nvec'):
+                    import numpy as np
+                    nvec = action_space.nvec
+                    if isinstance(nvec, np.ndarray):
+                        nvec = nvec.tolist()
+                    agent_attrs['action_space'] = {
                         'type': 'MultiDiscrete',
-                        'nvec': action_space.nvec.tolist()
+                        'nvec': nvec
                     }
+                elif hasattr(action_space, 'n'):
+                    agent_attrs['action_space'] = {
+                        'type': 'Discrete',
+                        'n': action_space.n
+                    }
+                        
+            # Convert observation_space to serializable format  
+            if 'observation_space' in agent_attrs:
+                obs_space = agent_attrs['observation_space']
+                if hasattr(obs_space, 'shape'):
+                    agent_attrs['observation_space'] = {
+                        'type': 'Box',
+                        'shape': list(obs_space.shape),
+                        'dtype': str(obs_space.dtype)
+                    }
+                    
+            metadata_dict['model_info']['agent_attributes'] = agent_attrs
         
-        # Add action names if available (needed for proper model reconstruction)
-        if 'action_names' not in metadata_dict and hasattr(model, '_action_names'):
-            metadata_dict['action_names'] = model._action_names
+        # Extract action names if available
+        if 'action_names' not in metadata_dict:
+            if hasattr(model, '_action_names'):
+                metadata_dict['action_names'] = model._action_names
+            elif hasattr(model, 'action_names'):
+                metadata_dict['action_names'] = model.action_names
+                
+        # Save feature mapping if available
+        if hasattr(model, 'get_original_feature_mapping'):
+            original_feature_mapping = model.get_original_feature_mapping()
+            if original_feature_mapping is not None:
+                metadata_dict['original_feature_mapping'] = original_feature_mapping
         
         # Write metadata JSON with proper formatting
         # Use default=str to handle any non-serializable types (e.g., numpy arrays)
@@ -502,34 +546,94 @@ class PolicyStore:
                 # Reconstruct model using saved architecture info
                 model_info = metadata_dict.get('model_info', {})
                 
-                # Create environment for policy creation
-                agent_attributes = model_info.get('agent_attributes', {})
-                obs_shape = agent_attributes.get('obs_shape', [34, 11, 11])
-                
-                # Reconstruct action_space if it's in the new format
-                action_space_info = agent_attributes.get('action_space', {})
-                if isinstance(action_space_info, dict) and action_space_info.get('type') == 'MultiDiscrete':
-                    action_space = gym.spaces.MultiDiscrete(action_space_info['nvec'])
-                else:
-                    # Fallback to default
-                    action_space = gym.spaces.MultiDiscrete([9, 10])
-                
-                env = SimpleNamespace(
-                    single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                    obs_width=agent_attributes.get('obs_width', obs_shape[1]),
-                    obs_height=agent_attributes.get('obs_height', obs_shape[2]),
-                    single_action_space=action_space,
-                    feature_normalizations=agent_attributes.get('feature_normalizations', {}),
-                    global_features=[],
-                )
-                
-                # Create policy
-                policy = make_policy(env, self._cfg)
-                
-                # Load state dict
-                policy.load_state_dict(state_dict)
-                pr._cached_policy = policy
-                logger.info("Successfully loaded policy using new format")
+                # Try to reconstruct using make_policy if we have enough information
+                try:
+                    # Create a mock environment with the saved attributes
+                    agent_attributes = model_info.get('agent_attributes', {})
+                    
+                    # Reconstruct observation space
+                    obs_space_info = agent_attributes.get('observation_space', {})
+                    if obs_space_info.get('type') == 'Box':
+                        obs_shape = obs_space_info.get('shape', [34, 11, 11])
+                        obs_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+                    else:
+                        # Default observation space
+                        obs_shape = [34, 11, 11]
+                        obs_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+                    
+                    # Reconstruct action space
+                    action_space_info = agent_attributes.get('action_space', {})
+                    if action_space_info.get('type') == 'MultiDiscrete':
+                        nvec = action_space_info.get('nvec', [9, 10])
+                        action_space = gym.spaces.MultiDiscrete(nvec)
+                    elif action_space_info.get('type') == 'Discrete':
+                        n = action_space_info.get('n', 10)
+                        action_space = gym.spaces.Discrete(n)
+                    else:
+                        # Default action space
+                        action_space = gym.spaces.MultiDiscrete([9, 10])
+                    
+                    # Create environment for policy creation
+                    env = SimpleNamespace(
+                        single_observation_space=obs_space,
+                        obs_width=agent_attributes.get('obs_width', obs_shape[1] if len(obs_shape) > 1 else 11),
+                        obs_height=agent_attributes.get('obs_height', obs_shape[2] if len(obs_shape) > 2 else 11),
+                        single_action_space=action_space,
+                        feature_normalizations=agent_attributes.get('feature_normalizations', {}),
+                        global_features=[],
+                    )
+                    
+                    # Add action_names to env if available
+                    if 'action_names' in metadata_dict:
+                        env.action_names = metadata_dict['action_names']
+                    
+                    # Create agent config with saved model parameters
+                    agent_config = {
+                        'type': 'metta',
+                        'hidden_size': model_info.get('hidden_size', 256),
+                        'num_layers': model_info.get('core_num_layers', 2),
+                    }
+                    
+                    # Add optional parameters if they were saved
+                    if 'num_lstm_layers' in model_info:
+                        agent_config['num_lstm_layers'] = model_info['num_lstm_layers']
+                    if 'use_lstm' in model_info:
+                        agent_config['use_lstm'] = model_info['use_lstm']
+                    if 'use_prev_action' in model_info:
+                        agent_config['use_prev_action'] = model_info['use_prev_action']
+                    if 'use_prev_reward' in model_info:
+                        agent_config['use_prev_reward'] = model_info['use_prev_reward']
+                    
+                    # Create config for make_policy
+                    cfg_dict = {
+                        'device': str(self._device),
+                        'agent': agent_config,
+                    }
+                    
+                    # Create policy
+                    policy = make_policy(env, DictConfig(cfg_dict))
+                    
+                    # Load state dict
+                    policy.load_state_dict(state_dict)
+                    
+                    # Restore action names if not already set
+                    if hasattr(policy, '_action_names') and 'action_names' in metadata_dict:
+                        policy._action_names = metadata_dict['action_names']
+                    
+                    # Restore original feature mapping if available
+                    if hasattr(policy, 'restore_original_feature_mapping') and 'original_feature_mapping' in metadata_dict:
+                        policy.restore_original_feature_mapping(metadata_dict['original_feature_mapping'])
+                    
+                    pr._cached_policy = policy
+                    logger.info("Successfully loaded policy using new format")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to reconstruct model from new format: {e}")
+                    logger.error(f"Model info: {model_info}")
+                    raise ValueError(
+                        f"Cannot load policy from new format. The metadata may be incomplete or the model type '{model_info.get('type', 'unknown')}' is not supported. "
+                        f"Error: {e}"
+                    )
                 
             self._cached_prs.put(path, pr)
             return pr
@@ -702,3 +806,48 @@ class PolicyStore:
             logger.info(f"Successfully migrated to {new_path}")
             
             return new_path
+
+
+def migrate_all_checkpoints_in_dir(directory: str, policy_store: PolicyStore, dry_run: bool = True) -> list[tuple[str, str]]:
+    """Migrate all checkpoint files in a directory from old format to new format.
+    
+    Args:
+        directory: Directory containing checkpoint files
+        policy_store: PolicyStore instance to use for migration
+        dry_run: If True, only print what would be done without actually migrating
+        
+    Returns:
+        List of (old_path, new_path) tuples for migrated files
+    """
+    import glob
+    
+    migrated = []
+    
+    # Find all .pt files
+    pt_files = glob.glob(os.path.join(directory, "**/*.pt"), recursive=True)
+    
+    for old_path in pt_files:
+        # Skip if already in new format (has corresponding .json file)
+        base_path = old_path[:-3]
+        if os.path.exists(base_path + '.json'):
+            logger.info(f"Skipping {old_path} - already in new format")
+            continue
+            
+        # Skip if it's a .new.pt file from previous migration
+        if old_path.endswith('.new.pt'):
+            logger.info(f"Skipping {old_path} - already a migrated file")
+            continue
+            
+        # Generate new path
+        new_path = base_path + '.new.pt'
+        
+        if dry_run:
+            logger.info(f"Would migrate: {old_path} -> {new_path}")
+        else:
+            try:
+                policy_store.migrate_checkpoint(old_path, new_path)
+                migrated.append((old_path, new_path))
+            except Exception as e:
+                logger.error(f"Failed to migrate {old_path}: {e}")
+                
+    return migrated
