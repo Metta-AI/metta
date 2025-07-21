@@ -35,9 +35,9 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    # Use resource preset and override only what's needed
+    # Use combat preset (which includes attack/laser/armor) and add resource collection
     game_config = create_minimal_test_config(
-        preset="resource",
+        preset="combat",
         overrides={
             "max_steps": max_steps,
             "num_agents": num_agents,
@@ -45,15 +45,17 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "obs_height": OBS_HEIGHT,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
-                "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
                 "swap": {"enabled": True},
                 "change_color": {"enabled": True},
             },
             "objects": {
                 "altar": {
+                    "type_id": 8,
+                    "output_resources": {"heart": 1},
                     "initial_resource_count": 5,  # Start with some hearts
                     "max_output": 50,
                     "conversion_ticks": 1,  # Faster conversion
+                    "cooldown": 10,
                 },
             },
         }

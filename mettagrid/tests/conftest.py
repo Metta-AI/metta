@@ -114,6 +114,10 @@ class TestConfigPresets:
                 "move": {"enabled": True},
                 "rotate": {"enabled": True},
                 "swap": {"enabled": True},
+                # Explicitly disable actions that require items
+                "attack": {"enabled": False},
+                "put_items": {"enabled": False},
+                "get_items": {"enabled": False},
             },
             "objects": {
                 "wall": {"type_id": 1, "swappable": False},

@@ -4,7 +4,6 @@ import pytest
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import (
-    TokenTypes,
     dtype_actions,
     dtype_observations,
     dtype_rewards,
@@ -14,6 +13,7 @@ from metta.mettagrid.mettagrid_env import (
     get_action_param,
     noop,
 )
+from .test_mettagrid import TokenTypes
 from mettagrid.tests.conftest import create_minimal_test_config
 from metta.mettagrid.util.actions import (
     Orientation,
