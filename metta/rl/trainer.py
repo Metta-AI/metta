@@ -451,7 +451,7 @@ class MettaTrainer:
             )
 
             # Update the recurrent state for the next step
-            recurrent_state_td[training_env_id] = experience_td.select("lstm_h", "lstm_c")
+            # recurrent_state_td[training_env_id] = experience_td.select("lstm_h", "lstm_c")
 
             # Send actions back to environment
             with self.timer("_rollout.env"):
