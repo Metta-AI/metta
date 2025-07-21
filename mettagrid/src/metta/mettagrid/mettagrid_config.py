@@ -178,7 +178,7 @@ class PyConverterConfig(BaseModelWithForbidExtra):
 class PyTerminationConfig(BaseModelWithForbidExtra):
     """Python termination configuration."""
 
-    num_altars: bool = Field(default=False)
+    num_altars: Optional[bool] = Field(default=None)
     max_reward: Optional[int] = Field(default=None)
 
 
