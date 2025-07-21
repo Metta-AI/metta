@@ -16,7 +16,7 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.wandb.helpers import abort_requested as _abort_requested
+from metta.common.wandb.helpers import abort_requested
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
@@ -482,7 +482,7 @@ def _upload_replay_html(
 
 def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
     """Check for abort tag in wandb run."""
-    if _abort_requested(wandb_run, min_interval_sec=60):
+    if abort_requested(wandb_run, min_interval_sec=60):
         logger.info("Abort tag detected. Stopping the run.")
         trainer_cfg.total_timesteps = int(agent_step)
         if wandb_run:
