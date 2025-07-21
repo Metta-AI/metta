@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: /env/mettagrid/systematic_exploration/training/random_walk
+    env: /env/mettagrid/systematic_exploration/training/bounce_turn
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats
