@@ -60,7 +60,7 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     Save the sweep configuration to sweep_dir/metadata.yaml.
     """
     # Check if sweep already exists
-    backend_url = cfg.stats_server_uri if hasattr(cfg, "stats_server_uri") else None
+    backend_url = cfg.sweep_server_uri
     wandb_sweep_id = get_sweep_id_from_metta(cfg.sweep_name, backend_url=backend_url)
 
     # The sweep hasn't been registered with the centralized DB

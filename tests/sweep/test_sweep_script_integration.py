@@ -36,39 +36,6 @@ class TestSweepScriptIntegration:
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_sweep_process_id_generation_format(self):
-        """Test that generated process IDs have the expected format."""
-        # Simulate the process ID generation command from sweep.sh
-        result = subprocess.run(
-            ["python", "-c", "import uuid; print(uuid.uuid4().hex[:8])"], capture_output=True, text=True
-        )
-
-        assert result.returncode == 0
-        process_id = result.stdout.strip()
-
-        # Verify format: 8 character hex string
-        assert len(process_id) == 8
-        assert re.match(r"^[0-9a-f]{8}$", process_id)
-
-    def test_multiple_process_id_generation_uniqueness(self):
-        """Test that multiple process ID generations produce unique values."""
-        process_ids = []
-
-        for _ in range(10):
-            result = subprocess.run(
-                ["python", "-c", "import uuid; print(uuid.uuid4().hex[:8])"], capture_output=True, text=True
-            )
-            process_id = result.stdout.strip()
-            process_ids.append(process_id)
-
-        # All IDs should be unique
-        assert len(set(process_ids)) == len(process_ids)
-
-        # All should be 8-character hex
-        for pid in process_ids:
-            assert len(pid) == 8
-            assert re.match(r"^[0-9a-f]{8}$", pid)
-
     def test_sweep_argument_parsing_and_transformation(self):
         """Test argument parsing and transformation logic from sweep.sh."""
 
@@ -169,54 +136,6 @@ class TestSweepScriptIntegration:
         expected = ["process_0:sweep_0", "process_1:sweep_1", "process_2:sweep_2"]
         assert processes == expected
 
-    def test_sweep_config_parameter_flow(self):
-        """Test that sweep_process_id flows correctly through the configuration system."""
-        # Simulate the parameter flow: sweep.sh -> sweep_rollout.sh -> sweep_prepare_run.py
-
-        # 1. Generate process ID (sweep.sh)
-        process_id = "test1234"
-
-        # 2. Add to arguments (sweep.sh -> sweep_rollout.sh)
-        base_args = "sweep_name=flow_test +hardware=macbook"
-        enhanced_args = f"{base_args} sweep_process_id={process_id}"
-
-        # 3. Verify the parameter is included
-        assert f"sweep_process_id={process_id}" in enhanced_args
-        assert "sweep_name=flow_test" in enhanced_args
-
-        # 4. Simulate config loading (sweep_prepare_run.py would use Hydra)
-        # In real usage, this would be handled by Hydra's command-line override
-        config_overrides = {}
-        for param in enhanced_args.split():
-            if "=" in param and not param.startswith("+"):
-                key, value = param.split("=", 1)
-                config_overrides[key] = value
-
-        assert config_overrides["sweep_name"] == "flow_test"
-        assert config_overrides["sweep_process_id"] == process_id
-
-    def test_backward_compatibility_with_dist_id_fallback(self):
-        """Test that the system falls back gracefully when sweep_process_id is not provided."""
-
-        # Simulate the fallback logic from sweep_rollout.sh
-        def get_process_id_with_fallback(sweep_process_id=None, dist_id="localhost"):
-            """Simulate process ID selection with fallback"""
-            if sweep_process_id:
-                return sweep_process_id
-            return dist_id
-
-        # Test with new process ID
-        result1 = get_process_id_with_fallback(sweep_process_id="new12345")
-        assert result1 == "new12345"
-
-        # Test fallback to DIST_ID
-        result2 = get_process_id_with_fallback()
-        assert result2 == "localhost"
-
-        # Test with custom DIST_ID
-        result3 = get_process_id_with_fallback(dist_id="custom_host")
-        assert result3 == "custom_host"
-
     def test_file_path_collision_prevention(self):
         """Test that different process IDs prevent file collisions."""
         # Simulate multiple workers with different process IDs
@@ -261,11 +180,10 @@ class TestSweepScriptIntegration:
             match = re.search(pattern, args_string)
             return match.group(2) if match else None
 
-        test_args = "sweep_name=test_sweep sweep_process_id=abc12345 +hardware=macbook debug=false"
+        test_args = "sweep_name=test_sweep +hardware=macbook debug=false"
 
         # Test extracting different arguments
         assert extract_argument(test_args, "sweep_name") == "test_sweep"
-        assert extract_argument(test_args, "sweep_process_id") == "abc12345"
         assert extract_argument(test_args, "debug") == "false"
         assert extract_argument(test_args, "nonexistent") is None
 
@@ -291,29 +209,3 @@ class TestSweepScriptIntegration:
         is_valid, error = validate_sweep_args(invalid_args)
         assert is_valid is False
         assert error is not None and "run" in error
-
-    def test_integration_with_hydra_config_system(self):
-        """Test integration with Hydra configuration overrides."""
-        # Simulate how sweep_process_id would be used in Hydra configs
-        process_id = "hydra9876"
-        sweep_name = "hydra_test"
-
-        # Simulate command line override format
-        hydra_overrides = [
-            f"sweep_name={sweep_name}",
-            f"sweep_process_id={process_id}",
-            "+hardware=macbook",
-            "trainer.batch_size=64",
-        ]
-
-        # Verify format is compatible with Hydra
-        for override in hydra_overrides:
-            if not override.startswith("+"):
-                assert "=" in override
-                key, value = override.split("=", 1)
-                assert len(key) > 0
-                assert len(value) > 0
-
-        # Test that process_id override would be properly formatted
-        process_override = f"sweep_process_id={process_id}"
-        assert process_override in hydra_overrides

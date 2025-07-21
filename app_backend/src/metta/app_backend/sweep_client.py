@@ -61,18 +61,6 @@ class SweepClient:
         return data.run_id
 
 
-# DEPRECATED: Use get_next_run_id_from_metta from metta.sweep.metta_client_utils instead
-def generate_run_id_for_sweep(
-    sweep_name: str, api_url: str = "http://localhost:8000", auth_token: Optional[str] = None
-) -> str:
-    """Generate a unique run ID for a sweep using the coordination API.
-
-    DEPRECATED: This function is deprecated. Use get_next_run_id_from_metta() instead.
-    """
-    client = SweepClient(api_url, auth_token)
-    return client.get_next_run_id(sweep_name)
-
-
 if __name__ == "__main__":
     # Example usage
     client = SweepClient()

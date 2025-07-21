@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import Mock, patch
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.sweep.metta_client_utils import (
     create_sweep_in_metta,
@@ -179,45 +179,6 @@ class TestCentralizedSweepIntegration:
             assert loaded_config.trainer.learning_rate == expected_lr
 
     @patch("metta.sweep.metta_client_utils.SweepClient")
-    def test_sweep_process_id_integration_with_file_paths(self, mock_client_class):
-        """Test integration of sweep_process_id with file path generation."""
-        # Mock client setup
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-        mock_client.get_next_run_id.return_value = "integration_sweep.r.42"
-
-        # Create a config with sweep_process_id
-        config = DictConfig(
-            {
-                "sweep_name": "integration_sweep",
-                "sweep_process_id": "test_proc_123",
-                "data_dir": self.data_dir,
-                "runs_dir": self.runs_dir,
-            }
-        )
-
-        # Test that process-specific paths are generated correctly
-        dist_cfg_path = os.path.join(
-            config.data_dir, "sweep", config.sweep_name, f"dist_{config.sweep_process_id}.yaml"
-        )
-
-        expected_path = os.path.join(self.data_dir, "sweep", "integration_sweep", "dist_test_proc_123.yaml")
-        assert dist_cfg_path == expected_path
-
-        # Verify the path is unique per process
-        config2 = DictConfig(
-            {"sweep_name": "integration_sweep", "sweep_process_id": "different_proc_456", "data_dir": self.data_dir}
-        )
-
-        dist_cfg_path2 = os.path.join(
-            config2.data_dir, "sweep", config2.sweep_name, f"dist_{config2.sweep_process_id}.yaml"
-        )
-
-        assert dist_cfg_path != dist_cfg_path2
-        assert "test_proc_123" in dist_cfg_path
-        assert "different_proc_456" in dist_cfg_path2
-
-    @patch("metta.sweep.metta_client_utils.SweepClient")
     def test_sweep_idempotency_and_consistency(self, mock_client_class):
         """Test that sweep operations are idempotent and consistent."""
         # Mock client setup
@@ -349,13 +310,11 @@ class TestCentralizedSweepIntegration:
         os.makedirs(run_dir, exist_ok=True)
 
         # Process-specific config (simulating sweep_prepare_run.py)
-        process_id = "pipeline_proc_789"
         override_path = os.path.join(run_dir, "train_config_overrides.yaml")
         override_config = {
             "trainer": {"learning_rate": 0.0008},
             "run": new_run_id,
             "run_dir": run_dir,
-            "sweep_process_id": process_id,
         }
         OmegaConf.save(override_config, override_path)
 
@@ -363,4 +322,3 @@ class TestCentralizedSweepIntegration:
         assert os.path.exists(override_path)
         loaded_config = OmegaConf.load(override_path)
         assert loaded_config.run == new_run_id
-        assert loaded_config.sweep_process_id == process_id

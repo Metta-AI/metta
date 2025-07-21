@@ -49,25 +49,18 @@ echo "[INFO] Starting training..."
 
 set +e
 # Only use torchrun for truly distributed scenarios (multi-GPU or multi-node)
-if [ "$NUM_NODES" -gt 1 ] || [ "$NUM_GPUS" -gt 1 ]; then
-  echo "[INFO] Using distributed training with torchrun"
-  PYTHONPATH=$PYTHONPATH:. uv run torchrun \
-    --nnodes=$NUM_NODES \
-    --nproc-per-node=$NUM_GPUS \
-    --master-addr=$MASTER_ADDR \
-    --master-port=$MASTER_PORT \
-    --node-rank=$NODE_INDEX \
-    tools/train.py \
-    trainer.num_workers=null \
-    wandb.enabled=true \
-    $args
-else
-  echo "[INFO] Using single-process training (no distributed overhead)"
-  PYTHONPATH=$PYTHONPATH:. uv run tools/train.py \
-    trainer.num_workers=null \
-    wandb.enabled=true \
-    $args
-fi
+echo "[INFO] Using distributed training with torchrun"
+PYTHONPATH=$PYTHONPATH:. uv run torchrun \
+  --nnodes=$NUM_NODES \
+  --nproc-per-node=$NUM_GPUS \
+  --master-addr=$MASTER_ADDR \
+  --master-port=$MASTER_PORT \
+  --node-rank=$NODE_INDEX \
+  tools/train.py \
+  trainer.num_workers=null \
+  wandb.enabled=true \
+  $args
+
 EXIT_CODE=$?
 set -e
 

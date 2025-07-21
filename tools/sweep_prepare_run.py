@@ -42,7 +42,7 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
     # Use centralized database for atomic run ID generation
-    backend_url = cfg.stats_server_uri if hasattr(cfg, "stats_server_uri") else None
+    backend_url = cfg.sweep_server_uri
     run_id = get_next_run_id_from_metta(cfg.sweep_name, backend_url=backend_url)
     logger.info(f"Creating new run: {run_id}")
 
@@ -81,12 +81,9 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             # Apply Protein suggestions on top of sweep_job overrides
             # Make a deepcopy of the sweep_job config to avoid modifying the original.
             sweep_job_container = OmegaConf.to_container(cfg.sweep_job, resolve=True)
-            assert isinstance(sweep_job_container, dict), "sweep_job must be a dictionary structure"
             sweep_job_copy = DictConfig(sweep_job_container)
             apply_protein_suggestion(sweep_job_copy, clean_suggestion)
             # NOTE: Overrides are expected to be in the run_dir as `train_config_overrides.yaml`.
-            # In particular, we don't need the sweep_process_id here, since each sweep process
-            # deals with its assigned run.
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             run_seed = random.randint(0, 2**31 - 1)  # TODO: Seeding is trough metta_script.
 
