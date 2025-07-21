@@ -5,8 +5,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
-
-from .conftest import MockCurriculum, StatefulCurriculum
+from tests.rl.curriculum.conftest import MockCurriculum, StatefulCurriculum
 
 
 class TestCurriculumCore:
