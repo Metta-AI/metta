@@ -14,6 +14,7 @@
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
+#include "actions/move_cardinal.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
@@ -40,7 +41,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens),
-      _global_obs_config(cfg.global_obs) {
+      _global_obs_config(cfg.global_obs),
+      _movement_mode(cfg.movement_mode) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -85,9 +87,16 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      if (_movement_mode == "cardinal") {
+        _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
+      } else {
+        _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      }
     } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
+      // In cardinal movement mode, skip rotate action
+      if (_movement_mode != "cardinal") {
+        _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
+      }
     } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
       if (!attack_config) {
@@ -1004,7 +1013,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
-                    bool>(),
+                    bool,
+                    const std::string&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -1015,7 +1025,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"),
-           py::arg("recipe_details_obs") = false)
+           py::arg("recipe_details_obs") = false,
+           py::arg("movement_mode") = "relative")
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -1024,7 +1035,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
-      .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
+      .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs)
+      .def_readwrite("movement_mode", &GameConfig::movement_mode);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.

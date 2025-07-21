@@ -194,6 +194,9 @@ class PyGameConfig(BaseModelWithForbidExtra):
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    
+    # Movement mode configuration
+    movement_mode: str = Field(default="relative", pattern="^(relative|cardinal)$", description="Movement mode: 'relative' for tank-style controls, 'cardinal' for direct NSEW movement")
 
 
 class PyPolicyGameConfig(PyGameConfig):

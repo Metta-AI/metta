@@ -15,6 +15,9 @@ game:
   num_observation_tokens: 200
   max_steps: 1000
 
+  # Movement mode: "relative" for tank-style controls, "cardinal" for NSEW movement
+  movement_mode: relative
+
   # Global observation tokens configuration
   global_obs:
     episode_completion_pct: true

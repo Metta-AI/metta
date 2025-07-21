@@ -62,6 +62,7 @@ struct GameConfig {
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   bool recipe_details_obs = false;
+  std::string movement_mode = "relative";  // "relative" or "cardinal"
 };
 
 class METTAGRID_API MettaGrid {
@@ -115,6 +116,7 @@ private:
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::vector<RewardType> _group_rewards;
+  std::string _movement_mode;  // "relative" or "cardinal"
 
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
