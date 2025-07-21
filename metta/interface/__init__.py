@@ -19,7 +19,6 @@ from metta.interface.evaluation import (
     generate_replay_simple,
 )
 from metta.interface.training import (
-    HyperparameterScheduler,
     Optimizer,
     load_checkpoint,
     save_checkpoint,
@@ -40,7 +39,6 @@ __all__ = [
     "evaluate_policy_suite",
     "generate_replay_simple",
     # Training
-    "HyperparameterScheduler",
     "Optimizer",
     "save_checkpoint",
     "load_checkpoint",
