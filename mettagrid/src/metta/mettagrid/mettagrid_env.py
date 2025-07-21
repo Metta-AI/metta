@@ -112,8 +112,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         num_altars = True  # HACK FOR NOW
 
         if num_altars:
-            termination_reward = self._task.env_cfg().game.get("map_builder.room.objects.altar", None)
-            print(f"Termination reward: {termination_reward}")
+            termination_reward = self.num_altars
 
         if termination_reward is None:
             return False
@@ -121,7 +120,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Calculate total episode reward across all agents
         total_episode_reward = self._c_env.get_episode_rewards().sum()
 
-        # logger.info(f"Total episode reward: {total_episode_reward}, termination reward: {termination_reward}")
+        logger.info(f"Total episode reward: {total_episode_reward}, termination reward: {termination_reward}")
 
         # Check if total reward has reached the threshold
         return total_episode_reward >= termination_reward
@@ -143,9 +142,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+
         assert task.env_cfg().game.num_agents == level_agents, (
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
+        level_altars = np.count_nonzero(np.char.startswith(level.grid, "altar"))
+        self.num_altars = level_altars
 
         game_config_dict = OmegaConf.to_container(task.env_cfg().game)
         assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
