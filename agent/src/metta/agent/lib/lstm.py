@@ -32,6 +32,23 @@ class LSTM(LayerBase):
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
+        self._memory = None
+        # self.memory = TensorDict(
+        #     {
+        #         "lstm_h": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
+        #         "lstm_c": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
+        #     },
+        #     batch_size=[],
+        # )
+
+    def get_memory(self):
+        return self._memory
+
+    def set_memory(self, memory):
+        self._memory = memory
+
+    def reset_memory(self):
+        self._memory = None
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
@@ -46,7 +63,7 @@ class LSTM(LayerBase):
             if "bias" in name:
                 nn.init.constant_(param, 1)  # Joseph originally had this as 0
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0)  # torch's default is uniform
+                nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
         return net
 
@@ -54,11 +71,12 @@ class LSTM(LayerBase):
     def _forward(self, td: TensorDict):
         x = td["x"]
         hidden = td[self._sources[0]["name"]]
-        state = None
+        # state = None
+        state = self._memory
 
+        # av delete this
         # lstm_h = td["lstm_h"]
         # lstm_c = td["lstm_c"]
-
         # state = None
         # if lstm_h is not None and lstm_c is not None:
         #     # LSTM expects (num_layers, batch, features), so we permute
@@ -69,22 +87,23 @@ class LSTM(LayerBase):
         if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError("Invalid input tensor shape", x.shape)
 
-        if x_n == space_n + 1:
-            # rollout mode, feed the cell state from the previous step
-            B, TT = x_shape[0], 1
-            lstm_h = td["lstm_h"]
-            lstm_c = td["lstm_c"]
-            if lstm_h is not None and lstm_c is not None:
-                # LSTM expects (num_layers, batch, features), so we permute
-                state = (lstm_h.permute(1, 0, 2).contiguous(), lstm_c.permute(1, 0, 2).contiguous())
-            else:
-                state = None
+        # if x_n == space_n + 1:
+        #     # rollout mode, feed the cell state from the previous step
+        #     B, TT = x_shape[0], 1
+        #     lstm_h = td["lstm_h"]
+        #     lstm_c = td["lstm_c"]
+        #     if lstm_h is not None and lstm_c is not None:
+        #         # LSTM expects (num_layers, batch, features), so we permute
+        #         state = (lstm_h.permute(1, 0, 2).contiguous(), lstm_c.permute(1, 0, 2).contiguous())
+        #     else:
+        #         state = None
         elif x_n == space_n + 2:
             # training mode. We feed a bptt number of observations. LSTM will handle cell state.
             B, TT = x_shape[:2]
         else:
             raise ValueError("Invalid input tensor shape", x.shape)
 
+        # av delete this
         # if state is not None:
         #     assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
         # assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
@@ -97,11 +116,12 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
-        if state is not None:
-            # Unpack the state tuple and permute back to (batch, num_layers, features)
-            lstm_h, lstm_c = state
-            td["lstm_h"] = lstm_h.detach().permute(1, 0, 2).contiguous()
-            td["lstm_c"] = lstm_c.detach().permute(1, 0, 2).contiguous()
+        # if state is not None:
+        #     # Unpack the state tuple and permute back to (batch, num_layers, features)
+        #     lstm_h, lstm_c = state
+        #     td["lstm_h"] = lstm_h.detach().permute(1, 0, 2).contiguous()
+        #     td["lstm_c"] = lstm_c.detach().permute(1, 0, 2).contiguous()
+        self._memory = state.detach()
 
         td[self._name] = hidden
 

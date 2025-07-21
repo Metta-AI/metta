@@ -137,16 +137,22 @@ class MettaAgent(nn.Module):
         component = self.components["_action_"]
         self._setup_components(component)
 
+        self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(
                     f"Component {name} in MettaAgent was never setup. It might not be accessible by other components."
                 )
-
+            if hasattr(component, "_memory"):
+                self.components_with_memory.append(name)
         self.components = self.components.to(device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
+
+    def reset_memory(self):
+        for name in self.components_with_memory:
+            self.components[name].reset_memory()
 
     def get_experience_spec(self) -> TensorDict:
         """Get the specification for the experience buffer."""
@@ -161,8 +167,8 @@ class MettaAgent(nn.Module):
                 "actions": torch.zeros(self.agent_attributes["action_space"].shape, dtype=torch.int32),
                 "logprobs": torch.zeros((), dtype=torch.float32),
                 "values": torch.zeros((), dtype=torch.float32),
-                "lstm_h": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
-                "lstm_c": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
+                # "lstm_h": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
+                # "lstm_c": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
             },
             batch_size=[],
         )
@@ -352,9 +358,10 @@ class MettaAgent(nn.Module):
                 component._net.flatten_parameters()
                 logger.info(f"Flattened LSTM parameters for component {component._name}")
 
-    @property
-    def lstm(self):
-        return self.components["_core_"]._net
+    # av delete this
+    # @property
+    # def lstm(self):
+    #     return self.components["_core_"]._net
 
     @property
     def total_params(self):
