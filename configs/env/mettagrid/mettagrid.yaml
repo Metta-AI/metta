@@ -34,7 +34,10 @@ game:
     - heart
     - armor
     - laser
-    - blueprint
+    # - blueprint
+
+  # Show recipe inputs in observations for all converters
+  recipe_details_obs: false
 
   actions:
     noop:

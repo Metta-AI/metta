@@ -18,13 +18,14 @@ game:
       battery_blue: 1
       battery_green: 1
     rewards:
-      ore_red: ${sampling:0.005,0.1,0.01}
-      battery_red: ${sampling:0.01,0.3,0.1}
-      ore_blue: ${sampling:0.005,0.1,0.01}
-      battery_blue: ${sampling:0.01,0.3,0.1}
-      ore_green: ${sampling:0.005,0.1,0.01}
-      battery_green: ${sampling:0.01,0.3,0.1}
-      heart: 1
+      inventory:
+        ore_red: ${sampling:0.005,0.1,0.01}
+        battery_red: ${sampling:0.01,0.3,0.1}
+        ore_blue: ${sampling:0.005,0.1,0.01}
+        battery_blue: ${sampling:0.01,0.3,0.1}
+        ore_green: ${sampling:0.005,0.1,0.01}
+        battery_green: ${sampling:0.01,0.3,0.1}
+        heart: 1
 
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom

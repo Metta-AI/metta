@@ -6,4 +6,3 @@ game:
   max_steps: 120
   map_builder:
     uri: "configs/env/mettagrid/maps/systematic_exploration_memory/you_shall_not_pass.map"
-
