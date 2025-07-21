@@ -106,6 +106,20 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
 
+    def _check_reward_termination(self) -> bool:
+        """Check if episode should terminate based on total reward threshold."""
+        # Get termination threshold from config (None means no termination)
+        termination_threshold = self._task.env_cfg().game.get("termination_reward_threshold", None)
+
+        if termination_threshold is None:
+            return False
+
+        # Calculate total episode reward across all agents
+        total_episode_reward = self._c_env.get_episode_rewards().sum()
+
+        # Check if total reward has reached the threshold
+        return total_episode_reward >= termination_threshold
+
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
@@ -235,6 +249,15 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
             # Add curriculum task probabilities to infos for distributed logging
             infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+        else:
+            # Check for reward-based termination
+            if self._check_reward_termination():
+                # Set all terminals to True to end the episode
+                self.terminals.fill(True)
+                self.process_episode_stats(infos)
+                self._should_reset = True
+                self._task.complete(self._c_env.get_episode_rewards().mean())
+                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
