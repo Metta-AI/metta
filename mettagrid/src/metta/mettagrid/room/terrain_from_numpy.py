@@ -141,6 +141,7 @@ class TerrainFromNumpy(Room):
 
         # remove agents to then repopulate
         level[level == "agent.agent"] = "empty"
+        level[level == "altar"] = "empty"
 
         # 3. Prepare agent labels
         if isinstance(self._agents, int):
@@ -168,10 +169,10 @@ class TerrainFromNumpy(Room):
         valid_positions_set = set(valid_positions)
 
         for obj_name, count in self._objects.items():
-            count = count - np.where(level == obj_name, 1, 0).sum()
+            # count = count - np.where(level == obj_name, 1, 0).sum()
             print(f"Placing {obj_name} {count} times")
-            if count < 0:
-                continue
+            # if count < 0:
+            #     continue
             # Sample from remaining valid positions
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
