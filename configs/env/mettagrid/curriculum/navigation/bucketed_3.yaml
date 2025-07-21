@@ -24,8 +24,8 @@ buckets:
         "varied_terrain/cylinder-world_small",
       ]
   game.map_builder.room.objects.altar:
-    range: [1, 10]
-    bins: 2
+    range: [1, 20]
+    bins: 4
 
 env_overrides:
   sampling: 0
