@@ -32,7 +32,8 @@ game:
 ### Agent Orientation
 
 - In cardinal mode, agents still maintain an orientation for actions like `attack` that depend on facing direction
-- The orientation no longer affects movement direction
+- **Agents always rotate to face the direction they're trying to move, even if the movement is blocked**
+- This allows agents to "look at" walls and obstacles
 - Initial orientation remains Up (0) by default
 
 ## Migration Path for Trained Policies
@@ -101,7 +102,7 @@ defaults:
 game:
   num_agents: 1
   movement_mode: cardinal
-  
+
   actions:
     noop:
       enabled: true
@@ -118,7 +119,7 @@ game:
 game:
   num_agents: 4
   movement_mode: cardinal
-  
+
   groups:
     team_a:
       id: 0

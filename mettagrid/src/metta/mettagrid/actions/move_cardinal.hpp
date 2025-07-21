@@ -44,6 +44,10 @@ protected:
         return false;
     }
 
+    // Always update the agent's orientation to face the intended direction
+    // This happens even if movement is blocked, allowing agents to "look at" walls
+    actor->orientation = move_direction;
+
     GridLocation current_location = actor->location;
     GridLocation target_location = _grid->relative_location(current_location, move_direction);
 
@@ -52,6 +56,7 @@ protected:
       return false;
     }
 
+    // Move the agent
     return _grid->move_object(actor->id, target_location);
   }
 };

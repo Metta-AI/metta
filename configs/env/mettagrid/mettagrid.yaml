@@ -16,7 +16,7 @@ game:
   max_steps: 1000
 
   # Movement mode: "relative" for tank-style controls, "cardinal" for NSEW movement
-  movement_mode: relative
+  movement_mode: cardinal
 
   # Global observation tokens configuration
   global_obs:
