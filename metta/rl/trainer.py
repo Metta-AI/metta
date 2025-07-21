@@ -424,11 +424,11 @@ class MettaTrainer:
 
             # Perform single rollout step
             # Receive environment data
-            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
+            o, r, d, t, info, training_env_id, _, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps * self._world_size
 
             # Prepare the input TensorDict for the policy
-            input_td = recurrent_state_td.clone()
+            input_td = recurrent_state_td[training_env_id].clone()
             input_td["obs"] = o
 
             # Run policy inference
