@@ -89,6 +89,7 @@ subjects:
         machine_token = get_machine_token(
             backend_url if backend_url != docker_internal_host else "http://localhost:8000"
         )
+        print("machine_token", machine_token)
 
         # Run orchestrator pod
         cmd = [
@@ -147,6 +148,11 @@ subjects:
         """Follow logs for a specific pod."""
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
         subprocess.run(["kubectl", "logs", pod_name, "--follow"], check=True)
+
+    def enter(self, pod_name: str) -> None:
+        """Enter a pod with an interactive shell."""
+        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
+        subprocess.run(["kubectl", "exec", "-it", pod_name, "--", "/bin/bash"], check=True)
 
     def _get_wandb_api_key(self) -> str | None:
         """Get WANDB API key from .netrc file."""

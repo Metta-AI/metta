@@ -594,6 +594,10 @@ Examples:
         logs_parser = kind_subparsers.add_parser("logs", help="Follow logs for a specific pod")
         logs_parser.add_argument("pod_name", help="Name of the pod to get logs from")
 
+        # Add enter subcommand with pod_name argument
+        enter_parser = kind_subparsers.add_parser("enter", help="Enter a pod with an interactive shell")
+        enter_parser.add_argument("pod_name", help="Name of the pod to enter")
+
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)
 

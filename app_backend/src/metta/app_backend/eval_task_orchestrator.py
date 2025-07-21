@@ -182,7 +182,7 @@ async def main() -> None:
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "600"))
-    machine_token = os.environ.get("MACHINE_TOKEN")
+    machine_token = os.environ["MACHINE_TOKEN"]
 
     orchestrator = EvalTaskOrchestrator(
         backend_url=backend_url,

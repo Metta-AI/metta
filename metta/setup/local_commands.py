@@ -156,3 +156,9 @@ class LocalCommands:
             else:
                 error("Pod name is required for logs command")
                 sys.exit(1)
+        elif action == "enter":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.enter(args.pod_name)
+            else:
+                error("Pod name is required for enter command")
+                sys.exit(1)
