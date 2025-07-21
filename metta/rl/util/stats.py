@@ -147,14 +147,12 @@ def process_training_stats(
 def compute_timing_stats(
     timer: Any,
     agent_step: int,
-    world_size: int = 1,
 ) -> Dict[str, Any]:
     """Compute timing statistics from a Stopwatch timer.
 
     Args:
         timer: Stopwatch instance
         agent_step: Current agent step count
-        world_size: Number of distributed processes
 
     Returns:
         Dictionary with timing statistics including:
@@ -220,7 +218,6 @@ def build_wandb_stats(
     evals: EvalRewardSummary,
     agent_step: int,
     epoch: int,
-    world_size: int = 1,
 ) -> Dict[str, Any]:
     """Build complete statistics dictionary for wandb logging.
 
@@ -236,7 +233,6 @@ def build_wandb_stats(
         evals: Evaluation scores
         agent_step: Current agent step
         epoch: Current epoch
-        world_size: Number of distributed processes
 
     Returns:
         Complete dictionary ready for wandb logging
@@ -318,7 +314,6 @@ def process_stats(
     timing_info = compute_timing_stats(
         timer=timer,
         agent_step=agent_step,
-        world_size=world_size,
     )
 
     # Compute weight stats if configured
@@ -367,7 +362,6 @@ def process_stats(
         evals=evals,
         agent_step=agent_step,
         epoch=epoch,
-        world_size=world_size,
     )
 
     # Log to wandb

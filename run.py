@@ -655,7 +655,6 @@ while agent_step < trainer_config.total_timesteps:
     steps_calculated = agent_step - steps_before
     total_time = train_time + rollout_time + stats_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
-    steps_per_sec *= world_size
 
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
