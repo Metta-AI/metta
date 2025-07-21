@@ -349,7 +349,7 @@ jobs:
 
       - name: Run PufferLib integration smoke test
         run: |
-          ./tests/integration/test_pufferlib_fresh_install.sh stable
+          ./tests/integration/test_pufferlib_fresh_install.sh stable 3.11.7
 
       - name: Upload test artifacts on failure
         if: failure()
@@ -357,8 +357,9 @@ jobs:
         with:
           name: pufferlib-integration-logs
           path: |
-            /tmp/pufferlib_test_*/*/train_test.py
-            /tmp/pufferlib_test_*/*/test_run/
+            /tmp/metta-pufferlib-test-*/test_training.py
+            /tmp/metta-pufferlib-test-*/run.py
+            /tmp/metta-pufferlib-test-*/*.log
           retention-days: 3
 
   python-benchmark:
