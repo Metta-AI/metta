@@ -108,17 +108,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     def _check_reward_termination(self) -> bool:
         """Check if episode should terminate based on total reward threshold."""
-        # Get termination threshold from config (None means no termination)
-        num_altars = self._task.env_cfg().game.get("termination.num_altars", False)
-        max_reward = self._task.env_cfg().game.get("termination.max_reward", None)
-        # if num_altars is true, terminate when total reward = num_altars
-        if num_altars:
-            termination_reward = self._task.env_cfg().game.get("map_builder.room.objects.altar", None)
-        # if max_reward is set, terminate when total reward = max_reward
-        elif max_reward is not None:
-            termination_reward = max_reward
 
-        if termination_reward is None:
+        # if max_by_altars, terminate when total reward = num_altars
+        if self._task.env_cfg().game.get("termination.num_altars", False):
+            termination_reward = self._num_altars
+        # if max_reward, terminate when total reward = max reward
+        elif self._task.env_cfg().game.get("termination.max_reward", None):
+            termination_reward = self._task.env_cfg().game.termination.max_reward
+        else:
             return False
 
         # Calculate total episode reward across all agents
@@ -144,6 +141,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+        level_altars = np.count_nonzero(np.char.startswith(level.grid, "altar"))
         assert task.env_cfg().game.num_agents == level_agents, (
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
@@ -164,7 +162,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
             # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
-
+        self._num_altars = level_altars
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
