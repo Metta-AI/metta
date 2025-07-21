@@ -25,15 +25,9 @@ class TrainerState:
     stats_run_id: Optional[Any] = None
 ```
 
-**After:** Four focused state containers in `metta/rl/training_state.py`:
+**After:** Two focused state containers in `metta/rl/training_state.py` and individual values:
 
 ```python
-@dataclass
-class TrainingProgress:
-    """Tracks core training loop progress."""
-    agent_step: int = 0
-    epoch: int = 0
-
 @dataclass
 class StatsTracker:
     """Manages training statistics and database tracking."""
@@ -49,15 +43,15 @@ class PolicyTracker:
     initial_policy_record: Optional[Any]
     latest_saved_policy_record: Optional[Any]
 
-@dataclass
-class EvaluationTracker:
-    """Tracks evaluation results."""
-    scores: EvalRewardSummary
+# Plus individual values passed as parameters:
+# - agent_step: int
+# - epoch: int
+# - eval_scores: EvalRewardSummary
 ```
 
 ### 2. Updated Function Signatures
 
-Functions now accept only the specific state containers they need, making dependencies explicit:
+Functions now accept only the specific state they need, making dependencies explicit:
 
 **Before:**
 ```python
@@ -76,8 +70,9 @@ def _maybe_save_policy(
     policy: Any,
     policy_store: Any,
     policy_tracker: PolicyTracker,  # Only what's needed
-    progress: TrainingProgress,     # Only what's needed
-    evaluation_tracker: EvaluationTracker,  # Only what's needed
+    agent_step: int,               # Individual value
+    epoch: int,                    # Individual value
+    evals: Any,                    # Individual value
     timer: Any,
     ...
 )
@@ -90,10 +85,11 @@ def _maybe_save_policy(
 3. **Easier Testing**: Can test functions with minimal state setup
 4. **Better Type Safety**: Specific types instead of generic dictionaries
 5. **Cleaner APIs**: Methods on state containers encapsulate common operations
+6. **Simplicity**: Simple values like `agent_step` and `epoch` are passed directly
 
 ### 4. Consistent Application
 
-Both `trainer.py` and `run.py` now use the same specialized state containers, ensuring consistency across the functional training approach.
+Both `trainer.py` and `run.py` now use the same specialized state containers and pass simple values directly, ensuring consistency across the functional training approach.
 
 ## Next Steps
 
@@ -105,4 +101,4 @@ This refactoring opens up opportunities for further improvements:
 
 3. **Distributed State Management**: Clear separation makes it easier to manage which state needs to be synchronized across ranks.
 
-4. **Testing**: The focused containers enable more granular unit testing of training components.
+4. **Testing**: The focused containers and individual parameters enable more granular unit testing of training components.
