@@ -84,7 +84,7 @@ def test_movement_metrics_refactored():
 
     # Force episode end to get final stats
     print("\nForcing episode end to collect final stats...")
-    for step in range(env.max_steps):
+    for _step in range(env.max_steps):
         actions = np.array([[noop_idx or 0, 0]], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
         if terminals.any() or truncations.any():
