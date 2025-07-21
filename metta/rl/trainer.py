@@ -867,9 +867,17 @@ class MettaTrainer:
             self.grad_stats.clear()
             return
 
-        curriculum_stats = self._curriculum_stats_provider.stats()
+        import time
 
-        # Process training stats using shared function
+        stats_timings = {}
+
+        # Time curriculum stats retrieval
+        t0 = time.time()
+        curriculum_stats = self._curriculum_stats_provider.stats()
+        stats_timings["curriculum_stats_retrieval"] = time.time() - t0
+
+        # Time processing training stats
+        t0 = time.time()
         processed_stats = process_training_stats(
             raw_stats=self.stats,
             curriculum_stats=curriculum_stats,
@@ -878,11 +886,13 @@ class MettaTrainer:
             trainer_config=self.trainer_cfg,
             kickstarter=self.kickstarter,
         )
+        stats_timings["process_training_stats"] = time.time() - t0
 
         # Update self.stats with mean values for consistency
         self.stats = processed_stats["mean_stats"]
 
-        # Compute weight stats if on interval
+        # Time weight stats computation
+        t0 = time.time()
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -890,11 +900,15 @@ class MettaTrainer:
                 for key, value in metrics.items():
                     if key != "name":
                         weight_stats[f"weights/{key}/{name}"] = value
+        stats_timings["weight_stats_computation"] = time.time() - t0
 
-        # Compute timing stats using shared function
+        # Time timing stats computation
+        t0 = time.time()
         timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
+        stats_timings["compute_timing_stats"] = time.time() - t0
 
-        # Build parameters dictionary
+        # Time parameters building
+        t0 = time.time()
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
             "epoch_steps": timing_info["epoch_steps"],
@@ -902,31 +916,51 @@ class MettaTrainer:
             "generation": self.current_policy_generation,
             "latest_saved_policy_epoch": self.latest_saved_policy_record.metadata.epoch,
         }
+        stats_timings["build_parameters"] = time.time() - t0
 
-        # Include custom stats from trainer config
+        # Time custom stats processing
+        t0 = time.time()
         if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
             for k, v in self.trainer_cfg.stats.overview.items():
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
+        stats_timings["custom_stats_processing"] = time.time() - t0
 
+        # Time second curriculum stats call
+        # NOTE: This appears to be redundant - curriculum_stats was already retrieved above!
+        # This could be a performance issue if curriculum stats are expensive to compute
+        t0 = time.time()
         curriculum_stats = self._curriculum_stats_provider.stats()
+        stats_timings["curriculum_stats_second_call"] = time.time() - t0
 
-        # Build complete stats dictionary for wandb
+        # Time system/memory stats collection
+        t0 = time.time()
+        # system_stats = self._system_monitor.stats() if hasattr(self, "_system_monitor") else {}
+        # memory_stats = self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {}
+        system_stats = {}
+        memory_stats = {}
+        stats_timings["system_memory_stats"] = time.time() - t0
+
+        # Time building wandb stats
+        t0 = time.time()
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
             curriculum_stats=curriculum_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self.grad_stats,
-            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
-            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            system_stats=system_stats,
+            memory_stats=memory_stats,
             parameters=parameters,
             hyperparameters=self.hyperparameters,
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
         )
+        stats_timings["build_wandb_stats"] = time.time() - t0
 
+        # Time wandb logging
+        t0 = time.time()
         self.wandb_run.log(
             all_stats,
             # WandB can automatically increment step on each call to log, but we force the value here
@@ -935,9 +969,31 @@ class MettaTrainer:
             # count of steps that contribute to training the saved policies is consistent.
             step=self.agent_step,
         )
+        stats_timings["wandb_log"] = time.time() - t0
 
+        # Time clearing stats
+        t0 = time.time()
         self.stats.clear()
         self.grad_stats.clear()
+        stats_timings["clear_stats"] = time.time() - t0
+
+        # Log stats timing breakdown
+        total_stats_time = sum(stats_timings.values())
+        timing_str = " | ".join(
+            [f"{k}: {v * 1000:.1f}ms" for k, v in sorted(stats_timings.items(), key=lambda x: x[1], reverse=True)]
+        )
+
+        # Add stats count info
+        num_raw_stats = len(self.stats)
+        total_stat_values = sum(len(v) if isinstance(v, list) else 1 for v in self.stats.values())
+
+        # Log every 10 epochs or if stats are particularly slow
+        if self.epoch % 10 == 0 or total_stats_time > 0.1:
+            logger.info(
+                f"Stats breakdown ({num_raw_stats} stats, "
+                f"{total_stat_values} total values, "
+                f"{total_stats_time * 1000:.1f}ms total): {timing_str}"
+            )
 
     def close(self):
         self.timer.stop()

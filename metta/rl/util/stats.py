@@ -73,17 +73,33 @@ def process_training_stats(
         - environment_stats: Environment-specific stats
         - overview: High-level metrics like average reward
     """
+    import time
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Convert lists to means
+    t0 = time.time()
     mean_stats = {}
+    stats_sizes = {}
     for k, v in raw_stats.items():
         try:
+            if isinstance(v, list):
+                stats_sizes[k] = len(v)
             mean_stats[k] = np.mean(v)
         except (TypeError, ValueError):
             mean_stats[k] = v
+    mean_calc_time = time.time() - t0
+    
+    # Log large stats that might be slow
+    large_stats = [(k, size) for k, size in stats_sizes.items() if size > 1000]
+    if large_stats:
+        logger.info(f"Large stats found: {large_stats[:5]} (mean calc took {mean_calc_time*1000:.1f}ms)")
 
     # Get loss and experience statistics
+    t0 = time.time()
     losses_stats = losses.stats() if hasattr(losses, "stats") else {}
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}
+    stats_retrieval_time = time.time() - t0
 
     # Remove unused losses
     if trainer_config.ppo.l2_reg_loss_coef == 0:
@@ -95,9 +111,15 @@ def process_training_stats(
         losses_stats.pop("ks_value_loss", None)
 
     # Calculate environment statistics
+    t0 = time.time()
     environment_stats = {
         f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items() if "/" in k
     }
+    env_stats_time = time.time() - t0
+    
+    if mean_calc_time > 0.01 or stats_retrieval_time > 0.01 or env_stats_time > 0.01:
+        logger.info(f"process_training_stats timing: mean_calc={mean_calc_time*1000:.1f}ms, "
+                   f"stats_retrieval={stats_retrieval_time*1000:.1f}ms, env_stats={env_stats_time*1000:.1f}ms")
 
     # Calculate overview statistics
     overview = {}
