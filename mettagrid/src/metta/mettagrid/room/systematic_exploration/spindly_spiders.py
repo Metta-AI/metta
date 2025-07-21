@@ -14,26 +14,26 @@ standard spiders environment, so it plugs straight into MettaGrid.
 """
 
 from __future__ import annotations
-from typing import Optional, Tuple, List
-import numpy as np
-from omegaconf import DictConfig, ListConfig
-from metta.mettagrid.room.room import Room
 
+from typing import List, Optional, Tuple
+
+import numpy as np
+from omegaconf import DictConfig
+
+from metta.mettagrid.room.room import Room
 
 # ────────────────────────────────────────────────────────────────────────── #
 # Helper utilities                                                          #
 # ────────────────────────────────────────────────────────────────────────── #
-DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]      # N, S, W, E
+DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # N, S, W, E
 
 
 def _perpendicular(dr: int, dc: int) -> List[Tuple[int, int]]:
     """Return the two directions 90° to (dr, dc)."""
-    if dr != 0:      # vertical → left/right
+    if dr != 0:  # vertical → left/right
         return [(0, -1), (0, 1)]
-    else:            # horizontal → up/down
+    else:  # horizontal → up/down
         return [(-1, 0), (1, 0)]
-
-
 
 
 # ────────────────────────────────────────────────────────────────────────── #
@@ -54,14 +54,12 @@ class SpindlySpiderTerrain(Room):
         body_size: int = 7,
         legs_per_spider: int = 9,
         leg_length: int = 27,
-        branch_prob: float = 0.15,          # probability to branch each step
-        turn_prob: float = 0.25,            # probability to turn 90°
+        branch_prob: float = 0.15,  # probability to branch each step
+        turn_prob: float = 0.25,  # probability to turn 90°
         gap: int = 1,
-        hearts_per_spider: int = 1,   # altars per spider
+        hearts_per_spider: int = 1,  # altars per spider
     ) -> None:
-        super().__init__(border_width=border_width,
-                         border_object=border_object,
-                         labels=["spindly_spiders"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=["spindly_spiders"])
         self.set_size_labels(width, height)
 
         # Core state
@@ -103,11 +101,10 @@ class SpindlySpiderTerrain(Room):
             w = self.body_size
             r0 = int(self.rng.integers(1 + self.gap, self.H - h - 1 - self.gap))
             c0 = int(self.rng.integers(1 + self.gap, self.W - w - 1 - self.gap))
-            if self.occ[r0 - self.gap : r0 + h + self.gap,
-                         c0 - self.gap : c0 + w + self.gap].any():
+            if self.occ[r0 - self.gap : r0 + h + self.gap, c0 - self.gap : c0 + w + self.gap].any():
                 continue
-            grid[r0:r0 + h, c0:c0 + w] = "wall"
-            self.occ[r0:r0 + h, c0:c0 + w] = True
+            grid[r0 : r0 + h, c0 : c0 + w] = "wall"
+            self.occ[r0 : r0 + h, c0 : c0 + w] = True
             bodies.append((r0, c0, h, w))
 
         # 2 ─ grow spindly legs
@@ -115,11 +112,11 @@ class SpindlySpiderTerrain(Room):
             n_legs = self.legs_per_spider
             for _ in range(n_legs):
                 # choose starting point and initial direction
-                if self.rng.random() < 0.5:        # top/bottom
+                if self.rng.random() < 0.5:  # top/bottom
                     c = int(self.rng.integers(c0, c0 + w))
                     r = r0 if self.rng.random() < 0.5 else r0 + h - 1
                     dr, dc = (-1, 0) if r == r0 else (1, 0)
-                else:                              # left/right
+                else:  # left/right
                     r = int(self.rng.integers(r0, r0 + h))
                     c = c0 if self.rng.random() < 0.5 else c0 + w - 1
                     dr, dc = (0, -1) if c == c0 else (0, 1)
@@ -183,7 +180,7 @@ class SpindlySpiderTerrain(Room):
         rr, cc = r + dr, c + dc
         if not (1 <= rr < self.H - 1 and 1 <= cc < self.W - 1):
             return
-        if grid[rr, cc] == "wall":        # hit another wall
+        if grid[rr, cc] == "wall":  # hit another wall
             return
 
         # mark this tile

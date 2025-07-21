@@ -7,14 +7,15 @@ Boxes Terrain
 """
 
 from __future__ import annotations
-from typing import Optional, Tuple, List
+
+from typing import List, Optional, Tuple
+
 import numpy as np
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
+
 from metta.mettagrid.room.room import Room
 
 DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-
-
 
 
 class BoxesTerrain(Room):
@@ -34,9 +35,7 @@ class BoxesTerrain(Room):
         altars_per_box: int = 2,
         gap: int = 1,
     ) -> None:
-        super().__init__(border_width=border_width,
-                         border_object=border_object,
-                         labels=["boxes"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=["boxes"])
         self.set_size_labels(width, height)
 
         self.H, self.W = height, width
@@ -73,8 +72,7 @@ class BoxesTerrain(Room):
             bh = self.box_height
             r0 = int(self.rng.integers(1 + self.gap, self.H - bh - 1 - self.gap))
             c0 = int(self.rng.integers(1 + self.gap, self.W - bw - 1 - self.gap))
-            if self.occ[r0 - self.gap : r0 + bh + self.gap,
-                         c0 - self.gap : c0 + bw + self.gap].any():
+            if self.occ[r0 - self.gap : r0 + bh + self.gap, c0 - self.gap : c0 + bw + self.gap].any():
                 continue
 
             # outer walls
@@ -108,12 +106,14 @@ class BoxesTerrain(Room):
 
         # 2 ─ altars inside
         for r0, c0, bh, bw in boxes:
-            viable = [(r, c)
-                      for r in range(r0 + 2, r0 + bh - 2)
-                      for c in range(c0 + 2, c0 + bw - 2)
-                      if self._can_place_altar_with_walls(r, c, grid)]
+            viable = [
+                (r, c)
+                for r in range(r0 + 2, r0 + bh - 2)
+                for c in range(c0 + 2, c0 + bw - 2)
+                if self._can_place_altar_with_walls(r, c, grid)
+            ]
             self.rng.shuffle(viable)
-            for r, c in viable[:self.altars_per_box]:
+            for r, c in viable[: self.altars_per_box]:
                 grid[r, c] = "altar"
                 self.occ[r, c] = True
                 for dr in [-1, 0, 1]:

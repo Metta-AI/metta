@@ -9,14 +9,15 @@ Each altar is boxed by a wall ring with ONE doorway.
 """
 
 from __future__ import annotations
-from typing import Optional, Tuple, List
+
+from typing import Optional
+
 import numpy as np
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
+
 from metta.mettagrid.room.room import Room
 
 DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # N, S, W, E
-
-
 
 
 class SurroundAltarsTerrain(Room):
@@ -34,9 +35,7 @@ class SurroundAltarsTerrain(Room):
         wall_size: int = 1,
         wall_gap_probability: float = 0.2,
     ) -> None:
-        super().__init__(border_width=border_width,
-                         border_object=border_object,
-                         labels=["surround_altars"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=["surround_altars"])
         self.set_size_labels(width, height)
 
         self.H, self.W = height, width
@@ -78,17 +77,17 @@ class SurroundAltarsTerrain(Room):
             margin = wall_size + 1
             r = int(self.rng.integers(margin, self.H - margin))
             c = int(self.rng.integers(margin, self.W - margin))
-            
+
             # Check if area is clear (altar + wall ring)
             if self.occ[r - wall_size : r + wall_size + 1, c - wall_size : c + wall_size + 1].any():
                 continue
-                
+
             doorway_dir = DIRS[int(self.rng.integers(len(DIRS)))]  # ensures tuple
-            
+
             # centre altar
             grid[r, c] = "altar"
             self.occ[r, c] = True
-            
+
             # wall ring
             for dr in range(-wall_size, wall_size + 1):
                 for dc in range(-wall_size, wall_size + 1):

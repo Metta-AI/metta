@@ -14,10 +14,14 @@ classic memory-less strategies listed in your design notes:
 
 All sub-structures are parameterised so you can sweep them from YAML.
 """
+
 from __future__ import annotations
+
 from typing import List, Optional, Tuple
+
 import numpy as np
 from omegaconf import DictConfig
+
 from metta.mettagrid.room.room import Room
 
 
@@ -207,7 +211,7 @@ class CombinedAdversarialTerrain(Room):
                 continue
             cells.add((r + dr, c + dc))
         # convert to tight array
-        rs, cs = zip(*cells)
+        rs, cs = zip(*cells, strict=False)
         h, w = max(rs) - min(rs) + 1, max(cs) - min(cs) + 1
         arr = np.full((h, w), "wall", dtype=object)
         for r, c in cells:
@@ -310,16 +314,14 @@ class CombinedAdversarialTerrain(Room):
         (vertical then horizontal) so each agent has a clear path to at
         least one altar.
         """
-        agent_pos = list(zip(*np.where(grid == "agent.agent")))
-        altar_pos = list(zip(*np.where(grid == "altar")))
+        agent_pos = list(zip(*np.where(grid == "agent.agent"), strict=False))
+        altar_pos = list(zip(*np.where(grid == "altar"), strict=False))
         if not agent_pos or not altar_pos:
             return
 
         for a_r, a_c in agent_pos:
             # choose the altar with minimum Manhattan distance
-            g_r, g_c = min(
-                altar_pos, key=lambda p: abs(p[0] - a_r) + abs(p[1] - a_c)
-            )
+            g_r, g_c = min(altar_pos, key=lambda p: abs(p[0] - a_r) + abs(p[1] - a_c))
             self._carve_corridor(grid, (a_r, a_c), (g_r, g_c))
 
     def _carve_corridor(

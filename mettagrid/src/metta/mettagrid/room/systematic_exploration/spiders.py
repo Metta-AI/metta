@@ -18,9 +18,12 @@ Sweep-able parameters (see YAML):
 """
 
 from __future__ import annotations
-from typing import Optional, Tuple, List
+
+from typing import List, Optional, Tuple
+
 import numpy as np
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
+
 from metta.mettagrid.room.room import Room
 
 
@@ -43,7 +46,7 @@ class SpiderTerrain(Room):
         legs_per_spider: int = 6,
         leg_length: int = 12,
         gap: int = 1,
-        hearts_per_spider: int = 2,   # ALTARS per spider
+        hearts_per_spider: int = 2,  # ALTARS per spider
     ) -> None:
         super().__init__(
             border_width=border_width,
@@ -90,8 +93,7 @@ class SpiderTerrain(Room):
             c0 = int(self._rng.integers(1 + self._gap, self._W - w - 1 - self._gap))
 
             # ensure clearance
-            if self._occ[r0 - self._gap : r0 + h + self._gap,
-                         c0 - self._gap : c0 + w + self._gap].any():
+            if self._occ[r0 - self._gap : r0 + h + self._gap, c0 - self._gap : c0 + w + self._gap].any():
                 continue
 
             grid[r0 : r0 + h, c0 : c0 + w] = "wall"
@@ -102,11 +104,11 @@ class SpiderTerrain(Room):
         for r0, c0, h, w in bodies:
             n_legs = self._legs_per_spider
             for _ in range(n_legs):
-                if self._rng.random() < 0.5:           # pick top or bottom edge
+                if self._rng.random() < 0.5:  # pick top or bottom edge
                     c = int(self._rng.integers(c0, c0 + w))
                     r = r0 if self._rng.random() < 0.5 else r0 + h - 1
                     dr, dc = (-1, 0) if r == r0 else (1, 0)
-                else:                                  # left or right edge
+                else:  # left or right edge
                     r = int(self._rng.integers(r0, r0 + h))
                     c = c0 if self._rng.random() < 0.5 else c0 + w - 1
                     dr, dc = (0, -1) if c == c0 else (0, 1)

@@ -8,10 +8,14 @@ Snaking-Labyrinth Terrain
 """
 
 from __future__ import annotations
+
 from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 from omegaconf import DictConfig
+
 from metta.mettagrid.room.room import Room
+
 
 class SnakingLabyrinthTerrain(Room):
     # ------------------------------------------------------------------ #
@@ -28,7 +32,7 @@ class SnakingLabyrinthTerrain(Room):
         corridor_width: int = 2,
         wall_thickness: int = 2,
         altar_count: int = 25,
-        inner_block_prob: float = 0.05,   # ← sprinkle probability
+        inner_block_prob: float = 0.05,  # ← sprinkle probability
     ) -> None:
         if corridor_width < 2:
             raise ValueError("corridor_width must be at least 2")
@@ -59,7 +63,7 @@ class SnakingLabyrinthTerrain(Room):
     def _build(self) -> np.ndarray:
         coarse = self._generate_maze()
         grid = self._scale_and_carve(coarse)
-        self._sprinkle_inner_blocks(grid)      # ← new step
+        self._sprinkle_inner_blocks(grid)  # ← new step
         self._scatter_entities(grid)
         return grid
 
@@ -78,9 +82,11 @@ class SnakingLabyrinthTerrain(Room):
 
         while stack:
             r, c = stack[-1]
-            nbrs = [(r + dr, c + dc)
-                    for dr, dc in dirs
-                    if 0 < r + dr < rows - 1 and 0 < c + dc < cols - 1 and maze[r + dr, c + dc]]
+            nbrs = [
+                (r + dr, c + dc)
+                for dr, dc in dirs
+                if 0 < r + dr < rows - 1 and 0 < c + dc < cols - 1 and maze[r + dr, c + dc]
+            ]
             if nbrs:
                 nr, nc = nbrs[self._rng.integers(len(nbrs))]
                 maze[(r + nr) // 2, (c + nc) // 2] = 0
@@ -99,23 +105,26 @@ class SnakingLabyrinthTerrain(Room):
         out_w = cols * self._cw + (cols + 1) * self._wt
         grid = np.full((out_h, out_w), "wall", dtype=object)
 
-        cell_top = lambda r: r * (self._cw + self._wt) + self._wt
-        cell_left = lambda c: c * (self._cw + self._wt) + self._wt
+        def cell_top(r):
+            return r * (self._cw + self._wt) + self._wt
+
+        def cell_left(c):
+            return c * (self._cw + self._wt) + self._wt
 
         for r in range(rows):
             for c in range(cols):
                 if maze[r, c] == 0:
                     rt, cl = cell_top(r), cell_left(c)
-                    grid[rt: rt + self._cw, cl: cl + self._cw] = "empty"
+                    grid[rt : rt + self._cw, cl : cl + self._cw] = "empty"
                     if c + 1 < cols and maze[r, c + 1] == 0:
                         cc = cl + self._cw
-                        grid[rt: rt + self._cw, cc: cc + self._wt] = "empty"
+                        grid[rt : rt + self._cw, cc : cc + self._wt] = "empty"
                     if r + 1 < rows and maze[r + 1, c] == 0:
                         rr = rt + self._cw
-                        grid[rr: rr + self._wt, cl: cl + self._cw] = "empty"
+                        grid[rr : rr + self._wt, cl : cl + self._cw] = "empty"
 
         full = np.full((self._H, self._W), "wall", dtype=object)
-        full[:out_h, :out_w] = grid[:self._H, :self._W]
+        full[:out_h, :out_w] = grid[: self._H, : self._W]
         self._occ = full == "wall"
         return full
 
@@ -130,8 +139,12 @@ class SnakingLabyrinthTerrain(Room):
             for c in range(1, self._W - 1):
                 if grid[r, c] != "empty":
                     continue
-                if (grid[r - 1, c] == "wall" or grid[r + 1, c] == "wall" or
-                        grid[r, c - 1] == "wall" or grid[r, c + 1] == "wall"):
+                if (
+                    grid[r - 1, c] == "wall"
+                    or grid[r + 1, c] == "wall"
+                    or grid[r, c - 1] == "wall"
+                    or grid[r, c + 1] == "wall"
+                ):
                     candidates.append((r, c))
         self._rng.shuffle(candidates)
         k = int(self._p_block * len(candidates))
@@ -146,15 +159,14 @@ class SnakingLabyrinthTerrain(Room):
         empty = ~self._occ
 
         # altars at dead-ends
-        dead_ends = [(r, c) for r in range(1, self._H - 1)
-                             for c in range(1, self._W - 1)
-                             if empty[r, c] and (
-                                   empty[r - 1, c] +
-                                   empty[r + 1, c] +
-                                   empty[r, c - 1] +
-                                   empty[r, c + 1]) == 1]
+        dead_ends = [
+            (r, c)
+            for r in range(1, self._H - 1)
+            for c in range(1, self._W - 1)
+            if empty[r, c] and (empty[r - 1, c] + empty[r + 1, c] + empty[r, c - 1] + empty[r, c + 1]) == 1
+        ]
         self._rng.shuffle(dead_ends)
-        for r, c in dead_ends[:self._altar_count]:
+        for r, c in dead_ends[: self._altar_count]:
             grid[r, c] = "altar"
             empty[r, c] = False
 

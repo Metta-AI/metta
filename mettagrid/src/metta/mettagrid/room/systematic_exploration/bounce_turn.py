@@ -125,8 +125,8 @@ class BounceTurnTerrain(Room):
 
         pat = np.full((h, w), "wall", dtype=object)
         pat[1:-1, 1:-1] = "empty"  # hollow centre
-        pat[1:-1, -2] = "wall"     # close the back
-        pat[1:-1, 0] = "empty"     # leave 2-cell mouth open
+        pat[1:-1, -2] = "wall"  # close the back
+        pat[1:-1, 0] = "empty"  # leave 2-cell mouth open
 
         return np.rot90(pat, self._rng.integers(4))
 
@@ -188,10 +188,7 @@ class BounceTurnTerrain(Room):
         ok: list[Tuple[int, int]] = []
         for r in range(clearance, H - ph - clearance + 1):
             for c in range(clearance, W - pw - clearance + 1):
-                if not self._occ[
-                    r - clearance : r + ph + clearance,
-                    c - clearance : c + pw + clearance
-                ].any():
+                if not self._occ[r - clearance : r + ph + clearance, c - clearance : c + pw + clearance].any():
                     ok.append((r, c))
         return ok
 

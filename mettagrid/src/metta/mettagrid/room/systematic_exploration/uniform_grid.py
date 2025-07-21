@@ -10,10 +10,14 @@ A perfectly regular lattice:
 
 Both `cell_size` (spaciousness) and `gap_width` are sweepable from YAML.
 """
+
 from __future__ import annotations
+
 from typing import Optional, Tuple
+
 import numpy as np
 from omegaconf import DictConfig, ListConfig
+
 from metta.mettagrid.room.room import Room
 
 
@@ -55,7 +59,7 @@ class UniformGridTerrain(Room):
             return max(minimum, int(val))
 
         self._cell = _sample(cell_size, 2)
-        self._gap  = _sample(gap_width, 1)
+        self._gap = _sample(gap_width, 1)
 
         # Ensure the doorway gap is always narrower than the cell spacing
         self._gap = min(self._gap, self._cell - 1)

@@ -33,7 +33,7 @@ class SnakingLabyrinthFractalTerrain(Room):
         objects: DictConfig | Dict[str, int] | None = None,
         seed: Optional[int] = None,
         #
-        outer_corridor: int = 3,           # ≥2
+        outer_corridor: int = 3,  # ≥2
         outer_wall: int = 2,
         spur_length_range: Tuple[int, int] = (8, 18),
         altar_count: int = 50,
@@ -109,8 +109,11 @@ class SnakingLabyrinthFractalTerrain(Room):
         out_w = cols * self._cw + (cols + 1) * self._wt
         grid = np.full((out_h, out_w), "wall", dtype=object)
 
-        get_r = lambda r: r * (self._cw + self._wt) + self._wt
-        get_c = lambda c: c * (self._cw + self._wt) + self._wt
+        def get_r(r):
+            return r * (self._cw + self._wt) + self._wt
+
+        def get_c(c):
+            return c * (self._cw + self._wt) + self._wt
 
         # carve passages
         for r in range(rows):
