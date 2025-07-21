@@ -12,6 +12,27 @@ method: bayes
 
 parameters:
   trainer:
+    batch_size:
+      distribution: uniform_pow2
+      min: 131072    # 2^17
+      max: 1048576   # 2^20
+      mean: 524288   # 2^19 (default)
+      scale: auto
+
+    minibatch_size:
+      distribution: uniform_pow2
+      min: 4096      # 2^12
+      max: 131072    # 2^17
+      mean: 16384    # 2^14 (default)
+      scale: auto
+
+    bptt_horizon:
+      distribution: uniform_pow2
+      min: 16        # 2^4
+      max: 256       # 2^8
+      mean: 64       # 2^6 (default)
+      scale: auto
+
     ppo:
       gamma:
         distribution: logit_normal
