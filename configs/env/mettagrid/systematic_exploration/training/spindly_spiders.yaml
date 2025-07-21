@@ -16,8 +16,10 @@ game:
 
     # ─ spindly spider parameters ─
     num_spiders:       ${int:${uniform:5,10}}
-    body_size:         ${int:${uniform:4,10}}
-    legs_per_spider:   ${int:${uniform:6,12}}
+    body_lo:           ${int:${uniform:4,10}}
+    body_hi:           ${int:${uniform:4,10}}
+    legs_lo:           ${int:${uniform:6,12}}
+    legs_hi:           ${int:${uniform:6,12}}
     leg_length:        ${int:${uniform:15,40}}
     branch_prob:       ${uniform:0.1,0.2}   # chance leg branches each step
     turn_prob:         ${uniform:0.2,0.3}   # chance leg turns 90° each step

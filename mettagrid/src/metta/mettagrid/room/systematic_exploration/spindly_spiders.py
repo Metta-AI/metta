@@ -51,9 +51,11 @@ class SpindlySpiderTerrain(Room):
         border_object: str = "wall",
         #
         num_spiders: int | Tuple[int, int] = 6,
-        body_size: Tuple[int, int] = (4, 10),
-        legs_per_spider: Tuple[int, int] = (6, 12),
-        leg_length: Tuple[int, int] = (15, 40),
+        body_lo: int = 4,
+        body_hi: int = 10,
+        legs_lo: int = 6,
+        legs_hi: int = 12,
+        leg_length: int = 15,
         branch_prob: float = 0.15,  # probability to branch each step
         turn_prob: float = 0.25,  # probability to turn 90°
         gap: int = 1,
@@ -71,9 +73,9 @@ class SpindlySpiderTerrain(Room):
 
         # Parameters
         self.num_spiders = num_spiders
-        self.body_lo, self.body_hi = int(body_size[0]), int(body_size[1])
-        self.legs_lo, self.legs_hi = int(legs_per_spider[0]), int(legs_per_spider[1])
-        self.len_lo, self.len_hi = int(leg_length[0]), int(leg_length[1])
+        self.body_lo, self.body_hi = body_lo, body_hi
+        self.legs_lo, self.legs_hi = legs_lo, legs_hi
+        self.len_lo, self.len_hi = leg_length, leg_length
         self.branch_prob = float(branch_prob)
         self.turn_prob = float(turn_prob)
         self.gap = max(0, int(gap))
