@@ -71,7 +71,7 @@ class LSTM(LayerBase):
             lstm_c = td["lstm_c"]
             if lstm_h is not None and lstm_c is not None:
                 # LSTM expects (num_layers, batch, features), so we permute
-                state = (lstm_h.permute(1, 0, 2), lstm_c.permute(1, 0, 2))
+                state = (lstm_h.permute(1, 0, 2).contiguous(), lstm_c.permute(1, 0, 2).contiguous())
             else:
                 state = None
         elif x_n == space_n + 2:
@@ -95,8 +95,8 @@ class LSTM(LayerBase):
         if state is not None:
             # Unpack the state tuple and permute back to (batch, num_layers, features)
             lstm_h, lstm_c = state
-            td["lstm_h"] = lstm_h.detach().permute(1, 0, 2)
-            td["lstm_c"] = lstm_c.detach().permute(1, 0, 2)
+            td["lstm_h"] = lstm_h.detach().permute(1, 0, 2).contiguous()
+            td["lstm_c"] = lstm_c.detach().permute(1, 0, 2).contiguous()
 
         td[self._name] = hidden
 
