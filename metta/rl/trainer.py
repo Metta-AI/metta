@@ -27,7 +27,6 @@ from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
-from metta.rl.training_state import StatsTracker
 from metta.rl.util.advantage import compute_advantage
 from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
@@ -53,6 +52,7 @@ from metta.rl.util.rollout import (
     run_policy_inference,
 )
 from metta.rl.util.stats import (
+    StatsTracker,
     accumulate_rollout_stats,
     process_stats,
 )

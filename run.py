@@ -49,7 +49,6 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
-from metta.rl.training_state import StatsTracker
 from metta.rl.util.advantage import compute_advantage
 from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
@@ -75,6 +74,7 @@ from metta.rl.util.rollout import (
     run_policy_inference,
 )
 from metta.rl.util.stats import (
+    StatsTracker,
     accumulate_rollout_stats,
     build_wandb_stats,
     compute_timing_stats,
