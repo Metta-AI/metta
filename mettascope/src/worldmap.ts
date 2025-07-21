@@ -240,7 +240,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'get_output') {
+        } else if (action_name == 'get_items') {
           ctx.drawSprite(
             'actions/get_output.png',
             x * Common.TILE_SIZE,

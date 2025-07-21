@@ -33,6 +33,7 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "multiagent/experiments/varied_terrain.yaml",
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
+        "navigation/training/sparse.yaml",
     ]
 
     # exclude some configs that won't work

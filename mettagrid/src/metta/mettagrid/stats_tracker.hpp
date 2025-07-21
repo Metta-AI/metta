@@ -62,6 +62,10 @@ public:
     _env = env;
   }
 
+  MettaGrid* get_env() const {
+    return _env;
+  }
+
   const std::string& inventory_item_name(InventoryItem item) const;
 
   void add(const std::string& key, float amount) {
@@ -89,7 +93,7 @@ public:
     if (it == _update_count.end()) return 0.0f;
 
     unsigned int steps = get_current_step();
-    return (steps > 0) ? static_cast<float>(it->second) / steps : 0.0f;
+    return (steps > 0) ? static_cast<float>(it->second) / static_cast<float>(steps) : 0.0f;
   }
 
   // Convert to map for Python API (all values as floats)
@@ -119,7 +123,7 @@ public:
       auto first_it = _first_seen_at.find(key);
       auto last_it = _last_seen_at.find(key);
       if (first_it != _first_seen_at.end() && last_it != _last_seen_at.end()) {
-        int duration = last_it->second - first_it->second;
+        int duration = static_cast<int>(last_it->second) - static_cast<int>(first_it->second);
         if (duration > 0 && count > 1) {
           result[key + ".activity_rate"] = static_cast<float>(count - 1) / static_cast<float>(duration);
         }

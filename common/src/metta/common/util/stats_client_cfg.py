@@ -1,4 +1,3 @@
-import os
 from logging import Logger
 from pathlib import Path
 
@@ -19,28 +18,28 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
     Returns:
         The machine token or None if not found.
     """
-    # First check environment variable (takes precedence)
-    env_token = os.getenv("METTA_API_KEY")
-    if env_token is not None:
-        token = env_token
-    else:
-        # Try YAML file first
-        yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
-        if yaml_file.exists():
-            with open(yaml_file) as f:
-                tokens = yaml.safe_load(f) or {}
-            if isinstance(tokens, dict) and stats_server_uri in tokens:
-                token = tokens[stats_server_uri].strip()
-            else:
-                return None
+    yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
+    if yaml_file.exists():
+        with open(yaml_file) as f:
+            tokens = yaml.safe_load(f) or {}
+        if isinstance(tokens, dict) and stats_server_uri in tokens:
+            token = tokens[stats_server_uri].strip()
         else:
-            # Fall back to legacy token file
-            legacy_file = Path.home() / ".metta" / "observatory_token"
-            if legacy_file.exists():
-                with open(legacy_file) as f:
-                    token = f.read().strip()
-            else:
-                return None
+            return None
+    elif stats_server_uri is None or stats_server_uri in (
+        "https://observatory.softmax-research.net/api",
+        "https://api.observatory.softmax-research.net",
+    ):
+        # Fall back to legacy token file, which is assumed to contain production
+        # server tokens if it exists
+        legacy_file = Path.home() / ".metta" / "observatory_token"
+        if legacy_file.exists():
+            with open(legacy_file) as f:
+                token = f.read().strip()
+        else:
+            return None
+    else:
+        return None
 
     if not token or token.lower() == "none":
         return None
@@ -61,8 +60,5 @@ def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClien
             if stats_server_uri is None:
                 logger.warning("No stats server URI provided, running without stats collection")
             if machine_token is None:
-                logger.warning(
-                    "No machine token provided, running without stats collection. "
-                    + f"You can set METTA_API_KEY or save a token for {stats_server_uri} to enable stats collection."
-                )
+                logger.warning("No machine token provided, running without stats collection")
     return None

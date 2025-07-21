@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/systematic_exploration_memory/evals/defaults@
+
+game:
+  num_agents: 1
+  max_steps: 200
+  map_builder:
+    uri: "configs/env/mettagrid/maps/systematic_exploration_memory/choose_wisely.map"

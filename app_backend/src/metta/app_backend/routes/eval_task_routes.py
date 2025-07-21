@@ -1,45 +1,83 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.route_logger import timed_route
+from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
+from metta.app_backend.route_logger import timed_http_handler
+
+T = TypeVar("T")
 
 
 class TaskCreateRequest(BaseModel):
-    policy_id: str
+    policy_id: uuid.UUID
     git_hash: str
-    env_overrides: Dict[str, Any] = Field(default_factory=dict)
+    env_overrides: dict[str, Any] = Field(default_factory=dict)
     sim_suite: str = "all"
 
 
 class TaskClaimRequest(BaseModel):
-    eval_task_ids: List[str]
+    tasks: list[uuid.UUID]
     assignee: str
+
+
+class TaskClaimResponse(BaseModel):
+    claimed: list[uuid.UUID]
 
 
 class TaskUpdateRequest(BaseModel):
-    assignee: str
-    statuses: Dict[str, str]
+    require_assignee: str | None = None  # If supplied, the action only happens if the task is assigned to this worker
+    updates: dict[uuid.UUID, TaskStatusUpdate]
 
 
 class TaskResponse(BaseModel):
-    id: str
-    policy_id: str
+    id: uuid.UUID
+    policy_id: uuid.UUID
     sim_suite: str
-    status: str
-    assigned_at: Optional[datetime] = None
-    assignee: Optional[str] = None
+    status: TaskStatus
+    assigned_at: datetime | None = None
+    assignee: str | None = None
     created_at: datetime
-    attributes: Dict[str, Any]
+    attributes: dict[str, Any]
+    policy_name: str | None = None
+    retries: int
+
+    def _attribute_property(self, key: str) -> Any | None:
+        return self.attributes.get(key)
+
+    @property
+    def git_hash(self) -> str | None:
+        return self._attribute_property("git_hash")
+
+    @property
+    def workers_spawned(self) -> int:
+        return self._attribute_property("workers_spawned") or 0
+
+    @classmethod
+    def from_db(cls, task: dict[str, Any]) -> "TaskResponse":
+        return cls(
+            id=task["id"],
+            policy_id=task["policy_id"],
+            sim_suite=task["sim_suite"],
+            status=task["status"],
+            assigned_at=task["assigned_at"],
+            assignee=task["assignee"],
+            created_at=task["created_at"],
+            attributes=task["attributes"] or {},
+            policy_name=task.get("policy_name"),
+            retries=task["retries"],
+        )
 
 
-class AvailableTasksResponse(BaseModel):
-    tasks: List[TaskResponse]
+class TaskUpdateResponse(BaseModel):
+    statuses: dict[uuid.UUID, str]
+
+
+class TasksResponse(BaseModel):
+    tasks: list[TaskResponse]
 
 
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
@@ -48,130 +86,61 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     user_or_token = Depends(create_user_or_token_dependency(stats_repo))
 
     @router.post("", response_model=TaskResponse)
-    @timed_route("create_task")
+    @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
-        try:
-            policy_uuid = uuid.UUID(request.policy_id)
+        attributes = {
+            "env_overrides": request.env_overrides,
+            "git_hash": request.git_hash,
+        }
+        if not await stats_repo.get_policy_by_id(request.policy_id):
+            raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
 
-            attributes = {
-                "env_overrides": request.env_overrides,
-                "git_hash": request.git_hash,
-            }
+        task = await stats_repo.create_eval_task(
+            policy_id=request.policy_id,
+            sim_suite=request.sim_suite,
+            attributes=attributes,
+        )
+        return TaskResponse.from_db(task)
 
-            task_id = await stats_repo.create_eval_task(
-                policy_id=policy_uuid,
-                sim_suite=request.sim_suite,
-                attributes=attributes,
-            )
+    @router.get("/latest", response_model=TaskResponse)
+    @timed_http_handler
+    async def get_latest_assigned_task_for_worker(assignee: str) -> TaskResponse | None:
+        task = await stats_repo.get_latest_assigned_task_for_worker(assignee=assignee)
+        return TaskResponse.from_db(task) if task else None
 
-            return TaskResponse(
-                id=str(task_id),
-                policy_id=request.policy_id,
-                sim_suite=request.sim_suite,
-                status="unprocessed",
-                assigned_at=None,
-                assignee=None,
-                created_at=datetime.utcnow(),
-                attributes=attributes,
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create task: {str(e)}") from e
-
-    @router.get("/available", response_model=AvailableTasksResponse)
-    @timed_route("get_available_tasks")
+    @router.get("/available", response_model=TasksResponse)
+    @timed_http_handler
     async def get_available_tasks(
-        limit: int = Query(default=200, ge=1, le=1000), user: str = user_or_token
-    ) -> AvailableTasksResponse:
-        try:
-            tasks = await stats_repo.get_available_tasks(limit=limit)
-
-            task_responses = [
-                TaskResponse(
-                    id=str(task["id"]),
-                    policy_id=str(task["policy_id"]),
-                    sim_suite=task["sim_suite"],
-                    status=task["status"],
-                    assigned_at=task["assigned_at"],
-                    assignee=task["assignee"],
-                    created_at=task["created_at"],
-                    attributes=task["attributes"] or {},
-                )
-                for task in tasks
-            ]
-
-            return AvailableTasksResponse(tasks=task_responses)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get available tasks: {str(e)}") from e
+        limit: int = Query(default=200, ge=1, le=1000),
+    ) -> TasksResponse:
+        tasks = await stats_repo.get_available_tasks(limit=limit)
+        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        return TasksResponse(tasks=task_responses)
 
     @router.post("/claim")
-    @timed_route("claim_tasks")
-    async def claim_tasks(request: TaskClaimRequest, user: str = user_or_token) -> List[str]:
-        try:
-            task_uuids = [uuid.UUID(task_id) for task_id in request.eval_task_ids]
-
-            claimed_ids = await stats_repo.claim_tasks(
-                task_ids=task_uuids,
-                assignee=request.assignee,
-            )
-
-            return [str(task_id) for task_id in claimed_ids]
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to claim tasks: {str(e)}") from e
+    @timed_http_handler
+    async def claim_tasks(request: TaskClaimRequest) -> TaskClaimResponse:
+        claimed_ids = await stats_repo.claim_tasks(
+            task_ids=request.tasks,
+            assignee=request.assignee,
+        )
+        return TaskClaimResponse(claimed=claimed_ids)
 
     @router.get("/claimed")
-    @timed_route("get_claimed_tasks")
-    async def get_claimed_tasks(assignee: str = Query(...), user: str = user_or_token) -> AvailableTasksResponse:
-        try:
-            tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
-
-            task_responses = [
-                TaskResponse(
-                    id=str(task["id"]),
-                    policy_id=str(task["policy_id"]),
-                    sim_suite=task["sim_suite"],
-                    status=task["status"],
-                    assigned_at=task["assigned_at"],
-                    assignee=task["assignee"],
-                    created_at=task["created_at"],
-                    attributes=task["attributes"] or {},
-                )
-                for task in tasks
-            ]
-
-            return AvailableTasksResponse(tasks=task_responses)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get claimed tasks: {str(e)}") from e
+    @timed_http_handler
+    async def get_claimed_tasks(assignee: str | None = Query(None)) -> TasksResponse:
+        tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
+        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        return TasksResponse(tasks=task_responses)
 
     @router.post("/claimed/update")
-    @timed_route("update_task_statuses")
-    async def update_task_statuses(request: TaskUpdateRequest, user: str = user_or_token) -> Dict[str, str]:
-        try:
-            valid_statuses = {"unprocessed", "canceled", "done"}
+    @timed_http_handler
+    async def update_task_statuses(request: TaskUpdateRequest) -> TaskUpdateResponse:
+        updated = await stats_repo.update_task_statuses(
+            updates=request.updates,
+            require_assignee=request.require_assignee,
+        )
 
-            for task_id, status in request.statuses.items():
-                if status not in valid_statuses:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid status '{status}' for task {task_id}. Valid statuses: {valid_statuses}",
-                    )
-
-            task_updates = {uuid.UUID(task_id): status for task_id, status in request.statuses.items()}
-
-            updated = await stats_repo.update_task_statuses(
-                assignee=request.assignee,
-                task_statuses=task_updates,
-            )
-
-            return {str(task_id): status for task_id, status in updated.items()}
-        except HTTPException:
-            raise
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to update task statuses: {str(e)}") from e
+        return TaskUpdateResponse(statuses=updated)
 
     return router

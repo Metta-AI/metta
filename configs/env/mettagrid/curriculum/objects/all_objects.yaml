@@ -1,6 +1,6 @@
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/object_use/training/easy_all_objects
+env_cfg_template_path: /env/mettagrid/object_use/training/easy_all_objects
 
 buckets:
   game.map_builder.room.width:

@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 class RandomCurriculum(MultiTaskCurriculum):
     """Curriculum that samples from multiple environment types with fixed weights."""
 
-    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig | None = None):
+    def __init__(self, tasks: Dict[str, float] | DictConfig[str, float], env_overrides: DictConfig | None = None):
+        if isinstance(tasks, DictConfig):
+            tasks = OmegaConf.to_container(tasks)
+
         self.env_overrides = env_overrides or OmegaConf.create({})
         curricula = {t: self._curriculum_from_id(t) for t in tasks.keys()}
         self._task_weights = tasks

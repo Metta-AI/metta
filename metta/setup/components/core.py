@@ -32,7 +32,6 @@ class CoreSetup(SetupModule):
         print("\nVerifying all local dependencies are importable...")
         deps_to_check = [
             "pufferlib",
-            "metta.rl.fast_gae",
             "metta.mettagrid.mettagrid_env",
             "metta.mettagrid.mettagrid_c",
         ]
