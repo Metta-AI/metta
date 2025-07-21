@@ -183,6 +183,33 @@ def compute_timing_stats(
     }
 
 
+def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter out redundant movement metrics to clean up WandB logs.
+
+    For movement metrics, we only keep the base values:
+    - movement/facing/[up|down|left|right]: Keep only base count and std_dev
+    - movement/sequential_rotations: Keep only base count and std_dev
+
+    All other suffixes (.avg, .min, .max, .rate, .updates, etc.) are redundant.
+    """
+    filtered_stats = {}
+
+    for key, value in stats.items():
+        # Quick check: if it's not a movement metric, keep it
+        if not (
+            key.startswith("env_agent/movement/facing/") or key.startswith("env_agent/movement/sequential_rotations")
+        ):
+            filtered_stats[key] = value
+            continue
+
+        # For movement metrics, only keep base values and std_dev
+        if "." not in key or key.endswith(".std_dev"):
+            filtered_stats[key] = value
+        # Skip all other suffixes (redundant)
+
+    return filtered_stats
+
+
 def build_wandb_stats(
     processed_stats: Dict[str, Any],
     timing_info: Dict[str, Any],
@@ -238,6 +265,9 @@ def build_wandb_stats(
         "metric/train_time": timing_info["train_time"],
     }
 
+    # Filter environment stats to remove redundant movement metrics
+    filtered_environment_stats = filter_movement_metrics(processed_stats["environment_stats"])
+
     # Combine all stats
     return {
         **{f"overview/{k}": v for k, v in overview.items()},
@@ -248,7 +278,7 @@ def build_wandb_stats(
         **{f"eval_{k}": v for k, v in evals.to_wandb_metrics_format().items()},
         **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
         **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
-        **processed_stats["environment_stats"],
+        **filtered_environment_stats,
         **weight_stats,
         **timing_info["timing_stats"],
         **metric_stats,
