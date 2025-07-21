@@ -7,6 +7,7 @@ from pufferlib.pytorch import sample_logits
 from torch import nn
 
 from metta.agent.policy_state import PolicyState
+from metta.common.util.distributed import distributed_torch_load
 from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger("policy")
@@ -23,7 +24,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     Returns:
         PytorchAgent wrapping the loaded policy
     """
-    weights = torch.load(path, map_location=device, weights_only=True)
+    weights = distributed_torch_load(path, map_location=device, weights_only=True)
 
     try:
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape

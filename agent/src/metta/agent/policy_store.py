@@ -27,6 +27,7 @@ from metta.agent.metta_agent import make_policy
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
+from metta.common.util.distributed import distributed_torch_load
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.policy import load_pytorch_policy
 from metta.rl.trainer_config import TrainerConfig, create_trainer_config
@@ -406,7 +407,7 @@ class PolicyStore:
         self._make_codebase_backwards_compatible()
 
         # Load checkpoint - could be PolicyRecord or legacy format
-        checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+        checkpoint = distributed_torch_load(path, map_location=self._device, weights_only=False)
 
         if isinstance(checkpoint, PolicyRecord):
             # New format - PolicyRecord object
