@@ -34,6 +34,8 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
         "navigation/training/sparse.yaml",
+        # Is a curriculum, not an env
+        "navigation/training/sparse_bucketed.yaml",
     ]
 
     # exclude some configs that won't work
