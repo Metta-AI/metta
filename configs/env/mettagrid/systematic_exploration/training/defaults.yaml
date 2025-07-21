@@ -11,7 +11,7 @@ game:
   # -------------------------------------------------------------------------
   # Global parameters
   # -------------------------------------------------------------------------
-  num_agents: 4
+  num_agents: 1
   max_steps: 1000
 
   # Disable combat & inventory mechanics – pure navigation/coverage.
@@ -25,8 +25,8 @@ game:
   # Map builder – single room with adversarial wall‑following terrain
   # -------------------------------------------------------------------------
   map_builder:
-    width: ${int:${uniform:50,80}}
-    height: ${int:${uniform:50,80}}
+    width: ${int:${uniform:25,90}}
+    height: ${int:${uniform:25,90}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 

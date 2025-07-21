@@ -7,10 +7,6 @@ sampling: 1
 game:
   map_builder:
     _target_: metta.mettagrid.room.systematic_exploration.uniform_grid.UniformGridTerrain
-
-    # arena size
-    width: ${int:${uniform:80,120}}
-    height: ${int:${uniform:80,120}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
