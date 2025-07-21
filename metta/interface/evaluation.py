@@ -25,8 +25,7 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
     # Create pre-built navigation evaluation configs
     base_nav_config = _get_default_env_config()
     base_nav_config["sampling"] = 0  # Disable sampling for evaluation
-    base_nav_config["track_exploration"] = True  # Enable exploration tracking for evaluation
-
+    base_nav_config["game"]["track_exploration"] = True  # Enable exploration tracking for evaluation
 
     # Create evaluation configs for different terrain sizes
     simulations = {}
