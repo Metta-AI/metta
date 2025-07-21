@@ -2,6 +2,7 @@ import logging
 import os
 import traceback
 from collections import defaultdict
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Set
 from uuid import UUID
@@ -12,6 +13,7 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
+from torch.cuda.amp import autocast
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -137,6 +139,12 @@ class MettaTrainer:
         self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
         self._batch_size = trainer_cfg.batch_size
         self._minibatch_size = trainer_cfg.minibatch_size
+
+        self.use_amp = str(self.device).startswith("cuda")
+        if self.use_amp:
+            self.scaler = torch.amp.GradScaler("cuda")
+        else:
+            self.scaler = None
 
         self.torch_profiler = TorchProfiler(self._master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
         self.losses = Losses()
@@ -496,56 +504,68 @@ class MettaTrainer:
         _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
         minibatch_idx = 0
 
+        # Choose context manager based on AMP availability
+        amp_context = autocast if self.use_amp else nullcontext
+
         for _epoch in range(trainer_cfg.update_epochs):
             for _ in range(experience.num_minibatches):
-                minibatch = experience.sample_minibatch(
-                    advantages=advantages,
-                    prio_alpha=prio_cfg.prio_alpha,
-                    prio_beta=anneal_beta,
-                    minibatch_idx=minibatch_idx,
-                    total_minibatches=_total_minibatches,
-                )
+                with amp_context():
+                    minibatch = experience.sample_minibatch(
+                        advantages=advantages,
+                        prio_alpha=prio_cfg.prio_alpha,
+                        prio_beta=anneal_beta,
+                        minibatch_idx=minibatch_idx,
+                        total_minibatches=_total_minibatches,
+                    )
 
-                # Use the helper function to process minibatch update
-                loss = process_minibatch_update(
-                    policy=self.policy,
-                    experience=experience,
-                    minibatch=minibatch,
-                    advantages=advantages,
-                    trainer_cfg=trainer_cfg,
-                    kickstarter=self.kickstarter,
-                    agent_step=self.agent_step,
-                    losses=self.losses,
-                    device=self.device,
-                )
-                self.optimizer.zero_grad()
-                loss.backward()
+                    # Use the helper function to process minibatch update
+                    loss = process_minibatch_update(
+                        policy=self.policy,
+                        experience=experience,
+                        minibatch=minibatch,
+                        advantages=advantages,
+                        trainer_cfg=trainer_cfg,
+                        kickstarter=self.kickstarter,
+                        agent_step=self.agent_step,
+                        losses=self.losses,
+                        device=self.device,
+                    )
+
+                if self.use_amp:
+                    self.scaler.scale(loss).backward()
+                else:
+                    loss.backward()
+
+                # Gradient accumulation check
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.ppo.max_grad_norm)
-                    self.optimizer.step()
+                    if self.use_amp:
+                        self.scaler.unscale_(self.optimizer)
+                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                        self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
                     if str(self.device).startswith("cuda"):
                         torch.cuda.synchronize()
+                    self.optimizer.zero_grad()
 
                 minibatch_idx += 1
-                # end loop over minibatches
 
             self.epoch += 1
 
-            # check early exit if we have reached target_kl
             if trainer_cfg.ppo.target_kl is not None:
                 average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
                 if average_approx_kl > trainer_cfg.ppo.target_kl:
                     break
-            # end loop over epochs
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
-        # Calculate explained variance using helper function
         self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
