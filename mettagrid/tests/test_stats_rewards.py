@@ -5,6 +5,7 @@ import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from .conftest import create_test_config
 
 # Test constants
 NUM_AGENTS = 1
@@ -32,44 +33,51 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             ["wall", "wall", "wall", "wall", "wall"],
         ]
 
-    game_config = {
-        "max_steps": max_steps,
-        "num_agents": num_agents,
-        "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
-        "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor"],
-        "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
-        },
-        "groups": {
-            "red": {
-                "id": 0,
-                "props": {
-                    "rewards": {
-                        "inventory": {},  # No inventory rewards
-                        "stats": {
-                            "action.move.success": 0.1,  # 0.1 reward per successful move
-                            "action.attack.success": 1.0,  # 1.0 reward per successful attack
-                            "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
-                        },
-                    }
-                },
+    # Use base config and override for stats rewards testing
+    game_config = create_test_config({
+        "game": {
+            "max_steps": max_steps,
+            "num_agents": num_agents,
+            "obs_width": OBS_WIDTH,
+            "obs_height": OBS_HEIGHT,
+            "num_observation_tokens": NUM_OBS_TOKENS,
+            "inventory_item_names": ["laser", "armor"],
+            # Only enable necessary actions
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+                "put_items": {"enabled": False},
+                "get_items": {"enabled": False},
+                "swap": {"enabled": False},
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False},
             },
-            "blue": {"id": 1, "props": {}},
-        },
-        "objects": {
-            "wall": {"type_id": 1},
-        },
-        "agent": {
-            "default_resource_limit": 10,
-        },
-    }
+            # Configure groups with stats rewards
+            "groups": {
+                "red": {
+                    "id": 0,
+                    "props": {
+                        "rewards": {
+                            "inventory": {},  # No inventory rewards
+                            "stats": {
+                                "action.move.success": 0.1,  # 0.1 reward per successful move
+                                "action.attack.success": 1.0,  # 1.0 reward per successful attack
+                                "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
+                            },
+                        }
+                    },
+                },
+                "blue": {"id": 1, "props": {}},
+            },
+            "agent": {
+                "default_resource_limit": 10,
+            },
+        }
+    })
 
-    return MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+    return MettaGrid(from_mettagrid_config(game_config["game"]), game_map, 42)
 
 
 class TestStatsRewards:

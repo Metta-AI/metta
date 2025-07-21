@@ -10,56 +10,23 @@ from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
+from .conftest import create_test_config
 
 
 @pytest.fixture
 def simple_config():
     """Create a simple navigation configuration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 100,
-                "num_agents": 3,
-                "obs_width": 7,
-                "obs_height": 7,
-                "num_observation_tokens": 50,
-                "inventory_item_names": [
-                    "ore_red",
-                    "ore_blue",
-                    "battery_red",
-                    "battery_blue",
-                    "heart",
-                ],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "rewards": {"inventory": {"heart": 1.0}},
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 3,
-                    "width": 16,
-                    "height": 16,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
+    # Use base config and only override what we need for PettingZoo
+    config_dict = create_test_config({
+        "game": {
+            "num_agents": 3,  # PettingZoo test needs 3 agents
+            # Most other settings can use defaults
+            "map_builder": {
+                "agents": 3,  # Match the num_agents
+            },
         }
-    )
+    })
+    return DictConfig(config_dict)
 
 
 def test_pettingzoo_env_creation(simple_config):

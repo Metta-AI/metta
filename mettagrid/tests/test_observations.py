@@ -5,6 +5,8 @@ import numpy as np
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.mettagrid.mettagrid_env import TokenTypes
+from .conftest import base_game_config, merge_configs, create_test_config
 
 from .test_mettagrid import EnvConfig, TestEnvironmentBuilder, TokenTypes
 
@@ -172,30 +174,14 @@ class TestObservations:
         ]
 
         # Create game config with altar objects
-        game_config = {
+        game_config = create_test_config({
             "max_steps": 10,
             "num_agents": 1,  # Just one agent for this test
             "obs_width": EnvConfig.OBS_WIDTH,
             "obs_height": EnvConfig.OBS_HEIGHT,
             "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
             "inventory_item_names": ["resource1", "resource2"],
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
-            },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {
-                "wall": {"type_id": 1},
-            },
-            "agent": {},
-        }
+        })["game"]  # Get the game portion for direct manipulation
 
         # Add altar configurations with different colors
         for i, (x, y, color) in enumerate(altar_positions):
@@ -394,28 +380,17 @@ class TestGlobalTokens:
         game_map[2, 2] = "agent.blue"
 
         # Create environment with change_glyph enabled and 8 glyphs
-        game_config = {
+        game_config = merge_configs(base_game_config(), {
             "max_steps": 10,
             "num_agents": 2,
             "obs_width": EnvConfig.OBS_WIDTH,
             "obs_height": EnvConfig.OBS_HEIGHT,
             "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
-            "inventory_item_names": ["laser", "armor"],
             "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
                 "change_glyph": {"enabled": True, "number_of_glyphs": 8},
             },
-            "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
-            "objects": {"wall": {"type_id": 1}},
-            "agent": {},
-        }
+            "groups": {"blue": {"id": 1, "props": {}}},  # red is already in base config
+        })
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
         obs, _ = env.reset()
@@ -886,3 +861,107 @@ class TestEdgeObservations:
                         assert np.array_equal(token, EnvConfig.EMPTY_TOKEN), f"Expected empty token at obs ({x},{y})"
 
         print("\nSUCCESS: Watched altar move through field of view and verified edge behavior")
+
+
+def test_altar_color_visibility():
+    """Test that agents can see and distinguish altar colors in their observations."""
+    # Create game map
+    game_map = np.full((6, 7), "empty", dtype="<U20")
+    
+    # Place walls
+    game_map[0, :] = "wall"
+    game_map[-1, :] = "wall"
+    game_map[:, 0] = "wall"
+    game_map[:, -1] = "wall"
+    
+    # Place agent at (2,2)
+    game_map[2, 2] = "agent.red"
+    
+    # Place altars around the agent at various positions with different colors
+    altar_positions = [
+        (1, 1, 0),  # A: top-left, color 0
+        (2, 1, 1),  # B: top-center, color 1
+        (3, 1, 2),  # C: top-right, color 2
+        (1, 2, 3),  # D: middle-left, color 3
+        # (2, 2) is the agent position
+        (3, 2, 4),  # E: middle-right, color 4
+        (1, 3, 5),  # F: bottom-left, color 5
+        (2, 3, 7),  # G: bottom-center, color 7
+        (3, 3, 8),  # H: bottom-right, color 8
+    ]
+
+    # Create game config with altar objects
+    game_config = merge_configs(base_game_config(), {
+        "max_steps": 10,
+        "num_agents": 1,
+        "obs_width": 3,  # 3x3 observation window
+        "obs_height": 3,
+        "num_observation_tokens": 100,
+        "inventory_item_names": ["resource1", "resource2"],
+        "objects": {},  # We'll add altars dynamically
+    })
+    
+    # Add altar configurations with different colors
+    for i, (x, y, color) in enumerate(altar_positions):
+        altar_name = f"altar_{i + 1}"
+        game_map[y, x] = altar_name
+        game_config["objects"][altar_name] = {
+            "type_id": i + 2,  # type_ids 2-9 for altars
+            "input_resources": {"resource1": 1},
+            "output_resources": {"resource2": 1},
+            "max_output": 10,
+            "conversion_ticks": 5,
+            "cooldown": 3,
+            "initial_resource_count": 0,
+            "color": color,
+        }
+
+    env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
+    obs, _ = env.reset()
+
+    agent_obs = obs[0]
+
+    # The agent at (2,2) should see all 8 altars in its 3x3 observation window
+    # Expected altar positions in observation coordinates:
+    #   A B C     (0,0) (1,0) (2,0)
+    #   D & E  -> (0,1) (1,1) (2,1)
+    #   F G H     (0,2) (1,2) (2,2)
+
+    expected_altars = [
+        (0, 0, 2, 1),  # A: top-left, type_id=2, color=1
+        (1, 0, 3, 2),  # B: top-center, type_id=3, color=2
+        (2, 0, 4, 3),  # C: top-right, type_id=4, color=3
+        (0, 1, 5, 4),  # D: middle-left, type_id=5, color=4
+        (2, 1, 6, 5),  # E: middle-right, type_id=6, color=5
+        (0, 2, 7, 6),  # F: bottom-left, type_id=7, color=6
+        (1, 2, 8, 7),  # G: bottom-center, type_id=8, color=7
+        (2, 2, 9, 8),  # H: bottom-right, type_id=9, color=8
+    ]
+
+    # Check that we see each altar with correct type_id
+    for x, y, expected_type_id, expected_color in expected_altars:
+        location = PackedCoordinate.pack(y, x)
+
+        # Find tokens at this location
+        location_tokens = agent_obs[agent_obs[:, 0] == location]
+
+        # Should have tokens for this altar
+        assert len(location_tokens) > 0, f"Should have tokens at ({x}, {y}) for altar"
+
+        # Check type_id token
+        type_id_tokens = location_tokens[location_tokens[:, 1] == TokenTypes.TYPE_ID_FEATURE]
+        assert len(type_id_tokens) > 0, f"Should have type_id token at ({x}, {y})"
+        assert type_id_tokens[0, 2] == expected_type_id, (
+            f"Altar at ({x}, {y}) should have type_id {expected_type_id}, got {type_id_tokens[0, 2]}"
+        )
+
+        # Check color token (ObservationFeature::Color = 5)
+        color_tokens = location_tokens[location_tokens[:, 1] == 5]
+        assert len(color_tokens) > 0, f"Should have color token at ({x}, {y})"
+        assert color_tokens[0, 2] == expected_color, (
+            f"Altar at ({x}, {y}) should have color {expected_color}, got {color_tokens[0, 2]}"
+        )
+
+        # Check converter status token (ObservationFeature::ConvertingOrCoolingDown = 6)
+        converter_tokens = location_tokens[location_tokens[:, 1] == 6]
+        assert len(converter_tokens) > 0, f"Should have converter status token at ({x}, {y})"

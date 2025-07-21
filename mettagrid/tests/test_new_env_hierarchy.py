@@ -10,52 +10,43 @@ import pytest
 from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from .conftest import create_test_config as create_base_test_config
 
 
 def create_test_config():
     """Create a minimal test configuration that works reliably."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 20,
-                "num_agents": 2,
-                "obs_width": 5,
-                "obs_height": 5,
-                "num_observation_tokens": 25,
-                "inventory_item_names": ["heart"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 0,
-                    "rewards": {"inventory": {"heart": 1.0}},
-                    "action_failure_penalty": 0.0,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
-                    "width": 8,
-                    "height": 8,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
+    # Use base config and override only what's needed for hierarchy tests
+    config_dict = create_base_test_config({
+        "game": {
+            "max_steps": 20,
+            "num_agents": 2,
+            "obs_width": 5,
+            "obs_height": 5,
+            "num_observation_tokens": 25,
+            # Minimal inventory for testing
+            "inventory_item_names": ["heart"],
+            # Specific agent settings for these tests
+            "agent": {
+                "default_resource_limit": 10,
+                "resource_limits": {"heart": 255},
+                "freeze_duration": 0,
+                "rewards": {"inventory": {"heart": 1.0}},
+                "action_failure_penalty": 0.0,
+            },
+            # Disable some actions for simplicity
+            "actions": {
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 0},
+            },
+            # Small map for fast tests
+            "map_builder": {
+                "width": 8,
+                "height": 8,
+                "objects": {},  # No special objects needed
+            },
         }
-    )
+    })
+    return DictConfig(config_dict)
 
 
 @pytest.fixture

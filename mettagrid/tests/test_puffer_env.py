@@ -10,56 +10,29 @@ from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.puffer_env import MettaGridPufferEnv
+from .conftest import create_test_config
 
 
 @pytest.fixture
 def simple_config():
     """Create a simple navigation configuration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 100,
-                "num_agents": 4,
-                "obs_width": 7,
-                "obs_height": 7,
-                "num_observation_tokens": 50,
-                "inventory_item_names": [
-                    "ore_red",
-                    "ore_blue",
-                    "battery_red",
-                    "battery_blue",
-                    "heart",
-                ],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "rewards": {"inventory": {"heart": 1.0}},
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 4,
-                    "width": 16,
-                    "height": 16,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
+    # Use base config and only override what we need for PufferLib
+    config_dict = create_test_config({
+        "game": {
+            "num_agents": 4,  # PufferLib test uses 4 agents
+            # Disable some actions for this test
+            "actions": {
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 0},
+            },
+            # Match map builder agents to num_agents
+            "map_builder": {
+                "agents": 4,
+                "objects": {},  # Simple test with no special objects
+            },
         }
-    )
+    })
+    return DictConfig(config_dict)
 
 
 def test_puffer_env_creation(simple_config):

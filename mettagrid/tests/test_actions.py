@@ -4,11 +4,17 @@ import pytest
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import (
+    TokenTypes,
+    dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
+    get_action_name,
+    get_action_param,
+    noop,
 )
+from mettagrid.tests.conftest import create_minimal_test_config
 from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
@@ -23,30 +29,31 @@ OBS_TOKEN_SIZE = 3
 
 @pytest.fixture
 def base_config():
-    """Base configuration for MettaGrid tests."""
-    return {
-        "max_steps": 50,
+    """Base configuration for action tests."""
+    return create_minimal_test_config({
+        "max_steps": 10,
         "num_agents": 1,
-        "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
+        "obs_width": 3,
+        "obs_height": 3,
         "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor"],
+        "inventory_item_names": ["laser", "armor", "ore"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
-            "get_items": {"enabled": True},  # maps to get_output
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
-            "put_items": {"enabled": True},  # maps to get_recipe_items
+            "put_items": {"enabled": True},
+            "get_items": {"enabled": True},
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
             "change_glyph": {"enabled": True, "number_of_glyphs": 4},
         },
-        "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {"type_id": 1},
+            "block": {"type_id": 2, "swappable": True},
             "altar": {
                 "type_id": 8,
+                "input_resources": {},
+                "output_resources": {"ore": 1},
                 "max_output": -1,
                 "conversion_ticks": 1,
                 "cooldown": 10,
@@ -54,7 +61,7 @@ def base_config():
             },
         },
         "agent": {"rewards": {}},
-    }
+    })["game"]
 
 
 @pytest.fixture

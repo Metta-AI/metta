@@ -2,20 +2,24 @@
 
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from mettagrid.core import MettaGrid
+from mettagrid.converter import from_mettagrid_config
+from mettagrid.tests.conftest import create_test_config
 
 
-def test_attack_consumes_laser_resource():
-    """Test that attacks consume laser resources as configured in mettagrid.yaml."""
-    # Create a simple map with two agents facing each other
+def test_attack_resource_consumption():
+    """Test that laser resources are correctly consumed when attacking."""
+    # Simple 5x5 grid with walls around the perimeter
     game_map = [
         ["wall", "wall", "wall", "wall", "wall"],
-        ["wall", "agent.red", ".", "agent.blue", "wall"],
+        ["wall", ".", ".", ".", "wall"],
+        ["wall", ".", ".", ".", "wall"],
+        ["wall", ".", ".", ".", "wall"],
         ["wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = {
+    # Use the new create_test_config with only necessary overrides
+    game_config = create_test_config({
         "max_steps": 50,
         "num_agents": 2,
         "obs_width": 11,
@@ -23,23 +27,17 @@ def test_attack_consumes_laser_resource():
         "num_observation_tokens": 200,
         "inventory_item_names": ["laser", "armor", "heart"],
         "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},
             "get_items": {"enabled": True},
             "swap": {"enabled": True},
-            "change_color": {"enabled": False},
-            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
         "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
-        "objects": {"wall": {"type_id": 1}},
-        "agent": {"default_resource_limit": 10, "freeze_duration": 5, "rewards": {}},
-    }
+        "agent": {"freeze_duration": 5},
+    })
 
     # Create the environment
-    env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+    env = MettaGrid(from_mettagrid_config(game_config["game"]), game_map, 42)
 
     # Set up observation and reward buffers
     num_agents = 2
@@ -88,7 +86,8 @@ def test_attack_fails_without_laser():
         ["wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = {
+    # Use the new create_test_config with only necessary overrides
+    game_config = create_test_config({
         "max_steps": 50,
         "num_agents": 2,
         "obs_width": 11,
@@ -96,23 +95,17 @@ def test_attack_fails_without_laser():
         "num_observation_tokens": 200,
         "inventory_item_names": ["laser", "armor", "heart"],
         "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},
             "get_items": {"enabled": True},
             "swap": {"enabled": True},
-            "change_color": {"enabled": False},
-            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
         "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
-        "objects": {"wall": {"type_id": 1}},
-        "agent": {"default_resource_limit": 10, "freeze_duration": 5, "rewards": {}, "action_failure_penalty": 0.1},
-    }
+        "agent": {"freeze_duration": 5, "action_failure_penalty": 0.1},
+    })
 
     # Create the environment
-    env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+    env = MettaGrid(from_mettagrid_config(game_config["game"]), game_map, 42)
 
     # Set up buffers
     num_agents = 2
@@ -158,7 +151,8 @@ def test_attack_without_laser_in_inventory_is_free():
         ["wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = {
+    # Use the new create_test_config but EXCLUDE laser from inventory to test the bug
+    game_config = create_test_config({
         "max_steps": 50,
         "num_agents": 2,
         "obs_width": 11,
@@ -167,9 +161,6 @@ def test_attack_without_laser_in_inventory_is_free():
         # Note: laser is NOT in inventory_item_names, which causes the bug
         "inventory_item_names": ["armor", "heart"],
         "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "attack": {
                 "enabled": True,
                 "consumed_resources": {"laser": 1},  # This gets ignored!
@@ -178,17 +169,14 @@ def test_attack_without_laser_in_inventory_is_free():
             "put_items": {"enabled": True},
             "get_items": {"enabled": True},
             "swap": {"enabled": True},
-            "change_color": {"enabled": False},
-            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
         "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
-        "objects": {"wall": {"type_id": 1}},
-        "agent": {"default_resource_limit": 10, "freeze_duration": 5, "rewards": {}},
-    }
+        "agent": {"freeze_duration": 5},
+    })
 
     # Expect ValueError when creating the environment with invalid config
     try:
-        MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+        MettaGrid(from_mettagrid_config(game_config["game"]), game_map, 42)
         # If we get here without exception, the bug exists (attacks would be free)
         raise AssertionError("Expected ValueError when consumed_resources contains items not in inventory_item_names")
     except ValueError as e:
@@ -200,7 +188,7 @@ def test_attack_without_laser_in_inventory_is_free():
 
 if __name__ == "__main__":
     print("Running test_attack_consumes_laser_resource...")
-    test_attack_consumes_laser_resource()
+    test_attack_resource_consumption()
     print("✓ Passed")
 
     print("\nRunning test_attack_fails_without_laser...")

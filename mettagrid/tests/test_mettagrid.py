@@ -6,6 +6,7 @@ import numpy as np
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
+from mettagrid.tests.conftest import create_minimal_test_config
 
 
 # Constants from C++ code
@@ -72,28 +73,13 @@ class TestEnvironmentBuilder:
         if num_agents is None:
             num_agents = EnvConfig.NUM_AGENTS
 
-        game_config = {
+        game_config = create_minimal_test_config({
             "max_steps": max_steps,
             "num_agents": num_agents,
             "obs_width": EnvConfig.OBS_WIDTH,
             "obs_height": EnvConfig.OBS_HEIGHT,
             "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
-            "inventory_item_names": ["laser", "armor"],
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
-            },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {"wall": {"type_id": 1}},
-            "agent": {},
-        }
+        })["game"]
         return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
 
 

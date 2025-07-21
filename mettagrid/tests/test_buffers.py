@@ -10,6 +10,7 @@ from metta.mettagrid.mettagrid_env import (
     dtype_terminals,
     dtype_truncations,
 )
+from mettagrid.tests.conftest import create_minimal_test_config
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -40,44 +41,22 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
     mid_x = width // 2
     game_map[mid_y, mid_x] = "agent.red"
 
-    game_config = {
+    base_config = {
         "max_steps": max_steps,
         "num_agents": NUM_AGENTS,
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor"],
         "actions": {
-            # don't really care about the actions for this test
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "attack": {"enabled": False},
-            "put_items": {"enabled": False},
-            "get_items": {"enabled": False},
-            "swap": {"enabled": False},
-            "change_color": {"enabled": False},
             "change_glyph": {"enabled": True, "number_of_glyphs": 4},
         },
-        "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {
-            "wall": {"type_id": 1},
-        },
-        "agent": {},
     }
 
     # Apply config overrides if provided
     if config_override:
+        base_config.update(config_override)
 
-        def deep_merge(base_dict, override_dict):
-            """Recursively merge override_dict into base_dict."""
-            for key, value in override_dict.items():
-                if key in base_dict and isinstance(base_dict[key], dict) and isinstance(value, dict):
-                    deep_merge(base_dict[key], value)
-                else:
-                    base_dict[key] = value
-
-        deep_merge(game_config, config_override)
+    game_config = create_minimal_test_config(base_config)["game"]
 
     return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
 

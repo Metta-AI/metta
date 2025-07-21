@@ -2,28 +2,41 @@
 
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from .conftest import create_test_config
 
 
 def create_test_env(global_obs_config):
     """Create test environment with specified global_obs configuration."""
-    game_config = {
-        "num_agents": 2,
-        "obs_width": 11,
-        "obs_height": 11,
-        "num_observation_tokens": 100,
-        "max_steps": 100,
-        "inventory_item_names": ["item1", "item2"],
-        "global_obs": global_obs_config,
-        "agent": {
-            "default_resource_limit": 10,
-            "freeze_duration": 0,
-            "rewards": {},
-            "action_failure_penalty": 0,
-        },
-        "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
-        "actions": {"noop": {"enabled": True}, "move": {"enabled": True}},
-        "objects": {"wall": {"type_id": 1, "swappable": False}},
-    }
+    # Use base config and override only what we need
+    game_config = create_test_config({
+        "game": {
+            "num_agents": 2,
+            "obs_width": 11,
+            "obs_height": 11,
+            "num_observation_tokens": 100,
+            "max_steps": 100,
+            "inventory_item_names": ["item1", "item2"],
+            "global_obs": global_obs_config,
+            # Only enable minimal actions
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": False},
+                "attack": {"enabled": False},
+                "put_items": {"enabled": False},
+                "get_items": {"enabled": False},
+                "swap": {"enabled": False},
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False},
+            },
+            "agent": {
+                "default_resource_limit": 10,
+                "freeze_duration": 0,
+                "rewards": {},
+                "action_failure_penalty": 0,
+            },
+        }
+    })["game"]
 
     game_map = [
         ["wall", "wall", "wall", "wall"],

@@ -15,6 +15,7 @@ from metta.mettagrid.util.actions import (
     move,
     rotate,
 )
+from mettagrid.tests.conftest import create_minimal_test_config
 
 NUM_AGENTS = 1
 OBS_HEIGHT = 3
@@ -34,7 +35,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = {
+    game_config = create_minimal_test_config({
         "max_steps": max_steps,
         "num_agents": num_agents,
         "obs_width": OBS_WIDTH,
@@ -42,19 +43,13 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "num_observation_tokens": NUM_OBS_TOKENS,
         "inventory_item_names": ["laser", "armor", "heart"],
         "actions": {
-            "noop": {"enabled": True},
             "get_items": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "put_items": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
-            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
-        "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {"type_id": 1},
             "altar": {
                 "type_id": 8,
                 "output_resources": {"heart": 1},
@@ -72,7 +67,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
                 }
             },
         },
-    }
+    })["game"]
 
     return MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
