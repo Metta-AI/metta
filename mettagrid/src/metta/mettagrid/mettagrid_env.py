@@ -119,7 +119,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Calculate total episode reward across all agents
         total_episode_reward = self._c_env.get_episode_rewards().sum()
 
-        logger.info(f"Total episode reward: {total_episode_reward}, termination reward: {termination_reward}")
+        print(f"Total episode reward: {total_episode_reward}, termination reward: {termination_reward}")
 
         # Check if total reward has reached the threshold
         return total_episode_reward >= termination_reward
