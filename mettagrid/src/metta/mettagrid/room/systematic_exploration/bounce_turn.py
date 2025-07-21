@@ -1,7 +1,7 @@
 """
-Bounce‑and‑Turn Trap Terrain
+Bounce-and-Turn Trap Terrain
 ===========================
-Designed to confine a memory‑less 'bug 0' agent that:
+Designed to confine a memory-less 'bug 0' agent that:
 
     – drives straight until it meets a wall,
     – then glides along the obstacle edge
@@ -9,12 +9,12 @@ Designed to confine a memory‑less 'bug 0' agent that:
 
 Key features
 ------------
-* **Concave pockets (C‑shapes).**  Once the agent slides inside,
+* **Concave pockets (C-shapes).**  Once the agent slides inside,
   the interior rim keeps it orbiting forever.
-* **Venus‑fly‑trap funnels.** Two obstacles form a narrow throat
-  (1‑cell gap) that admits entry but closes off deeper inside.
-
-All counts / sizes are YAML‑configurable.
+* **Venus-fly-trap funnels.** Two obstacles form a narrow throat
+  (1-cell gap) that admits entry but closes off deeper inside.
+* **Random extra corner block.** One inner-corner cell becomes a wall
+  (if empty) to break symmetry and add a tiny extra obstacle.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from metta.mettagrid.room.room import Room
 
 
 class BounceTurnTerrain(Room):
-    """Terrain that breaks bug‑0 style navigation."""
+    """Terrain that breaks bug-0 style navigation."""
 
     # ------------------------------------------------------------------ #
     # Construction                                                        #
@@ -79,10 +79,10 @@ class BounceTurnTerrain(Room):
     def _build(self) -> np.ndarray:
         grid = np.full((self._H, self._W), "empty", dtype=object)
 
-        # 1 ─ place concave pockets
+        # 1 ─ concave pockets
         self._scatter_pockets(grid)
 
-        # 2 ─ place Venus‑fly‑traps
+        # 2 ─ Venus-fly-traps
         self._scatter_traps(grid)
 
         # # 3 ─ agents & objects
@@ -96,6 +96,19 @@ class BounceTurnTerrain(Room):
             label = "small"
 
         np.save(f"terrains/bounce_turn/{label}/{self._rng.integers(1000000)}.npy", grid)
+
+        # 4 ─ extra random corner block (if that corner is still empty)
+        corners = [
+            (1, 1),
+            (1, self._W - 2),
+            (self._H - 2, 1),
+            (self._H - 2, self._W - 2),
+        ]
+        self._rng.shuffle(corners)
+        for r, c in corners:
+            if grid[r, c] == "empty":
+                grid[r, c] = "wall"
+                break
 
         return grid
 
@@ -113,25 +126,21 @@ class BounceTurnTerrain(Room):
 
     def _make_c_pocket(self, cavity: int) -> np.ndarray:
         """
-        Build a 'C' shaped pocket; exterior walls 1‑cell thick.
+        Build a 'C' shaped pocket; outer walls 1-cell thick.
         Randomly rotate 0°, 90°, 180°, 270° to vary orientation.
         """
         h = cavity + 2
         w = cavity + 3  # mouth two cells wide
 
         pat = np.full((h, w), "wall", dtype=object)
-        pat[1:-1, 1:-1] = "empty"  # hollow
+        pat[1:-1, 1:-1] = "empty"  # hollow centre
         pat[1:-1, -2] = "wall"  # close the back
-        # Keep the 2‑cell mouth open
-        pat[1:-1, 0] = "empty"
+        pat[1:-1, 0] = "empty"  # leave 2-cell mouth open
 
-        # random rotation
-        k = self._rng.integers(4)
-        pat = np.rot90(pat, k)
-        return pat
+        return np.rot90(pat, self._rng.integers(4))
 
     # ------------------------------------------------------------------ #
-    # Venus‑fly‑traps                                                   #
+    # Venus-fly-traps                                                   #
     # ------------------------------------------------------------------ #
     def _scatter_traps(self, grid: np.ndarray) -> None:
         n_traps = self._trap_cnt
@@ -147,66 +156,50 @@ class BounceTurnTerrain(Room):
 
     def _make_flytrap(self, depth: int, width: int) -> np.ndarray:
         """
-        Two blocks form a funnel with 1‑cell throat at the entrance,
-        narrowing into an enclosed chamber.
-        Layout (example, width=7):
-            WWW WWW
-            W     W   <- throat
-            W WWW W
-            W W W W
-            W WWW W
-            WWWWWWW   <- bottom wall
+        Two blocks form a funnel with a 1-cell throat at the entrance.
         """
-        w = width
-        h = depth + 2
+        h, w = depth + 2, width
         pat = np.full((h, w), "empty", dtype=object)
 
-        # columns left & right walls
+        # outer side walls
         pat[:, 0] = "wall"
         pat[:, -1] = "wall"
 
         # throat row
         pat[0, 2:-2] = "wall"
 
-        # build interior staggered walls to make exit impossible
+        # interior staggered walls
         for r in range(1, depth):
-            if r % 2 == 1:
+            if r % 2:
                 pat[r, 2:-2] = "wall"
             else:
                 pat[r, 3:-3] = "wall"
 
-        # bottom seal
-        pat[-1, :] = "wall"
-
-        # random rotation
-        k = self._rng.integers(4)
-        pat = np.rot90(pat, k)
-        return pat
+        pat[-1, :] = "wall"  # bottom seal
+        return np.rot90(pat, self._rng.integers(4))
 
     # ------------------------------------------------------------------ #
     # Placement utilities                                                #
     # ------------------------------------------------------------------ #
     def _try_place(self, grid: np.ndarray, pattern: np.ndarray, *, clearance: int) -> bool:
         ph, pw = pattern.shape
-        candidates = self._find_candidates((ph, pw), clearance)
-        if not candidates:
+        spots = self._candidates((ph, pw), clearance)
+        if not spots:
             return False
-        r, c = candidates[self._rng.integers(len(candidates))]
+        r, c = spots[self._rng.integers(len(spots))]
         grid[r : r + ph, c : c + pw] = pattern
         self._occ[r - clearance : r + ph + clearance, c - clearance : c + pw + clearance] = True
         return True
 
-    def _find_candidates(self, shape: Tuple[int, int], clearance: int) -> List[Tuple[int, int]]:
+    def _candidates(self, shape: Tuple[int, int], clearance: int) -> List[Tuple[int, int]]:
         ph, pw = shape
         H, W = self._occ.shape
         if ph + 2 * clearance > H or pw + 2 * clearance > W:
             return []
-        occ = self._occ
         ok: list[Tuple[int, int]] = []
         for r in range(clearance, H - ph - clearance + 1):
             for c in range(clearance, W - pw - clearance + 1):
-                sub = occ[r - clearance : r + ph + clearance, c - clearance : c + pw + clearance]
-                if not sub.any():
+                if not self._occ[r - clearance : r + ph + clearance, c - clearance : c + pw + clearance].any():
                     ok.append((r, c))
         return ok
 
@@ -225,7 +218,7 @@ class BounceTurnTerrain(Room):
             occ[r, c] = True
 
         for name, cnt in self._objects.items():
-            for _ in range(cnt):
+            for _ in range(int(cnt)):
                 pos = self._pick_empty(occ)
                 if pos is None:
                     break

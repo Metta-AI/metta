@@ -1,0 +1,36 @@
+from omegaconf import DictConfig, ListConfig
+import numpy as np
+
+class UniformGrid:
+    def __init__(self, cell_size, gap_width, rng):
+        self._rng = rng
+
+        # ------------------------------------------------------------------
+        # Resolve sweep ranges (lists / tuples / ListConfig) into integers
+        # ------------------------------------------------------------------
+        def _sample(val, minimum: int) -> int:
+            if isinstance(val, (list, tuple, ListConfig)):
+                lo, hi = int(val[0]), int(val[1])
+                if hi < lo:
+                    lo, hi = hi, lo
+                return max(minimum, int(self._rng.integers(lo, hi + 1)))
+            return max(minimum, int(val))
+
+        self._cell = _sample(cell_size, 2)
+        self._gap  = _sample(gap_width, 1)
+
+        # Ensure the doorway gap is always narrower than the cell spacing
+        self._gap = min(self._gap, self._cell - 1)
+
+    def _build(self):
+        # Vertical walls loop
+        for c in range(self._cell, self._W, self._cell):
+            for r0 in range(0, self._H, self._cell):
+                gap_start = max(1, min(r0 - self._gap // 2, self._H - 1 - self._gap))
+                # ... rest of the loop code ...
+
+        # Horizontal walls loop
+        for r in range(self._cell, self._H, self._cell):
+            for c0 in range(0, self._W, self._cell):
+                gap_start = max(1, min(c0 - self._gap // 2, self._W - 1 - self._gap))
+                # ... rest of the loop code ...

@@ -11,21 +11,22 @@ game:
   num_agents: 32
   agent:
     rewards:
-      ore_red: ${sampling:0.005,0.1, 0.01}
-      ore_blue: ${sampling:0.005,0.1, 0.01}
-      ore_green: ${sampling:0.005,0.1, 0.01}
-      ore_green_max: 3
-      ore_blue_max: 3
-      ore_red_max: 3
-      battery_red: ${sampling:0.01,0.5, 0.1}
-      battery_red_max: 3
-      laser: ${sampling:0.005,0.1, 0.01}
-      laser_max: 1
-      blueprint: ${sampling:0.005,0.1, 0.01}
-      blueprint_max: 1
-      armor: ${sampling:0.005,0.1, 0.01}
-      armor_max: 1
-      heart: 1
+      inventory:
+        ore_red: ${sampling:0.005,0.1, 0.01}
+        ore_blue: ${sampling:0.005,0.1, 0.01}
+        ore_green: ${sampling:0.005,0.1, 0.01}
+        ore_green_max: 3
+        ore_blue_max: 3
+        ore_red_max: 3
+        battery_red: ${sampling:0.01,0.5, 0.1}
+        battery_red_max: 3
+        laser: ${sampling:0.005,0.1, 0.01}
+        laser_max: 1
+        blueprint: ${sampling:0.005,0.1, 0.01}
+        blueprint_max: 1
+        armor: ${sampling:0.005,0.1, 0.01}
+        armor_max: 1
+        heart: 1
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: 4

@@ -13,13 +13,14 @@ game:
   agent:
     default_resource_limit: 5
     rewards:
-      ore_red: 0.01
-      battery_red: 0.1
-      battery_red_max: 5
-      laser: 0.1
-      armor: 0.1
-      blueprint: 0.1
-      heart: 1
+      inventory:
+        ore_red: 0.01
+        battery_red: 0.1
+        battery_red_max: 5
+        laser: 0.1
+        armor: 0.1
+        blueprint: 0.1
+        heart: 1
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}

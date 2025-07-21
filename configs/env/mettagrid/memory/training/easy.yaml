@@ -1,25 +1,22 @@
 defaults:
   - /env/mettagrid/mettagrid@
-  - _self_
 
+sampling: 1
 game:
   num_agents: 16
-  max_steps: 45
+  max_steps: 78
   agent:
     rewards:
-      heart: 0.333
+      heart: 1
   map_builder:
-    _target_: metta.map.mapgen.MapGen
-
-    border_width: 1
-    instances: 2
-    instance_border_width: 1
-
-    root:
-      type: metta.map.scenes.ascii.Ascii
-      params:
-        uri: "configs/env/mettagrid/maps/memory_training/easy.map"
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: 2
+    room:
+      _target_: metta.mettagrid.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/memory/memory_training/easy.map"
 
   objects:
     altar:
       cooldown: 255
+      initial_items: 1

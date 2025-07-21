@@ -1,0 +1,31 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.spindly_spiders.SpindlySpiderTerrain
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # ─ spindly spider parameters ─
+    num_spiders:       ${int:${uniform:5,10}}
+    body_lo:           ${int:${uniform:4,10}}
+    body_hi:           ${int:${uniform:4,10}}
+    legs_lo:           ${int:${uniform:6,12}}
+    legs_hi:           ${int:${uniform:6,12}}
+    leg_length:        ${int:${uniform:15,40}}
+    branch_prob:       ${uniform:0.1,0.2}   # chance leg branches each step
+    turn_prob:         ${uniform:0.2,0.3}   # chance leg turns 90° each step
+    gap:               ${int:${uniform:1,3}}
+    hearts_per_spider: ${int:${uniform:1,2}}       # altars per spider
+
+  # -----------------------------------------------------------------
+  # Object specs
+  # -----------------------------------------------------------------
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: ${int:${uniform:1,3}}

@@ -44,8 +44,8 @@ class WallFollowTerrain(Room):
         border_object: str = "wall",
         #
         occupancy_threshold: float = 0.55,
-        island_count: Tuple[int, int] = (30, 60),
-        island_size: Tuple[int, int] = (6, 30),
+        island_count: int = 45,
+        island_size: int = 18,
     ) -> None:
         super().__init__(
             border_width=border_width,
@@ -60,8 +60,8 @@ class WallFollowTerrain(Room):
         self._agents = agents if isinstance(agents, int) else 1
         self._objects = objects or {}
         self._occupancy_threshold = occupancy_threshold
-        self._island_count_range = island_count
-        self._island_size_range = island_size
+        self._island_count = island_count
+        self._island_size = island_size
 
         # occupancy mask (True ⇔ blocked)
         self._occ = np.zeros((height, width), dtype=bool)
@@ -113,12 +113,10 @@ class WallFollowTerrain(Room):
     # Island generation                                                   #
     # ------------------------------------------------------------------ #
     def _scatter_islands(self, grid: np.ndarray) -> None:
-        n_islands = self._rng.integers(*self._island_count_range)
-        for _ in range(n_islands):
+        for _ in range(self._island_count):
             if self._occ.mean() >= self._occupancy_threshold:
                 break
-            size_target = self._rng.integers(*self._island_size_range)
-            pattern = self._make_jagged_blob(size_target)
+            pattern = self._make_jagged_blob(self._island_size)
             self._try_place(grid, pattern, clearance=1)
 
     def _make_jagged_blob(self, target_cells: int) -> np.ndarray:

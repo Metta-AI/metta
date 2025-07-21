@@ -5,38 +5,35 @@ set -e
 # Parse arguments
 args="${@:1}"
 
-# Extract and validate sweep run
-sweep_run=$(echo "$args" | grep -o 'sweep_run=[^ ]*' | sed 's/sweep_run=//')
-if [ -z "$sweep_run" ]; then
-  echo "[ERROR] 'sweep_run' argument is required (e.g., sweep_run=my_sweep_name)"
+# Extract and validate sweep name
+sweep_name=$(echo "$args" | grep -o 'sweep_name=[^ ]*' | sed 's/sweep_name=//')
+if [ -z "$sweep_name" ]; then
+  echo "[ERROR] 'sweep_name' argument is required (e.g., sweep_name=my_sweep_name)"
   exit 1
 fi
 
 # Extract hardware argument if present
+# This is needed for local sweeps.
 hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
 
-source ./devops/setup.env
+source ./devops/setup.env # TODO: Check this is the right sourcing.
 
+# Parse distributed config path
 DIST_ID=${DIST_ID:-localhost}
-DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_run/dist_$DIST_ID.yaml"
+DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_name/dist_$DIST_ID.yaml"
 
-echo "[INFO] Starting sweep rollout: $sweep_run"
-mkdir -p "$DATA_DIR/sweep/$sweep_run"
+echo "[INFO] Starting sweep rollout: $sweep_name"
 
-# Create initial dist file to avoid FileNotFoundError in @metta_script decorator
-echo "Creating initial dist config: $DIST_CFG_PATH"
-cat > "$DIST_CFG_PATH" << EOF
-# Placeholder dist config - will be updated by sweep_init.py
-run: null
-wandb_run_id: null
-EOF
-
-# Initialize sweep
-echo "[SWEEP:$sweep_run] Initializing sweep configuration..."
-cmd="./tools/sweep_init.py dist_cfg_path=$DIST_CFG_PATH $args"
-echo "[SWEEP:$sweep_run] Running: $cmd"
+# Prepare the run for training.
+# TODO: Still not sure we need the DIST_CFG_PATH here.
+# TODO: Use SWEEP_DATA_DIR
+echo "[SWEEP:$sweep_name] Preparing next run..."
+# Replace sweep_name= with +sweep_name= in args for Hydra struct mode
+args_with_plus=$(echo "$args" | sed 's/sweep_name=/+sweep_name=/')
+cmd="tools/sweep_prepare_run.py +dist_cfg_path=$DIST_CFG_PATH $args_with_plus"
+echo "[SWEEP:$sweep_name] Running: $cmd"
 if ! $cmd; then
-  echo "[ERROR] Sweep initialization failed: $sweep_run"
+  echo "[ERROR] Sweep initialization failed: $sweep_name"
   exit 1
 fi
 
@@ -48,26 +45,27 @@ if [ -z "$run_id" ]; then
 fi
 
 # Training phase - use train_job config
-echo "[SWEEP:$sweep_run] Starting training phase..."
+echo "[SWEEP:$sweep_name] Starting training phase..."
+
 # Include hardware argument if it was provided
 if [ -n "$hardware_arg" ]; then
-  cmd="./devops/train.sh run=$run_id dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs $hardware_arg"
+  cmd="./devops/train.sh run=$run_id dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_name/runs $hardware_arg"
 else
-  cmd="./devops/train.sh run=$run_id dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs"
+  cmd="./devops/train.sh run=$run_id dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_name/runs"
 fi
-echo "[SWEEP:$sweep_run] Running: $cmd"
+echo "[SWEEP:$sweep_name] Running: $cmd"
 if ! $cmd; then
-  echo "[ERROR] Training failed for sweep: $sweep_run"
+  echo "[ERROR] Training failed for sweep: $sweep_name"
   exit 1
 fi
 
 # Evaluation phase
-echo "[SWEEP:$sweep_run] Starting evaluation phase..."
-cmd="./tools/sweep_eval.py dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs $args"
-echo "[SWEEP:$sweep_run] Running: $cmd"
+echo "[SWEEP:$sweep_name] Starting evaluation phase..."
+cmd="./tools/sweep_eval.py dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_name/runs $args"
+echo "[SWEEP:$sweep_name] Running: $cmd"
 if ! $cmd; then
-  echo "[ERROR] Evaluation failed for sweep: $sweep_run"
+  echo "[ERROR] Evaluation failed for sweep: $sweep_name"
   exit 1
 fi
 
-echo "[SUCCESS] Sweep rollout completed: $sweep_run"
+echo "[SUCCESS] Sweep rollout completed: $sweep_name"

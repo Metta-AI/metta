@@ -7,7 +7,8 @@ game:
   max_steps: ???
   agent:
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
   map_builder:
     _target_: mettagrid.room.mean_distance.MeanDistance
     width: 11

@@ -10,6 +10,7 @@ Simple utility to log debug values to wandb for testing.
 Can be used standalone or imported into other scripts.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -129,8 +130,6 @@ def log_debug_info():
 
 def main():
     """Main function for standalone usage."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="Log debug values to wandb")
     parser.add_argument("key", nargs="?", default="debug/test", help="Key to log")
     parser.add_argument("value", nargs="?", default=42, help="Value to log")

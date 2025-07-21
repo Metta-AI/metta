@@ -12,11 +12,13 @@
 defaults:
   - _self_
 
+sim: systematic_exploration
+
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation/systematic_bucketed
 
-policy_uri: wandb://run/daphne.navigation.bucketed.UR.07-08:v123
+policy_uri: wandb://run/george.navigation.bucketed.07-10
 
-run_id: 3
+run_id: 4
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

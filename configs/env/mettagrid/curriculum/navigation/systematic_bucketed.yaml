@@ -27,6 +27,9 @@ buckets:
         "terrains/wallfollow_sparse/large",
         "terrains/wallfollow_sparse/medium",
         "terrains/wallfollow_sparse/small",
+        "terrains/boxes/large",
+        "terrains/boxes/medium",
+        "terrains/boxes/small",
       ]
   game.map_builder.room.objects.altar:
     range: [2, 16]

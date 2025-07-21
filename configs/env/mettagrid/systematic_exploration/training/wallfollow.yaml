@@ -7,4 +7,4 @@ sampling: 1
 game:
   map_builder:
     room:
-      dir: ${choose:terrains/wallfollow/large,terrains/wallfollow/medium,terrains/wallfollow/small}
+      dir: ${choose:terrains/wallfollow_terrain/large,terrains/wallfollow_terrain/medium,terrains/wallfollow_terrain/small}
