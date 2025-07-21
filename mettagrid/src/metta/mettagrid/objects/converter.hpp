@@ -12,6 +12,9 @@
 #include "constants.hpp"
 #include "has_inventory.hpp"
 
+// Forward declaration
+class MettaGrid;
+
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
@@ -23,7 +26,9 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
-                  bool show_recipe_inputs = false)
+                  bool recipe_details_obs = false,
+                  ObservationType input_recipe_offset = 0,
+                  ObservationType output_recipe_offset = 0)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -32,7 +37,9 @@ struct ConverterConfig : public GridObjectConfig {
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
-        show_recipe_inputs(show_recipe_inputs) {}
+        recipe_details_obs(recipe_details_obs),
+        input_recipe_offset(input_recipe_offset),
+        output_recipe_offset(output_recipe_offset) {}
 
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
@@ -41,7 +48,9 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
-  bool show_recipe_inputs;
+  bool recipe_details_obs;
+  ObservationType input_recipe_offset;
+  ObservationType output_recipe_offset;
 };
 
 class Converter : public HasInventory {
@@ -113,9 +122,11 @@ public:
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
-  bool show_recipe_inputs;
+  bool recipe_details_obs;
   EventManager* event_manager;
   StatsTracker stats;
+  ObservationType input_recipe_offset;
+  ObservationType output_recipe_offset;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
@@ -124,10 +135,12 @@ public:
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
         color(cfg.color),
-        show_recipe_inputs(cfg.show_recipe_inputs),
+        recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
         converting(false),
-        cooling_down(false) {
+        cooling_down(false),
+        input_recipe_offset(cfg.input_recipe_offset),
+        output_recipe_offset(cfg.output_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types
@@ -189,10 +202,10 @@ public:
     std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    // We push 3 fixed features + inventory items + (optionally) recipe inputs
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs
     size_t capacity = 3 + this->inventory.size();
-    if (this->show_recipe_inputs) {
-      capacity += this->input_resources.size();
+    if (this->recipe_details_obs) {
+      capacity += this->input_resources.size() + this->output_resources.size();
     }
     features.reserve(capacity);
 
@@ -201,7 +214,7 @@ public:
     features.push_back({ObservationFeature::ConvertingOrCoolingDown,
                         static_cast<ObservationType>(this->converting || this->cooling_down)});
 
-    // Add current inventory
+    // Add current inventory (inv:resource)
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
@@ -209,11 +222,20 @@ public:
           {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
 
-    // Add recipe inputs if configured to do so
-    if (this->show_recipe_inputs) {
+    // Add recipe details if configured to do so
+    if (this->recipe_details_obs) {
+      // Add recipe inputs (input:resource) - only non-zero values
       for (const auto& [item, amount] : this->input_resources) {
-        features.push_back(
-            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+        if (amount > 0) {
+          features.push_back({static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
+        }
+      }
+
+      // Add recipe outputs (output:resource) - only non-zero values
+      for (const auto& [item, amount] : this->output_resources) {
+        if (amount > 0) {
+          features.push_back({static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+        }
       }
     }
 

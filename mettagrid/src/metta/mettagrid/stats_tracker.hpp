@@ -62,6 +62,10 @@ public:
     _env = env;
   }
 
+  MettaGrid* get_env() const {
+    return _env;
+  }
+
   const std::string& inventory_item_name(InventoryItem item) const;
 
   void add(const std::string& key, float amount) {
