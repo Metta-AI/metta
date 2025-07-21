@@ -25,7 +25,7 @@ game:
       agents: 2
       group_agents: true
       objects:
-        altar: ${sampling:1, 12, 6}
+        altar: ${sampling:3, 50, 25}
   objects:
     altar:
       cooldown: 1000
