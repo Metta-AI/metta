@@ -1,6 +1,6 @@
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/navigation/training/terrain_from_numpy
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy
 
 buckets:
   game.map_builder.room.dir:

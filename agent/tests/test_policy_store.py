@@ -8,15 +8,13 @@ import torch
 from omegaconf import OmegaConf
 
 from metta.agent.mocks import MockPolicy
+from metta.agent.policy_metadata import PolicyMetadata
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
 
 
 def test_policy_save_load_without_pydantic():
     """Test that we can save and load a policy without pydantic errors"""
-
-    # Import PolicyStore and PolicyRecord from their respective modules
-    from metta.agent.policy_metadata import PolicyMetadata
-    from metta.agent.policy_record import PolicyRecord
-    from metta.agent.policy_store import PolicyStore
 
     # Create minimal config
     cfg = OmegaConf.create(
@@ -115,8 +113,6 @@ def test_policy_save_load_without_pydantic():
 def test_policy_save_load_with_dict_metadata():
     """Test that we can save and load a policy with plain dict metadata"""
 
-    from metta.agent.policy_store import PolicyStore
-
     # Create minimal config
     cfg = OmegaConf.create(
         {
@@ -181,10 +177,6 @@ def test_policy_save_load_with_dict_metadata():
 
 def test_policy_record_backwards_compatibility():
     """Test that PolicyRecord can handle old metadata attribute names"""
-    from metta.agent.policy_metadata import PolicyMetadata
-    from metta.agent.policy_record import PolicyRecord
-    from metta.agent.policy_store import PolicyStore
-
     # Create minimal config for PolicyStore
     cfg = OmegaConf.create(
         {

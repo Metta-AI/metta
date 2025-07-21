@@ -20,9 +20,12 @@ struct AgentConfig : public GridObjectConfig {
               float action_failure_penalty,
               const std::map<InventoryItem, InventoryQuantity>& resource_limits,
               const std::map<InventoryItem, RewardType>& resource_rewards,
-              const std::map<InventoryItem, InventoryQuantity>& resource_reward_max,
+
+              const std::map<std::string, RewardType>& stat_rewards,
+              const std::map<std::string, RewardType>& stat_reward_max,
               float group_reward_pct,
               ObservationType glyph)
+
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
@@ -31,6 +34,8 @@ struct AgentConfig : public GridObjectConfig {
         resource_limits(resource_limits),
         resource_rewards(resource_rewards),
         resource_reward_max(resource_reward_max),
+        stat_rewards(stat_rewards),
+        stat_reward_max(stat_reward_max),
         group_reward_pct(group_reward_pct),
         glyph(glyph) {}
 
@@ -40,7 +45,9 @@ struct AgentConfig : public GridObjectConfig {
   float action_failure_penalty;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
   std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, InventoryQuantity> resource_reward_max;
+  std::map<InventoryItem, RewardType> resource_reward_max;
+  std::map<std::string, RewardType> stat_rewards;
+  std::map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
   ObservationType glyph;
 };
@@ -56,7 +63,10 @@ public:
   // however, this should not be relied on for correctness.
   std::map<InventoryItem, InventoryQuantity> inventory;
   std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, InventoryQuantity> resource_reward_max;
+  std::map<InventoryItem, RewardType> resource_reward_max;
+  std::map<std::string, RewardType> stat_rewards;
+  std::map<std::string, RewardType> stat_reward_max;
+  std::map<InventoryItem, InventoryQuantity> resource_limits;
   float action_failure_penalty;
   std::string group_name;
   ObservationType color;
@@ -64,6 +74,7 @@ public:
   unsigned char agent_id;  // index into MettaGrid._agents (std::vector<Agent*>)
   StatsTracker stats;
   RewardType current_resource_reward;
+  RewardType current_stat_reward;
   RewardType* reward;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
@@ -74,6 +85,9 @@ public:
         inventory(),  // default constructor
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
+        stat_rewards(config.stat_rewards),
+        stat_reward_max(config.stat_reward_max),
+        resource_limits(config.resource_limits),
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
@@ -81,8 +95,8 @@ public:
         agent_id(0),
         stats(),  // default constructor
         current_resource_reward(0),
-        reward(nullptr),
-        resource_limits(config.resource_limits) {
+        current_stat_reward(0),
+        reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
@@ -124,6 +138,35 @@ public:
     return delta;
   }
 
+  void compute_stat_rewards() {
+    if (this->stat_rewards.empty()) {
+      return;
+    }
+
+    float new_stat_reward = 0;
+    auto stat_dict = this->stats.to_dict();
+
+    for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
+      if (stat_dict.count(stat_name) > 0) {
+        float stat_value = stat_dict[stat_name];
+
+        float stats_reward = stat_value * reward_per_unit;
+        if (this->stat_reward_max.count(stat_name) > 0) {
+          stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
+        }
+
+        new_stat_reward += stats_reward;
+      }
+    }
+
+    // Update the agent's reward with the difference
+    float reward_delta = new_stat_reward - this->current_stat_reward;
+    if (reward_delta != 0) {
+      *this->reward += reward_delta;
+      this->current_stat_reward = new_stat_reward;
+    }
+  }
+
   bool swappable() const override {
     return this->frozen;
   }
@@ -152,8 +195,6 @@ public:
   }
 
 private:
-  std::map<InventoryItem, InventoryQuantity> resource_limits;
-
   inline void _update_resource_reward(InventoryItem item, InventoryQuantity old_amount, InventoryQuantity new_amount) {
     // Early exit if this item doesn't contribute to rewards
     auto reward_it = this->resource_rewards.find(item);
@@ -161,22 +202,12 @@ private:
       return;
     }
 
-    // Apply reward caps if they exist
-    InventoryQuantity old_capped = old_amount;
-    InventoryQuantity new_capped = new_amount;
-
-    auto max_it = this->resource_reward_max.find(item);
-    if (max_it != this->resource_reward_max.end()) {
-      old_capped = std::min(old_amount, max_it->second);
-      new_capped = std::min(new_amount, max_it->second);
+    float prev_resource_reward = this->current_resource_reward;
+    this->current_resource_reward += reward_it->second * (new_amount - old_amount);
+    if (this->resource_reward_max.count(item) > 0) {
+      this->current_resource_reward = std::min(current_resource_reward, this->resource_reward_max.at(item));
     }
-
-    // Calculate only the delta in reward
-    float reward_delta = reward_it->second * (new_capped - old_capped);
-
-    // Update both the current reward and the agent's total reward
-    this->current_resource_reward += reward_delta;
-    *this->reward += reward_delta;
+    *this->reward += this->current_resource_reward - prev_resource_reward;
   }
 };
 

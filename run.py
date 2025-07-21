@@ -8,48 +8,35 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.api import (
-    Agent,
-    Environment,
-    Optimizer,
-    calculate_anneal_beta,
-    cleanup_distributed,
-    cleanup_wandb,
-    create_evaluation_config_suite,
-    create_replay_config,
-    ensure_initial_policy,
-    initialize_wandb,
-    load_checkpoint,
-    save_checkpoint,
-    save_experiment_config,
-    setup_distributed_training,
-    setup_run_directories,
-    wrap_agent_distributed,
-)
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.interface.agent import Agent
+from metta.interface.directories import (
+    save_experiment_config,
+    setup_device_and_distributed,
+    setup_run_directories,
+)
+from metta.interface.environment import Environment
+from metta.interface.evaluation import (
+    create_evaluation_config_suite,
+    create_replay_config,
+)
+from metta.interface.training import (
+    Optimizer,
+    cleanup_distributed,
+    cleanup_wandb,
+    ensure_initial_policy,
+    initialize_wandb,
+    load_checkpoint,
+    save_checkpoint,
+)
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    compute_advantage,
-    compute_timing_stats,
-    get_lstm_config,
-    get_observation,
-    maybe_update_l2_weights,
-    process_minibatch_update,
-    process_training_stats,
-    run_policy_inference,
-    should_run_on_interval,
-)
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
@@ -60,6 +47,29 @@ from metta.rl.trainer_config import (
     TorchProfilerConfig,
     TrainerConfig,
 )
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.optimization import (
+    calculate_explained_variance,
+    maybe_update_l2_weights,
+)
+from metta.rl.util.policy_management import wrap_agent_distributed
+from metta.rl.util.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.util.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
+from metta.rl.util.utils import should_run as should_run_on_interval
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_suite import SimulationSuite
 
@@ -69,7 +79,7 @@ logger = logging.getLogger(__name__)
 
 # Set up directories and distributed training
 dirs = setup_run_directories()
-device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
+device, is_master, world_size, rank = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
 
 # Configuration
 # Note: batch_size must be >= total_agents * bptt_horizon
@@ -346,7 +356,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Calculate prioritized replay parameters
     prio_cfg = trainer_config.prioritized_experience_replay
-    anneal_beta = calculate_anneal_beta(
+    anneal_beta = calculate_prioritized_sampling_params(
         epoch=epoch,
         total_timesteps=trainer_config.total_timesteps,
         batch_size=trainer_config.batch_size,
@@ -470,6 +480,7 @@ while agent_step < trainer_config.total_timesteps:
             system_stats=system_stats,
             memory_stats=memory_stats,
             parameters=parameters,
+            hyperparameters={},  # Hyperparameters not used in run.py
             evals=evaluation_scores.get(epoch, EvalRewardSummary()),
             agent_step=agent_step,
             epoch=epoch,

@@ -31,28 +31,36 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    calculate_prioritized_sampling_params,
-    cleanup_old_policies,
-    compute_advantage,
-    compute_gradient_stats,
-    compute_timing_stats,
-    get_lstm_config,
-    get_observation,
-    process_minibatch_update,
-    process_training_stats,
-    run_policy_inference,
-    validate_policy_environment_match,
-)
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+)
+from metta.rl.util.policy_management import (
+    cleanup_old_policies,
+    validate_policy_environment_match,
+)
+from metta.rl.util.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.util.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
@@ -91,6 +99,9 @@ class MettaTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
+
+        # self.hyperparameter_scheduler = HyperparameterScheduler(
+        # trainer_cfg, self, trainer_cfg.total_timesteps, logging)
 
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
@@ -280,12 +291,6 @@ class MettaTrainer:
 
         # Validate that policy matches environment
         validate_policy_environment_match(self.policy, metta_grid_env)
-
-        self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
-            )
 
         if checkpoint and checkpoint.optimizer_state_dict:
             try:
@@ -552,8 +557,7 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        # self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance using helper function
         self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
@@ -853,6 +857,8 @@ class MettaTrainer:
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
 
+        # Add hyperparameter values
+
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
@@ -862,6 +868,7 @@ class MettaTrainer:
             system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
             memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
             parameters=parameters,
+            hyperparameters=self.hyperparameters,
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
@@ -885,6 +892,18 @@ class MettaTrainer:
         if self._master:
             self._memory_monitor.clear()
             self._system_monitor.stop()
+
+    @property
+    def hyperparameters(self):
+        return {}
+        # return {
+        #     "learning_rate": self.optimizer.param_groups[0]["lr"],
+        #     "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+        #     "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+        #     "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+        #     "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+        #     "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        # }
 
     @property
     def latest_saved_policy_uri(self) -> str | None:

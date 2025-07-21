@@ -233,11 +233,15 @@ class MettaCLI:
     def cmd_shell(self) -> None:
         subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
 
-    def cmd_local(self, args) -> None:
+    def cmd_local(self, args, unknown_args=None) -> None:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
             if args.local_command == "build-docker-img":
                 self.local_commands.build_docker_img(args)
+            elif args.local_command == "build-app-backend-img":
+                self.local_commands.build_app_backend_img()
+            elif args.local_command == "load-policies":
+                self.local_commands.load_policies(unknown_args or [])
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -521,6 +525,10 @@ Examples:
 
         # Local subcommands
         local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
+        local_subparsers.add_parser("build-app-backend-img", help="Build local development app_backend Docker image")
+
+        # Add load-policies command
+        local_subparsers.add_parser("load-policies", help="Load W&B artifacts as policies into stats database")
 
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)
@@ -528,7 +536,11 @@ Examples:
         # Use parse_known_args to handle unknown arguments for test commands
         args, unknown_args = parser.parse_known_args()
 
-        if args.command not in ["test", "test-changed", "tool"]:
+        # Allow unknown args for certain commands
+        if args.command == "local" and hasattr(args, "local_command") and args.local_command == "load-policies":
+            # load-policies handles its own args
+            pass
+        elif args.command not in ["test", "test-changed", "tool"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -574,7 +586,7 @@ Examples:
         elif args.command == "shell":
             self.cmd_shell()
         elif args.command == "local":
-            self.cmd_local(args)
+            self.cmd_local(args, unknown_args)
         else:
             parser.print_help()
 
