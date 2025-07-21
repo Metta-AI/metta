@@ -175,6 +175,13 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     color: int = Field(default=0, ge=0, le=255)
 
 
+class PyTerminationConfig(BaseModelWithForbidExtra):
+    """Python termination configuration."""
+
+    num_altars: bool = Field(default=False)
+    max_reward: Optional[int] = Field(default=None)
+
+
 class PyGameConfig(BaseModelWithForbidExtra):
     """Python game configuration."""
 
@@ -193,6 +200,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    termination: PyTerminationConfig = Field(default_factory=PyTerminationConfig)
 
 
 class PyPolicyGameConfig(PyGameConfig):
