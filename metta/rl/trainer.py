@@ -14,8 +14,6 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
-from rich.console import Console
-from rich.table import Table
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -151,7 +149,7 @@ class MettaTrainer:
                 auto_start=True,  # Start monitoring immediately
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
-            self._curriculum_stats_provider = curriculum_stats_provider
+            self._tasks_completed = 0
 
         self._tasks_completed = 0
         self._curriculum = CurriculumClient.create(self.trainer_cfg)
@@ -877,6 +875,13 @@ class MettaTrainer:
         with self.timer("_process_stats.get_curriculum_stats"):
             curriculum_stats = self._curriculum_stats_provider.stats()
         stats_timings["curriculum"] = self.timer.get_last_elapsed("_process_stats.get_curriculum_stats")
+        # Initialize stats timing dict if not exists
+        if not hasattr(self, 'stats_timing'):
+            self.stats_timing = {}
+
+        # Get curriculum stats
+        with self.timer("_process_stats.curriculum_stats"):
+            curriculum_stats = self._curriculum.stats()
 
         # Process training stats using shared function
         with self.timer("_process_stats.process_training_stats"):
@@ -888,26 +893,24 @@ class MettaTrainer:
                 trainer_config=self.trainer_cfg,
                 kickstarter=self.kickstarter,
             )
-        stats_timings["process_training"] = self.timer.get_last_elapsed("_process_stats.process_training_stats")
 
         # Update self.stats with mean values for consistency
         self.stats = processed_stats["mean_stats"]
 
         # Compute weight stats if on interval
         weight_stats = {}
-        with self.timer("_process_stats.compute_weight_stats"):
-            if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
+        with self.timer("_process_stats.weight_stats"):
+            interval = self.cfg.agent.analyze_weights_interval
+            if interval != 0 and self.epoch % interval == 0:
                 for metrics in self.policy.compute_weight_metrics():
                     name = metrics.get("name", "unknown")
                     for key, value in metrics.items():
                         if key != "name":
                             weight_stats[f"weights/{key}/{name}"] = value
-        stats_timings["weight_stats"] = self.timer.get_last_elapsed("_process_stats.compute_weight_stats")
 
         # Compute timing stats using shared function
         with self.timer("_process_stats.compute_timing_stats"):
             timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
-        stats_timings["timing_stats"] = self.timer.get_last_elapsed("_process_stats.compute_timing_stats")
 
         # Build parameters dictionary
         with self.timer("_process_stats.build_parameters"):
@@ -925,8 +928,9 @@ class MettaTrainer:
                     if k in self.stats:
                         processed_stats["overview"][v] = self.stats[k]
 
-            curriculum_stats = self._curriculum_stats_provider.stats()
-        stats_timings["build_params"] = self.timer.get_last_elapsed("_process_stats.build_parameters")
+        # Get curriculum stats again (as in original code)
+        with self.timer("_process_stats.curriculum_stats_2"):
+            curriculum_stats = self._curriculum.stats()
 
         # Build complete stats dictionary for wandb
         with self.timer("_process_stats.build_wandb_stats"):
@@ -944,8 +948,8 @@ class MettaTrainer:
                 agent_step=self.agent_step,
                 epoch=self.epoch,
             )
-        stats_timings["build_wandb"] = self.timer.get_last_elapsed("_process_stats.build_wandb_stats")
 
+        # Log to wandb
         with self.timer("_process_stats.wandb_log"):
             self.wandb_run.log(
                 all_stats,
@@ -955,10 +959,18 @@ class MettaTrainer:
                 # count of steps that contribute to training the saved policies is consistent.
                 step=self.agent_step,
             )
-        stats_timings["wandb_log"] = self.timer.get_last_elapsed("_process_stats.wandb_log")
 
-        # Store stats timings for display in _log_status
-        self._last_stats_timings = stats_timings
+        # Store timing breakdown for display
+        self.stats_timing = {
+            'curriculum_stats': self.timer.get_last_elapsed("_process_stats.curriculum_stats"),
+            'process_training': self.timer.get_last_elapsed("_process_stats.process_training_stats"),
+            'weight_stats': self.timer.get_last_elapsed("_process_stats.weight_stats"),
+            'timing_stats': self.timer.get_last_elapsed("_process_stats.compute_timing_stats"),
+            'build_params': self.timer.get_last_elapsed("_process_stats.build_parameters"),
+            'curriculum_stats_2': self.timer.get_last_elapsed("_process_stats.curriculum_stats_2"),
+            'build_wandb': self.timer.get_last_elapsed("_process_stats.build_wandb_stats"),
+            'wandb_log': self.timer.get_last_elapsed("_process_stats.wandb_log"),
+        }
 
         self.stats.clear()
         self.grad_stats.clear()
@@ -1177,7 +1189,7 @@ class MettaTrainer:
         rollout_pct = (rollout_time / total_time) * 100
         stats_pct = (stats_time / total_time) * 100
 
-        curriculum_stats = self._curriculum_stats_provider.stats()
+        curriculum_stats = self._curriculum.stats()
         tasks_completed = curriculum_stats.get("tasks_completed", 0)
         tasks_per_sec = (tasks_completed - self._tasks_completed) / total_time
         self._tasks_completed = tasks_completed
@@ -1234,20 +1246,3 @@ class MettaTrainer:
     def _on_train_step(self):
         pass
 
-
-class AbortingTrainer(MettaTrainer):
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(*args, **kwargs)
-
-    def _on_train_step(self):
-        if self.wandb_run is None:
-            return
-
-        if "abort" not in wandb.Api().run(self.wandb_run.path).tags:
-            return
-
-        logger.info("Abort tag detected. Stopping the run.")
-        self.trainer_cfg.total_timesteps = int(self.agent_step)
-        self.wandb_run.config.update(
-            {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
-        )
