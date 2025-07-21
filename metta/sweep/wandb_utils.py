@@ -110,12 +110,12 @@ def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
         return None
 
 
-def generate_run_id_for_sweep(sweep_id: str, sweep_runs_dir: str) -> str:
+def generate_run_id_for_sweep(sweep_id: str, sweep_names_dir: str) -> str:
     api = wandb.Api()
     sweep = api.sweep(sweep_id)
 
     used_ids = set()
-    used_names = set(run.name for run in sweep.runs).union(set(os.listdir(sweep_runs_dir)))
+    used_names = set(run.name for run in sweep.runs).union(set(os.listdir(sweep_names_dir)))
     for name in used_names:
         # Skip None names
         if name is None:
