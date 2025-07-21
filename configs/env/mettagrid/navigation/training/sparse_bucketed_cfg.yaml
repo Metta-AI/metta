@@ -36,5 +36,5 @@ game:
             type: metta.map.scenes.random.Random
             params:
               objects:
-                altar: ${num_altars}
+                altar: ???
               agents: 1
