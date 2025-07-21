@@ -49,10 +49,7 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
-from metta.rl.training_state import (
-    PolicyTracker,
-    StatsTracker,
-)
+from metta.rl.training_state import StatsTracker
 from metta.rl.util.advantage import compute_advantage
 from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
@@ -419,12 +416,16 @@ if is_master:
 
 # Initialize specialized state containers
 stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
-policy_tracker = PolicyTracker(initial_policy_record=policy_record, latest_saved_policy_record=policy_record)
 eval_scores = EvalRewardSummary()  # Initialize eval_scores
+
+# Track policy records individually
+latest_saved_policy_record = policy_record
+initial_policy_uri = policy_record.uri if policy_record else None
+initial_generation = policy_record.metadata.get("generation", 0) if policy_record else 0
 
 # Training loop
 logger.info(f"Starting training on {device}")
-current_policy_generation = policy_record.metadata.get("generation", 0) + 1 if policy_record else 0
+current_policy_generation = initial_generation + 1 if policy_record else 0
 
 # After environment is initialized but before training loop
 if is_master and wandb_run:
@@ -687,6 +688,13 @@ while agent_step < trainer_config.total_timesteps:
     if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
         # Save policy with metadata (master only)
         if is_master:
+            # Create temporary initial_policy_record for save_policy_with_metadata
+            temp_initial_policy_record = None
+            if initial_policy_uri:
+                temp_initial_policy_record = type(
+                    "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
+                )()
+
             saved_record = save_policy_with_metadata(
                 policy=agent,
                 policy_store=policy_store,
@@ -694,13 +702,13 @@ while agent_step < trainer_config.total_timesteps:
                 agent_step=agent_step,
                 evals=eval_scores,
                 timer=timer,
-                initial_policy_record=policy_tracker.initial_policy_record,
+                initial_policy_record=temp_initial_policy_record,
                 run_name=dirs.run_name,
                 is_master=is_master,
             )
 
             if saved_record:
-                policy_tracker.latest_saved_policy_record = saved_record
+                latest_saved_policy_record = saved_record
 
                 # Clean up old policies periodically
                 if epoch % 10 == 0:
@@ -712,9 +720,7 @@ while agent_step < trainer_config.total_timesteps:
             if kickstarter.enabled and kickstarter.teacher_uri is not None:
                 extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
 
-            latest_uri = (
-                policy_tracker.latest_saved_policy_record.uri if policy_tracker.latest_saved_policy_record else None
-            )
+            latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
             checkpoint = TrainerCheckpoint(
                 agent_step=agent_step,
                 epoch=epoch,
@@ -734,11 +740,11 @@ while agent_step < trainer_config.total_timesteps:
     if (
         is_master
         and wandb_run
-        and policy_tracker.latest_saved_policy_record
+        and latest_saved_policy_record
         and should_run(epoch, trainer_config.checkpoint.wandb_checkpoint_interval, True)
     ):
         try:
-            policy_store.add_to_wandb_run(wandb_run.id, policy_tracker.latest_saved_policy_record)
+            policy_store.add_to_wandb_run(wandb_run.id, latest_saved_policy_record)
             logger.info(f"Uploaded policy to wandb at epoch {epoch}")
         except Exception as e:
             logger.warning(f"Failed to upload policy to wandb: {e}")
@@ -754,7 +760,7 @@ while agent_step < trainer_config.total_timesteps:
         is_master
         and trainer_config.simulation.evaluate_interval > 0
         and epoch % trainer_config.simulation.evaluate_interval == 0
-        and policy_tracker.latest_saved_policy_record
+        and latest_saved_policy_record
     ):
         logger.info(f"Evaluating policy at epoch {epoch}")
 
@@ -780,7 +786,7 @@ while agent_step < trainer_config.total_timesteps:
         # Run evaluation suite
         sim_suite = SimulationSuite(
             config=extended_eval_config,
-            policy_pr=policy_tracker.latest_saved_policy_record,
+            policy_pr=latest_saved_policy_record,
             policy_store=policy_store,
             device=device,
             vectorization="serial",
@@ -802,7 +808,7 @@ while agent_step < trainer_config.total_timesteps:
 
         for category in categories:
             score = stats_db.get_average_metric_by_filter(
-                "reward", policy_tracker.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
+                "reward", latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
             )
             logger.info(f"{category} score: {score}")
             record_heartbeat()
@@ -811,7 +817,7 @@ while agent_step < trainer_config.total_timesteps:
 
         # Get detailed per-simulation scores
         per_sim_scores: dict[tuple[str, str], float] = {}
-        all_scores = stats_db.simulation_scores(policy_tracker.latest_saved_policy_record, "reward")
+        all_scores = stats_db.simulation_scores(latest_saved_policy_record, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
@@ -824,21 +830,21 @@ while agent_step < trainer_config.total_timesteps:
 
         # Set policy metadata score for sweep_eval.py
         category_score_values = list(category_scores.values())
-        if category_score_values and policy_tracker.latest_saved_policy_record:
-            policy_tracker.latest_saved_policy_record.metadata["score"] = float(np.mean(category_score_values))
-            logger.info(f"Set policy metadata score to {policy_tracker.latest_saved_policy_record.metadata['score']}")
+        if category_score_values and latest_saved_policy_record:
+            latest_saved_policy_record.metadata["score"] = float(np.mean(category_score_values))
+            logger.info(f"Set policy metadata score to {latest_saved_policy_record.metadata['score']}")
 
         stats_db.close()
 
         # Replay generation (master only)
-        if is_master and policy_tracker.latest_saved_policy_record:
+        if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
 
             # Generate replay using curriculum already in environment
             curr_obj = getattr(metta_grid_env, "_curriculum", None)
             if curr_obj is not None:
                 generate_replay(
-                    policy_record=policy_tracker.latest_saved_policy_record,
+                    policy_record=latest_saved_policy_record,
                     policy_store=policy_store,
                     curriculum=curr_obj,
                     epoch=epoch,
@@ -866,6 +872,13 @@ if is_master:
 # Save final checkpoint
 # Save policy with metadata (master only)
 if is_master:
+    # Create temporary initial_policy_record for save_policy_with_metadata
+    temp_initial_policy_record = None
+    if initial_policy_uri:
+        temp_initial_policy_record = type(
+            "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
+        )()
+
     saved_record = save_policy_with_metadata(
         policy=agent,
         policy_store=policy_store,
@@ -873,13 +886,13 @@ if is_master:
         agent_step=agent_step,
         evals=eval_scores,
         timer=timer,
-        initial_policy_record=policy_tracker.initial_policy_record,
+        initial_policy_record=temp_initial_policy_record,
         run_name=dirs.run_name,
         is_master=is_master,
     )
 
     if saved_record:
-        policy_tracker.latest_saved_policy_record = saved_record
+        latest_saved_policy_record = saved_record
 
 # Save training state (master only)
 if is_master:
@@ -887,7 +900,7 @@ if is_master:
     if kickstarter.enabled and kickstarter.teacher_uri is not None:
         extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
 
-    latest_uri = policy_tracker.latest_saved_policy_record.uri if policy_tracker.latest_saved_policy_record else None
+    latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
     checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,

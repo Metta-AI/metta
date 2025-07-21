@@ -2,11 +2,11 @@
 
 ## Overview
 
-We have refactored the monolithic `TrainerState` class into specialized, single-responsibility state containers. This improves code clarity, maintainability, and makes the functional training approach cleaner.
+We have refactored the monolithic `TrainerState` class into a single specialized state container and individual values. This improves code clarity, maintainability, and makes the functional training approach cleaner.
 
 ## Changes Made
 
-### 1. Replaced `TrainerState` with Specialized Containers
+### 1. Replaced `TrainerState` with Specialized Container and Individual Values
 
 **Before:**
 ```python
@@ -25,7 +25,7 @@ class TrainerState:
     stats_run_id: Optional[Any] = None
 ```
 
-**After:** Two focused state containers in `metta/rl/training_state.py` and individual values:
+**After:** One focused state container in `metta/rl/training_state.py` and individual values:
 
 ```python
 @dataclass
@@ -37,16 +37,13 @@ class StatsTracker:
     stats_epoch_id: Optional[Any]
     stats_run_id: Optional[Any]
 
-@dataclass
-class PolicyTracker:
-    """Manages policy records throughout training."""
-    initial_policy_record: Optional[Any]
-    latest_saved_policy_record: Optional[Any]
-
 # Plus individual values passed as parameters:
 # - agent_step: int
 # - epoch: int
 # - eval_scores: EvalRewardSummary
+# - latest_saved_policy_record: Optional[Any]
+# - initial_policy_uri: Optional[str]
+# - initial_generation: int
 ```
 
 ### 2. Updated Function Signatures
@@ -69,10 +66,12 @@ def _maybe_save_policy(
 def _maybe_save_policy(
     policy: Any,
     policy_store: Any,
-    policy_tracker: PolicyTracker,  # Only what's needed
-    agent_step: int,               # Individual value
-    epoch: int,                    # Individual value
-    evals: Any,                    # Individual value
+    latest_saved_policy_record: Optional[Any],  # Individual value
+    initial_policy_uri: Optional[str],         # Individual value
+    initial_generation: int,                    # Individual value
+    agent_step: int,                           # Individual value
+    epoch: int,                                # Individual value
+    evals: Any,                                # Individual value
     timer: Any,
     ...
 )
@@ -80,16 +79,16 @@ def _maybe_save_policy(
 
 ### 3. Benefits
 
-1. **Single Responsibility**: Each container has a clear, focused purpose
+1. **Single Responsibility**: StatsTracker has a clear, focused purpose for statistics
 2. **Explicit Dependencies**: Functions declare exactly what state they need
 3. **Easier Testing**: Can test functions with minimal state setup
-4. **Better Type Safety**: Specific types instead of generic dictionaries
-5. **Cleaner APIs**: Methods on state containers encapsulate common operations
-6. **Simplicity**: Simple values like `agent_step` and `epoch` are passed directly
+4. **Better Type Safety**: Specific types instead of generic containers
+5. **Cleaner APIs**: Complex related state (stats) in dedicated class, simple values passed directly
+6. **Maximum Simplicity**: No unnecessary wrapper objects for simple values
 
 ### 4. Consistent Application
 
-Both `trainer.py` and `run.py` now use the same specialized state containers and pass simple values directly, ensuring consistency across the functional training approach.
+Both `trainer.py` and `run.py` now use the same approach with `StatsTracker` for complex state and individual values for simple state, ensuring consistency across the functional training approach.
 
 ## Next Steps
 
@@ -97,8 +96,8 @@ This refactoring opens up opportunities for further improvements:
 
 1. **TrainerConfig Modularization**: While `TrainerConfig` is already well-structured with sub-configs, we could potentially break it down further if needed.
 
-2. **State Persistence**: The specialized containers make it easier to selectively save/restore training state.
+2. **State Persistence**: The focused approach makes it easier to selectively save/restore training state.
 
 3. **Distributed State Management**: Clear separation makes it easier to manage which state needs to be synchronized across ranks.
 
-4. **Testing**: The focused containers and individual parameters enable more granular unit testing of training components.
+4. **Testing**: Individual parameters enable more granular unit testing of training components.

@@ -1,4 +1,4 @@
-"""Specialized state containers for functional training approach."""
+"""Specialized state container for functional training approach."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
@@ -30,19 +30,3 @@ class StatsTracker:
     def update_epoch_tracking(self, new_epoch_start: int) -> None:
         """Update epoch tracking after creating a new stats epoch."""
         self.stats_epoch_start = new_epoch_start
-
-
-@dataclass
-class PolicyTracker:
-    """Manages policy records throughout training."""
-
-    initial_policy_record: Optional[Any] = None
-    latest_saved_policy_record: Optional[Any] = None
-
-    def update_latest(self, policy_record: Any) -> None:
-        """Update the latest saved policy record."""
-        self.latest_saved_policy_record = policy_record
-
-    def has_saved_policy(self) -> bool:
-        """Check if we have a saved policy."""
-        return self.latest_saved_policy_record is not None
