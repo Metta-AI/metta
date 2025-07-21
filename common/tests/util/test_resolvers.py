@@ -4,7 +4,7 @@ Tests for the resolver module
 
 import datetime
 import re
-from typing import Any, Dict, Union, cast
+from typing import Dict, Union, cast
 from unittest.mock import Mock
 
 import numpy as np
@@ -344,7 +344,7 @@ class TestAdvancedResolvers:
 
 class TestScaledRange:
     """Tests for the oc_scaled_range function
-    
+
     Note: This function is no longer registered as the 'sampling' resolver,
     but the function and tests are kept for potential future use.
     """

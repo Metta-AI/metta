@@ -158,7 +158,7 @@ def oc_scaled_range(lower_limit: Numeric, upper_limit: Numeric, center: Numeric,
     """
     Generates a value centered around a specified point based on a "sampling" parameter that controls how
     widely the distribution spreads between the limiting values.
-    
+
     NOTE: This function is no longer registered as the 'sampling' resolver. The sampling mechanism
     has been deprecated in favor of explicit configuration values. This function is kept for
     backward compatibility and potential future use.

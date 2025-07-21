@@ -115,7 +115,7 @@ def test_sampling_curriculum(monkeypatch, env_cfg):
     t1 = curr.get_task()
     t2 = curr.get_task()
 
-    assert t1.id() == "sample(0)"
+    assert t1.id() == "deterministic"
     assert t1.env_cfg().game.map.width == 10
     assert t1.id() == t2.id()
     assert t1 is not t2
