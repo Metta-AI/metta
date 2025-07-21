@@ -65,8 +65,12 @@ class Optimizer:
         self.optimizer.load_state_dict(state_dict)
 
 
-class HyperparameterScheduler:
-    """Simple wrapper for HyperparameterScheduler that handles configuration."""
+class SimpleHyperparameterScheduler:
+    """Simple wrapper for HyperparameterScheduler that handles configuration.
+
+    This wrapper provides a cleaner API for the HyperparameterScheduler by accepting
+    simple parameters instead of requiring a full DictConfig.
+    """
 
     def __init__(
         self,

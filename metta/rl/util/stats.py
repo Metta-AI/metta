@@ -149,8 +149,6 @@ def compute_timing_stats(
     epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
     steps_per_second = timer.get_rate(agent_step) if wall_time > 0 else 0
 
-    # No scaling needed - agent_step already tracks global steps
-
     timing_stats = {
         **{
             f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0

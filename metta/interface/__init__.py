@@ -23,6 +23,9 @@ from metta.interface.training import (
     load_checkpoint,
     save_checkpoint,
 )
+from metta.interface.training import (
+    SimpleHyperparameterScheduler as HyperparameterScheduler,
+)
 
 __all__ = [
     # Agent
@@ -40,6 +43,7 @@ __all__ = [
     "generate_replay_simple",
     # Training
     "Optimizer",
+    "HyperparameterScheduler",
     "save_checkpoint",
     "load_checkpoint",
 ]
