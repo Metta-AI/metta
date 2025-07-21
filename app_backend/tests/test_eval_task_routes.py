@@ -1,9 +1,18 @@
 import uuid
-from typing import Dict
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
+from metta.app_backend.eval_task_client import EvalTaskClient
 from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.routes.eval_task_routes import (
+    TaskClaimRequest,
+    TaskCreateRequest,
+    TaskStatusUpdate,
+    TaskUpdateRequest,
+)
 from metta.app_backend.stats_client import StatsClient
 
 
@@ -11,7 +20,23 @@ class TestEvalTaskRoutes:
     """End-to-end tests for eval task routes."""
 
     @pytest.fixture
-    def test_policy_id(self, stats_client: StatsClient) -> str:
+    def eval_task_client(self, test_client: TestClient, test_app: FastAPI) -> EvalTaskClient:
+        """Create an eval task client for testing."""
+        token_response = test_client.post(
+            "/tokens",
+            json={"name": "eval_test_token", "permissions": ["read", "write"]},
+            headers={"X-Auth-Request-Email": "test_user@example.com"},
+        )
+        assert token_response.status_code == 200
+        token = token_response.json()["token"]
+        client = EvalTaskClient.__new__(EvalTaskClient)
+        client._http_client = AsyncClient(transport=ASGITransport(app=test_app), base_url=test_client.base_url)
+        client._machine_token = token
+
+        return client
+
+    @pytest.fixture
+    def test_policy_id(self, stats_client: StatsClient) -> uuid.UUID:
         """Create a test policy and return its ID."""
         # Create training run, epoch, and policy
         training_run = stats_client.create_training_run(
@@ -31,434 +56,336 @@ class TestEvalTaskRoutes:
             epoch_id=epoch.id,
         )
 
-        return str(policy.id)
+        return policy.id
 
-    def test_create_eval_task(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+    @pytest.mark.asyncio
+    async def test_create_eval_task(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test creating an eval task."""
-        response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "abc123def456",
-                "env_overrides": {"key": "value"},
-                "sim_suite": "navigation",
-            },
-            headers=test_user_headers,
+        request = TaskCreateRequest(
+            policy_id=test_policy_id,
+            git_hash="abc123def456",
+            env_overrides={"key": "value"},
+            sim_suite="navigation",
         )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["policy_id"] == test_policy_id
-        assert data["sim_suite"] == "navigation"
-        assert data["status"] == "unprocessed"
-        assert data["assigned_at"] is None
-        assert data["assignee"] is None
-        assert data["attributes"]["git_hash"] == "abc123def456"
-        assert data["attributes"]["env_overrides"] == {"key": "value"}
+        response = await eval_task_client.create_task(request)
 
-    def test_get_available_tasks(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+        assert response.policy_id == test_policy_id
+        assert response.sim_suite == "navigation"
+        assert response.status == "unprocessed"
+        assert response.assigned_at is None
+        assert response.assignee is None
+        assert response.attributes["git_hash"] == "abc123def456"
+        assert response.attributes["env_overrides"] == {"key": "value"}
+
+    @pytest.mark.asyncio
+    async def test_get_available_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test getting available tasks."""
-        # Create some tasks
         task_ids = []
         for i in range(3):
-            response = test_client.post(
-                "/tasks",
-                json={
-                    "policy_id": test_policy_id,
-                    "git_hash": f"hash_{i}",
-                    "sim_suite": f"suite_{i}",
-                },
-                headers=test_user_headers,
+            request = TaskCreateRequest(
+                policy_id=test_policy_id,
+                git_hash=f"hash_{i}",
+                sim_suite=f"suite_{i}",
             )
-            assert response.status_code == 200
-            task_ids.append(response.json()["id"])
+            response = await eval_task_client.create_task(request)
+            task_ids.append(response.id)
 
-        # Get available tasks
-        response = test_client.get("/tasks/available?limit=10", headers=test_user_headers)
-        assert response.status_code == 200
+        response = await eval_task_client.get_available_tasks(limit=10)
 
-        tasks = response.json()["tasks"]
-        # Should include at least the 3 we just created
-        assert len(tasks) >= 3
-
-        # Check that our tasks are in the results
-        returned_ids = [task["id"] for task in tasks]
+        assert len(response.tasks) >= 3
+        returned_ids = [task.id for task in response.tasks]
         for task_id in task_ids:
             assert task_id in returned_ids
 
-    def test_claim_and_update_tasks(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+    @pytest.mark.asyncio
+    async def test_claim_and_update_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test the complete workflow of claiming and updating tasks."""
-        # Create tasks
-        create_response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "workflow_test_hash",
-                "sim_suite": "all",
-            },
-            headers=test_user_headers,
+        # Create task
+        create_request = TaskCreateRequest(
+            policy_id=test_policy_id,
+            git_hash="workflow_test_hash",
+            sim_suite="all",
         )
-        assert create_response.status_code == 200
-        task_id = create_response.json()["id"]
+        task_response = await eval_task_client.create_task(create_request)
+        task_id = task_response.id
 
-        # Claim the task
-        claim_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": [task_id],
-                "assignee": "worker_1",
-            },
-            headers=test_user_headers,
+        # Claim task
+        claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_1"))
+        assert task_id in claim_response.claimed
+
+        # Verify claimed
+        claimed_response = await eval_task_client.get_claimed_tasks(assignee="worker_1")
+        assert any(task.id == task_id for task in claimed_response.tasks)
+
+        # Update to done
+        update_response = await eval_task_client.update_task_status(
+            TaskUpdateRequest(
+                require_assignee="worker_1",
+                updates={task_id: TaskStatusUpdate(status="done")},
+            )
         )
-        assert claim_response.status_code == 200
-        claimed_ids = claim_response.json()
-        assert task_id in claimed_ids
+        assert update_response.statuses[task_id] == "done"
 
-        # Get claimed tasks for the assignee
-        claimed_response = test_client.get(
-            "/tasks/claimed?assignee=worker_1",
-            headers=test_user_headers,
-        )
-        assert claimed_response.status_code == 200
-        claimed_tasks = claimed_response.json()["tasks"]
-        assert len(claimed_tasks) >= 1
-        assert any(task["id"] == task_id for task in claimed_tasks)
+        # Verify no longer available
+        available_response = await eval_task_client.get_available_tasks()
+        assert task_id not in [task.id for task in available_response.tasks]
 
-        # Update task status to done
-        update_response = test_client.post(
-            "/tasks/claimed/update",
-            json={
-                "assignee": "worker_1",
-                "statuses": {task_id: {"status": "done"}},
-            },
-            headers=test_user_headers,
-        )
-        assert update_response.status_code == 200
-        updated = update_response.json()
-        assert updated[task_id] == "done"
-
-        # Verify the task is no longer available
-        available_response = test_client.get("/tasks/available", headers=test_user_headers)
-        assert available_response.status_code == 200
-        available_tasks = available_response.json()["tasks"]
-        available_ids = [task["id"] for task in available_tasks]
-        assert task_id not in available_ids
-
-    def test_task_assignment_expiry(
-        self, test_client, test_user_headers: Dict[str, str], test_policy_id: str, stats_repo: MettaRepo
+    @pytest.mark.asyncio
+    async def test_get_claimed_tasks_without_assignee(
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
     ):
+        """Test getting all claimed tasks without specifying an assignee."""
+        task_ids_by_worker = {}
+        workers = ["worker_alpha", "worker_beta", "worker_gamma"]
+
+        # Create and claim tasks for each worker
+        for worker in workers:
+            task_ids = []
+            for i in range(2):
+                task_response = await eval_task_client.create_task(
+                    TaskCreateRequest(
+                        policy_id=test_policy_id,
+                        git_hash=f"test_all_claimed_{worker}_{i}",
+                        sim_suite="navigation",
+                    )
+                )
+                task_ids.append(task_response.id)
+
+            claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=task_ids, assignee=worker))
+            assert len(claim_response.claimed) == 2
+            task_ids_by_worker[worker] = task_ids
+
+        # Test getting all claimed tasks
+        all_claimed_response = await eval_task_client.get_claimed_tasks()
+        all_claimed_ids = [task.id for task in all_claimed_response.tasks]
+        assert len(all_claimed_response.tasks) >= 6
+
+        for task_ids in task_ids_by_worker.values():
+            for task_id in task_ids:
+                assert task_id in all_claimed_ids
+
+        # Test with specific assignee
+        specific_response = await eval_task_client.get_claimed_tasks(assignee="worker_beta")
+        specific_ids = [task.id for task in specific_response.tasks]
+
+        assert all(tid in specific_ids for tid in task_ids_by_worker["worker_beta"])
+        assert all(tid not in specific_ids for tid in task_ids_by_worker["worker_alpha"])
+        assert all(tid not in specific_ids for tid in task_ids_by_worker["worker_gamma"])
+
+    @pytest.mark.asyncio
+    async def test_task_assignment_expiry(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test that assigned tasks become available again after expiry."""
-        # Create a task
-        create_response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "expiry_test",
-                "sim_suite": "navigation",
-            },
-            headers=test_user_headers,
+        task_response = await eval_task_client.create_task(
+            TaskCreateRequest(
+                policy_id=test_policy_id,
+                git_hash="expiry_test",
+                sim_suite="navigation",
+            )
         )
-        assert create_response.status_code == 200
-        task_id = create_response.json()["id"]
+        task_id = task_response.id
 
-        # Claim it
-        claim_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": [task_id],
-                "assignee": "worker_timeout",
-            },
-            headers=test_user_headers,
+        # Claim task
+        claim_response = await eval_task_client.claim_tasks(
+            TaskClaimRequest(tasks=[task_id], assignee="worker_timeout")
         )
-        assert claim_response.status_code == 200
-        assert task_id in claim_response.json()
+        assert task_id in claim_response.claimed
 
-        # Verify it's not available immediately
-        available_response = test_client.get("/tasks/available", headers=test_user_headers)
-        available_ids = [task["id"] for task in available_response.json()["tasks"]]
-        assert task_id not in available_ids
+        # Verify not available
+        available_response = await eval_task_client.get_available_tasks()
+        assert task_id not in [task.id for task in available_response.tasks]
 
-        # TODO: In a real test, we would need to mock time or update the database directly
-        # to simulate assignment expiry. For now, we'll just verify the claimed task shows up
-        # in the claimed tasks list
-        claimed_response = test_client.get(
-            "/tasks/claimed?assignee=worker_timeout",
-            headers=test_user_headers,
-        )
-        assert claimed_response.status_code == 200
-        claimed_tasks = claimed_response.json()["tasks"]
-        assert any(task["id"] == task_id for task in claimed_tasks)
+        # Verify claimed
+        claimed_response = await eval_task_client.get_claimed_tasks(assignee="worker_timeout")
+        assert any(task.id == task_id for task in claimed_response.tasks)
 
-    def test_multiple_workers_claiming_same_task(
-        self, test_client, test_user_headers: Dict[str, str], test_policy_id: str
+    @pytest.mark.asyncio
+    async def test_multiple_workers_claiming_same_task(
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
     ):
         """Test that only one worker can claim a task."""
-        # Create a task
-        create_response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "concurrent_test",
-                "sim_suite": "memory",
-            },
-            headers=test_user_headers,
+        task_response = await eval_task_client.create_task(
+            TaskCreateRequest(
+                policy_id=test_policy_id,
+                git_hash="concurrent_test",
+                sim_suite="memory",
+            )
         )
-        assert create_response.status_code == 200
-        task_id = create_response.json()["id"]
+        task_id = task_response.id
 
-        # First worker claims it
-        claim1_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": [task_id],
-                "assignee": "worker_a",
-            },
-            headers=test_user_headers,
-        )
-        assert claim1_response.status_code == 200
-        assert task_id in claim1_response.json()
+        # First worker claims
+        claim1_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_a"))
+        assert task_id in claim1_response.claimed
 
-        # Second worker tries to claim it
-        claim2_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": [task_id],
-                "assignee": "worker_b",
-            },
-            headers=test_user_headers,
-        )
-        assert claim2_response.status_code == 200
-        # Should return empty list since task is already claimed
-        assert task_id not in claim2_response.json()
+        # Second worker fails
+        claim2_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_b"))
+        assert task_id not in claim2_response.claimed
 
     @pytest.mark.asyncio
     async def test_record_episode_with_eval_task(
         self,
         stats_client: StatsClient,
-        test_policy_id: str,
-        test_client,
-        test_user_headers: Dict[str, str],
+        test_policy_id: uuid.UUID,
+        eval_task_client: EvalTaskClient,
         stats_repo: MettaRepo,
     ):
         """Test recording an episode linked to an eval task."""
-        # Create an eval task
-        create_response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "episode_test",
-                "sim_suite": "all",
-            },
-            headers=test_user_headers,
+        task_response = await eval_task_client.create_task(
+            TaskCreateRequest(
+                policy_id=test_policy_id,
+                git_hash="episode_test",
+                sim_suite="all",
+            )
         )
-        assert create_response.status_code == 200
-        eval_task_id = create_response.json()["id"]
+        eval_task_id = task_response.id
 
-        # Record an episode with the eval_task_id
-        policy_uuid = uuid.UUID(test_policy_id)
-        eval_task_uuid = uuid.UUID(eval_task_id)
         episode = stats_client.record_episode(
-            agent_policies={0: policy_uuid},
+            agent_policies={0: test_policy_id},
             agent_metrics={0: {"score": 100.0, "steps": 50}},
-            primary_policy_id=policy_uuid,
+            primary_policy_id=test_policy_id,
             eval_name="navigation/simple",
             simulation_suite="navigation",
             replay_url="https://example.com/replay",
             attributes={"test": "true"},
-            eval_task_id=eval_task_uuid,
+            eval_task_id=eval_task_id,
         )
 
-        assert episode.id is not None
-
-        # Verify the eval_task_id was set in the episodes table
+        # Verify stored correctly
         async with stats_repo.connect() as con:
             result = await con.execute(
                 "SELECT eval_task_id FROM episodes WHERE id = %s",
                 (episode.id,),
             )
-            episode_row = await result.fetchone()
-            assert episode_row is not None
-            assert episode_row[0] == eval_task_uuid
+            row = await result.fetchone()
+            assert row[0] == eval_task_id
 
-    def test_invalid_status_update(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+    @pytest.mark.asyncio
+    async def test_invalid_status_update(
+        self,
+        eval_task_client: EvalTaskClient,
+        test_policy_id: uuid.UUID,
+        test_client,
+        test_user_headers: dict[str, str],
+    ):
         """Test that invalid status updates are rejected."""
-        # Create and claim a task
-        create_response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "invalid_status_test",
-                "sim_suite": "arena",
-            },
-            headers=test_user_headers,
+        task_response = await eval_task_client.create_task(
+            TaskCreateRequest(
+                policy_id=test_policy_id,
+                git_hash="invalid_status_test",
+                sim_suite="arena",
+            )
         )
-        assert create_response.status_code == 200
-        task_id = create_response.json()["id"]
+        task_id = task_response.id
 
-        claim_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": [task_id],
-                "assignee": "worker_invalid",
-            },
-            headers=test_user_headers,
+        claim_response = await eval_task_client.claim_tasks(
+            TaskClaimRequest(tasks=[task_id], assignee="worker_invalid")
         )
-        assert claim_response.status_code == 200
+        assert task_id in claim_response.claimed
 
-        # Try to update with invalid status
+        # Try invalid status update
         update_response = test_client.post(
             "/tasks/claimed/update",
             json={
                 "assignee": "worker_invalid",
-                "statuses": {task_id: {"status": "invalid_status"}},
+                "updates": {str(task_id): {"status": "invalid_status"}},
             },
             headers=test_user_headers,
         )
-        assert update_response.status_code == 422  # Pydantic validation error
-        # The error detail is in the validation errors format
+        assert update_response.status_code == 422
 
-    def test_update_task_with_error_reason(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+    @pytest.mark.asyncio
+    async def test_update_task_with_error_reason(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test updating task status to error with an error reason."""
-        # Create and claim a task
-        create_response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "error_reason_test",
-                "sim_suite": "navigation",
-            },
-            headers=test_user_headers,
+        task_response = await eval_task_client.create_task(
+            TaskCreateRequest(
+                policy_id=test_policy_id,
+                git_hash="error_reason_test",
+                sim_suite="navigation",
+            )
         )
-        assert create_response.status_code == 200
-        task_id = create_response.json()["id"]
+        task_id = task_response.id
 
-        claim_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": [task_id],
-                "assignee": "worker_error",
-            },
-            headers=test_user_headers,
-        )
-        assert claim_response.status_code == 200
+        claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_error"))
+        assert task_id in claim_response.claimed
 
-        # Update task to error status with error reason
+        # Update with error reason
         error_reason = "Failed to checkout git hash: fatal: reference is not a tree"
-        update_response = test_client.post(
-            "/tasks/claimed/update",
-            json={
-                "assignee": "worker_error",
-                "statuses": {task_id: {"status": "error", "details": {"error_reason": error_reason}}},
-            },
-            headers=test_user_headers,
+        update_response = await eval_task_client.update_task_status(
+            TaskUpdateRequest(
+                require_assignee="worker_error",
+                updates={task_id: TaskStatusUpdate(status="error", attributes={"error_reason": error_reason})},
+            )
         )
-        assert update_response.status_code == 200
-        assert update_response.json()[task_id] == "error"
+        assert update_response.statuses[task_id] == "error"
 
-        # Verify task is no longer available (error tasks are not re-queued)
-        available_response = test_client.get("/tasks/available", headers=test_user_headers)
-        available_ids = [task["id"] for task in available_response.json()["tasks"]]
-        assert task_id not in available_ids
+        # Verify not re-queued
+        available_response = await eval_task_client.get_available_tasks()
+        assert task_id not in [task.id for task in available_response.tasks]
 
-    def test_update_task_mixed_formats(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+    @pytest.mark.asyncio
+    async def test_update_task_mixed_formats(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test updating multiple tasks with mixed string and object formats."""
-        # Create and claim multiple tasks
+        # Create and claim tasks
         task_ids = []
         for i in range(3):
-            create_response = test_client.post(
-                "/tasks",
-                json={
-                    "policy_id": test_policy_id,
-                    "git_hash": f"mixed_test_{i}",
-                    "sim_suite": "all",
-                },
-                headers=test_user_headers,
+            task_response = await eval_task_client.create_task(
+                TaskCreateRequest(
+                    policy_id=test_policy_id,
+                    git_hash=f"mixed_test_{i}",
+                    sim_suite="all",
+                )
             )
-            assert create_response.status_code == 200
-            task_ids.append(create_response.json()["id"])
+            task_ids.append(task_response.id)
 
-        # Claim all tasks
-        claim_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": task_ids,
-                "assignee": "worker_mixed",
-            },
-            headers=test_user_headers,
-        )
-        assert claim_response.status_code == 200
-        assert len(claim_response.json()) == 3
+        claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=task_ids, assignee="worker_mixed"))
+        assert len(claim_response.claimed) == 3
 
-        # Update with mixed formats
-        update_response = test_client.post(
-            "/tasks/claimed/update",
-            json={
-                "assignee": "worker_mixed",
-                "statuses": {
-                    task_ids[0]: {"status": "done"},  # Object format
-                    task_ids[1]: {  # Object format with error details
-                        "status": "error",
-                        "details": {"error_reason": "Simulation failed: OOM"},
-                    },
-                    task_ids[2]: {  # Object format without details
-                        "status": "canceled",
-                    },
+        # Update with different formats
+        update_response = await eval_task_client.update_task_status(
+            TaskUpdateRequest(
+                require_assignee="worker_mixed",
+                updates={
+                    task_ids[0]: TaskStatusUpdate(status="done"),
+                    task_ids[1]: TaskStatusUpdate(
+                        status="error",
+                        attributes={"error_reason": "Simulation failed: OOM"},
+                    ),
+                    task_ids[2]: TaskStatusUpdate(status="canceled"),
                 },
-            },
-            headers=test_user_headers,
+            )
         )
-        assert update_response.status_code == 200
-        result = update_response.json()
-        assert result[task_ids[0]] == "done"
-        assert result[task_ids[1]] == "error"
-        assert result[task_ids[2]] == "canceled"
+        assert update_response.statuses[task_ids[0]] == "done"
+        assert update_response.statuses[task_ids[1]] == "error"
+        assert update_response.statuses[task_ids[2]] == "canceled"
 
     @pytest.mark.asyncio
     async def test_error_reason_stored_in_db(
-        self, test_client, test_user_headers: Dict[str, str], test_policy_id: str, stats_repo: MettaRepo
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_repo: MettaRepo
     ):
         """Test that error_reason is properly stored in the database attributes."""
-        # Create and claim a task
-        create_response = test_client.post(
-            "/tasks",
-            json={
-                "policy_id": test_policy_id,
-                "git_hash": "db_error_test",
-                "sim_suite": "navigation",
-            },
-            headers=test_user_headers,
+        task_response = await eval_task_client.create_task(
+            TaskCreateRequest(
+                policy_id=test_policy_id,
+                git_hash="db_error_test",
+                sim_suite="navigation",
+            )
         )
-        assert create_response.status_code == 200
-        task_id = create_response.json()["id"]
+        task_id = task_response.id
 
-        claim_response = test_client.post(
-            "/tasks/claim",
-            json={
-                "eval_task_ids": [task_id],
-                "assignee": "worker_db_test",
-            },
-            headers=test_user_headers,
-        )
-        assert claim_response.status_code == 200
+        await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_db_test"))
 
-        # Update with error and reason
+        # Update with error
         error_reason = "Database connection timeout after 30 seconds"
-        update_response = test_client.post(
-            "/tasks/claimed/update",
-            json={
-                "assignee": "worker_db_test",
-                "statuses": {task_id: {"status": "error", "details": {"error_reason": error_reason}}},
-            },
-            headers=test_user_headers,
+        await eval_task_client.update_task_status(
+            TaskUpdateRequest(
+                require_assignee="worker_db_test",
+                updates={task_id: TaskStatusUpdate(status="error", attributes={"error_reason": error_reason})},
+            )
         )
-        assert update_response.status_code == 200
 
+        # Verify in DB
         async with stats_repo.connect() as con:
-            result = await con.execute("SELECT status, attributes FROM eval_tasks WHERE id = %s", (uuid.UUID(task_id),))
+            result = await con.execute("SELECT status, attributes FROM eval_tasks WHERE id = %s", (task_id,))
             row = await result.fetchone()
-            assert row is not None
-            assert row[0] == "error"  # status
-            attributes = row[1]
-            assert attributes is not None
-            assert "error_reason" in attributes
-            assert attributes["error_reason"] == error_reason
+            assert row[0] == "error"
+            assert row[1]["error_reason"] == error_reason

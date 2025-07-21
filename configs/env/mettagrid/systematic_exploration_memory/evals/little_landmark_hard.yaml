@@ -6,4 +6,3 @@ game:
   max_steps: 100
   map_builder:
     uri: "configs/env/mettagrid/maps/systematic_exploration_memory/little_landmark_hard.map"
-
