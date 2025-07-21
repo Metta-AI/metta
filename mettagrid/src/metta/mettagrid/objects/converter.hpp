@@ -139,9 +139,9 @@ public:
         color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
+        stats(),
         input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset),
-        stats() {
+        output_recipe_offset(cfg.output_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types
