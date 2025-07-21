@@ -50,14 +50,14 @@ class SpindlySpiderTerrain(Room):
         border_width: int = 0,
         border_object: str = "wall",
         #
-        num_spiders: int = 6,
-        body_size: int = 7,
-        legs_per_spider: int = 9,
-        leg_length: int = 27,
+        num_spiders: int | Tuple[int, int] = 6,
+        body_size: Tuple[int, int] = (4, 10),
+        legs_per_spider: Tuple[int, int] = (6, 12),
+        leg_length: Tuple[int, int] = (15, 40),
         branch_prob: float = 0.15,  # probability to branch each step
         turn_prob: float = 0.25,  # probability to turn 90°
         gap: int = 1,
-        hearts_per_spider: int = 1,  # altars per spider
+        hearts_per_spider: Tuple[int, int] = (1, 2),  # altars per spider
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["spindly_spiders"])
         self.set_size_labels(width, height)
@@ -70,14 +70,14 @@ class SpindlySpiderTerrain(Room):
         self.occ = np.zeros((height, width), dtype=bool)
 
         # Parameters
-        self.num_spiders = int(num_spiders)
-        self.body_size = int(body_size)
-        self.legs_per_spider = int(legs_per_spider)
-        self.leg_length = int(leg_length)
+        self.num_spiders = num_spiders
+        self.body_lo, self.body_hi = int(body_size[0]), int(body_size[1])
+        self.legs_lo, self.legs_hi = int(legs_per_spider[0]), int(legs_per_spider[1])
+        self.len_lo, self.len_hi = int(leg_length[0]), int(leg_length[1])
         self.branch_prob = float(branch_prob)
         self.turn_prob = float(turn_prob)
         self.gap = max(0, int(gap))
-        self.hearts_per_spider = int(hearts_per_spider)
+        self.alt_lo, self.alt_hi = int(hearts_per_spider[0]), int(hearts_per_spider[1])
 
     # ────────────────────────────────────────────────────────────────── #
     # Build                                                               #
@@ -97,8 +97,8 @@ class SpindlySpiderTerrain(Room):
         tries = 0
         while len(bodies) < self.num_spiders and tries < 5000:
             tries += 1
-            h = self.body_size
-            w = self.body_size
+            h = int(self.rng.integers(self.body_lo, self.body_hi + 1))
+            w = int(self.rng.integers(self.body_lo, self.body_hi + 1))
             r0 = int(self.rng.integers(1 + self.gap, self.H - h - 1 - self.gap))
             c0 = int(self.rng.integers(1 + self.gap, self.W - w - 1 - self.gap))
             if self.occ[r0 - self.gap : r0 + h + self.gap, c0 - self.gap : c0 + w + self.gap].any():
@@ -109,7 +109,7 @@ class SpindlySpiderTerrain(Room):
 
         # 2 ─ grow spindly legs
         for r0, c0, h, w in bodies:
-            n_legs = self.legs_per_spider
+            n_legs = int(self.rng.integers(self.legs_lo, self.legs_hi + 1))
             for _ in range(n_legs):
                 # choose starting point and initial direction
                 if self.rng.random() < 0.5:  # top/bottom
@@ -121,7 +121,7 @@ class SpindlySpiderTerrain(Room):
                     c = c0 if self.rng.random() < 0.5 else c0 + w - 1
                     dr, dc = (0, -1) if c == c0 else (0, 1)
 
-                goal_len = self.leg_length
+                goal_len = int(self.rng.integers(self.len_lo, self.len_hi + 1))
                 self._grow_leg(grid, r, c, dr, dc, goal_len, depth=0)
 
         # 3 ─ place altars hugging bodies
@@ -135,7 +135,7 @@ class SpindlySpiderTerrain(Room):
                         if not self.occ[rr, cc]:
                             candidates.append((rr, cc))
         self.rng.shuffle(candidates)
-        total_altars = self.hearts_per_spider * len(bodies)
+        total_altars = sum(int(self.rng.integers(self.alt_lo, self.alt_hi + 1)) for _ in bodies)
         for rr, cc in candidates[:total_altars]:
             grid[rr, cc] = "altar"
             self.occ[rr, cc] = True

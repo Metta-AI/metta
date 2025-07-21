@@ -171,15 +171,16 @@ class SnakingLabyrinthTerrain(Room):
             empty[r, c] = False
 
         # agents
-        empties = np.flatnonzero(empty)
-        for _ in range(self._agents):
+        remaining = self._agents
+        while remaining:
+            empties = np.flatnonzero(empty)
             if not len(empties):
                 break
             idx = self._rng.integers(len(empties))
             r, c = np.unravel_index(empties[idx], empty.shape)
             grid[r, c] = "agent.agent"
             empty[r, c] = False
-            empties = np.flatnonzero(empty)
+            remaining -= 1
 
         # extra objects
         for name, cnt in self._objects.items():
