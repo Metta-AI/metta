@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """Tests for specific curriculum algorithm implementations.
 
-This file contains the unique scenario tests from mettagrid/tests/test_curriculum.py
-reorganized for better clarity.
+This file contains basic tests for each curriculum algorithm type.
+Scenario-based tests are in separate files for better organization.
 """
 
-import random
-from typing import Any, Dict
-from unittest.mock import patch
 
-import numpy as np
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
@@ -21,44 +17,11 @@ from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum, SamplingCurriculum
 
-
-@pytest.fixture(autouse=True)
-def set_random_seeds():
-    """Set all random seeds for deterministic test behavior."""
-    random.seed(42)
-    np.random.seed(42)
-    yield
-    # Reset after test
-    random.seed()
-    np.random.seed()
-
-
-@pytest.fixture
-def env_cfg():
-    return OmegaConf.create({
-        "sampling": 0,
-        "game": {
-            "num_agents": 1,
-            "map": {"width": 10, "height": 10}
-        }
-    })
-
-
-def fake_curriculum_from_config_path(path, env_overrides=None):
-    """Mock curriculum loading function."""
-    base_config = OmegaConf.create({
-        "game": {
-            "num_agents": 5,
-            "map": {"width": 10, "height": 10}
-        }
-    })
-    task_cfg = OmegaConf.merge(base_config, env_overrides or {})
-    assert isinstance(task_cfg, DictConfig)
-    return SingleTaskCurriculum(path, task_cfg=task_cfg)
+from .conftest import fake_curriculum_from_config_path
 
 
 class TestCurriculumAlgorithms:
-    """Test specific curriculum algorithm implementations."""
+    """Test basic functionality of curriculum algorithms."""
 
     def test_single_task_curriculum(self, env_cfg):
         """Test SingleTaskCurriculum basic functionality."""
@@ -74,19 +37,24 @@ class TestCurriculumAlgorithms:
 
     def test_random_curriculum(self, monkeypatch, env_cfg):
         """Test RandomCurriculum task selection."""
-        monkeypatch.setattr(random, "choices", lambda population, weights: ["b"])
         monkeypatch.setattr(
             "metta.mettagrid.curriculum.random.curriculum_from_config_path",
             fake_curriculum_from_config_path
         )
 
         curr = RandomCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
-        task = curr.get_task()
-        assert task.id() == "b"
-        assert task.name() == "b:b"
+        
+        # Test that both tasks can be selected
+        task_ids = set()
+        for _ in range(20):
+            task = curr.get_task()
+            task_ids.add(task.id())
+        
+        # With equal weights, both tasks should be selected at least once in 20 tries
+        assert len(task_ids) == 2, f"Should sample both tasks with equal weights, got {task_ids}"
 
-    def test_prioritize_regressed_curriculum(self, monkeypatch, env_cfg):
-        """Test PrioritizeRegressedCurriculum weight updates."""
+    def test_prioritize_regressed_curriculum_basic(self, monkeypatch, env_cfg):
+        """Test PrioritizeRegressedCurriculum basic weight updates."""
         monkeypatch.setattr(
             "metta.mettagrid.curriculum.random.curriculum_from_config_path",
             fake_curriculum_from_config_path
@@ -131,8 +99,8 @@ class TestCurriculumAlgorithms:
         assert t1.id() == t2.id()
         assert t1 is not t2
 
-    def test_progressive_curriculum(self, monkeypatch, env_cfg):
-        """Test ProgressiveCurriculum advancement."""
+    def test_progressive_curriculum_basic(self, monkeypatch, env_cfg):
+        """Test ProgressiveCurriculum basic progression."""
         monkeypatch.setattr(
             "metta.mettagrid.curriculum.sampling.config_from_path",
             lambda path, env_overrides=None: env_cfg
@@ -142,6 +110,7 @@ class TestCurriculumAlgorithms:
         t1 = curr.get_task()
         assert t1.env_cfg().game.map.width == 10
 
+        # Complete with high score to trigger progression
         curr.complete_task(t1.id(), 0.6)
         t2 = curr.get_task()
         assert t2.env_cfg().game.map.width == 20

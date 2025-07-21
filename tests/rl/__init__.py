@@ -1,1 +1,1 @@
-# Tests for metta.rl module
+# This file makes the tests/rl directory a Python package

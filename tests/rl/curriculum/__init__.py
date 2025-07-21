@@ -1,0 +1,1 @@
+# This file makes the tests/rl/curriculum directory a Python package

@@ -4,7 +4,6 @@
 import queue
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,7 +24,7 @@ class TestBasicServerClient:
     def test_basic_communication(self, free_port):
         """Test basic server-client functionality."""
         curriculum = MockCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -58,7 +57,7 @@ class TestBasicServerClient:
     def test_batch_prefetching(self, free_port):
         """Test that client properly prefetches batches."""
         curriculum = MockCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -109,7 +108,7 @@ class TestBasicServerClient:
     def test_client_returns_empty_stats(self, free_port):
         """Test that curriculum client returns empty stats."""
         curriculum = MockCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -144,7 +143,7 @@ class TestConcurrentAccess:
     def test_multiple_clients_sequential(self, free_port):
         """Test multiple clients connecting to the same server."""
         curriculum = StatefulCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -179,7 +178,7 @@ class TestConcurrentAccess:
     def test_concurrent_clients_threaded(self, free_port):
         """Test multiple clients accessing server concurrently via threads."""
         curriculum = StatefulCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -220,7 +219,7 @@ class TestConcurrentAccess:
             assert len(results) == 50  # 5 clients * 10 tasks each
 
             # Verify all tasks are valid
-            for client_id, task_name in results:
+            for _client_id, task_name in results:
                 assert "task_" in task_name
 
         finally:
@@ -233,7 +232,7 @@ class TestServerLifecycle:
     def test_server_restart(self, free_port):
         """Test that server can be restarted on the same port."""
         curriculum = MockCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -264,7 +263,7 @@ class TestServerLifecycle:
             client.get_task()
 
         # Restart server on same port
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -284,7 +283,7 @@ class TestServerLifecycle:
     def test_server_shutdown(self, free_port):
         """Test clean server shutdown."""
         curriculum = MockCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -341,7 +340,7 @@ class TestComplexCurriculums:
                 env_overrides=None
             )
 
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -399,7 +398,7 @@ class TestComplexCurriculums:
 
             curriculum = RandomCurriculum(tasks, None)
 
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 
@@ -449,7 +448,7 @@ class TestEmptyBatchHandling:
                 return Task(f"task_{self.call_count}", self, OmegaConf.create({"game": {"num_agents": 1}}))
 
         curriculum = EmptyCurriculum()
-        server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
+        server = CurriculumServer(curriculum, port=free_port)
         server.start(background=True)
         time.sleep(0.5)
 

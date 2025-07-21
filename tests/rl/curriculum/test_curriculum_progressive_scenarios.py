@@ -7,13 +7,10 @@ Tests for Progressive curriculum behavior under controlled conditions:
 3. Random signal -> should still progress with right parameters
 """
 
-import random
 
 import numpy as np
 import pytest
-from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.curriculum.progressive import ProgressiveMultiTaskCurriculum
 
 from .conftest import (

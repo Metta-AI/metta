@@ -6,12 +6,19 @@ This directory contains tests for the curriculum learning system in Metta. The t
 
 ### Core Tests
 
-- **`conftest.py`** - Shared fixtures and mock curriculum classes used across tests:
+- **`conftest.py`** - Shared fixtures, mock classes, and test utilities:
   - `MockCurriculum` - Simple mock for basic functionality testing
   - `StatefulCurriculum` - Mock with comprehensive state tracking and stats
+  - Score generators (MonotonicLinearScores, ZeroScores, RandomScores, etc.)
+  - Test utilities (run_curriculum_simulation, create_mock_curricula, etc.)
   - `free_port` fixture - Provides available ports for server testing
 
-- **`test_curriculum_core.py`** - Tests for the core curriculum interface
+- **`test_curriculum_core.py`** - Tests for the core curriculum interface:
+  - Basic curriculum operations (get_task, complete_task)
+  - Stats methods functionality
+  - Task configuration variation
+  - Learning adaptation based on performance
+  - Task interface validation
 
 - **`test_curriculum_algorithms.py`** - Tests for specific curriculum algorithm implementations:
   - SingleTaskCurriculum
@@ -23,44 +30,54 @@ This directory contains tests for the curriculum learning system in Metta. The t
   - MultiTaskCurriculum
   - SampledTaskCurriculum
 
+### Scenario Tests
+
+- **`test_curriculum_progressive_scenarios.py`** - Progressive curriculum behavior scenarios:
+  - Monotonic linear signal progression
+  - Zero signal behavior (should stay on first task)
+  - Random signal progression patterns
+
+- **`test_curriculum_learning_progress_scenarios.py`** - Learning progress curriculum scenarios:
+  - Conditional linear scores testing
+  - Threshold-dependent task progression
+
+- **`test_curriculum_prioritize_regressed_scenarios.py`** - Prioritize regressed curriculum scenarios:
+  - Task weight adjustment based on performance regression
+  - Independent linear progression for multiple tasks
+
+### Server/Client Tests
+
+- **`test_server_client.py`** - Consolidated server/client tests:
+  - Basic communication tests
+  - Batch prefetching
+  - Error handling
+  - Client returns empty stats
+  - Concurrent client access (sequential and threaded)
+  - Server lifecycle management (restart, shutdown)
+  - Complex curriculum integration (BucketedCurriculum, RandomCurriculum)
+  - Empty batch handling scenarios
+
 ### Integration Tests
 
-- **`test_curriculum_trainer_integration.py`** - Consolidated trainer integration tests:
+- **`test_trainer_integration.py`** - Comprehensive trainer integration tests:
   - Trainer expected methods validation
-  - Stats collection and processing
+  - Stats collection and processing with curriculum
   - Training simulation with learning progress
-  - Server/client communication
-  - Batch exhaustion testing
-  - Concurrent client access
+  - Server/client workflow from trainer perspective
+  - Batch exhaustion and prefetching behavior
 
 ### Validation Tests
 
 - **`test_validate_all_curriculums.py`** - Validates all curriculum configurations can be instantiated
 
-## Test Consolidation Summary
+## Test Organization Summary
 
-The following duplicate tests were removed during consolidation:
-
-1. **Removed Files:**
-   - `test_curriculum_server.py` - Tests moved to trainer integration
-   - `test_curriculum_server_client.py` - Tests moved to trainer integration
-   - `test_trainer_curriculum_stats.py` - Tests moved to trainer integration
-   - `test_curriculum_integration.py` - Tests consolidated
-   - `test_curriculum_server_integration.py` - Tests consolidated
-   - `test_trainer_curriculum_integration.py` - Tests consolidated
-
-2. **Consolidated Duplicate Tests:**
-   - Basic server-client communication (appeared in 3 files)
-   - Concurrent client access (appeared in 4 files)
-   - Stats collection (appeared in 3 files)
-   - Error handling (appeared in 2 files)
-   - Server lifecycle tests (appeared in 2 files)
-
-3. **Key Improvements:**
-   - Created shared mock classes in conftest.py
-   - Grouped related tests into logical test classes
-   - Removed redundant test implementations
-   - Improved test documentation and naming
+The reorganization successfully:
+1. Consolidated duplicate tests across multiple files
+2. Created a comprehensive conftest.py with all shared utilities
+3. Organized tests by functionality (core, algorithms, scenarios, integration)
+4. Improved test naming and documentation
+5. Maintained clear separation between unit and integration tests
 
 ## Running Tests
 
@@ -74,20 +91,15 @@ Run specific test categories:
 # Algorithm tests
 pytest tests/rl/curriculum/test_curriculum_algorithms.py -v
 
+# Server/Client tests
+pytest tests/rl/curriculum/test_server_client.py -v
+
 # Trainer integration tests
-pytest tests/rl/curriculum/test_curriculum_trainer_integration.py -v
+pytest tests/rl/curriculum/test_trainer_integration.py -v
 
 # Core curriculum tests
 pytest tests/rl/curriculum/test_curriculum_core.py -v
+
+# Scenario tests
+pytest tests/rl/curriculum/test_curriculum_*_scenarios.py -v
 ```
-
-## Test Coverage
-
-The consolidated tests cover:
-- Core curriculum interface and task management
-- All curriculum algorithm implementations
-- Server/client communication patterns
-- Stats collection and reporting
-- Trainer integration points
-- Error handling and edge cases
-- Configuration validation

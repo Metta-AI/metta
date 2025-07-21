@@ -4,11 +4,10 @@ import random
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Set
 
-import numpy as np
 import pytest
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum, Task
+from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
 
 
 class MockCurriculum(Curriculum):
@@ -103,11 +102,7 @@ class StatefulCurriculum(Curriculum):
         }
 
 
-# ============================================================================
-# Score Generators for Controlled Testing
-# ============================================================================
-
-
+# Score generators for testing curriculum behavior
 class ScoreGenerator(ABC):
     """Abstract interface for generating controlled scores for curriculum testing."""
 
@@ -131,7 +126,7 @@ class MonotonicLinearScores(ScoreGenerator):
     def get_score(self, task_id: str) -> float:
         count = self.task_counts.get(task_id, 0)
         self.task_counts[task_id] = count + 1
-        return min(1.0, count * self.increment)
+        return min(1.0, count * self.increment)  # Cap at 1.0
 
     def reset(self) -> None:
         self.task_counts = {}
@@ -215,9 +210,19 @@ class ThresholdDependentScores(ScoreGenerator):
         self.primary_score = 0.0
 
 
-# ============================================================================
-# Test Utilities
-# ============================================================================
+class IndependentLinearScores(ScoreGenerator):
+    """Each task has its own counter for linear progression."""
+
+    def __init__(self, increment: float = 0.1):
+        self.increment = increment
+        self.task_counters = {}
+
+    def get_score(self, task_id: str) -> float:
+        if task_id not in self.task_counters:
+            self.task_counters[task_id] = 0
+        score = self.task_counters[task_id] * self.increment
+        self.task_counters[task_id] += 1
+        return min(score, 1.0)  # Cap at 1.0
 
 
 def run_curriculum_simulation(
@@ -242,7 +247,8 @@ def run_curriculum_simulation(
         score = score_generator.get_score(task_id)
         score_history.append(score)
 
-        # For complete_task, extract the base task ID
+        # For complete_task, we need the original task ID without curriculum prefix
+        # Extract the base task ID (e.g., "task_1:task_1" -> "task_1")
         complete_id = task_id.split(":")[0] if ":" in task_id else task_id
         curriculum.complete_task(complete_id, score)
 
@@ -285,13 +291,12 @@ def run_curriculum_simulation(
 
 def create_mock_curricula(task_names: List[str]) -> Dict[str, float]:
     """Create task weights dictionary for testing."""
+    # Equal initial weights for all tasks
     return {task_name: 1.0 for task_name in task_names}
 
 
 def fake_curriculum_from_config_path(path, env_overrides=None):
-    """Mock curriculum loading function."""
-    from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-    
+    """Mock curriculum loading function for tests."""
     base_config = OmegaConf.create({
         "game": {
             "num_agents": 5,
@@ -299,7 +304,7 @@ def fake_curriculum_from_config_path(path, env_overrides=None):
         }
     })
     task_cfg = OmegaConf.merge(base_config, env_overrides or {})
-    assert isinstance(task_cfg, OmegaConf)
+    assert isinstance(task_cfg, DictConfig)
     return SingleTaskCurriculum(path, task_cfg=task_cfg)
 
 
@@ -319,11 +324,11 @@ def free_port():
 def set_random_seeds():
     """Set all random seeds for deterministic test behavior."""
     random.seed(42)
-    np.random.seed(42)
+    # np.random.seed(42) # This line was removed as per the new_code, as np is no longer imported.
     yield
     # Reset after test
     random.seed()
-    np.random.seed()
+    # np.random.seed() # This line was removed as per the new_code, as np is no longer imported.
 
 
 @pytest.fixture
