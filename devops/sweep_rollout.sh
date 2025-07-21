@@ -18,9 +18,10 @@ hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
 
 source ./devops/setup.env # TODO: Check this is the right sourcing.
 
-# Parse distributed config path
+# Parse distributed config path with unique hash per process
 DIST_ID=${DIST_ID:-localhost}
-DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_name/dist_$DIST_ID.yaml"
+PROCESS_HASH=$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])")
+DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_name/dist_${DIST_ID}_${PROCESS_HASH}.yaml"
 
 echo "[INFO] Starting sweep rollout: $sweep_name"
 
