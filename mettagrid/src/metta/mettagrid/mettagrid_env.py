@@ -110,8 +110,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """Check if episode should terminate based on total reward threshold."""
         # Get termination threshold from config (None means no termination)
         num_altars = True  # HACK FOR NOW
+
         if num_altars:
             termination_reward = self._task.env_cfg().game.get("map_builder.room.objects.altar", None)
+            print(f"Termination reward: {termination_reward}")
 
         if termination_reward is None:
             return False
@@ -119,7 +121,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Calculate total episode reward across all agents
         total_episode_reward = self._c_env.get_episode_rewards().sum()
 
-        print(f"Total episode reward: {total_episode_reward}, termination reward: {termination_reward}")
+        # logger.info(f"Total episode reward: {total_episode_reward}, termination reward: {termination_reward}")
 
         # Check if total reward has reached the threshold
         return total_episode_reward >= termination_reward
