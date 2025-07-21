@@ -170,7 +170,6 @@ class TerrainFromNumpy(Room):
 
         for obj_name, count in self._objects.items():
             # count = count - np.where(level == obj_name, 1, 0).sum()
-            print(f"Placing {obj_name} {count} times")
             # if count < 0:
             #     continue
             # Sample from remaining valid positions
