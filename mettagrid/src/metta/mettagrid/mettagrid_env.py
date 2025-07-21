@@ -241,6 +241,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         infos = {}
+        if self._check_reward_termination():
+            logger.info("Reward-based termination triggered")
+            self.terminals.fill(True)
         if self.terminals.all() or self.truncations.all():
             # TODO: re-enable diversity bonus
             # if self._task.env_cfg().game.diversity_bonus.enabled:
@@ -257,16 +260,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
             # Add curriculum task probabilities to infos for distributed logging
             infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
-        else:
-            # Check for reward-based termination
-            if self._check_reward_termination():
-                logger.info("Reward-based termination triggered")
-                # Set all terminals to True to end the episode
-                self.terminals.fill(True)
-                self.process_episode_stats(infos)
-                self._should_reset = True
-                self._task.complete(self._c_env.get_episode_rewards().mean())
-                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
