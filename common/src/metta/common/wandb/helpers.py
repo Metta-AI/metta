@@ -12,11 +12,6 @@ from omegaconf import OmegaConf
 logger = logging.getLogger(__name__)
 
 
-# -------------------------------------------------------------------------------------------------
-# Abort tag check (throttled)
-# -------------------------------------------------------------------------------------------------
-
-
 def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec: int = 60) -> bool:
     """Return True if the WandB run has an "abort" tag.
 
@@ -47,11 +42,6 @@ def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec:
         state["cached_result"] = False
 
     return state["cached_result"]
-
-
-# -------------------------------------------------------------------------------------------------
-# Environment-config upload helper
-# -------------------------------------------------------------------------------------------------
 
 
 def upload_env_configs(curriculum: Any, wandb_run: wandb.sdk.wandb_run.Run | None) -> None:
