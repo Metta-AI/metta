@@ -890,6 +890,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     float,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, RewardType>&,
+                    const std::map<InventoryItem, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     float,

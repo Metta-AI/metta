@@ -20,7 +20,7 @@ struct AgentConfig : public GridObjectConfig {
               float action_failure_penalty,
               const std::map<InventoryItem, InventoryQuantity>& resource_limits,
               const std::map<InventoryItem, RewardType>& resource_rewards,
-
+              const std::map<InventoryItem, RewardType>& resource_reward_max,
               const std::map<std::string, RewardType>& stat_rewards,
               const std::map<std::string, RewardType>& stat_reward_max,
               float group_reward_pct,

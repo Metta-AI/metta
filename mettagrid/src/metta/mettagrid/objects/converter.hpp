@@ -139,8 +139,6 @@ public:
         color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
-        converting(false),
-        cooling_down(false),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
         stats() {
