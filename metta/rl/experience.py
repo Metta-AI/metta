@@ -59,6 +59,7 @@ class Experience:
             )
 
         self.buffer: TensorDict = experience_spec.expand(self.segments, self.bptt_horizon).clone()
+        self.buffer = self.buffer.to(self.device)
         if self.cpu_offload:
             # Offload obs to CPU after creation to save GPU memory
             if "obs" in self.buffer.keys():
