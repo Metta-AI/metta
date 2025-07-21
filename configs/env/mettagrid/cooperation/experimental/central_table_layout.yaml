@@ -5,10 +5,8 @@ defaults:
   - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
-sampling: 1
-
 game:
-  max_steps: ${sampling:100,500,250} # Reduce and randomize the episode length
+  max_steps: 250  # Fixed value (was 250  # Fixed value (was ${sampling:100,500,250}))
   num_agents: 8
 
   agent:
@@ -29,57 +27,57 @@ game:
 
     rooms:
       - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
-        width: ${sampling:5,10,5}
-        height: ${sampling:5,10,5}
-        num_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        height: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        num_generators: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_altars: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_mines: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
         agents:
           team_1: 2
         border_width: 3
       - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
-        width: ${sampling:5,10,5}
-        height: ${sampling:5,10,5}
-        num_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        height: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        num_generators: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_altars: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_mines: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
         agents:
           team_2: 2
         border_width: 3
       - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
-        width: ${sampling:5,10,5}
-        height: ${sampling:5,10,5}
-        num_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        height: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        num_generators: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_altars: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_mines: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
         agents:
           team_3: 2
         border_width: 3
       - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
-        width: ${sampling:5,10,5}
-        height: ${sampling:5,10,5}
-        num_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        height: 5  # Fixed value (was 5  # Fixed value (was ${sampling:5,10,5}))
+        num_generators: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_altars: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
+        num_mines: 2  # Fixed value (was 2  # Fixed value (was ${sampling:1,4,2}))
         agents:
           team_4: 2
         border_width: 3
 
   objects:
     altar:
-      cooldown: ${sampling:10,25,15}
+      cooldown: 15  # Fixed value (was 15  # Fixed value (was ${sampling:10,25,15}))
       input_resources:
         battery_red: 1
       max_output: 100
-      conversion_ticks: ${sampling:10,25,15}
+      conversion_ticks: 15  # Fixed value (was 15  # Fixed value (was ${sampling:10,25,15}))
       initial_resource_count: 0
     generator_red:
-      cooldown: ${sampling:10,25,15}
+      cooldown: 15  # Fixed value (was 15  # Fixed value (was ${sampling:10,25,15}))
       max_output: 100
-      conversion_ticks: ${sampling:10,25,15}
+      conversion_ticks: 15  # Fixed value (was 15  # Fixed value (was ${sampling:10,25,15}))
       initial_resource_count: 0
     mine_red:
-      cooldown: ${sampling:10,25,15}
+      cooldown: 15  # Fixed value (was 15  # Fixed value (was ${sampling:10,25,15}))
       max_output: 100
       conversion_ticks: 1
       initial_resource_count: 1

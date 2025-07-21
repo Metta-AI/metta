@@ -1,7 +1,5 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
-sampling: 0
-
 game:
   num_observation_tokens: 100
 

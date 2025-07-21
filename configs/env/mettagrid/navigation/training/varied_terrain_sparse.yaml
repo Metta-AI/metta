@@ -12,4 +12,4 @@ game:
     room:
       dir: ${choose:varied_terrain/sparse_large,varied_terrain/sparse_medium,varied_terrain/sparse_small}
       objects:
-        altar: 3  # Fixed value (was ${sampling:1, 5, 3})
+        altar: 3  # Fixed value (was ${1, 5, 3})

@@ -82,7 +82,6 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
     TYPE_BLOCK = 14
 
     return {
-        "sampling": 1,  # Enable sampling for navigation
         "game": {
             "max_steps": 1000,
             "num_agents": num_agents,

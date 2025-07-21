@@ -6,9 +6,9 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.multi_agent.boxshare.BoxShare
     border_width: 0
-    width: ${sampling:40,60,45}
-    height: ${sampling:40,60,45}
+    width: 45  # Fixed value (was 45  # Fixed value (was ${sampling:40,60,45}))
+    height: 45  # Fixed value (was 45  # Fixed value (was ${sampling:40,60,45}))
     objects:
-      altar: ${sampling:7,14,10}
-      mine_red: ${sampling:7,14,10}
-      generator_red: ${sampling:8,16,12}
+      altar: 10  # Fixed value (was 10  # Fixed value (was ${sampling:7,14,10}))
+      mine_red: 10  # Fixed value (was 10  # Fixed value (was ${sampling:7,14,10}))
+      generator_red: 12  # Fixed value (was 12  # Fixed value (was ${sampling:8,16,12}))

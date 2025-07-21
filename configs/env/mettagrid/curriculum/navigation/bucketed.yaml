@@ -28,4 +28,3 @@ buckets:
     bins: 4
 
 env_overrides:
-  sampling: 0

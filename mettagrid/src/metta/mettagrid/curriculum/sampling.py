@@ -20,16 +20,13 @@ class SamplingCurriculum(Curriculum):
     def get_task(self) -> Task:
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
         OmegaConf.resolve(cfg)
-        # Sampling parameter has been deprecated - use deterministic name
-        sampling_value = self._cfg_template.get("sampling", 0)
-        return Task(f"sample({sampling_value})", self, cfg)
+        # Use deterministic task name
+        return Task("deterministic", self, cfg)
 
     def get_task_probs(self) -> dict[str, float]:
         """Return the current task probability for logging purposes."""
-        # Sampling parameter has been deprecated - use deterministic name
-        sampling_value = self._cfg_template.get("sampling", 0)
-        task_name = f"sample({sampling_value})"
-        return {task_name: 1.0}
+        # Use deterministic task name
+        return {"deterministic": 1.0}
 
 
 class SampledTaskCurriculum(Curriculum):
