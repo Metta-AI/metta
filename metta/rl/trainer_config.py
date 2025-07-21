@@ -161,6 +161,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Verbose logging for debugging and monitoring
     verbose: bool = True
 
+    # Automatic precision
+    use_amp: bool = False
+
     # Batch configuration
     # Batch size: Type 2 default chosen from sweep
     batch_size: int = Field(default=524288, gt=0)

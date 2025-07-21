@@ -140,7 +140,11 @@ class MettaTrainer:
         self._batch_size = trainer_cfg.batch_size
         self._minibatch_size = trainer_cfg.minibatch_size
 
-        self.use_amp = str(self.device).startswith("cuda")
+        self.use_amp = trainer_cfg.use_amp
+
+        if self.use_amp and not str(self.device).startswith("cuda"):
+            raise ValueError("AMP requires a CUDA device, but device is not CUDA.")
+
         if self.use_amp:
             self.scaler = torch.amp.GradScaler("cuda")
         else:
