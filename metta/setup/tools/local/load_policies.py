@@ -1,4 +1,3 @@
-import argparse
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -234,68 +233,3 @@ def print_runs_with_artifacts(runs: List[RunInfo], run_name: Optional[str] = Non
             print("  No artifacts")
 
         print("-" * 80)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Scan W&B for recent successful runs and their artifacts")
-    parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
-    parser.add_argument("--project", help="W&B project name (default: 'metta')")
-    parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
-    parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
-    parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
-    parser.add_argument(
-        "--post-policies", action="store_true", help="Post model artifacts as policies to stats database"
-    )
-    parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
-    parser.add_argument("--debug", action="store_true", help="Show debug information")
-
-    args = parser.parse_args()
-
-    # Validate that stats-db-uri is provided when post-policies is used
-    if args.post_policies and not args.stats_db_uri:
-        parser.error("--stats-db-uri is required when using --post-policies")
-
-    # Get entity from args or W&B default
-    api = wandb.Api()
-    if args.entity:
-        entity = args.entity
-    else:
-        entity = api.default_entity
-        if not entity:
-            print("Error: No W&B entity found. Please login with 'wandb login'")
-            return 1
-
-    # Use provided project or default to 'metta'
-    if args.project:
-        project = args.project
-    else:
-        project = "metta"  # Default project for metta-research entity
-
-    print(f"Using entity: {entity}, project: {project}")
-
-    try:
-        runs = get_recent_runs(
-            entity=entity,
-            project=project,
-            days_back=args.days_back,
-            limit=args.limit,
-            run_name=args.run_name,
-            debug=args.debug,
-        )
-
-        # Always print human-readable output
-        print_runs_with_artifacts(runs, args.run_name)
-
-        # Post policies if requested
-        if args.post_policies:
-            post_policies_to_stats(runs, args.stats_db_uri)
-
-    except Exception as e:
-        print(f"Error: {e}")
-        return 1
-
-    return 0
-
-
-if __name__ == "__main__":
-    exit(main())
