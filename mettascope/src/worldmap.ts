@@ -746,14 +746,17 @@ export function drawMap(panel: PanelInfo) {
         }
       }
     } else {
-      ui.hoverObject = objectUnderMouse
-      clearTimeout(ui.hoverTimer)
-      ui.hoverTimer = setTimeout(() => {
-        if (ui.mouseTargets.includes('#worldmap-panel')) {
-          ui.delayedHoverObject = ui.hoverObject
-          updateHoverPanel(ui.delayedHoverObject)
-        }
-      }, Common.INFO_PANEL_POP_TIME)
+      // Only reset the hover timer if we moved onto a different object (or off of an object).
+      if (ui.hoverObject !== objectUnderMouse) {
+        ui.hoverObject = objectUnderMouse
+        clearTimeout(ui.hoverTimer)
+        ui.hoverTimer = setTimeout(() => {
+          if (ui.mouseTargets.includes('#worldmap-panel')) {
+            ui.delayedHoverObject = ui.hoverObject
+            updateHoverPanel(ui.delayedHoverObject)
+          }
+        }, Common.INFO_PANEL_POP_TIME)
+      }
     }
   }
 
