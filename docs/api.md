@@ -1,24 +1,24 @@
-# Metta API Documentation
+# Metta Interface Documentation
 
-The Metta API (`metta.api`) provides a clean way to use Metta's training components without Hydra configuration files.
+The Metta Interface (`metta.interface`) provides a clean way to use Metta's training components without Hydra configuration files.
 
 ## Quick Start
 
 ```python
 #!/usr/bin/env -S uv run
 import torch
-from metta.api import (
-    Agent, Environment, Optimizer,
-    setup_device_and_distributed, setup_run_directories,
-    save_checkpoint, load_checkpoint, wrap_agent_distributed,
-)
+from metta.interface.agent import Agent
+from metta.interface.environment import Environment
+from metta.interface.directories import setup_run_directories, setup_device_and_distributed
+from metta.interface.training import Optimizer, save_checkpoint, load_checkpoint
+from metta.rl.util.policy_management import wrap_agent_distributed
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
 
 # Setup
 dirs = setup_run_directories()
-device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
+device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")[0]
 
 # Create environment and agent
 env = Environment(curriculum_path="/env/mettagrid/curriculum/navigation/bucketed")
@@ -32,6 +32,8 @@ agent = Agent(env, device=str(device))
 ### Environment
 
 ```python
+from metta.interface.environment import Environment
+
 # Simple environment
 env = Environment(num_agents=4, width=32, height=32)
 
@@ -42,6 +44,8 @@ env = Environment(curriculum_path="/env/mettagrid/curriculum/navigation/bucketed
 ### Agent
 
 ```python
+from metta.interface.agent import Agent
+
 # Default CNN-LSTM agent
 agent = Agent(env, device="cuda")
 
@@ -54,6 +58,8 @@ agent = Agent(env, config=config)
 ### Optimizer
 
 ```python
+from metta.interface.training import Optimizer
+
 optimizer = Optimizer(
     optimizer_type="adam",  # or "muon"
     policy=agent,
@@ -67,12 +73,10 @@ optimizer.step(loss, epoch)
 ### Training Loop Functions
 
 ```python
-from metta.api import (
-    perform_rollout_step,
-    accumulate_rollout_stats,
-    compute_advantage,
-    process_minibatch_update,
-)
+from metta.rl.util.rollout import perform_rollout_step
+from metta.rl.util.stats import accumulate_rollout_stats
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.losses import process_minibatch_update
 
 # Rollout
 while not experience.ready_for_training:
@@ -86,6 +90,30 @@ advantages = compute_advantage(...)
 loss = process_minibatch_update(...)
 ```
 
+### Utilities
+
+```python
+from metta.interface.directories import (
+    setup_run_directories,
+    setup_device_and_distributed,
+    save_experiment_config,
+)
+
+from metta.interface.training import (
+    initialize_wandb,
+    cleanup_wandb,
+    cleanup_distributed,
+    load_checkpoint,
+    save_checkpoint,
+)
+
+from metta.interface.evaluation import (
+    create_evaluation_config_suite,
+    evaluate_policy_suite,
+    generate_replay_simple,
+)
+```
+
 ## Distributed Training
 
 ```python
@@ -94,6 +122,7 @@ device = setup_device_and_distributed("cuda")
 is_master, world_size, rank = setup_distributed_vars()
 
 # Wrap agent for distributed
+from metta.rl.util.policy_management import wrap_agent_distributed
 agent = wrap_agent_distributed(agent, device)
 
 # Run with torchrun
@@ -137,27 +166,19 @@ trainer_config = TrainerConfig(
 )
 ```
 
-## Complete Example
+## Complete Training Example
 
-See `run.py` for a complete training implementation that includes:
-
-- Environment creation with curriculum
-- Agent initialization
-- Distributed training support
-- Checkpointing and recovery
-- Evaluation and replay generation
-- Monitoring and logging
+See `run.py` for a complete example of training without Hydra configuration files.
 
 ## Key Exports
 
-The `metta.api` module exports:
+The `metta.interface` module exports:
 
 **Factories**: `Environment`, `Agent`, `Optimizer`
 
 **Training**: `perform_rollout_step`, `process_minibatch_update`, `accumulate_rollout_stats`, `compute_advantage`
 
-**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `wrap_agent_distributed`,
-`cleanup_distributed`
+**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `cleanup_distributed`
 
 **Checkpointing**: `save_checkpoint`, `load_checkpoint`
 

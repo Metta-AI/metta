@@ -1,0 +1,33 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.uniform_grid.UniformGridTerrain
+
+    # arena size
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # ─ parameter sweeps ─
+    cell_size: ${int:${uniform:4,14}}      # spacing between grid lines (bigger → roomier)
+    gap_width: ${int:${uniform:1,5}}       # width of each passage in a wall
+
+    # optional objects
+    objects:
+      altar: ${int:${uniform:5,20}}             # sprinkle some altars
+
+  # -----------------------------------------------------------------
+  # Object specs
+  # -----------------------------------------------------------------
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: 1

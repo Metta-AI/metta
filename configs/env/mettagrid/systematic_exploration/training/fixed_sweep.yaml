@@ -9,7 +9,7 @@ game:
     _target_: metta.mettagrid.room.systematic_exploration.fixed_sweep.FixedSweepTerrain
 
     # Arena size
-    width: ${int:${uniform:100,140}}
+    width: ${int:${uniform:80,120}}
     height: ${int:${uniform:80,120}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}

@@ -1,10 +1,17 @@
 _target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
 
 tasks:
+  /env/mettagrid/systematic_exploration/training/spiders: 1
+  /env/mettagrid/systematic_exploration/training/spindly_spiders: 1
   /env/mettagrid/systematic_exploration/training/bounce_turn: 1
-  /env/mettagrid/systematic_exploration/training/direction_based: 1
+  /env/mettagrid/systematic_exploration/training/wallfollow_sparse: 1
+  /env/mettagrid/systematic_exploration/training/combined_adversarial: 1
+  /env/mettagrid/systematic_exploration/training/boxes: 1
   /env/mettagrid/systematic_exploration/training/direction_based_sparse: 1
+  /env/mettagrid/systematic_exploration/training/direction_based: 1
   /env/mettagrid/systematic_exploration/training/fixed_sweep: 1
   /env/mettagrid/systematic_exploration/training/random_walk: 1
+  /env/mettagrid/systematic_exploration/training/snaking_labyrinth: 1
+  /env/mettagrid/systematic_exploration/training/surround_altars: 1
+  /env/mettagrid/systematic_exploration/training/uniform_grid: 1
   /env/mettagrid/systematic_exploration/training/wallfollow: 1
-  /env/mettagrid/systematic_exploration/training/wallfollow_sparse: 1

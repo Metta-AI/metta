@@ -1,0 +1,31 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.snaking_labyrinth.SnakingLabyrinthTerrain
+
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # labyrinth parameters
+    corridor_width: 3
+    wall_thickness: 2
+    altar_count: 25
+
+    # sprinkle probability (0.05 = 5 % of eligible cells)
+    inner_block_prob: 0.04
+
+    objects: {}
+
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: 1

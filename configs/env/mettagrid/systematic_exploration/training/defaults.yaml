@@ -25,7 +25,6 @@ game:
   # Map builder – single room with adversarial wall‑following terrain
   # -------------------------------------------------------------------------
   map_builder:
-    _target_: metta.mettagrid.room.systematic_exploration.wallfollow_terrain.WallFollowTerrain
     width: ${int:${uniform:50,80}}
     height: ${int:${uniform:50,80}}
     agents: ${..num_agents}
@@ -33,7 +32,7 @@ game:
 
     # Objects that the task cares about (optional).
     objects:
-      altar: ${int:${uniform:15,35}}
+      altar: ${int:${uniform:8,28}}
 
   # -------------------------------------------------------------------------
   # Object (item) specs

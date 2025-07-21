@@ -1,0 +1,33 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.spiders.SpiderTerrain
+
+    # arena size
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # ─ spider parameters ─
+    num_spiders:       ${int:${uniform:6,12}}
+    body_size:         ${int:${uniform:4,10}}
+    legs_per_spider:   ${int:${uniform:4,8}}
+    leg_length:        ${int:${uniform:6,20}}
+    gap:               1
+    hearts_per_spider: ${int:${uniform:1,3}}   # = ALTARS per spider
+
+  # -----------------------------------------------------------------
+  # Object specs
+  # -----------------------------------------------------------------
+  objects:
+    altar:
+      cooldown: 255            # long recharge
+      initial_resource_count: 1

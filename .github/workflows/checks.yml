@@ -74,9 +74,14 @@ jobs:
       run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
+      is_external: ${{ steps.detect-pr.outputs.is_external }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Detect PR context
+        id: detect-pr
+        uses: ./.github/actions/detect-external-pr
 
       - name: Check for file changes
         id: check_py_files
@@ -144,6 +149,7 @@ jobs:
       - name: Install C++ linter
         run: |
           sudo apt-get install -y clang-format
+
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
@@ -196,7 +202,7 @@ jobs:
 
       - name: Run Pytest on core tests
         run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -q
+          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v
 
       - name: Run Pytest on subpackage tests
         env:
@@ -204,14 +210,34 @@ jobs:
         run: |
           for package in $SUBPACKAGES; do
             echo "Running tests for $package..."
-            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -v) || exit 1
+            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v) || exit 1
           done
 
-      - name: Run MettaGrid C++ tests
+      - name: Upload coverage to Codecov
+        if: needs.setup-checks.outputs.is_external != 'true'
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          SUBPACKAGES: "app_backend agent mettagrid common"
+        run: |
+          chmod +x .github/scripts/upload_codecov.py
+          .github/scripts/upload_codecov.py
+
+      - name: Run MettaGrid C++ coverage
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           cd mettagrid
-          ctest --test-dir build-debug -L test
+          make coverage
+
+      - name: Upload MettaGrid C++ coverage to Codecov
+        if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./mettagrid/build-coverage/coverage.info
+          flags: mettagrid_cpp
+          name: mettagrid-cpp-coverage
+          fail_ci_if_error: false
+          verbose: true
 
   smoke-test:
     name: "Smoke Tests"
@@ -265,6 +291,7 @@ jobs:
 
       - name: Check evals smoke test policy availability
         id: check_evals_policy
+        if: needs.setup-checks.outputs.is_external != 'true'
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
@@ -274,7 +301,7 @@ jobs:
 
       - name: Run evals smoke test
         id: eval_smoke_test
-        if: steps.check_evals_policy.outputs.result == 'success'
+        if: steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
@@ -446,6 +473,7 @@ jobs:
           fi
 
       - name: Check for significant performance changes
+        if: needs.setup-checks.outputs.is_external != 'true'
         uses: ./.github/actions/call-bencher-api
         with:
           bencher_token: ${{ secrets.BENCHER_API_TOKEN }}

@@ -1,0 +1,53 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.combined_adversarial.CombinedAdversarialTerrain
+
+    # Arena size
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # ─── parameter sweeps (optional overrides) ───
+    island_count:      ${int:${uniform:40,80}}
+    island_size:       ${int:${uniform:6,30}}
+
+    corridor_count:    ${int:${uniform:30,50}}
+    corridor_length:   ${int:${uniform:20,70}}
+
+    hole_count_range:  ${int:${uniform:12,24}}
+    u_bay_count:       ${int:${uniform:30,50}}
+    u_bay_depth:       ${int:${uniform:10,25}}
+    u_bay_width:       ${int:${uniform:5,10}}
+
+    pocket_count:      ${int:${uniform:20,40}}
+    pocket_size:       ${int:${uniform:6,15}}
+    trap_count:        ${int:${uniform:20,40}}
+    trap_depth:        ${int:${uniform:10,20}}
+    trap_width:        ${int:${uniform:5,11}}
+
+    indent_count:      ${int:${uniform:15,30}}
+    indent_depth:      ${int:${uniform:3,10}}
+    indent_width:      ${int:${uniform:3,7}}
+
+    occupancy_threshold: 0.50   # carve sparser obstacles for wider gaps
+
+    corridor_spacing:  ${int:${uniform:5,15}}        # wider gaps between walls for increased spaciousness
+
+    # Optional task objects
+    objects:
+      altar: 50                 # explicit integer
+
+  # -----------------------------------------------------------------
+  # Object specs
+  # -----------------------------------------------------------------
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: 1

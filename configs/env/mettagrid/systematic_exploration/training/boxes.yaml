@@ -1,0 +1,28 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.boxes.BoxesTerrain
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    num_boxes:       ${int:${uniform:15,25}}
+    box_width:       ${int:${uniform:3,12}}
+    box_height:      ${int:${uniform:2,12}}
+    gap:             1
+    altars_per_box:  ${int:${uniform:1,3}}
+
+    objects: {}
+
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: 1
