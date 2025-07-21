@@ -23,6 +23,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext
+from metta.rl.trainer import train as functional_train
 from metta.rl.util.distributed import setup_device_and_distributed
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import (
@@ -89,8 +90,6 @@ def train(cfg: DictConfig | ListConfig, wandb_run, logger: Logger):
         stats_client.validate_authenticated()
 
     # Use the functional train interface directly
-    from metta.rl.trainer import train as functional_train
-
     functional_train(
         cfg=cfg,
         wandb_run=wandb_run,
@@ -124,14 +123,9 @@ def main(cfg: DictConfig) -> int:
     if is_master:
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
-        # Initialize wandb using WandbContext directly
-        wandb_ctx = WandbContext(cfg.wandb, cfg)
-        wandb_run = wandb_ctx.__enter__()
-
-        try:
+        # Initialize wandb using WandbContext
+        with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
-        finally:
-            wandb_ctx.__exit__(None, None, None)
     else:
         train(cfg, None, logger)
 

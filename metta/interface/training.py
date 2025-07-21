@@ -9,7 +9,6 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
-from metta.common.wandb.helpers import upload_env_configs as _upload_env_configs
 from metta.rl.hyperparameter_scheduler import HyperparameterScheduler as BaseHyperparameterScheduler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import HyperparameterSchedulerConfig, PPOConfig
@@ -239,7 +238,3 @@ def ensure_initial_policy(
     # Ensure all ranks synchronize
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
-
-
-# Re-export for backward compatibility
-upload_env_configs = _upload_env_configs

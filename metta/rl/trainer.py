@@ -482,13 +482,6 @@ def _upload_replay_html(
     link_summary = {"replays/all_links": wandb.Html(html_content)}
     wandb_run.log(link_summary, step=agent_step)
 
-    # Also log individual link for backward compatibility
-    if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
-        training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
-        link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
-        wandb_run.log(link_summary, step=agent_step)
-
 
 def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
     """Check for abort tag in wandb run."""

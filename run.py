@@ -151,8 +151,7 @@ kickstart_config = KickstartConfig()
 initial_policy_uri = os.environ.get("INITIAL_POLICY_URI", None)
 initial_policy_config = InitialPolicyConfig(uri=initial_policy_uri)
 
-# Create a trainer config for compatibility with functions that expect it
-# This is just for backward compatibility - we use the individual configs directly
+# Create a trainer config
 trainer_config = TrainerConfig(
     num_workers=num_workers,
     total_timesteps=total_timesteps,

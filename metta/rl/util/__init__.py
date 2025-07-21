@@ -51,9 +51,6 @@ from .stats import (
 # Utility functions
 from .utils import should_run
 
-# For backward compatibility, also provide should_run_on_interval as an alias
-should_run_on_interval = should_run
-
 __all__ = [
     # Advantage
     "compute_advantage",
@@ -93,5 +90,4 @@ __all__ = [
     "process_training_stats",
     # Utils
     "should_run",
-    "should_run_on_interval",
 ]

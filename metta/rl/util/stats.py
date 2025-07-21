@@ -272,7 +272,7 @@ def process_stats(
     optimizer: Optional[Any] = None,
     kickstarter: Optional[Any] = None,
 ) -> None:
-    """Process and log training statistics - kept for backward compatibility with process_stats API."""
+    """Process and log training statistics."""
     if not wandb_run:
         return
 
