@@ -161,8 +161,15 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
+    termination_cpp_params = {}
+    if game_config.termination.num_altars is not None:
+        termination_cpp_params["num_altars"] = game_config.termination.num_altars
+    if game_config.termination.max_reward is not None:
+        termination_cpp_params["max_reward"] = game_config.termination.max_reward
+
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
+    game_cpp_params["termination"] = termination_cpp_params
     # Note: global_observations configuration is handled through the global_obs parameter
 
     return CppGameConfig(**game_cpp_params)
