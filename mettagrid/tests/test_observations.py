@@ -673,7 +673,7 @@ class TestEdgeObservations:
         game_map[5, 7] = "altar"
 
         # Create environment with 7x7 observation window
-        game_config = create_minimal_test_config({
+        game_config = merge_configs(base_game_config(), {
             "max_steps": 50,  # Enough steps to walk around
             "num_agents": 1,
             "obs_width": 7,
@@ -692,7 +692,7 @@ class TestEdgeObservations:
                     "color": 42,  # Distinctive color
                 },
             },
-        })["game"]
+        })
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
         obs, _ = env.reset()
@@ -878,7 +878,7 @@ def test_altar_color_visibility():
     ]
 
     # Create game config with altar objects
-    game_config = create_minimal_test_config({
+    game_config = merge_configs(base_game_config(), {
         "max_steps": 10,
         "num_agents": 1,
         "obs_width": 3,  # 3x3 observation window
@@ -886,7 +886,7 @@ def test_altar_color_visibility():
         "num_observation_tokens": 100,
         "inventory_item_names": ["resource1", "resource2"],
         "objects": {},  # We'll add altars dynamically
-    })["game"]
+    })
     
     # Add altar configurations with different colors
     for i, (x, y, color) in enumerate(altar_positions):
