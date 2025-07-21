@@ -7,6 +7,6 @@ game:
     _target_: metta.mettagrid.room.multi_agent.narrow_world.NarrowWorld
     border_width: 0
     objects:
-      altar: 40  # Fixed value (was 40  # Fixed value (was ${sampling:20,60,40}))
-      mine_red: 40  # Fixed value (was 40  # Fixed value (was ${sampling:20,60,40}))
-      generator_red: 40  # Fixed value (was 40  # Fixed value (was ${sampling:20,60,40}))
+      altar: 40  # Fixed value (was ${sampling:20,60,40})
+      mine_red: 40  # Fixed value (was ${sampling:20,60,40})
+      generator_red: 40  # Fixed value (was ${sampling:20,60,40})

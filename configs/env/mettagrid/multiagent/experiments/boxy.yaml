@@ -6,6 +6,6 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.multi_agent.boxy.Boxy
     objects:
-      altar: 12  # Fixed value (was 12  # Fixed value (was ${sampling:10,14,12}))
-      mine_red: 45  # Fixed value (was 45  # Fixed value (was ${sampling:30,60,45}))
-      generator_red: 45  # Fixed value (was 45  # Fixed value (was ${sampling:30,60,45}))
+      altar: 12  # Fixed value (was ${sampling:10,14,12})
+      mine_red: 45  # Fixed value (was ${sampling:30,60,45})
+      generator_red: 45  # Fixed value (was ${sampling:30,60,45})

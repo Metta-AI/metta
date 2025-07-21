@@ -8,12 +8,12 @@ game:
   num_agents: 4
   agent:
     resource_limits:
-      ore_red: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,2,3}))
-      ore_blue: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,2,3}))
-      ore_green: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,2,3}))
-      battery_red: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,2,3}))
-      battery_blue: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,2,3}))
-      battery_green: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,2,3}))
+      ore_red: 3  # Fixed value (was ${sampling:1,2,3})
+      ore_blue: 3  # Fixed value (was ${sampling:1,2,3})
+      ore_green: 3  # Fixed value (was ${sampling:1,2,3})
+      battery_red: 3  # Fixed value (was ${sampling:1,2,3})
+      battery_blue: 3  # Fixed value (was ${sampling:1,2,3})
+      battery_green: 3  # Fixed value (was ${sampling:1,2,3})
     rewards:
       inventory:
         ore_red: 0.01  # Fixed value (was ${0.005,0.1, 0.01})
@@ -26,13 +26,13 @@ game:
     border_width: 6
     room:
       _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,6,3}))
+      border_width: 3  # Fixed value (was ${sampling:1,6,3})
       agents: 1
       dir: ${choose:varied_terrain/cylinder-world_small,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_large}
       objects:
         altar: 5
-        mine_red: 6  # Fixed value (was 6  # Fixed value (was ${sampling:1,12,6}))
-        generator_red: 6  # Fixed value (was 6  # Fixed value (was ${sampling:1,12,6}))
+        mine_red: 6  # Fixed value (was ${sampling:1,12,6})
+        generator_red: 6  # Fixed value (was ${sampling:1,12,6})
   objects:
     altar:
       input_resources:

@@ -19,8 +19,8 @@ game:
         heart_max: null
   map_builder:
     _target_: ???
-    width: 90  # Fixed value (was 90  # Fixed value (was ${sampling:50,100,90}))
-    height: 90  # Fixed value (was 90  # Fixed value (was ${sampling:50,100,90}))
+    width: 90  # Fixed value (was ${sampling:50,100,90})
+    height: 90  # Fixed value (was ${sampling:50,100,90})
     border_width: 2
     agents: 32
     objects: ???

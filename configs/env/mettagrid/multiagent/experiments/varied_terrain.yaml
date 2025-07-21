@@ -32,26 +32,26 @@ game:
     border_width: 6
     room:
       _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: 30  # Fixed value (was 30  # Fixed value (was ${sampling:20,80,30}))
-      height: 30  # Fixed value (was 30  # Fixed value (was ${sampling:20,80,30}))
-      border_width: 3  # Fixed value (was 3  # Fixed value (was ${sampling:1,6,3}))
+      width: 30  # Fixed value (was ${sampling:20,80,30})
+      height: 30  # Fixed value (was ${sampling:20,80,30})
+      border_width: 3  # Fixed value (was ${sampling:1,6,3})
       agents: 8
       style: ???
       objects:
-        mine_red: 10  # Fixed value (was 10  # Fixed value (was ${sampling:1,10,10}))
+        mine_red: 10  # Fixed value (was ${sampling:1,10,10})
         # mine_blue: 10  # Fixed value (was 10  # Fixed value (was 10  # Fixed value (was ${sampling:0,5,10})))
         # mine_green: 10  # Fixed value (was 10  # Fixed value (was 10  # Fixed value (was ${sampling:0,5,10})))
-        generator_red: 10  # Fixed value (was 10  # Fixed value (was ${sampling:1,10,10}))
+        generator_red: 10  # Fixed value (was ${sampling:1,10,10})
         # generator_blue: 10  # Fixed value (was 10  # Fixed value (was 10  # Fixed value (was ${sampling:0,5,10})))
         # generator_green: 10  # Fixed value (was 10  # Fixed value (was 10  # Fixed value (was ${sampling:0,5,10})))
-        altar: 10  # Fixed value (was 10  # Fixed value (was ${sampling:1,5,10}))
-        armory: 10  # Fixed value (was 10  # Fixed value (was ${sampling:1,5,10}))
-        lasery: 10  # Fixed value (was 10  # Fixed value (was ${sampling:1,5,10}))
-        lab: 10  # Fixed value (was 10  # Fixed value (was ${sampling:1,5,10}))
-        factory: 1  # Fixed value (was 1  # Fixed value (was ${sampling:1,5,1}))
-        temple: 1  # Fixed value (was 1  # Fixed value (was ${sampling:1,5,1}))
-        block: 20  # Fixed value (was 20  # Fixed value (was ${sampling:5,50,20}))
-        wall: 20  # Fixed value (was 20  # Fixed value (was ${sampling:5,50,20}))
+        altar: 10  # Fixed value (was ${sampling:1,5,10})
+        armory: 10  # Fixed value (was ${sampling:1,5,10})
+        lasery: 10  # Fixed value (was ${sampling:1,5,10})
+        lab: 10  # Fixed value (was ${sampling:1,5,10})
+        factory: 1  # Fixed value (was ${sampling:1,5,1})
+        temple: 1  # Fixed value (was ${sampling:1,5,1})
+        block: 20  # Fixed value (was ${sampling:5,50,20})
+        wall: 20  # Fixed value (was ${sampling:5,50,20})
   objects:
     altar:
       # initial_resource_count: ${choose:0,1}

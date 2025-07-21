@@ -1,7 +1,7 @@
 _target_: metta.map.mapgen.MapGen
 
-width: 40  # Fixed value (was 40  # Fixed value (was ${sampling:20,80,40}))
-height: 40  # Fixed value (was 40  # Fixed value (was ${sampling:20,80,40}))
+width: 40  # Fixed value (was ${sampling:20,80,40})
+height: 40  # Fixed value (was ${sampling:20,80,40})
 
 root:
   type: metta.map.scenes.room_grid.RoomGrid
