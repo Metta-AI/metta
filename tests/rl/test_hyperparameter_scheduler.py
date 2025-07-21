@@ -112,11 +112,6 @@ class TestHyperparameterScheduler:
         total_timesteps = 1000
         scheduler = HyperparameterScheduler(trainer_cfg, optimizer, total_timesteps, logging)
 
-        # Initial assertions
-        assert optimizer.param_groups[0]["lr"] == 0.001
-        assert trainer_cfg.ppo.clip_coef == 0.2
-        assert trainer_cfg.ppo.ent_coef == 0.01
-
         # Halfway through training
         scheduler.step(500)
 

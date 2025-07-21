@@ -16,7 +16,7 @@ from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
-from metta.common.wandb.wandb_context import WandbContext
+from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.rl.trainer import train as functional_train
 from metta.rl.util.distributed import setup_device_and_distributed
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -54,7 +54,7 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: DictConfig | ListConfig, wandb_run, logger: Logger):
+def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
     # Validation must be done after merging
