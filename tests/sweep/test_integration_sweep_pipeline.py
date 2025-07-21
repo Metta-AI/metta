@@ -20,6 +20,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from metta.sweep.protein_metta import MettaProtein
+from tools.sweep_prepare_run import apply_protein_suggestion
 
 
 class TestSweepPipelineIntegration:
@@ -245,7 +246,7 @@ class TestSweepPipelineIntegration:
             suggestion, _ = metta_protein.suggest()
 
             # Apply suggestion to config (simulate sweep_init.py behavior)
-            from tools.sweep_init import apply_protein_suggestion
+            from tools.sweep_prepare_run import apply_protein_suggestion
 
             # Create a copy of the base config for testing
             test_config = OmegaConf.create({"trainer": base_train_config.trainer})
@@ -285,7 +286,6 @@ class TestSweepPipelineIntegration:
 
             # Test that override application works (without full validation)
             # In real usage, only the complete final config gets validated, not partial overrides
-            from tools.sweep_init import apply_protein_suggestion
 
             test_config = OmegaConf.create({"trainer": {"optimizer": {"learning_rate": 0.001}, "batch_size": 64}})
             apply_protein_suggestion(test_config, suggestion)
@@ -368,7 +368,7 @@ class TestSweepPipelineIntegration:
 
     def test_multi_run_sweep_progression(self, base_sweep_config):
         """Test multiple runs in sequence to verify sweep progression."""
-        sweep_runs = []
+        sweep_names = []
         suggestions = []
 
         # Simulate multiple runs in a sweep
@@ -391,7 +391,7 @@ class TestSweepPipelineIntegration:
                 metta_protein.record_observation(objective, cost)
 
                 # Store run info
-                sweep_runs.append(
+                sweep_names.append(
                     {
                         "run_idx": run_idx,
                         "suggestion": suggestion,
@@ -421,7 +421,7 @@ class TestSweepPipelineIntegration:
         # Note: Early suggestions may be identical (search center) until protein learns from observations
 
         # Verify progression of objectives (with floating point tolerance)
-        objectives = [run["objective"] for run in sweep_runs]
+        objectives = [run["objective"] for run in sweep_names]
         expected = [0.7, 0.8, 0.9]
         for actual, exp in zip(objectives, expected, strict=False):
             assert abs(actual - exp) < 1e-10  # Should be improving with floating point tolerance

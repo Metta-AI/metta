@@ -19,7 +19,8 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
-from metta.interface import HyperparameterScheduler as SimpleHyperparameterScheduler
+
+# from metta.interface import HyperparameterScheduler as SimpleHyperparameterScheduler
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -265,8 +266,6 @@ def _train(
                 losses=losses,
                 device=device,
             )
-
-            # Optimizer step
             optimizer.zero_grad()
             loss.backward()
 
@@ -620,7 +619,8 @@ def train(
                     lr_scheduler.step()
 
                 # Update hyperparameter scheduler
-                hyperparameter_scheduler.step(state.agent_step)
+                # if hyperparameter_scheduler is not None:
+                #     hyperparameter_scheduler.step(state.agent_step)
 
         torch_profiler.on_epoch_end(state.epoch)
 
@@ -1012,13 +1012,14 @@ def create_training_components(
 
     # Create hyperparameter scheduler
     # Use the simple interface wrapper like run.py does
-    hyperparameter_scheduler = SimpleHyperparameterScheduler(
-        optimizer=optimizer,
-        total_timesteps=trainer_cfg.total_timesteps,
-        learning_rate=trainer_cfg.optimizer.learning_rate,
-        ppo_config=trainer_cfg.ppo,
-        scheduler_config=trainer_cfg.hyperparameter_scheduler,
-    )
+    # hyperparameter_scheduler = SimpleHyperparameterScheduler(
+    #     optimizer=optimizer,
+    #     total_timesteps=trainer_cfg.total_timesteps,
+    #     learning_rate=trainer_cfg.optimizer.learning_rate,
+    #     ppo_config=trainer_cfg.ppo,
+    #     scheduler_config=trainer_cfg.hyperparameter_scheduler,
+    # )
+    hyperparameter_scheduler = None  # Disabled for now
 
     # Return all components in the expected order
     return (
