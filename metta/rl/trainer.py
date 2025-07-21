@@ -31,7 +31,6 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
@@ -101,7 +100,8 @@ class MettaTrainer:
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
 
-        self.hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, self, trainer_cfg.total_timesteps, logging)
+        # self.hyperparameter_scheduler = HyperparameterScheduler(
+        # trainer_cfg, self, trainer_cfg.total_timesteps, logging)
 
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
@@ -557,7 +557,7 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        self.hyperparameter_scheduler.step(self.agent_step)
+        # self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance using helper function
         self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
@@ -895,14 +895,15 @@ class MettaTrainer:
 
     @property
     def hyperparameters(self):
-        return {
-            "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
-            "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
-            "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
-            "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
-            "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
-        }
+        return {}
+        # return {
+        #     "learning_rate": self.optimizer.param_groups[0]["lr"],
+        #     "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+        #     "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+        #     "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+        #     "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+        #     "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        # }
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
