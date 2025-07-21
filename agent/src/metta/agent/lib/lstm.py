@@ -121,7 +121,7 @@ class LSTM(LayerBase):
         #     lstm_h, lstm_c = state
         #     td["lstm_h"] = lstm_h.detach().permute(1, 0, 2).contiguous()
         #     td["lstm_c"] = lstm_c.detach().permute(1, 0, 2).contiguous()
-        self._memory = state  # av need to detach??
+        self._memory = (state[0].detach(), state[1].detach())
 
         td[self._name] = hidden
 

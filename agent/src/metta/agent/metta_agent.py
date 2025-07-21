@@ -28,8 +28,8 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
         }
     )
 
-    # Convert agent config to dict for unpacking as kwargs
-    agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
+    # Convert agent config to a standard dict before unpacking as kwargs
+    agent_cfg: dict = OmegaConf.to_container(cfg.agent, resolve=True)
 
     # Create MettaAgent directly without Hydra
     return MettaAgent(
@@ -65,7 +65,6 @@ class DistributedMettaAgent(DistributedDataParallel):
         action_names: list[str],
         action_max_params: list[int],
         device: torch.device,
-        is_training: bool = True,
     ) -> None:
         # is_training parameter is deprecated and ignored - mode is auto-detected
         return self.module.initialize_to_environment(features, action_names, action_max_params, device)
@@ -198,7 +197,6 @@ class MettaAgent(nn.Module):
         action_names: list[str],
         action_max_params: list[int],
         device,
-        is_training: bool = True,
     ):
         """
         Initialize the policy to the current environment's features and actions.
@@ -216,13 +214,12 @@ class MettaAgent(nn.Module):
             action_names: List of action names
             action_max_params: List of maximum parameters for each action
             device: Device to place tensors on
-            is_training: Deprecated. Training mode is now automatically detected.
         """
         # Use PyTorch's built-in training mode detection
-        self._initialize_observations(features, device, self.training)
+        self._initialize_observations(features, device)
         self.activate_actions(action_names, action_max_params, device)
 
-    def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
+    def _initialize_observations(self, features: dict[str, dict], device):
         """Initialize observation features by storing the feature mapping."""
         self.active_features = features
         self.device = device
@@ -239,9 +236,9 @@ class MettaAgent(nn.Module):
             logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
             # Create remapping for subsequent initializations
-            self._create_feature_remapping(features, is_training)
+            self._create_feature_remapping(features)
 
-    def _create_feature_remapping(self, features: dict[str, dict], is_training: bool):
+    def _create_feature_remapping(self, features: dict[str, dict]):
         """Create a remapping dictionary to translate new feature IDs to original ones."""
         UNKNOWN_FEATURE_ID = 255
         self.feature_id_remap = {}
@@ -254,7 +251,7 @@ class MettaAgent(nn.Module):
                 original_id = self.original_feature_mapping[name]
                 if new_id != original_id:
                     self.feature_id_remap[new_id] = original_id
-            elif not is_training:
+            elif not self.training:
                 # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
                 self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
                 unknown_features.append(name)
@@ -357,11 +354,6 @@ class MettaAgent(nn.Module):
             if hasattr(component, "_net") and isinstance(component._net, nn.LSTM):
                 component._net.flatten_parameters()
                 logger.info(f"Flattened LSTM parameters for component {component._name}")
-
-    # av delete this
-    # @property
-    # def lstm(self):
-    #     return self.components["_core_"]._net
 
     @property
     def total_params(self):
@@ -467,13 +459,10 @@ class MettaAgent(nn.Module):
             lstm_c = input_td["lstm_c"].to(internal_data["x"].device)
             internal_data["lstm_h"] = lstm_h
             internal_data["lstm_c"] = lstm_c
-            # Concatenate along dim 1 (the layer dim)
-            # internal_data["state"] = torch.cat([lstm_h, lstm_c], dim=0)
         else:
             # If no state is provided, the LSTM core will initialize a zero state.
             internal_data["lstm_h"] = None
             internal_data["lstm_c"] = None
-            # internal_data["state"] = None
 
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](internal_data)
@@ -505,9 +494,8 @@ class MettaAgent(nn.Module):
                     output_td["lstm_h"] = lstm_h_new
                     output_td["lstm_c"] = lstm_c_new
             return output_td
-        else:
-            # Training mode
-            return self.forward_training(value, logits, action)
+        # Training mode
+        return self.forward_training(value, logits, action)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
