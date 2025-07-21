@@ -287,6 +287,29 @@ class TestBuffers:
     def test_truncations_on_max_steps(self):
         """Test that truncations are set when max_steps is reached."""
         # Create environment with max_steps = 1
+        c_env = create_minimal_mettagrid_c_env(config_override={"max_steps": 1, "episode_truncates": True})
+
+        # Set up buffers
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
+        terminals = np.zeros(NUM_AGENTS, dtype=bool)
+        truncations = np.zeros(NUM_AGENTS, dtype=bool)
+        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+
+        c_env.set_buffers(observations, terminals, truncations, rewards)
+        c_env.reset()  # current_step = 0
+
+        # Take one step to reach max_steps
+        noop_action_idx = c_env.action_names().index("noop")
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        c_env.step(actions)  # current_step = 1, should trigger end of episode
+
+        # Now truncations should all be True
+        assert np.all(truncations), "All agents should be truncated when max_steps is reached"
+        assert not np.any(terminals), "All agents should not be terminated when max_steps is reached"
+
+    def test_terminals_on_max_steps(self):
+        """Test that truncations are set when max_steps is reached."""
+        # Create environment with max_steps = 1
         c_env = create_minimal_mettagrid_c_env(config_override={"max_steps": 1})
 
         # Set up buffers
@@ -301,10 +324,11 @@ class TestBuffers:
         # Take one step to reach max_steps
         noop_action_idx = c_env.action_names().index("noop")
         actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
-        c_env.step(actions)  # current_step = 1, should trigger truncations
+        c_env.step(actions)  # current_step = 1, should trigger end of episode
 
-        # Now truncations should all be True
-        assert np.all(truncations), "All agents should be truncated when max_steps is reached"
+        # Now terminals should all be True, truncations should all be False
+        assert np.all(terminals), "All agents should be terminated when max_steps is reached"
+        assert not np.any(truncations), "All agents should not be truncated when max_steps is reached"
 
     def test_buffer_element_modification_independence(self):
         """Test that modifying individual buffer elements works correctly across all buffer types."""

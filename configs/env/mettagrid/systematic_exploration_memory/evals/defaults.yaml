@@ -1,0 +1,21 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - _self_
+
+game:
+  num_agents: 1 #how many agents are in the map x2
+  max_steps: ???
+  agent:
+    rewards:
+      inventory:
+        heart: 0.333
+
+  objects:
+    altar:
+      initial_resource_count: 1
+
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    border_width: 1
