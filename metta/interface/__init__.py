@@ -10,6 +10,12 @@ This package contains modular components for training Metta agents:
 """
 
 from metta.interface.agent import Agent
+from metta.interface.checkpoint import (
+    cleanup_distributed,
+    ensure_initial_policy,
+    load_checkpoint,
+    save_checkpoint,
+)
 from metta.interface.directories import RunDirectories, setup_run_directories
 from metta.interface.environment import Environment, PreBuiltConfigCurriculum
 from metta.interface.evaluation import (
@@ -18,14 +24,8 @@ from metta.interface.evaluation import (
     evaluate_policy_suite,
     generate_replay_simple,
 )
-from metta.interface.training import (
-    Optimizer,
-    load_checkpoint,
-    save_checkpoint,
-)
-from metta.interface.training import (
-    SimpleHyperparameterScheduler as HyperparameterScheduler,
-)
+from metta.interface.hyperparameter import SimpleHyperparameterScheduler as HyperparameterScheduler
+from metta.interface.optimizer import Optimizer
 
 __all__ = [
     # Agent
@@ -46,4 +46,6 @@ __all__ = [
     "HyperparameterScheduler",
     "save_checkpoint",
     "load_checkpoint",
+    "cleanup_distributed",
+    "ensure_initial_policy",
 ]
