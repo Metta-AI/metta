@@ -18,33 +18,19 @@ def test_swap():
         [["wall", "wall", "wall"], ["wall", "agent.red", "block"], ["wall", "wall", "wall"]], dtype="<U50"
     )
 
-    # Use base config and override only what we need
-    game_config = create_test_config({
-        "game": {
-            "max_steps": 10,
-            "num_agents": 1,
-            "obs_width": 3,
-            "obs_height": 3,
-            "num_observation_tokens": 100,
-            "inventory_item_names": [],
-            # Only enable the actions we need
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "swap": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "change_color": {"enabled": False},
-                "change_glyph": {"enabled": False},
-            },
-            "objects": {
-                "wall": {"type_id": 1, "swappable": False},
-                "block": {"type_id": 14, "swappable": True},  # Swappable block
-            },
+    # Use movement preset which has the necessary actions and objects
+    game_config = create_test_config(
+        preset="movement",
+        overrides={
+            "game": {
+                "max_steps": 10,
+                "num_agents": 1,
+                "obs_width": 3,
+                "obs_height": 3,
+                "num_observation_tokens": 100,
+            }
         }
-    })["game"]
+    )["game"]
 
     # Create environment
     env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
@@ -162,37 +148,30 @@ def test_swap_frozen_agent_preserves_layers():
         dtype="<U50",
     )
 
-    # Use base config and override only what we need
-    game_config = create_test_config({
-        "game": {
-            "max_steps": 10,
-            "num_agents": 2,
-            "obs_width": 3,
-            "obs_height": 3,
-            "num_observation_tokens": 100,
-            "inventory_item_names": ["laser"],
-            # Only enable the actions we need
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": True},
-                "swap": {"enabled": True},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "change_color": {"enabled": False},
-                "change_glyph": {"enabled": False},
-            },
-            "groups": {
-                "red": {"id": 0, "props": {}},
-                "blue": {"id": 1, "props": {}},
-            },
-            "agent": {
-                "freeze_duration": 6,
-                "resource_limits": {"laser": 10},  # Allow agents to hold lasers
-            },
+    # Use combat preset and enable swap
+    game_config = create_test_config(
+        preset="combat",
+        overrides={
+            "game": {
+                "max_steps": 10,
+                "num_agents": 2,
+                "obs_width": 3,
+                "obs_height": 3,
+                "num_observation_tokens": 100,
+                "actions": {
+                    "swap": {"enabled": True},
+                },
+                "groups": {
+                    "red": {"id": 0, "props": {}},
+                    "blue": {"id": 1, "props": {}},
+                },
+                "agent": {
+                    "freeze_duration": 6,
+                    "resource_limits": {"laser": 10},  # Allow agents to hold lasers
+                },
+            }
         }
-    })["game"]
+    )["game"]
 
     # Create environment
     env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)

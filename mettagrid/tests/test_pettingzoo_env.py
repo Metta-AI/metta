@@ -20,10 +20,14 @@ def simple_config():
     config_dict = create_test_config({
         "game": {
             "num_agents": 3,  # PettingZoo test needs 3 agents
-            # Most other settings can use defaults
             "map_builder": {
+                "_target_": "metta.mettagrid.room.random.Random",
                 "agents": 3,  # Match the num_agents
-            },
+                "width": 16,
+                "height": 16,
+                "border_width": 1,
+                "objects": {}  # Simple test with no special objects
+            }
         }
     })
     return DictConfig(config_dict)

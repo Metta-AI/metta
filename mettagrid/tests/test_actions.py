@@ -30,34 +30,24 @@ OBS_TOKEN_SIZE = 3
 @pytest.fixture
 def base_config():
     """Base configuration for action tests."""
-    return create_minimal_test_config({
-        "max_steps": 10,
-        "num_agents": 1,
-        "obs_width": 3,
-        "obs_height": 3,
-        "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor", "ore"],
-        "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
-            "put_items": {"enabled": True},
-            "get_items": {"enabled": True},
-            "swap": {"enabled": True},
-            "change_color": {"enabled": True},
-            "change_glyph": {"enabled": True, "number_of_glyphs": 4},
-        },
-        "objects": {
-            "block": {"type_id": 2, "swappable": True},
-            "altar": {
-                "type_id": 8,
-                "input_resources": {},
-                "output_resources": {"ore": 1},
-                "max_output": -1,
-                "conversion_ticks": 1,
-                "cooldown": 10,
-                "initial_resource_count": 0,
+    return create_minimal_test_config(
+        preset="full_actions",
+        overrides={
+            "max_steps": 10,
+            "num_agents": 1,
+            "obs_width": 3,
+            "obs_height": 3,
+            "num_observation_tokens": NUM_OBS_TOKENS,
+            "objects": {
+                "block": {"type_id": 2, "swappable": True},
+                "altar": {
+                    "type_id": 8,
+                    "input_resources": {},
+                    "output_resources": {"ore": 1},
+                    "max_output": -1,
+                    "conversion_ticks": 1,
+                    "cooldown": 10,
+                    "initial_resource_count": 0,
             },
         },
         "agent": {"rewards": {}},

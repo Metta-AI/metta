@@ -35,39 +35,29 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = create_minimal_test_config({
-        "max_steps": max_steps,
-        "num_agents": num_agents,
-        "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
-        "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor", "heart"],
-        "actions": {
-            "get_items": {"enabled": True},
-            "put_items": {"enabled": True},
-            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
-            "swap": {"enabled": True},
-            "change_color": {"enabled": True},
-        },
-        "objects": {
-            "altar": {
-                "type_id": 8,
-                "output_resources": {"heart": 1},
-                "initial_resource_count": 5,  # Start with some hearts
-                "max_output": 50,
-                "conversion_ticks": 1,  # Faster conversion
-                "cooldown": 10,
+    # Use resource preset and override only what's needed
+    game_config = create_minimal_test_config(
+        preset="resource",
+        overrides={
+            "max_steps": max_steps,
+            "num_agents": num_agents,
+            "obs_width": OBS_WIDTH,
+            "obs_height": OBS_HEIGHT,
+            "num_observation_tokens": NUM_OBS_TOKENS,
+            "actions": {
+                "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+                "swap": {"enabled": True},
+                "change_color": {"enabled": True},
             },
-        },
-        "agent": {
-            "default_resource_limit": 10,
-            "rewards": {
-                "inventory": {
-                    "heart": 1.0  # This gives 1.0 reward per heart collected
-                }
+            "objects": {
+                "altar": {
+                    "initial_resource_count": 5,  # Start with some hearts
+                    "max_output": 50,
+                    "conversion_ticks": 1,  # Faster conversion
+                },
             },
-        },
-    })["game"]
+        }
+    )["game"]
 
     return MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 

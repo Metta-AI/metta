@@ -28,6 +28,128 @@ def base_game_config():
     }
 
 
+# Preset configurations for common test scenarios
+class TestConfigPresets:
+    """Common preset configurations for different test scenarios."""
+    
+    @staticmethod
+    def combat_config():
+        """Config for tests involving combat mechanics."""
+        return {
+            "inventory_item_names": ["laser", "armor", "heart"],
+            "actions": {
+                "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+                "get_items": {"enabled": True},
+                "put_items": {"enabled": True},
+            },
+            "agent": {
+                "default_resource_limit": 50,
+                "freeze_duration": 10,
+                "rewards": {
+                    "inventory": {
+                        "heart": 1.0,
+                        "armor": 0.1,
+                        "laser": 0.1,
+                    }
+                }
+            }
+        }
+    
+    @staticmethod
+    def resource_config():
+        """Config for tests involving resource collection and conversion."""
+        return {
+            "inventory_item_names": ["ore_red", "ore_blue", "battery_red", "battery_blue", "heart"],
+            "actions": {
+                "get_items": {"enabled": True},
+                "put_items": {"enabled": True},
+            },
+            "agent": {
+                "default_resource_limit": 50,
+                "rewards": {
+                    "inventory": {
+                        "ore_red": 0.005,
+                        "ore_blue": 0.005,
+                        "battery_red": 0.01,
+                        "battery_blue": 0.01,
+                        "heart": 1.0,
+                    }
+                }
+            },
+            "objects": {
+                "altar": {
+                    "type_id": 8,
+                    "output_resources": {"heart": 1},
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 10,
+                    "initial_resource_count": 1,
+                },
+                "mine_red": {
+                    "type_id": 9,
+                    "output_resources": {"ore_red": 1},
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 50,
+                    "initial_resource_count": 1,
+                },
+                "generator_red": {
+                    "type_id": 10,
+                    "input_resources": {"ore_red": 1},
+                    "output_resources": {"battery_red": 1},
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 25,
+                    "initial_resource_count": 1,
+                }
+            }
+        }
+    
+    @staticmethod
+    def movement_config():
+        """Config for tests focusing on movement and positioning."""
+        return {
+            "inventory_item_names": [],
+            "actions": {
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "swap": {"enabled": True},
+            },
+            "objects": {
+                "wall": {"type_id": 1, "swappable": False},
+                "block": {"type_id": 14, "swappable": True},
+            }
+        }
+    
+    @staticmethod
+    def full_actions_config():
+        """Config with all actions enabled for comprehensive testing."""
+        return {
+            "inventory_item_names": ["laser", "armor", "ore", "battery", "heart"],
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+                "put_items": {"enabled": True},
+                "get_items": {"enabled": True},
+                "swap": {"enabled": True},
+                "change_color": {"enabled": True},
+                "change_glyph": {"enabled": True, "number_of_glyphs": 4},
+            },
+            "agent": {
+                "default_resource_limit": 50,
+                "rewards": {
+                    "inventory": {
+                        "heart": 1.0,
+                        "battery": 0.1,
+                        "ore": 0.05,
+                    }
+                }
+            }
+        }
+
+
 def merge_configs(base_config, override_config):
     """Deep merge override_config into base_config."""
     result = deepcopy(base_config)
@@ -43,7 +165,7 @@ def merge_configs(base_config, override_config):
     return result
 
 
-def create_test_config(overrides=None):
+def create_test_config(overrides=None, preset=None):
     """
     Create a comprehensive test configuration with sensible defaults.
     
@@ -53,6 +175,8 @@ def create_test_config(overrides=None):
     
     Args:
         overrides: Dictionary of configuration overrides to apply
+        preset: Optional preset name ('combat', 'resource', 'movement', 'full_actions') 
+                or preset config dict to use as base
         
     Returns:
         Complete test configuration dictionary
@@ -183,19 +307,32 @@ def create_test_config(overrides=None):
         }
     }
     
-    # Apply overrides
+    # Apply preset if provided
+    if preset:
+        if isinstance(preset, str):
+            # Get preset by name
+            preset_method = getattr(TestConfigPresets, f"{preset}_config", None)
+            if preset_method:
+                preset_config = preset_method()
+                base_config = merge_configs(base_config, {"game": preset_config})
+        elif isinstance(preset, dict):
+            # Direct preset config
+            base_config = merge_configs(base_config, {"game": preset})
+    
+    # Apply overrides last
     if overrides:
         return merge_configs(base_config, overrides)
     return base_config
 
 
-def create_minimal_test_config(overrides=None):
+def create_minimal_test_config(overrides=None, preset=None):
     """
     Create a minimal test configuration for simple tests.
     Uses smaller observation space and fewer features.
     
     Args:
         overrides: Dict of values to override in the config
+        preset: Optional preset name or preset config dict to use as base
     
     Returns:
         A minimal configuration dict suitable for simple tests
@@ -226,10 +363,37 @@ def create_minimal_test_config(overrides=None):
         },
     }
     
+    # Apply preset if provided
+    if preset:
+        if isinstance(preset, str):
+            # Get preset by name
+            preset_method = getattr(TestConfigPresets, f"{preset}_config", None)
+            if preset_method:
+                preset_config = preset_method()
+                minimal_config = merge_configs(minimal_config, preset_config)
+        elif isinstance(preset, dict):
+            # Direct preset config
+            minimal_config = merge_configs(minimal_config, preset)
+    
+    # Apply overrides last
     if overrides:
         minimal_config = merge_configs(minimal_config, overrides)
     
     return {"game": minimal_config}
+
+
+def create_test_config_from_preset(preset_name, overrides=None):
+    """
+    Create a test configuration from a named preset.
+    
+    Args:
+        preset_name: Name of the preset ('combat', 'resource', 'movement', 'full_actions')
+        overrides: Additional overrides to apply on top of the preset
+        
+    Returns:
+        Complete test configuration with preset applied
+    """
+    return create_test_config(overrides=overrides, preset=preset_name)
 
 
 @pytest.fixture
