@@ -1,10 +1,12 @@
 protein:
-  num_random_samples: 5  # First 5 runs are random exploration
-  max_suggestion_cost: 3600  # Increased max cost for longer training (1 hour)
-  resample_frequency: 0
-  global_search_scale: 1
-  random_suggestions: 1024
-  suggestions_per_pareto: 256
+  num_random_samples: 15        # More exploration needed for cost modeling
+  max_suggestion_cost: 3600     # 1 hour - allow for longer runs
+  resample_frequency: 5         # More frequent resampling for cost trade-offs
+  global_search_scale: 1.0      # Standard scale for cost dimension exploration
+  random_suggestions: 1024      # Keep higher for cost exploration
+  suggestions_per_pareto: 256   # Keep higher - Pareto frontier is crucial now
+  expansion_rate: 0.3           # Higher exploration along cost dimension
+  seed_with_search_center: true
 
 metric: reward
 goal: maximize
@@ -12,18 +14,25 @@ method: bayes
 
 parameters:
   trainer:
+    total_timesteps:
+    distribution: int_uniform
+    min: 10000000      # 10M
+    max: 2000000000    # 2B
+    mean: 100000000    # 100M - reasonable starting point
+    scale: auto
+
     batch_size:
       distribution: uniform_pow2
-      min: 131072    # 2^17
-      max: 1048576   # 2^20
-      mean: 524288   # 2^19 (default)
+      min: 32768     # 2^15 - smaller min for short runs
+      max: 1048576   # 2^20 - same max
+      mean: 131072   # 2^17 - lower mean for better compatibility
       scale: auto
 
     minibatch_size:
       distribution: uniform_pow2
-      min: 4096      # 2^12
-      max: 131072    # 2^17
-      mean: 16384    # 2^14 (default)
+      min: 2048      # 2^11 - smaller min for compatibility
+      max: 65536     # 2^16 - reduced max to ensure batch_size divisibility
+      mean: 8192     # 2^13 - lower mean
       scale: auto
 
     bptt_horizon:
@@ -36,59 +45,52 @@ parameters:
     ppo:
       gamma:
         distribution: logit_normal
-        min: 0.001
+        min: 0.85
         max: 0.999
         mean: 0.99
         scale: auto
 
       gae_lambda:
         distribution: logit_normal
-        min: 0.001
+        min: 0.8
         max: 0.999
         mean: 0.95
         scale: auto
 
       clip_coef:
         distribution: logit_normal
-        min: 0.001
-        max: 0.999
+        min: 0.05
+        max: 0.5
         mean: 0.2
         scale: auto
 
       vf_coef:
         distribution: logit_normal
-        min: 0.001
-        max: 0.999
-        mean: 0.5
+        min: 0.1          # Higher minimum for stability
+        max: 0.9          # Not too close to 1.0
+        mean: 0.5         # Standard default
         scale: auto
 
       vf_clip_coef:
-        distribution: logit_normal
-        min: 0.001
-        max: 0.999
-        mean: 0.2
+        distribution: log_normal
+        min: 1.0          # Typical range is 1-50
+        max: 50.0         # Some use up to 100
+        mean: 10.0        # Common default
         scale: auto
 
       ent_coef:
         distribution: log_normal
-        min: 1e-5
-        max: 1e-1
-        mean: 1e-3
+        min: 1e-4         # Not too small
+        max: 1e-2         # Rarely need more
+        mean: 1e-3        # Good default
         scale: auto
 
     update_epochs:
       distribution: int_uniform
       min: 1
-      max: 16
-      mean: 4
+      max: 8         # Reduced from 16 - high values waste compute on short runs
+      mean: 3        # Lower mean for efficiency
       scale: auto
-
-    # total_timesteps:
-    #   distribution: int_uniform
-    #   min: 10000000
-    #   max: 1000000000
-    #   mean: 500000000
-    #   scale: auto
 
     # compile: ${ss:int, 0, 1}
 
