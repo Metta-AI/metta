@@ -30,3 +30,5 @@ game:
     altar:
       cooldown: 1000
       initial_resource_count: 1
+  termination:
+    num_altars: true

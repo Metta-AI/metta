@@ -26,7 +26,6 @@ buckets:
   game.map_builder.room.objects.altar:
     range: [1, 12]
     bins: 3
-  game.termination.num_altars: true
 
 env_overrides:
   sampling: 0
