@@ -1,0 +1,300 @@
+name: "PufferLib Integration Test"
+
+on:
+  pull_request:
+    paths:
+      - 'mettagrid/**'
+      - 'metta/rl/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/test-pufferlib-integration.yml'
+      - 'tests/integration/test_pufferlib_fresh_install.sh'
+  push:
+    branches:
+      - main
+    paths:
+      - 'mettagrid/**'
+      - 'metta/rl/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Which PufferLib versions to test'
+        type: choice
+        options:
+          - both
+          - stable
+          - dev
+        default: both
+
+jobs:
+  test-pufferlib-fresh:
+    name: "Fresh Install (${{ matrix.os }}, Python ${{ matrix.python }})"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11.7", "3.12.3"]
+        test_mode: [stable, dev]
+        exclude:
+          # Skip some combinations to reduce CI time
+          - os: macos-latest
+            python: "3.12.3"
+            test_mode: dev
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libgl1-mesa-glx \
+            libglib2.0-0 \
+            libsm6 \
+            libxext6 \
+            libxrender1 \
+            libgomp1
+      
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake
+      
+      - name: Make test script executable
+        run: chmod +x tests/integration/test_pufferlib_fresh_install.sh
+      
+      - name: Run PufferLib integration test
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: |
+          ./tests/integration/test_pufferlib_fresh_install.sh ${{ matrix.test_mode }}
+      
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pufferlib-test-logs-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.test_mode }}
+          path: |
+            /tmp/pufferlib_test_*/*/train_test.py
+            /tmp/pufferlib_test_*/*/test_run/
+          retention-days: 7
+
+  test-docker-integration:
+    name: "Docker Integration Test"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Create Dockerfile for testing
+        run: |
+          cat > Dockerfile.pufferlib-test << 'EOF'
+          FROM python:3.11.7-slim
+          
+          # Install system dependencies
+          RUN apt-get update && apt-get install -y \
+              build-essential \
+              cmake \
+              git \
+              curl \
+              libgl1-mesa-glx \
+              libglib2.0-0 \
+              libsm6 \
+              libxext6 \
+              libxrender1 \
+              libgomp1 \
+              && rm -rf /var/lib/apt/lists/*
+          
+          # Set working directory
+          WORKDIR /workspace
+          
+          # Copy test script
+          COPY tests/integration/test_pufferlib_fresh_install.sh /workspace/
+          RUN chmod +x /workspace/test_pufferlib_fresh_install.sh
+          
+          # Copy Metta source
+          COPY . /workspace/metta/
+          
+          # Run tests
+          CMD ["/workspace/test_pufferlib_fresh_install.sh", "both"]
+          EOF
+      
+      - name: Build test Docker image
+        run: |
+          docker build -f Dockerfile.pufferlib-test -t metta-pufferlib-test:latest .
+      
+      - name: Run tests in Docker
+        run: |
+          docker run --rm metta-pufferlib-test:latest
+
+  compatibility-matrix:
+    name: "Version Compatibility Matrix"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+      
+      - name: Create compatibility test script
+        run: |
+          cat > test_compatibility.py << 'EOF'
+          #!/usr/bin/env python3
+          """Test compatibility between different PufferLib versions and Metta."""
+          
+          import subprocess
+          import sys
+          import tempfile
+          import os
+          from pathlib import Path
+          
+          # PufferLib versions to test
+          PUFFERLIB_VERSIONS = [
+              ("metta-fork", "git+https://github.com/Metta-AI/PufferLib.git@dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183"),
+              ("pufferlib-latest", "pufferlib"),
+              ("pufferlib-dev", "git+https://github.com/PufferAI/PufferLib.git"),
+          ]
+          
+          def test_import_compatibility(version_name, install_spec):
+              """Test if Metta can import with a specific PufferLib version."""
+              print(f"\n{'='*60}")
+              print(f"Testing {version_name}: {install_spec}")
+              print('='*60)
+              
+              with tempfile.TemporaryDirectory() as tmpdir:
+                  venv_path = Path(tmpdir) / "venv"
+                  
+                  # Create virtual environment
+                  subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
+                  
+                  # Get pip path
+                  pip_path = venv_path / "bin" / "pip"
+                  python_path = venv_path / "bin" / "python"
+                  
+                  try:
+                      # Install PufferLib
+                      print(f"Installing {version_name}...")
+                      subprocess.run([str(pip_path), "install", install_spec], check=True)
+                      
+                      # Install minimal Metta dependencies
+                      print("Installing minimal dependencies...")
+                      subprocess.run([
+                          str(pip_path), "install",
+                          "numpy", "gymnasium", "omegaconf", "pydantic"
+                      ], check=True)
+                      
+                      # Test imports
+                      print("Testing imports...")
+                      test_code = """
+          import pufferlib
+          import gymnasium
+          print(f"PufferLib: {pufferlib.__file__}")
+          print("✅ Basic imports successful")
+          """
+                      result = subprocess.run(
+                          [str(python_path), "-c", test_code],
+                          capture_output=True,
+                          text=True
+                      )
+                      
+                      if result.returncode == 0:
+                          print(result.stdout)
+                          return True
+                      else:
+                          print(f"❌ Import failed: {result.stderr}")
+                          return False
+                          
+                  except subprocess.CalledProcessError as e:
+                      print(f"❌ Installation failed: {e}")
+                      return False
+          
+          def main():
+              """Run compatibility tests."""
+              results = []
+              
+              for version_name, install_spec in PUFFERLIB_VERSIONS:
+                  success = test_import_compatibility(version_name, install_spec)
+                  results.append((version_name, success))
+              
+              # Print summary
+              print("\n" + "="*60)
+              print("COMPATIBILITY SUMMARY")
+              print("="*60)
+              
+              all_passed = True
+              for version_name, success in results:
+                  status = "✅ PASS" if success else "❌ FAIL"
+                  print(f"{version_name:20} {status}")
+                  if not success:
+                      all_passed = False
+              
+              return 0 if all_passed else 1
+          
+          if __name__ == "__main__":
+              sys.exit(main())
+          EOF
+          
+          chmod +x test_compatibility.py
+      
+      - name: Run compatibility tests
+        run: python test_compatibility.py
+
+  summary:
+    name: "Test Summary"
+    needs: [test-pufferlib-fresh, test-docker-integration, compatibility-matrix]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          echo "Test Results Summary:"
+          echo "===================="
+          
+          if [[ "${{ needs.test-pufferlib-fresh.result }}" == "success" ]]; then
+            echo "✅ Fresh Installation Tests: PASSED"
+          else
+            echo "❌ Fresh Installation Tests: FAILED"
+          fi
+          
+          if [[ "${{ needs.test-docker-integration.result }}" == "success" ]]; then
+            echo "✅ Docker Integration Tests: PASSED"
+          else
+            echo "❌ Docker Integration Tests: FAILED"
+          fi
+          
+          if [[ "${{ needs.compatibility-matrix.result }}" == "success" ]]; then
+            echo "✅ Compatibility Matrix: PASSED"
+          else
+            echo "❌ Compatibility Matrix: FAILED"
+          fi
+          
+          # Fail if any tests failed
+          if [[ "${{ needs.test-pufferlib-fresh.result }}" != "success" ]] || \
+             [[ "${{ needs.test-docker-integration.result }}" != "success" ]] || \
+             [[ "${{ needs.compatibility-matrix.result }}" != "success" ]]; then
+            exit 1
+          fi

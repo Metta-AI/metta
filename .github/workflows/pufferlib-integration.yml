@@ -1,0 +1,208 @@
+name: "PufferLib Integration Test"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    paths:
+      - 'metta/rl/**'
+      - 'mettagrid/**'
+      - 'agent/**'
+      - 'pyproject.toml'
+      - 'tests/integration/test_pufferlib_fresh_install.sh'
+      - '.github/workflows/pufferlib-integration.yml'
+  push:
+    branches: [main]
+  schedule:
+    # Run daily at 2 AM UTC to catch integration issues early
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      pufferlib_versions:
+        description: 'PufferLib versions to test (comma-separated: stable,dev,commit-hash)'
+        required: false
+        default: 'stable,dev'
+        type: string
+      python_versions:
+        description: 'Python versions to test (comma-separated)'
+        required: false
+        default: '3.11.7'
+        type: string
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+env:
+  UV_CACHE_DIR: /tmp/.uv-cache
+
+jobs:
+  test-matrix-setup:
+    name: "Setup Test Matrix"
+    runs-on: ubuntu-latest
+    outputs:
+      pufferlib_versions: ${{ steps.set-matrix.outputs.pufferlib_versions }}
+      python_versions: ${{ steps.set-matrix.outputs.python_versions }}
+      os_versions: ${{ steps.set-matrix.outputs.os_versions }}
+    steps:
+      - name: Set up matrix
+        id: set-matrix
+        run: |
+          # Parse input or use defaults
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PUFFERLIB_VERSIONS='${{ github.event.inputs.pufferlib_versions }}'
+            PYTHON_VERSIONS='${{ github.event.inputs.python_versions }}'
+          else
+            PUFFERLIB_VERSIONS='stable,dev'
+            PYTHON_VERSIONS='3.11.7'
+          fi
+          
+          # Convert to JSON arrays
+          PUFFERLIB_JSON=$(echo "$PUFFERLIB_VERSIONS" | jq -R -s -c 'split(",") | map(gsub("^\\s+|\\s+$";""))')
+          PYTHON_JSON=$(echo "$PYTHON_VERSIONS" | jq -R -s -c 'split(",") | map(gsub("^\\s+|\\s+$";""))')
+          
+          # For now, only test on Ubuntu. Can expand to macOS later
+          OS_JSON='["ubuntu-latest"]'
+          
+          echo "pufferlib_versions=$PUFFERLIB_JSON" >> $GITHUB_OUTPUT
+          echo "python_versions=$PYTHON_JSON" >> $GITHUB_OUTPUT
+          echo "os_versions=$OS_JSON" >> $GITHUB_OUTPUT
+          
+          echo "Matrix configuration:"
+          echo "  PufferLib versions: $PUFFERLIB_JSON"
+          echo "  Python versions: $PYTHON_JSON"
+          echo "  OS versions: $OS_JSON"
+
+  integration-test:
+    name: "Test ${{ matrix.os }} / Python ${{ matrix.python }} / PufferLib ${{ matrix.pufferlib }}"
+    needs: test-matrix-setup
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(needs.test-matrix-setup.outputs.os_versions) }}
+        python: ${{ fromJson(needs.test-matrix-setup.outputs.python_versions) }}
+        pufferlib: ${{ fromJson(needs.test-matrix-setup.outputs.pufferlib_versions) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for version detection
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UV_CACHE_DIR }}
+          key: uv-${{ runner.os }}-${{ matrix.python }}-${{ matrix.pufferlib }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ matrix.python }}-${{ matrix.pufferlib }}-
+            uv-${{ runner.os }}-${{ matrix.python }}-
+            uv-${{ runner.os }}-
+
+      - name: Run integration test
+        run: |
+          echo "Running PufferLib integration test..."
+          echo "  OS: ${{ matrix.os }}"
+          echo "  Python: ${{ matrix.python }}"
+          echo "  PufferLib: ${{ matrix.pufferlib }}"
+          
+          # Make script executable if needed
+          chmod +x tests/integration/test_pufferlib_fresh_install.sh
+          
+          # Run the test
+          tests/integration/test_pufferlib_fresh_install.sh "${{ matrix.pufferlib }}" "${{ matrix.python }}"
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failure-${{ matrix.os }}-py${{ matrix.python }}-puffer-${{ matrix.pufferlib }}
+          path: |
+            /tmp/metta-pufferlib-test-*/
+            *.log
+          retention-days: 7
+
+  docker-integration-test:
+    name: "Docker Test / PufferLib ${{ matrix.pufferlib }}"
+    needs: test-matrix-setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pufferlib: ${{ fromJson(needs.test-matrix-setup.outputs.pufferlib_versions) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create Dockerfile for testing
+        run: |
+          cat > Dockerfile.pufferlib-test << 'EOF'
+          FROM python:3.11.7-slim
+          
+          # Install system dependencies
+          RUN apt-get update && apt-get install -y \
+              git \
+              curl \
+              build-essential \
+              cmake \
+              jq \
+              && rm -rf /var/lib/apt/lists/*
+          
+          # Install uv
+          RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+          ENV PATH="/root/.local/bin:$PATH"
+          
+          # Copy project files
+          WORKDIR /workspace
+          COPY . .
+          
+          # Make test script executable
+          RUN chmod +x tests/integration/test_pufferlib_fresh_install.sh
+          
+          # Run the test
+          ARG PUFFERLIB_VERSION=stable
+          RUN tests/integration/test_pufferlib_fresh_install.sh $PUFFERLIB_VERSION 3.11.7
+          EOF
+
+      - name: Build and test in Docker
+        run: |
+          docker build \
+            --build-arg PUFFERLIB_VERSION=${{ matrix.pufferlib }} \
+            -f Dockerfile.pufferlib-test \
+            -t metta-pufferlib-test:${{ matrix.pufferlib }} \
+            .
+
+  test-summary:
+    name: "Test Summary"
+    if: always()
+    needs: [integration-test, docker-integration-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          if [[ "${{ needs.integration-test.result }}" == "failure" ]] || \
+             [[ "${{ needs.docker-integration-test.result }}" == "failure" ]]; then
+            echo "❌ Some PufferLib integration tests failed!"
+            exit 1
+          else
+            echo "✅ All PufferLib integration tests passed!"
+          fi
