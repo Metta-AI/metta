@@ -430,18 +430,15 @@ export class ServerRepo implements Repo {
     return this.apiCall<AllTagsResponse>('/episodes/tags/all')
   }
 
-  // Eval task methods
   async createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask> {
     return this.apiCallWithBody<EvalTask>('/tasks', request)
   }
 
   async getEvalTasks(): Promise<EvalTask[]> {
-    // Use the new /all endpoint to get all tasks regardless of status
     const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
     return response.tasks
   }
 
-  // Policy methods
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
     const params = new URLSearchParams()
     policyNames.forEach(name => params.append('policy_names', name))

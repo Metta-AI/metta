@@ -1284,7 +1284,6 @@ class MettaRepo:
             }
 
     async def get_all_tasks(self, limit: int = 500) -> list[dict[str, Any]]:
-        """Get all tasks regardless of status."""
         async with self.connect() as con:
             result = await con.execute(
                 """
