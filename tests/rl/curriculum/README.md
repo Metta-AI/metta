@@ -1,28 +1,20 @@
 # Curriculum Tests Organization
 
-This directory contains tests for the curriculum learning system in Metta. The tests have been reorganized to eliminate duplicates and improve clarity.
+This directory contains all curriculum-related tests, organized as follows:
 
 ## Test Files
 
 ### Core Tests
-
-- **`conftest.py`** - Shared fixtures, mock classes, and test utilities:
-  - `MockCurriculum` - Simple mock for basic functionality testing
-  - `StatefulCurriculum` - Mock with comprehensive state tracking and stats
-  - Score generators (MonotonicLinearScores, ZeroScores, RandomScores, etc.)
-  - Test utilities (run_curriculum_simulation, create_mock_curricula, etc.)
-  - `free_port` fixture - Provides available ports for server testing
-
-- **`test_curriculum_core.py`** - Tests for the core curriculum interface:
-  - Basic curriculum operations (get_task, complete_task)
-  - Stats methods functionality
+- **`test_curriculum_core.py`** - Tests core curriculum functionality:
+  - Basic operations (get_task, complete_task)
+  - Stats collection and reporting
   - Task configuration variation
-  - Learning adaptation based on performance
-  - Task interface validation
+  - Learning adaptation behavior
+  - Task interface compliance
 
-- **`test_curriculum_algorithms.py`** - Tests for specific curriculum algorithm implementations:
+- **`test_curriculum_algorithms.py`** - Tests specific curriculum algorithm implementations:
   - SingleTaskCurriculum
-  - RandomCurriculum
+  - RandomCurriculum  
   - PrioritizeRegressedCurriculum
   - SamplingCurriculum
   - ProgressiveCurriculum

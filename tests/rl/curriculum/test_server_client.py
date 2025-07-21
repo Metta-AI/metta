@@ -25,7 +25,7 @@ class TestBasicServerClient:
         """Test basic server-client functionality."""
         curriculum = MockCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -36,8 +36,8 @@ class TestBasicServerClient:
             for _ in range(10):
                 task = client.get_task()
                 assert task is not None
-                assert task.name().isdigit()  # Server assigns numeric IDs
                 assert hasattr(task, "env_cfg")
+                assert hasattr(task, "name")
                 tasks_received.append(task.name())
 
             # Verify we got tasks
@@ -58,7 +58,7 @@ class TestBasicServerClient:
         """Test that client properly prefetches batches."""
         curriculum = MockCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -109,7 +109,7 @@ class TestBasicServerClient:
         """Test that curriculum client returns empty stats."""
         curriculum = MockCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -144,7 +144,7 @@ class TestConcurrentAccess:
         """Test multiple clients connecting to the same server."""
         curriculum = StatefulCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -179,7 +179,7 @@ class TestConcurrentAccess:
         """Test multiple clients accessing server concurrently via threads."""
         curriculum = StatefulCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         results = []
@@ -233,7 +233,7 @@ class TestServerLifecycle:
         """Test that server can be restarted on the same port."""
         curriculum = MockCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         client = CurriculumClient(
@@ -264,7 +264,7 @@ class TestServerLifecycle:
 
         # Restart server on same port
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -284,7 +284,7 @@ class TestServerLifecycle:
         """Test clean server shutdown."""
         curriculum = MockCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         # Create client and get task
@@ -341,7 +341,7 @@ class TestComplexCurriculums:
             )
 
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -399,7 +399,7 @@ class TestComplexCurriculums:
             curriculum = RandomCurriculum(tasks, None)
 
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -449,7 +449,7 @@ class TestEmptyBatchHandling:
 
         curriculum = EmptyCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:

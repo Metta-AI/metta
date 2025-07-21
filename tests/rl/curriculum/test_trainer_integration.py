@@ -31,7 +31,7 @@ class TestTrainerCurriculumIntegration:
         # Create and start server
         curriculum = MockCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -174,7 +174,7 @@ class TestTrainerCurriculumIntegration:
         """Simulate how the trainer would use curriculum with learning progress."""
         curriculum = StatefulCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -239,7 +239,7 @@ class TestTrainerCurriculumIntegration:
         # Start a curriculum server
         curriculum = StatefulCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
@@ -283,7 +283,7 @@ class TestTrainerCurriculumIntegration:
         # Use a curriculum that generates unique tasks
         curriculum = MockCurriculum()
         server = CurriculumServer(curriculum, port=free_port)
-        server.start(background=True)
+        server.start()
         time.sleep(0.5)
 
         try:
