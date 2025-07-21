@@ -195,6 +195,11 @@ class PyGameConfig(BaseModelWithForbidExtra):
     recipe_details_obs: bool = Field(default=False)
     objects: dict[str, PyConverterConfig | PyWallConfig]
 
+    # Movement metrics configuration
+    track_movement_metrics: bool = Field(
+        default=False, description="Enable movement metrics tracking (sequential rotations)"
+    )
+
 
 class PyPolicyGameConfig(PyGameConfig):
     obs_width: Literal[11]

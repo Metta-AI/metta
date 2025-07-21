@@ -177,6 +177,14 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
+
+    # Remove Python-only config that C++ doesn't need
+    if "track_movement_metrics" in game_cpp_params:
+        track_movement_metrics = game_cpp_params.pop("track_movement_metrics")
+    else:
+        track_movement_metrics = False
+
+    game_cpp_params["track_movement_metrics"] = track_movement_metrics
     # Note: global_observations configuration is handled through the global_obs parameter
     # Add recipe_details_obs flag
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs

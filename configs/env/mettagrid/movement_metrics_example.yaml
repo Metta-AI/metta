@@ -1,0 +1,7 @@
+# Example configuration with movement metrics tracking enabled
+defaults:
+  - mettagrid
+
+game:
+  num_agents: 24
+  track_movement_metrics: true  # Enable movement direction and sequential rotation tracking

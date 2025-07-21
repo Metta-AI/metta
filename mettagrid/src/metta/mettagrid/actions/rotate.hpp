@@ -20,6 +20,25 @@ protected:
     // Orientation: Up = 0, Down = 1, Left = 2, Right = 3
     Orientation orientation = static_cast<Orientation>(arg);
     actor->orientation = orientation;
+
+    // Track which orientation the agent rotated to (only if tracking enabled)
+    if (_track_movement_metrics) {
+      switch (orientation) {
+        case Orientation::Up:
+          actor->movement_counters.rotation_to_up++;
+          break;
+        case Orientation::Down:
+          actor->movement_counters.rotation_to_down++;
+          break;
+        case Orientation::Left:
+          actor->movement_counters.rotation_to_left++;
+          break;
+        case Orientation::Right:
+          actor->movement_counters.rotation_to_right++;
+          break;
+      }
+    }
+
     return true;
   }
 };

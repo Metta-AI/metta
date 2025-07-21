@@ -36,7 +36,27 @@ protected:
       return false;
     }
 
-    return _grid->move_object(actor->id, target_location);
+    bool success = _grid->move_object(actor->id, target_location);
+
+    // Track movement direction on success using optimized counters (only if tracking enabled)
+    if (success && _track_movement_metrics) {
+      switch (move_direction) {
+        case Orientation::Up:
+          actor->movement_counters.direction_up++;
+          break;
+        case Orientation::Down:
+          actor->movement_counters.direction_down++;
+          break;
+        case Orientation::Left:
+          actor->movement_counters.direction_left++;
+          break;
+        case Orientation::Right:
+          actor->movement_counters.direction_right++;
+          break;
+      }
+    }
+
+    return success;
   }
 
 private:
