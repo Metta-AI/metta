@@ -40,7 +40,7 @@ MAX_CONSECUTIVE_FAILURES=3
 consecutive_failures=0
 
 while true; do
-  if ./devops/sweep_rollout.sh $args_for_rollout; then
+  if ./metta/sweep/sweep_rollout.py $args_for_rollout; then
     consecutive_failures=0
   else
     consecutive_failures=$((consecutive_failures + 1))
