@@ -88,6 +88,8 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
+        if self.training:  # av delete this
+            self._net.flatten_parameters() # av move this to before training, call at the agent level
         hidden, state = self._net(hidden, state)
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
