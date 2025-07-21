@@ -6,4 +6,3 @@ game:
   max_steps: 150
   map_builder:
     uri: "configs/env/mettagrid/maps/systematic_exploration_memory/hall_of_mirrors.map"
-
