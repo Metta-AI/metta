@@ -234,7 +234,7 @@ class TestDockerIntegration:
     def test_kubectl_available(self, app_backend_container):
         """Test that kubectl is available in the container."""
         container, _, __ = app_backend_container
-        exit_code, output = container.exec("kubectl version")
+        exit_code, output = container.exec("kubectl version --client")
         assert exit_code == 0, f"kubectl command failed with exit code {exit_code}. Output: {output}"
 
 
