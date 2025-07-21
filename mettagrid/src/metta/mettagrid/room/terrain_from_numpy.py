@@ -173,6 +173,7 @@ class TerrainFromNumpy(Room):
             # if count < 0:
             #     continue
             # Sample from remaining valid positions
+            print(f"placing {obj_name} {count} times")
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 level[pos] = obj_name
