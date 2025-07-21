@@ -2,7 +2,7 @@ _target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCur
 
 tasks:
   /env/mettagrid/systematic_exploration/training/spiders: 1
-  /env/mettagrid/systematic_exploration/training/spindly_spiders: 1
+  # /env/mettagrid/systematic_exploration/training/spindly_spiders: 1
   /env/mettagrid/systematic_exploration/training/bounce_turn: 1
   /env/mettagrid/systematic_exploration/training/wallfollow_sparse: 1
   /env/mettagrid/systematic_exploration/training/combined_adversarial: 1
