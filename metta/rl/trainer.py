@@ -13,7 +13,7 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
-from torch.cuda.amp import autocast
+from torch.amp import GradScaler, autocast
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -146,7 +146,7 @@ class MettaTrainer:
             raise ValueError("AMP requires a CUDA device, but device is not CUDA.")
 
         if self.use_amp:
-            self.scaler = torch.amp.GradScaler("cuda")
+            self.scaler = GradScaler("cuda")
         else:
             self.scaler = None
 
@@ -508,12 +508,11 @@ class MettaTrainer:
         _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
         minibatch_idx = 0
 
-        # Choose context manager based on AMP availability
         amp_context = autocast if self.use_amp else nullcontext
 
         for _epoch in range(trainer_cfg.update_epochs):
             for _ in range(experience.num_minibatches):
-                with amp_context():
+                with amp_context(device_type="cuda"):
                     minibatch = experience.sample_minibatch(
                         advantages=advantages,
                         prio_alpha=prio_cfg.prio_alpha,
