@@ -86,28 +86,49 @@ def save_policy_with_metadata(
             )
             evals_dict = evals
 
-    metadata = {
+    # Build metadata dict
+    metadata_dict = {
         "epoch": epoch,
         "agent_step": agent_step,
-        "total_time": timer.get_elapsed(),
-        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
-        "run": run_name,
-        "initial_pr": initial_policy_record.uri if initial_policy_record else None,
         "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
-        "evals": evals_dict,
-        "avg_reward": avg_reward,
+        "train_time": timer.get_elapsed() if timer else 0.0,
     }
+    
+    # Add optional fields
+    if timer:
+        metadata_dict["total_time"] = timer.get_elapsed()
+        metadata_dict["total_train_time"] = timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0)
+    if run_name:
+        metadata_dict["run"] = run_name
+    if initial_policy_record:
+        metadata_dict["initial_pr"] = initial_policy_record.uri
+    if evals_dict:
+        metadata_dict["evals"] = evals_dict
+    if avg_reward > 0:
+        metadata_dict["avg_reward"] = avg_reward
+
+    # Extract action names if available - check multiple sources
+    action_names = None
+    if hasattr(policy_to_save, '_action_names'):
+        action_names = policy_to_save._action_names
+    elif hasattr(policy_to_save, 'action_names'):
+        action_names = policy_to_save.action_names
+    elif hasattr(policy_to_save, 'agent_attributes') and 'action_names' in policy_to_save.agent_attributes:
+        action_names = policy_to_save.agent_attributes['action_names']
+    
+    if action_names:
+        metadata_dict["action_names"] = action_names
 
     # Save original feature mapping
-    if hasattr(policy_to_save, "get_original_feature_mapping"):
+    if hasattr(policy_to_save, 'get_original_feature_mapping'):
         original_feature_mapping = policy_to_save.get_original_feature_mapping()
         if original_feature_mapping is not None:
-            metadata["original_feature_mapping"] = original_feature_mapping
+            metadata_dict["original_feature_mapping"] = original_feature_mapping
             logger.info(f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata")
 
     # Create and save policy record
     policy_record = policy_store.create_empty_policy_record(name)
-    policy_record.metadata = metadata
+    policy_record.metadata = metadata_dict
     policy_record.policy = policy_to_save
 
     saved_policy_record = policy_store.save(policy_record)

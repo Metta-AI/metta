@@ -548,84 +548,93 @@ class PolicyStore:
                 
                 # Try to reconstruct using make_policy if we have enough information
                 try:
-                    # Create a mock environment with the saved attributes
-                    agent_attributes = model_info.get('agent_attributes', {})
-                    
-                    # Reconstruct observation space
-                    obs_space_info = agent_attributes.get('observation_space', {})
-                    if obs_space_info.get('type') == 'Box':
-                        obs_shape = obs_space_info.get('shape', [34, 11, 11])
-                        obs_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+                    # Check if this is a MockPolicy (for testing)
+                    if model_info.get('type') == 'MockPolicy':
+                        # Special handling for MockPolicy in tests
+                        from metta.agent.mocks import MockPolicy
+                        policy = MockPolicy()
+                        policy.load_state_dict(state_dict)
+                        pr._cached_policy = policy
+                        logger.info("Successfully loaded MockPolicy using new format")
                     else:
-                        # Default observation space
-                        obs_shape = [34, 11, 11]
-                        obs_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
-                    
-                    # Reconstruct action space
-                    action_space_info = agent_attributes.get('action_space', {})
-                    if action_space_info.get('type') == 'MultiDiscrete':
-                        nvec = action_space_info.get('nvec', [9, 10])
-                        action_space = gym.spaces.MultiDiscrete(nvec)
-                    elif action_space_info.get('type') == 'Discrete':
-                        n = action_space_info.get('n', 10)
-                        action_space = gym.spaces.Discrete(n)
-                    else:
-                        # Default action space
-                        action_space = gym.spaces.MultiDiscrete([9, 10])
-                    
-                    # Create environment for policy creation
-                    env = SimpleNamespace(
-                        single_observation_space=obs_space,
-                        obs_width=agent_attributes.get('obs_width', obs_shape[1] if len(obs_shape) > 1 else 11),
-                        obs_height=agent_attributes.get('obs_height', obs_shape[2] if len(obs_shape) > 2 else 11),
-                        single_action_space=action_space,
-                        feature_normalizations=agent_attributes.get('feature_normalizations', {}),
-                        global_features=[],
-                    )
-                    
-                    # Add action_names to env if available
-                    if 'action_names' in metadata_dict:
-                        env.action_names = metadata_dict['action_names']
-                    
-                    # Create agent config with saved model parameters
-                    agent_config = {
-                        'type': 'metta',
-                        'hidden_size': model_info.get('hidden_size', 256),
-                        'num_layers': model_info.get('core_num_layers', 2),
-                    }
-                    
-                    # Add optional parameters if they were saved
-                    if 'num_lstm_layers' in model_info:
-                        agent_config['num_lstm_layers'] = model_info['num_lstm_layers']
-                    if 'use_lstm' in model_info:
-                        agent_config['use_lstm'] = model_info['use_lstm']
-                    if 'use_prev_action' in model_info:
-                        agent_config['use_prev_action'] = model_info['use_prev_action']
-                    if 'use_prev_reward' in model_info:
-                        agent_config['use_prev_reward'] = model_info['use_prev_reward']
-                    
-                    # Create config for make_policy
-                    cfg_dict = {
-                        'device': str(self._device),
-                        'agent': agent_config,
-                    }
-                    
-                    # Create policy
-                    policy = make_policy(env, DictConfig(cfg_dict))
-                    
-                    # Load state dict
-                    policy.load_state_dict(state_dict)
-                    
-                    # Restore action names if not already set
-                    if hasattr(policy, '_action_names') and 'action_names' in metadata_dict:
-                        policy._action_names = metadata_dict['action_names']
-                    
-                    # Restore original feature mapping if available
-                    if hasattr(policy, 'restore_original_feature_mapping') and 'original_feature_mapping' in metadata_dict:
-                        policy.restore_original_feature_mapping(metadata_dict['original_feature_mapping'])
-                    
-                    pr._cached_policy = policy
-                    logger.info("Successfully loaded policy using new format")
+                        # Create a mock environment with the saved attributes
+                        agent_attributes = model_info.get('agent_attributes', {})
+                        
+                        # Reconstruct observation space
+                        obs_space_info = agent_attributes.get('observation_space', {})
+                        if obs_space_info.get('type') == 'Box':
+                            obs_shape = obs_space_info.get('shape', [34, 11, 11])
+                            obs_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+                        else:
+                            # Default observation space
+                            obs_shape = [34, 11, 11]
+                            obs_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+                        
+                        # Reconstruct action space
+                        action_space_info = agent_attributes.get('action_space', {})
+                        if action_space_info.get('type') == 'MultiDiscrete':
+                            nvec = action_space_info.get('nvec', [9, 10])
+                            action_space = gym.spaces.MultiDiscrete(nvec)
+                        elif action_space_info.get('type') == 'Discrete':
+                            n = action_space_info.get('n', 10)
+                            action_space = gym.spaces.Discrete(n)
+                        else:
+                            # Default action space
+                            action_space = gym.spaces.MultiDiscrete([9, 10])
+                        
+                        # Create environment for policy creation
+                        env = SimpleNamespace(
+                            single_observation_space=obs_space,
+                            obs_width=agent_attributes.get('obs_width', obs_shape[1] if len(obs_shape) > 1 else 11),
+                            obs_height=agent_attributes.get('obs_height', obs_shape[2] if len(obs_shape) > 2 else 11),
+                            single_action_space=action_space,
+                            feature_normalizations=agent_attributes.get('feature_normalizations', {}),
+                            global_features=[],
+                        )
+                        
+                        # Add action_names to env if available
+                        if 'action_names' in metadata_dict:
+                            env.action_names = metadata_dict['action_names']
+                        
+                        # Create agent config with saved model parameters
+                        agent_config = {
+                            'type': 'metta',
+                            'hidden_size': model_info.get('hidden_size', 256),
+                            'num_layers': model_info.get('core_num_layers', 2),
+                        }
+                        
+                        # Add optional parameters if they were saved
+                        if 'num_lstm_layers' in model_info:
+                            agent_config['num_lstm_layers'] = model_info['num_lstm_layers']
+                        if 'use_lstm' in model_info:
+                            agent_config['use_lstm'] = model_info['use_lstm']
+                        if 'use_prev_action' in model_info:
+                            agent_config['use_prev_action'] = model_info['use_prev_action']
+                        if 'use_prev_reward' in model_info:
+                            agent_config['use_prev_reward'] = model_info['use_prev_reward']
+                        
+                        # Create config for make_policy
+                        cfg_dict = {
+                            'device': str(self._device),
+                            'agent': agent_config,
+                        }
+                        
+                        # Create policy
+                        policy = make_policy(env, DictConfig(cfg_dict))
+                        
+                        # Load state dict
+                        policy.load_state_dict(state_dict)
+                        
+                        # Restore action names if not already set
+                        if hasattr(policy, '_action_names') and 'action_names' in metadata_dict:
+                            policy._action_names = metadata_dict['action_names']
+                        
+                        # Restore original feature mapping if available
+                        if hasattr(policy, 'restore_original_feature_mapping') and 'original_feature_mapping' in metadata_dict:
+                            policy.restore_original_feature_mapping(metadata_dict['original_feature_mapping'])
+                        
+                        pr._cached_policy = policy
+                        logger.info("Successfully loaded policy using new format")
                     
                 except Exception as e:
                     logger.error(f"Failed to reconstruct model from new format: {e}")
