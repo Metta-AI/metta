@@ -182,7 +182,7 @@ class MettaTrainer:
             raise ValueError("policy_record must be provided to MettaTrainer")
 
         # Handle the case where workers received a state_dict but no policy
-        if policy_record.policy is None and hasattr(policy_record, 'state_dict'):
+        if policy_record.policy is None and "_broadcasted_state_dict" in policy_record.metadata:
             logger.info(f"Rank {self._rank}: Creating policy from broadcasted state dict")
             
             # Create a new policy instance
@@ -192,10 +192,14 @@ class MettaTrainer:
             self._initialize_policy_to_environment(policy, metta_grid_env, self.device)
             
             # Load the broadcasted state dict
-            policy.load_state_dict(policy_record.state_dict)
+            state_dict = policy_record.metadata["_broadcasted_state_dict"]
+            policy.load_state_dict(state_dict)
             
             # Update the policy record
             policy_record.policy = policy
+            
+            # Remove the state dict from metadata to avoid serialization issues
+            del policy_record.metadata["_broadcasted_state_dict"]
             
             logger.info(f"Rank {self._rank}: Successfully loaded policy from NCCL broadcast")
 

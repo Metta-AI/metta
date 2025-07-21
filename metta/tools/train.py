@@ -142,7 +142,8 @@ def _broadcast_policy_via_nccl(policy_record, device, rank, logger):
         
         # Broadcast metadata
         metadata = policy_record.metadata
-        metadata_str = str(metadata)
+        import json
+        metadata_str = json.dumps(metadata)
         metadata_tensor = torch.tensor([ord(c) for c in metadata_str], dtype=torch.int32, device=device)
         metadata_len = torch.tensor([len(metadata_str)], dtype=torch.int32, device=device)
         
@@ -193,7 +194,8 @@ def _broadcast_policy_via_nccl(policy_record, device, rank, logger):
         metadata_tensor = torch.zeros(metadata_len.item(), dtype=torch.int32, device=device)
         dist.broadcast(metadata_tensor, src=0)
         metadata_str = ''.join([chr(c) for c in metadata_tensor.cpu().tolist()])
-        metadata = eval(metadata_str)  # Simple parsing - in production use proper serialization
+        import json
+        metadata = json.loads(metadata_str)
         
         # Receive parameters
         num_params = torch.tensor([0], dtype=torch.int32, device=device)
@@ -224,14 +226,21 @@ def _broadcast_policy_via_nccl(policy_record, device, rank, logger):
         
         logger.info(f"Rank {rank}: Received policy with {len(state_dict)} parameters")
         
+        # Store state_dict in metadata for the trainer to use
+        metadata["_broadcasted_state_dict"] = state_dict
+        
         # Create a dummy policy record - the trainer will create the actual policy
         # and load the state dict
+        from metta.agent.policy_store import PolicyStore
+        policy_store = PolicyStore(None, None)  # Dummy policy store
+        
         policy_record = PolicyRecord(
+            policy_store=policy_store,
+            run_name="broadcast",
             uri="nccl://broadcast",
             metadata=metadata,
-            policy=None,  # Will be created by trainer
-            state_dict=state_dict  # Pass state dict for loading
         )
+        policy_record.policy = None  # Will be created by trainer
         
         return policy_record
 
@@ -254,12 +263,11 @@ def train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger, curriculu
 
     trainer = MettaTrainer(
         cfg,
-        curriculum_server,
         wandb_run=wandb_run,
         policy_store=policy_store,
-        policy_record=policy_record,  # Pass the policy record
         sim_suite_config=train_job.evals,
         stats_client=stats_client,
+        policy_record=policy_record,  # Pass the policy record
     )
 
     try:
