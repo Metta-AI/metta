@@ -49,6 +49,12 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
+from metta.rl.training_state import (
+    EvaluationTracker,
+    PolicyTracker,
+    StatsTracker,
+    TrainingProgress,
+)
 from metta.rl.util.advantage import compute_advantage
 from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
@@ -413,18 +419,15 @@ if is_master:
         external_timer=timer,  # Pass timer for persistent elapsed time across restarts
     )
 
-# Track policy records for consistency with trainer.py
-initial_policy_record = policy_record
-latest_saved_policy_record = policy_record
+# Initialize specialized state containers
+progress = TrainingProgress(agent_step=agent_step, epoch=epoch)
+stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
+policy_tracker = PolicyTracker(initial_policy_record=policy_record, latest_saved_policy_record=policy_record)
+evaluation_tracker = EvaluationTracker()
 
 # Training loop
 logger.info(f"Starting training on {device}")
-evaluation_scores = {}
-epoch_start_time = time.time()
-steps_at_epoch_start = agent_step
-stats = defaultdict(list)  # Use defaultdict like trainer.py
-grad_stats = {}
-current_policy_generation = initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0
+current_policy_generation = policy_record.metadata.get("generation", 0) + 1 if policy_record else 0
 
 # After environment is initialized but before training loop
 if is_master and wandb_run:
@@ -435,8 +438,10 @@ if is_master and wandb_run:
 # Create torch profiler (matches trainer.py)
 torch_profiler = TorchProfiler(is_master, trainer_config.profiler, wandb_run, dirs.run_dir)
 
-while agent_step < trainer_config.total_timesteps:
-    steps_before = agent_step
+training_start_time = time.time()
+
+while progress.agent_step < trainer_config.total_timesteps:
+    steps_before = progress.agent_step
 
     # ===== ROLLOUT PHASE =====
     rollout_start = time.time()
@@ -447,7 +452,7 @@ while agent_step < trainer_config.total_timesteps:
     while not experience.ready_for_training:
         # Receive environment data
         o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
-        agent_step += num_steps
+        progress.increment_step(num_steps)
 
         # Run policy inference
         actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
@@ -476,7 +481,7 @@ while agent_step < trainer_config.total_timesteps:
             raw_infos.extend(info)
 
     # Process rollout statistics
-    accumulate_rollout_stats(raw_infos, stats)
+    accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
     rollout_time = time.time() - rollout_start
 
     # ===== TRAINING PHASE =====
@@ -486,7 +491,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Calculate prioritized replay parameters
     anneal_beta = calculate_prioritized_sampling_params(
-        epoch=epoch,
+        epoch=progress.epoch,
         total_timesteps=trainer_config.total_timesteps,
         batch_size=trainer_config.batch_size,
         prio_alpha=trainer_config.prioritized_experience_replay.prio_alpha,
@@ -532,7 +537,7 @@ while agent_step < trainer_config.total_timesteps:
                 advantages=advantages,
                 trainer_cfg=trainer_config,
                 kickstarter=kickstarter,
-                agent_step=agent_step,
+                agent_step=progress.agent_step,
                 losses=losses,
                 device=device,
             )
@@ -553,7 +558,7 @@ while agent_step < trainer_config.total_timesteps:
                     torch.cuda.synchronize()
 
             minibatch_idx += 1
-        epoch += 1
+        progress.increment_epoch(1)
 
         # Early exit if KL divergence is too high
         if trainer_config.ppo.target_kl is not None:
@@ -568,7 +573,7 @@ while agent_step < trainer_config.total_timesteps:
         lr_scheduler.step()
 
     # Update hyperparameter scheduler
-    hyperparameter_scheduler.step(agent_step)
+    hyperparameter_scheduler.step(progress.agent_step)
 
     losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
@@ -580,7 +585,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Process collected stats (convert lists to means)
     processed_stats = process_training_stats(
-        raw_stats=stats,
+        raw_stats=stats_tracker.rollout_stats,
         losses=losses,
         experience=experience,
         trainer_config=trainer_config,
@@ -588,12 +593,12 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Update stats with mean values for consistency
-    stats = processed_stats["mean_stats"]
+    stats_tracker.rollout_stats = processed_stats["mean_stats"]
 
     # Compute timing stats
     timing_info = compute_timing_stats(
         timer=timer,
-        agent_step=agent_step,
+        agent_step=progress.agent_step,
     )
 
     # Build complete stats for wandb
@@ -628,28 +633,28 @@ while agent_step < trainer_config.total_timesteps:
             processed_stats=processed_stats,
             timing_info=timing_info,
             weight_stats={},  # Weight stats not computed in run.py
-            grad_stats=grad_stats,
+            grad_stats=stats_tracker.grad_stats,
             system_stats=system_stats,
             memory_stats=memory_stats,
             parameters=parameters,
             hyperparameters=hyperparameters,
-            evals=evaluation_scores.get(epoch, EvalRewardSummary()),
-            agent_step=agent_step,
-            epoch=epoch,
+            evals=evaluation_tracker.scores,
+            agent_step=progress.agent_step,
+            epoch=progress.epoch,
         )
 
         # Log to wandb if available
         if wandb_run:
-            wandb_run.log(all_stats, step=agent_step)
+            wandb_run.log(all_stats, step=progress.agent_step)
 
     # Clear stats for next iteration
-    stats.clear()
-    grad_stats.clear()
+    stats_tracker.clear_rollout_stats()
+    stats_tracker.clear_grad_stats()
 
     stats_time = time.time() - stats_start
 
     # Calculate total time and percentages
-    steps_calculated = agent_step - steps_before
+    steps_calculated = progress.agent_step - steps_before
     total_time = train_time + rollout_time + stats_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
     steps_per_sec *= world_size
@@ -659,49 +664,49 @@ while agent_step < trainer_config.total_timesteps:
     stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
 
     logger.info(
-        f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec - "
-        f"step {agent_step}/{trainer_config.total_timesteps:,} - "
+        f"Epoch {progress.epoch} - {steps_per_sec:.0f} steps/sec - "
+        f"step {progress.agent_step}/{trainer_config.total_timesteps:,} - "
         f"{train_pct:.0f}% train - {rollout_pct:.0f}% rollout - {stats_pct:.0f}% stats"
     )
 
     # Record heartbeat periodically (master only)
-    if should_run(epoch, 10, is_master):
+    if should_run(progress.epoch, 10, is_master):
         record_heartbeat()
 
     # Update L2 weights if configured
     if hasattr(agent, "l2_init_weight_update_interval"):
         maybe_update_l2_weights(
             agent=agent,
-            epoch=epoch,
+            epoch=progress.epoch,
             interval=getattr(agent, "l2_init_weight_update_interval", 0),
             is_master=is_master,
         )
 
     # Compute gradient statistics (master only)
-    if should_run(epoch, trainer_config.grad_mean_variance_interval, is_master):
-        grad_stats = compute_gradient_stats(agent)
+    if should_run(progress.epoch, trainer_config.grad_mean_variance_interval, is_master):
+        stats_tracker.grad_stats = compute_gradient_stats(agent)
 
     # Save checkpoint periodically
-    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
+    if should_run(progress.epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
         # Save policy with metadata (master only)
         if is_master:
             saved_record = save_policy_with_metadata(
                 policy=agent,
                 policy_store=policy_store,
-                epoch=epoch,
-                agent_step=agent_step,
-                evals=evaluation_scores.get(epoch, {}),
+                epoch=progress.epoch,
+                agent_step=progress.agent_step,
+                evals=evaluation_tracker.scores,
                 timer=timer,
-                initial_policy_record=initial_policy_record,
+                initial_policy_record=policy_tracker.initial_policy_record,
                 run_name=dirs.run_name,
                 is_master=is_master,
             )
 
             if saved_record:
-                latest_saved_policy_record = saved_record
+                policy_tracker.latest_saved_policy_record = saved_record
 
                 # Clean up old policies periodically
-                if epoch % 10 == 0:
+                if progress.epoch % 10 == 0:
                     cleanup_old_policies(trainer_config.checkpoint.checkpoint_dir, keep_last_n=5)
 
         # Save training state (master only)
@@ -710,17 +715,19 @@ while agent_step < trainer_config.total_timesteps:
             if kickstarter.enabled and kickstarter.teacher_uri is not None:
                 extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
 
-            latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
+            latest_uri = (
+                policy_tracker.latest_saved_policy_record.uri if policy_tracker.latest_saved_policy_record else None
+            )
             checkpoint = TrainerCheckpoint(
-                agent_step=agent_step,
-                epoch=epoch,
+                agent_step=progress.agent_step,
+                epoch=progress.epoch,
                 optimizer_state_dict=optimizer.state_dict(),
                 stopwatch_state=timer.save_state(),
                 policy_path=latest_uri,
                 extra_args=extra_args,
             )
             checkpoint.save(dirs.run_dir)
-            logger.info(f"Saved training state at epoch {epoch}")
+            logger.info(f"Saved training state at epoch {progress.epoch}")
 
         # Ensure all ranks synchronize after checkpoint saving
         if torch.distributed.is_initialized():
@@ -730,17 +737,17 @@ while agent_step < trainer_config.total_timesteps:
     if (
         is_master
         and wandb_run
-        and latest_saved_policy_record
-        and should_run(epoch, trainer_config.checkpoint.wandb_checkpoint_interval, True)
+        and policy_tracker.latest_saved_policy_record
+        and should_run(progress.epoch, trainer_config.checkpoint.wandb_checkpoint_interval, True)
     ):
         try:
-            policy_store.add_to_wandb_run(wandb_run.id, latest_saved_policy_record)
-            logger.info(f"Uploaded policy to wandb at epoch {epoch}")
+            policy_store.add_to_wandb_run(wandb_run.id, policy_tracker.latest_saved_policy_record)
+            logger.info(f"Uploaded policy to wandb at epoch {progress.epoch}")
         except Exception as e:
             logger.warning(f"Failed to upload policy to wandb: {e}")
 
     # Abort check via wandb tag (master only)
-    if is_master and wandb_run and should_run(epoch, 5, True):
+    if is_master and wandb_run and should_run(progress.epoch, 5, True):
         if abort_requested(wandb_run, 60):
             logger.info("Abort tag detected. Stopping the run.")
             break
@@ -749,10 +756,10 @@ while agent_step < trainer_config.total_timesteps:
     if (
         is_master
         and trainer_config.simulation.evaluate_interval > 0
-        and epoch % trainer_config.simulation.evaluate_interval == 0
-        and latest_saved_policy_record
+        and progress.epoch % trainer_config.simulation.evaluate_interval == 0
+        and policy_tracker.latest_saved_policy_record
     ):
-        logger.info(f"Evaluating policy at epoch {epoch}")
+        logger.info(f"Evaluating policy at epoch {progress.epoch}")
 
         # Create extended evaluation config with training task
         extended_eval_config = SimulationSuiteConfig(
@@ -776,7 +783,7 @@ while agent_step < trainer_config.total_timesteps:
         # Run evaluation suite
         sim_suite = SimulationSuite(
             config=extended_eval_config,
-            policy_pr=latest_saved_policy_record,
+            policy_pr=policy_tracker.latest_saved_policy_record,
             policy_store=policy_store,
             device=device,
             vectorization="serial",
@@ -798,7 +805,7 @@ while agent_step < trainer_config.total_timesteps:
 
         for category in categories:
             score = stats_db.get_average_metric_by_filter(
-                "reward", latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
+                "reward", policy_tracker.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
             )
             logger.info(f"{category} score: {score}")
             record_heartbeat()
@@ -807,58 +814,52 @@ while agent_step < trainer_config.total_timesteps:
 
         # Get detailed per-simulation scores
         per_sim_scores: dict[tuple[str, str], float] = {}
-        all_scores = stats_db.simulation_scores(latest_saved_policy_record, "reward")
+        all_scores = stats_db.simulation_scores(policy_tracker.latest_saved_policy_record, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
             per_sim_scores[(category, sim_short_name)] = score
 
-        evaluation_scores[epoch] = EvalRewardSummary(
-            category_scores=category_scores,
-            simulation_scores=per_sim_scores,
+        evaluation_tracker.update(
+            EvalRewardSummary(
+                category_scores=category_scores,
+                simulation_scores=per_sim_scores,
+            )
         )
 
         # Set policy metadata score for sweep_eval.py
         category_score_values = list(category_scores.values())
-        if category_score_values and latest_saved_policy_record:
-            latest_saved_policy_record.metadata["score"] = float(np.mean(category_score_values))
-            logger.info(f"Set policy metadata score to {latest_saved_policy_record.metadata['score']}")
+        if category_score_values and policy_tracker.latest_saved_policy_record:
+            policy_tracker.latest_saved_policy_record.metadata["score"] = float(np.mean(category_score_values))
+            logger.info(f"Set policy metadata score to {policy_tracker.latest_saved_policy_record.metadata['score']}")
 
         stats_db.close()
 
         # Replay generation (master only)
-        if is_master and latest_saved_policy_record:
-            logger.info(f"Generating replay at epoch {epoch}")
+        if is_master and policy_tracker.latest_saved_policy_record:
+            logger.info(f"Generating replay at epoch {progress.epoch}")
 
             # Generate replay using curriculum already in environment
             curr_obj = getattr(metta_grid_env, "_curriculum", None)
             if curr_obj is not None:
                 generate_replay(
-                    policy_record=latest_saved_policy_record,
+                    policy_record=policy_tracker.latest_saved_policy_record,
                     policy_store=policy_store,
                     curriculum=curr_obj,
-                    epoch=epoch,
+                    epoch=progress.epoch,
                     device=device,
                     vectorization="serial",
                     replay_dir=trainer_config.simulation.replay_dir,
                     wandb_run=wandb_run,
                 )
 
-    torch_profiler.on_epoch_end(epoch)
+    torch_profiler.on_epoch_end(progress.epoch)
 
 # Training complete
-total_elapsed = time.time() - epoch_start_time
+total_elapsed = time.time() - training_start_time
 logger.info("Training complete!")
 logger.info(f"Total training time: {total_elapsed:.1f}s")
-logger.info(f"Final epoch: {epoch}, Total steps: {agent_step}")
-
-# Log evaluation history
-if evaluation_scores:
-    logger.info("\nEvaluation History:")
-    for eval_epoch, scores in sorted(evaluation_scores.items()):
-        logger.info(f"  Epoch {eval_epoch}:")
-        for env_name, score in scores.items():
-            logger.info(f"    {env_name}: {score:.2f}")
+logger.info(f"Final epoch: {progress.epoch}, Total steps: {progress.agent_step}")
 
 # Stop monitoring if master
 if is_master:
@@ -873,17 +874,17 @@ if is_master:
     saved_record = save_policy_with_metadata(
         policy=agent,
         policy_store=policy_store,
-        epoch=epoch,
-        agent_step=agent_step,
-        evals=evaluation_scores.get(epoch, {}),
+        epoch=progress.epoch,
+        agent_step=progress.agent_step,
+        evals=evaluation_tracker.scores,
         timer=timer,
-        initial_policy_record=initial_policy_record,
+        initial_policy_record=policy_tracker.initial_policy_record,
         run_name=dirs.run_name,
         is_master=is_master,
     )
 
     if saved_record:
-        latest_saved_policy_record = saved_record
+        policy_tracker.latest_saved_policy_record = saved_record
 
 # Save training state (master only)
 if is_master:
@@ -891,10 +892,10 @@ if is_master:
     if kickstarter.enabled and kickstarter.teacher_uri is not None:
         extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
 
-    latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
+    latest_uri = policy_tracker.latest_saved_policy_record.uri if policy_tracker.latest_saved_policy_record else None
     checkpoint = TrainerCheckpoint(
-        agent_step=agent_step,
-        epoch=epoch,
+        agent_step=progress.agent_step,
+        epoch=progress.epoch,
         optimizer_state_dict=optimizer.state_dict(),
         stopwatch_state=timer.save_state(),
         policy_path=latest_uri,
