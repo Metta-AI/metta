@@ -57,6 +57,19 @@ class ObsTokenToBoxShaper(LayerBase):
         batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
         valid_tokens = coords_byte != 0xFF
+
+        # Add bounds checking for feature indices
+        if valid_tokens.any():
+            max_atr_idx = atr_indices[valid_tokens].max().item()
+            if max_atr_idx >= self.num_layers:
+                raise IndexError(
+                    f"Feature index {max_atr_idx} is out of bounds for tensor with "
+                    f"{self.num_layers} layers. This likely means the environment is "
+                    f"generating features that weren't present when the agent was created. "
+                    f"Check if recipe_details_obs or resource_rewards are enabled in the "
+                    f"environment but not in the agent's feature_normalizations."
+                )
+
         box_obs[
             batch_indices[valid_tokens],
             atr_indices[valid_tokens],

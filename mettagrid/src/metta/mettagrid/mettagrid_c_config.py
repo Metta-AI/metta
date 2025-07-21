@@ -180,6 +180,8 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     # Note: global_observations configuration is handled through the global_obs parameter
     # Add recipe_details_obs flag
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
+    # Add movement_mode configuration
+    game_cpp_params["movement_mode"] = game_config.movement_mode
 
     return CppGameConfig(**game_cpp_params)
 
