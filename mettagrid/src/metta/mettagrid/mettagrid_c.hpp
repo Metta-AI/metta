@@ -53,6 +53,7 @@ struct GlobalObsConfig {
 struct GameConfig {
   size_t num_agents;
   unsigned int max_steps;
+  float max_reward;
   bool episode_truncates;
   ObservationCoord obs_width;
   ObservationCoord obs_height;
@@ -74,6 +75,7 @@ public:
 
   unsigned int current_step;
   unsigned int max_steps;
+  float max_reward;
   bool episode_truncates;
 
   std::vector<std::string> inventory_item_names;
