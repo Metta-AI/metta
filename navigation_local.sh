@@ -2,17 +2,21 @@
 
 # Local navigation training script for use with tools/train.py
 
+agent_cluster_type=positions_in_same_area
+num_rooms=4
+num_agents_per_room=4
+seed=0
 python3 tools/train.py \
-run="$USER.navigation.ffa_test_1rooms_of_1_right_next_to_each_other_seed0.$(date +%m-%d)" \
+run=$USER.navigation.ffa_8x_red_minibatch_conc_reward_gamma_0.999_MASSIVE_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/random \
-++trainer.env_overrides.special_reward_mode=ffa \
-++trainer.env_overrides.game.num_agents=4 \
-++trainer.env_overrides.game.map_builder.room.agents=1 \
-++trainer.env_overrides.game.map_builder.room.agent_cluster_type=right_next_to_each_other \
-++trainer.env_overrides.game.map_builder.num_rooms=4 \
-seed=0 \
-sim=navigation \
 +USER=greg \
+++trainer.env_overrides.special_reward_mode=ffa \
+++trainer.env_overrides.game.map_builder.room.agent_cluster_type=${agent_cluster_type} \
+++trainer.env_overrides.game.num_agents=$((num_agents_per_room * num_rooms)) \
+++trainer.env_overrides.game.map_builder.room.agents=${num_agents_per_room} \
+++trainer.env_overrides.game.map_builder.num_rooms=${num_rooms} \
+seed=${seed} \
+sim=navigation \
 "$@"
 # ++trainer.env_overrides.game.num_agents=16 \
 
