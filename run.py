@@ -17,7 +17,6 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.helpers import (
     abort_requested,
-    add_policy_artifact,
     upload_env_configs,
 )
 from metta.common.wandb.wandb_context import WandbContext
@@ -736,7 +735,7 @@ while agent_step < trainer_config.total_timesteps:
         and should_run(epoch, trainer_config.checkpoint.wandb_checkpoint_interval, True)
     ):
         try:
-            add_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
+            policy_store.add_to_wandb_run(wandb_run.id, latest_saved_policy_record)
             logger.info(f"Uploaded policy to wandb at epoch {epoch}")
         except Exception as e:
             logger.warning(f"Failed to upload policy to wandb: {e}")

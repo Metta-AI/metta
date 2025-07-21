@@ -11,54 +11,42 @@ from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
 
-# -------------------------------------------------------------------------------------------------
-# Policy artifact upload
-# -------------------------------------------------------------------------------------------------
-
-
-def add_policy_artifact(wandb_run: wandb.sdk.wandb_run.Run | None, policy_store: Any, policy_record: Any) -> None:
-    """Upload *policy_record* as an artifact to *wandb_run* using policy_store helper.
-
-    Safe-no-op if wandb disabled or record is None.
-    """
-    if wandb_run is None or policy_record is None:
-        return
-    try:
-        policy_store.add_to_wandb_run(wandb_run.id, policy_record)
-    except Exception as e:
-        logger.warning(f"Failed to upload policy to WandB: {e}")
-
 
 # -------------------------------------------------------------------------------------------------
 # Abort tag check (throttled)
 # -------------------------------------------------------------------------------------------------
-
-_LAST_ABORT_CHECK: float = 0.0
-_ABORT_CACHE: bool = False
 
 
 def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec: int = 60) -> bool:
     """Return True if the WandB run has an "abort" tag.
 
     The API call is throttled to *min_interval_sec* seconds.
+    State is stored on the wandb_run object to avoid global state issues.
     """
-    global _LAST_ABORT_CHECK, _ABORT_CACHE
-
     if wandb_run is None:
         return False
 
-    now = time.time()
-    if now - _LAST_ABORT_CHECK < min_interval_sec:
-        return _ABORT_CACHE
+    # Store state on the wandb_run object to avoid global state
+    if not hasattr(wandb_run, "_abort_check_state"):
+        wandb_run._abort_check_state = {"last_check": 0.0, "cached_result": False}
 
-    _LAST_ABORT_CHECK = now
+    state = wandb_run._abort_check_state
+    now = time.time()
+
+    # Return cached result if within throttle interval
+    if now - state["last_check"] < min_interval_sec:
+        return state["cached_result"]
+
+    # Time to check again
+    state["last_check"] = now
     try:
         run_obj = wandb.Api().run(wandb_run.path)
-        _ABORT_CACHE = "abort" in run_obj.tags
+        state["cached_result"] = "abort" in run_obj.tags
     except Exception as e:
         logger.debug(f"Abort tag check failed: {e}")
-        _ABORT_CACHE = False
-    return _ABORT_CACHE
+        state["cached_result"] = False
+
+    return state["cached_result"]
 
 
 # -------------------------------------------------------------------------------------------------

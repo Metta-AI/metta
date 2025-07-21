@@ -17,6 +17,7 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.common.wandb.helpers import abort_requested as _abort_requested
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
@@ -353,13 +354,13 @@ def _upload_policy_to_wandb(
     if not wandb_run or not policy_record:
         return None
 
-    if not wandb_run.name:
-        logger.warning("No wandb run name was provided")
+    try:
+        result = policy_store.add_to_wandb_run(wandb_run.id, policy_record)
+        logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.get('epoch', 'unknown')}")
+        return result
+    except Exception as e:
+        logger.warning(f"Failed to upload policy to wandb: {e}")
         return None
-
-    result = policy_store.add_to_wandb_run(wandb_run.name, policy_record)
-    logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.get('epoch', 'unknown')}")
-    return result
 
 
 def _maybe_evaluate_policy(
@@ -491,19 +492,13 @@ def _upload_replay_html(
 
 def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
     """Check for abort tag in wandb run."""
-    if wandb_run is None:
-        return False
-
-    try:
-        if "abort" not in wandb.Api().run(wandb_run.path).tags:
-            return False
-
+    if _abort_requested(wandb_run, min_interval_sec=60):
         logger.info("Abort tag detected. Stopping the run.")
         trainer_cfg.total_timesteps = int(agent_step)
-        wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
+        if wandb_run:
+            wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
         return True
-    except Exception:
-        return False
+    return False
 
 
 def _initialize_stats_tracking(
