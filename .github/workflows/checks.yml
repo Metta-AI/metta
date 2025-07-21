@@ -43,7 +43,7 @@ jobs:
       github.event.pull_request.draft == false ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'merge_group' && false
+      github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
       should_skip: ${{ steps.graphite_ci.outputs.skip }}
@@ -67,7 +67,7 @@ jobs:
       (github.event.pull_request.draft == false ||
        github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       github.event_name == 'merge_group') && false
+       github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
@@ -122,7 +122,7 @@ jobs:
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_lint == 'true') && false
+      (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
