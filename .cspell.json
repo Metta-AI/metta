@@ -183,6 +183,7 @@
     "representer",
     "richcmp",
     "Roguelike",
+    "runstore",
     "scanline",
     "Schulman",
     "scikit",

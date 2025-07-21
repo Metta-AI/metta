@@ -58,8 +58,8 @@ class WandBClient:
         try:
             run = self.api.run(run_path)
             return self._run_to_data(run)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WandBClient] Direct path failed for {run_path}: {e}")
 
         # If not found by ID, try searching by name
         try:
@@ -67,20 +67,23 @@ class WandBClient:
             for run in runs:
                 if run.name == run_id or run.id == run_id:
                     return self._run_to_data(run)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WandBClient] Search by name failed for {run_id}: {e}")
 
         return None
 
     def _run_to_data(self, run) -> WandBRunData:
+        # Extract config fields properly
+        config = run.config if run.config else {}
         return WandBRunData(
             run_id=run.id,
             url=run.url,
             status=WandBStatus.from_raw(run.state),
             project=run.project,
             entity=run.entity,
-            config=dict(run.config) if run.config else {},
-            git_hash=run.commit or "",
+            git_hash=config.get("git_hash") or run.commit or None,
+            command_args=config.get("command_args"),
+            config=dict(config) if config else None,
             created_at=run.created_at if hasattr(run, "created_at") else None,
         )
 
@@ -93,14 +96,9 @@ class WandBClient:
         # For known IDs, we can try to fetch them individually
         for run_id in run_ids:
             if data := self.get_run(run_id, project, entity):
-                # Use the run name as key if available, otherwise use ID
-                key = data.run_id
-                # Check if this run matches by ID
-                for rid in run_ids:
-                    if rid == data.run_id:
-                        key = rid
-                        break
-                results[key] = data
+                # Use the search key (run_id) as the key in results
+                # This ensures we match what was requested
+                results[run_id] = data
 
         return results
 

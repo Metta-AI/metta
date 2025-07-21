@@ -1,7 +1,6 @@
 import json
 import threading
 from datetime import datetime
-from enum import Enum
 from functools import cache
 from pathlib import Path
 
@@ -9,16 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from notebooks.clients.sky_client import SkyPilotClient, SkyPilotJobData, SkyStatus
 from notebooks.clients.wandb_client import RunConfig, WandBClient, WandBRunData, WandBStatus
-
-
-class RunStatus(str, Enum):
-    UNSUBMITTED = "unsubmitted"
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    UNKNOWN = "unknown"
-    SUBMITTED = "submitted"
 
 
 class Run(BaseModel):
@@ -44,31 +33,6 @@ class Run(BaseModel):
             or (self.wandb and self.wandb.status == WandBStatus.RUNNING)
         )
 
-    @property
-    def status(self) -> RunStatus:
-        if not self.sky and not self.wandb:
-            return RunStatus.UNSUBMITTED if self.config.command_args else RunStatus.UNKNOWN
-
-        if self.sky:
-            if self.sky.status == SkyStatus.PENDING:
-                return RunStatus.PENDING
-            elif self.sky.status == SkyStatus.RUNNING:
-                return RunStatus.RUNNING
-            elif self.sky.status == SkyStatus.SUCCEEDED:
-                return RunStatus.COMPLETED
-            elif self.sky.status == SkyStatus.FAILED:
-                return RunStatus.FAILED
-
-        if self.wandb:
-            if self.wandb.status == WandBStatus.RUNNING:
-                return RunStatus.RUNNING
-            elif self.wandb.status == WandBStatus.FINISHED:
-                return RunStatus.COMPLETED
-            elif self.wandb.status in (WandBStatus.FAILED, WandBStatus.CRASHED):
-                return RunStatus.FAILED
-
-        return RunStatus.SUBMITTED
-
 
 class RunStoreData(BaseModel):
     runs: dict[str, Run] = Field(default_factory=dict)
@@ -83,7 +47,7 @@ def get_runstore() -> "RunStore":
 
 class RunStore:
     """Stateless RunStore that persists all data to disk."""
-    
+
     def __init__(self, storage_path: Path | None = None):
         if storage_path is None:
             storage_path = Path.home() / ".metta" / "run_store.json"
@@ -186,7 +150,7 @@ class RunStore:
     def refresh_all(self) -> list[Run]:
         # Load current data
         store_data = self._load()
-        
+
         # Get all run IDs
         run_ids = list(store_data.runs.keys())
 
@@ -259,296 +223,376 @@ class RunStore:
     def to_widget(self, runs: list[Run] | None = None, max_rows: int = 10):
         """Create an interactive widget table for displaying runs."""
         import ipywidgets as widgets
-        from IPython.display import display, clear_output
-        
+
         if runs is None:
             runs = self.get_all()
-        
+
         # State variables
         self._filtered_runs = runs
         self._current_page = 0
-        self._sort_column = 'created'
+        self._sort_column = "created"
         self._sort_ascending = False
-        
+
         # Create UI elements
         # Search and filters row
-        search_input = widgets.Text(
-            placeholder='Search run ID...',
-            layout=widgets.Layout(width='250px')
+        search_label = widgets.Label("Search:")
+        search_input = widgets.Textarea(
+            value="",
+            placeholder="Search run ID...",
+            layout=widgets.Layout(width="250px", height="30px"),
+            style={"description_width": "initial"},
+            continuous_update=True,  # Update as user types
+            rows=1,
         )
-        
-        status_filter = widgets.Dropdown(
-            options=['All Statuses', 'running', 'completed', 'failed', 'pending', 'unsubmitted'],
-            value='All Statuses',
-            layout=widgets.Layout(width='150px')
-        )
-        
+
         sky_filter = widgets.Dropdown(
-            options=['All Sky Status', 'RUNNING', 'SUCCEEDED', 'FAILED', 'PENDING'],
-            value='All Sky Status',
-            layout=widgets.Layout(width='150px')
+            options=["All Sky Status", "RUNNING", "SUCCEEDED", "FAILED", "PENDING"],
+            value="All Sky Status",
+            layout=widgets.Layout(width="150px"),
         )
-        
+
         wandb_filter = widgets.Dropdown(
-            options=['All W&B Status', 'running', 'finished', 'failed', 'crashed'],
-            value='All W&B Status',
-            layout=widgets.Layout(width='150px')
+            options=["All W&B Status", "running", "finished", "failed", "crashed"],
+            value="All W&B Status",
+            layout=widgets.Layout(width="150px"),
         )
-        
+
         # Track run controls
-        track_input = widgets.Text(
-            placeholder='Run ID to track',
-            layout=widgets.Layout(width='200px')
+        track_label = widgets.Label("Track new run:")
+        track_input = widgets.Textarea(
+            value="",
+            placeholder="Enter run ID",
+            layout=widgets.Layout(width="200px", height="30px"),
+            style={"description_width": "initial"},
+            continuous_update=False,  # Only update on Enter or blur
+            rows=1,
         )
-        
+
         track_button = widgets.Button(
-            description='Track Run',
-            button_style='primary',
-            layout=widgets.Layout(width='100px')
+            description="Track Run", button_style="primary", layout=widgets.Layout(width="100px")
         )
-        
+
         refresh_all_button = widgets.Button(
-            description='Refresh All',
-            button_style='success',
-            layout=widgets.Layout(width='100px')
+            description="Refresh All", button_style="success", layout=widgets.Layout(width="100px")
         )
-        
+
+        refresh_table_button = widgets.Button(
+            description="Refresh Table", button_style="info", layout=widgets.Layout(width="100px")
+        )
+
         # Output area for the table
-        output = widgets.Output()
-        
+        output = widgets.HTML()
+
         # Pagination controls
-        prev_button = widgets.Button(
-            description='Previous',
-            disabled=True,
-            layout=widgets.Layout(width='80px')
-        )
-        
-        next_button = widgets.Button(
-            description='Next',
-            disabled=True,
-            layout=widgets.Layout(width='80px')
-        )
-        
-        page_label = widgets.Label(value='Page 1')
-        
+        prev_button = widgets.Button(description="Previous", disabled=True, layout=widgets.Layout(width="80px"))
+
+        next_button = widgets.Button(description="Next", disabled=True, layout=widgets.Layout(width="80px"))
+
+        page_label = widgets.Label(value="Page 1")
+
         # Status label
-        status_label = widgets.Label(value=f'Showing {len(runs)} runs')
-        
+        status_label = widgets.Label(value=f"Showing {len(runs)} runs")
+
         def update_table():
             """Update the table display based on current filters and sorting."""
             nonlocal runs
             runs = self.get_all()  # Refresh data
-            
+
             # Apply filters
             filtered = runs
-            
+
             # Search filter
-            search_term = search_input.value.lower()
+            search_term = search_input.value.strip().lower()
             if search_term:
                 filtered = [r for r in filtered if search_term in r.run_id.lower()]
-            
-            # Status filter
-            if status_filter.value != 'All Statuses':
-                filtered = [r for r in filtered if r.status.value == status_filter.value]
-            
+
             # Sky filter
-            if sky_filter.value != 'All Sky Status':
+            if sky_filter.value != "All Sky Status":
                 filtered = [r for r in filtered if r.sky and r.sky.status.value == sky_filter.value]
-            
+
             # W&B filter
-            if wandb_filter.value != 'All W&B Status':
+            if wandb_filter.value != "All W&B Status":
                 filtered = [r for r in filtered if r.wandb and r.wandb.status.value == wandb_filter.value]
-            
+
             self._filtered_runs = filtered
-            
+
             # Sort
-            if self._sort_column == 'created':
-                self._filtered_runs.sort(
-                    key=lambda r: r.created_at,
-                    reverse=not self._sort_ascending
-                )
-            elif self._sort_column == 'run_id':
-                self._filtered_runs.sort(
-                    key=lambda r: r.run_id,
-                    reverse=not self._sort_ascending
-                )
-            elif self._sort_column == 'status':
-                self._filtered_runs.sort(
-                    key=lambda r: r.status.value,
-                    reverse=not self._sort_ascending
-                )
-            
+            if self._sort_column == "created":
+                self._filtered_runs.sort(key=lambda r: r.created_at, reverse=not self._sort_ascending)
+            elif self._sort_column == "run_id":
+                self._filtered_runs.sort(key=lambda r: r.run_id, reverse=not self._sort_ascending)
+
             # Pagination
             total_pages = max(1, (len(self._filtered_runs) + max_rows - 1) // max_rows)
             self._current_page = min(self._current_page, total_pages - 1)
-            
+
             start_idx = self._current_page * max_rows
             end_idx = min(start_idx + max_rows, len(self._filtered_runs))
             page_runs = self._filtered_runs[start_idx:end_idx]
-            
+
             # Update pagination controls
             prev_button.disabled = self._current_page == 0
             next_button.disabled = self._current_page >= total_pages - 1
-            page_label.value = f'Page {self._current_page + 1} of {total_pages}'
-            status_label.value = f'Showing {start_idx + 1}-{end_idx} of {len(self._filtered_runs)} runs'
-            
-            # Clear and update output
-            with output:
-                clear_output(wait=True)
-                
-                if not page_runs:
-                    display(widgets.HTML('<p style="text-align: center; color: #666;">No runs match the filters</p>'))
-                    return
-                
-                # Create table rows
-                rows = []
-                
-                # Header row with better styling
-                header_style = {'text-align': 'right', 'font-weight': 'bold', 'padding': '5px'}
-                header_row = widgets.HBox([
-                    widgets.Label('Run ID', layout=widgets.Layout(width='250px'), style=header_style),
-                    widgets.Label('Status', layout=widgets.Layout(width='100px'), style=header_style),
-                    widgets.Label('SkyPilot', layout=widgets.Layout(width='200px'), style=header_style),
-                    widgets.Label('W&B', layout=widgets.Layout(width='150px'), style=header_style),
-                    widgets.Label('Created', layout=widgets.Layout(width='200px'), style=header_style),
-                    widgets.Label('Actions', layout=widgets.Layout(width='100px'), style=header_style)
-                ])
-                rows.append(header_row)
-                
-                # Data rows
-                cell_style = {'text-align': 'right'}
-                for run in page_runs:
-                    # Create refresh button for this row
-                    refresh_btn = widgets.Button(
-                        description='Refresh',
-                        layout=widgets.Layout(width='80px', height='25px'),
-                        button_style='info'
+            page_label.value = f"Page {self._current_page + 1} of {total_pages}"
+            status_label.value = f"Showing {start_idx + 1}-{end_idx} of {len(self._filtered_runs)} runs"
+
+            # Generate HTML table
+            if not page_runs:
+                output.value = '<p style="text-align: center; color: #666;">No runs match the filters</p>'
+                return
+
+            # Create HTML table
+            html = """
+            <style>
+            .runstore-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: monospace;
+                font-size: 13px;
+            }
+            .runstore-table th, .runstore-table td {
+                padding: 8px 12px;
+                text-align: right;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            .runstore-table th {
+                font-weight: bold;
+                background: #f8f9fa;
+                border-bottom: 2px solid #e0e0e0;
+            }
+            .runstore-table tr:hover {
+                background: #f8f9fa;
+            }
+            .status-badge {
+                display: inline-block;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            .status-running { background: #e3f2fd; color: #1976d2; }
+            .status-pending { background: #fff3cd; color: #856404; }
+            .status-failed { background: #fee; color: #c62828; }
+            .status-completed, .status-succeeded { background: #e8f5e9; color: #2e7d32; }
+            .status-unsubmitted { background: #f5f5f5; color: #757575; }
+            </style>
+            <table class="runstore-table">
+            <thead>
+                <tr>
+                    <th>Run ID</th>
+                    <th>SkyPilot</th>
+                    <th>W&B</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            """
+
+            for idx, run in enumerate(page_runs):
+                # Format values
+                if run.sky:
+                    sky_status_class = f"status-{run.sky.status.value.lower()}"
+                    sky_str = f'<span class="status-badge {sky_status_class}">{run.sky.status.value}</span>'
+                else:
+                    sky_str = "—"
+
+                if run.wandb:
+                    wandb_status_class = f"status-{run.wandb.status.value.lower()}"
+                    wandb_str = (
+                        f'<a href="{run.wandb.url}" target="_blank"><span class="status-badge {wandb_status_class}">'
+                        f"{run.wandb.status.value}</span></a>"
                     )
-                    
-                    def make_refresh_handler(run_id):
-                        def refresh_handler(b):
-                            b.disabled = True
-                            b.description = 'Refreshing...'
-                            try:
-                                self.refresh_run(run_id)
-                                update_table()
-                            finally:
-                                b.disabled = False
-                                b.description = 'Refresh'
-                        return refresh_handler
-                    
-                    refresh_btn.on_click(make_refresh_handler(run.run_id))
-                    
-                    # Format created date
-                    created_str = run.created_at.strftime('%Y-%m-%d %H:%M:%S')
-                    
-                    # Sky status
-                    sky_str = f"{run.sky.job_id} ({run.sky.status.value})" if run.sky else "—"
-                    
-                    # W&B status with link
-                    if run.wandb:
-                        wandb_html = f'<a href="{run.wandb.url}" target="_blank" style="text-align: right;">{run.wandb.status.value}</a>'
-                        wandb_widget = widgets.HTML(value=wandb_html, layout=widgets.Layout(width='150px'))
-                    else:
-                        wandb_widget = widgets.Label(value="—", layout=widgets.Layout(width='150px'), style=cell_style)
-                    
-                    row = widgets.HBox([
-                        widgets.Label(run.run_id, layout=widgets.Layout(width='250px'), style=cell_style),
-                        widgets.Label(run.status.value, layout=widgets.Layout(width='100px'), style=cell_style),
-                        widgets.Label(sky_str, layout=widgets.Layout(width='200px'), style=cell_style),
-                        wandb_widget,
-                        widgets.Label(created_str, layout=widgets.Layout(width='200px'), style=cell_style),
-                        refresh_btn
-                    ])
-                    rows.append(row)
-                
-                # Display all rows
-                table = widgets.VBox(rows, layout=widgets.Layout(gap='2px'))
-                display(table)
-        
+                else:
+                    wandb_str = "—"
+
+                created_str = run.created_at.strftime("%Y-%m-%d %H:%M:%S")
+
+                html += f"""
+                <tr>
+                    <td>{run.run_id}</td>
+                    <td>{sky_str}</td>
+                    <td>{wandb_str}</td>
+                    <td>{created_str}</td>
+                    <td>
+                    <button id="refresh-btn-{idx}" onclick="refreshRun{idx}()"style="padding:4px 8px;font-size:11px;">
+                        Refresh
+                    </button>
+                    </td>
+                </tr>
+                """
+
+            html += "</tbody></table>"
+
+            # Add JavaScript for individual refresh buttons
+            html += f"""
+            <script>
+            (function() {{
+                // Function to refresh individual run
+                function refreshRun(runId, buttonId) {{
+                    console.log('Refreshing run:', runId);
+
+                    // Find the specific button and update its text
+                    const button = document.getElementById(buttonId);
+                    if (button) {{
+                        button.disabled = true;
+                        button.textContent = 'Refreshing...';
+                    }}
+
+                    // Use Jupyter's kernel to execute Python code
+                    if (typeof Jupyter !== 'undefined' && Jupyter.notebook && Jupyter.notebook.kernel) {{
+                        const startTime = Date.now();
+
+                        Jupyter.notebook.kernel.execute(
+                            `# Refresh run in RunStore\\n` +
+                            `from notebooks.run_store import get_runstore\\n` +
+                            `rs = get_runstore()\\n` +
+                            `updated = rs.refresh_run('${{runId}}')\\n` +
+                            `print(f'Refreshed ${{runId}}: Updated={{updated}}')`,
+                            {{
+                                iopub: {{
+                                    output: function(msg) {{
+                                        if (msg.msg_type === 'stream') {{
+                                            console.log('Refresh output:', msg.content.text);
+                                        }}
+                                    }}
+                                }},
+                                shell: {{
+                                    reply: function(msg) {{
+                                        // Command completed
+                                        const elapsed = Date.now() - startTime;
+                                        console.log(`Refresh completed in ${{elapsed}}ms`);
+
+                                        // Update button state
+                                        if (button) {{
+                                            button.textContent = 'Refreshed!';
+                                            setTimeout(() => {{
+                                                button.disabled = false;
+                                                button.textContent = 'Refresh';
+                                            }}, 1500);
+                                        }}
+                                    }}
+                                }}
+                            }}
+                        );
+                    }} else {{
+                        console.error('Jupyter kernel not available');
+                        if (button) {{
+                            button.disabled = false;
+                            button.textContent = 'Error';
+                            setTimeout(() => {{
+                                button.textContent = 'Refresh';
+                            }}, 1500);
+                        }}
+                    }}
+                }}
+
+                // Make refreshRun functions available globally with unique names
+                // Bind refresh functions
+                {
+                "; ".join(
+                    [
+                        f'window.refreshRun{idx} = () => refreshRun("{run.run_id}", "refresh-btn-{idx}")'
+                        for idx, run in enumerate(page_runs)
+                    ]
+                )
+            }
+            }})();
+            </script>
+            """
+
+            output.value = html
+
         # Event handlers
         def on_search_change(change):
             self._current_page = 0
             update_table()
-        
+
         def on_filter_change(change):
             self._current_page = 0
             update_table()
-        
+
         def on_track_click(b):
             run_id = track_input.value.strip()
             if run_id:
                 self.add_run(run_id)
-                track_input.value = ''
+                track_input.value = ""
                 update_table()
-        
+
         def on_refresh_all_click(b):
             b.disabled = True
-            b.description = 'Refreshing...'
+            b.description = "Refreshing..."
             try:
                 self.refresh_all()
                 update_table()
             finally:
                 b.disabled = False
-                b.description = 'Refresh All'
-        
+                b.description = "Refresh All"
+
+        def on_refresh_table_click(b):
+            update_table()
+            # Brief visual feedback
+            original_style = b.button_style
+            b.button_style = "success"
+            b.description = "Refreshed!"
+            import threading
+
+            def reset():
+                b.button_style = original_style
+                b.description = "Refresh Table"
+
+            threading.Timer(0.5, reset).start()
+
         def on_prev_click(b):
             self._current_page = max(0, self._current_page - 1)
             update_table()
-        
+
         def on_next_click(b):
             self._current_page += 1
             update_table()
-        
+
         # Connect event handlers
-        search_input.observe(on_search_change, 'value')
-        status_filter.observe(on_filter_change, 'value')
-        sky_filter.observe(on_filter_change, 'value')
-        wandb_filter.observe(on_filter_change, 'value')
+        search_input.observe(on_search_change, "value")
+        sky_filter.observe(on_filter_change, "value")
+        wandb_filter.observe(on_filter_change, "value")
         track_button.on_click(on_track_click)
+        # Note: Textarea doesn't support on_submit, so users need to click the button
         refresh_all_button.on_click(on_refresh_all_click)
+        refresh_table_button.on_click(on_refresh_table_click)
         prev_button.on_click(on_prev_click)
         next_button.on_click(on_next_click)
-        
-        # Also allow Enter key in track input
-        def on_track_submit(sender):
-            on_track_click(None)
-        track_input.on_submit(on_track_submit)
-        
+
+        # No auto-refresh - keep it simple
+
         # Layout
-        filters_row = widgets.HBox([
-            search_input,
-            status_filter,
-            sky_filter,
-            wandb_filter
-        ], layout=widgets.Layout(gap='10px'))
-        
-        track_row = widgets.HBox([
-            track_input,
-            track_button,
-            refresh_all_button
-        ], layout=widgets.Layout(gap='10px'))
-        
-        header_section = widgets.VBox([
-            filters_row,
-            track_row
-        ], layout=widgets.Layout(gap='10px', margin='0 0 10px 0'))
-        
-        pagination_row = widgets.HBox([
-            status_label,
-            widgets.HBox([prev_button, page_label, next_button], layout=widgets.Layout(gap='5px'))
-        ], layout=widgets.Layout(justify_content='space-between', margin='10px 0'))
-        
+        filters_row = widgets.HBox(
+            [search_label, search_input, sky_filter, wandb_filter],
+            layout=widgets.Layout(gap="10px", align_items="center"),
+        )
+
+        track_row = widgets.HBox(
+            [track_label, track_input, track_button, refresh_all_button, refresh_table_button],
+            layout=widgets.Layout(gap="10px", align_items="center"),
+        )
+
+        header_section = widgets.VBox([filters_row, track_row], layout=widgets.Layout(gap="10px", margin="0 0 10px 0"))
+
+        pagination_row = widgets.HBox(
+            [status_label, widgets.HBox([prev_button, page_label, next_button], layout=widgets.Layout(gap="5px"))],
+            layout=widgets.Layout(justify_content="space-between", margin="10px 0"),
+        )
+
         # Main container
-        container = widgets.VBox([
-            header_section,
-            output,
-            pagination_row
-        ])
-        
+        container = widgets.VBox([header_section, output, pagination_row])
+
+        # No cleanup needed without auto-refresh
+
+        # Store reference to update function for manual refresh
+        container.update_table = update_table
+
         # Initial render
         update_table()
-        
+
         return container
 
     def get_active_runs(self) -> list[Run]:
@@ -558,7 +602,7 @@ class RunStore:
         """Refresh only runs that are still active (non-terminated)."""
         # Load current data
         store_data = self._load()
-        
+
         # Get active run IDs
         active_run_ids = [run.run_id for run in store_data.runs.values() if run.is_active]
 
@@ -594,7 +638,7 @@ class RunStore:
         return updated_runs
 
     def get_unsubmitted_runs(self) -> list[Run]:
-        return [run for run in self.get_all() if run.status == RunStatus.UNSUBMITTED]
+        return [run for run in self.get_all() if not run.sky and not run.wandb]
 
     def discover_wandb_runs(self, project: str = "metta", entity: str = "metta-research", limit: int = 20) -> list[str]:
         store_data = self._load()
