@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: /env/mettagrid/systematic_exploration/training/boxes
+    env: /env/mettagrid/systematic_exploration/training/combined_adversarial
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats

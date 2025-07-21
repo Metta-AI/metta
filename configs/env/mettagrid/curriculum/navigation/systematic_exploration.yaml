@@ -4,7 +4,6 @@ tasks:
   /env/mettagrid/systematic_exploration/training/spiders: 1
   /env/mettagrid/systematic_exploration/training/bounce_turn: 1
   /env/mettagrid/systematic_exploration/training/wallfollow_sparse: 1
-  /env/mettagrid/systematic_exploration/training/combined_adversarial: 1
   /env/mettagrid/systematic_exploration/training/direction_based_sparse: 1
   /env/mettagrid/systematic_exploration/training/direction_based: 1
   /env/mettagrid/systematic_exploration/training/fixed_sweep: 1
