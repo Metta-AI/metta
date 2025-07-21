@@ -6,4 +6,3 @@ game:
   max_steps: 200
   map_builder:
     uri: "configs/env/mettagrid/maps/systematic_exploration_memory/choose_wisely.map"
-
