@@ -11,60 +11,30 @@ This module replaces sweep_rollout.sh with a Python implementation that:
 import os
 import subprocess
 import sys
-import uuid
 from logging import Logger
 
 import hydra
 from omegaconf import DictConfig
 
+from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
+from tools.sweep_prepare_run import setup_next_run
 
 logger = setup_mettagrid_logger("sweep_rollout")
-
-
-class SweepRolloutError(Exception):
-    """Custom exception for sweep rollout failures."""
-
-    pass
 
 
 def generate_dist_cfg_path(data_dir: str, sweep_name: str) -> str:
     """Generate distributed config path with process-unique hash."""
     dist_id = os.environ.get("DIST_ID", "localhost")
-    process_hash = uuid.uuid4().hex[:8]
-    return f"{data_dir}/sweep/{sweep_name}/dist_{dist_id}_{process_hash}.yaml"
-
-
-def extract_run_id_from_config(dist_cfg_path: str) -> str:
-    """Extract run ID from the generated distributed config file."""
-    if not os.path.exists(dist_cfg_path):
-        raise FileNotFoundError(f"Distributed config file not found: {dist_cfg_path}")
-
-    with open(dist_cfg_path, "r") as f:
-        content = f.read()
-
-    # Parse line by line to match bash logic: grep '^run:' | awk '{print $2}'
-    for line in content.split("\n"):
-        line = line.strip()
-        if line.startswith("run:"):
-            parts = line.split(":", 1)
-            if len(parts) == 2:
-                return parts[1].strip()
-
-    raise ValueError(f"Failed to read run ID from {dist_cfg_path}")
+    return f"{data_dir}/sweep/{sweep_name}/dist_{dist_id}.yaml"
 
 
 def prepare_sweep_run(cfg: DictConfig, dist_cfg_path: str, logger: Logger) -> str:
-    """Prepare sweep run using direct Python import."""
-    from tools.sweep_prepare_run import setup_next_run
-
-    logger.info(f"[SWEEP:{cfg.sweep_name}] Preparing next run...")
-
-    # Ensure the dist config file is clean (remove if exists)
-    if os.path.exists(dist_cfg_path):
-        os.remove(dist_cfg_path)
-
-    # Create a modified config for sweep_prepare_run
+    """
+    Prepare a sweep run by calling setup_next_run.
+    Returns the generated run ID.
+    """
+    # Set up config for sweep_prepare_run
     prep_cfg = cfg.copy()
     prep_cfg.dist_cfg_path = dist_cfg_path
 
@@ -72,10 +42,8 @@ def prepare_sweep_run(cfg: DictConfig, dist_cfg_path: str, logger: Logger) -> st
         # Direct function call instead of subprocess
         run_id = setup_next_run(prep_cfg, logger)
 
-        # setup_next_run returns the run_id, but let's ensure it's not None
         if not run_id:
-            # Fallback: extract from config file if setup_next_run somehow returns None
-            run_id = extract_run_id_from_config(dist_cfg_path)
+            raise ValueError("setup_next_run returned None/empty run_id")
 
         logger.info(f"Generated run ID: {run_id}")
         return run_id
@@ -83,7 +51,7 @@ def prepare_sweep_run(cfg: DictConfig, dist_cfg_path: str, logger: Logger) -> st
     except Exception as e:
         logger.error(f"[ERROR] Sweep run preparation failed: {cfg.sweep_name}")
         logger.error(f"Preparation error details: {e}")
-        raise SweepRolloutError(f"Preparation failed for {cfg.sweep_name}") from e
+        raise Exception(f"Preparation failed for {cfg.sweep_name}") from e
 
 
 def run_training(
@@ -122,7 +90,7 @@ def run_training(
             logger.error(f"[ERROR] Training failed for sweep: {sweep_name}")
         else:
             print(f"[ERROR] Training failed for sweep: {sweep_name}")
-        raise SweepRolloutError(f"Training failed for {sweep_name} with exit code {e.returncode}") from e
+        raise Exception(f"Training failed for {sweep_name} with exit code {e.returncode}") from e
 
 
 def run_evaluation(cfg: DictConfig, dist_cfg_path: str, data_dir: str, sweep_name: str, logger: Logger) -> bool:
@@ -147,14 +115,14 @@ def run_evaluation(cfg: DictConfig, dist_cfg_path: str, data_dir: str, sweep_nam
 
         if not success:
             logger.error(f"[ERROR] Evaluation failed for sweep: {sweep_name}")
-            raise SweepRolloutError(f"Evaluation failed for {sweep_name}")
+            raise Exception(f"Evaluation failed for {sweep_name}")
 
         return success
 
     except Exception as e:
         logger.error(f"[ERROR] Evaluation failed for sweep: {sweep_name}")
         logger.error(f"Evaluation error details: {e}")
-        raise SweepRolloutError(f"Evaluation failed for {sweep_name}") from e
+        raise Exception(f"Evaluation failed for {sweep_name}") from e
 
 
 def run_single_rollout(cfg: DictConfig, logger: Logger) -> dict:
@@ -165,8 +133,6 @@ def run_single_rollout(cfg: DictConfig, logger: Logger) -> dict:
         raise ValueError("'sweep_name' argument is required (e.g., sweep_name=my_sweep_name)")
 
     # Extract hardware argument from command line arguments (like bash script does)
-    import sys
-
     hardware_arg = None
     for arg in sys.argv[1:]:
         if arg.startswith("+hardware="):
@@ -185,12 +151,6 @@ def run_single_rollout(cfg: DictConfig, logger: Logger) -> dict:
     try:
         # 1. Prepare run (Pure Python)
         run_id = prepare_sweep_run(cfg, dist_cfg_path, logger)
-
-        # Extract run_id from generated config file (matching bash script logic)
-        run_id = extract_run_id_from_config(dist_cfg_path)
-
-        if not run_id:
-            raise ValueError(f"Failed to read run ID from {dist_cfg_path}")
 
         # 2. Training phase (Subprocess only)
         logger.info(f"[SWEEP:{cfg.sweep_name}] Starting training phase...")
@@ -227,14 +187,45 @@ def main(cfg: DictConfig) -> int:
     # Use module-level logger created at import time
 
     try:
-        # Set a temporary run ID to satisfy config validation
-        # This will be overridden by the actual run ID from setup_next_run
-        if not cfg.get("run"):
-            cfg.run = "temp_run_id"
+        # Extract hardware argument from command line arguments (like bash script does)
+        import sys
 
-        # Run complete rollout
-        result = run_single_rollout(cfg, logger)
-        logger.info(f"Rollout completed successfully: {result}")
+        hardware_arg = None
+        for arg in sys.argv[1:]:
+            if arg.startswith("+hardware="):
+                hardware_arg = arg
+                break
+
+        # Get data directory from environment (set by sweep.sh)
+        data_dir = os.environ.get("DATA_DIR", "./train_dir")
+
+        # Generate distributed config path
+        dist_cfg_path = generate_dist_cfg_path(data_dir, cfg.sweep_name)
+
+        # 1. Preparation phase (ONLY rank 0)
+        def prepare_run():
+            return prepare_sweep_run(cfg, dist_cfg_path, logger)
+
+        run_id = run_once(prepare_run)
+
+        # 2. Training phase (ALL ranks participate)
+        logger.info(f"[SWEEP:{cfg.sweep_name}] Starting training phase...")
+        _ = run_training(
+            run_id=run_id,
+            dist_cfg_path=dist_cfg_path,
+            data_dir=data_dir,
+            sweep_name=cfg.sweep_name,
+            hardware_arg=hardware_arg,
+            logger=logger,
+        )
+
+        # 3. Evaluation phase (ONLY rank 0, others wait for results)
+        def evaluate_run():
+            return run_evaluation(cfg, dist_cfg_path, data_dir, cfg.sweep_name, logger)
+
+        _ = run_once(evaluate_run)
+
+        logger.info(f"[SUCCESS] Sweep rollout completed: {cfg.sweep_name}")
         return 0
 
     except Exception as e:
