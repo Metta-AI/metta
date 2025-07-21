@@ -22,7 +22,7 @@ class RunInfo:
 
 
 def get_recent_runs(
-    entity: str, project: str, days_back: int = 30, limit: Optional[int] = None, debug: bool = False
+    entity: str, project: str, days_back: int = 30, limit: Optional[int] = None, run_name: Optional[str] = None, debug: bool = False
 ) -> List[RunInfo]:
     """
     Fetch recent runs from W&B that are not cancelled or crashed.
@@ -32,6 +32,7 @@ def get_recent_runs(
         project: W&B project name
         days_back: Number of days to look back
         limit: Maximum number of runs to return
+        run_name: Specific run name to fetch (if provided, ignores other filters)
 
     Returns:
         List of RunInfo objects with run details and artifacts
@@ -41,11 +42,18 @@ def get_recent_runs(
     # Calculate the date threshold
     date_threshold = datetime.now() - timedelta(days=days_back)
 
-    # Build filters for finished runs only
-    filters = {
-        "state": "finished",
-        "created_at": {"$gt": date_threshold.isoformat()},
-    }
+    # Build filters
+    if run_name:
+        # If specific run name provided, only filter by name
+        filters = {
+            "display_name": run_name
+        }
+    else:
+        # Otherwise filter for finished runs in the time window
+        filters = {
+            "state": "finished",
+            "created_at": {"$gt": date_threshold.isoformat()},
+        }
 
     runs = api.runs(f"{entity}/{project}", filters=filters, order="-created_at")
 
@@ -53,7 +61,10 @@ def get_recent_runs(
 
     if debug:
         print(f"Debug: Fetching runs from {entity}/{project}")
-        print(f"Debug: Date threshold: {date_threshold}")
+        if run_name:
+            print(f"Debug: Looking for specific run: {run_name}")
+        else:
+            print(f"Debug: Date threshold: {date_threshold}")
 
     for i, run in enumerate(runs):
         if limit and i >= limit:
@@ -176,13 +187,19 @@ def post_policies_to_stats(runs: List[RunInfo], stats_db_uri: str):
     print(f"\nPosted {posted_count} new policies to stats database.")
 
 
-def print_runs_with_artifacts(runs: List[RunInfo]):
+def print_runs_with_artifacts(runs: List[RunInfo], run_name: Optional[str] = None):
     """Print runs and their artifacts in a formatted way."""
     if not runs:
-        print("No runs found matching the criteria.")
+        if run_name:
+            print(f"No run found with name: {run_name}")
+        else:
+            print("No runs found matching the criteria.")
         return
 
-    print(f"\nFound {len(runs)} recent successful runs:\n")
+    if run_name:
+        print(f"\nFound run '{run_name}':\n")
+    else:
+        print(f"\nFound {len(runs)} recent successful runs:\n")
     print("=" * 80)
 
     for run in runs:
@@ -222,6 +239,7 @@ def main():
     parser.add_argument("--project", help="W&B project name (default: 'metta')")
     parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
     parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
+    parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
     parser.add_argument(
         "--post-policies", action="store_true", help="Post model artifacts as policies to stats database"
     )
@@ -254,11 +272,11 @@ def main():
 
     try:
         runs = get_recent_runs(
-            entity=entity, project=project, days_back=args.days_back, limit=args.limit, debug=args.debug
+            entity=entity, project=project, days_back=args.days_back, limit=args.limit, run_name=args.run_name, debug=args.debug
         )
 
         # Always print human-readable output
-        print_runs_with_artifacts(runs)
+        print_runs_with_artifacts(runs, args.run_name)
 
         # Post policies if requested
         if args.post_policies:

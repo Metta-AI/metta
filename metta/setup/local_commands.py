@@ -80,6 +80,7 @@ class LocalCommands:
         parser.add_argument("--project", help="W&B project name (default: 'metta')")
         parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
         parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
+        parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
         parser.add_argument(
             "--post-policies", action="store_true", help="Post model artifacts as policies to stats database"
         )
@@ -114,11 +115,16 @@ class LocalCommands:
 
         try:
             runs = get_recent_runs(
-                entity=entity, project=project, days_back=args.days_back, limit=args.limit, debug=args.debug
+                entity=entity,
+                project=project,
+                days_back=args.days_back,
+                limit=args.limit,
+                run_name=args.run_name,
+                debug=args.debug
             )
 
             # Always print human-readable output
-            print_runs_with_artifacts(runs)
+            print_runs_with_artifacts(runs, args.run_name)
 
             # Post policies if requested
             if args.post_policies:
