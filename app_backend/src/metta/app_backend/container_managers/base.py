@@ -27,6 +27,7 @@ class AbstractContainerManager(ABC):
         git_hash: str,
         backend_url: str,
         docker_image: str,
+        machine_token: str | None = None,
     ) -> WorkerInfo:
         """Start a worker container for a specific git hash.
 

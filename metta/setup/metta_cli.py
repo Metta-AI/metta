@@ -242,6 +242,8 @@ class MettaCLI:
                 self.local_commands.build_app_backend_img()
             elif args.local_command == "load-policies":
                 self.local_commands.load_policies(unknown_args or [])
+            elif args.local_command == "kind":
+                self.local_commands.kind(args)
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -576,6 +578,21 @@ Examples:
 
         # Add load-policies command
         local_subparsers.add_parser("load-policies", help="Load W&B artifacts as policies into stats database")
+
+        # Add kind command for Kubernetes local testing
+        kind_parser = local_subparsers.add_parser("kind", help="Manage Kind cluster for Kubernetes testing")
+        kind_subparsers = kind_parser.add_subparsers(dest="action", help="Kind actions")
+
+        # Add subcommands for kind
+        kind_subparsers.add_parser("build", help="Create Kind cluster and set up for Metta")
+        kind_subparsers.add_parser("up", help="Start orchestrator in Kind cluster")
+        kind_subparsers.add_parser("down", help="Stop orchestrator and worker pods")
+        kind_subparsers.add_parser("clean", help="Delete the Kind cluster")
+        kind_subparsers.add_parser("get-pods", help="Get list of pods in the cluster")
+
+        # Add logs subcommand with pod_name argument
+        logs_parser = kind_subparsers.add_parser("logs", help="Follow logs for a specific pod")
+        logs_parser.add_argument("pod_name", help="Name of the pod to get logs from")
 
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)

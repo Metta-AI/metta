@@ -21,7 +21,9 @@ class K8sPodManager(AbstractContainerManager):
         cmd.extend(["--namespace", self._namespace])
         return cmd
 
-    def _get_pod_manifest(self, git_hash: str, backend_url: str, docker_image: str) -> dict:
+    def _get_pod_manifest(
+        self, git_hash: str, backend_url: str, docker_image: str, machine_token: str | None = None
+    ) -> dict:
         pod_name = self._format_container_name(git_hash)
         return {
             "apiVersion": "v1",
@@ -47,15 +49,18 @@ class K8sPodManager(AbstractContainerManager):
                             {"name": "GIT_HASH", "value": git_hash},
                             {"name": "WORKER_ASSIGNEE", "value": pod_name},
                             {"name": "WANDB_API_KEY", "value": self._wandb_api_key},
+                            {"name": "MACHINE_TOKEN", "value": machine_token},
                         ],
                     }
                 ],
             },
         }
 
-    def start_worker_container(self, git_hash: str, backend_url: str, docker_image: str) -> WorkerInfo:
+    def start_worker_container(
+        self, git_hash: str, backend_url: str, docker_image: str, machine_token: str | None = None
+    ) -> WorkerInfo:
         # Create pod via kubectl
-        pod_manifest = self._get_pod_manifest(git_hash, backend_url, docker_image)
+        pod_manifest = self._get_pod_manifest(git_hash, backend_url, docker_image, machine_token)
         pod_name = pod_manifest["metadata"]["name"]
         cmd = self._get_kubectl_cmd() + ["create", "-f", "-"]
 
@@ -74,8 +79,6 @@ class K8sPodManager(AbstractContainerManager):
                 git_hash=git_hash,
                 container_id=pod_uid,
                 container_name=pod_name,
-                alive=True,
-                task=None,
             )
         except subprocess.CalledProcessError as e:
             self._logger.error(f"Failed to start worker pod: {e.stderr}")
