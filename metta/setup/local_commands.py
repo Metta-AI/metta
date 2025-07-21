@@ -120,7 +120,7 @@ class LocalCommands:
                 days_back=args.days_back,
                 limit=args.limit,
                 run_name=args.run_name,
-                debug=args.debug
+                debug=args.debug,
             )
 
             # Always print human-readable output

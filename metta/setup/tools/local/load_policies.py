@@ -22,7 +22,12 @@ class RunInfo:
 
 
 def get_recent_runs(
-    entity: str, project: str, days_back: int = 30, limit: Optional[int] = None, run_name: Optional[str] = None, debug: bool = False
+    entity: str,
+    project: str,
+    days_back: int = 30,
+    limit: Optional[int] = None,
+    run_name: Optional[str] = None,
+    debug: bool = False,
 ) -> List[RunInfo]:
     """
     Fetch recent runs from W&B that are not cancelled or crashed.
@@ -45,9 +50,7 @@ def get_recent_runs(
     # Build filters
     if run_name:
         # If specific run name provided, only filter by name
-        filters = {
-            "display_name": run_name
-        }
+        filters = {"display_name": run_name}
     else:
         # Otherwise filter for finished runs in the time window
         filters = {
@@ -272,7 +275,12 @@ def main():
 
     try:
         runs = get_recent_runs(
-            entity=entity, project=project, days_back=args.days_back, limit=args.limit, run_name=args.run_name, debug=args.debug
+            entity=entity,
+            project=project,
+            days_back=args.days_back,
+            limit=args.limit,
+            run_name=args.run_name,
+            debug=args.debug,
         )
 
         # Always print human-readable output
