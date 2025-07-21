@@ -233,10 +233,13 @@ export interface Repo {
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
   getEvalTasks(): Promise<EvalTask[]>
+
+  // Policy methods
+  getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') {}
+  constructor(private baseUrl: string = 'http://localhost:8000') { }
 
   private async apiCall<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`)
@@ -436,5 +439,13 @@ export class ServerRepo implements Repo {
     // Use the new /all endpoint to get all tasks regardless of status
     const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
     return response.tasks
+  }
+
+  // Policy methods
+  async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
+    const params = new URLSearchParams()
+    policyNames.forEach(name => params.append('policy_names', name))
+    const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
+    return response.policy_ids
   }
 }

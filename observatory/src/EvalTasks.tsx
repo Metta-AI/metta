@@ -92,8 +92,26 @@ export function EvalTasks({ repo }: Props) {
     setError(null)
 
     try {
-      // Use the policy input as-is - the backend will handle both names and IDs
-      const policyId = policyIdInput.trim()
+      let policyId = policyIdInput.trim()
+
+      // Check if input looks like a UUID
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(policyId)
+
+      if (!isUuid) {
+        // Try to resolve policy name to ID
+        try {
+          const policyIds = await repo.getPolicyIds([policyId])
+          if (policyIds[policyId]) {
+            policyId = policyIds[policyId]
+          } else {
+            setError(`Policy with name '${policyId}' not found`)
+            return
+          }
+        } catch (e) {
+          setError(`Failed to resolve policy name: ${e}`)
+          return
+        }
+      }
 
       await repo.createEvalTask({
         policy_id: policyId,
