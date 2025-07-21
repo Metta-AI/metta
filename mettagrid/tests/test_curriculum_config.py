@@ -49,7 +49,7 @@ class TestCurriculumConfig:
         assert isinstance(tree.curriculum_algorithm, DiscreteRandomCurriculum)
 
         # Check task names
-        task_names = [child.name for child in tree.children]
+        task_names = [child.name for child in tree.tasks]
         assert "basic" in task_names
         assert "combat" in task_names
         assert "tag" in task_names
@@ -62,7 +62,7 @@ class TestCurriculumConfig:
         tree = curriculum_config.create()
 
         assert tree.num_tasks == 1
-        assert tree.children[0].name == "basic"
+        assert tree.tasks[0].name == "basic"
 
     def test_algorithm_string_shorthand(self, mock_config_from_path):
         """Test different algorithm specifications."""
@@ -108,7 +108,7 @@ class TestCurriculumConfig:
         assert tree.num_tasks == 6
 
         # Check that task names contain parameter values
-        task_names = [child.name for child in tree.children]
+        task_names = [child.name for child in tree.tasks]
         for name in task_names:
             assert "ore_red=" in name
             assert "input_resources.ore_red=" in name
@@ -131,7 +131,7 @@ class TestCurriculumConfig:
         assert tree.num_tasks == 8
 
         # Check that task names contain range indicators
-        task_names = [child.name for child in tree.children]
+        task_names = [child.name for child in tree.tasks]
         for name in task_names:
             assert "width=" in name
             assert "height=" in name
@@ -150,7 +150,7 @@ class TestCurriculumConfig:
         tree = curriculum_config.create()
 
         # Check that overrides are applied to all tasks
-        for child in tree.children:
+        for child in tree.tasks:
             # Note: We can't directly check the env_config values without resolving
             # the config, but we can verify the structure was created correctly
             assert hasattr(child, "env_config")
@@ -189,12 +189,12 @@ class TestCurriculumConfig:
 
         # Root should have 2 children (easy_tasks and hard_tasks)
         assert tree.num_tasks == 2
-        assert isinstance(tree.children[0], Curriculum)
-        assert isinstance(tree.children[1], Curriculum)
+        assert isinstance(tree.tasks[0], Curriculum)
+        assert isinstance(tree.tasks[1], Curriculum)
 
         # Each child should have 2 tasks
-        assert tree.children[0].num_tasks == 2
-        assert tree.children[1].num_tasks == 2
+        assert tree.tasks[0].num_tasks == 2
+        assert tree.tasks[1].num_tasks == 2
 
     def test_hierarchical_config_with_paths(self, mock_config_from_path):
         """Test creating a hierarchical Curriculum with child paths."""
@@ -227,8 +227,8 @@ class TestCurriculumConfig:
 
             # Root should have 2 children
             assert tree.num_tasks == 2
-            assert tree.children[0].name == "arena_learning_progress"
-            assert tree.children[1].name == "inline_child"
+            assert tree.tasks[0].name == "arena_learning_progress"
+            assert tree.tasks[1].name == "inline_child"
 
     def test_unknown_algorithm_error(self):
         """Test that unknown algorithm types raise an error."""
@@ -288,7 +288,7 @@ class TestCurriculumConfig:
         assert tree.num_tasks == 1
 
         # Task name should show continuous ranges
-        task_name = tree.children[0].name
+        task_name = tree.tasks[0].name
         assert "speed=(0.500,2.000)" in task_name
         assert "spawn_rate=(1.000,10.000)" in task_name
 

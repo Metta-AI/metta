@@ -83,7 +83,7 @@ def test_single_task(dummy_config):
     # Create a single task
     task = MettaGridTask("only_task", dummy_config)
     hypers = DiscreteRandomHypers()
-    tree = Curriculum(name="root", curriculum_algorithm=hypers.create(1), children=[task])
+    tree = Curriculum(name="root", curriculum_algorithm=hypers.create(1), tasks=[task])
 
     # Sample 10 times
     samples = [tree.sample() for _ in range(10)]
@@ -113,7 +113,7 @@ def test_three_tasks_uniform(dummy_config):
     tree = Curriculum(
         name="root",
         curriculum_algorithm=hypers.create(3),
-        children=tasks,
+        tasks=tasks,
     )
 
     # Sample 300 times (enough for reasonable distribution)
@@ -149,7 +149,7 @@ def test_three_tasks_skewed(dummy_config):
     tree = Curriculum(
         name="root",
         curriculum_algorithm=hypers.create(3),
-        children=tasks,
+        tasks=tasks,
     )
 
     # Sample 1000 times
@@ -186,7 +186,7 @@ def test_binary_tree_balanced(dummy_config):
         node = Curriculum(
             name=f"L2_{i}",
             curriculum_algorithm=hypers.create(2),
-            children=leaf_tasks[i * 2 : (i + 1) * 2],
+            tasks=leaf_tasks[i * 2 : (i + 1) * 2],
         )
         level2_nodes.append(node)
 
@@ -197,7 +197,7 @@ def test_binary_tree_balanced(dummy_config):
         node = Curriculum(
             name=f"L1_{i}",
             curriculum_algorithm=hypers.create(2),
-            children=level2_nodes[i * 2 : (i + 1) * 2],
+            tasks=level2_nodes[i * 2 : (i + 1) * 2],
         )
         level1_nodes.append(node)
 
@@ -206,7 +206,7 @@ def test_binary_tree_balanced(dummy_config):
     root = Curriculum(
         name="root",
         curriculum_algorithm=hypers.create(2),
-        children=level1_nodes,
+        tasks=level1_nodes,
     )
 
     # Sample 1000 times
@@ -243,7 +243,7 @@ def test_binary_tree_unbalanced(dummy_config):
         node = Curriculum(
             name=f"L2_{i}",
             curriculum_algorithm=hypers.create(2),
-            children=leaf_tasks[i * 2 : (i + 1) * 2],
+            tasks=leaf_tasks[i * 2 : (i + 1) * 2],
         )
         level2_nodes.append(node)
 
@@ -254,7 +254,7 @@ def test_binary_tree_unbalanced(dummy_config):
         node = Curriculum(
             name=f"L1_{i}",
             curriculum_algorithm=hypers.create(2),
-            children=level2_nodes[i * 2 : (i + 1) * 2],
+            tasks=level2_nodes[i * 2 : (i + 1) * 2],
         )
         level1_nodes.append(node)
 
@@ -263,7 +263,7 @@ def test_binary_tree_unbalanced(dummy_config):
     root = Curriculum(
         name="root",
         curriculum_algorithm=hypers.create(2),
-        children=level1_nodes,
+        tasks=level1_nodes,
     )
 
     # Sample 1000 times
@@ -374,7 +374,7 @@ def test_empty_tree_error():
 
     # Second test: Curriculum should reject empty children list
     algo = DiscreteRandomHypers().create(1)  # Create with 1 task
-    with pytest.raises(ValueError, match="Curriculum must have at least one child"):
+    with pytest.raises(ValueError, match="Curriculum must have at least one task"):
         Curriculum("root", algo, [])
 
 
@@ -415,7 +415,7 @@ def test_probability_updates_after_weight_change(dummy_config):
     np.testing.assert_array_almost_equal(tree.curriculum_algorithm.probabilities, [1 / 3, 1 / 3, 1 / 3])
 
     # Complete task 0 (which zeros its weight)
-    tree.complete(0, 1.0)
+    tree.complete_task(0, 1.0)
 
     # Now task 0 should have 0 probability
     np.testing.assert_array_almost_equal(tree.curriculum_algorithm.probabilities, [0.0, 0.5, 0.5])
@@ -450,7 +450,7 @@ def test_discrete_value_buckets_create_cartesian_product(dummy_config):
     assert tree.num_tasks == 6, f"Expected 6 tasks (3×2), got {tree.num_tasks}"
 
     # Check that all combinations exist by examining task names
-    task_names = [child.name for child in tree.children]
+    task_names = [child.name for child in tree.tasks]
 
     # Each task name should contain both parameter values
     expected_combinations = [
@@ -468,7 +468,7 @@ def test_discrete_value_buckets_create_cartesian_product(dummy_config):
         assert found, f"Missing combination: {val1} with {val2}"
 
     # Verify that the actual configs have the right values
-    for child in tree.children:
+    for child in tree.tasks:
         config = child.env_config
         param1 = config.game.map.terrain
         param2 = config.game.map.num_obstacles
@@ -513,7 +513,7 @@ def test_range_buckets_divide_into_discrete_bins():
     assert tree.num_tasks == 12, f"Expected 12 tasks (4×3), got {tree.num_tasks}"
 
     # Verify that values are sampled within the expected ranges
-    for child in tree.children:
+    for child in tree.tasks:
         # Each config should have sampled values within the bin ranges
         size = child.env_config.task.object_size
         distance = child.env_config.task.distance
@@ -532,7 +532,7 @@ def test_range_buckets_divide_into_discrete_bins():
 
     # Count how many tasks fall into each bin
     size_bins = {0: 0, 1: 0, 2: 0, 3: 0}  # 4 bins
-    for child in tree.children:
+    for child in tree.tasks:
         size = child.env_config.task.object_size
         bin_idx = int((size - 2) / 2)  # Map to bin index 0-3
         size_bins[bin_idx] += 1
@@ -578,7 +578,7 @@ def test_env_overrides_apply_uniformly_across_bucketed_tasks():
     assert tree.num_tasks == 6
 
     # Verify all tasks have the override applied
-    for child in tree.children:
+    for child in tree.tasks:
         config = child.env_config
 
         # Overridden parameter should be uniform across all tasks
@@ -631,7 +631,7 @@ def test_task_set_with_parameter_ranges_creates_proper_combinations():
     assert tree.num_tasks == 12, f"Expected 12 tasks (3×2×2), got {tree.num_tasks}"
 
     # Check task names follow pattern: base_name/param_combination
-    task_names = [child.name for child in tree.children]
+    task_names = [child.name for child in tree.tasks]
 
     # Should have tasks like "easy/game.num_agents=2;game.map_size=10"
     for base_name in ["easy", "medium", "hard"]:
@@ -645,7 +645,7 @@ def test_task_set_with_parameter_ranges_creates_proper_combinations():
                 assert found, f"Missing combination: {base_name} with {agents} agents and size {size}"
 
     # Verify configs have correct values
-    for child in tree.children:
+    for child in tree.tasks:
         config = child.env_config
 
         # Check base difficulty is preserved
@@ -686,7 +686,7 @@ def test_single_base_config_with_ranges_produces_clean_names():
     assert tree.num_tasks == 2
 
     # Task names should NOT have "nav/" prefix since there's only one base
-    task_names = [child.name for child in tree.children]
+    task_names = [child.name for child in tree.tasks]
     for name in task_names:
         assert not name.startswith("nav/"), f"Single base config shouldn't prefix names: {name}"
         assert "game.terrain=" in name, f"Should contain parameter name: {name}"
@@ -711,18 +711,19 @@ def test_parameter_ranges_validation():
             },
         )
 
-    # Test 2: missing bins should raise error
-    with pytest.raises(ValueError, match="bins.*is required"):
-        task_set(
-            name="missing_bins",
-            env_configs=[("test", base_config)],
-            parameter_ranges={
-                "game.difficulty": {
-                    "range": [1, 10]
-                    # Missing bins!
-                }
-            },
-        )
+    # Test 2: missing bins creates a continuous range (no error)
+    tree_continuous = task_set(
+        name="missing_bins",
+        env_configs=[("test", base_config)],
+        parameter_ranges={
+            "game.difficulty": {
+                "range": [1, 10]
+                # Missing bins - creates continuous range
+            }
+        },
+    )
+    # Should create 1 task with continuous range
+    assert tree_continuous.num_tasks == 1
 
     # Test 3: valid range with bins >= 2 should work
     tree = task_set(
@@ -758,7 +759,7 @@ def test_single_task_helper():
     assert tree.name == "simple_nav"
 
     # Child should have the same name as the tree root
-    child = tree.children[0]
+    child = tree.tasks[0]
     assert isinstance(child, MettaGridTask)
     assert child.name == "simple_nav"
 
@@ -800,7 +801,7 @@ def test_single_task_helper():
     )
 
     # Check overrides were applied
-    child_with_overrides = tree_with_overrides.children[0]
+    child_with_overrides = tree_with_overrides.tasks[0]
     assert child_with_overrides.env_config.game.episode_length == 200  # Overridden
     assert child_with_overrides.env_config.game.map.size == 20  # Original preserved
     assert child_with_overrides.env_config.game.map.obstacles == 5  # New value added
@@ -812,7 +813,7 @@ def test_single_task_helper():
     )
 
     assert tree_diff_name.name == "custom_task"
-    assert tree_diff_name.children[0].name == "custom_task"
+    assert tree_diff_name.tasks[0].name == "custom_task"
 
     # Test 4: Verify function signature matches old SingleTaskCurriculum
     # Only name and env_config are allowed

@@ -275,7 +275,7 @@ def run_curriculum_simulation(
     # Collect final state
     final_weights = {
         child.name: prob
-        for child, prob in zip(curriculum.children, curriculum.curriculum_algorithm.probabilities, strict=False)
+        for child, prob in zip(curriculum.tasks, curriculum.curriculum_algorithm.probabilities, strict=False)
     }
 
     curriculum_stats = curriculum.get_curriculum_stats()
