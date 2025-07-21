@@ -5,8 +5,7 @@ import numpy as np
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
-from metta.mettagrid.mettagrid_env import TokenTypes
-from .conftest import base_game_config, merge_configs, create_test_config
+from mettagrid.tests.conftest import create_test_config, create_minimal_test_config, merge_configs
 
 from .test_mettagrid import EnvConfig, TestEnvironmentBuilder, TokenTypes
 
@@ -174,14 +173,15 @@ class TestObservations:
         ]
 
         # Create game config with altar objects
-        game_config = create_test_config({
+        game_config = merge_configs(base_game_config(), {
             "max_steps": 10,
             "num_agents": 1,  # Just one agent for this test
             "obs_width": EnvConfig.OBS_WIDTH,
             "obs_height": EnvConfig.OBS_HEIGHT,
             "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
             "inventory_item_names": ["resource1", "resource2"],
-        })["game"]  # Get the game portion for direct manipulation
+            "objects": {}  # We'll add altars below
+        })
 
         # Add altar configurations with different colors
         for i, (x, y, color) in enumerate(altar_positions):
@@ -379,7 +379,7 @@ class TestGlobalTokens:
         game_map[2, 1] = "agent.red"
         game_map[2, 2] = "agent.blue"
 
-        # Create environment with change_glyph enabled and 8 glyphs
+                # Create environment with change_glyph enabled and 8 glyphs
         game_config = merge_configs(base_game_config(), {
             "max_steps": 10,
             "num_agents": 2,
@@ -391,7 +391,7 @@ class TestGlobalTokens:
             },
             "groups": {"blue": {"id": 1, "props": {}}},  # red is already in base config
         })
-
+        
         env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
         obs, _ = env.reset()
 
@@ -673,26 +673,14 @@ class TestEdgeObservations:
         game_map[5, 7] = "altar"
 
         # Create environment with 7x7 observation window
-        game_config = {
+        game_config = create_minimal_test_config({
             "max_steps": 50,  # Enough steps to walk around
             "num_agents": 1,
             "obs_width": 7,
             "obs_height": 7,
             "num_observation_tokens": 200,
             "inventory_item_names": ["resource1", "resource2"],
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-            },
-            "groups": {"red": {"id": 0, "props": {}}},
             "objects": {
-                "wall": {"type_id": 1},
                 "altar": {
                     "type_id": 10,
                     "input_resources": {"resource1": 1},
@@ -704,8 +692,7 @@ class TestEdgeObservations:
                     "color": 42,  # Distinctive color
                 },
             },
-            "agent": {},
-        }
+        })["game"]
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
         obs, _ = env.reset()
@@ -891,7 +878,7 @@ def test_altar_color_visibility():
     ]
 
     # Create game config with altar objects
-    game_config = merge_configs(base_game_config(), {
+    game_config = create_minimal_test_config({
         "max_steps": 10,
         "num_agents": 1,
         "obs_width": 3,  # 3x3 observation window
@@ -899,7 +886,7 @@ def test_altar_color_visibility():
         "num_observation_tokens": 100,
         "inventory_item_names": ["resource1", "resource2"],
         "objects": {},  # We'll add altars dynamically
-    })
+    })["game"]
     
     # Add altar configurations with different colors
     for i, (x, y, color) in enumerate(altar_positions):

@@ -43,6 +43,195 @@ def merge_configs(base_config, override_config):
     return result
 
 
+def create_test_config(overrides=None):
+    """
+    Create a comprehensive test configuration with sensible defaults.
+    
+    This factory provides a complete MettaGrid configuration that can be used
+    across all tests, reducing boilerplate. Tests can override specific fields
+    as needed.
+    
+    Args:
+        overrides: Dictionary of configuration overrides to apply
+        
+    Returns:
+        Complete test configuration dictionary
+    """
+    base_config = {
+        "name": "TestEnv",
+        "report_stats_interval": 100,
+        "sampling": 0,
+        "game": {
+            # Core game settings
+            "max_steps": 100,
+            "num_agents": 2,
+            "obs_width": 7,
+            "obs_height": 7,
+            "num_observation_tokens": 50,
+            
+            # Only use inventory_item_names (not inventory_items)
+            "inventory_item_names": [
+                "ore_red", "ore_blue", "battery_red", "battery_blue", "heart", "armor", "laser"
+            ],
+            
+            # Agent configuration
+            "agent": {
+                "default_resource_limit": 50,
+                "freeze_duration": 10,
+                "rewards": {
+                    "inventory": {
+                        "ore_red": 0.005,
+                        "ore_blue": 0.005,
+                        "ore_green": 0.005,
+                        "battery_red": 0.01,
+                        "battery_blue": 0.01,
+                        "battery_green": 0.01,
+                        "heart": 1.0,
+                        "heart_max": None,
+                        "battery_red_max": 5,
+                        "battery_blue_max": 5,
+                        "battery_green_max": 5
+                    }
+                }
+            },
+            
+            # Groups configuration
+            "groups": {
+                "agent": {"id": 0, "sprite": 0, "props": {}},
+                "red": {"id": 0, "props": {}},  # Alias for compatibility
+                "team_1": {"id": 1, "sprite": 1, "group_reward_pct": 0.5, "props": {}},
+                "team_2": {"id": 2, "sprite": 4, "group_reward_pct": 0.5, "props": {}},
+                "team_3": {"id": 3, "sprite": 8, "group_reward_pct": 0.5, "props": {}},
+                "team_4": {"id": 4, "sprite": 1, "group_reward_pct": 0.5, "props": {}},
+                "prey": {"id": 5, "sprite": 12, "props": {}},
+                "predator": {"id": 6, "sprite": 6, "props": {}}
+            },
+            
+            # Objects configuration
+            "objects": {
+                "wall": {"type_id": 1, "swappable": False},
+                "block": {"type_id": 2, "swappable": True},  # blocks need type_id
+                "altar": {
+                    "type_id": 3,
+                    "input_resources": {"battery_red": 3},
+                    "output_resources": {"heart": 1},
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 10,
+                    "initial_resource_count": 1
+                },
+                "mine_red": {
+                    "type_id": 4,
+                    "output_resources": {"ore_red": 1},
+                    "color": 0,
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 50,
+                    "initial_resource_count": 1
+                },
+                "mine_blue": {
+                    "type_id": 5,
+                    "output_resources": {"ore_blue": 1},
+                    "color": 1,
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 50,
+                    "initial_resource_count": 1
+                },
+                "generator_red": {
+                    "type_id": 6,
+                    "input_resources": {"ore_red": 1},
+                    "output_resources": {"battery_red": 1},
+                    "color": 0,
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 25,
+                    "initial_resource_count": 1
+                },
+                "generator_blue": {
+                    "type_id": 7,
+                    "input_resources": {"ore_blue": 1},
+                    "output_resources": {"battery_blue": 1},
+                    "color": 1,
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 25,
+                    "initial_resource_count": 1
+                }
+            },
+            
+            # Actions configuration
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "put_items": {"enabled": True},
+                "get_items": {"enabled": True},
+                "attack": {
+                    "enabled": True,
+                    "consumed_resources": {"laser": 1},
+                    "defense_resources": {"armor": 1}
+                },
+                "swap": {"enabled": True},
+                "change_color": {"enabled": True},
+                "change_glyph": {"enabled": True, "number_of_glyphs": 4}
+            },
+            
+            # Map builder configuration
+            # Note: most mettagrid tests create their own maps, so we don't include
+            # map_builder by default. Tests that need it can add it via overrides.
+        }
+    }
+    
+    # Apply overrides
+    if overrides:
+        return merge_configs(base_config, overrides)
+    return base_config
+
+
+def create_minimal_test_config(overrides=None):
+    """
+    Create a minimal test configuration for simple tests.
+    Uses smaller observation space and fewer features.
+    
+    Args:
+        overrides: Dict of values to override in the config
+    
+    Returns:
+        A minimal configuration dict suitable for simple tests
+    """
+    minimal_config = {
+        "max_steps": 10,
+        "num_agents": 1,
+        "obs_width": 3,
+        "obs_height": 3,
+        "num_observation_tokens": 20,
+        "inventory_item_names": [],
+        "actions": {
+            "noop": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
+            "attack": {"enabled": False},
+            "put_items": {"enabled": False},
+            "get_items": {"enabled": False},
+            "swap": {"enabled": False},
+            "change_color": {"enabled": False},
+            "change_glyph": {"enabled": False, "number_of_glyphs": 0},
+        },
+        "groups": {"red": {"id": 0, "props": {}}},
+        "objects": {"wall": {"type_id": 1}},
+        "agent": {
+            "default_resource_limit": 10,
+            "rewards": {},
+        },
+    }
+    
+    if overrides:
+        minimal_config = merge_configs(minimal_config, overrides)
+    
+    return {"game": minimal_config}
+
+
 @pytest.fixture
 def basic_env():
     """Create a basic test environment."""

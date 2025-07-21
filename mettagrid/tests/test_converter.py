@@ -5,8 +5,15 @@ the recipe_details_obs flag. When recipe_details_obs=True, converters show
 their recipe inputs and outputs as separate features in their observations.
 """
 
+import numpy as np
+import pytest
+
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_env import TokenTypes
+from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.mettagrid.util.actions import get_action_param
+from mettagrid.tests.conftest import create_minimal_test_config
 
 
 class TestConverterObservations:
@@ -14,7 +21,7 @@ class TestConverterObservations:
 
     def get_base_game_config(self):
         """Get base game configuration template."""
-        return {
+        return create_minimal_test_config({
             "max_steps": 50,
             "num_agents": 1,
             "obs_width": 5,
@@ -42,7 +49,7 @@ class TestConverterObservations:
                 "freeze_duration": 0,
                 "rewards": {"inventory": {"heart": 1.0}},
             },
-        }
+        })["game"]
 
     def create_converter_env(self, recipe_details_obs=False):
         """Create a test environment with converters."""

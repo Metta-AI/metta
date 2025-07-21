@@ -130,24 +130,36 @@ def test_all_global_tokens_disabled():
 def test_global_obs_default_values():
     """Test that global_obs uses default values when not specified."""
     # Test with no global_obs specified - should use defaults (all True)
-    game_config = {
-        "num_agents": 1,
-        "obs_width": 11,
-        "obs_height": 11,
-        "num_observation_tokens": 100,
-        "max_steps": 100,
-        "inventory_item_names": ["item1"],
-        # No global_obs specified - should use defaults
-        "agent": {
-            "default_resource_limit": 10,
-            "freeze_duration": 0,
-            "rewards": {},
-            "action_failure_penalty": 0,
-        },
-        "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
-        "actions": {"noop": {"enabled": True}},
-        "objects": {"wall": {"type_id": 1, "swappable": False}},
-    }
+    # Use base config and override only what we need
+    game_config = create_test_config({
+        "game": {
+            "num_agents": 1,
+            "obs_width": 11,
+            "obs_height": 11,
+            "num_observation_tokens": 100,
+            "max_steps": 100,
+            "inventory_item_names": ["item1"],
+            # No global_obs specified - should use defaults
+            # Only enable minimal actions
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": False},
+                "rotate": {"enabled": False},
+                "attack": {"enabled": False},
+                "put_items": {"enabled": False},
+                "get_items": {"enabled": False},
+                "swap": {"enabled": False},
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False},
+            },
+            "agent": {
+                "default_resource_limit": 10,
+                "freeze_duration": 0,
+                "rewards": {},
+                "action_failure_penalty": 0,
+            },
+        }
+    })["game"]
 
     game_map = [["agent.agent"]]
 
