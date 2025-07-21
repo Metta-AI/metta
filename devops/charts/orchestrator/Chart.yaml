@@ -1,4 +1,0 @@
-apiVersion: v2
-name: metta-orchestrator
-description: Metta evaluation task orchestrator
-version: "0.1.0"

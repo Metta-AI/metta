@@ -14,16 +14,10 @@ spec:
       containers:
         - name: server
           image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
-          {{- if .Values.env }}
-          env:
-          {{- toYaml .Values.env | nindent 10 }}
-          {{- end }}
-          {{- if not .Values.useConfigMap }}
+          imagePullPolicy: Always
           envFrom:
           - secretRef:
               name: {{ .Values.secret_name }}
-          {{- end }}
           resources:
             requests:
               memory: "1Gi"

@@ -3,12 +3,8 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}
 spec:
-  type: {{ .Values.service.type | default "ClusterIP" }}
   selector:
     app: {{ .Release.Name }}
   ports:
     - port: 8000
       targetPort: 8000
-      {{- if and (eq (.Values.service.type | default "ClusterIP") "NodePort") .Values.service.nodePort }}
-      nodePort: {{ .Values.service.nodePort }}
-      {{- end }}
