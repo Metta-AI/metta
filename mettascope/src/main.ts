@@ -7,7 +7,15 @@ import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, initHighDpiMode, find, toggleOpacity } from './htmlutils.js'
+import {
+  localStorageSetNumber,
+  onEvent,
+  initHighDpiMode,
+  find,
+  toggleOpacity,
+  hideMenu,
+  hideDropdown,
+} from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
@@ -331,7 +339,6 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
   // Update the scrubber value (unless told to skip).
   if (!skipScrubberUpdate) {
-    console.info('Scrubber value:', state.step)
     updateTimeline()
   }
   updateAgentTable()
@@ -353,12 +360,50 @@ export function updateSelection(object: any, setFollow = false) {
 onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent
 
-  // Prevent keyboard events if we are focused on an text field.
-  if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+  // Prevent keyboard events if we are focused on a text field, except for the Escape key
+  if (
+    (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) &&
+    event.key !== 'Escape'
+  ) {
     return
   }
 
   if (event.key == 'Escape') {
+    // Close any open context or dropdown menus.
+    hideMenu()
+    hideDropdown()
+
+    const searchInput = document.getElementById('search-input') as HTMLInputElement | null
+    if (searchInput && (searchInput.value.length > 0 || document.activeElement === searchInput)) {
+      // Clear the search field and related state.
+      if (searchInput.value.length > 0) {
+        searchInput.value = ''
+        // Trigger the input handler registered in search.ts so internal state updates.
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      // Remove focus from the search input
+      searchInput.blur()
+      // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
+    } else if (state.showAgentPanel) {
+      state.showAgentPanel = false
+      localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
+      toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
+    } else if (state.showInfo) {
+      state.showInfo = false
+      localStorage.setItem('showInfo', state.showInfo.toString())
+      toggleOpacity(html.infoToggle, state.showInfo)
+    } else if (state.showTraces) {
+      state.showTraces = false
+      localStorage.setItem('showTraces', state.showTraces.toString())
+      toggleOpacity(html.tracesToggle, state.showTraces)
+      onResize()
+    } else if (state.showActionButtons) {
+      state.showActionButtons = false
+      localStorage.setItem('showActionButtons', state.showActionButtons.toString())
+      toggleOpacity(html.controlsToggle, state.showActionButtons)
+    }
+
     updateSelection(null)
     setFollowSelection(false)
   }
