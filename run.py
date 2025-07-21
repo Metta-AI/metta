@@ -102,7 +102,7 @@ device, is_master, world_size, rank = setup_device_and_distributed("cuda" if tor
 # Core training parameters
 num_workers = 4
 total_timesteps = 10_000_000
-batch_size = 524288 if torch.cuda.is_available() else 131072  # 512k for GPU, 128k for CPU
+batch_size = 65536 if torch.cuda.is_available() else 16384  # 64k for GPU, 16k for CPU
 minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
 curriculum = "/env/mettagrid/curriculum/navigation/bucketed"
 bptt_horizon = 64
@@ -658,12 +658,20 @@ while agent_step < trainer_config.total_timesteps:
 
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
-    stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
+    stats_pct = (stats_time / total_time) * 100
+
+    # Format total timesteps with scientific notation for large numbers
+    total_timesteps_for_log = trainer_config.total_timesteps
+    if total_timesteps_for_log >= 1e9:
+        total_steps_str = f"{total_timesteps_for_log:.0e}"
+    else:
+        total_steps_str = f"{total_timesteps_for_log:,}"
 
     logger.info(
-        f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec - "
-        f"step {agent_step}/{trainer_config.total_timesteps:,} - "
-        f"{train_pct:.0f}% train - {rollout_pct:.0f}% rollout - {stats_pct:.0f}% stats"
+        f"Epoch {epoch}- "
+        f"{steps_per_sec:.0f} SPS- "
+        f"step {agent_step}/{total_steps_str}- "
+        f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"
     )
 
     # Record heartbeat periodically (master only)
