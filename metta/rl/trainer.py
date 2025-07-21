@@ -14,6 +14,8 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
+from rich.console import Console
+from rich.table import Table
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -278,6 +280,7 @@ class MettaTrainer:
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
         self._stats_run_id: UUID | None = None
+        self._last_stats_timings = {}
 
         # Optimizer
         optimizer_type = trainer_cfg.optimizer.type
@@ -379,6 +382,7 @@ class MettaTrainer:
             # Processing stats
             self._process_stats()
 
+            self._log_status(steps_before)
             self._log_status(steps_before)
 
             # Interval periodic tasks
@@ -867,74 +871,94 @@ class MettaTrainer:
             self.grad_stats.clear()
             return
 
-        curriculum_stats = self._curriculum_stats_provider.stats()
+        # Track timing for each stats component
+        stats_timings = {}
+
+        with self.timer("_process_stats.get_curriculum_stats"):
+            curriculum_stats = self._curriculum_stats_provider.stats()
+        stats_timings["curriculum"] = self.timer.get_last_elapsed("_process_stats.get_curriculum_stats")
 
         # Process training stats using shared function
-        processed_stats = process_training_stats(
-            raw_stats=self.stats,
-            curriculum_stats=curriculum_stats,
-            losses=self.losses,
-            experience=self.experience,
-            trainer_config=self.trainer_cfg,
-            kickstarter=self.kickstarter,
-        )
+        with self.timer("_process_stats.process_training_stats"):
+            processed_stats = process_training_stats(
+                raw_stats=self.stats,
+                curriculum_stats=curriculum_stats,
+                losses=self.losses,
+                experience=self.experience,
+                trainer_config=self.trainer_cfg,
+                kickstarter=self.kickstarter,
+            )
+        stats_timings["process_training"] = self.timer.get_last_elapsed("_process_stats.process_training_stats")
 
         # Update self.stats with mean values for consistency
         self.stats = processed_stats["mean_stats"]
 
         # Compute weight stats if on interval
         weight_stats = {}
-        if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
-            for metrics in self.policy.compute_weight_metrics():
-                name = metrics.get("name", "unknown")
-                for key, value in metrics.items():
-                    if key != "name":
-                        weight_stats[f"weights/{key}/{name}"] = value
+        with self.timer("_process_stats.compute_weight_stats"):
+            if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
+                for metrics in self.policy.compute_weight_metrics():
+                    name = metrics.get("name", "unknown")
+                    for key, value in metrics.items():
+                        if key != "name":
+                            weight_stats[f"weights/{key}/{name}"] = value
+        stats_timings["weight_stats"] = self.timer.get_last_elapsed("_process_stats.compute_weight_stats")
 
         # Compute timing stats using shared function
-        timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
+        with self.timer("_process_stats.compute_timing_stats"):
+            timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
+        stats_timings["timing_stats"] = self.timer.get_last_elapsed("_process_stats.compute_timing_stats")
 
         # Build parameters dictionary
-        parameters = {
-            "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "epoch_steps": timing_info["epoch_steps"],
-            "num_minibatches": self.experience.num_minibatches,
-            "generation": self.current_policy_generation,
-            "latest_saved_policy_epoch": self.latest_saved_policy_record.metadata.epoch,
-        }
+        with self.timer("_process_stats.build_parameters"):
+            parameters = {
+                "learning_rate": self.optimizer.param_groups[0]["lr"],
+                "epoch_steps": timing_info["epoch_steps"],
+                "num_minibatches": self.experience.num_minibatches,
+                "generation": self.current_policy_generation,
+                "latest_saved_policy_epoch": self.latest_saved_policy_record.metadata.epoch,
+            }
 
-        # Include custom stats from trainer config
-        if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
-            for k, v in self.trainer_cfg.stats.overview.items():
-                if k in self.stats:
-                    processed_stats["overview"][v] = self.stats[k]
+            # Include custom stats from trainer config
+            if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
+                for k, v in self.trainer_cfg.stats.overview.items():
+                    if k in self.stats:
+                        processed_stats["overview"][v] = self.stats[k]
 
-        curriculum_stats = self._curriculum_stats_provider.stats()
+            curriculum_stats = self._curriculum_stats_provider.stats()
+        stats_timings["build_params"] = self.timer.get_last_elapsed("_process_stats.build_parameters")
 
         # Build complete stats dictionary for wandb
-        all_stats = build_wandb_stats(
-            processed_stats=processed_stats,
-            curriculum_stats=curriculum_stats,
-            timing_info=timing_info,
-            weight_stats=weight_stats,
-            grad_stats=self.grad_stats,
-            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
-            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
-            parameters=parameters,
-            hyperparameters=self.hyperparameters,
-            evals=self.evals,
-            agent_step=self.agent_step,
-            epoch=self.epoch,
-        )
+        with self.timer("_process_stats.build_wandb_stats"):
+            all_stats = build_wandb_stats(
+                processed_stats=processed_stats,
+                curriculum_stats=curriculum_stats,
+                timing_info=timing_info,
+                weight_stats=weight_stats,
+                grad_stats=self.grad_stats,
+                system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
+                memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+                parameters=parameters,
+                hyperparameters=self.hyperparameters,
+                evals=self.evals,
+                agent_step=self.agent_step,
+                epoch=self.epoch,
+            )
+        stats_timings["build_wandb"] = self.timer.get_last_elapsed("_process_stats.build_wandb_stats")
 
-        self.wandb_run.log(
-            all_stats,
-            # WandB can automatically increment step on each call to log, but we force the value here
-            # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
-            # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the
-            # count of steps that contribute to training the saved policies is consistent.
-            step=self.agent_step,
-        )
+        with self.timer("_process_stats.wandb_log"):
+            self.wandb_run.log(
+                all_stats,
+                # WandB can automatically increment step on each call to log, but we force the value here
+                # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
+                # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the
+                # count of steps that contribute to training the saved policies is consistent.
+                step=self.agent_step,
+            )
+        stats_timings["wandb_log"] = self.timer.get_last_elapsed("_process_stats.wandb_log")
+
+        # Store stats timings for display in _log_status
+        self._last_stats_timings = stats_timings
 
         self.stats.clear()
         self.grad_stats.clear()
@@ -1135,3 +1159,95 @@ class MettaTrainer:
             )
         else:
             policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+
+    def _log_status(self, steps_before: int):
+        """Log status using rich table formatting."""
+        if not self._master:
+            return
+
+        rollout_time = self.timer.get_last_elapsed("_rollout")
+        train_time = self.timer.get_last_elapsed("_train")
+        stats_time = self.timer.get_last_elapsed("_process_stats")
+        steps_calculated = self.agent_step - steps_before
+
+        total_time = train_time + rollout_time + stats_time
+        steps_per_sec = steps_calculated / total_time
+
+        train_pct = (train_time / total_time) * 100
+        rollout_pct = (rollout_time / total_time) * 100
+        stats_pct = (stats_time / total_time) * 100
+
+        curriculum_stats = self._curriculum_stats_provider.stats()
+        tasks_completed = curriculum_stats.get("tasks_completed", 0)
+        tasks_per_sec = (tasks_completed - self._tasks_completed) / total_time
+        self._tasks_completed = tasks_completed
+
+        # Create a rich console and table
+        console = Console()
+        table = Table(
+            title=f"[bold cyan]Training Progress - Epoch {self.epoch}[/bold cyan]",
+            show_header=True,
+            header_style="bold magenta",
+        )
+
+        # Add columns
+        table.add_column("Metric", style="cyan", justify="left")
+        table.add_column("Progress", style="green", justify="right")
+        table.add_column("Rate", style="yellow", justify="left")
+
+        # Add rows
+        progress_pct = (self.agent_step / self.trainer_cfg.total_timesteps) * 100
+        table.add_row(
+            "Agent Steps",
+            f"{self.agent_step:,} / {self.trainer_cfg.total_timesteps:,} ({progress_pct:.1f}%)",
+            f"[dim]{steps_per_sec * self._world_size:.0f} steps/sec[/dim]",
+        )
+
+        table.add_row("Tasks", f"{tasks_completed:,}", f"[dim]{tasks_per_sec:.1f} tasks/sec[/dim]")
+
+        table.add_row(
+            "Epoch Time",
+            f"{total_time:.2f}s",
+            f"[dim]Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%[/dim]",
+        )
+
+        # Add stats timing breakdown if available
+        if hasattr(self, "_last_stats_timings") and self._last_stats_timings:
+            timings = self._last_stats_timings
+
+            # Create timing breakdown string
+            timing_parts = []
+            for name, time in timings.items():
+                if time > 0.001:  # Only show if > 1ms
+                    timing_parts.append(f"{name}: {time:.3f}s")
+
+            if timing_parts:
+                table.add_row(
+                    "Stats Breakdown",
+                    f"{stats_time:.3f}s total",
+                    f"[dim]{' | '.join(timing_parts)}[/dim]",
+                )
+
+        # Log the table
+        console.print(table)
+
+    def _on_train_step(self):
+        pass
+
+
+class AbortingTrainer(MettaTrainer):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+    def _on_train_step(self):
+        if self.wandb_run is None:
+            return
+
+        if "abort" not in wandb.Api().run(self.wandb_run.path).tags:
+            return
+
+        logger.info("Abort tag detected. Stopping the run.")
+        self.trainer_cfg.total_timesteps = int(self.agent_step)
+        self.wandb_run.config.update(
+            {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
+        )
