@@ -432,6 +432,9 @@ class MettaTrainer:
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps * self._world_size
 
+            print(f"obs tensor shape: {o.shape}")
+            print(f"obs device: {o.device}")
+
             # Run policy inference
             actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
                 self.policy, o, experience, training_env_id.start, self.device
