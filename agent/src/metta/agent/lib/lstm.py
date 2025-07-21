@@ -87,9 +87,9 @@ class LSTM(LayerBase):
         if tuple(x_shape[-space_n:]) != tuple(space_shape):
             raise ValueError("Invalid input tensor shape", x.shape)
 
-        # if x_n == space_n + 1:
-        #     # rollout mode, feed the cell state from the previous step
-        #     B, TT = x_shape[0], 1
+        if x_n == space_n + 1:
+            #     # rollout mode, feed the cell state from the previous step
+            B, TT = x_shape[0], 1
         #     lstm_h = td["lstm_h"]
         #     lstm_c = td["lstm_c"]
         #     if lstm_h is not None and lstm_c is not None:
