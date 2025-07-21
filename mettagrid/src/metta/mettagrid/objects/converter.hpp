@@ -61,7 +61,7 @@ private:
 
     // Check if we've reached max_conversions
     if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
-      stats.incr("conversions.permanent_stop"); // if you don't do it this way, and here, mine produce an extra ore
+      stats.incr("conversions.permanent_stop");
       return;
     }
 

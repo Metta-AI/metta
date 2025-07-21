@@ -5,7 +5,6 @@ altar:
   output_resources:
     heart: 1
   max_output: 5
-  max_conversions: -1
   conversion_ticks: 1
   cooldown: 10
   initial_resource_count: 0

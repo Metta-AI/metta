@@ -6,7 +6,6 @@ generator_red:
     battery_red: 1
   color: 0
   max_output: 5
-  max_conversions: -1
   conversion_ticks: 1
   cooldown: 25
   initial_resource_count: 0
@@ -19,7 +18,6 @@ generator_blue:
     battery_blue: 1
   color: 1
   max_output: 5
-  max_conversions: -1
   conversion_ticks: 1
   cooldown: 25
   initial_resource_count: 0
@@ -32,7 +30,6 @@ generator_green:
     battery_green: 1
   color: 2
   max_output: 5
-  max_conversions: -1
   conversion_ticks: 1
   cooldown: 25
   initial_resource_count: 0
