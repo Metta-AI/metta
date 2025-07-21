@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid/navigation/training/defaults@
   - _self_
 
-sampling: 1
+# sampling: 1  # Removed - using fixed values instead
 
 game:
   map_builder:
@@ -12,4 +12,4 @@ game:
     room:
       dir: ${choose:varied_terrain/sparse_large,varied_terrain/sparse_medium,varied_terrain/sparse_small}
       objects:
-        altar: ${sampling:1, 5, 3}
+        altar: 3  # Fixed value (was ${sampling:1, 5, 3})

@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid/navigation/training/defaults@
   - _self_
 
-sampling: 1
+# sampling: 1  # Removed - using fixed values instead
 
 game:
   map_builder:

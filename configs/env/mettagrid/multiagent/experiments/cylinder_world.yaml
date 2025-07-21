@@ -2,12 +2,12 @@ defaults:
   - /env/mettagrid/multiagent/experiments/defaults@
   - _self_
 
-sampling: 1
+# sampling: 1  # Removed - using fixed values instead
 
 game:
   map_builder:
     _target_: metta.mettagrid.room.navigation.cylinder_world_sequence.CylinderWorldSequence
     objects:
-      altar: ${sampling:15,25,20}
-      mine_red: ${sampling:15,25,20}
-      generator_red: ${sampling:15,25,20}
+      altar: 20  # Fixed value (was ${sampling:15,25,20})
+      mine_red: 20  # Fixed value (was ${sampling:15,25,20})
+      generator_red: 20  # Fixed value (was ${sampling:15,25,20})

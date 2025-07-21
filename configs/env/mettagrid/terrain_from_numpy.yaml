@@ -23,14 +23,14 @@ game:
       agents: 6
 
       objects:
-        mine_red: ${sampling:1,20,10}
-        generator_red: ${sampling:1,10,2}
-        altar: ${sampling:1,5,1}
-        armory: ${sampling:1,5,1}
-        lasery: ${sampling:1,5,1}
-        lab: ${sampling:1,5,1}
-        factory: ${sampling:1,5,1}
-        temple: ${sampling:1,5,1}
+        mine_red: 10  # Fixed value (was ${sampling:1,20,10})
+        generator_red: 2  # Fixed value (was ${sampling:1,10,2})
+        altar: 1  # Fixed value (was ${sampling:1,5,1})
+        armory: 1  # Fixed value (was ${sampling:1,5,1})
+        lasery: 1  # Fixed value (was ${sampling:1,5,1})
+        lab: 1  # Fixed value (was ${sampling:1,5,1})
+        factory: 1  # Fixed value (was ${sampling:1,5,1})
+        temple: 1  # Fixed value (was ${sampling:1,5,1})
 
-        block: ${sampling:5,50,20}
-        wall: ${sampling:5,50,20}
+        block: 20  # Fixed value (was ${sampling:5,50,20})
+        wall: 20  # Fixed value (was ${sampling:5,50,20})

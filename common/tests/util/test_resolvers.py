@@ -50,17 +50,7 @@ def omega_conf_with_resolvers():
     )
 
 
-@pytest.fixture
-def omega_conf_with_sampling():
-    """Fixture providing an OmegaConf with sampling parameter"""
-    register_resolvers()
-    return OmegaConf.create(
-        {
-            "sampling": 0,  # Deterministic mode
-            "param1": "${sampling:1,100,50}",
-            "param2": "${sampling:1,100,25}",
-        }
-    )
+# Removed sampling fixture - sampling resolver has been deprecated
 
 
 class TestBasicResolvers:
@@ -353,7 +343,11 @@ class TestAdvancedResolvers:
 
 
 class TestScaledRange:
-    """Tests for the sampling (scaled range) resolver"""
+    """Tests for the oc_scaled_range function
+    
+    Note: This function is no longer registered as the 'sampling' resolver,
+    but the function and tests are kept for potential future use.
+    """
 
     @pytest.mark.parametrize(
         "min_val,max_val,center,expected",
@@ -435,61 +429,7 @@ class TestConfigIntegration:
             "eq_result": True,
         }
 
-    def test_sampling_resolver_deterministic(self, omega_conf_with_sampling):
-        """Test the sampling resolver in deterministic mode"""
-        # Explicitly resolve all interpolations
-        OmegaConf.resolve(omega_conf_with_sampling)
-
-        # In deterministic mode, should get exact center values
-        assert OmegaConf.to_container(omega_conf_with_sampling) == {
-            "sampling": 0,
-            "param1": 50,
-            "param2": 25,
-        }
-
-    def test_sampling_resolver_random(self, omega_conf_with_sampling):
-        """Test the sampling resolver in random mode"""
-        # Change to random mode and set seed
-        np.random.seed(42)
-
-        # Update sampling and re-create the interpolated fields
-        omega_conf_with_sampling.sampling = 1.0
-        omega_conf_with_sampling.param1 = "${sampling:1,100,50}"
-        omega_conf_with_sampling.param2 = "${sampling:1,100,25}"
-
-        # Debug prints
-        print(f"On entry - {omega_conf_with_sampling}")
-        print(f"after overwrite - {omega_conf_with_sampling}")
-
-        # Resolve and check
-        OmegaConf.resolve(omega_conf_with_sampling)
-        print(f"after resolve - {omega_conf_with_sampling}")
-
-        resolved = OmegaConf.to_container(omega_conf_with_sampling)
-
-        # Make sure resolved is not None
-        assert resolved is not None, "OmegaConf.to_container returned None"
-
-        # Type hinting to help the type checker
-        from typing import Dict, cast
-
-        resolved_dict = cast(Dict[str, Any], resolved)
-        print(f"resolved_dict - {resolved_dict}")
-
-        # Values should now be randomized, but within range
-        param1 = resolved_dict.get("param1")
-        param2 = resolved_dict.get("param2")
-
-        # Check that the parameters exist
-        assert param1 is not None, "param1 not found in resolved config"
-        assert param2 is not None, "param2 not found in resolved config"
-
-        # Now perform the range checks with explicit type conversion
-        assert 1 <= float(param1) <= 100
-        assert 1 <= float(param2) <= 100
-
-        # Different from center values
-        assert float(param1) != 50.0 or float(param2) != 25.0
+    # Removed sampling resolver tests - sampling resolver has been deprecated
 
 
 def test_date_format_resolver():

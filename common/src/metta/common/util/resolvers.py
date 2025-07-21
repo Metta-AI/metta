@@ -158,6 +158,10 @@ def oc_scaled_range(lower_limit: Numeric, upper_limit: Numeric, center: Numeric,
     """
     Generates a value centered around a specified point based on a "sampling" parameter that controls how
     widely the distribution spreads between the limiting values.
+    
+    NOTE: This function is no longer registered as the 'sampling' resolver. The sampling mechanism
+    has been deprecated in favor of explicit configuration values. This function is kept for
+    backward compatibility and potential future use.
 
     Parameters:
     -----------
@@ -328,8 +332,9 @@ class ResolverRegistrar(Callback):
         self.resolver_count += 1
         OmegaConf.register_new_resolver("eq", oc_equals, replace=True)
         self.resolver_count += 1
-        OmegaConf.register_new_resolver("sampling", oc_scaled_range, replace=True)
-        self.resolver_count += 1
+        # Removed sampling resolver - use fixed values in configs instead
+        # OmegaConf.register_new_resolver("sampling", oc_scaled_range, replace=True)
+        # self.resolver_count += 1
         OmegaConf.register_new_resolver("gt", oc_greater_than, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("lt", oc_less_than, replace=True)

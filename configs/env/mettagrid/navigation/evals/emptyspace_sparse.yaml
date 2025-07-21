@@ -14,6 +14,6 @@ game:
     root:
       type: metta.map.scenes.mean_distance.MeanDistance
       params:
-        mean_distance: ${sampling:20,30,30}
+        mean_distance: 30  # Fixed value (was ${sampling:20,30,30})
         objects:
           altar: 3

@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid/mettagrid@
   - _self_
 
-sampling: 1
+# sampling: 1  # Removed - using fixed values instead
 game:
   num_agents: 4
   max_steps: 1000
@@ -24,7 +24,7 @@ game:
       border_width: 3
       agents: 1
       objects:
-        altar: ${sampling:3, 50, 25}
+        altar: 25  # Fixed value (was ${sampling:3, 50, 25})
   objects:
     altar:
       cooldown: 1000
