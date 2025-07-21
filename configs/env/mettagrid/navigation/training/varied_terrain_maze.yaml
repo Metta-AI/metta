@@ -7,4 +7,4 @@ sampling: 1
 game:
   map_builder:
     room:
-      dir: varied_terrain/maze_small
+      dir: ${choose:varied_terrain/maze_large,varied_terrain/maze_medium,varied_terrain/maze_small}
