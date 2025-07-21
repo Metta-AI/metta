@@ -168,6 +168,7 @@ class TerrainFromNumpy(Room):
         valid_positions_set = set(valid_positions)
 
         for obj_name, count in self._objects.items():
+            print(f"Placing {obj_name} {count} times")
             count = count - np.where(level == obj_name, 1, 0).sum()
             if count < 0:
                 continue
