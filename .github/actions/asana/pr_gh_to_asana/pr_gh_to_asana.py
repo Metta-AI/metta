@@ -22,10 +22,13 @@ from pull_request import PullRequest
 # vcr_log = logging.getLogger("vcr")
 # vcr_log.setLevel(logging.DEBUG)
 
+record_mode = os.getenv("VCR_RECORD_MODE", "new_episodes")
+print(f"VCR record mode: {record_mode}")
+
 my_vcr = vcr.VCR(
-    record_mode="new_episodes",
+    record_mode=record_mode,
     cassette_library_dir=".",
-    filter_headers=["Authorization"],
+    filter_headers=["Authorization", "User-Agent"],
     match_on=["uri", "method"],
     filter_query_parameters=["access_token"],
 )
@@ -125,6 +128,8 @@ def getenv_or_bust(key: str) -> str:
         Exception: If environment variable is not set or is empty
     """
     value = os.getenv(key)
+    print(f"Environment variable '{key}' = {repr(value)}")
+
     if value is None:
         raise Exception(f"Environment variable '{key}' is not set")
 
@@ -156,7 +161,12 @@ if __name__ == "__main__":
     import traceback
 
     run_id = os.getenv("GITHUB_RUN_ID", datetime.now().strftime("%Y%m%d_%H%M%S"))
-    cassette_name = f"http_interactions_{run_id}.yaml"
+    cassette_override = os.getenv("VCR_CASSETTE_PATH")
+    if cassette_override:
+        cassette_name = cassette_override
+        print(f"Using cassette override: {cassette_name}")
+    else:
+        cassette_name = f"http_interactions_{run_id}.yaml"
 
     print(f"Starting VCR recording with cassette: {cassette_name}")
     print(f"Current working directory: {os.getcwd()}")
@@ -234,8 +244,11 @@ if __name__ == "__main__":
             review_comments = [e for e in pr.events if e["type"] == "review"]
             asana_task.synchronize_comments_in_asana_as_multiple_blocks(review_comments)
 
-            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write(f"task_url={task_url}\n")
+            if "GITHUB_OUTPUT" in os.environ:
+                with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                    f.write(f"task_url={task_url}\n")
+            else:
+                print(f"Skipping write to GITHUB_OUTPUT. Task URL: {task_url}")
 
     except Exception:
         traceback.print_exc()
