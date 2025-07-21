@@ -150,7 +150,6 @@ class TerrainFromNumpy(Room):
         else:
             raise TypeError("Unsupported _agents type")
         num_agents = len(agent_labels)
-        assert num_agents == 2
 
         valid_positions = self.get_valid_positions(level)
 
