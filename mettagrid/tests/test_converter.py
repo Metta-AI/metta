@@ -11,9 +11,8 @@ import pytest
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
-from metta.mettagrid.util.actions import get_action_param
 from .test_mettagrid import TokenTypes
-from .conftest import create_test_config
+from .conftest import create_test_config, create_minimal_test_config
 
 
 class TestConverterObservations:
