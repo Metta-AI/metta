@@ -379,6 +379,7 @@ class MettaTrainer:
                 f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
+                f"Total reward: {self.stats['total_reward'][-1]}"
             )
 
             # Interval periodic tasks
