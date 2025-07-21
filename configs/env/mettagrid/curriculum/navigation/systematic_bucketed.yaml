@@ -30,10 +30,26 @@ buckets:
         "terrains/boxes/large",
         "terrains/boxes/medium",
         "terrains/boxes/small",
+        "terrain_maps_nohearts",
+        "varied_terrain/balanced_large",
+        "varied_terrain/balanced_medium",
+        "varied_terrain/balanced_small",
+        "varied_terrain/sparse_large",
+        "varied_terrain/sparse_medium",
+        "varied_terrain/sparse_small",
+        "varied_terrain/dense_large",
+        "varied_terrain/dense_medium",
+        "varied_terrain/dense_small",
+        "varied_terrain/maze_large",
+        "varied_terrain/maze_medium",
+        "varied_terrain/maze_small",
+        "varied_terrain/cylinder-world_large",
+        "varied_terrain/cylinder-world_medium",
+        "varied_terrain/cylinder-world_small",
       ]
   game.map_builder.room.objects.altar:
     range: [2, 16]
-    bins: 4
+    bins: 3
 
 env_overrides:
   sampling: 0
