@@ -10,10 +10,6 @@ game:
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
-    # Task objects
-    objects:
-      altar: ${int:${uniform:20,40}}          # sampled count for variability
-
   objects:
     altar:
       cooldown: 255

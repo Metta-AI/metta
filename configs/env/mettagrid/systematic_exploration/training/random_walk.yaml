@@ -15,9 +15,6 @@ game:
     corridor_length: ${int:${uniform:5,15}}
     occupancy_threshold: 0.25          # keep ≥ 75 % cells free space
 
-    # Optional task items
-    objects:
-      altar: ${int:${uniform:20,40}}
 
   # -------------------------------------------------------------------------
   # Object (item) specs

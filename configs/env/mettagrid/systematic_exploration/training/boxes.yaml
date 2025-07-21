@@ -17,8 +17,6 @@ game:
     gap:             1
     altars_per_box:  ${int:${uniform:1,3}}
 
-    objects: {}
-
   objects:
     altar:
       cooldown: 255

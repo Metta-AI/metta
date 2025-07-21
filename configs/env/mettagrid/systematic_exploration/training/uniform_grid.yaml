@@ -14,10 +14,6 @@ game:
     cell_size: ${int:${uniform:4,14}}      # spacing between grid lines (bigger → roomier)
     gap_width: ${int:${uniform:1,5}}       # width of each passage in a wall
 
-    # optional objects
-    objects:
-      altar: ${int:${uniform:5,20}}             # sprinkle some altars
-
   # -----------------------------------------------------------------
   # Object specs
   # -----------------------------------------------------------------

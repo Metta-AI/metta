@@ -32,7 +32,7 @@ game:
 
     # Objects that the task cares about (optional).
     objects:
-      altar: ${int:${uniform:8,28}}
+      altar: ${int:${uniform:5,25}}
 
   # -------------------------------------------------------------------------
   # Object (item) specs

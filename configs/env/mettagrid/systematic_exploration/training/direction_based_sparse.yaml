@@ -17,6 +17,3 @@ game:
     bay_count_range:   [25, 45]
     bay_depth_range:   [10, 30]
     bay_width_range:   [5, 10]
-
-    objects:
-      altar: ${int:${uniform:20,40}}

@@ -21,9 +21,6 @@ game:
 
     occupancy_threshold: 0.60      # stop adding obstacles once 60 % occupied
 
-    objects:
-      altar: ${int:${uniform:20,40}}
-
   objects:
     altar:
       cooldown: 255
