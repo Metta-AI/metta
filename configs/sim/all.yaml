@@ -143,8 +143,6 @@ simulations:
     env: env/mettagrid/memory/evals/medium
   memory/hard:
     env: env/mettagrid/memory/evals/hard
-  memory/access_cross:
-    env: env/mettagrid/memory/evals/access_cross
   memory/boxout:
     env: env/mettagrid/memory/evals/boxout
   memory/choose_wisely:
@@ -181,8 +179,6 @@ simulations:
     env: env/mettagrid/memory/evals/tease
   memory/venture_out:
     env: env/mettagrid/memory/evals/venture_out
-  memory/which_way:
-    env: env/mettagrid/memory/evals/which_way
   memory/tease_small:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
@@ -211,7 +207,7 @@ simulations:
     env: env/mettagrid/systematic_exploration_memory/evals/memory_swirls
   systematic_exploration_memory/passing_things:
     env: env/mettagrid/systematic_exploration_memory/evals/passing_things
-  systematic_exploration_memory/roomy_memory:
+  systematic_exploration_memory/rooms:
     env: env/mettagrid/systematic_exploration_memory/evals/rooms
   systematic_exploration_memory/spacey_memory:
     env: env/mettagrid/systematic_exploration_memory/evals/spacey_memory

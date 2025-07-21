@@ -30,4 +30,6 @@ sim_job:
   replay_dir: s3://softmax-public/replays/${run}
   # stats_server_uri: http://localhost:8000
 
+eval_task_id: null
+
 cmd: sim

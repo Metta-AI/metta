@@ -15,6 +15,13 @@ game:
   num_observation_tokens: 200
   max_steps: 1000
 
+  # Global observation tokens configuration
+  global_obs:
+    episode_completion_pct: true
+    last_action: true # Controls both last_action and last_action_arg tokens
+    last_reward: true
+    resource_rewards: false
+
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
   # inventory they didn't intend (e.g., "ore" instead of "ore_red").
   inventory_item_names:
@@ -26,8 +33,10 @@ game:
     - battery_green
     - heart
     - armor
-    - laser
-    - blueprint
+    # These items create feature IDs 22-23 which break pre-trained policies that expect max ID 21
+    # Uncomment if you need them and are training new policies
+    # - laser
+    # - blueprint
 
   actions:
     noop:
