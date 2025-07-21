@@ -18,6 +18,7 @@ class MettaProtein(WandbProtein):
     ):
         # Convert parameters to container
         parameters = OmegaConf.to_container(cfg.parameters, resolve=True)
+        max_observations_to_load = cfg.get("max_observations_to_load", 100)
 
         # Create sweep_config with parameters and required fields
         sweep_config = {
@@ -37,7 +38,7 @@ class MettaProtein(WandbProtein):
         )
 
         # Initialize WandbProtein with the created Protein instance
-        super().__init__(protein, wandb_run)
+        super().__init__(protein, wandb_run, max_runs_to_load=max_observations_to_load)
 
     def _transform_suggestion(self, suggestion):
         """Transform suggestion format for compatibility with training."""
