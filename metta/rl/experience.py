@@ -264,11 +264,11 @@ class Experience:
 
     def update_values(self, indices: Tensor, new_values: Tensor) -> None:
         """Update value estimates for given indices."""
-        self.values[indices] = new_values.detach()
+        self.values[indices] = new_values.detach().to(self.values.dtype)
 
     def update_ratio(self, indices: Tensor, new_ratio: Tensor) -> None:
         """Update importance sampling ratios for given indices."""
-        self.ratio[indices] = new_ratio.detach()
+        self.ratio[indices] = new_ratio.detach().to(self.ratio.dtype)
 
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers.
