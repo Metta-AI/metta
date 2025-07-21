@@ -79,6 +79,16 @@ class WallFollowSparseTerrain(Room):
                 grid[r, c] = name
                 self._occ[r, c] = True
 
+        size = self._H * self._W
+        if size > 7000:
+            label = "large"
+        elif size > 4500:
+            label = "medium"
+        else:
+            label = "small"
+
+        np.save(f"terrains/wallfollow_sparse/{label}_{self._rng.integers(1000000)}.npy", grid)
+
         return grid
 
     # ------------------------------------------------------------------ #
@@ -113,3 +123,11 @@ class WallFollowSparseTerrain(Room):
             return None
         idx = self._rng.integers(empty_flat.size)
         return np.unravel_index(empty_flat[idx], self._occ.shape)
+
+
+# if __name__ == "__main__":
+#     for i in range(500):
+#         width = np.random.randint(40, 120)
+#         height = np.random.randint(40, 120)
+#         room = WallFollowSparseTerrain(width=width, height=height)
+#         room.build()

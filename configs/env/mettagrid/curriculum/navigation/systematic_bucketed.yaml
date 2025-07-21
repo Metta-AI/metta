@@ -1,0 +1,36 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/training/terrain_from_numpy
+
+buckets:
+  game.map_builder.room.dir:
+    values:
+      [
+        "terrains/bounce_turn/large",
+        "terrains/bounce_turn/medium",
+        "terrains/bounce_turn/small",
+        "terrains/direction_based/large",
+        "terrains/direction_based/medium",
+        "terrains/direction_based/small",
+        "terrains/direction_based_sparse/large",
+        "terrains/direction_based_sparse/medium",
+        "terrains/direction_based_sparse/small",
+        "terrains/fixed_sweep/large",
+        "terrains/fixed_sweep/medium",
+        "terrains/fixed_sweep/small",
+        "terrains/random_walk/large",
+        "terrains/random_walk/medium",
+        "terrains/random_walk/small",
+        "terrains/wallfollow_terrain/large",
+        "terrains/wallfollow_terrain/medium",
+        "terrains/wallfollow_terrain/small",
+        "terrains/wallfollow_sparse/large",
+        "terrains/wallfollow_sparse/medium",
+        "terrains/wallfollow_sparse/small",
+      ]
+  game.map_builder.room.objects.altar:
+    range: [2, 16]
+    bins: 4
+
+env_overrides:
+  sampling: 0

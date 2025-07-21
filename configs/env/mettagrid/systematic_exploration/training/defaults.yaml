@@ -1,44 +1,31 @@
-# =============================================================================
-#  Training defaults – Systematic Exploration
-# =============================================================================
 defaults:
-  - /env/mettagrid/mettagrid@        # core engine defaults
+  - /env/mettagrid/mettagrid@
   - _self_
 
-sampling: 1          # 1 cfg ⇒ 1 environment per launch
-
+sampling: 1
 game:
-  # -------------------------------------------------------------------------
-  # Global parameters
-  # -------------------------------------------------------------------------
   num_agents: 4
   max_steps: 1000
-
-  # Disable combat & inventory mechanics – pure navigation/coverage.
   actions:
-    attack:       {enabled: false}
-    swap:         {enabled: false}
-    change_color: {enabled: false}
-    put_items:    {enabled: false}
-
-  # -------------------------------------------------------------------------
-  # Map builder – single room with adversarial wall‑following terrain
-  # -------------------------------------------------------------------------
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
   map_builder:
-    _target_: metta.mettagrid.room.systematic_exploration.wallfollow_terrain.WallFollowTerrain
-    width: ${int:${uniform:50,80}}
-    height: ${int:${uniform:50,80}}
-    agents: ${..num_agents}
-    seed: ${int:${uniform:0,100000}}
-
-    # Objects that the task cares about (optional).
-    objects:
-      altar: ${int:${uniform:15,35}}
-
-  # -------------------------------------------------------------------------
-  # Object (item) specs
-  # -------------------------------------------------------------------------
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 6
+    room:
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
+      agents: 1
+      objects:
+        altar: ${sampling:3, 14, 10}
   objects:
     altar:
-      cooldown: 1000        # unusable after collection for the rest of the episode
+      cooldown: 1000
       initial_resource_count: 1

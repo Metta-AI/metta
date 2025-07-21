@@ -39,12 +39,12 @@ class FixedSweepTerrain(Room):
         border_width: int = 0,
         border_object: str = "wall",
         #
-        indent_count: Tuple[int, int] = (10, 24),  # total indentations per side
-        indent_depth: Tuple[int, int] = (3, 10),
-        indent_width: Tuple[int, int] = (3, 7),
+        indent_count: int = 10,  # total indentations per side
+        indent_depth: int = 3,
+        indent_width: int = 7,
         #
-        island_count: Tuple[int, int] = (25, 45),
-        island_size: Tuple[int, int] = (4, 12),  # rectangular islands
+        island_count: int = 25,
+        island_size: int = 12,  # rectangular islands
         #
         occupancy_threshold: float = 0.60,
     ) -> None:
@@ -62,12 +62,12 @@ class FixedSweepTerrain(Room):
         self._objects = objects or {}
 
         # parameters
-        self._indent_cnt = indent_count
+        self._indent_count = indent_count
         self._indent_depth = indent_depth
         self._indent_width = indent_width
 
-        self._island_cnt = island_count
-        self._island_sz = island_size
+        self._island_count = island_count
+        self._island_size = island_size
 
         self._occ_thr = occupancy_threshold
         self._occ = np.zeros((height, width), dtype=bool)
@@ -87,6 +87,16 @@ class FixedSweepTerrain(Room):
         # 3 ─ agents & objects
         self._scatter_agents_and_objects(grid)
 
+        size = self._H * self._W
+        if size > 7000:
+            label = "large"
+        elif size > 4500:
+            label = "medium"
+        else:
+            label = "small"
+
+        np.save(f"terrains/fixed_sweep/{label}_{self._rng.integers(1000000)}.npy", grid)
+
         return grid
 
     # ------------------------------------------------------------------ #
@@ -103,12 +113,12 @@ class FixedSweepTerrain(Room):
         self._occ[:, 0] = True
         self._occ[:, -1] = True
 
-        total_per_side = self._rng.integers(*self._indent_cnt)
+        total_per_side = self._indent_count
 
         for side in ("top", "bottom", "left", "right"):
             for _ in range(total_per_side):
-                depth = int(self._rng.integers(*self._indent_depth))
-                width = int(self._rng.integers(*self._indent_width))
+                depth = self._indent_depth
+                width = self._indent_width
                 if side in ("top", "bottom"):
                     max_start = self._W - width - 2
                     if max_start <= 1:
@@ -130,12 +140,12 @@ class FixedSweepTerrain(Room):
     # Island generation                                                  #
     # ------------------------------------------------------------------ #
     def _scatter_islands(self, grid: np.ndarray) -> None:
-        n_islands = self._rng.integers(*self._island_cnt)
+        n_islands = self._island_count
         for _ in range(n_islands):
             if self._occ.mean() >= self._occ_thr:
                 break
-            h = int(self._rng.integers(*self._island_sz))
-            w = int(self._rng.integers(*self._island_sz))
+            h = self._island_size
+            w = self._island_size
             pattern = np.full((h, w), "wall", dtype=object)
             self._try_place(grid, pattern, clearance=1)
 
@@ -195,3 +205,24 @@ class FixedSweepTerrain(Room):
             return None
         idx = self._rng.integers(flat.size)
         return np.unravel_index(flat[idx], occ.shape)
+
+
+# if __name__ == "__main__":
+#     for i in range(500):
+#         width = np.random.randint(40, 120)
+#         height = np.random.randint(40, 120)
+#         indent_count = np.random.randint(10, 24)
+#         indent_depth = np.random.randint(3, 10)
+#         indent_width = np.random.randint(3, 7)
+#         island_count = np.random.randint(25, 45)
+#         island_size = np.random.randint(4, 12)
+#         room = FixedSweepTerrain(
+#             width=width,
+#             height=height,
+#             indent_count=indent_count,
+#             indent_depth=indent_depth,
+#             indent_width=indent_width,
+#             island_count=island_count,
+#             island_size=island_size,
+#         )
+#         room.build()

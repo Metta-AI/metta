@@ -37,8 +37,8 @@ class RandomWalkTerrain(Room):
         border_object: str = "wall",
         #
         occupancy_threshold: float = 0.30,  # keep the map mostly open
-        corridor_count: Tuple[int, int] = (15, 35),  # how many cul‑de‑sacs
-        corridor_length: Tuple[int, int] = (12, 50),  # inclusive range
+        corridor_count: int = 35,  # how many cul‑de‑sacs
+        corridor_length: int = 50,  # inclusive range
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["random_walk"])
         self.set_size_labels(width, height)
@@ -81,17 +81,27 @@ class RandomWalkTerrain(Room):
                 grid[r, c] = name
                 self._occ[r, c] = True
 
+        size = self._H * self._W
+        if size > 7000:
+            label = "large"
+        elif size > 4500:
+            label = "medium"
+        else:
+            label = "small"
+
+        np.save(f"terrains/random_walk/{label}_{self._rng.integers(1000000)}.npy", grid)
+
         return grid
 
     # ------------------------------------------------------------------ #
     # Corridor carving                                                   #
     # ------------------------------------------------------------------ #
     def _dig_corridors(self, grid: np.ndarray) -> None:
-        N = self._rng.integers(*self._corridor_count)
+        N = self._corridor_count
         for _ in range(N):
             if self._occ.mean() >= self._occ_thr:
                 break
-            length = self._rng.integers(*self._corridor_len)
+            length = self._corridor_len
             orient = self._rng.choice(["h", "v"])
 
             if orient == "h":
@@ -137,3 +147,20 @@ class RandomWalkTerrain(Room):
             return None
         idx = self._rng.integers(empty_flat.size)
         return np.unravel_index(empty_flat[idx], self._occ.shape)
+
+
+# if __name__ == "__main__":
+#     for i in range(500):
+#         width = np.random.randint(50, 120)
+#         height = np.random.randint(50, 120)
+#         occupancy_threshold = np.random.randint(1, 3) / 10
+#         corridor_count = np.random.randint(15, 35)
+#         corridor_length = np.random.randint(12, 30)
+#         room = RandomWalkTerrain(
+#             width=width,
+#             height=height,
+#             occupancy_threshold=occupancy_threshold,
+#             corridor_count=corridor_count,
+#             corridor_length=corridor_length,
+#         )
+#         room.build()

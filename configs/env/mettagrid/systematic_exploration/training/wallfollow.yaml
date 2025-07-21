@@ -5,10 +5,6 @@ defaults:
 sampling: 1
 
 game:
-  # Slightly larger arena and denser jagged islands for tougher coverage.
   map_builder:
-    width: ${int:${uniform:60,100}}
-    height: ${int:${uniform:60,100}}
-    island_count: [50, 90]   # YAML → python tuple → rng integers
-    island_size:  [8, 40]
-    occupancy_threshold: 0.60
+    room:
+      dir: ${choose:terrains/wallfollow/large,terrains/wallfollow/medium,terrains/wallfollow/small}

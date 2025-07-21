@@ -6,28 +6,5 @@ sampling: 1
 
 game:
   map_builder:
-    _target_: metta.mettagrid.room.systematic_exploration.direction_based.DirectionBasedTerrain
-
-    # Arena size
-    width: ${int:${uniform:80,120}}
-    height: ${int:${uniform:80,120}}
-    agents: ${..num_agents}
-    seed: ${int:${uniform:0,100000}}
-
-    # Labyrinth parameters
-    hole_count_range:  [3, 7]     # fewer holes ⇒ weaker cross‑corridor mixing
-    bay_count_range:   [25, 45]
-    bay_depth_range:   [10, 30]
-    bay_width_range:   [5, 10]
-
-    # Task objects (optional)
-    objects:
-      altar: ${int:${uniform:20,40}}
-
-  # ---------------------------------------------------------------------
-  # Object specs
-  # ---------------------------------------------------------------------
-  objects:
-    altar:
-      cooldown: 255
-      initial_resource_count: 1
+    room:
+      dir: ${choose:terrains/direction_based/large,terrains/direction_based/medium,terrains/direction_based/small}

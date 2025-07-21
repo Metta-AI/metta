@@ -6,30 +6,5 @@ sampling: 1
 
 game:
   map_builder:
-    _target_: metta.mettagrid.room.systematic_exploration.fixed_sweep.FixedSweepTerrain
-
-    # Arena size
-    width: ${int:${uniform:100,140}}
-    height: ${int:${uniform:80,120}}
-    agents: ${..num_agents}
-    seed: ${int:${uniform:0,100000}}
-
-    # Jagged‑perimeter parameters
-    indent_count:  [12, 24]     # per side
-    indent_depth:  [4, 10]
-    indent_width:  [3, 7]
-
-    # Interior islands
-    island_count:  [30, 50]
-    island_size:   [4, 10]
-
-    occupancy_threshold: 0.65
-
-    # Optional task items
-    objects:
-      altar: ${int:${uniform:20,40}}
-
-  objects:
-    altar:
-      cooldown: 255
-      initial_resource_count: 1
+    room:
+      dir: ${choose:terrains/fixed_sweep/large,terrains/fixed_sweep/medium,terrains/fixed_sweep/small}

@@ -42,10 +42,10 @@ class DirectionBasedTerrain(Room):
         border_width: int = 0,
         border_object: str = "wall",
         #
-        hole_count_range: Tuple[int, int] = (3, 8),  # holes per wall column
-        bay_count_range: Tuple[int, int] = (20, 40),  # how many U‑bays
-        bay_depth_range: Tuple[int, int] = (8, 25),  # vertical depth (cells)
-        bay_width_range: Tuple[int, int] = (4, 8),  # horizontal span
+        hole_count: int = 3,  # holes per wall column
+        bay_count: int = 20,  # how many U‑bays
+        bay_depth: int = 8,  # vertical depth (cells)
+        bay_width: int = 4,  # horizontal span
     ) -> None:
         super().__init__(
             border_width=border_width,
@@ -60,10 +60,10 @@ class DirectionBasedTerrain(Room):
         self._objects = objects or {}
 
         # Parameters
-        self._hole_rng = hole_count_range
-        self._bay_cnt_rng = bay_count_range
-        self._bay_depth_rng = bay_depth_range
-        self._bay_width_rng = bay_width_range
+        self._hole_count = hole_count
+        self._bay_count = bay_count
+        self._bay_depth = bay_depth
+        self._bay_width = bay_width
 
     # ------------------------------------------------------------------ #
     # Room API                                                            #
@@ -100,6 +100,17 @@ class DirectionBasedTerrain(Room):
                 grid[r, c] = name
                 occ[r, c] = True
 
+        # self._scatter_agents_and_objects(grid)
+        size = self._H * self._W
+        if size > 7000:
+            label = "large"
+        elif size > 4500:
+            label = "medium"
+        else:
+            label = "small"
+
+        np.save(f"terrains/direction_based/{label}_{self._rng.integers(1000000)}.npy", grid)
+
         return grid
 
     # ------------------------------------------------------------------ #
@@ -115,9 +126,8 @@ class DirectionBasedTerrain(Room):
         grid[:, 1::2] = "wall"
 
         # For each wall column punch 3–8 holes.
-        min_holes, max_holes = self._hole_rng
         for col in range(1, self._W, 2):
-            n_holes = self._rng.integers(min_holes, max_holes + 1)
+            n_holes = self._hole_count
             for _ in range(n_holes):
                 row = self._rng.integers(1, self._H - 1)
                 grid[row, col] = "empty"
@@ -135,12 +145,11 @@ class DirectionBasedTerrain(Room):
             └───────┘
 
         """
-        min_bays, max_bays = self._bay_cnt_rng
-        n_bays = self._rng.integers(min_bays, max_bays + 1)
+        n_bays = self._bay_count
 
         for _ in range(n_bays):
-            depth = int(self._rng.integers(*self._bay_depth_rng))
-            width = int(self._rng.integers(*self._bay_width_rng))
+            depth = self._bay_depth
+            width = self._bay_width
             # Pick a corridor column (even), leaving margin so the bay fits.
             entry_col_candidates = [c for c in range(0, self._W - width - 2, 2) if c + width + 1 < self._W - 1]
             if not entry_col_candidates:
@@ -190,3 +199,22 @@ class DirectionBasedTerrain(Room):
             return None
         idx = self._rng.integers(flat.size)
         return np.unravel_index(flat[idx], occ.shape)
+
+
+# if __name__ == "__main__":
+#     for i in range(500):
+#         width = np.random.randint(40, 120)
+#         height = np.random.randint(40, 120)
+#         hole_count = np.random.randint(3, 8)
+#         bay_count = np.random.randint(20, 40)
+#         bay_depth = np.random.randint(5, 15)
+#         bay_width = np.random.randint(5, 15)
+#         room = DirectionBasedTerrain(
+#             width=width,
+#             height=height,
+#             hole_count=hole_count,
+#             bay_count=bay_count,
+#             bay_depth=bay_depth,
+#             bay_width=bay_width,
+#         )
+#         room.build()

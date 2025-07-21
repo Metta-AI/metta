@@ -6,25 +6,5 @@ sampling: 1
 
 game:
   map_builder:
-    _target_: metta.mettagrid.room.systematic_exploration.random_walk.RandomWalkTerrain
-    # Oversized arena → long cover times
-    width: ${int:${uniform:100,140}}
-    height: ${int:${uniform:100,140}}
-    agents: ${..num_agents}
-
-    # Deep cul‑de‑sacs, few overall walls
-    corridor_count: [25, 45]
-    corridor_length: [20, 80]
-    occupancy_threshold: 0.25          # keep ≥ 75 % cells free space
-
-    # Optional task items
-    objects:
-      altar: ${int:${uniform:20,40}}
-
-  # -------------------------------------------------------------------------
-  # Object (item) specs
-  # -------------------------------------------------------------------------
-  objects:
-    altar:
-      cooldown: 255        # maximum cooldown (255)
-      initial_resource_count: 1
+    room:
+      dir: ${choose:terrains/random_walk/large,terrains/random_walk/medium,terrains/random_walk/small}

@@ -26,10 +26,10 @@ class DirectionBasedTerrain(Room):
         border_width: int = 0,
         border_object: str = "wall",
         #
-        hole_count_range: Tuple[int, int] = (3, 8),
-        bay_count_range: Tuple[int, int] = (20, 40),
-        bay_depth_range: Tuple[int, int] = (8, 25),
-        bay_width_range: Tuple[int, int] = (4, 8),
+        hole_count: int = 3,
+        bay_count: int = 20,
+        bay_depth: int = 8,
+        bay_width: int = 4,
         #
         orientation: str = "auto",  # "auto"| "horizontal" | "vertical"
     ) -> None:
@@ -46,10 +46,10 @@ class DirectionBasedTerrain(Room):
         self._objects = objects or {}
 
         # Parameters
-        self._hole_rng = hole_count_range
-        self._bay_cnt_rng = bay_count_range
-        self._bay_depth_rng = bay_depth_range
-        self._bay_width_rng = bay_width_range
+        self._hole_count = hole_count
+        self._bay_count = bay_count
+        self._bay_depth = bay_depth
+        self._bay_width = bay_width
         self._orientation_arg = orientation.lower()
 
     # ------------------------------------------------------------------ #
@@ -81,6 +81,17 @@ class DirectionBasedTerrain(Room):
         # 3 ─ Agents & objects
         occ = grid != "empty"
         self._scatter_agents_and_objects(grid, occ)
+
+        # self._scatter_agents_and_objects(grid)
+        size = self._H * self._W
+        if size > 7000:
+            label = "large"
+        elif size > 4500:
+            label = "medium"
+        else:
+            label = "small"
+
+        np.save(f"terrains/direction_based_sparse/{label}_{self._rng.integers(1000000)}.npy", grid)
 
         return grid
 
@@ -118,7 +129,7 @@ class DirectionBasedTerrain(Room):
     # ------------------------------------------------------------------ #
     def _make_vertical_labyrinth(self, grid: np.ndarray) -> None:
         """Create a vertical corridor labyrinth with holes."""
-        hole_count = self._rng.integers(*self._hole_rng)
+        hole_count = self._hole_count
 
         # Create vertical corridors
         num_corridors = self._W // 8  # Adjust spacing based on width
@@ -145,7 +156,7 @@ class DirectionBasedTerrain(Room):
 
     def _make_horizontal_labyrinth(self, grid: np.ndarray) -> None:
         """Create a horizontal corridor labyrinth with holes."""
-        hole_count = self._rng.integers(*self._hole_rng)
+        hole_count = self._hole_count
 
         # Create horizontal corridors
         num_corridors = self._H // 8  # Adjust spacing based on height
@@ -175,15 +186,15 @@ class DirectionBasedTerrain(Room):
     # ------------------------------------------------------------------ #
     def _attach_u_bays(self, grid: np.ndarray) -> None:
         """Attach vertical U-shaped bays to the labyrinth."""
-        bay_count = self._rng.integers(*self._bay_cnt_rng)
+        bay_count = self._bay_count
 
         for _ in range(bay_count):
             # Pick a random position for the bay
             row = self._rng.integers(3, self._H - 3)
             col = self._rng.integers(3, self._W - 3)
 
-            depth = self._rng.integers(*self._bay_depth_rng)
-            width = self._rng.integers(*self._bay_width_rng)
+            depth = self._bay_depth
+            width = self._bay_width
 
             # Ensure bay fits within bounds
             depth = min(depth, self._H - row - 2)
@@ -207,15 +218,15 @@ class DirectionBasedTerrain(Room):
 
     def _attach_u_bays_horizontal(self, grid: np.ndarray) -> None:
         """Attach horizontal U-shaped bays to the labyrinth."""
-        bay_count = self._rng.integers(*self._bay_cnt_rng)
+        bay_count = self._bay_count
 
         for _ in range(bay_count):
             # Pick a random position for the bay
             row = self._rng.integers(3, self._H - 3)
             col = self._rng.integers(3, self._W - 3)
 
-            depth = self._rng.integers(*self._bay_depth_rng)
-            width = self._rng.integers(*self._bay_width_rng)
+            depth = self._bay_depth
+            width = self._bay_width
 
             # Ensure bay fits within bounds
             depth = min(depth, self._W - col - 2)
@@ -236,3 +247,22 @@ class DirectionBasedTerrain(Room):
             for r in range(row, row + width + 1):
                 if r < self._H and col + depth < self._W:
                     grid[r, col + depth] = "wall"
+
+
+# if __name__ == "__main__":
+#     for i in range(500):
+#         width = np.random.randint(40, 150)
+#         height = np.random.randint(40, 150)
+#         hole_count = np.random.randint(3, 8)
+#         bay_count = np.random.randint(20, 40)
+#         bay_depth = np.random.randint(5, 15)
+#         bay_width = np.random.randint(5, 15)
+#         room = DirectionBasedTerrain(
+#             width=width,
+#             height=height,
+#             hole_count=hole_count,
+#             bay_count=bay_count,
+#             bay_depth=bay_depth,
+#             bay_width=bay_width,
+#         )
+#         room.build()

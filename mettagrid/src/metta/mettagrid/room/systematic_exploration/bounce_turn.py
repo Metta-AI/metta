@@ -43,11 +43,11 @@ class BounceTurnTerrain(Room):
         border_width: int = 0,
         border_object: str = "wall",
         #
-        pocket_count: Tuple[int, int] = (15, 30),
-        pocket_size: Tuple[int, int] = (6, 15),  # inner cavity side length
-        trap_count: Tuple[int, int] = (15, 30),
-        trap_depth: Tuple[int, int] = (8, 20),
-        trap_width: Tuple[int, int] = (5, 11),  # outer width (odd ≥ 5)
+        pocket_count: int = 15,
+        pocket_size: int = 6,
+        trap_count: int = 15,
+        trap_depth: int = 8,
+        trap_width: int = 11,
         occupancy_threshold: float = 0.55,
     ) -> None:
         super().__init__(
@@ -85,8 +85,17 @@ class BounceTurnTerrain(Room):
         # 2 ─ place Venus‑fly‑traps
         self._scatter_traps(grid)
 
-        # 3 ─ agents & objects
-        self._scatter_agents_and_objects(grid)
+        # # 3 ─ agents & objects
+        # self._scatter_agents_and_objects(grid)
+        size = self._H * self._W
+        if size > 7000:
+            label = "large"
+        elif size > 4500:
+            label = "medium"
+        else:
+            label = "small"
+
+        np.save(f"terrains/bounce_turn/{label}/{self._rng.integers(1000000)}.npy", grid)
 
         return grid
 
@@ -94,11 +103,11 @@ class BounceTurnTerrain(Room):
     # Concave pockets                                                    #
     # ------------------------------------------------------------------ #
     def _scatter_pockets(self, grid: np.ndarray) -> None:
-        n_pockets = self._rng.integers(*self._pocket_cnt)
+        n_pockets = self._pocket_cnt
         for _ in range(n_pockets):
             if self._occ.mean() >= self._occ_thr:
                 break
-            size = int(self._rng.integers(*self._pocket_size))  # cavity
+            size = self._pocket_size
             pattern = self._make_c_pocket(size)
             self._try_place(grid, pattern, clearance=1)
 
@@ -125,12 +134,12 @@ class BounceTurnTerrain(Room):
     # Venus‑fly‑traps                                                   #
     # ------------------------------------------------------------------ #
     def _scatter_traps(self, grid: np.ndarray) -> None:
-        n_traps = self._rng.integers(*self._trap_cnt)
+        n_traps = self._trap_cnt
         for _ in range(n_traps):
             if self._occ.mean() >= self._occ_thr:
                 break
-            depth = int(self._rng.integers(*self._trap_depth))
-            width = int(self._rng.integers(*self._trap_width))
+            depth = self._trap_depth
+            width = self._trap_width
             if width % 2 == 0:
                 width += 1  # force odd width so the throat is central
             pattern = self._make_flytrap(depth, width)
@@ -230,3 +239,21 @@ class BounceTurnTerrain(Room):
             return None
         idx = self._rng.integers(flat.size)
         return np.unravel_index(flat[idx], occ.shape)
+
+
+# if __name__ == "__main__":
+#     for i in range(500):
+#         width = np.random.randint(30, 120)
+#         height = np.random.randint(30, 120)
+#         pocket_count = np.random.randint(10, 30)
+#         trap_count = np.random.randint(10, 30)
+#         pocket_size = np.random.randint(5, 15)
+#         trap_depth = np.random.randint(5, 15)
+#         trap_width = np.random.randint(5, 15)
+#         room = BounceTurnTerrain(
+#             width=width,
+#             height=height,
+#             pocket_count=pocket_count,
+#             trap_count=trap_count,
+#         )
+#         room.build()
