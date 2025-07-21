@@ -62,3 +62,7 @@ game:
     change_glyph:
       enabled: false
       number_of_glyphs: 4
+
+    termination:
+      num_altars: false #if true, terminate when overall reward = numaltars
+      max_reward: null #if set, terminate when overall reward = max_reward
