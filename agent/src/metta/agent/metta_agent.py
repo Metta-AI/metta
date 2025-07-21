@@ -344,6 +344,14 @@ class MettaAgent(nn.Module):
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Agent actions initialized with: {self.active_actions}")
 
+    def flatten_parameters(self):
+        # av check
+        """Flattens parameters of all LSTM components for performance."""
+        for component in self.components.values():
+            if hasattr(component, "_net") and isinstance(component._net, nn.LSTM):
+                component._net.flatten_parameters()
+                logger.info(f"Flattened LSTM parameters for component {component._name}")
+
     @property
     def lstm(self):
         return self.components["_core_"]._net

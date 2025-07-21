@@ -251,6 +251,7 @@ class MettaTrainer:
         )
 
         if torch.distributed.is_initialized():
+            self.policy.flatten_parameters() # av check
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             self.policy = DistributedMettaAgent(self.policy, self.device)
             # Ensure all ranks have initialized DDP before proceeding
@@ -342,11 +343,6 @@ class MettaTrainer:
 
         logger.info(f"Training on {self.device}")
         wandb_policy_name: str | None = None
-
-        # av delete this
-        for name, param in self.policy.named_parameters():
-            if not param.is_contiguous():
-                print(f"Warning: The parameter '{name}' is not contiguous!")
 
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step

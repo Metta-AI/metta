@@ -33,6 +33,11 @@ class LSTM(LayerBase):
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
 
+    def setup(self, source_components):
+        """Setup the layer and create the network."""
+        super().setup(source_components)
+        self._net = self._make_net()
+
     def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
         net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
@@ -88,8 +93,6 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        if self.training:  # av delete this
-            self._net.flatten_parameters()  # av move this to before training, call at the agent level
         hidden, state = self._net(hidden, state)
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
