@@ -10,12 +10,12 @@ defaults:
 cmd: sweep
 sweep_name: ???  # Will be set via command line override
 
-# Override stats_server_uri from common.yaml to use localhost for sweep coordination
-sweep_server_uri: http://localhost:8000
+# Backend URL for centralized run assignment in Observatory
+sweep_server_uri: https://api.observatory.softmax-research.net
 
 trainer:
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
-  curriculum: /env/mettagrid/arena/basic_easy_shaped # This won't be used, but needed for Pydantic
+  curriculum: /env/mettagrid/arena/basic_easy_shaped
   simulation:
     evaluate_interval: 0  # No evaluation during training for speed
     replay_dir: "" # No replays for sweeps
