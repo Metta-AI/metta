@@ -16,12 +16,18 @@ class SweepClient:
 
     def __init__(self, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None):
         """
-        Initialize the sweep client.
+        Initialize the sweep client with automatic authentication if no token provided.
 
         Args:
             base_url: Base URL of the API server
-            auth_token: Authentication token (machine token or user session)
+            auth_token: Authentication token. If None, will attempt to get machine token.
         """
+        # Get machine token if no auth_token provided
+        if auth_token is None:
+            from metta.common.util.stats_client_cfg import get_machine_token
+
+            auth_token = get_machine_token(base_url)
+
         self.base_url = base_url.rstrip("/")
         self.headers = {}
         if auth_token:

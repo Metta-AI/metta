@@ -15,12 +15,12 @@ import hydra
 import wandb
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from cogweb.cogweb_client import CogwebClient
 from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
 from metta.common.wandb.wandb_context import WandbContext
-from metta.sweep.metta_client_utils import get_next_run_id_from_metta
 from metta.sweep.protein_metta import MettaProtein
 
 logger = setup_mettagrid_logger("sweep_prepare_run")
@@ -43,7 +43,8 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
     # Use centralized database for atomic run ID generation
     backend_url = cfg.sweep_server_uri
-    run_id = get_next_run_id_from_metta(cfg.sweep_name, backend_url=backend_url)
+    client = CogwebClient(base_url=backend_url)
+    run_id = client.sweep_next_run_id(cfg.sweep_name)
     logger.info(f"Creating new run: {run_id}")
 
     run_dir = os.path.join(cfg.runs_dir, run_id)
@@ -83,7 +84,6 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             sweep_job_container = OmegaConf.to_container(cfg.sweep_job, resolve=True)
             sweep_job_copy = DictConfig(sweep_job_container)
             apply_protein_suggestion(sweep_job_copy, clean_suggestion)
-            # NOTE: Overrides are expected to be in the run_dir as `train_config_overrides.yaml`.
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             run_seed = random.randint(0, 2**31 - 1)  # TODO: Seeding is trough metta_script.
 

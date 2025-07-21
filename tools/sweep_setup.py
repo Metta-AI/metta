@@ -35,9 +35,9 @@ from logging import Logger
 import hydra
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from cogweb.cogweb_client import CogwebClient
 from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.sweep.metta_client_utils import create_sweep_in_metta, get_sweep_id_from_metta
 from metta.sweep.wandb_utils import create_wandb_sweep
 
 logger = setup_mettagrid_logger("sweep_setup")
@@ -61,16 +61,15 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     # Check if sweep already exists
     backend_url = cfg.sweep_server_uri
-    wandb_sweep_id = get_sweep_id_from_metta(cfg.sweep_name, backend_url=backend_url)
+    client = CogwebClient(base_url=backend_url)
+    wandb_sweep_id = client.sweep_id(cfg.sweep_name)
 
     # The sweep hasn't been registered with the centralized DB
     if wandb_sweep_id is None:
         # Create the sweep in WandB
         wandb_sweep_id = create_wandb_sweep(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project)
         # Register the sweep in the centralized DB
-        create_sweep_in_metta(
-            cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project, wandb_sweep_id, backend_url=backend_url
-        )
+        client.create_sweep(cfg.sweep_name, cfg.wandb.project, cfg.wandb.entity, wandb_sweep_id)
 
     # Save sweep metadata locally
     # in join(cfg.sweep_dir, "metadata.yaml"
