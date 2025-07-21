@@ -5,8 +5,8 @@ Test exploration tracking in navigation evaluation environments.
 
 import pytest
 
-from metta.api import create_evaluation_config_suite
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.interface import create_evaluation_config_suite
 
 
 def test_navigation_exploration_tracking():
@@ -32,7 +32,7 @@ def test_navigation_exploration_tracking():
 
 def test_exploration_rate_in_navigation_env():
     """Test that navigation evaluation environments have exploration tracking enabled."""
-    from metta.api import create_evaluation_config_suite
+    from metta.interface import create_evaluation_config_suite
 
     # Load navigation evaluation config using the API function
     config = create_evaluation_config_suite()
