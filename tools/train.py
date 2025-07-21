@@ -1,11 +1,5 @@
 #!/usr/bin/env -S uv run
 
-# NumPy 2.0 compatibility for WandB - must be imported before wandb
-import numpy as np  # noqa: E402
-
-if not hasattr(np, "byte"):
-    np.byte = np.int8
-
 import multiprocessing
 import os
 import sys
