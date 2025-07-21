@@ -44,7 +44,7 @@ ppo:
   clip_coef: 0.1
   ent_coef: 0.0021
   gae_lambda: 0.916
-  gamma: 0.999
+  gamma: 0.977
 
   # Training parameters
   max_grad_norm: 0.5
@@ -71,7 +71,7 @@ require_contiguous_env_ids: false
 verbose: true
 
 batch_size: 524288
-minibatch_size: 2048 #16384
+minibatch_size: 16384
 bptt_horizon: 64
 update_epochs: 1
 
