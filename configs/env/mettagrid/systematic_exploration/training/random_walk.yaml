@@ -13,8 +13,8 @@ game:
     agents: ${..num_agents}
 
     # Deep cul‑de‑sacs, few overall walls
-    corridor_count: [25, 45]
-    corridor_length: [20, 80]
+    corridor_count: ${int:${uniform:25,45}}
+    corridor_length: ${int:${uniform:20,80}}
     occupancy_threshold: 0.25          # keep ≥ 75 % cells free space
 
     # Optional task items

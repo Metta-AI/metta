@@ -37,8 +37,8 @@ class RandomWalkTerrain(Room):
         border_object: str = "wall",
         #
         occupancy_threshold: float = 0.30,  # keep the map mostly open
-        corridor_count: Tuple[int, int] = (15, 35),  # how many cul‑de‑sacs
-        corridor_length: Tuple[int, int] = (12, 50),  # inclusive range
+        corridor_count: int = 25,  # how many cul‑de‑sacs
+        corridor_length: int = 30,  # corridor length
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["random_walk"])
         self.set_size_labels(width, height)
@@ -87,11 +87,21 @@ class RandomWalkTerrain(Room):
     # Corridor carving                                                   #
     # ------------------------------------------------------------------ #
     def _dig_corridors(self, grid: np.ndarray) -> None:
-        N = self._rng.integers(*self._corridor_count)
+        # Handle both integer and tuple inputs for corridor_count
+        if isinstance(self._corridor_count, int):
+            N = self._corridor_count
+        else:
+            N = self._rng.integers(*self._corridor_count)
+
         for _ in range(N):
             if self._occ.mean() >= self._occ_thr:
                 break
-            length = self._rng.integers(*self._corridor_len)
+
+            # Handle both integer and tuple inputs for corridor_length
+            if isinstance(self._corridor_len, int):
+                length = self._corridor_len
+            else:
+                length = self._rng.integers(*self._corridor_len)
             orient = self._rng.choice(["h", "v"])
 
             if orient == "h":

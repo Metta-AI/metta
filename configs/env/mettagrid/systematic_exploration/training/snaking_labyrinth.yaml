@@ -5,8 +5,6 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 4
-
   map_builder:
     _target_: metta.mettagrid.room.systematic_exploration.snaking_labyrinth.SnakingLabyrinthTerrain
 
