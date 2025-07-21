@@ -8,6 +8,8 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.systematic_exploration.direction_based.DirectionBasedTerrain
     agents: ${..num_agents}
+    width: ${int:${uniform:50,90}}
+    height: ${int:${uniform:50,90}}
     seed: ${int:${uniform:0,100000}}
 
     # Labyrinth parameters
