@@ -220,6 +220,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         obs, infos = self._c_env.reset()
         self._should_reset = False
 
+        self.cumulative_rewards = np.zeros(self.num_agents)
+
         self.timer.start("thread_idle")
         return obs, infos
 
@@ -255,10 +257,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # reward modes:
         if self.special_reward_mode == "ffa":
-            if self.terminals or self.truncations:
-                self.rewards = self.cumulative_rewards
+            if self.truncations.any():
+                self.rewards[:] = self.cumulative_rewards
             else:
-                self.rewards = 0
+                self.rewards[:]=0
 
             self.rewards[:] = self.rewards
         elif self.special_reward_mode == "best_on_map":
