@@ -7,20 +7,21 @@ from logging import Logger
 import hydra
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.metta_agent import make_policy
-from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
-from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.rl.curriculum.curriculum_client import CurriculumClient
+from metta.rl.curriculum.curriculum_server import CurriculumServer
+from metta.rl.trainer import MettaTrainer
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -82,9 +83,7 @@ def _load_or_create_policy(cfg, policy_store, checkpoint, logger):
     logger.info("No existing policy found, creating new one")
     
     # Create a temporary vecenv to get the environment
-    curriculum_config = cfg.trainer.curriculum_or_env
-    env_overrides = cfg.trainer.env_overrides
-    curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+    curriculum = CurriculumClient.create(cfg.trainer)
     task = curriculum.get_task()
     
     # Create minimal vecenv just to get the driver_env
@@ -176,6 +175,9 @@ def _broadcast_policy_via_nccl(policy_record, device, rank, logger):
         
     else:
         # Worker: receive policy from master
+        from metta.agent.policy_store import PolicyStore
+        from metta.agent.policy_record import PolicyRecord
+        
         # Receive policy class name
         class_name_len = torch.tensor([0], dtype=torch.int32, device=device)
         dist.broadcast(class_name_len, src=0)
@@ -234,22 +236,7 @@ def _broadcast_policy_via_nccl(policy_record, device, rank, logger):
         return policy_record
 
 
-def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger, policy_record: PolicyRecord | None = None):
-    cfg = load_train_job_config_with_overrides(cfg)
-
-    # Validation must be done after merging
-    # otherwise trainer's default num_workers: null will be override the values
-    # set by _calculate_default_num_workers, and the validation will fail
-    if not cfg.trainer.num_workers:
-        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
-    cfg = validate_train_job_config(cfg)
-
-    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
-
-    if os.environ.get("RANK", "0") == "0":
-        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
-            OmegaConf.save(cfg, f)
-    train_job = TrainJob(cfg.train_job)
+def train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger, curriculum_server: CurriculumServer | None, policy_record):
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -263,18 +250,22 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     if stats_client is not None:
         stats_client.validate_authenticated()
 
-    # Instantiate the trainer directly with the typed config
-    trainer = hydra.utils.instantiate(
-        cfg.trainer,
+    train_job = TrainJob(cfg.train_job)
+
+    trainer = MettaTrainer(
         cfg,
+        curriculum_server,
         wandb_run=wandb_run,
         policy_store=policy_store,
         policy_record=policy_record,  # Pass the policy record
         sim_suite_config=train_job.evals,
         stats_client=stats_client,
     )
-    trainer.train()
-    trainer.close()
+
+    try:
+        trainer.train()
+    finally:
+        trainer.close()
 
 
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)
@@ -291,6 +282,16 @@ def main(cfg: DictConfig) -> int:
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
     )
 
+    cfg = load_train_job_config_with_overrides(cfg)
+
+    # Validation must be done after merging
+    # otherwise trainer's default num_workers: null will be override the values
+    # set by _calculate_default_num_workers, and the validation will fail
+    if not cfg.trainer.num_workers:
+        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
+
+    cfg = validate_train_job_config(cfg)
+
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
@@ -298,7 +299,7 @@ def main(cfg: DictConfig) -> int:
         dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
-    
+
     # Load checkpoint if it exists
     checkpoint = TrainerCheckpoint.load(cfg.run_dir)
     rank = int(os.environ.get("RANK", "0"))
@@ -315,15 +316,27 @@ def main(cfg: DictConfig) -> int:
     if dist.is_initialized():
         policy_record = _broadcast_policy_via_nccl(policy_record, device, rank, logger)
         logger.info(f"Rank {rank}: Policy broadcast complete")
-    
+
+    curriculum_server = None
     if os.environ.get("RANK", "0") == "0":
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
+
+        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f)
+
+        curriculum = curriculum_from_config_path(cfg.trainer.curriculum, cfg.trainer.env_overrides)
+
+        curriculum_server = CurriculumServer(curriculum=curriculum, port=cfg.trainer.curriculum_server.port)
+        curriculum_server.start()
+
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            train(cfg, wandb_run, logger, policy_record)
+            train(cfg, wandb_run, logger, curriculum_server, policy_record)
     else:
-        train(cfg, None, logger, policy_record)
+        train(cfg, None, logger, None, policy_record)
 
     if dist.is_initialized():
+        if curriculum_server is not None:
+            curriculum_server.stop()
         dist.destroy_process_group()
 
     return 0
