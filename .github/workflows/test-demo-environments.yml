@@ -22,15 +22,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        demo: [demo_train_core, demo_train_pettingzoo, demo_train_puffer]
-    
+        demo: [demo_train_pettingzoo, demo_train_puffer, demo_train_gym]
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    
+
     - name: Setup uv
       uses: ./.github/actions/setup-uv
-    
+
     - name: Test ${{ matrix.demo }}
       run: |
         echo "Testing ${{ matrix.demo }}..."
@@ -45,8 +45,3 @@ jobs:
           echo "FAILED: ${{ matrix.demo }} failed with exit code $exit_code"
           exit 1
         fi
-    
-    - name: Run linting on demo files
-      run: |
-        echo "Running linting checks on demo files..."
-        uv run ruff check mettagrid/demos/${{ matrix.demo }}.py

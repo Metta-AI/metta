@@ -26,8 +26,8 @@ from omegaconf import OmegaConf
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.api import PreBuiltConfigCurriculum
 from metta.app_backend.stats_client import StatsClient
-from metta.interface.environment import PreBuiltConfigCurriculum
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -159,10 +159,7 @@ class Simulation:
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-        # Check if driver_env is the main MettaGridEnv (simulation should use main environment)
-        from metta.mettagrid import MettaGridEnv
-
-        assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
+        assert isinstance(metta_grid_env, MettaGridEnv)
 
         # Let every policy know the active action-set of this env.
         action_names = metta_grid_env.action_names

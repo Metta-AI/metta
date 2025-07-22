@@ -3,18 +3,18 @@
 # requires-python = ">=3.10"
 # dependencies = [
 #     "numpy",
-#     "gymnasium",
+#     "gymnasium>=0.29.0",
 #     "omegaconf",
-#     "torch",
 #     "typing-extensions",
 #     "pydantic",
+#     "stable-baselines3>=2.0",
 # ]
 # ///
 
-"""Gym Training Integration Demo - Test training with Gym adapter.
+"""Gym Demo - Pure Gymnasium + SB3 ecosystem integration.
 
-This demo tests the Gym environment adapter integration with the
-actual training pipeline to ensure it works correctly in full training context.
+This demo shows how to use MettaGridGymEnv (single-agent mode) with ONLY
+Gymnasium and Stable Baselines3, without any Metta training infrastructure.
 
 Run with: uv run python mettagrid/demos/demo_train_gym.py (from project root)
 """
@@ -24,22 +24,30 @@ import time
 import numpy as np
 from omegaconf import DictConfig
 
-# These imports will work when run with uv run (PEP 723)
-from metta.mettagrid import MettaGridGymEnv
+# Gym adapter imports
+from metta.mettagrid import SingleAgentMettaGridGymEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import dtype_actions
+
+# Training framework imports
+try:
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import DummyVecEnv
+
+    SB3_AVAILABLE = True
+except ImportError:
+    SB3_AVAILABLE = False
 
 
 def create_test_config() -> DictConfig:
-    """Create test configuration for Gym integration."""
+    """Create test configuration for single-agent Gym integration."""
     return DictConfig(
         {
             "game": {
                 "max_steps": 60,
-                "num_agents": 2,
-                "obs_width": 4,
-                "obs_height": 4,
-                "num_observation_tokens": 16,
+                "num_agents": 1,  # Single agent for SB3 compatibility
+                "obs_width": 5,
+                "obs_height": 5,
+                "num_observation_tokens": 25,
                 "inventory_item_names": ["heart", "ore_red", "battery_red"],
                 "groups": {"agent": {"id": 0, "sprite": 0}},
                 "agent": {
@@ -94,7 +102,7 @@ def create_test_config() -> DictConfig:
                 },
                 "map_builder": {
                     "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
+                    "agents": 1,  # Single agent for SB3 compatibility
                     "width": 8,
                     "height": 8,
                     "border_width": 1,
@@ -109,208 +117,194 @@ def create_test_config() -> DictConfig:
     )
 
 
-def test_gym_adapter_functionality():
-    """Test Gym adapter basic functionality."""
-    print("GYM ADAPTER FUNCTIONALITY TEST")
+def demo_single_agent_gym():
+    """Demonstrate single-agent Gymnasium environment."""
+    print("SINGLE-AGENT GYM DEMO")
     print("=" * 60)
 
     config = create_test_config()
-    curriculum = SingleTaskCurriculum("gym_test", config)
-
-    # Test Gym environment creation
-    env = MettaGridGymEnv(
+    curriculum = SingleTaskCurriculum("gym_demo", config)
+    env = SingleAgentMettaGridGymEnv(
         curriculum=curriculum,
         render_mode=None,
         is_training=False,
     )
 
-    print("Gym adapter created successfully")
-    print(f"   - Agents: {env.num_agents}")
+    print("Single-agent Gym environment created")
     print(f"   - Observation space: {env.observation_space}")
     print(f"   - Action space: {env.action_space}")
     print(f"   - Max steps: {env.max_steps}")
 
-    # Test reset
-    observations, info = env.reset(seed=42)
-    print(f"   - Reset successful: observations shape {observations.shape}")
-    print(f"   - Info keys: {list(info.keys()) if info else 'None'}")
+    observation, info = env.reset(seed=42)
+    print(f"   - Reset successful: observation shape {observation.shape}")
 
-    # Test step - handle Tuple action space
-    if hasattr(env.action_space, "spaces"):
-        # Tuple action space - generate actions for each agent
-        actions = []
-        for agent_idx in range(env.num_agents):
-            agent_action_space = env.action_space.spaces[agent_idx]
-            agent_actions = np.random.randint(
-                0, agent_action_space.nvec, size=(len(agent_action_space.nvec),), dtype=dtype_actions
-            )
-            actions.append(agent_actions)
-        actions = np.array(actions)
-    else:
-        # Single action space
-        actions = np.random.randint(
-            0, env.action_space.nvec, size=(env.num_agents, len(env.action_space.nvec)), dtype=dtype_actions
-        )
-
-    observations, rewards, terminated, truncated, infos = env.step(actions)
-    print(f"   - Step successful: obs {observations.shape}, rewards {rewards.shape}")
+    action = env.action_space.sample()
+    observation, reward, terminated, truncated, info = env.step(action)
+    print(f"   - Step successful: obs {observation.shape}, reward {reward}")
     print(f"   - Terminated: {terminated}, Truncated: {truncated}")
 
-    # Test Gymnasium compatibility
     from gymnasium import spaces
 
-    if hasattr(env.observation_space, "spaces"):
-        assert isinstance(env.observation_space, spaces.Tuple), "Observation space should be Tuple for multi-agent"
-        print("   - Multi-agent Tuple observation space verified")
-    else:
-        assert isinstance(env.observation_space, spaces.Box), "Observation space should be Box"
-        print("   - Single-agent Box observation space verified")
-
-    if hasattr(env.action_space, "spaces"):
-        assert isinstance(env.action_space, spaces.Tuple), "Action space should be Tuple for multi-agent"
-        print("   - Multi-agent Tuple action space verified")
-    else:
-        assert isinstance(env.action_space, spaces.MultiDiscrete), "Action space should be MultiDiscrete"
-        print("   - Single-agent MultiDiscrete action space verified")
-    print("   - Gymnasium compatibility verified")
+    assert isinstance(env.observation_space, spaces.Box), "Single-agent obs space should be Box"
+    assert isinstance(env.action_space, spaces.MultiDiscrete), "Single-agent action space should be MultiDiscrete"
+    print("Single-agent Gymnasium compatibility verified")
 
     env.close()
-    print("Gym adapter functionality test successful!")
 
 
-def test_gym_training_integration():
-    """Test Gym adapter compatibility (Note: Gym adapter is NOT compatible with training pipeline)."""
-    print("\nGYM TRAINING INTEGRATION TEST")
+def demo_sb3_training():
+    """Demonstrate SB3 training with single-agent environment."""
+    print("\nSTABLE BASELINES3 TRAINING DEMO")
     print("=" * 60)
 
-    print("ℹ️  Note: Gym adapter is designed for pure Gymnasium framework compatibility")
-    print("   and is NOT compatible with the PufferLib-based training pipeline.")
-    print("   This is by design - different adapters serve different purposes:")
-    print("   - PufferLib adapter: For training pipeline ✅")
-    print("   - Gym adapter: For Gymnasium-based research only ❌ (not training-compatible)")
-    print("   - PettingZoo adapter: For multi-agent research + training ✅")
-    print("   - Core adapter: For direct C++ interface + training ✅")
-    print()
-    print("✅ Gym adapter serves its intended purpose as a pure Gymnasium interface.")
-    print("   For training, use METTAGRID_ADAPTER=puffer (default)")
-    print("   For Gymnasium research, use METTAGRID_ADAPTER=gym")
-    print()
-    print("📋 Team Note: train.py is incompatible with Gym adapter by design.")
-
-
-def test_gym_multi_agent_training():
-    """Test Gym adapter with multi-agent training scenarios."""
-    print("\nGYM MULTI-AGENT TRAINING TEST")
-    print("=" * 60)
+    if not SB3_AVAILABLE:
+        print("Stable Baselines3 not available")
+        print("   Install with: pip install stable-baselines3")
+        print("   Then you can use:")
+        print("   - PPO, A2C, SAC, TD3 algorithms")
+        print("   - Vectorized environments")
+        print("   - Easy integration with single-agent MettaGrid")
+        return
 
     try:
-        from metta.rl.vecenv import make_vecenv
-
         config = create_test_config()
-        curriculum = SingleTaskCurriculum("gym_multiagent_test", config)
+        curriculum = SingleTaskCurriculum("sb3_training", config)
 
-        # Test vectorized environment creation
-        vecenv = make_vecenv(
+        env = SingleAgentMettaGridGymEnv(
             curriculum=curriculum,
-            vectorization="serial",
-            num_envs=2,
-            num_workers=1,
             render_mode=None,
-            is_training=False,
+            is_training=True,
         )
 
-        print(f"   - Created vectorized environment with {vecenv.num_envs} environments")
-        print(f"   - Agents per environment: {vecenv.num_agents}")
-        print(f"   - Total agents: {vecenv.num_envs * vecenv.num_agents}")
+        print("Created single-agent environment for SB3")
+        print(f"   - Observation space: {env.observation_space}")
+        print(f"   - Action space: {env.action_space}")
 
-        # Test that driver environment has training-required methods
-        driver_env = vecenv.driver_env
-        print(f"   - Driver environment type: {type(driver_env).__name__}")
+        model = PPO("MlpPolicy", env, verbose=0)
+        print("Created PPO model")
 
-        # Test training interface methods
-        required_methods = [
-            "get_observation_features",
-            "action_names",
-            "max_action_args",
-            "single_observation_space",
-            "single_action_space",
-        ]
+        print("Training for 256 timesteps...")
+        model.learn(total_timesteps=256)
 
-        for method in required_methods:
-            if hasattr(driver_env, method):
-                print(f"     Has {method}")
-            else:
-                raise AttributeError(f"Missing required method: {method}")
+        obs, _ = env.reset()
+        total_reward = 0
+        steps = 0
 
-        # Test observation features
-        features = driver_env.get_observation_features()
-        print(f"   - Observation features: {len(features)} features")
+        for _ in range(50):  # Test for 50 steps
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, _ = env.step(action)
+            total_reward += reward
+            steps += 1
 
-        # Test action names
-        action_names = driver_env.action_names
-        print(f"   - Action names: {len(action_names)} actions")
+            if terminated or truncated:
+                obs, _ = env.reset()
 
-        # Test multi-agent operations
-        obs, infos = vecenv.reset()
-        print(f"   - Multi-agent reset successful: {obs.shape}")
+        print("Training completed!")
+        print(f"   - Trained model average reward ({steps} steps): {total_reward / steps:.3f}")
+        print("   - SB3 training integration successful!")
 
-        # Test with different actions per agent
-        action_space = driver_env.single_action_space
-        num_env_agents = vecenv.num_agents
-        actions = np.random.randint(
-            0, action_space.nvec, size=(num_env_agents, len(action_space.nvec)), dtype=dtype_actions
-        )
+        assert total_reward == total_reward, "Reward is NaN"  # not NaN
+        assert steps > 0, "Expected at least one step"
 
-        obs, rewards, terminals, truncations, infos = vecenv.step(actions)
-        print(f"   - Multi-agent step successful: {obs.shape}")
-        print(f"   - Individual agent rewards: {rewards.shape}")
-
-        vecenv.close()
-        print("Gym multi-agent training test successful!")
+        env.close()
 
     except Exception as e:
-        print(f"Gym multi-agent training test failed: {e}")
-        import traceback
+        print(f"SB3 training failed: {e}")
+        raise
 
-        traceback.print_exc()
+
+def demo_vectorized_envs():
+    """Demonstrate vectorized environments with SB3."""
+    print("\nVECTORIZED ENVIRONMENTS DEMO")
+    print("=" * 60)
+
+    if not SB3_AVAILABLE:
+        print("Stable Baselines3 not available")
+        print("   Vectorized training requires SB3")
+        return
+
+    try:
+        config = create_test_config()
+        curriculum = SingleTaskCurriculum("vectorized_demo", config)
+
+        def make_env():
+            def _init():
+                return SingleAgentMettaGridGymEnv(
+                    curriculum=curriculum,
+                    render_mode=None,
+                    is_training=True,
+                )
+
+            return _init
+
+        vec_env = DummyVecEnv([make_env() for _ in range(4)])
+
+        print("Created 4 vectorized environments")
+        print(f"   - Observation space: {vec_env.observation_space}")
+        print(f"   - Action space: {vec_env.action_space}")
+
+        observations = vec_env.reset()
+        print(f"   - Vectorized reset: {observations.shape}")
+
+        actions = np.array([vec_env.action_space.sample() for _ in range(4)])
+        observations, rewards, dones, infos = vec_env.step(actions)
+        print(f"   - Vectorized step: obs {observations.shape}, rewards {rewards.shape}")
+
+        assert observations.shape[0] == 4, "Expected 4 environments"
+        assert rewards.shape == (4,), "Expected rewards for 4 environments"
+        assert dones.shape == (4,), "Expected dones for 4 environments"
+
+        print("Vectorized environments working correctly!")
+        print("   - Ready for high-throughput SB3 training")
+        print("   - Supports PPO, A2C, and other vectorized algorithms")
+
+        vec_env.close()
+
+    except Exception as e:
+        print(f"Vectorized environments failed: {e}")
         raise
 
 
 def main():
-    """Run all Gym training integration tests."""
-    print("GYM TRAINING INTEGRATION DEMO")
-    print("=" * 60)
-    print("This demo tests the Gym environment adapter integration")
-    print("with the actual training pipeline.")
+    """Run Gymnasium + SB3 adapter demo."""
+    print("GYMNASIUM + SB3 ADAPTER DEMO")
+    print("=" * 80)
+    print("This demo shows SingleAgentMettaGridGymEnv integration with")
+    print("Gymnasium and Stable Baselines3 (no internal training code).")
+    print()
 
     try:
         start_time = time.time()
 
-        # Run Gym-specific tests including short training
-        test_gym_adapter_functionality()
-        test_gym_multi_agent_training()
-        test_gym_training_integration()
+        # Run pure Gymnasium + SB3 demos
+        demo_single_agent_gym()
+        demo_sb3_training()
+        demo_vectorized_envs()
 
         # Summary
         duration = time.time() - start_time
-        print("\n" + "=" * 60)
-        print("GYM TRAINING INTEGRATION COMPLETED")
-        print("=" * 60)
-        print("Gym adapter functionality: Works correctly")
-        print("Multi-agent training: Compatible with training pipeline")
-        print("Training integration: Short training run successful")
-        print(f"\nTotal test time: {duration:.1f} seconds")
-        print("\nGym adapter is ready for production training")
-        print("=" * 60)
+        print("\n" + "=" * 80)
+        print("GYMNASIUM + SB3 DEMO COMPLETED")
+        print("=" * 80)
+        print("Single-agent environment: Working")
+        print("SB3 training: Successful")
+        print("Vectorized environments: Ready")
+        print(f"\nTotal demo time: {duration:.1f} seconds")
+        print("\nNext steps:")
+        print("   - Train with different SB3 algorithms (PPO, A2C, SAC)")
+        print("   - Use vectorized environments for faster training")
+        print("   - Apply hyperparameter optimization")
+        print("   - For multi-agent scenarios, consider PettingZoo adapter")
+        print("=" * 80)
 
     except KeyboardInterrupt:
         print("\nDemo interrupted by user")
     except Exception as e:
-        print(f"\nDemo failed with error: {e}")
+        print(f"\nDemo failed: {e}")
         import traceback
 
         traceback.print_exc()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

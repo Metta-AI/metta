@@ -4,32 +4,31 @@
 # dependencies = [
 #     "numpy",
 #     "gymnasium",
-#     "pettingzoo",
+#     "pettingzoo>=1.24",
 #     "omegaconf",
-#     "torch",
 #     "typing-extensions",
 #     "pydantic",
+#     "stable-baselines3>=2.0",
+#     "sb3-contrib",
 # ]
 # ///
 
-"""PettingZoo Training Integration Demo - Test training with PettingZoo adapter.
+"""PettingZoo Demo - Pure PettingZoo ecosystem integration.
 
-This demo tests the PettingZoo environment adapter integration with the
-actual training pipeline to ensure it works correctly in full training context.
+This demo shows how to use MettaGridPettingZooEnv with ONLY PettingZoo
+and external multi-agent libraries, without any Metta training infrastructure.
 
 Run with: uv run python mettagrid/demos/demo_train_pettingzoo.py (from project root)
 """
 
-import os
-import subprocess
-import tempfile
 import time
-from pathlib import Path
 
+import numpy as np
+from gymnasium import spaces
 from omegaconf import DictConfig
 from pettingzoo.test import parallel_api_test
 
-# These imports will work when run with uv run (PEP 723)
+# PettingZoo adapter imports
 from metta.mettagrid import MettaGridPettingZooEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 
@@ -80,206 +79,218 @@ def create_test_config() -> DictConfig:
     )
 
 
-def test_pettingzoo_adapter_functionality():
-    """Test PettingZoo adapter basic functionality."""
-    print("PETTINGZOO ADAPTER FUNCTIONALITY TEST")
+def demo_pettingzoo_api():
+    """Demonstrate PettingZoo API compliance and basic usage."""
+    print("PETTINGZOO API DEMO")
     print("=" * 60)
 
     config = create_test_config()
-    curriculum = SingleTaskCurriculum("pettingzoo_test", config)
+    curriculum = SingleTaskCurriculum("pettingzoo_demo", config)
 
-    # Test PettingZoo environment creation
+    # Create PettingZoo environment
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
         is_training=False,
     )
 
-    print("PettingZoo adapter created successfully")
+    print("PettingZoo environment created")
     print(f"   - Possible agents: {env.possible_agents}")
     print(f"   - Max agents: {env.max_num_agents}")
 
-    # Test reset
     observations, _ = env.reset(seed=42)
     print(f"   - Reset successful: {len(observations)} observations")
 
-    # Test API compliance
     print("   - Running PettingZoo API compliance test...")
     parallel_api_test(env, num_cycles=2)
-    print("   - API compliance test passed!")
+    print("PettingZoo API compliance passed!")
+
+
+def demo_random_rollout():
+    """Demonstrate random policy rollout in PettingZoo environment."""
+    print("\nRANDOM ROLLOUT DEMO")
+    print("=" * 60)
+
+    config = create_test_config()
+    curriculum = SingleTaskCurriculum("pettingzoo_rollout", config)
+
+    # Create PettingZoo environment
+    env = MettaGridPettingZooEnv(
+        curriculum=curriculum,
+        render_mode=None,
+        is_training=True,
+    )
+
+    print("Running random policy rollout...")
+    print(f"   - Agents: {env.possible_agents}")
+
+    _, _ = env.reset(seed=42)
+    total_reward = {agent: 0 for agent in env.possible_agents}
+    steps = 0
+    max_steps = 100  # Small for CI
+
+    while steps < max_steps and env.agents:
+        actions = {}
+        for agent in env.agents:
+            action_space = env.action_space(agent)
+            if isinstance(action_space, spaces.MultiDiscrete):
+                actions[agent] = np.random.randint(0, action_space.nvec, size=len(action_space.nvec), dtype=np.int32)
+            else:
+                actions[agent] = action_space.sample()
+
+        _, rewards, terminations, truncations, _ = env.step(actions)
+
+        for agent, reward in rewards.items():
+            total_reward[agent] += reward
+
+        steps += 1
+
+        if all(terminations.values()) or all(truncations.values()):
+            print(f"   Episode ended at step {steps}")
+            _, _ = env.reset()
+            total_reward = {agent: 0 for agent in env.possible_agents}
+
+    print(f"Completed {steps} steps")
+    for agent, reward in total_reward.items():
+        print(f"   - {agent}: {reward:.2f} total reward")
+
+    assert steps > 0, "Expected at least one step to be taken"
+    assert all(isinstance(r, (int, float)) for r in total_reward.values()), "Rewards must be numeric"
 
     env.close()
-    print("PettingZoo adapter functionality test successful!")
 
 
-def test_pettingzoo_training_integration():
-    """Test PettingZoo integration with actual training pipeline."""
-    print("\nPETTINGZOO TRAINING INTEGRATION TEST")
+def demo_simple_marl_training():
+    """Demonstrate simple multi-agent training with PettingZoo."""
+    print("\nSIMPLE MULTI-AGENT TRAINING DEMO")
     print("=" * 60)
 
-    # Set environment variable to use PettingZoo adapter
-    os.environ["METTAGRID_ADAPTER"] = "pettingzoo"
+    config = create_test_config()
+    curriculum = SingleTaskCurriculum("marl_training", config)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        test_id = f"pettingzoo_train_test_{int(time.time())}"
+    env = MettaGridPettingZooEnv(
+        curriculum=curriculum,
+        render_mode=None,
+        is_training=True,
+    )
 
-        cmd = [
-            "python",
-            "tools/train.py",
-            f"run={test_id}",
-            "+hardware=macbook",
-            "trainer.num_workers=1",
-            "trainer.total_timesteps=3",
-            "trainer.checkpoint.checkpoint_interval=1",
-            "trainer.simulation.evaluate_interval=0",
-            "wandb=off",
-            f"data_dir={temp_dir}/train_dir",
-        ]
+    print("Running simple multi-agent training...")
+    print(f"   - Agents: {env.possible_agents}")
+    print("   - Training for 300 steps")
 
-        print(f"   - Running training command: {' '.join(cmd[:5])}...")
-        print(f"   - Test ID: {test_id}")
-
-        try:
-            # Pass environment variable to subprocess
-            env = os.environ.copy()
-            env["METTAGRID_ADAPTER"] = "pettingzoo"
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
-                env=env,
+    policies = {}
+    for agent in env.possible_agents:
+        action_space = env.action_space(agent)
+        if isinstance(action_space, spaces.MultiDiscrete):
+            # MultiDiscrete case
+            policies[agent] = (
+                np.ones((len(action_space.nvec), max(action_space.nvec))) / action_space.nvec[:, np.newaxis]
             )
+        elif isinstance(action_space, spaces.Discrete):
+            # Discrete case
+            policies[agent] = np.ones(action_space.n) / action_space.n
 
-            if result.returncode == 0:
-                print("PettingZoo training integration successful!")
-                print("   - Training completed without errors")
+    _, _ = env.reset(seed=42)
+    total_rewards = {agent: 0 for agent in env.possible_agents}
+    steps = 0
+    max_steps = 300  # Reduced for faster CI
+    episodes = 0
 
-                # Check for outputs
-                train_dir = Path(temp_dir) / "train_dir" / test_id
-                if train_dir.exists():
-                    print(f"   - Training directory created: {train_dir}")
+    while steps < max_steps:
+        actions = {}
 
-                    checkpoints_dir = train_dir / "checkpoints"
-                    if checkpoints_dir.exists():
-                        checkpoints = list(checkpoints_dir.glob("*.pt"))
-                        print(f"   - Found {len(checkpoints)} checkpoint files")
-
+        for agent in env.agents:
+            if agent in policies:
+                action_space = env.action_space(agent)
+                if isinstance(action_space, spaces.MultiDiscrete):
+                    # MultiDiscrete case
+                    action = []
+                    for i, nvec in enumerate(action_space.nvec):
+                        probs = policies[agent][i, :nvec]
+                        probs = probs / probs.sum()
+                        action.append(np.random.choice(nvec, p=probs))
+                    actions[agent] = np.array(action, dtype=np.int32)
+                elif isinstance(action_space, spaces.Discrete):
+                    # Discrete case
+                    probs = policies[agent] / policies[agent].sum()
+                    actions[agent] = np.random.choice(action_space.n, p=probs)
             else:
-                print("PettingZoo training integration failed!")
-                print(f"   - Exit code: {result.returncode}")
-                if result.stderr:
-                    print(f"   - Error: {result.stderr[:500]}")
-                if result.stdout:
-                    print(f"   - Output: {result.stdout[:300]}")
-                raise RuntimeError(f"Training failed with code {result.returncode}")
+                actions[agent] = env.action_space(agent).sample()
 
-        except subprocess.TimeoutExpired:
-            print("Training timed out!")
-            raise RuntimeError("Training timed out after 60 seconds") from None
+        _, rewards, terminations, truncations, _ = env.step(actions)
 
+        for agent, reward in rewards.items():
+            if agent in policies and agent in actions and reward > 0:
+                action_taken = actions[agent]
+                action_space = env.action_space(agent)
+                if isinstance(action_space, spaces.MultiDiscrete):
+                    # MultiDiscrete case
+                    for i, a in enumerate(action_taken):
+                        policies[agent][i, a] *= 1.1
+                        policies[agent][i] /= policies[agent][i].sum()
+                elif isinstance(action_space, spaces.Discrete):
+                    # Discrete case
+                    policies[agent][action_taken] *= 1.1
+                    policies[agent] /= policies[agent].sum()
 
-def test_pettingzoo_compatibility_with_training():
-    """Test that PettingZoo adapter is compatible with training components."""
-    print("\nPETTINGZOO TRAINING COMPATIBILITY TEST")
-    print("=" * 60)
+            total_rewards[agent] += reward
 
-    try:
-        from metta.rl.vecenv import make_vecenv
+        steps += 1
 
-        config = create_test_config()
-        curriculum = SingleTaskCurriculum("pettingzoo_compat_test", config)
+        if all(terminations.values()) or all(truncations.values()):
+            episodes += 1
+            _, _ = env.reset()
 
-        # Test that the environment works with vectorized training
-        vecenv = make_vecenv(
-            curriculum=curriculum,
-            vectorization="serial",
-            num_envs=2,
-            num_workers=1,
-            render_mode=None,
-            is_training=False,
-        )
+    print(f"Training completed: {steps} steps, {episodes} episodes")
+    for agent, total_reward in total_rewards.items():
+        avg_reward = total_reward / steps if steps > 0 else 0
+        print(f"   - {agent}: {avg_reward:.3f} avg reward/step")
 
-        print("   - Created vectorized environment successfully")
+    assert steps > 0, "Expected at least one training step"
+    assert all(not np.isnan(r) for r in total_rewards.values()), "Rewards contain NaN"
 
-        # Test that driver environment has training-required methods
-        driver_env = vecenv.driver_env
-        print(f"   - Driver environment type: {type(driver_env).__name__}")
-
-        # Test training interface methods
-        required_methods = [
-            "get_observation_features",
-            "action_names",
-            "max_action_args",
-            "single_observation_space",
-            "single_action_space",
-        ]
-
-        for method in required_methods:
-            if hasattr(driver_env, method):
-                print(f"     Has {method}")
-            else:
-                print(f"     Missing {method}")
-                # Don't raise error, just continue to see what we have
-
-        # Test observation features if available
-        if hasattr(driver_env, "get_observation_features"):
-            features = driver_env.get_observation_features()
-            print(f"   - Observation features: {len(features)} features")
-
-        # Test action names if available
-        if hasattr(driver_env, "action_names"):
-            action_names = driver_env.action_names
-            print(f"   - Action names: {len(action_names)} actions")
-
-        vecenv.close()
-        print("PettingZoo training compatibility successful!")
-
-    except Exception as e:
-        print(f"PettingZoo training compatibility failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        raise
+    env.close()
 
 
 def main():
-    """Run all PettingZoo training integration tests."""
-    print("PETTINGZOO TRAINING INTEGRATION DEMO")
-    print("=" * 60)
-    print("This demo tests the PettingZoo environment adapter integration")
-    print("with the actual training pipeline.")
+    """Run PettingZoo adapter demo."""
+    print("PETTINGZOO ADAPTER DEMO")
+    print("=" * 80)
+    print("This demo shows MettaGridPettingZooEnv integration with")
+    print("the PettingZoo multi-agent ecosystem (no internal training code).")
+    print()
 
     try:
         start_time = time.time()
 
-        # Run PettingZoo-specific tests including short training
-        test_pettingzoo_adapter_functionality()
-        test_pettingzoo_compatibility_with_training()
-        test_pettingzoo_training_integration()
+        # Run pure PettingZoo demos
+        demo_pettingzoo_api()
+        demo_random_rollout()
+        demo_simple_marl_training()
 
         # Summary
         duration = time.time() - start_time
-        print("\n" + "=" * 60)
-        print("PETTINGZOO TRAINING INTEGRATION COMPLETED")
-        print("=" * 60)
-        print("PettingZoo adapter functionality: Works correctly")
-        print("Training compatibility: Compatible with training pipeline")
-        print("Training integration: Short training run successful")
-        print(f"\nTotal test time: {duration:.1f} seconds")
-        print("\nPettingZoo adapter is ready for production training")
-        print("=" * 60)
+        print("\n" + "=" * 80)
+        print("PETTINGZOO DEMO COMPLETED")
+        print("=" * 80)
+        print("PettingZoo API compliance: Passed")
+        print("Random rollout: Successful")
+        print("Multi-agent training: Completed")
+        print(f"\nTotal demo time: {duration:.1f} seconds")
+        print("\nNext steps:")
+        print("   - Use SuperSuit for advanced wrappers")
+        print("   - Integrate with MARLlib, RLlib, or Tianshou")
+        print("   - Build custom multi-agent algorithms")
+        print("=" * 80)
 
     except KeyboardInterrupt:
         print("\nDemo interrupted by user")
     except Exception as e:
-        print(f"\nDemo failed with error: {e}")
+        print(f"\nDemo failed: {e}")
         import traceback
 
         traceback.print_exc()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
