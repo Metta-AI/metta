@@ -145,6 +145,10 @@ def upload_replay_html(
                 if "training" not in replay_groups:
                     replay_groups["training"] = []
                 replay_groups["training"].extend(urls)
+            elif sim_name == "replay":
+                if "replay" not in replay_groups:
+                    replay_groups["replay"] = []
+                replay_groups["replay"].extend(urls)
             else:
                 # Evaluation replays - clean up the display name
                 display_name = sim_name.replace("eval/", "")
