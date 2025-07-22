@@ -842,7 +842,7 @@ export function drawMap(panel: PanelInfo) {
      * sprites would be unreadable. */
     ctx.save()
     ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
-    renderMinimapObjects(new Vec2f(-0.5, -0.5), 0.5)
+    renderMinimapObjects(new Vec2f(-0.5, -0.5))
     ctx.restore()
     drawSelection()
   } else {

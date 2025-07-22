@@ -6,7 +6,7 @@ import { PanelInfo } from './panels.js'
 import { parseHtmlColor } from './htmlutils.js'
 
 /** Core minimap rendering logic that can be shared between minimap and minimap-style rendering */
-export function renderMinimapObjects(offset: Vec2f, pipScale: number = 1) {
+export function renderMinimapObjects(offset: Vec2f) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
@@ -41,9 +41,10 @@ export function renderMinimapObjects(offset: Vec2f, pipScale: number = 1) {
     const y = getAttr(gridObject, 'r')
     const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
+    const pipScale = 0.3
     if (typeName === 'agent') {
       const agent_id = getAttr(gridObject, 'agent_id')
-      ctx.drawSprite('minimapPip.png', x + offset.x(), y + offset.y(), Common.colorFromId(agent_id), pipScale, 0)
+      ctx.drawSprite('minimapPip.png', x + offset.x() + 0.5, y + offset.y() + 0.5, Common.colorFromId(agent_id), pipScale, 0)
     }
   }
 }
