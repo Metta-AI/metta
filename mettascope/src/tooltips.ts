@@ -1,4 +1,4 @@
-// Tooltip titles for UI elements
+// Tooltip titles for UI elements.
 
 import { find } from './htmlutils.js'
 
