@@ -1,5 +1,5 @@
 image:
-  repository: metta-local
+  repository: metta-app-backend
   tag: "latest"
   pullPolicy: Never
 

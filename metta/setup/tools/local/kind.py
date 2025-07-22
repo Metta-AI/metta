@@ -1,11 +1,7 @@
-import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Callable
-
-import yaml
 
 from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.utils import error, info, success
@@ -64,6 +60,8 @@ class Kind:
 
     def up(self) -> None:
         """Start orchestrator in Kind cluster using Helm."""
+        # Ensure cluster exists first
+        self.build()
         self._use_local_context()
         # Get credentials
         wandb_api_key = self._get_wandb_api_key()
@@ -71,10 +69,7 @@ class Kind:
             error("No WANDB API key found. Please run 'wandb login' and try again.")
             sys.exit(1)
 
-        backend_url = os.environ.get("BACKEND_URL", "http://host.docker.internal:8000")
-        machine_token = get_machine_token(
-            backend_url if backend_url != "http://host.docker.internal:8000" else "http://localhost:8000"
-        )
+        machine_token = get_machine_token("http://localhost:8000")
 
         # Create namespace if it doesn't exist
         info("Creating namespace if needed...")
@@ -125,17 +120,8 @@ class Kind:
             check=True,
         )
 
-        # Create minimal override values for Kind
-        values = {
-            "image": {"repository": "metta-local", "tag": "latest", "pullPolicy": "Never"},
-            "env": {"BACKEND_URL": backend_url},
-            "resources": {"requests": {"cpu": "100m", "memory": "128Mi"}, "limits": {"cpu": "500m", "memory": "512Mi"}},
-        }
-
-        # Write values to temp file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(values, f)
-            values_file = f.name
+        # Use existing kind.yaml values file
+        kind_values_file = self.repo_root / "devops/charts/orchestrator/environments/kind.yaml"
 
         try:
             # Check if release already exists
@@ -152,7 +138,7 @@ class Kind:
                         "-n",
                         self.namespace,
                         "-f",
-                        values_file,
+                        str(kind_values_file),
                     ],
                     check=True,
                 )
@@ -167,7 +153,7 @@ class Kind:
                         "-n",
                         self.namespace,
                         "-f",
-                        values_file,
+                        str(kind_values_file),
                     ],
                     check=True,
                 )
@@ -177,9 +163,9 @@ class Kind:
             info("To view logs: metta local kind logs <pod-name>")
             info("To stop: metta local kind down")
 
-        finally:
-            # Clean up temp file
-            os.unlink(values_file)
+        except Exception as e:
+            error(f"Failed to deploy orchestrator: {e}")
+            raise
 
     def down(self) -> None:
         """Stop orchestrator and worker pods."""
@@ -226,7 +212,7 @@ class Kind:
         self._use_local_context()
         subprocess.run(["kubectl", "get", "pods", "-n", self.namespace], check=True)
 
-    def logs(self, pod_name: str = None) -> None:
+    def logs(self, pod_name: str | None = None) -> None:
         """Follow logs for orchestrator or specific pod."""
         self._use_local_context()
 
@@ -239,7 +225,7 @@ class Kind:
                 check=True,
             )
 
-    def enter(self, pod_name: str = None) -> None:
+    def enter(self, pod_name: str | None = None) -> None:
         """Enter orchestrator or specific pod with an interactive shell."""
         self._use_local_context()
 
