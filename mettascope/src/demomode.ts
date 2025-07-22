@@ -119,11 +119,6 @@ export function doDemoMode() {
 
       const selectedAgent = state.replay.agents[shot.agentId]
       updateSelection(selectedAgent, true, true) // true for setFollow, true for instantCameraPan
-
-      // Focus on the agent's actual position instead of (0,0)
-      const agentX = getAttr(selectedAgent, 'c') * Common.TILE_SIZE
-      const agentY = getAttr(selectedAgent, 'r') * Common.TILE_SIZE
-      focusMap(agentX, agentY, 11 * Common.TILE_SIZE, 11 * Common.TILE_SIZE)
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.5
     }
   }
