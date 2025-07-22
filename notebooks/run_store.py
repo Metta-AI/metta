@@ -352,7 +352,7 @@ class RunStore:
             }
             .runstore-table th, .runstore-table td {
                 padding: 8px 12px;
-                text-align: right;
+                text-align: left;
                 border-bottom: 1px solid #e0e0e0;
             }
             .runstore-table th {
@@ -375,6 +375,21 @@ class RunStore:
             .status-failed { background: #fee; color: #c62828; }
             .status-completed, .status-succeeded { background: #e8f5e9; color: #2e7d32; }
             .status-unsubmitted { background: #f5f5f5; color: #757575; }
+            .refresh-button {
+                padding: 4px 8px;
+                font-size: 11px;
+                cursor: pointer;
+                background: #f0f0f0;
+                border: 1px solid #ddd;
+                border-radius: 3px;
+            }
+            .refresh-button:hover {
+                background: #e0e0e0;
+            }
+            .refresh-button:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
             </style>
             <table class="runstore-table">
             <thead>
@@ -408,6 +423,9 @@ class RunStore:
 
                 created_str = run.created_at.strftime("%Y-%m-%d %H:%M:%S")
 
+                # Use a unique ID for each button
+                button_id = f"refresh-btn-{self._current_page}-{idx}"
+
                 html += f"""
                 <tr>
                     <td>{run.run_id}</td>
@@ -415,40 +433,39 @@ class RunStore:
                     <td>{wandb_str}</td>
                     <td>{created_str}</td>
                     <td>
-                    <button id="refresh-btn-{idx}" onclick="refreshRun{idx}()"style="padding:4px 8px;font-size:11px;">
-                        Refresh
-                    </button>
+                        <button id="{button_id}" class="refresh-button" 
+                                onclick="refreshRun_{self._current_page}_{idx}()">
+                            Refresh
+                        </button>
                     </td>
                 </tr>
                 """
 
             html += "</tbody></table>"
 
-            # Add JavaScript for individual refresh buttons
+            # Add JavaScript for refresh functionality
             html += f"""
             <script>
             (function() {{
                 // Function to refresh individual run
                 function refreshRun(runId, buttonId) {{
-                    console.log('Refreshing run:', runId);
-
-                    // Find the specific button and update its text
                     const button = document.getElementById(buttonId);
-                    if (button) {{
-                        button.disabled = true;
-                        button.textContent = 'Refreshing...';
-                    }}
-
+                    if (!button) return;
+                    
+                    button.disabled = true;
+                    button.textContent = 'Refreshing...';
+                    
                     // Use Jupyter's kernel to execute Python code
                     if (typeof Jupyter !== 'undefined' && Jupyter.notebook && Jupyter.notebook.kernel) {{
-                        const startTime = Date.now();
-
                         Jupyter.notebook.kernel.execute(
-                            `# Refresh run in RunStore\\n` +
                             `from notebooks.run_store import get_runstore\\n` +
                             `rs = get_runstore()\\n` +
                             `updated = rs.refresh_run('${{runId}}')\\n` +
-                            `print(f'Refreshed ${{runId}}: Updated={{updated}}')`,
+                            `print(f'Refreshed ${{runId}}: Updated={{updated}}')\\n` +
+                            `# Trigger table refresh\\n` +
+                            `if hasattr(rs, '_widget_container') and \\n` +
+                            `    hasattr(rs._widget_container, 'update_table'):\\n` +
+                            `    rs._widget_container.update_table()`,
                             {{
                                 iopub: {{
                                     output: function(msg) {{
@@ -459,40 +476,31 @@ class RunStore:
                                 }},
                                 shell: {{
                                     reply: function(msg) {{
-                                        // Command completed
-                                        const elapsed = Date.now() - startTime;
-                                        console.log(`Refresh completed in ${{elapsed}}ms`);
-
                                         // Update button state
-                                        if (button) {{
-                                            button.textContent = 'Refreshed!';
-                                            setTimeout(() => {{
-                                                button.disabled = false;
-                                                button.textContent = 'Refresh';
-                                            }}, 1500);
-                                        }}
+                                        button.textContent = 'Refreshed!';
+                                        setTimeout(() => {{
+                                            button.disabled = false;
+                                            button.textContent = 'Refresh';
+                                        }}, 1500);
                                     }}
                                 }}
                             }}
                         );
                     }} else {{
-                        console.error('Jupyter kernel not available');
-                        if (button) {{
-                            button.disabled = false;
-                            button.textContent = 'Error';
-                            setTimeout(() => {{
-                                button.textContent = 'Refresh';
-                            }}, 1500);
-                        }}
+                        button.disabled = false;
+                        button.textContent = 'Error';
+                        setTimeout(() => {{
+                            button.textContent = 'Refresh';
+                        }}, 1500);
                     }}
                 }}
-
-                // Make refreshRun functions available globally with unique names
-                // Bind refresh functions
+                
+                // Define refresh functions for each button
                 {
                 "; ".join(
                     [
-                        f'window.refreshRun{idx} = () => refreshRun("{run.run_id}", "refresh-btn-{idx}")'
+                        f"window.refreshRun_{self._current_page}_{idx} = "
+                        + f'() => refreshRun("{run.run_id}", "refresh-btn-{self._current_page}-{idx}")'
                         for idx, run in enumerate(page_runs)
                     ]
                 )
@@ -589,6 +597,9 @@ class RunStore:
 
         # Store reference to update function for manual refresh
         container.update_table = update_table
+
+        # Store reference to widget container in the RunStore instance
+        self._widget_container = container
 
         # Initial render
         update_table()
