@@ -6,6 +6,6 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.multi_agent.boxy.Boxy
     objects:
-      altar: ${sampling:10,14,12}
-      mine_red: ${sampling:30,60,45}
-      generator_red: ${sampling:30,60,45}
+      altar: 12
+      mine_red: 45
+      generator_red: 45
