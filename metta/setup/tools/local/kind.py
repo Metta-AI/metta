@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
@@ -16,6 +17,14 @@ class Kind:
         self.namespace = "orchestrator"
         self.helm_release_name = "orchestrator"
         self.helm_chart_path = self.repo_root / "devops/charts/orchestrator"
+
+    def _ensure_docker_img_built(self, img_name: str, load_fn: Callable[[], None]) -> None:
+        result = subprocess.run(["docker", "image", "inspect", img_name], capture_output=True)
+        if result.returncode != 0:
+            info(f"Building {img_name} image...")
+            load_fn()
+        info(f"Loading {img_name} into Kind...")
+        subprocess.run(["kind", "load", "docker-image", img_name, "--name", self.cluster_name], check=True)
 
     def build(self) -> None:
         """Create Kind cluster and set up for Metta."""
@@ -39,17 +48,13 @@ class Kind:
         # Set kubectl context
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
 
-        # Check if metta-local image exists
-        result = subprocess.run(["docker", "image", "inspect", "metta-local:latest"], capture_output=True)
-        if result.returncode != 0:
-            info("Building metta-local image...")
-            from metta.setup.local_commands import LocalCommands
+        from metta.setup.local_commands import LocalCommands
 
-            local_commands = LocalCommands(self.repo_root)
-            local_commands.build_docker_img(None)
-
-        info("Loading metta-local:latest into Kind...")
-        subprocess.run(["kind", "load", "docker-image", "metta-local:latest", "--name", self.cluster_name], check=True)
+        for img_name, load_fn in [
+            ("metta-local:latest", lambda: LocalCommands(self.repo_root).build_docker_img()),
+            ("metta-app-backend:latest", lambda: LocalCommands(self.repo_root).build_app_backend_img()),
+        ]:
+            self._ensure_docker_img_built(img_name, load_fn)
 
         # No need to create RBAC manually - Helm chart will handle it
         success("Kind cluster ready!")
@@ -66,30 +71,26 @@ class Kind:
         )
 
         # Create namespace if it doesn't exist
-        subprocess.run(
-            ["kubectl", "create", "namespace", self.namespace, "--dry-run=client", "-o", "yaml"], capture_output=True
+        info("Creating namespace if needed...")
+        result = subprocess.run(
+            ["kubectl", "get", "namespace", self.namespace], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
-        subprocess.run(
-            [
-                "kubectl",
-                "create",
-                "namespace",
-                self.namespace,
-                "--dry-run=client",
-                "-o",
-                "yaml",
-                "|",
-                "kubectl",
-                "apply",
-                "-f",
-                "-",
-            ],
-            shell=True,
-            check=True,
-        )
+        if result.returncode != 0:
+            subprocess.run(["kubectl", "create", "namespace", self.namespace], check=True)
 
         # Create secrets (matching production secret names)
         info("Creating secrets...")
+        # Delete existing secrets if they exist
+        subprocess.run(
+            ["kubectl", "delete", "secret", "wandb-api-secret", "-n", self.namespace, "--ignore-not-found=true"],
+            check=True,
+        )
+        subprocess.run(
+            ["kubectl", "delete", "secret", "machine-token-secret", "-n", self.namespace, "--ignore-not-found=true"],
+            check=True,
+        )
+
+        # Create new secrets
         subprocess.run(
             [
                 "kubectl",
@@ -100,16 +101,7 @@ class Kind:
                 f"--from-literal=api-key={wandb_api_key}",
                 "-n",
                 self.namespace,
-                "--dry-run=client",
-                "-o",
-                "yaml",
-                "|",
-                "kubectl",
-                "apply",
-                "-f",
-                "-",
             ],
-            shell=True,
             check=True,
         )
 
@@ -123,16 +115,7 @@ class Kind:
                 f"--from-literal=token={machine_token}",
                 "-n",
                 self.namespace,
-                "--dry-run=client",
-                "-o",
-                "yaml",
-                "|",
-                "kubectl",
-                "apply",
-                "-f",
-                "-",
             ],
-            shell=True,
             check=True,
         )
 
@@ -184,14 +167,8 @@ class Kind:
                 )
 
             info("Orchestrator deployed via Helm")
-            info("")
-            info(f"Using backend at: {backend_url}")
-            info("")
-            info(
-                f"To view orchestrator logs: kubectl logs -n {self.namespace} -l app.kubernetes.io/name=orchestrator -f"
-            )
-            info("To view pods: kubectl get pods -w")
-            info("To view Helm status: helm status orchestrator")
+            info("To view pods: metta local kind get-pods")
+            info("To view logs: metta local kind logs <pod-name>")
             info("To stop: metta local kind down")
 
         finally:

@@ -25,7 +25,7 @@ class LocalCommands:
             check=True,
         )
 
-    def build_docker_img(self, args) -> None:
+    def build_docker_img(self) -> None:
         """Build local development Docker image."""
         docker_dir = self.repo_root / "devops" / "docker"
         dockerfile_path = docker_dir / "Dockerfile.local"

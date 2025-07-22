@@ -3,10 +3,15 @@ replicaCount: 1
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
   name: metta-app-backend
-  tag: "" # will be set by CI/CD pipeline
+  tag: ""  # set by ci/cd
 
 serviceAccount:
   create: true
+
+workerImage:
+  repository: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta
+  tag: "latest"
 
 env:
   BACKEND_URL: "https://api.observatory.softmax-research.net"
