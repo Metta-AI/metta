@@ -76,7 +76,6 @@ class ConverterConfig(GridObjectConfig):
     cooldown: int
     initial_resource_count: int
     color: int
-    show_recipe_inputs: bool
 
 class ActionConfig:
     enabled: bool

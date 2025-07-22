@@ -29,22 +29,22 @@ function getStepFromX(x: number) {
 }
 
 /** Updates the scrubber. */
-export function onScrubberChange(event: MouseEvent) {
+export function onScrubberChange(event: PointerEvent) {
   let mouseX = event.clientX
   let step = getStepFromX(mouseX)
   updateStep(step)
 }
 
-export function onTraceMinimapChange(event: MouseEvent) {
+export function onTraceMinimapChange(event: PointerEvent) {
   let mouseX = event.clientX
   let step = getStepFromX(mouseX)
   ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
 }
 
-/** Handles a mouse down on the timeline, which updates the step. */
-onEvent('mousedown', '#timeline-panel', (target: HTMLElement, e: Event) => {
+/** Handles a pointer down on the timeline, which updates the step. */
+onEvent('pointerdown', '#timeline-panel', (target: HTMLElement, e: Event) => {
   // Are we clicking on the scrubber or behind it (trace window) or event?
-  let event = e as MouseEvent
+  let event = e as PointerEvent
   let mouseY = event.clientY - target.getBoundingClientRect().top
   let mouseX = event.clientX
   if (mouseY > 34 && mouseY < 51) {
