@@ -400,9 +400,15 @@ def main():
     parser.add_argument(
         "--hourly-rate", type=float, default=DEFAULT_HOURLY_RATE, help="Hourly price in USD for cost estimate"
     )
+    parser.add_argument("--create-report", action="store_true", help="Create automated W&B report after completion")
+    parser.add_argument(
+        "--report-title", type=str, default="Functional vs Hydra Trainer Comparison", help="Title for the W&B report"
+    )
     args = parser.parse_args()
+
     logger.info(f"Starting training comparison with {args.num_pairs} pairs")
     logger.info(f"Base run name: {args.base_run_name}")
+
     results = []
     for pair_id in range(1, args.num_pairs + 1):
         logger.info(f"Running comparison pair {pair_id}/{args.num_pairs}")
@@ -410,6 +416,7 @@ def main():
         results.append(pair_results)
         save_results(results, args.output_file)
         logger.info(f"Completed pair {pair_id}")
+
     # Final summary
     successful_functional = sum(1 for r in results if r.get("functional_exit_code") == 0)
     successful_hydra = sum(1 for r in results if r.get("hydra_exit_code") == 0)
@@ -422,6 +429,27 @@ def main():
     logger.info(f"Functional success rate: {successful_functional / args.num_pairs * 100:.1f}%")
     logger.info(f"Hydra success rate: {successful_hydra / args.num_pairs * 100:.1f}%")
     logger.info(f"Results saved to: {args.output_file}")
+
+    # Create automated W&B report if requested
+    if args.create_report and WANDB_AVAILABLE:
+        logger.info("Creating automated W&B report...")
+        try:
+            from tools.create_wandb_report import create_comparison_report
+
+            report_url = create_comparison_report(
+                project_name="comparision_trainer",
+                entity="metta-research",
+                report_title=args.report_title,
+                report_description=f"Automated comparison of {args.num_pairs} training pairs",
+            )
+            if report_url:
+                logger.info(f"W&B report created: {report_url}")
+            else:
+                logger.warning("Failed to create W&B report")
+        except Exception as e:
+            logger.error(f"Error creating W&B report: {e}")
+    elif args.create_report and not WANDB_AVAILABLE:
+        logger.warning("W&B not available - cannot create report")
 
 
 if __name__ == "__main__":
