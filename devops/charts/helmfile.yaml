@@ -102,9 +102,7 @@ releases:
   chart: ./orchestrator
   version: 0.1.0
   namespace: observatory
-  values:
-  - ./orchestrator/environments/eks.yaml
   hooks:
   - events: ["presync"]
     command: "kubectl"
-    args: ["create", "namespace", "orchestrator", "--dry-run=client", "-o", "yaml", "|", "kubectl", "apply", "-f", "-"]
+    args: ["create", "namespace", "orchestrator", "--dry-run=client"]

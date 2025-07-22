@@ -26,6 +26,25 @@ class Kind:
     def _use_local_context(self) -> None:
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
 
+    def _create_secret(self, name: str, value: str) -> None:
+        subprocess.run(
+            ["kubectl", "delete", "secret", name, "-n", self.namespace, "--ignore-not-found=true"],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "kubectl",
+                "create",
+                "secret",
+                "generic",
+                name,
+                f"--from-literal={value}",
+                "-n",
+                self.namespace,
+            ],
+            check=True,
+        )
+
     def build(self) -> None:
         """Create Kind cluster and set up for Metta."""
         # Check if cluster exists
@@ -49,11 +68,7 @@ class Kind:
 
         from metta.setup.local_commands import LocalCommands
 
-        for img_name, load_fn in [
-            ("metta-local:latest", lambda: LocalCommands(self.repo_root).build_docker_img()),
-            ("metta-app-backend:latest", lambda: LocalCommands(self.repo_root).build_app_backend_img()),
-        ]:
-            self._ensure_docker_img_built(img_name, load_fn)
+        self._ensure_docker_img_built("metta-local:latest", LocalCommands(self.repo_root).build_docker_img)
 
         # No need to create RBAC manually - Helm chart will handle it
         success("Kind cluster ready!")
@@ -77,48 +92,11 @@ class Kind:
         if result.returncode != 0:
             subprocess.run(["kubectl", "create", "namespace", self.namespace], check=True)
 
-        # Create secrets (matching production secret names)
         info("Creating secrets...")
-        # Delete existing secrets if they exist
-        subprocess.run(
-            ["kubectl", "delete", "secret", "wandb-api-secret", "-n", self.namespace, "--ignore-not-found=true"],
-            check=True,
-        )
-        subprocess.run(
-            ["kubectl", "delete", "secret", "machine-token-secret", "-n", self.namespace, "--ignore-not-found=true"],
-            check=True,
-        )
+        self._create_secret("wandb-api-secret", f"api-key={wandb_api_key}")
+        self._create_secret("machine-token-secret", f"token={machine_token}")
 
-        # Create new secrets
-        subprocess.run(
-            [
-                "kubectl",
-                "create",
-                "secret",
-                "generic",
-                "wandb-api-secret",
-                f"--from-literal=api-key={wandb_api_key}",
-                "-n",
-                self.namespace,
-            ],
-            check=True,
-        )
-
-        subprocess.run(
-            [
-                "kubectl",
-                "create",
-                "secret",
-                "generic",
-                "machine-token-secret",
-                f"--from-literal=token={machine_token}",
-                "-n",
-                self.namespace,
-            ],
-            check=True,
-        )
-
-        # Use existing kind.yaml values file
+        # Use values from the kind.yaml file
         kind_values_file = self.repo_root / "devops/charts/orchestrator/environments/kind.yaml"
 
         try:
