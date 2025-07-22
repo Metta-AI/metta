@@ -50,10 +50,7 @@ from metta.rl.util.policy_management import (
     cleanup_old_policies,
     validate_policy_environment_match,
 )
-from metta.rl.util.rollout import (
-    get_observation,
-    run_policy_inference,
-)
+from metta.rl.util.rollout import get_observation
 from metta.rl.util.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
@@ -422,9 +419,8 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
-        # Get the initial recurrent state for all agents.
         # The policy is responsible for creating a zero state if one is not available.
-        recurrent_state_td = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+        buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
@@ -440,26 +436,24 @@ class MettaTrainer:
             self.agent_step += num_steps * self._world_size
 
             # Prepare the input TensorDict for the policy
-            input_td = recurrent_state_td[training_env_id].clone()
-            input_td["obs"] = o
+            td = buffer_step[training_env_id].clone()
+            td["env_obs"] = o
 
             # Run policy inference
-            experience_td = run_policy_inference(self.policy, input_td, self.device)
+            with torch.no_grad():
+                experience_td = self.policy(td)
+            if str(self.device).startswith("cuda"):
+                torch.cuda.synchronize()
 
-            # The policy doesn't know about env rewards/dones. Add them here.
-            # The experience spec expects these, so the buffer has space for them.
+            # Update buffer with data from the env that the policy doesn't get.
             experience_td["rewards"] = r
             experience_td["dones"] = d.float()
             experience_td["truncateds"] = t.float()
 
-            # Store experience - the returned TD has everything we need.
             experience.store(
                 data_td=experience_td,
                 env_id=training_env_id,
             )
-
-            # Update the recurrent state for the next step
-            # recurrent_state_td[training_env_id] = experience_td.select("lstm_h", "lstm_c")
 
             # Send actions back to environment
             with self.timer("_rollout.env"):

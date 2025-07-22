@@ -359,7 +359,7 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward_inference(self, value: torch.Tensor, logits: torch.Tensor) -> TensorDict:
+    def forward_inference(self, td: TensorDict) -> TensorDict:
         """
         Forward pass for inference mode - samples new actions based on the policy.
 
@@ -373,6 +373,9 @@ class MettaAgent(nn.Module):
             - logprobs: Log probability of the sampled action, shape (BT,)
             - values: Value estimate, shape (BT,)
         """
+        value = td["_value_"]
+        logits = td["_action_"]
+
         if __debug__:
             assert_shape(value, ("BT", 1), "inference_value")
             assert_shape(logits, ("BT", "A"), "inference_logits")
@@ -390,11 +393,13 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action, ("BT", 2), "inference_output_action")
 
-        return TensorDict(
-            {"actions": action, "logprobs": action_log_prob, "values": value.flatten()}, batch_size=action.shape[0]
-        )
+        td["actions"] = action
+        td["logprobs"] = action_log_prob
+        td["values"] = value.flatten()
 
-    def forward_training(self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor) -> TensorDict:
+        return td
+
+    def forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
         """
         Forward pass for training mode - evaluates the policy on provided actions.
 
@@ -410,6 +415,9 @@ class MettaAgent(nn.Module):
             - value: Value estimate, shape (BT, 1)
             - log_probs: Log-softmax of logits, shape (BT, A)
         """
+        value = td["_value_"]
+        logits = td["_action_"]
+
         if __debug__:
             assert_shape(value, ("BT", 1), "training_value")
             assert_shape(logits, ("BT", "A"), "training_logits")
@@ -429,12 +437,14 @@ class MettaAgent(nn.Module):
             assert_shape(entropy, ("BT",), "training_entropy")
             assert_shape(log_probs, ("BT", "A"), "training_log_probs")
 
-        return TensorDict(
-            {"action_log_prob": action_log_prob, "entropy": entropy, "value": value, "log_probs": log_probs},
-            batch_size=value.shape[0],
-        )
+        td["action_log_prob"] = action_log_prob
+        td["entropy"] = entropy
+        td["value"] = value
+        td["log_probs"] = log_probs
 
-    def forward(self, input_td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
+        return td
+
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         """
         Forward pass of the MettaAgent.
 
@@ -448,54 +458,20 @@ class MettaAgent(nn.Module):
             - In inference mode, this contains data to be stored in the experience buffer.
             - In training mode, this contains data for loss calculation.
         """
-        # The internal components work with a shared dictionary.
-        # We extract the required data from the input TensorDict and place it in a plain dict.
-        internal_data = {"x": input_td["obs"]}
-
-        # The recurrent state is expected under the key "state".
-        if "lstm_h" in input_td.keys() and "lstm_c" in input_td.keys():
-            # The `state` is a concatenation of h and c states along the layer dimension.
-            lstm_h = input_td["lstm_h"].to(internal_data["x"].device)
-            lstm_c = input_td["lstm_c"].to(internal_data["x"].device)
-            internal_data["lstm_h"] = lstm_h
-            internal_data["lstm_c"] = lstm_c
-        else:
-            # If no state is provided, the LSTM core will initialize a zero state.
-            internal_data["lstm_h"] = None
-            internal_data["lstm_c"] = None
-
         # Forward pass through value network. This will also run the core network.
-        self.components["_value_"](internal_data)
-        value = internal_data["_value_"]
-
-        # Value shape is (BT, 1) - keeping the final dimension explicit
-        if __debug__:
-            assert_shape(value, ("BT", 1), "value")
+        self.components["_value_"](td)
 
         # Forward pass through action network. This will reuse the core network's output.
-        self.components["_action_"](internal_data)
-        logits = internal_data["_action_"]
+        self.components["_action_"](td)
 
-        if __debug__:
-            assert_shape(logits, ("BT", "A"), "logits")
-
-        # new_state = internal_data["state"]
+        # TODO: future work could allow losses to decide which leaf nodes to run eg for reconstruction loss
 
         if action is None:
-            # Inference mode
-            output_td = self.forward_inference(value, logits)
+            output_td = self.forward_inference(td)
+        else:
+            output_td = self.forward_training(td, action)
 
-            # Add the new recurrent state to the output so it can be stored.
-            if "lstm_h" in internal_data and "lstm_c" in internal_data:
-                lstm_h_new = internal_data["lstm_h"]
-                lstm_c_new = internal_data["lstm_c"]
-                if lstm_h_new is not None and lstm_c_new is not None:
-                    # The tensors are already detached in lstm.py
-                    output_td["lstm_h"] = lstm_h_new
-                    output_td["lstm_c"] = lstm_c_new
-            return output_td
-        # Training mode
-        return self.forward_training(value, logits, action)
+        return output_td
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """

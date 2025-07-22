@@ -26,17 +26,18 @@ class ObsTokenToBoxShaper(LayerBase):
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
     def _forward(self, td: TensorDict):
-        token_observations = td["x"]
+        token_observations = td["env_obs"]
+        B_TT = td.batch_size.numel()
 
-        B = token_observations.shape[0]
-        TT = 1
+        # B = token_observations.shape[0]
+        # TT = 1
         if token_observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = token_observations.shape[1]
+            # TT = token_observations.shape[1]
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
 
         # The TensorDict is batched, so metadata must also be batched.
         # We create a tensor of shape [B] and fill it with the scalar value.
-        td["_BxTT_"] = B * TT
+        # td["_BxTT_"] = B * TT
         # device = token_observations.device
         # td.set("_BxTT_", torch.full((B,), B * TT, device=device, dtype=torch.long))
 
@@ -55,11 +56,11 @@ class ObsTokenToBoxShaper(LayerBase):
         # We'd like to pre-create this as part of initialization, but we don't know the batch size or time steps at
         # that point.
         box_obs = torch.zeros(
-            (B * TT, self.num_layers, self.out_width, self.out_height),
+            (B_TT, self.num_layers, self.out_width, self.out_height),
             dtype=atr_values.dtype,
             device=token_observations.device,
         )
-        batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
+        batch_indices = torch.arange(B_TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
         valid_tokens = coords_byte != 0xFF
         box_obs[
@@ -69,10 +70,5 @@ class ObsTokenToBoxShaper(LayerBase):
             y_coord_indices[valid_tokens],
         ] = atr_values[valid_tokens]
 
-        td["_TT_"] = TT
-        td["_batch_size_"] = B
-        td["_BxTT_"] = B * TT
-        # td.set("_TT_", torch.full((B,), TT, device=device, dtype=torch.long))
-        # td.set("_batch_size_", torch.full((B,), B, device=device, dtype=torch.long))
         td[self._name] = box_obs
         return td

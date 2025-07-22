@@ -58,10 +58,7 @@ from metta.rl.util.optimization import (
     maybe_update_l2_weights,
 )
 from metta.rl.util.policy_management import wrap_agent_distributed
-from metta.rl.util.rollout import (
-    get_observation,
-    run_policy_inference,
-)
+from metta.rl.util.rollout import get_observation
 from metta.rl.util.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,

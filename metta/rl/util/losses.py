@@ -1,7 +1,7 @@
 """Loss computation functions for PPO training."""
 
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Tuple
 
 import torch
 from tensordict import TensorDict
@@ -100,12 +100,22 @@ def process_minibatch_update(
 
     # Compute losses
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
-        minibatch, new_logprobs, entropy, newvalue, importance_sampling_ratio, adv, trainer_cfg,
+        minibatch,
+        new_logprobs,
+        entropy,
+        newvalue,
+        importance_sampling_ratio,
+        adv,
+        trainer_cfg,
     )
 
     # Kickstarter losses
     ks_action_loss, ks_value_loss = kickstarter.loss(
-        agent_step, full_logprobs, newvalue, minibatch["obs"], teacher_lstm_state=[]
+        agent_step,
+        full_logprobs,
+        newvalue,
+        minibatch["obs"],
+        teacher_lstm_state=[],
     )
 
     # L2 init loss

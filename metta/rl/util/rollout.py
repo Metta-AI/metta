@@ -4,7 +4,6 @@ import logging
 from typing import Any, Tuple
 
 import torch
-from tensordict import TensorDict
 from torch import Tensor
 
 logger = logging.getLogger(__name__)
@@ -36,22 +35,3 @@ def get_observation(
     t = torch.as_tensor(t).to(device, non_blocking=True)
 
     return o, r, d, t, info, training_env_id, mask, num_steps
-
-
-def run_policy_inference(
-    policy: torch.nn.Module,
-    input_td: TensorDict,
-    device: torch.device,
-) -> TensorDict:
-    """Run the policy to get actions and value estimates.
-
-    Returns:
-        A TensorDict containing all data to be stored in the experience buffer.
-    """
-    with torch.no_grad():
-        experience_td = policy(input_td)
-
-        if str(device).startswith("cuda"):
-            torch.cuda.synchronize()
-
-    return experience_td

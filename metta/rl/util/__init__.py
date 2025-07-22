@@ -37,7 +37,7 @@ from .policy_management import (
 )
 
 # Rollout utilities
-from .rollout import get_observation, run_policy_inference
+from .rollout import get_observation
 
 # Statistics and metrics
 from .stats import (
@@ -83,7 +83,6 @@ __all__ = [
     "wrap_agent_distributed",
     # Rollout
     "get_observation",
-    "run_policy_inference",
     # Stats
     "accumulate_rollout_stats",
     "build_wandb_stats",
