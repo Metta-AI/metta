@@ -1,5 +1,34 @@
 # Metta AI Research Roadmap
 
+## Table of Contents
+
+- [1. Environment Development](#1-environment-development)
+  - [1.1. Game Dynamics](#11-game-dynamics)
+  - [1.2. Agent Diversity](#12-agent-diversity)
+  - [1.3. Terrain Generation](#13-terrain-generation)
+  - [1.4. Support for Many Environment Types](#14-support-for-many-environment-types)
+  - [1.5. Population Dynamics](#15-population-dynamics)
+  - [1.6. Kinship Schemes](#16-kinship-schemes)
+  - [1.7. Mate Selection Schemes](#17-mate-selection-schemes)
+- [2. Agent Architecture Research](#2-agent-architecture-research)
+  - [2.1. Robust Universal GridWorld Agent](#21-robust-universal-gridworld-agent)
+  - [2.2. Adaptability to New Game Rules](#22-adaptability-to-new-game-rules)
+  - [2.3. Dense Learning Signals](#23-dense-learning-signals)
+  - [2.4. Exploration and Curiosity](#24-exploration-and-curiosity)
+- [3. Scalable Training Infrastructure](#3-scalable-training-infrastructure)
+  - [3.1. Distributed Reinforcement Learning](#31-distributed-reinforcement-learning)
+  - [3.2. Student-Teacher Architecture](#32-student-teacher-architecture)
+  - [3.3. Blending Reinforcement Learning and Imitation Learning](#33-blending-reinforcement-learning-and-imitation-learning)
+- [4. Intelligence Evaluations for Gridworld Agents](#4-intelligence-evaluations-for-gridworld-agents)
+  - [4.1. Navigation Tasks](#41-navigation-tasks)
+  - [4.2. Maze Solving](#42-maze-solving)
+  - [4.3. In-context Learning](#43-in-context-learning)
+  - [4.4. Cooperation and Competition](#44-cooperation-and-competition)
+- [5. DevOps and Tooling](#5-devops-and-tooling)
+  - [5.1. Cloud Cluster Management](#51-cloud-cluster-management)
+  - [5.2. Experiment Tracking and Visualization](#52-experiment-tracking-and-visualization)
+  - [5.3. Continuous Integration and Deployment](#53-continuous-integration-and-deployment)
+
 ## 1. Environment Development
 
 ### 1.1. Game Dynamics

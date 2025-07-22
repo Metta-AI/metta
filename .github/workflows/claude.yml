@@ -198,7 +198,7 @@ jobs:
           timeout_minutes: 30
           allowed_tools: "Bash(git status),Bash(git log --oneline -10),Bash(git show),Bash(git diff *),Bash(git branch -a),Bash(ruff check *),Bash(python -m *),Bash(./tools/*),View,GlobTool,GrepTool"
           custom_instructions: |
-            Follow the project's coding standards defined in CLAUDE.md.
+            Follow the project's coding standards defined in docs/development/claude.md.
             Provide helpful analysis and suggestions for code improvements.
             Focus on code review, explanations, and suggestions rather than making changes.
             You have access to ruff for linting Python code if needed.
@@ -401,7 +401,7 @@ jobs:
             2. SECOND: Verify you're on the correct branch with `Bash(git branch --show-current)`
 
             3. THIRD: Check for project standards:
-              - Look for CLAUDE.md file and follow any coding standards defined there
+              - Look for docs/development/claude.md file and follow any coding standards defined there
               - Check for .prettierrc, .eslintrc, pyproject.toml, or similar config files
 
             4. FOURTH: Make all the requested code changes using Edit/Replace tools
