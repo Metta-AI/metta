@@ -558,7 +558,7 @@ py::tuple MettaGrid::reset() {
       // Reset movement tracking state
     if (_track_movement_metrics) {
       for (auto& agent : _agents) {
-        agent->last_action_index = -1; // No previous action
+        agent->last_action_index = -1;  // No previous action
       }
     }
 
