@@ -15,7 +15,10 @@ defaults:
 
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation/bucketed
-  # evaluate_interval: 10
+  simulation:
+    evaluate_interval: 50
+  # checkpoint:
+  #   checkpoint_interval: 10
 
 run_id: 5
 run: ${oc.env:USER}.local.${run_id}
