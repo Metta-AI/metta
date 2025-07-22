@@ -71,13 +71,10 @@ Viewing logs
 #### Local kind
 Kind is a tool for running local Kubernetes clusters using Docker container nodes. We use it for testing our Kubernetes deployment locally.
 
-Getting the service running
-- `./kind.sh build` to build
-- `./kind.sh up`
-
-See `./kind.sh` for other commands
-
-Viewing logs
-- `kubectl config use-context kind-metta-local`
-- `kubectl get pods -w` to see what pods are alive
-- `kubectl logs orchestrator --follow`. Replace `orchestrator` with the pod name of an eval worker if you wish
+- Ensure `metta status` shows that you are connected to `observatory-local-key` and `wandb`
+- Run your local app_backend server, which should be serving on `localhost:8000`
+- Run your local frontend from `observatory/`
+- Build orchestrator and worker images: `metta local build-docker-img`
+- Set up helm: `metta local kind build`
+- Launch: `metta local kind up`
+- Monitor: `metta local kind get-pods` and `metta local kind pods {pod-name}`
