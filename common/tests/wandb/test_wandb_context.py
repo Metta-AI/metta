@@ -6,8 +6,8 @@ import pytest
 import wandb
 from omegaconf import OmegaConf
 
+from metta.common.util.logging_helpers import init_logging
 from metta.common.wandb.wandb_context import WandbConfigOff, WandbConfigOn, WandbContext
-from metta.util.init.logging import init_logging
 
 init_logging()
 logger = logging.getLogger("Test")

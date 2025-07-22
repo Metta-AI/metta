@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
+from metta.common.util.logging_helpers import init_logging
 from metta.common.util.mettagrid_cfgs import (
     CfgKind,
     MettagridCfgFile,
@@ -17,7 +18,6 @@ from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.storable_map import StorableMap, StorableMapDict
 from metta.map.utils.storable_map_index import StorableMapIndex
 from metta.mettagrid.util.file import read
-from metta.util.init.logging import init_logging
 
 logger = logging.getLogger("metta.gridworks.server")
 

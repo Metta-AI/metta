@@ -13,8 +13,8 @@ import hydra
 from omegaconf import DictConfig, ListConfig
 
 from metta.common.util.fs import get_repo_root
+from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
-from metta.util.init.logging import init_logging
 from metta.util.init.mettagrid_environment import init_mettagrid_environment
 
 logger = logging.getLogger(__name__)
