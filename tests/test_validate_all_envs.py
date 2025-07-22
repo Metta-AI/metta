@@ -36,6 +36,8 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "navigation/training/sparse.yaml",
         # Is a curriculum, not an env
         "navigation/training/sparse_bucketed",
+        # These are broken into different files to work around curriculum needs. They don't load right in this test.
+        "cooperation/experimental/",
     ]
 
     # exclude some configs that won't work
