@@ -11,7 +11,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import requests
 
@@ -20,7 +20,7 @@ RATE_LIMIT_DELAY = 0.5  # Delay between messages to avoid rate limiting
 MESSAGE_PREFIX = "...\r\n   \r\n"  # Prefix added to each chunk
 
 
-def split_content(content: str, max_len: int = DISCORD_MESSAGE_CHARACTER_LIMIT) -> List[str]:
+def split_content(content: str, max_len: int = DISCORD_MESSAGE_CHARACTER_LIMIT) -> list[str]:
     """Split content into chunks that fit Discord's message limit.
 
     Attempts to split at natural boundaries (paragraphs, lines, words) to maintain readability.
@@ -28,7 +28,7 @@ def split_content(content: str, max_len: int = DISCORD_MESSAGE_CHARACTER_LIMIT) 
     if not content:
         return []
 
-    chunks: List[str] = []
+    chunks: list[str] = []
     remaining_content = content.strip()
 
     while remaining_content:
@@ -116,7 +116,7 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
             chunk = chunk[:max_chunk_len]
             prefixed_chunk = MESSAGE_PREFIX + chunk
 
-        payload: Dict[str, Any] = {"content": prefixed_chunk}
+        payload: dict[str, Any] = {"content": prefixed_chunk}
         if suppress_embeds:
             payload["flags"] = 4  # SUPPRESS_EMBEDS flag
 
