@@ -1,0 +1,15 @@
+defaults:
+  - spiral_altar_base
+  - _self_
+
+game:
+  max_steps: 1200
+  map_builder:
+    width: 160
+    height: 160
+    root:
+      params:
+        objects:
+          altar: 15  # More altars for larger spiral
+        spacing: 18
+        randomize_position: 3  # More randomization in larger space

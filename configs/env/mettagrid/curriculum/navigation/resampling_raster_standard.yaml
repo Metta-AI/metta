@@ -1,0 +1,18 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/training/raster_grid_multiroom
+
+buckets:
+  # Create a few bins to force variation - this will create multiple task instances
+  game.map_builder.room.width:
+    values: [55, 60, 65]  # 3 sizes
+
+  game.map_builder.room.height:
+    values: [55, 60, 65]  # 3 sizes
+
+  # Force different sampling "seeds" by varying a parameter that doesn't affect the core logic
+  sampling:
+    values: [0.8, 0.9, 1.0]  # 3 different sampling intensities
+
+# This creates 3×3×3 = 27 different task configurations that will each
+# re-evaluate their ${sampling:...} expressions independently

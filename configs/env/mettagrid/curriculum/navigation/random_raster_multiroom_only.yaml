@@ -1,0 +1,7 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Small dense grids (3x3 to 5x5, mostly filled)
+  /env/mettagrid/navigation/training/raster_grid_multiroom_small: 1.0
+  # Large sparse grids (6x6 to 10x10, partially filled)
+  /env/mettagrid/navigation/training/raster_grid_multiroom_large: 1.0

@@ -1,0 +1,26 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  # Multi-room navigation tasks
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  /env/mettagrid/navigation/training/sparse: 1
+  # Raster grid multi-room tasks
+  /env/mettagrid/navigation/training/raster_grid_multiroom: 1  # Raster grid multi-room (training version)
+  /env/mettagrid/navigation/training/raster_grid_multiroom_small: 1  # Small raster grids
+  /env/mettagrid/navigation/training/raster_grid_multiroom_large: 1  # Large raster grids
+  /env/mettagrid/navigation/training/raster_grid_multiroom_random: 1  # Random raster grids
+
+  # Spiral altar multi-room task
+  /env/mettagrid/navigation/training/spiral_altar_multiroom: 1  # Spiral altar multi-room (4 agents, 4 rooms)
+
+# Focus on subset of tasks at once for efficient learning
+num_active_tasks: 4  # Focus on 4 out of 6 multi-room tasks at a time
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.25  # 25% random exploration of all tasks
+memory: 25  # Keep last 25 episode scores per task

@@ -1,0 +1,16 @@
+defaults:
+  - spiral_altar_base
+  - _self_
+
+game:
+  max_steps: 700
+  map_builder:
+    width: 100
+    height: 100
+    root:
+      params:
+        objects:
+          altar: 10
+        radius_increment: 1.5  # Tighter spiral
+        angle_increment: 0.2  # Smaller angle steps for tighter coil
+        spacing: 12  # Can be closer due to tighter spiral

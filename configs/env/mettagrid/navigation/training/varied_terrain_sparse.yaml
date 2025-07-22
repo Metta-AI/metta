@@ -1,4 +1,4 @@
-defaults:
+git defaults:
   - /env/mettagrid/navigation/training/defaults@
   - _self_
 

@@ -1,0 +1,12 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/navigation/training/raster_grid_multiroom: 1
+
+
+
+# Focus on subset of tasks at once for efficient learning
+num_active_tasks: 4  # Focus on 4 out of 8 tasks at a time
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.25  # 25% random exploration of all tasks

@@ -1,0 +1,11 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Raster grid navigation pattern
+  /env/mettagrid/navigation/training/raster_grid_multiroom: 0.5
+
+  # Spiral navigation pattern
+  /env/mettagrid/navigation/training/spiral_altar_multiroom: 0.5
+
+# Equal probability for both task types
+# Each task uses random parameter sampling internally
