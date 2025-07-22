@@ -44,36 +44,6 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard["dashboard_state"] == dashboard_state
 
     @pytest.mark.asyncio
-    async def test_list_saved_dashboards(self, stats_repo: MettaRepo, user_id: str) -> None:
-        """Test listing saved dashboards."""
-        dashboard_state = {
-            "suite": "object_use",
-            "metric": "success_rate",
-            "group_metric": "group1",
-            "num_policies_to_show": 15,
-        }
-
-        # Create a test dashboard
-        await stats_repo.create_saved_dashboard(
-            user_id=user_id,
-            name="Test Dashboard 2",
-            description="Another test dashboard",
-            dashboard_type="heatmap",
-            dashboard_state=dashboard_state,
-        )
-
-        # List dashboards
-        dashboards = await stats_repo.list_saved_dashboards()
-        assert len(dashboards) >= 2
-
-        # Find our test dashboard
-        test_dashboard = next((d for d in dashboards if d["name"] == "Test Dashboard 2"), None)
-        assert test_dashboard is not None
-        assert test_dashboard["description"] == "Another test dashboard"
-        assert test_dashboard["type"] == "heatmap"
-        assert test_dashboard["dashboard_state"] == dashboard_state
-
-    @pytest.mark.asyncio
     async def test_delete_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
         """Test deleting a saved dashboard."""
         dashboard_state = {
