@@ -4,6 +4,7 @@
 # dependencies = [
 #     "numpy",
 #     "gymnasium",
+#     "pufferlib",
 #     "omegaconf",
 #     "torch",
 #     "typing-extensions",

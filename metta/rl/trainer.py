@@ -160,12 +160,11 @@ class MettaTrainer:
         self._make_vecenv()
 
         metta_grid_env = self.vecenv.driver_env  # type: ignore
-        # Check if driver_env is one of our valid MettaGrid adapters
-        from metta.mettagrid import MettaGridCore, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridPufferEnv
+        # Check if driver_env is the main MettaGridEnv (trainer should only use main environment)
+        from metta.mettagrid import MettaGridEnv
 
-        valid_adapters = (MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore)
-        assert isinstance(metta_grid_env, valid_adapters), (
-            f"vecenv.driver_env type {type(metta_grid_env).__name__} is not a valid MettaGrid adapter"
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            f"vecenv.driver_env must be MettaGridEnv, got {type(metta_grid_env).__name__}"
         )
 
         self.agent_step: int = 0
@@ -632,11 +631,11 @@ class MettaTrainer:
         name = self.policy_store.make_model_name(self.epoch)
 
         metta_grid_env = self.vecenv.driver_env  # type: ignore
-        # Check if driver_env is one of our valid MettaGrid adapters
-        from metta.mettagrid import MettaGridCore, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridPufferEnv
+        from metta.mettagrid import MettaGridEnv
 
-        valid_adapters = (MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore)
-        assert isinstance(metta_grid_env, valid_adapters), "vecenv.driver_env must be a valid MettaGrid adapter"
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            f"vecenv.driver_env must be MettaGridEnv, got {type(metta_grid_env)}"
+        )
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
