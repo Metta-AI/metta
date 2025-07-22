@@ -248,6 +248,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             logger.info("Reward-based termination triggered")
             # Set all terminals to True to end the episode
             self.terminals.fill(True)
+            self.rewards *= 3  # if agents get all hearts, they get a 3x reward
+
         if self.terminals.all() or self.truncations.all():
             # TODO: re-enable diversity bonus
             # if self._task.env_cfg().game.diversity_bonus.enabled:
