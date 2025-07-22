@@ -37,7 +37,7 @@ from .policy_management import (
 )
 
 # Rollout utilities
-from .rollout import get_lstm_config, get_observation, run_policy_inference
+from .rollout import get_observation, run_policy_inference
 
 # Statistics and metrics
 from .stats import (
@@ -82,7 +82,6 @@ __all__ = [
     "validate_policy_environment_match",
     "wrap_agent_distributed",
     # Rollout
-    "get_lstm_config",
     "get_observation",
     "run_policy_inference",
     # Stats
