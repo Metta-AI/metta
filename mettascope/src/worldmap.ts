@@ -16,7 +16,7 @@ function startCameraAnimation(targetPos: Vec2f, panel: PanelInfo) {
   ui.cameraTargetPos = targetPos
   ui.cameraAnimStartTime = performance.now()
   ui.cameraAnimating = true
-  requestFrame() // Ensure animation loop continues
+  requestFrame()
 }
 
 /**
