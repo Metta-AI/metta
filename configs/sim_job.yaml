@@ -9,6 +9,7 @@ policy_uri: ???
 
 sim_job:
   policy_uris:
+    - wandb://run/daphne.2agents.full.navigation.4gpus.07-17
     - wandb://run/daphne.2agents.navigation.4gpus.07-16
     - wandb://run/daphne.navigation.2bucketed.2agents.includemedium.07-16
     - wandb://run/george.navigation.bucketed.07-14

@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 game:
   num_agents: 8
-  max_steps: 2000
+  max_steps: 1500
   actions:
     attack:
       enabled: false
