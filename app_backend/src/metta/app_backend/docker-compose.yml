@@ -1,12 +1,12 @@
 services:
   orchestrator:
-    image: metta-app-backend:latest # metta local build-app-backend-img
+    image: metta-local:latest # metta local build-app-backend-img
     environment:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
       - POLL_INTERVAL=${POLL_INTERVAL:-20}
       - CONTAINER_RUNTIME=${CONTAINER_RUNTIME:-docker}
       - WANDB_API_KEY=${WANDB_API_KEY}
-      - DOCKER_IMAGE=${DOCKER_IMAGE:-metta-local:latest} # metta local build-docker-img
+      - DOCKER_IMAGE=${DOCKER_IMAGE:-metta-local:latest}
     volumes:
       - ../../../:/workspace/metta/app_backend
       - /var/run/docker.sock:/var/run/docker.sock
