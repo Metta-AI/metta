@@ -25,7 +25,7 @@ class ProgressiveCurriculum(SamplingCurriculum):
         cfg.game.map.width = self._width
         cfg.game.map.height = self._height
         OmegaConf.resolve(cfg)
-        return Task(f"sample({self._cfg_template.sampling})", self, cfg)
+        return Task("PC_task", self, cfg)
 
     def complete_task(self, id: str, score: float):
         if score > 0.5:

@@ -1,10 +1,10 @@
 defaults:
-  - /env/mettagrid/mettagrid@env_overrides
+  - /env/mettagrid/mettagrid@env_cfg_template
   - _self_
 
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_overrides:
+env_cfg_template:
   game:
     num_agents: 4
     max_steps: 1000
@@ -23,10 +23,11 @@ env_overrides:
       border_width: 6
       room:
         _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+        dir: placeholder # to be overridden by buckets
         border_width: 3
         agents: 1
         objects:
-          altar: -1 # needs to be overridden by buckets
+          altar: -1 # to be overridden by buckets
     objects:
       altar:
         cooldown: 1000
