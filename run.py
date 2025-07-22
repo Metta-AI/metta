@@ -21,13 +21,10 @@ from metta.common.wandb.helpers import (
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.interface import (
-    Environment,
-    create_evaluation_config_suite,
-    setup_run_directories,
-)
 from metta.interface.agent import create_or_load_agent
-from metta.interface.directories import save_experiment_config
+from metta.interface.directories import save_experiment_config, setup_run_directories
+from metta.interface.environment import Environment
+from metta.interface.evaluation import create_evaluation_config_suite
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -708,7 +705,12 @@ while agent_step < trainer_config.total_timesteps:
             temp_initial_policy_record = None
             if initial_policy_uri:
                 temp_initial_policy_record = type(
-                    "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
+                    "obj",
+                    (object,),
+                    {
+                        "uri": initial_policy_uri,
+                        "metadata": {"generation": initial_generation},
+                    },
                 )()
 
             saved_record = save_policy_with_metadata(
@@ -988,7 +990,9 @@ if is_master:
     temp_initial_policy_record = None
     if initial_policy_uri:
         temp_initial_policy_record = type(
-            "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
+            "obj",
+            (object,),
+            {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}},
         )()
 
     saved_record = save_policy_with_metadata(
