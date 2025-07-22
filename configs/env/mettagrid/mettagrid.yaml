@@ -64,5 +64,5 @@ game:
       number_of_glyphs: 4
 
   termination:
-    num_altars: null #if true, terminate when overall reward = numaltars
+    num_altars: null #if true, terminate when  overall reward reaches the number of altars on the map
     max_reward: null #if set, terminate when overall reward = max_reward

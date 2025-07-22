@@ -4,7 +4,7 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 16
+  num_agents: 4
   max_steps: 1000
   actions:
     attack:
@@ -23,7 +23,7 @@ game:
       _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
       agents: 2
-      group_agents: true
+      place_agents_together: true
       objects:
         altar: ${sampling:3, 50, 25}
   objects:

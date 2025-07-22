@@ -78,13 +78,13 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         border_width: int = 0,
         border_object: str = "wall",
-        group_agents: bool = False,
+        place_agents_together: bool = False,
     ):
         self._dir = dir
         self._file = file
         self._agents = agents
         self._objects = objects
-        self._group_agents = group_agents
+        self._place_agents_together = place_agents_together
         super().__init__(border_width=border_width, border_object=border_object)
 
     def get_valid_positions(self, level):
@@ -154,7 +154,8 @@ class TerrainFromNumpy(Room):
         valid_positions = self.get_valid_positions(level)
 
         # Agents are placed together initially ("head-to-head")
-        if not self._group_agents:
+        # It is possible that they will be separated by a wall, can add checks here if we want to avoid that
+        if not self._place_agents_together:
             random.shuffle(valid_positions)
 
         agent_positions = valid_positions[:num_agents]

@@ -113,7 +113,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._task.env_cfg().game.get("termination.num_altars", False):
             termination_reward = self._num_altars
         # if max_reward, terminate when total reward = max reward
-        elif self._task.env_cfg().game.get("termination.max_reward", None):
+        elif self._task.env_cfg().game.get("termination.max_reward"):
             termination_reward = self._task.env_cfg().game.termination.max_reward
         else:
             return False

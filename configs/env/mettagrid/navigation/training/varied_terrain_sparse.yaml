@@ -8,3 +8,5 @@ game:
   map_builder:
     room:
       dir: ${choose:varied_terrain/sparse_large,varied_terrain/sparse_medium,varied_terrain/sparse_small}
+      objects:
+        altar: ${sampling:1, 5, 3}
