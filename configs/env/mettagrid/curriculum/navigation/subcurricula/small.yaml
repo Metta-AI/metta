@@ -1,0 +1,12 @@
+defaults:
+  - /env/mettagrid/curriculum/navigation/subcurricula/defaults@
+  - _self_
+
+buckets:
+  game.map_builder.room.dir:
+    values:
+      - varied_terrain/balanced_small
+      - varied_terrain/maze_small
+      - varied_terrain/sparse_small
+      - varied_terrain/dense_small
+      - varied_terrain/cylinder-world_small

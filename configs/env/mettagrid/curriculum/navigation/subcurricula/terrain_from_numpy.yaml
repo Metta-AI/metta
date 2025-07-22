@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/curriculum/navigation/subcurricula/defaults@
+  - _self_
+
+buckets:
+  game.map_builder.room.dir:
+    values:
+      - terrain_maps_nohearts
