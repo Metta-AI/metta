@@ -1,12 +1,5 @@
 name: navigation_learning_progress
 algorithm: learning_progress
 
-env_paths:
-  - /env/mettagrid/navigation/training/terrain_from_numpy
-  - /env/mettagrid/navigation/training/cylinder_world
-  - /env/mettagrid/navigation/training/varied_terrain_sparse
-  - /env/mettagrid/navigation/training/varied_terrain_balanced
-  - /env/mettagrid/navigation/training/varied_terrain_maze
-  - /env/mettagrid/navigation/training/varied_terrain_dense
-  - /env/mettagrid/curriculum/navigation/subcurricula/sparse
-  - /env/mettagrid/navigation/training/sparse_bucketed
+defaults:
+  - bucketed
