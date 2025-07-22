@@ -1,9 +1,9 @@
 // Tooltip titles for UI elements
 
-import { find } from './htmlutils.js';
+import { find } from './htmlutils.js'
 
 interface TooltipConfig {
-  [elementSelector: string]: string;
+  [elementSelector: string]: string
 }
 
 const tooltipTitles: TooltipConfig = {
@@ -31,14 +31,14 @@ const tooltipTitles: TooltipConfig = {
   '#visual-range-toggle': 'Toggle visual range',
   '#fog-of-war-toggle': 'Toggle fog of war',
   '#share-button': 'Share replay',
-  '#help-button': 'Help'
-};
+  '#help-button': 'Help',
+}
 
 export function initializeTooltips(): void {
   for (const elementSelector in tooltipTitles) {
-    const element = find(elementSelector);
+    const element = find(elementSelector)
     if (element) {
-      element.title = tooltipTitles[elementSelector];
+      element.title = tooltipTitles[elementSelector]
     }
   }
 }

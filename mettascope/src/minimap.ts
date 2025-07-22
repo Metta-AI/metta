@@ -32,13 +32,7 @@ export function renderMinimapObjects(offset: Vec2f, pipScale: number = 1) {
     } else if (typeName === 'agent') {
       continue // Draw agents separately on top
     }
-    ctx.drawSolidRect(
-      x + offset.x(),
-      y + offset.y(),
-      1,
-      1,
-      color
-    )
+    ctx.drawSolidRect(x + offset.x(), y + offset.y(), 1, 1, color)
   }
 
   // Draw the agent pips on top.
@@ -49,14 +43,7 @@ export function renderMinimapObjects(offset: Vec2f, pipScale: number = 1) {
     const typeName = state.replay.object_types[type]
     if (typeName === 'agent') {
       const agent_id = getAttr(gridObject, 'agent_id')
-      ctx.drawSprite(
-        'minimapPip.png',
-        x + offset.x(),
-        y + offset.y(),
-        Common.colorFromId(agent_id),
-        pipScale,
-        0
-      )
+      ctx.drawSprite('minimapPip.png', x + offset.x(), y + offset.y(), Common.colorFromId(agent_id), pipScale, 0)
     }
   }
 }
