@@ -52,7 +52,7 @@ document.body.appendChild(hoverPanel)
 findIn(hoverPanel, '.actions').classList.add('hidden')
 hoverPanel.classList.add('hidden')
 
-hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
+hoverPanel.addEventListener('pointerdown', (e: PointerEvent) => {
   // Create a new info panel.
   let panel = new HoverPanel(ui.delayedHoverObject)
   panel.div = hoverPanelTemplate.cloneNode(true) as HTMLElement
@@ -92,6 +92,14 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
 /** Updates the hover panel's visibility, position, and DOM tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
+    // Is there a popup open for this object?
+    // Then don't show a new one.
+    for (let panel of ui.hoverPanels) {
+      if (panel.object === object) {
+        return
+      }
+    }
+
     let typeName = state.replay.object_types[getAttr(object, 'type')]
     if (typeName == 'wall') {
       // Don't show hover panel for walls.

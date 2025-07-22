@@ -74,11 +74,60 @@ export class PanelInfo {
       return false
     }
 
+    // apply zoom at a focal point.
+    const applyZoom = (focalPoint: Vec2f, zoomDelta: number) => {
+      const oldPoint = this.transformOuter(focalPoint)
+      this.zoomLevel = this.zoomLevel * Math.pow(1 - Common.ZOOM_SENSITIVITY, zoomDelta)
+      this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
+      const newPoint = this.transformOuter(focalPoint)
+      if (oldPoint != null && newPoint != null) {
+        this.panPos = this.panPos.add(newPoint.sub(oldPoint))
+      }
+    }
+
     if (ui.mouseClick) {
       this.isPanning = true
     }
     if (!ui.mouseDown) {
       this.isPanning = false
+    }
+
+    // Handle pinch-to-zoom gestures
+    if (ui.isPinching && ui.touches.length === 2) {
+      // Calculate the center point between the two touches
+      const touch1 = new Vec2f(ui.touches[0].clientX, ui.touches[0].clientY)
+      const touch2 = new Vec2f(ui.touches[1].clientX, ui.touches[1].clientY)
+      const center = touch1.add(touch2).mul(0.5)
+      const distance = touch1.sub(touch2).length()
+
+      // Process zoom smoothly with minimal threshold for fluid movement
+      if (ui.lastPinchDistance > 20 && Math.abs(distance - ui.lastPinchDistance) > 1) {
+        // Calculate zoom delta (similar to scroll wheel) - smooth and responsive
+        const zoomRatio = distance / ui.lastPinchDistance
+        const scrollEquivalent = (zoomRatio - 1.0) * 400 // Convert to scroll-like delta
+
+        applyZoom(center, scrollEquivalent)
+      }
+
+      // Always update distance for smooth continuous zooming
+      if (distance > 20) {
+        ui.lastPinchDistance = distance
+      }
+
+      // Allow panning the camera while pinching
+      const centerDelta = center.sub(ui.lastPinchCenter)
+      if (centerDelta.length() > 0.5) {
+        // Very low threshold for smooth panning
+        const lastCenterPoint = this.transformOuter(ui.lastPinchCenter)
+        const newCenterPoint = this.transformOuter(center)
+        if (lastCenterPoint != null && newCenterPoint != null) {
+          this.panPos = this.panPos.add(newCenterPoint.sub(lastCenterPoint))
+        }
+      }
+
+      // Always update center for next frame
+      ui.lastPinchCenter = center
+      return true
     }
 
     if (this.isPanning && ui.mousePos.sub(ui.lastMousePos).length() > 1) {
@@ -90,14 +139,7 @@ export class PanelInfo {
     }
 
     if (ui.scrollDelta !== 0) {
-      const oldMousePoint = this.transformOuter(ui.mousePos)
-      // Use exponential zoom for smooth feel at any zoom level
-      this.zoomLevel = this.zoomLevel * Math.pow(1 - Common.ZOOM_SENSITIVITY, ui.scrollDelta)
-      this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
-      const newMousePoint = this.transformOuter(ui.mousePos)
-      if (oldMousePoint != null && newMousePoint != null) {
-        this.panPos = this.panPos.add(newMousePoint.sub(oldMousePoint))
-      }
+      applyZoom(ui.mousePos, ui.scrollDelta)
       ui.scrollDelta = 0
       return true
     }

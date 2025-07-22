@@ -160,7 +160,7 @@ class TestProteinEndToEndPipeline:
 
         return mock_evaluate
 
-    def test_single_sweep_run_with_mocked_training(self, temp_workspace, mock_sweep_config):
+    def test_single_sweep_name_with_mocked_training(self, temp_workspace, mock_sweep_config):
         """Test a single sweep run with mocked training and evaluation."""
 
         # Setup mock results
@@ -358,7 +358,7 @@ class TestProteinEndToEndPipeline:
                 failure_obs = protein._protein.success_observations[0]
                 assert failure_obs["is_failure"]
                 assert failure_obs["output"] == 0.0
-                assert failure_obs["cost"] == 0.0
+                assert failure_obs["cost"] == 0.001
 
                 # Verify WandB summary
                 assert mock_run.summary.get("protein.state") == "failure"

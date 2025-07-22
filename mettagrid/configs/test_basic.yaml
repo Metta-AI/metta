@@ -47,7 +47,8 @@ game:
       heart: 255
     freeze_duration: 10
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
 
   objects:
     altar:
@@ -88,3 +89,6 @@ game:
       enabled: true
     change_color:
       enabled: true
+    change_glyph:
+      enabled: true
+      number_of_glyphs: 4

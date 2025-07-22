@@ -7,26 +7,31 @@
 #include "objects/agent.hpp"
 #include "types.hpp"
 
-// Color change action for multi-agent communication
-// Uses direct mapping to make communication instantaneous
-// Example: 4 colors map to quadrants of color wheel (red/green/cyan/purple)
-//          8 colors add intermediate hues while preserving original positions
-// This is inserting a bias that our communication channel is a continuum variable
-// see discussion in PR #1435
-// TODO: drop "color" and change this action to "signal"
-class ChangeColorAction : public ActionHandler {
+class ChangeColor : public ActionHandler {
 public:
-  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
+  explicit ChangeColor(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
 
   unsigned char max_arg() const override {
-    return 3;  // 4 possible actions (0-3)
+    return 3;  // support fine and coarse adjustment
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Map action argument to evenly distributed values [0, 255)
-    // For n colors: 0, 255/n, 2*255/n, ..., (n-1)*255/n
-    actor->color = (arg * 255) / max(max_arg() + 1, 1);
+    // Note: 'color' is uint8_t which naturally wraps at 256.
+    // This could be interpreted as circular hue behavior (red -> orange -> ... -> violet -> red)
+
+    // Calculate step size once (integer division is intentional)
+    const uint8_t step_size = static_cast<uint8_t>(255 / (max_arg() + 1));
+
+    if (arg == 0) {  // Increment
+      actor->color = static_cast<uint8_t>(actor->color + 1);
+    } else if (arg == 1) {  // Decrement
+      actor->color = static_cast<uint8_t>(actor->color - 1);
+    } else if (arg == 2) {  // Large increment
+      actor->color = static_cast<uint8_t>(actor->color + step_size);
+    } else if (arg == 3) {  // Large decrement
+      actor->color = static_cast<uint8_t>(actor->color - step_size);
+    }
 
     return true;
   }

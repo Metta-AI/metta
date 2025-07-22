@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -21,6 +22,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
@@ -76,8 +78,16 @@ def main(cfg: DictConfig) -> None:
     all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
 
     policy_store = PolicyStore(cfg, None)
-    stats_client = get_stats_client(cfg, logger)
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client is not None:
+        stats_client.validate_authenticated()
+
     device = torch.device(cfg.device)
+
+    # Get eval_task_id from config if provided
+    eval_task_id = None
+    if cfg.get("eval_task_id"):
+        eval_task_id = uuid.UUID(cfg.eval_task_id)
     for policy_uri in sim_job.policy_uris:
         # TODO: institutionalize this better?
         metric = sim_job.simulation_suite.name + "_score"
@@ -95,6 +105,7 @@ def main(cfg: DictConfig) -> None:
                 policy_store=policy_store,
                 stats_client=stats_client,
                 logger=logger,
+                eval_task_id=eval_task_id,
             )
             results["checkpoints"].append(
                 {

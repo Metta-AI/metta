@@ -7,13 +7,13 @@ game:
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: 35
-    height: 35
+    width: 60
+    height: 60
     border_width: 3
 
     root:
       type: metta.map.scenes.mean_distance.MeanDistance
       params:
-        mean_distance: ${sampling:20,30,30}
+        mean_distance: 30
         objects:
           altar: 3

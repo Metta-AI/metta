@@ -67,18 +67,6 @@ class AgentConfig(GridObjectConfig):
     group_reward_pct: float
 
 class ConverterConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str,
-        input_resources: dict[int, int],
-        output_resources: dict[int, int],
-        max_output: int,
-        conversion_ticks: int,
-        cooldown: int,
-        initial_resource_count: int = 0,
-        color: int = 0,
-    ): ...
     type_id: int
     type_name: str
     input_resources: dict[int, int]
@@ -97,13 +85,44 @@ class ActionConfig:
 class AttackActionConfig(ActionConfig):
     defense_resources: dict[int, int]
 
+class ChangeGlyphActionConfig(ActionConfig):
+    number_of_glyphs: int
+
+class GlobalObsConfig:
+    def __init__(
+        self,
+        episode_completion_pct: bool = True,
+        last_action: bool = True,
+        last_reward: bool = True,
+        resource_rewards: bool = False,
+    ): ...
+    episode_completion_pct: bool
+    last_action: bool
+    last_reward: bool
+    resource_rewards: bool
+
 class GameConfig:
+    def __init__(
+        self,
+        num_agents: int,
+        max_steps: int,
+        episode_truncates: bool,
+        obs_width: int,
+        obs_height: int,
+        inventory_item_names: list[str],
+        num_observation_tokens: int,
+        global_obs: GlobalObsConfig,
+        actions: dict[str, ActionConfig],
+        objects: dict[str, GridObjectConfig],
+    ): ...
     num_agents: int
     max_steps: int
+    episode_truncates: bool
     obs_width: int
     obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
+    global_obs: GlobalObsConfig
 
 class MettaGrid:
     obs_width: int
@@ -133,3 +152,4 @@ class MettaGrid:
     def inventory_item_names(self) -> list[str]: ...
     def get_agent_groups(self) -> np.ndarray: ...
     def feature_normalizations(self) -> dict[int, float]: ...
+    def feature_spec(self) -> dict[str, dict[str, float | int]]: ...
