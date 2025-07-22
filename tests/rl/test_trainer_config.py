@@ -1,6 +1,5 @@
 import math
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from hydra import compose, initialize_config_dir
@@ -120,21 +119,6 @@ valid_trainer_config = {
 }
 
 
-@patch("metta.common.util.script_decorators.setup_mettagrid_environment", return_value=None)
-@patch("metta.common.util.script_decorators.torch.cuda.is_available", return_value=True)
-@patch("metta.common.util.script_decorators.is_multiprocessing_available", return_value=True)
-def process_cfg_like_metta_script_main(cfg: DictConfig, *_mocks) -> DictConfig:
-    from metta.common.util.script_decorators import metta_script
-
-    # Use the metta_script decorator, which validates/modifies the config
-    # Mock out setup_mettagrid_environment; not necessary for testing trainer config parsing
-    @metta_script
-    def _process_config(cfg: DictConfig) -> DictConfig:
-        return cfg
-
-    return _process_config(cfg)
-
-
 def make_cfg(trainer_cfg: dict) -> DictConfig:
     return DictConfig(
         {
@@ -162,7 +146,7 @@ class TestTypedConfigs:
 
     def test_config_field_validation(self):
         # invalid field
-        with pytest.raises(ValidationError) as err:
+        with pytest.raises(ValidationError, match="learning_rate") as err:
             _ = OptimizerConfig.model_validate({**valid_optimizer_config, "learning_rate": -1.0})
         assert "learning_rate" in str(err)
 
@@ -323,7 +307,7 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
             overrides=default_overrides + (overrides or []),
         )
 
-        return process_cfg_like_metta_script_main(cfg)
+        return cfg
 
 
 class TestRealTypedConfigs:
