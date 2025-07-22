@@ -146,8 +146,10 @@ function hideUi() {
   onResize()
 }
 
-/** Handles mouse down events. */
-onEvent('mousedown', 'body', () => {
+/** Handles pointer down events. */
+onEvent('pointerdown', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as PointerEvent
+  ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.lastMousePos = ui.mousePos
   ui.mouseDownPos = ui.mousePos
   ui.mouseClick = true
@@ -167,8 +169,8 @@ onEvent('mousedown', 'body', () => {
   requestFrame()
 })
 
-/** Handles mouse up events. */
-onEvent('mouseup', 'body', () => {
+/** Handles pointer up events. */
+onEvent('pointerup', 'body', () => {
   ui.mouseUp = true
   ui.mouseDown = false
   ui.dragging = ''
@@ -177,18 +179,23 @@ onEvent('mouseup', 'body', () => {
   ui.mainScrubberDown = false
   ui.mainTraceMinimapDown = false
 
-  // Due to how we select objects on mouse-up (mouse-down is drag/pan),
-  // we need to check for double-click on mouse-up as well.
+  // Due to how we select objects on pointer-up (pointer-down is drag/pan),
+  // we need to check for double-click on pointer-up as well.
+  // BUT don't detect double-click if we're pinching or just finished pinching
   const currentTime = new Date().getTime()
-  ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
-  ui.lastClickTime = currentTime
+  if (!ui.isPinching && ui.touches.length === 0) {
+    ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
+    ui.lastClickTime = currentTime
+  } else {
+    ui.mouseDoubleClick = false
+  }
 
   requestFrame()
 })
 
-/** Handles mouse move events. */
-onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as MouseEvent
+/** Handles pointer move events. */
+onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   var target = event.target as HTMLElement
   while (target.id === '' && target.parentElement != null) {
@@ -206,7 +213,7 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
     p = p.parentElement as HTMLElement
   }
 
-  // If the mouse is close to a panel's edge, change the cursor.
+  // If the pointer is close to a panel's edge, change the cursor.
   document.body.style.cursor = 'default'
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = 'ns-resize'
@@ -252,8 +259,9 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles dragging draggable elements. */
-onEvent('mousedown', '.draggable', (target: HTMLElement, e: Event) => {
-  let event = e as MouseEvent
+onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
+  let event = e as PointerEvent
+  ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.dragHtml = target
   let rect = target.getBoundingClientRect()
   ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top)
@@ -265,13 +273,13 @@ onEvent('mousedown', '.draggable', (target: HTMLElement, e: Event) => {
 onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
   let event = e as WheelEvent
   ui.scrollDelta = event.deltaY
-  // Prevent pinch-to-zoom.
+  // Prevent scaling the web page
   event.preventDefault()
   requestFrame()
 })
 
-/** Handles the mouse moving outside the window. */
-document.addEventListener('mouseout', function (e) {
+/** Handles the pointer moving outside the window. */
+document.addEventListener('pointerout', function (e) {
   if (!e.relatedTarget) {
     hideHoverPanel()
     requestFrame()
@@ -281,6 +289,81 @@ document.addEventListener('mouseout', function (e) {
 /** Handles the window losing focus. */
 document.addEventListener('blur', function (e) {
   hideHoverPanel()
+  requestFrame()
+})
+
+/** Handles touch start events for pinch-to-zoom. */
+onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.touches.length === 2) {
+    // Start pinch gesture
+    const touch1 = new Vec2f(ui.touches[0].clientX, ui.touches[0].clientY)
+    const touch2 = new Vec2f(ui.touches[1].clientX, ui.touches[1].clientY)
+    const initialDistance = touch1.sub(touch2).length()
+
+    // Only start pinching if fingers are far enough apart to avoid zoom spikes
+    if (initialDistance > 20) {
+      ui.pinchCenter = touch1.add(touch2).mul(0.5)
+      ui.lastPinchCenter = ui.pinchCenter
+      ui.pinchDistance = initialDistance
+      ui.lastPinchDistance = initialDistance
+      ui.isPinching = true
+
+      // Prevent default to avoid interference with other gestures
+      event.preventDefault()
+    }
+  } else {
+    // Reset all pinch state when not pinching
+    ui.isPinching = false
+    ui.pinchDistance = 0
+    ui.lastPinchDistance = 0
+    ui.pinchCenter = new Vec2f(0, 0)
+    ui.lastPinchCenter = new Vec2f(0, 0)
+  }
+
+  requestFrame()
+})
+
+/** Handles touch move events for pinch-to-zoom. */
+onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.isPinching && ui.touches.length === 2) {
+    // Prevent default scrolling during pinch
+    event.preventDefault()
+  }
+
+  requestFrame()
+})
+
+/** Handles touch end events for pinch-to-zoom. */
+onEvent('touchend', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.touches.length < 2) {
+    ui.isPinching = false
+    ui.pinchDistance = 0
+    ui.lastPinchDistance = 0
+    ui.pinchCenter = new Vec2f(0, 0)
+    ui.lastPinchCenter = new Vec2f(0, 0)
+  }
+
+  requestFrame()
+})
+
+/** Handles touch cancel events for pinch-to-zoom. */
+onEvent('touchcancel', 'body', (target: HTMLElement, e: Event) => {
+  // Reset all pinch state when touch is cancelled
+  ui.isPinching = false
+  ui.touches = []
+  ui.pinchDistance = 0
+  ui.lastPinchDistance = 0
+  ui.pinchCenter = new Vec2f(0, 0)
+  ui.lastPinchCenter = new Vec2f(0, 0)
   requestFrame()
 })
 
