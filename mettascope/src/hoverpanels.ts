@@ -52,7 +52,7 @@ document.body.appendChild(hoverPanel)
 findIn(hoverPanel, '.actions').classList.add('hidden')
 hoverPanel.classList.add('hidden')
 
-hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
+hoverPanel.addEventListener('pointerdown', (e: PointerEvent) => {
   // Create a new info panel.
   let panel = new HoverPanel(ui.delayedHoverObject)
   panel.div = hoverPanelTemplate.cloneNode(true) as HTMLElement
