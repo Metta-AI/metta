@@ -87,6 +87,9 @@ public:
     }
   } movement_counters;
 
+
+  int last_action_index = -1;  // Last non-noop action taken by this agent
+
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
         frozen(0),

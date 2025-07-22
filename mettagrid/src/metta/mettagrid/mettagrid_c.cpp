@@ -247,8 +247,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   // Initialize movement tracking
   if (_track_movement_metrics) {
-    _last_action_index.resize(_agents.size(), -1);  // -1 means no previous action
-    _current_rotation_sequence.resize(_agents.size(), 0);
+    // Per-agent tracking data is now stored in Agent objects
   }
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
@@ -479,28 +478,19 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       ActionType action = actions_view(agent_idx, 0);
 
       // Check if this is a rotation
-      if (action == _rotate_action_index && _action_success[agent_idx]) {
-        // If last action was also a rotation, increment sequence
-        if (_last_action_index[agent_idx] == _rotate_action_index) {
-          _current_rotation_sequence[agent_idx]++;
-        } else {
-          // Starting a new rotation sequence
-          _current_rotation_sequence[agent_idx] = 1;
+              if (action == _rotate_action_index && _action_success[agent_idx]) {
+          // If last action was also a rotation, this is a sequential rotation
+          if (_agents[agent_idx]->last_action_index == _rotate_action_index) {
+            // Count this rotation as sequential (it follows another rotation)
+            _agents[agent_idx]->stats.add("movement.sequential_rotations", 1);
+          }
         }
-      } else if (action != _noop_action_index) {
-        // Non-noop, non-rotation action breaks the sequence
-        if (_last_action_index[agent_idx] == _rotate_action_index && _current_rotation_sequence[agent_idx] > 0) {
-          // Record the completed sequence
-          _agents[agent_idx]->stats.add("movement.sequential_rotations", _current_rotation_sequence[agent_idx]);
-          _current_rotation_sequence[agent_idx] = 0;
-        }
-      }
       // Note: noop actions don't affect the sequence - they neither break it nor increment it
 
-      // Update last action index (but don't update for noop)
-      if (action != _noop_action_index) {
-        _last_action_index[agent_idx] = action;
-      }
+              // Update last action index (but don't update for noop)
+        if (action != _noop_action_index) {
+          _agents[agent_idx]->last_action_index = action;
+        }
     }
   }
 
@@ -565,11 +555,12 @@ py::tuple MettaGrid::reset() {
             static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
             static_cast<ActionType>(0));
 
-  // Reset movement tracking state
-  if (_track_movement_metrics) {
-    std::fill(_last_action_index.begin(), _last_action_index.end(), -1);
-    std::fill(_current_rotation_sequence.begin(), _current_rotation_sequence.end(), 0);
-  }
+      // Reset movement tracking state
+    if (_track_movement_metrics) {
+      for (auto& agent : _agents) {
+        agent->last_action_index = -1; // No previous action
+      }
+    }
 
   _compute_observations(zero_actions);
 
@@ -760,16 +751,6 @@ py::dict MettaGrid::get_episode_stats() {
   // }
   // All stat values are guaranteed to be floats from StatsTracker::to_dict()
 
-  // Flush any remaining rotation sequences
-  if (_track_movement_metrics && _rotate_action_index >= 0) {
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
-      if (_current_rotation_sequence[agent_idx] > 0) {
-        _agents[agent_idx]->stats.add("movement.sequential_rotations", _current_rotation_sequence[agent_idx]);
-        _current_rotation_sequence[agent_idx] = 0;
-      }
-    }
-  }
-
   // Flush movement direction counters to stats
   for (auto& agent : _agents) {
     auto& counters = agent->movement_counters;
@@ -798,6 +779,7 @@ py::dict MettaGrid::get_episode_stats() {
 
     // Always reset counters for next episode (even if not tracking)
     counters = Agent::MovementCounters();
+    agent->last_action_index = -1;  // Reset last action
   }
 
   py::dict stats;

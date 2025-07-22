@@ -152,8 +152,6 @@ private:
 
   // Movement tracking
   bool _track_movement_metrics;
-  std::vector<int> _last_action_index;  // Track last action index per agent (more efficient than string)
-  std::vector<int> _current_rotation_sequence;  // Current rotation sequence count per agent
   int _rotate_action_index = -1;  // Index of the rotate action in _action_handlers
   int _noop_action_index = -1;  // Index of the noop action in _action_handlers
 
