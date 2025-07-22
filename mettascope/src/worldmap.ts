@@ -11,7 +11,7 @@ import { search, searchMatch } from './search.js'
 
 /**
  * Clamps the map panel's pan position so that the world map always remains at
- * least partially visible within the panel. 
+ * least partially visible within the panel.
  */
 function clampMapPan(panel: PanelInfo) {
   if (state.replay === null) {
@@ -37,17 +37,24 @@ function clampMapPan(panel: PanelInfo) {
   const mapWidth = mapMaxX - mapMinX
   const mapHeight = mapMaxY - mapMinY
 
-  // Minimum fraction of the map that must remain visible (25%)
-  const minVisibleFraction = 0.25
+  // Minimum number of pixels of the map that must remain visible
+  const minVisiblePixels = 500
 
-  // Clamp horizontally - always allow panning, just ensure some visibility
-  const minCenterX = mapMinX + minVisibleFraction * mapWidth - viewHalfWidth
-  const maxCenterX = mapMaxX - minVisibleFraction * mapWidth + viewHalfWidth
+  // Convert to world coordinates based on current zoom level
+  const minVisibleWorldUnits = minVisiblePixels / panel.zoomLevel
+
+  // Ensure the required visible area doesn't exceed the actual map size
+  const maxVisibleUnitsX = Math.min(minVisibleWorldUnits, mapWidth / 2)
+  const maxVisibleUnitsY = Math.min(minVisibleWorldUnits, mapHeight / 2)
+
+  // Clamp horizontally - ensure at least minVisiblePixels of map are visible
+  const minCenterX = mapMinX + maxVisibleUnitsX - viewHalfWidth
+  const maxCenterX = mapMaxX - maxVisibleUnitsX + viewHalfWidth
   cx = Math.max(minCenterX, Math.min(cx, maxCenterX))
 
-  // Clamp vertically - always allow panning, just ensure some visibility  
-  const minCenterY = mapMinY + minVisibleFraction * mapHeight - viewHalfHeight
-  const maxCenterY = mapMaxY - minVisibleFraction * mapHeight + viewHalfHeight
+  // Clamp vertically - ensure at least minVisiblePixels of map are visible
+  const minCenterY = mapMinY + maxVisibleUnitsY - viewHalfHeight
+  const maxCenterY = mapMaxY - maxVisibleUnitsY + viewHalfHeight
   cy = Math.max(minCenterY, Math.min(cy, maxCenterY))
 
   panel.panPos = new Vec2f(-cx, -cy)
