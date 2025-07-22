@@ -1,10 +1,12 @@
+import json
 import logging
 import time
 from typing import Any, List, Optional
 
 import wandb
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig
 
+from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
 
 logger = logging.getLogger("sweep")
@@ -80,27 +82,12 @@ def create_wandb_sweep(
         str: The ID of the created sweep.
     """
     # Extract metric and goal information from sweep config
-    metric_name = "score"  # Default to what sweep_eval.py logs to WandB
-    metric_goal = "maximize"  # Default fallback
-    method = "bayes"  # Default fallback
+    metric_name = sweep_config.metric if sweep_config and hasattr(sweep_config, "metric") else "score"
+    metric_goal = sweep_config.goal if sweep_config and hasattr(sweep_config, "goal") else "maximize"
+    method = sweep_config.method if sweep_config and hasattr(sweep_config, "method") else "bayes"
 
     # Use the same parameter conversion approach as MettaProtein
     wandb_parameters = {"dummy_param": {"values": [1]}}  # Fallback
-
-    if sweep_config and hasattr(sweep_config, "parameters"):
-        # Use the same conversion pattern as protein_metta.py
-        parameters_dict = OmegaConf.to_container(sweep_config.parameters, resolve=True)
-
-        # Convert Protein parameter format to WandB format for visualization
-        wandb_parameters = _convert_protein_to_wandb_params(parameters_dict)
-
-        # Extract other config values
-        if hasattr(sweep_config, "metric"):
-            metric_name = sweep_config.metric
-        if hasattr(sweep_config, "goal"):
-            metric_goal = sweep_config.goal
-        if hasattr(sweep_config, "method"):
-            method = sweep_config.method
 
     logger.info(f"Creating WandB sweep '{sweep_name}' with {len(wandb_parameters)} parameters")
 
@@ -189,3 +176,90 @@ def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
     # Sort by score (descending for reward metric)
     runs.sort(key=lambda r: r.summary.get("score", r.summary.get("protein.objective", 0)), reverse=True)
     return runs
+
+
+def record_protein_observation_to_wandb(
+    wandb_run: Any, suggestion: dict[str, Any], objective: float, cost: float, is_failure: bool
+) -> None:
+    """
+    Record an observation to WandB.
+
+    Args:
+        wandb_run: The WandB run to record the observation to.
+        suggestion: The suggestioån to record.
+        objective: The objective value to optimize (higher is better for maximization).
+        cost: The cost of this evaluation (e.g., time taken).
+        is_failure: Whether the suggestion failed.
+    """
+    wandb_run.summary.update(
+        {
+            "protein_observation": {
+                "suggestion": suggestion,
+                "objective": objective,
+                "cost": cost,
+                "is_failure": is_failure,
+            },
+        }
+    )
+
+
+def fetch_protein_observations_from_wandb(
+    entity: str, project: str, wandb_sweep_id: str, max_observations: int = 100
+) -> list[dict[str, Any]]:
+    """
+    Fetch latest protein observations from WandB sweep runs.
+
+    Args:
+        entity: The WandB entity name.
+        project: The WandB project name.
+        wandb_sweep_id: The WandB sweep ID.
+        max_observations: The maximum number of observations to fetch.
+
+    Returns:
+        List of observation dictionaries with format:
+        {
+            "suggestion": dict,      # The hyperparameters used
+            "objective": float,      # The objective value achieved
+            "cost": float,          # The cost (e.g., runtime in seconds)
+            "is_failure": bool,     # Whether the run failed
+
+        }
+    """
+    api = wandb.Api()
+
+    wandb_path = f"{entity}/{project}"
+
+    # Use the API's native filtering and ordering
+    # Order by created_at descending (newest first) and limit results
+    runs = api.runs(
+        path=wandb_path,
+        filters={
+            "sweep": wandb_sweep_id,
+            "state": {"$in": ["finished", "failed"]},  # Only get completed runs
+            "summary_metrics.protein_observation": {"$exists": True},  # Only runs with observations
+        },
+        order="-created_at",  # Descending order (newest first)
+        per_page=max_observations,  # Limit the number of results
+    )
+
+    # Iterate through runs (already filtered and limited)
+    return [deep_clean(run.summary.get("protein_observation")) for run in runs]  # type: ignore
+
+
+def deep_clean(obj):
+    """Recursively convert any object to JSON-serializable Python types."""
+    if isinstance(obj, dict):
+        # Already a regular dict, just recursively clean values
+        return {k: deep_clean(v) for k, v in obj.items()}
+    elif hasattr(obj, "items"):
+        # Handle dict-like objects (including WandB SummarySubDict)
+        # Convert to regular dict first, then recursively clean
+        return {k: deep_clean(v) for k, v in dict(obj).items()}
+    elif isinstance(obj, (list, tuple)):
+        return [deep_clean(v) for v in obj]
+    else:
+        # For any other type, use clean_numpy_types first
+        cleaned = clean_numpy_types(obj)
+        # Then verify it's serializable
+        json.dumps(cleaned)
+        return cleaned
