@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
 env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy
 
