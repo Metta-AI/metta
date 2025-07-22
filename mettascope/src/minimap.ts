@@ -5,7 +5,7 @@ import { getAttr } from './replay.js'
 import { PanelInfo } from './panels.js'
 import { parseHtmlColor } from './htmlutils.js'
 
-/** Core minimap rendering logic that can be shared between minimap and minimap-style rendering */
+/** Core minimap rendering logic that can be shared between minimap and macromap rendering. */
 export function renderMinimapObjects(offset: Vec2f) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
@@ -30,7 +30,7 @@ export function renderMinimapObjects(offset: Vec2f) {
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
     } else if (typeName === 'agent') {
-      continue // Draw agents separately on top
+      continue // Draw agents separately on top.
     }
     ctx.drawSolidRect(x + offset.x(), y + offset.y(), 1, 1, color)
   }
@@ -73,7 +73,7 @@ export function drawMiniMap(panel: PanelInfo) {
   ctx.translate(rect.x, rect.y)
   ctx.scale(ui.dpr, ui.dpr)
 
-  // Use the shared rendering logic
+  // Use the shared rendering logic.
   ctx.scale(Common.MINI_MAP_TILE_SIZE, Common.MINI_MAP_TILE_SIZE)
   renderMinimapObjects(new Vec2f(0, 0))
 

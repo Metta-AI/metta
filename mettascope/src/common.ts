@@ -6,7 +6,7 @@ import { HoverPanel } from './hoverpanels.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
-;(window as any).ctx = ctx
+  ; (window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -15,7 +15,7 @@ export const DEFAULT_ZOOM_LEVEL = 1 / 3
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4
 export const SPLIT_DRAG_THRESHOLD = 10 // Pixels to detect split dragging.
 export const ZOOM_SENSITIVITY = 0.003 // Controls zoom speed - smaller = slower, smoother zoom
-export const MINIMAP_ZOOM_THRESHOLD = 0.05 // when to switch the map to 'minimap style' rendering
+export const MACROMAP_ZOOM_THRESHOLD = 0.05 // when to switch the map to 'macromap' minimap-style rendering
 export const PANEL_BOTTOM_MARGIN = 60
 export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
@@ -122,8 +122,8 @@ export const state = {
   isOneToOneAction: false,
 }
 
-// Expose state for easier testing
-;(window as any).state = state
+  // Expose state for easier testing
+  ; (window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,

@@ -836,9 +836,10 @@ export function drawMap(panel: PanelInfo) {
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
-  if (panel.zoomLevel < Common.MINIMAP_ZOOM_THRESHOLD) {
-    /** Draws a simplified block-based version of the map similar to the standalone
-     * minimap.  This is used when the user zooms out far enough that normal
+  if (panel.zoomLevel < Common.MACROMAP_ZOOM_THRESHOLD) {
+    /** Draw the Macromap of the world map instead of objects.
+     * The user has zoomed out so far that we should switch to a minimap-style rendering.
+     * This is used when the user zooms out far enough that normal
      * sprites would be unreadable. */
     ctx.save()
     ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
