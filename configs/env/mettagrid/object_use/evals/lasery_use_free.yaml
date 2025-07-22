@@ -11,7 +11,8 @@ game:
       cooldown: 255
   agent:
     rewards:
-      laser: 1
+      inventory:
+        laser: 1
   map_builder:
     root:
       params:

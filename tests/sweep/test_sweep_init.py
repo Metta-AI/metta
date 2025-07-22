@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from tools.sweep_init import (
+from tools.sweep_prepare_run import (
     apply_protein_suggestion,
     generate_protein_suggestion,
     validate_protein_suggestion,
@@ -96,7 +96,7 @@ class TestValidateProteinSuggestion:
 class TestGenerateProteinSuggestion:
     """Test the generate_protein_suggestion function."""
 
-    @patch("tools.sweep_init.MettaProtein")
+    @patch("tools.sweep_prepare_run.MettaProtein")
     def test_successful_generation(self, mock_protein_class):
         """Test successful protein suggestion generation."""
         # Mock protein instance
@@ -121,8 +121,8 @@ class TestGenerateProteinSuggestion:
         assert result["learning_rate"] == 0.001
         assert result["batch_size"] == 2048
 
-    @patch("tools.sweep_init.MettaProtein")
-    @patch("tools.sweep_init.logger")
+    @patch("tools.sweep_prepare_run.MettaProtein")
+    @patch("tools.sweep_prepare_run.logger")
     def test_invalid_suggestion_retry(self, mock_logger, mock_protein_class):
         """Test that invalid suggestions trigger retry and record failure."""
         # Mock protein instance
@@ -150,7 +150,7 @@ class TestGenerateProteinSuggestion:
         # Should return the valid suggestion
         assert result["trainer"]["batch_size"] == 2048
 
-    @patch("tools.sweep_init.MettaProtein")
+    @patch("tools.sweep_prepare_run.MettaProtein")
     def test_max_retries_exceeded(self, mock_protein_class):
         """Test that exception is raised after max retries."""
         # Mock protein instance
@@ -267,7 +267,7 @@ class TestApplyProteinSuggestion:
 class TestIntegration:
     """Integration tests for the validation pipeline."""
 
-    @patch("tools.sweep_init.MettaProtein")
+    @patch("tools.sweep_prepare_run.MettaProtein")
     def test_full_pipeline_flow(self, mock_protein_class):
         """Test the full flow from generation through validation to application."""
         # Mock protein instance

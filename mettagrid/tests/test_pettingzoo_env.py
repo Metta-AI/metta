@@ -34,9 +34,7 @@ def simple_config():
                 "groups": {"agent": {"id": 0, "sprite": 0}},
                 "agent": {
                     "default_resource_limit": 10,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 5,
-                    "rewards": {"heart": 1.0},
+                    "rewards": {"inventory": {"heart": 1.0}},
                 },
                 "actions": {
                     "noop": {"enabled": True},

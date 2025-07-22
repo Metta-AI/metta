@@ -20,6 +20,7 @@ game:
     episode_completion_pct: true
     last_action: true # Controls both last_action and last_action_arg tokens
     last_reward: true
+    resource_rewards: false
 
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
   # inventory they didn't intend (e.g., "ore" instead of "ore_red").
@@ -33,7 +34,10 @@ game:
     - heart
     - armor
     - laser
-    - blueprint
+    # - blueprint
+
+  # Show recipe inputs in observations for all converters
+  recipe_details_obs: false
 
   actions:
     noop:
