@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from omegaconf import DictConfig
 from tqdm import tqdm
@@ -26,14 +26,13 @@ class BucketedCurriculum(PrioritizeRegressedCurriculum):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
         self._id_to_curriculum = {}
-        base_cfg = config_from_path(env_cfg_template, env_overrides)
+        base_cfg = config_from_path(env_cfg_template_path, env_overrides)
 
         logger.info("Generating bucketed tasks")
         for parameter_values in tqdm(product(*expanded_buckets.values())):
             curriculum_id = get_id(list(expanded_buckets.keys()), parameter_values)
-            self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(
-                curriculum_id, base_cfg, list(expanded_buckets.keys()), list(parameter_values)
-            )
+            sampling_parameters = dict(zip(expanded_buckets.keys(), parameter_values, strict=False))
+            self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(curriculum_id, base_cfg, sampling_parameters)
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
         super().__init__(tasks=tasks, env_overrides=env_overrides)
 
@@ -54,7 +53,7 @@ def get_id(parameters, values):
     return curriculum_id
 
 
-def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Tuple[List[str], List[List[Any]]]:
+def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Dict[str, List[Any]]:
     """
     buckets: specified in the config, values or ranges for each parameter
     returns: unpacked configurations for each parameter given the number of bins
