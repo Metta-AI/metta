@@ -404,6 +404,9 @@ def test_probability_updates_after_weight_change(dummy_config):
 
     # Custom hypers for zeroing algorithm
     class ZeroingHypers(CurriculumAlgorithmHypers):
+        def algorithm_type(self) -> str:
+            return "zeroing"
+
         def create(self, num_tasks: int) -> CurriculumAlgorithm:
             return ZeroingAlgorithm(num_tasks, self)
 

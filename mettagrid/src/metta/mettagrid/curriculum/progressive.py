@@ -25,6 +25,9 @@ class ProgressiveHypers(CurriculumAlgorithmHypers):
     blending_smoothness: float = 0.5
     blending_mode: str = "logistic"
 
+    def algorithm_type(self) -> str:
+        return "progressive"
+
     def create(self, num_tasks: int) -> CurriculumAlgorithm:
         return ProgressiveAlgorithm(num_tasks, self)
 
@@ -33,6 +36,9 @@ class SimpleProgressiveHypers(CurriculumAlgorithmHypers):
     """Hyperparameters for SimpleProgressiveAlgorithm."""
 
     score_threshold: float = 0.5
+
+    def algorithm_type(self) -> str:
+        return "simple_progressive"
 
     def create(self, num_tasks: int) -> CurriculumAlgorithm:
         return SimpleProgressiveAlgorithm(num_tasks, self)

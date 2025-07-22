@@ -4,7 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
-from metta.mettagrid.curriculum import CurriculumConfig
+from metta.mettagrid.curriculum import CurriculumConfig, curriculum_config_from_path
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
@@ -300,21 +300,27 @@ def create_trainer_config(
 
         # Handle string path reference
         if isinstance(curriculum, str):
-            # For string paths in test contexts, create a mock CurriculumConfig
-            # that will be properly resolved when the trainer is actually used
-            # This avoids complex Hydra dependency resolution in tests
-            config_dict["curriculum"] = {
-                "name": curriculum.split("/")[-1],
-                "env_paths": ["/env/mettagrid/arena/basic"],  # Default env path for testing
-                "algorithm": "discrete_random",  # Default algorithm
-            }
+            # Load CurriculumConfig from path
+            config_dict["curriculum"] = curriculum_config_from_path(curriculum).model_dump()
 
         # Handle dict with Hydra defaults
         elif isinstance(curriculum, dict):
             # If curriculum only contains defaults, it means Hydra hasn't resolved the reference
-            # In this case, we should set curriculum to None and let the default be applied
-            if list(curriculum.keys()) == ["defaults"]:
-                config_dict["curriculum"] = None
+            # In this case, we need to load the curriculum from the path
+            if list(curriculum.keys()) == ["defaults"] and len(curriculum["defaults"]) > 0:
+                # Extract the curriculum path from defaults and load the config
+                curriculum_path = curriculum["defaults"][0]
+                curriculum_config = curriculum_config_from_path(curriculum_path)
+
+                # Convert to dict properly, handling the algorithm field
+                curriculum_dict = curriculum_config.model_dump(exclude={"algorithm"})
+
+                # Handle algorithm separately to ensure proper serialization
+                if curriculum_config.algorithm:
+                    # Use the algorithm_type() method for clean serialization
+                    curriculum_dict["algorithm"] = curriculum_config.algorithm.algorithm_type()
+
+                config_dict["curriculum"] = curriculum_dict
             else:
                 # Remove Hydra's defaults field which is not part of CurriculumConfig
                 curriculum.pop("defaults", None)

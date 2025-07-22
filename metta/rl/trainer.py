@@ -336,6 +336,22 @@ class MettaTrainer:
 
     def train(self) -> None:
         logger.info("Starting training")
+
+        # Print curriculum structure and initial weights
+        logger.info("=" * 80)
+        logger.info("CURRICULUM STRUCTURE AND INITIAL WEIGHTS:")
+        logger.info("=" * 80)
+        logger.info(str(self._curriculum))
+        logger.info("=" * 80)
+
+        # Also print task probabilities in a more compact format
+        task_probs = self._curriculum.get_task_probabilities(relative_to_root=True)
+        logger.info(f"Total tasks: {len(task_probs)}")
+        logger.info("Task probabilities (relative to root):")
+        for task_name, prob in sorted(task_probs.items()):
+            logger.info(f"  {task_name}: {prob:.4f}")
+        logger.info("=" * 80)
+
         trainer_cfg = self.trainer_cfg
 
         if self._stats_client is not None:

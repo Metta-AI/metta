@@ -222,6 +222,9 @@ def create_curriculum_with_algorithm(
 
     # Create custom hypers that wraps the algorithm
     class CustomHypers(CurriculumAlgorithmHypers):
+        def algorithm_type(self) -> str:
+            return "custom"
+
         def create(self, num_tasks: int) -> CurriculumAlgorithm:
             return algorithm
 
@@ -585,6 +588,154 @@ class TestSimpleProgressiveAlgorithmScenarios:
 
 class TestLearningProgressAlgorithmScenarios:
     """Test the Learning Progress Algorithm scenarios using Curriculum."""
+
+    def test_hierarchical_learning_progress_initial_distribution(self, env_cfg):
+        """
+        Test that hierarchical Learning Progress curriculum (like arena/learning_progress)
+        returns uniform distribution initially.
+
+        This mimics the production setup where learning_progress.yaml inherits from random.yaml
+        which defines 15 tasks. The bug causes only the first task to get probability 1.0.
+        """
+        print("\n=== LEARNING PROGRESS: Hierarchical Initial Distribution Test ===")
+
+        # Create many tasks like in arena/random.yaml
+        task_names = [
+            "basic",
+            "basic_easy",
+            "basic_easy_shaped",
+            "basic_poor",
+            "combat",
+            "combat_easy",
+            "combat_easy_shaped",
+            "combat_poor",
+            "advanced",
+            "advanced_easy",
+            "advanced_easy_shaped",
+            "advanced_poor",
+            "tag",
+            "tag_easy",
+            "tag_easy_shaped",
+        ]
+
+        # Create the learning progress algorithm with production-like settings
+        algorithm = LearningProgressHypers(
+            ema_timescale=0.001,  # Default from learning_progress.py
+            progress_smoothing=0.05,
+            num_active_tasks=16,  # Default
+            rand_task_rate=0.25,  # Default
+            sample_threshold=10,  # Default
+            memory=25,  # Default
+        ).create(len(task_names))
+
+        # Check the internal state of BidirectionalLearningProgress
+        lp_tracker = algorithm._lp_tracker
+        print(f"Initial _random_baseline: {lp_tracker._random_baseline}")
+        print(f"Initial _counter: {lp_tracker._counter}")
+
+        # Call calculate_dist directly to see what happens
+        dist, _ = lp_tracker.calculate_dist()
+        print(f"Direct calculate_dist result: {dist}")
+        print(f"Length of dist: {len(dist)}")
+
+        # Check if only first task has weight
+        if dist[0] == 1.0 and all(d == 0.0 for d in dist[1:]):
+            print("BUG CONFIRMED: Only first task has probability 1.0!")
+
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+
+        # Check initial probabilities
+        initial_probs = curriculum.get_task_probabilities(relative_to_root=True)
+        print("\nTask probabilities:")
+        for name, prob in initial_probs.items():
+            print(f"  {name}: {prob:.4f}")
+
+        # Check if bug is present: only 'basic' (first task) has probability 1.0
+        if initial_probs.get("basic", 0) > 0.99 and all(
+            prob < 0.01 for name, prob in initial_probs.items() if name != "basic"
+        ):
+            raise AssertionError(
+                "BUG DETECTED: Only 'basic' task has probability 1.0! "
+                "All tasks should have uniform probability initially."
+            )
+
+        # All tasks should have roughly equal probability
+        expected_prob = 1.0 / len(task_names)
+        for task_name in task_names:
+            actual_prob = initial_probs.get(task_name, 0)
+            assert abs(actual_prob - expected_prob) < 0.01, (
+                f"Task {task_name} should have probability ~{expected_prob:.3f}, but got {actual_prob:.3f}"
+            )
+
+        print("✓ PASSED: Hierarchical learning progress has uniform initial distribution")
+
+    def test_initial_distribution_before_sampling(self, env_cfg):
+        """
+        Test that Learning Progress algorithm returns uniform distribution initially.
+
+        This test catches the bug where the algorithm incorrectly returns a non-uniform
+        distribution before any samples are collected, causing only the first task to be selected.
+        """
+        print("\n=== LEARNING PROGRESS: Initial Distribution Test ===")
+
+        task_names = ["task_1", "task_2", "task_3", "task_4"]
+
+        algorithm = LearningProgressHypers(
+            ema_timescale=0.02,
+            sample_threshold=5,
+            memory=15,
+            num_active_tasks=4,
+            rand_task_rate=0.1,
+        ).create(len(task_names))
+
+        curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
+
+        # Check initial probabilities BEFORE any sampling
+        # Test both with and without relative_to_root (production uses relative_to_root=True)
+        initial_probs = curriculum.get_task_probabilities()
+        initial_probs_relative = curriculum.get_task_probabilities(relative_to_root=True)
+        print(f"Initial probabilities: {initial_probs}")
+        print(f"Initial probabilities (relative_to_root=True): {initial_probs_relative}")
+
+        # All tasks should have equal probability initially (uniform distribution)
+        expected_prob = 1.0 / len(task_names)
+        for task_name in task_names:
+            actual_prob = initial_probs.get(task_name, 0)
+            assert abs(actual_prob - expected_prob) < 0.01, (
+                f"Task {task_name} should have probability ~{expected_prob:.3f}, but got {actual_prob:.3f}"
+            )
+
+        # Also check the raw weights from the algorithm
+        weights = curriculum.curriculum_algorithm.weights
+        probabilities = curriculum.curriculum_algorithm.probabilities
+        print(f"Raw weights: {weights}")
+        print(f"Raw probabilities: {probabilities}")
+
+        # Verify all probabilities are equal
+        assert np.allclose(probabilities, expected_prob, atol=0.01), (
+            f"All probabilities should be ~{expected_prob:.3f}, but got {probabilities}"
+        )
+
+        # Sample once to verify uniform sampling works
+        task_count = {name: 0 for name in task_names}
+        for _ in range(100):
+            task = curriculum.sample()
+            task_count[task.name] += 1
+
+        print(f"Sample distribution (100 samples): {task_count}")
+
+        # With uniform distribution, all tasks should be sampled
+        assert all(count > 0 for count in task_count.values()), (
+            f"All tasks should be sampled at least once with uniform distribution, got {task_count}"
+        )
+
+        # No single task should dominate
+        max_count = max(task_count.values())
+        min_count = min(task_count.values())
+        assert max_count < 60, f"No task should be sampled more than 60 times out of 100, got {max_count}"
+        assert min_count > 10, f"No task should be sampled less than 10 times out of 100, got {min_count}"
+
+        print("✓ PASSED: Learning progress has uniform initial distribution")
 
     def test_scenario_4_mixed_impossible_learnable_tasks(self, env_cfg):
         """

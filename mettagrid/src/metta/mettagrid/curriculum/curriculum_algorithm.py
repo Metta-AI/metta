@@ -19,6 +19,11 @@ class CurriculumAlgorithmHypers(Config, ABC):
 
     initial_weights: Optional[List[float]] = None
 
+    @abc.abstractmethod
+    def algorithm_type(self) -> str:
+        """Return the algorithm type string used in configs."""
+        pass
+
     def create(self, num_tasks: int) -> "CurriculumAlgorithm":
         """Create the curriculum algorithm with these hyperparameters.
 
@@ -105,7 +110,8 @@ class CurriculumAlgorithm(ABC):
 class DiscreteRandomHypers(CurriculumAlgorithmHypers):
     """Hyperparameters for DiscreteRandomCurriculum."""
 
-    pass
+    def algorithm_type(self) -> str:
+        return "discrete_random"
 
 
 class DiscreteRandomCurriculum(CurriculumAlgorithm):

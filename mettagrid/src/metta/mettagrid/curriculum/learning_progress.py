@@ -32,6 +32,9 @@ class LearningProgressHypers(CurriculumAlgorithmHypers):
     sample_threshold: int = 10
     memory: int = 25
 
+    def algorithm_type(self) -> str:
+        return "learning_progress"
+
     def create(self, num_tasks: int) -> CurriculumAlgorithm:
         return LearningProgressAlgorithm(num_tasks, self)
 

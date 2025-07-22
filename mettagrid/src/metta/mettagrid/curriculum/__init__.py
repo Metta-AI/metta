@@ -11,6 +11,7 @@ from metta.mettagrid.curriculum.curriculum_algorithm import (
     DiscreteRandomHypers,
 )
 from metta.mettagrid.curriculum.curriculum_builder import (
+    curriculum_config_from_path,
     curriculum_from_config_path,
     parameter_grid_task_set,
     single_task,
@@ -39,5 +40,6 @@ __all__ = [
     "task_set",
     "parameter_grid_task_set",
     "single_task",
+    "curriculum_config_from_path",
     "curriculum_from_config_path",
 ]

@@ -21,6 +21,9 @@ class PrioritizeRegressedHypers(CurriculumAlgorithmHypers):
     moving_avg_decay_rate: float = 0.01
     min_samples_per_task: int = 5  # Minimum samples before using prioritize regressed calculation
 
+    def algorithm_type(self) -> str:
+        return "prioritize_regressed"
+
     def create(self, num_tasks: int) -> CurriculumAlgorithm:
         return PrioritizeRegressedAlgorithm(num_tasks, self)
 

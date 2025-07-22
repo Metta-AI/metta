@@ -14,7 +14,7 @@ from metta.mettagrid.curriculum.curriculum_algorithm import (
 from metta.mettagrid.curriculum.curriculum_builder import task_set
 from metta.mettagrid.curriculum.learning_progress import LearningProgressHypers
 from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedHypers
-from metta.mettagrid.curriculum.progressive import ProgressiveHypers
+from metta.mettagrid.curriculum.progressive import ProgressiveHypers, SimpleProgressiveHypers
 
 
 class ParameterRange(BaseModelWithForbidExtra):
@@ -137,6 +137,7 @@ class CurriculumConfig(BaseModelWithForbidExtra):
             "learning_progress": LearningProgressHypers,
             "prioritize_regressed": PrioritizeRegressedHypers,
             "progressive": ProgressiveHypers,
+            "simple_progressive": SimpleProgressiveHypers,
         }
 
         hypers_class = algorithm_map.get(algorithm_type)

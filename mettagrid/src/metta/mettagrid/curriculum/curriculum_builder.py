@@ -246,6 +246,24 @@ def _get_short_name(full_name: str) -> str:
     return name
 
 
+def curriculum_config_from_path(config_path: str):
+    """Load a CurriculumConfig from a config path.
+
+    Args:
+        config_path: Path to the curriculum config file
+
+    Returns:
+        A CurriculumConfig instance
+    """
+    from metta.mettagrid.curriculum.curriculum_config import CurriculumConfig
+
+    cfg = hydra_config_from_path(config_path, None)
+    config_dict = OmegaConf.to_container(cfg, resolve=True)
+
+    # Create and return CurriculumConfig
+    return CurriculumConfig.model_validate(config_dict)
+
+
 def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> Curriculum:
     """Load a curriculum (Curriculum) from a config path.
 
@@ -256,19 +274,8 @@ def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> 
     Returns:
         A Curriculum instance representing the curriculum
     """
-    from metta.mettagrid.curriculum.curriculum_config import CurriculumConfig
+    # Load the CurriculumConfig
+    curriculum_config = curriculum_config_from_path(config_path)
 
-    cfg = hydra_config_from_path(config_path, None)
-    config_dict = OmegaConf.to_container(cfg, resolve=True)
-
-    # Apply env_overrides to the config
-    if env_overrides:
-        overrides_dict = OmegaConf.to_container(env_overrides, resolve=True)
-        if "env_overrides" in config_dict:
-            config_dict["env_overrides"].update(overrides_dict)
-        else:
-            config_dict["env_overrides"] = overrides_dict
-
-    # Create CurriculumConfig and then Curriculum
-    curriculum_config = CurriculumConfig.model_validate(config_dict)
-    return curriculum_config.create()
+    # Create the Curriculum with env_overrides
+    return curriculum_config.create(env_overrides)
