@@ -556,11 +556,11 @@ function updateCameraAnimation() {
   const progress = Math.min(elapsed / dynamicDuration, 1.0)
   const easedProgress = easeOutCubic(progress)
 
-  // Interpolate between start and target positions
+  // Interpolate between start and target positions.
   const currentPos = ui.cameraStartPos.lerp(ui.cameraTargetPos, easedProgress)
   ui.mapPanel.panPos = currentPos
 
-  // Animation complete?
+  // Has camera reached destination?
   if (progress >= 1.0) {
     ui.cameraAnimating = false
     ui.mapPanel.panPos = ui.cameraTargetPos
