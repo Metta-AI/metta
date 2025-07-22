@@ -826,6 +826,50 @@ export function drawMap(panel: PanelInfo) {
     const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
     startCameraAnimation(new Vec2f(-objX, -objY), panel)
   }
+  // If we have a selected object (but not following), keep it within a bounding box.
+  else if (!state.followSelection && state.selectedGridObject !== null) {
+    const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
+    const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
+
+    // Calculate the screen-space position of the selected object.
+    const rect = panel.rectInner()
+    const screenX = rect.x + rect.width / 2 + (objX + panel.panPos.x()) * panel.zoomLevel
+    const screenY = rect.y + rect.height / 2 + (objY + panel.panPos.y()) * panel.zoomLevel
+
+    // Define an inner bounding box (25% margin on every side).
+    const marginX = rect.width * Common.CAMERA_FOLLOW_MARGIN
+    const marginY = rect.height * Common.CAMERA_FOLLOW_MARGIN
+    const boxLeft = rect.x + marginX
+    const boxRight = rect.x + rect.width - marginX
+    const boxTop = rect.y + marginY
+    const boxBottom = rect.y + rect.height - marginY
+
+    // Re-center camera only when the object leaves this box.
+    if (screenX < boxLeft || screenX > boxRight || screenY < boxTop || screenY > boxBottom) {
+      // Calculate how much to shift the camera to give the agent room in the direction they're moving.
+      const boxWidth = rect.width - 2 * marginX
+      const boxHeight = rect.height - 2 * marginY
+
+      // Start with centering on the agent,
+      // then move the camera so agent ends up about 1/3 from the edge they crossed.
+      let targetX = -objX
+      let targetY = -objY
+
+      if (screenX < boxLeft) {
+        targetX += (boxWidth / 3) / panel.zoomLevel
+      } else if (screenX > boxRight) {
+        targetX -= (boxWidth / 3) / panel.zoomLevel
+      }
+
+      if (screenY < boxTop) {
+        targetY += (boxHeight / 3) / panel.zoomLevel
+      } else if (screenY > boxBottom) {
+        targetY -= (boxHeight / 3) / panel.zoomLevel
+      }
+
+      startCameraAnimation(new Vec2f(targetX, targetY), panel)
+    }
+  }
 
   // Ensure that at least a portion of the map remains visible.
   clampMapPan(panel)
