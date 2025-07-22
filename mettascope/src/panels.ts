@@ -74,10 +74,10 @@ export class PanelInfo {
       return false
     }
 
-    // apply zoom at a focal point
+    // apply zoom at a focal point.
     const applyZoom = (focalPoint: Vec2f, zoomDelta: number) => {
       const oldPoint = this.transformOuter(focalPoint)
-      this.zoomLevel = this.zoomLevel + zoomDelta / Common.SCROLL_ZOOM_FACTOR
+      this.zoomLevel = this.zoomLevel * Math.pow(1 - Common.ZOOM_SENSITIVITY, zoomDelta)
       this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
       const newPoint = this.transformOuter(focalPoint)
       if (oldPoint != null && newPoint != null) {
