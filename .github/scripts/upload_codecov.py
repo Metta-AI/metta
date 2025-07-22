@@ -93,7 +93,7 @@ def main():
 
     subpackages = os.environ.get("SUBPACKAGES", " ".join(DEFAULT_SUBPACKAGES)).split()
     coverage_files = [
-        (Path(f"{pkg}/coverage.xml" if pkg != "core" else "coverage-core.xml"), pkg) for pkg in subpackages
+        (Path('coverage.xml' if pkg == 'core' else f"{pkg}/coverage.xml"), pkg) for pkg in subpackages
     ]
 
     print("🔍 Codecov Upload Plan:")
