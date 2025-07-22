@@ -68,6 +68,10 @@ public:
     _env = env;
   }
 
+  MettaGrid* get_env() const {
+    return _env;
+  }
+
   void set_track_exploration(bool track, size_t num_agents) {
     _track_exploration = track;
     if (track) {
@@ -98,10 +102,6 @@ public:
     for (auto& agent_pixels : _agent_explored_pixels) {
       agent_pixels.clear();
     }
-
-  MettaGrid* get_env() const {
-    return _env;
-
   }
 
   const std::string& inventory_item_name(InventoryItem item) const;

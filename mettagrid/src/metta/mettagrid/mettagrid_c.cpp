@@ -1021,6 +1021,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool,
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -1032,7 +1033,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"),
-           py::arg("track_exploration") = false
+           py::arg("track_exploration") = false,
            py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
