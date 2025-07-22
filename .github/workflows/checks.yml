@@ -155,7 +155,7 @@ jobs:
         run: ./mettagrid/tests/cpplint.sh
 
   test:
-    name: "Tests - ${{ matrix.package || 'core' }}"
+    name: "Tests - ${{ matrix.package }}"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -166,33 +166,27 @@ jobs:
       fail-fast: false
       matrix:
         package: ['core', app_backend, agent, mettagrid, common]
-    env:
-      SUBPACKAGES: "app_backend agent mettagrid common"  # keep this synced with the non-empty items in strategy.matrix.package
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
-        with:
-          install-mode: "no-mettagrid"
 
       - name: Build MettaGrid C++
-        if: matrix.package == 'core' || matrix.package == 'mettagrid'
+        if: matrix.package == 'mettagrid'
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py
 
       - name: Check MettaGrid build warnings
-        if: matrix.package == 'core' && always()
+        if: matrix.package == 'mettagrid' && always()
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
           max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
-
           echo "Build Summary: $errors errors, $warnings warnings"
           echo "Maximum allowed warnings: $max_warnings"
-
           if [ "$errors" -gt 0 ]; then
             echo "❌ MettaGrid has build errors!"
             exit 1
@@ -203,25 +197,22 @@ jobs:
             echo "✅ MettaGrid build quality check passed"
           fi
 
-      - name: Install metta-mettagrid package
-        if: (matrix.package == 'core' || matrix.package == 'mettagrid') && steps.mettagrid_build_check.outputs.build_success == 'true'
-        run: |
-          uv pip install --no-build-isolation --no-deps -e ./mettagrid
-
       - name: Run tests
         run: |
+          PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
           if [ "${{ matrix.package }}" == "core" ]; then
-            # build ignore list from SUBPACKAGES
+            # Define packages to ignore (keep synced with non-core items in matrix)
+            SUBPACKAGES=(app_backend agent mettagrid common)
             IGNORE_ARGS=""
-            for pkg in $SUBPACKAGES; do
+            for pkg in "${SUBPACKAGES[@]}"; do
               IGNORE_ARGS="$IGNORE_ARGS --ignore=$pkg"
             done
-            pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml:coverage.xml --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v $IGNORE_ARGS
+            PYTEST_ARGS="$PYTEST_ARGS $IGNORE_ARGS"
           else
             # Subpackage tests
             cd ${{ matrix.package }}
-            pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml:coverage.xml --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v
           fi
+          pytest $PYTEST_ARGS
 
       - name: Upload coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
@@ -232,13 +223,13 @@ jobs:
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
       - name: Run MettaGrid C++ coverage
-        if: matrix.package == 'mettagrid' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: matrix.package == 'mettagrid'
         run: |
           cd mettagrid
           make coverage
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
