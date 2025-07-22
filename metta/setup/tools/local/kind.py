@@ -1,6 +1,9 @@
 import os
 import subprocess
+import tempfile
 from pathlib import Path
+
+import yaml
 
 from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.utils import info, success
@@ -10,6 +13,9 @@ class Kind:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
         self.cluster_name = "metta-local"
+        self.namespace = "orchestrator"
+        self.helm_release_name = "orchestrator"
+        self.helm_chart_path = self.repo_root / "devops/charts/orchestrator"
 
     def build(self) -> None:
         """Create Kind cluster and set up for Metta."""
@@ -37,7 +43,6 @@ class Kind:
         result = subprocess.run(["docker", "image", "inspect", "metta-local:latest"], capture_output=True)
         if result.returncode != 0:
             info("Building metta-local image...")
-            # Import here to avoid circular dependency
             from metta.setup.local_commands import LocalCommands
 
             local_commands = LocalCommands(self.repo_root)
@@ -46,90 +51,184 @@ class Kind:
         info("Loading metta-local:latest into Kind...")
         subprocess.run(["kind", "load", "docker-image", "metta-local:latest", "--name", self.cluster_name], check=True)
 
-        # Create RBAC for pod management
-        rbac_yaml = """apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: default
-  namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: pod-manager
-rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "create", "delete", "patch", "update"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: default-pod-manager
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: pod-manager
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: default"""
-
-        subprocess.run(["kubectl", "apply", "-f", "-"], input=rbac_yaml, text=True, check=True)
+        # No need to create RBAC manually - Helm chart will handle it
         success("Kind cluster ready!")
 
     def up(self) -> None:
-        """Start orchestrator in Kind cluster."""
+        """Start orchestrator in Kind cluster using Helm."""
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
 
-        # Get WANDB API key
-        wandb_api_key = self._get_wandb_api_key()
-        docker_internal_host = "http://host.docker.internal:8000"
-        backend_url = os.environ.get("BACKEND_URL", docker_internal_host)
+        # Get credentials
+        wandb_api_key = self._get_wandb_api_key() or "dummy-key"
+        backend_url = os.environ.get("BACKEND_URL", "http://host.docker.internal:8000")
         machine_token = get_machine_token(
-            backend_url if backend_url != docker_internal_host else "http://localhost:8000"
+            backend_url if backend_url != "http://host.docker.internal:8000" else "http://localhost:8000"
         )
-        print("machine_token", machine_token)
 
-        # Run orchestrator pod
-        cmd = [
-            "kubectl",
-            "run",
-            "orchestrator",
-            "--image=metta-local:latest",
-            "--image-pull-policy=Never",
-            "--env=CONTAINER_RUNTIME=k8s",
-            "--env=KUBERNETES_NAMESPACE=default",
-            "--env=DOCKER_IMAGE=metta-local:latest",
-            f"--env=WANDB_API_KEY={wandb_api_key}",
-            f"--env=MACHINE_TOKEN={machine_token}",
-            f"--env=BACKEND_URL={backend_url}",
-            "--restart=Never",
-            "--command",
-            "--",
-            "uv",
-            "run",
-            "python",
-            "-m",
-            "metta.app_backend.eval_task_orchestrator",
-        ]
+        # Create namespace if it doesn't exist
+        subprocess.run(
+            ["kubectl", "create", "namespace", self.namespace, "--dry-run=client", "-o", "yaml"], capture_output=True
+        )
+        subprocess.run(
+            [
+                "kubectl",
+                "create",
+                "namespace",
+                self.namespace,
+                "--dry-run=client",
+                "-o",
+                "yaml",
+                "|",
+                "kubectl",
+                "apply",
+                "-f",
+                "-",
+            ],
+            shell=True,
+            check=True,
+        )
 
-        subprocess.run(cmd, check=True)
+        # Create secrets (matching production secret names)
+        info("Creating secrets...")
+        subprocess.run(
+            [
+                "kubectl",
+                "create",
+                "secret",
+                "generic",
+                "wandb-api-secret",
+                f"--from-literal=api-key={wandb_api_key}",
+                "-n",
+                self.namespace,
+                "--dry-run=client",
+                "-o",
+                "yaml",
+                "|",
+                "kubectl",
+                "apply",
+                "-f",
+                "-",
+            ],
+            shell=True,
+            check=True,
+        )
 
-        info("Orchestrator running in Kind")
-        info("")
-        info(f"Using backend at: {backend_url}")
-        info("")
-        info("To view orchestrator logs: kubectl logs orchestrator -f")
-        info("To view pods: kubectl get pods -w")
-        info("To stop: metta local kind down")
+        subprocess.run(
+            [
+                "kubectl",
+                "create",
+                "secret",
+                "generic",
+                "machine-token-secret",
+                f"--from-literal=token={machine_token}",
+                "-n",
+                self.namespace,
+                "--dry-run=client",
+                "-o",
+                "yaml",
+                "|",
+                "kubectl",
+                "apply",
+                "-f",
+                "-",
+            ],
+            shell=True,
+            check=True,
+        )
+
+        # Create minimal override values for Kind
+        values = {
+            "image": {"repository": "metta-local", "tag": "latest", "pullPolicy": "Never"},
+            "env": {"BACKEND_URL": backend_url},
+            "resources": {"requests": {"cpu": "100m", "memory": "128Mi"}, "limits": {"cpu": "500m", "memory": "512Mi"}},
+        }
+
+        # Write values to temp file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(values, f)
+            values_file = f.name
+
+        try:
+            # Check if release already exists
+            result = subprocess.run(["helm", "list", "-n", self.namespace, "-q"], capture_output=True, text=True)
+
+            if self.helm_release_name in result.stdout:
+                info("Upgrading existing Helm release...")
+                subprocess.run(
+                    [
+                        "helm",
+                        "upgrade",
+                        self.helm_release_name,
+                        str(self.helm_chart_path),
+                        "-n",
+                        self.namespace,
+                        "-f",
+                        values_file,
+                    ],
+                    check=True,
+                )
+            else:
+                info("Installing orchestrator via Helm...")
+                subprocess.run(
+                    [
+                        "helm",
+                        "install",
+                        self.helm_release_name,
+                        str(self.helm_chart_path),
+                        "-n",
+                        self.namespace,
+                        "-f",
+                        values_file,
+                    ],
+                    check=True,
+                )
+
+            info("Orchestrator deployed via Helm")
+            info("")
+            info(f"Using backend at: {backend_url}")
+            info("")
+            info(
+                f"To view orchestrator logs: kubectl logs -n {self.namespace} -l app.kubernetes.io/name=orchestrator -f"
+            )
+            info("To view pods: kubectl get pods -w")
+            info("To view Helm status: helm status orchestrator")
+            info("To stop: metta local kind down")
+
+        finally:
+            # Clean up temp file
+            os.unlink(values_file)
 
     def down(self) -> None:
         """Stop orchestrator and worker pods."""
         info("Stopping...")
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
-        subprocess.run(["kubectl", "delete", "pod", "orchestrator", "--ignore-not-found=true"], check=True)
-        subprocess.run(["kubectl", "delete", "pods", "-l", "app=eval-worker", "--ignore-not-found=true"], check=True)
+
+        # Uninstall Helm release
+        subprocess.run(
+            ["helm", "uninstall", self.helm_release_name, "-n", self.namespace, "--ignore-not-found"], check=True
+        )
+
+        # Clean up any remaining worker pods
+        subprocess.run(
+            ["kubectl", "delete", "pods", "-l", "app=eval-worker", "-n", self.namespace, "--ignore-not-found=true"],
+            check=True,
+        )
+
+        # Clean up secrets
+        subprocess.run(
+            [
+                "kubectl",
+                "delete",
+                "secret",
+                "wandb-api-secret",
+                "machine-token-secret",
+                "-n",
+                self.namespace,
+                "--ignore-not-found=true",
+            ],
+            check=True,
+        )
+
         success("Stopped (cluster preserved for faster restarts)")
 
     def clean(self) -> None:
@@ -142,17 +241,46 @@ subjects:
     def get_pods(self) -> None:
         """Get list of pods in the cluster."""
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
-        subprocess.run(["kubectl", "get", "pods"], check=True)
+        subprocess.run(["kubectl", "get", "pods", "-n", self.namespace], check=True)
 
-    def logs(self, pod_name: str) -> None:
-        """Follow logs for a specific pod."""
+    def logs(self, pod_name: str = None) -> None:
+        """Follow logs for orchestrator or specific pod."""
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
-        subprocess.run(["kubectl", "logs", pod_name, "--follow"], check=True)
 
-    def enter(self, pod_name: str) -> None:
-        """Enter a pod with an interactive shell."""
+        if pod_name:
+            subprocess.run(["kubectl", "logs", pod_name, "-n", self.namespace, "--follow"], check=True)
+        else:
+            # Default to orchestrator logs
+            subprocess.run(
+                ["kubectl", "logs", "-n", self.namespace, "-l", "app.kubernetes.io/name=orchestrator", "--follow"],
+                check=True,
+            )
+
+    def enter(self, pod_name: str = None) -> None:
+        """Enter orchestrator or specific pod with an interactive shell."""
         subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
-        subprocess.run(["kubectl", "exec", "-it", pod_name, "--", "/bin/bash"], check=True)
+
+        if not pod_name:
+            # Get orchestrator pod name
+            result = subprocess.run(
+                [
+                    "kubectl",
+                    "get",
+                    "pods",
+                    "-n",
+                    self.namespace,
+                    "-l",
+                    "app.kubernetes.io/name=orchestrator",
+                    "-o",
+                    "jsonpath={.items[0].metadata.name}",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            pod_name = result.stdout.strip()
+
+        subprocess.run(["kubectl", "exec", "-it", pod_name, "-n", self.namespace, "--", "/bin/bash"], check=True)
 
     def _get_wandb_api_key(self) -> str | None:
         """Get WANDB API key from .netrc file."""
