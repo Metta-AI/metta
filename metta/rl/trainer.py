@@ -859,14 +859,17 @@ class MettaTrainer:
 
         # Add hyperparameter values
 
+        system_stats = {}  # self._system_monitor.stats()
+        memory_stats = {}  # self._memory_monitor.stats()
+
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self.grad_stats,
-            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
-            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            system_stats=system_stats,
+            memory_stats=memory_stats,
             parameters=parameters,
             hyperparameters=self.hyperparameters,
             evals=self.evals,
