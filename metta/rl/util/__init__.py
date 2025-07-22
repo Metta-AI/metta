@@ -11,7 +11,7 @@ from .advantage import compute_advantage, normalize_advantage_distributed
 from .batch_utils import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 # Distributed utilities
-from .distributed import setup_device_and_distributed, setup_distributed_vars
+from .distributed import cleanup_distributed, setup_device_and_distributed, setup_distributed_vars
 
 # Evaluation utilities
 from .evaluation import evaluate_policy, generate_replay, upload_replay_html
@@ -59,6 +59,7 @@ __all__ = [
     "calculate_batch_sizes",
     "calculate_prioritized_sampling_params",
     # Distributed
+    "cleanup_distributed",
     "setup_device_and_distributed",
     "setup_distributed_vars",
     # Evaluation
