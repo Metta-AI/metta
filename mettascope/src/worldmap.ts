@@ -37,22 +37,22 @@ function clampMapPan(panel: PanelInfo) {
   const mapWidth = mapMaxX - mapMinX
   const mapHeight = mapMaxY - mapMinY
 
-  // Minimum number of pixels of the map that must remain visible
+  // Minimum number of pixels of the map that must remain visible.
   const minVisiblePixels = 500
 
-  // Convert to world coordinates based on current zoom level
+  // Convert to world coordinates based on current zoom level.
   const minVisibleWorldUnits = minVisiblePixels / panel.zoomLevel
 
-  // Ensure the required visible area doesn't exceed the actual map size
+  // Ensure the required visible area doesn't exceed the actual map size.
   const maxVisibleUnitsX = Math.min(minVisibleWorldUnits, mapWidth / 2)
   const maxVisibleUnitsY = Math.min(minVisibleWorldUnits, mapHeight / 2)
 
-  // Clamp horizontally
+  // Clamp horizontally.
   const minCenterX = mapMinX + maxVisibleUnitsX - viewHalfWidth
   const maxCenterX = mapMaxX - maxVisibleUnitsX + viewHalfWidth
   cx = Math.max(minCenterX, Math.min(cx, maxCenterX))
 
-  // Clamp vertically
+  // Clamp vertically.
   const minCenterY = mapMinY + maxVisibleUnitsY - viewHalfHeight
   const maxCenterY = mapMaxY - maxVisibleUnitsY + viewHalfHeight
   cy = Math.max(minCenterY, Math.min(cy, maxCenterY))
