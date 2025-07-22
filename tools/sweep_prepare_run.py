@@ -1,41 +1,39 @@
 #!/usr/bin/env -S uv run
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
-import numpy as np  # noqa: E402
+import logging
+
+import numpy as np
+
+from metta.util.metta_script import metta_script  # noqa: E402
 
 if not hasattr(np, "byte"):
     np.byte = np.int8
 
 import os
 import random
-import sys
 import time
 from logging import Logger
 
-import hydra
 import wandb
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.lock import run_once
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
-from metta.common.util.script_decorators import metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
 from metta.sweep.wandb_utils import generate_run_id_for_sweep
 
-logger = setup_mettagrid_logger("sweep_prepare_run")
+logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-@metta_script
-def main(cfg: DictConfig | ListConfig) -> int:
+def main(cfg: DictConfig) -> int:
     run_once(lambda: setup_next_run(cfg, logger))
     return 0
 
 
-def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
+def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
     """
     Create a new run for an existing sweep.
     Returns the run ID.
@@ -230,5 +228,4 @@ def apply_protein_suggestion(config: DictConfig, suggestion: dict):
             config[key] = cleaned_value
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+metta_script(main, "sweep_job")
