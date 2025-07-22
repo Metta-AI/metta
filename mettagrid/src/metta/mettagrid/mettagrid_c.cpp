@@ -61,7 +61,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
+  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, cfg.recipe_details_obs);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
@@ -171,7 +171,22 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
       const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
       if (converter_config) {
-        Converter* converter = new Converter(r, c, *converter_config);
+        // Create a new ConverterConfig with the recipe offsets from the observation encoder
+        ConverterConfig config_with_offsets(
+            converter_config->type_id,
+            converter_config->type_name,
+            converter_config->input_resources,
+            converter_config->output_resources,
+            converter_config->max_output,
+            converter_config->conversion_ticks,
+            converter_config->cooldown,
+            converter_config->initial_resource_count,
+            converter_config->color,
+            converter_config->recipe_details_obs,
+            _obs_encoder->get_input_recipe_offset(),
+            _obs_encoder->get_output_recipe_offset());
+
+        Converter* converter = new Converter(r, c, config_with_offsets);
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
@@ -448,6 +463,11 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   // Compute observations for next step
   _compute_observations(actions);
+
+  // Compute stat-based rewards for all agents
+  for (auto& agent : _agents) {
+    agent->compute_stat_rewards();
+  }
 
   // Update episode rewards
   auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
@@ -873,7 +893,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     float,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, RewardType>&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, RewardType>&,
+                    const std::map<std::string, RewardType>&,
+                    const std::map<std::string, RewardType>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -883,7 +905,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("action_failure_penalty") = 0,
            py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
+           py::arg("stat_rewards") = std::map<std::string, RewardType>(),
+           py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
@@ -894,6 +918,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("resource_limits", &AgentConfig::resource_limits)
       .def_readwrite("resource_rewards", &AgentConfig::resource_rewards)
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
+      .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
+      .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct);
 
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
@@ -916,7 +942,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
            py::arg("color") = 0,
-           py::arg("show_recipe_inputs") = false)
+           py::arg("recipe_details_obs") = false)
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
@@ -926,7 +952,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
       .def_readwrite("color", &ConverterConfig::color)
-      .def_readwrite("show_recipe_inputs", &ConverterConfig::show_recipe_inputs);
+      .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
@@ -977,7 +1003,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned int,
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
+                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -987,7 +1014,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("num_observation_tokens"),
            py::arg("global_obs"),
            py::arg("actions"),
-           py::arg("objects"))
+           py::arg("objects"),
+           py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -995,7 +1023,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
-      .def_readwrite("global_obs", &GameConfig::global_obs);
+      .def_readwrite("global_obs", &GameConfig::global_obs)
+      .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.

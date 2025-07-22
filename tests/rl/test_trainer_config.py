@@ -77,6 +77,32 @@ valid_trainer_config = {
         "kickstart_steps": 1_000_000_000,
         "additional_teachers": None,
     },
+    "hyperparameter_scheduler": {
+        "learning_rate_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.001,
+        },
+        "ppo_clip_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.1,
+        },
+        "ppo_ent_coef_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.01,
+        },
+        "ppo_vf_clip_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.1,
+        },
+        "ppo_l2_reg_loss_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0,
+        },
+        "ppo_l2_init_loss_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0,
+        },
+    },
     "initial_policy": {
         "uri": None,
         "type": "top",
@@ -198,6 +224,7 @@ class TestTypedConfigs:
                 "kickstart_steps": 1_000_000_000,
                 "additional_teachers": [],
             },
+            "hyperparameter_scheduler": {},
         }
 
         validated_config = create_trainer_config(make_cfg(test_config_dict))

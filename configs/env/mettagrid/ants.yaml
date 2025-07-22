@@ -46,8 +46,9 @@ game:
 
   agent:
     rewards:
-      heart: 1
-      ore_red: 0.005
+      inventory:
+        heart: 1
+        ore_red: 0.005
 
   objects:
     altar:
