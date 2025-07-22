@@ -430,11 +430,20 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 }
 
 /** Centralized function to select an object. */
-export function updateSelection(object: any, setFollow = false) {
+export function updateSelection(object: any, setFollow = false, instantCameraPan = false) {
+  const previousObject = state.selectedGridObject
   state.selectedGridObject = object
   if (setFollow) {
     setFollowSelection(true)
   }
+
+  if (instantCameraPan && object !== previousObject && object !== null) {
+    const objX = getAttr(object, 'c') * Common.TILE_SIZE
+    const objY = getAttr(object, 'r') * Common.TILE_SIZE
+    ui.mapPanel.panPos = new Vec2f(-objX, -objY)
+    ui.cameraAnimating = false
+  }
+
   console.info('Selected object:', state.selectedGridObject)
   updateAgentTable()
   requestFrame()
@@ -540,7 +549,11 @@ function updateCameraAnimation() {
 
   const now = performance.now()
   const elapsed = now - ui.cameraAnimStartTime
-  const progress = Math.min(elapsed / Common.CAMERA_PAN_DURATION, 1.0)
+
+  // Calculate duration based on playback speed.
+  const dynamicDuration = Common.CAMERA_PAN_DURATION / state.playbackSpeed
+
+  const progress = Math.min(elapsed / dynamicDuration, 1.0)
   const easedProgress = easeOutCubic(progress)
 
   // Interpolate between start and target positions

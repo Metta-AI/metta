@@ -7,7 +7,7 @@
  * - Shows overall view.
  */
 
-import { requestFrame, setIsPlaying } from './main.js'
+import { requestFrame, setIsPlaying, updateSelection } from './main.js'
 import { focusFullMap, focusMap } from './worldmap.js'
 import { ui, state } from './common.js'
 import { getAttr } from './replay.js'
@@ -45,7 +45,7 @@ class Shot {
 /** Current active shot. */
 var shot: Shot | null = null
 
-export function initDemoMode() {}
+export function initDemoMode() { }
 
 export function startDemoMode() {
   state.demoMode = true
@@ -79,8 +79,7 @@ export function doDemoMode() {
     if (Math.random() < 0.1) {
       // Create a shot that just shows the overall view.
       shot = new Shot(ShotType.SHOW_OVERALL_VIEW, 0, 3, 0)
-      state.selectedGridObject = null
-      state.followSelection = false
+      updateSelection(null, false, false) // Deselect agent
       focusFullMap(ui.mapPanel)
       shot.zooming = choose([-0.2, 0.2]) * ui.mapPanel.zoomLevel
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.2
@@ -117,9 +116,15 @@ export function doDemoMode() {
 
       // Create a new shot that focuses on the agent.
       shot = new Shot(ShotType.FOCUS_AGENT, agentId, 3, choose([-0.1, 0.1]))
-      state.selectedGridObject = state.replay.agents[shot.agentId]
-      state.followSelection = true
-      focusMap(0, 0, 11 * Common.TILE_SIZE, 11 * Common.TILE_SIZE)
+
+
+      const selectedAgent = state.replay.agents[shot.agentId]
+      updateSelection(selectedAgent, true, true) // true for setFollow, true for instantCameraPan
+
+      // Focus on the agent's actual position instead of (0,0)
+      const agentX = getAttr(selectedAgent, 'c') * Common.TILE_SIZE
+      const agentY = getAttr(selectedAgent, 'r') * Common.TILE_SIZE
+      focusMap(agentX, agentY, 11 * Common.TILE_SIZE, 11 * Common.TILE_SIZE)
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.5
     }
   }

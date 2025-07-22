@@ -6,7 +6,7 @@ import { HoverPanel } from './hoverpanels.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
-;(window as any).ctx = ctx
+  ; (window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -20,7 +20,7 @@ export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0]
 export const CAMERA_FOLLOW_MARGIN = 0.25 // How close can the agent get to the edge of the screen before the camera moves.
-export const CAMERA_PAN_DURATION = 400 // Camera pan animation duration in milliseconds.
+export const CAMERA_PAN_DURATION = 100 // Camera pan animation duration in milliseconds.
 
 // Map constants
 export const TILE_SIZE = 200
@@ -129,8 +129,8 @@ export const state = {
   isOneToOneAction: false,
 }
 
-// Expose state for easier testing
-;(window as any).state = state
+  // Expose state for easier testing
+  ; (window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,

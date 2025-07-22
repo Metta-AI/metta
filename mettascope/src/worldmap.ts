@@ -821,10 +821,9 @@ export function drawMap(panel: PanelInfo) {
   }
 
   // If we're following a selection, center the map on it with smooth camera scrolling.
-  if (state.followSelection && state.selectedGridObject !== null && !ui.cameraAnimating) {
+  if (state.followSelection && state.selectedGridObject !== null) {
     const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
     const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
-
     startCameraAnimation(new Vec2f(-objX, -objY), panel)
   }
 
