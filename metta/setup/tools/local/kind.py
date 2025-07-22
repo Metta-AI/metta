@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Callable
@@ -7,7 +8,7 @@ from typing import Callable
 import yaml
 
 from metta.common.util.stats_client_cfg import get_machine_token
-from metta.setup.utils import info, success
+from metta.setup.utils import error, info, success
 
 
 class Kind:
@@ -25,6 +26,9 @@ class Kind:
             load_fn()
         info(f"Loading {img_name} into Kind...")
         subprocess.run(["kind", "load", "docker-image", img_name, "--name", self.cluster_name], check=True)
+
+    def _use_local_context(self) -> None:
+        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
 
     def build(self) -> None:
         """Create Kind cluster and set up for Metta."""
@@ -45,8 +49,7 @@ class Kind:
                 subprocess.run(["kind", "delete", "cluster", "--name", self.cluster_name], check=True)
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
 
-        # Set kubectl context
-        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
+        self._use_local_context()
 
         from metta.setup.local_commands import LocalCommands
 
@@ -61,10 +64,13 @@ class Kind:
 
     def up(self) -> None:
         """Start orchestrator in Kind cluster using Helm."""
-        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
-
+        self._use_local_context()
         # Get credentials
-        wandb_api_key = self._get_wandb_api_key() or "dummy-key"
+        wandb_api_key = self._get_wandb_api_key()
+        if not wandb_api_key:
+            error("No WANDB API key found. Please run 'wandb login' and try again.")
+            sys.exit(1)
+
         backend_url = os.environ.get("BACKEND_URL", "http://host.docker.internal:8000")
         machine_token = get_machine_token(
             backend_url if backend_url != "http://host.docker.internal:8000" else "http://localhost:8000"
@@ -178,7 +184,7 @@ class Kind:
     def down(self) -> None:
         """Stop orchestrator and worker pods."""
         info("Stopping...")
-        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
+        self._use_local_context()
 
         # Uninstall Helm release
         subprocess.run(
@@ -211,18 +217,18 @@ class Kind:
     def clean(self) -> None:
         """Delete the Kind cluster."""
         info("Deleting cluster...")
-        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
+        self._use_local_context()
         subprocess.run(["kind", "delete", "cluster", "--name", self.cluster_name], check=True)
         success("Cluster deleted")
 
     def get_pods(self) -> None:
         """Get list of pods in the cluster."""
-        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
+        self._use_local_context()
         subprocess.run(["kubectl", "get", "pods", "-n", self.namespace], check=True)
 
     def logs(self, pod_name: str = None) -> None:
         """Follow logs for orchestrator or specific pod."""
-        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
+        self._use_local_context()
 
         if pod_name:
             subprocess.run(["kubectl", "logs", pod_name, "-n", self.namespace, "--follow"], check=True)
@@ -235,7 +241,7 @@ class Kind:
 
     def enter(self, pod_name: str = None) -> None:
         """Enter orchestrator or specific pod with an interactive shell."""
-        subprocess.run(["kubectl", "config", "use-context", f"kind-{self.cluster_name}"], check=True)
+        self._use_local_context()
 
         if not pod_name:
             # Get orchestrator pod name

@@ -29,4 +29,4 @@ resources:
     memory: 2Gi
   limits:
     cpu: 2000m
-    memory: 4Gi
+    memory: 10Gi
