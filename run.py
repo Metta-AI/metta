@@ -23,7 +23,6 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface import (
     Environment,
-    HyperparameterScheduler,
     create_evaluation_config_suite,
     setup_run_directories,
 )
@@ -397,16 +396,6 @@ if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler
         optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
 
-# Create hyperparameter scheduler with simple interface
-
-hyperparameter_scheduler = HyperparameterScheduler(
-    optimizer=optimizer,
-    total_timesteps=trainer_config.total_timesteps,
-    learning_rate=trainer_config.optimizer.learning_rate,
-    ppo_config=trainer_config.ppo,
-    scheduler_config=trainer_config.hyperparameter_scheduler,
-)
-
 # Memory and System Monitoring (master only)
 system_monitor = None
 memory_monitor = None
@@ -579,9 +568,6 @@ while agent_step < trainer_config.total_timesteps:
 
     if lr_scheduler is not None:
         lr_scheduler.step()
-
-    # Update hyperparameter scheduler
-    hyperparameter_scheduler.step(agent_step)
 
     losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 

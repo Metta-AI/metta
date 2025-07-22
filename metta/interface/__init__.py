@@ -22,7 +22,6 @@ from metta.interface.evaluation import (
     evaluate_policy_suite,
     generate_replay_simple,
 )
-from metta.interface.hyperparameter import SimpleHyperparameterScheduler as HyperparameterScheduler
 from metta.interface.optimizer import Optimizer
 
 # Import checkpoint functions from rl.util modules
@@ -118,7 +117,6 @@ __all__ = [
     "generate_replay_simple",
     # Training
     "Optimizer",
-    "HyperparameterScheduler",
     "save_checkpoint",
     "load_checkpoint",
     "cleanup_distributed",
