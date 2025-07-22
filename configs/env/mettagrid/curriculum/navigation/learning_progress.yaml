@@ -7,3 +7,5 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_balanced: 1
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
+  /env/mettagrid/navigation/training/sparse_bucketed: 1

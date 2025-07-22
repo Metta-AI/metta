@@ -357,21 +357,26 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     const policies = Object.keys(heatmapData.cells)
     const evalNames = heatmapData.evalNames
 
-    // Sort policies by their names (which should contain epoch info)
-    const sortedPolicies = policies.sort((a, b) => a.localeCompare(b))
+    // Sort policies by version number
+    const policyVersionToPolicy = new Map<string, string>()
+    policies.forEach((policy) => {
+      policyVersionToPolicy.set(policy.split(':v')[1], policy)
+    })
+    const sortedPolicyVersions = [...policyVersionToPolicy.keys()].sort((a, b) => parseInt(a) - parseInt(b))
 
     const shortNameToEvalName = new Map<string, string>()
     evalNames.forEach((evalName) => {
       shortNameToEvalName.set(getShortName(evalName), evalName)
     })
-    const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => a.localeCompare(b))
+    const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => b.localeCompare(a))
 
-    const xLabels = sortedPolicies
+    const xLabels = sortedPolicyVersions
     const yLabels = sortedShortNames
 
     const z = yLabels.map((shortName) =>
-      xLabels.map((policy) => {
+      xLabels.map((policyVersion) => {
         const evalName = shortNameToEvalName.get(shortName)!
+        const policy = policyVersionToPolicy.get(policyVersion)!
         const cell = heatmapData.cells[policy]?.[evalName]
         return cell ? cell.value : 0
       })

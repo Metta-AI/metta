@@ -14,7 +14,7 @@ help:
 # Clean cmake build artifacts
 clean:
 	@echo "(Metta) Running clean command..."
-	uv run metta clean
+	uv run  --active metta clean
 
 # Dev all project dependencies and external components
 dev:
@@ -23,14 +23,14 @@ dev:
 
 test:
 	@echo "Running python tests with coverage"
-	uv run metta test --cov=metta --cov-report=term-missing
+	uv run  --active metta test --cov=metta --cov-report=term-missing --durations=10
 
 install:
 	@echo "Installing package in editable mode..."
-	uv sync --inexact
+	uv sync --inexact --active
 
 pytest: install
 	@echo "Running Python tests..."
-	uv run metta test
+	uv run  --active metta test
 
 all: dev test

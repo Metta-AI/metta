@@ -11,7 +11,8 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationError
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -27,30 +28,39 @@ from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.functions import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    calculate_batch_sizes,
-    calculate_explained_variance,
-    calculate_prioritized_sampling_params,
-    cleanup_old_policies,
-    compute_advantage,
-    compute_gradient_stats,
-    compute_timing_stats,
-    get_lstm_config,
-    get_observation,
-    process_minibatch_update,
-    process_training_stats,
-    run_policy_inference,
-    validate_policy_environment_match,
-)
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
+from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+)
+from metta.rl.util.policy_management import (
+    cleanup_old_policies,
+    validate_policy_environment_match,
+)
+from metta.rl.util.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
+from metta.rl.util.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
@@ -90,10 +100,13 @@ class MettaTrainer:
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
 
+        # self.hyperparameter_scheduler = HyperparameterScheduler(
+        # trainer_cfg, self, trainer_cfg.total_timesteps, logging)
+
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
 
-        self.sim_suite_config = sim_suite_config
+        self._sim_suite_config = sim_suite_config
         self._stats_client = stats_client
 
         if torch.distributed.is_initialized():
@@ -130,11 +143,20 @@ class MettaTrainer:
                 history_size=100,  # Keep last 100 samples
                 logger=logger,
                 auto_start=True,  # Start monitoring immediately
+                external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Add training task to the suite
+        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -270,12 +292,6 @@ class MettaTrainer:
         # Validate that policy matches environment
         validate_policy_environment_match(self.policy, metta_grid_env)
 
-        self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
-            )
-
         if checkpoint and checkpoint.optimizer_state_dict:
             try:
                 self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -299,6 +315,11 @@ class MettaTrainer:
 
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
+
+            # Log model parameters
+            num_params = sum(p.numel() for p in self.policy.parameters())
+            if wandb_run.summary:
+                wandb_run.summary["model/total_parameters"] = num_params
 
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
@@ -536,8 +557,7 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        # self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance using helper function
         self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
@@ -553,10 +573,8 @@ class MettaTrainer:
         return self.epoch % interval == 0
 
     def _maybe_record_heartbeat(self, force=False):
-        if not self._should_run(10, force):
-            return
-
-        record_heartbeat()
+        if force or (self.epoch % 10 == 0):
+            record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
@@ -708,26 +726,10 @@ class MettaTrainer:
                 attributes={},
             ).id
 
-        # Create an extended simulation suite that includes the training task
-        extended_suite_config = SimulationSuiteConfig(
-            name=self.sim_suite_config.name,
-            simulations=dict(self.sim_suite_config.simulations),  # Copy existing simulations
-            env_overrides=self.sim_suite_config.env_overrides,
-            num_episodes=self.sim_suite_config.num_episodes,
-        )
-
-        # Add training task to the suite
-        training_task_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-        extended_suite_config.simulations["eval/training_task"] = training_task_config
-
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
         evaluation_results = evaluate_policy(
             policy_record=self.latest_saved_policy_record,
-            simulation_suite=extended_suite_config,
+            simulation_suite=self._sim_suite_config,
             device=self.device,
             vectorization=self.cfg.vectorization,
             replay_dir=self.trainer_cfg.simulation.replay_dir,  # Pass replay_dir to enable replay generation
@@ -739,6 +741,18 @@ class MettaTrainer:
         )
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores
+
+        # Get target metric (for logging) from sweep config
+        # and write top-level score for policy selection.
+        # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
+        target_metric = getattr(self.cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
+        category_scores = list(self.evals.category_scores.values())
+        if category_scores and self.latest_saved_policy_record:
+            self.latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+            logger.info(
+                f"Set policy metadata score to "
+                f"{self.latest_saved_policy_record.metadata['score']} using {target_metric} metric"
+            )
 
         # Generate and upload replay HTML if we have wandb
         if self.wandb_run is not None and evaluation_results.replay_urls:
@@ -843,15 +857,21 @@ class MettaTrainer:
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
 
+        # Add hyperparameter values
+
+        system_stats = {}  # self._system_monitor.stats()
+        memory_stats = {}  # self._memory_monitor.stats()
+
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self.grad_stats,
-            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
-            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            system_stats=system_stats,
+            memory_stats=memory_stats,
             parameters=parameters,
+            hyperparameters=self.hyperparameters,
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
@@ -875,6 +895,18 @@ class MettaTrainer:
         if self._master:
             self._memory_monitor.clear()
             self._system_monitor.stop()
+
+    @property
+    def hyperparameters(self):
+        return {}
+        # return {
+        #     "learning_rate": self.optimizer.param_groups[0]["lr"],
+        #     "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+        #     "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+        #     "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+        #     "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+        #     "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        # }
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
@@ -931,8 +963,22 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
+        task = self._curriculum.get_task()
+        env_cfg = task.env_cfg()
 
-        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+        # TODO: relax someday when we support other observation shapes
+        try:
+            game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=True)
+
+            if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
+                raise TypeError("env_cfg.game must be a dict with string keys")
+
+            game_cfg = PyPolicyGameConfig(**game_cfg_dict)  # type: ignore[arg-type]
+
+        except ValidationError as e:
+            raise ValueError(f"env_cfg.game is not compatible with agent requirements: {e}") from e
+
+        num_agents = game_cfg.num_agents
 
         # Calculate batch sizes using helper function
         self.target_batch_size, self.batch_size, num_envs = calculate_batch_sizes(

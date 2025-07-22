@@ -1,21 +1,28 @@
 #!/usr/bin/env -S uv run
 
+import argparse
 import asyncio
 import os
 import sys
 import threading
 import webbrowser
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import uvicorn
+import yaml
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+
+_EXTRA_URIS: dict[str, list[str]] = {
+    "https://observatory.softmax-research.net/api": ["https://api.observatory.softmax-research.net"],
+}
 
 
 class CLIAuthenticator:
     def __init__(self, auth_server_url: str):
         self.auth_url = auth_server_url + "/tokens/cli"
+        self.auth_server_url = auth_server_url
         self.token = None
         self.error = None
         self.server_started = threading.Event()
@@ -23,9 +30,12 @@ class CLIAuthenticator:
 
         home = Path.home()
         self.config_dir = home / ".metta"
-
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        self.token_file = self.config_dir / "observatory_token"
+
+        # Use YAML file for multiple tokens
+        self.yaml_file = self.config_dir / "observatory_tokens.yaml"
+        # Keep reference to legacy file for migration
+        self.legacy_file = self.config_dir / "observatory_token"
 
     def create_app(self) -> FastAPI:
         app = FastAPI(title="CLI OAuth2 Callback Server")
@@ -74,7 +84,7 @@ class CLIAuthenticator:
         </head>
         <body>
             <div class="container">
-                <h1 class="success">✅ Authentication Successful!</h1>
+                <h1 class="success">Authentication Successful!</h1>
                 <p>You can close this window and return to the CLI.</p>
                 <button class="close-btn" onclick="window.close()">Close Window</button>
             </div>
@@ -100,7 +110,7 @@ class CLIAuthenticator:
         </head>
         <body>
             <div class="container">
-                <h1 class="error">❌ Authentication Failed</h1>
+                <h1 class="error">Authentication Failed</h1>
                 <p>{error_message}</p>
                 <p>Please try again or contact support.</p>
             </div>
@@ -131,15 +141,28 @@ class CLIAuthenticator:
             print(f"Please manually visit: {url}")
 
     def _save_token(self, token: str) -> None:
-        """Save the token to a file with secure permissions"""
+        """Save the token to a YAML file with secure permissions"""
         try:
-            # Write token to file
-            self.token_file.write_text(token)
+            # Read existing tokens
+            existing_tokens = {}
+            if self.yaml_file.exists():
+                with open(self.yaml_file, "r") as f:
+                    existing_tokens = yaml.safe_load(f) or {}
+
+            # Update with new token
+            existing_tokens[self.auth_server_url] = token
+            if extra_uris := _EXTRA_URIS.get(self.auth_server_url):
+                for uri in extra_uris:
+                    existing_tokens[uri] = token
+
+            # Write all tokens back
+            with open(self.yaml_file, "w") as f:
+                yaml.safe_dump(existing_tokens, f, default_flow_style=False)
 
             # Set secure permissions (readable only by owner)
-            os.chmod(self.token_file, 0o600)
+            os.chmod(self.yaml_file, 0o600)
 
-            print(f"✅ Token saved to: {self.token_file}")
+            print(f"Token saved for {self.auth_server_url}")
 
         except Exception as e:
             raise Exception(f"Failed to save token: {e}") from e
@@ -183,7 +206,7 @@ class CLIAuthenticator:
             port = self._find_free_port()
             callback_url = f"http://127.0.0.1:{port}/callback"
 
-            print(f"🚀 Starting local callback server on port {port}")
+            print(f"Starting local callback server on port {port}")
 
             # Start server in background thread
             server_thread = threading.Thread(target=self._run_server, args=(port,), daemon=True)
@@ -198,11 +221,11 @@ class CLIAuthenticator:
 
             # Build auth URL and open browser
             auth_url = self._build_auth_url(callback_url)
-            print(f"🌐 Opening browser to: {auth_url}")
+            print(f"Opening browser to: {auth_url}")
             self._open_browser(auth_url)
 
             # Wait for authentication to complete
-            print("⏳ Waiting for authentication...")
+            print("Waiting for authentication...")
             if not self.auth_completed.wait(timeout=timeout):
                 raise Exception(f"Authentication timed out after {timeout} seconds")
 
@@ -219,23 +242,55 @@ class CLIAuthenticator:
             return True
 
         except Exception as e:
-            print(f"❌ Authentication failed: {e}")
+            print(f"Authentication failed: {e}")
             return False
 
     def has_saved_token(self) -> bool:
-        """Get the saved token from file"""
-        return self.token_file.exists()
+        """Check if we have a saved token for this server"""
+        if self.yaml_file.exists():
+            try:
+                with open(self.yaml_file, "r") as f:
+                    tokens = yaml.safe_load(f) or {}
+                all_urls = [self.auth_server_url] + _EXTRA_URIS.get(self.auth_server_url, [])
+                return all(url in tokens for url in all_urls)
+            except Exception:
+                pass
+
+        return False
+
+
+def migrate_legacy_token(authenticator: CLIAuthenticator) -> None:
+    """Migrate legacy token to new YAML format if needed"""
+    if authenticator.legacy_file.exists() and not authenticator.yaml_file.exists():
+        try:
+            # Read legacy token
+            with open(authenticator.legacy_file, "r") as f:
+                token = f.read().strip()
+
+            if token:
+                # Assume it's for production server by default
+                production_url = "https://observatory.softmax-research.net/api"
+
+                # Write in new YAML format
+                tokens = {production_url: token}
+                for extra_uri in _EXTRA_URIS.get(production_url, []):
+                    tokens[extra_uri] = token
+
+                with open(authenticator.yaml_file, "w") as f:
+                    yaml.safe_dump(tokens, f, default_flow_style=False)
+
+                os.chmod(authenticator.yaml_file, 0o600)
+                print(f"Migrated legacy token to new YAML format (associated with {production_url})")
+        except Exception as e:
+            print(f"Failed to migrate legacy token: {e}")
 
 
 def main():
     """Main CLI entry point"""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="CLI OAuth2 Authentication")
+    parser = argparse.ArgumentParser(description="Authenticate with Observatory")
     parser.add_argument(
-        "--auth-server-url",
-        default="https://observatory.softmax-research.net/api",
-        help="OAuth2-proxy protected route URL",
+        "auth_server_url",
+        help="OAuth2-proxy protected route URL (e.g., https://observatory.softmax-research.net/api or http://localhost:8000)",
     )
     parser.add_argument("--timeout", type=int, default=300, help="Authentication timeout in seconds (default: 300)")
 
@@ -244,16 +299,20 @@ def main():
     # Create authenticator
     authenticator = CLIAuthenticator(auth_server_url=args.auth_server_url)
 
+    # Try to migrate legacy token if applicable
+    migrate_legacy_token(authenticator)
+
     # Check if we already have a token
     if authenticator.has_saved_token():
-        print("✅ Found existing token")
+        print(f"Found existing token for {urlparse(args.auth_server_url).hostname}")
         sys.exit(0)
 
     # Perform authentication
+    print(f"Authenticating with {args.auth_server_url}")
     if authenticator.authenticate(timeout=args.timeout):
-        print("✅ Authentication successful!")
+        print("Authentication successful!")
     else:
-        print("❌ Authentication failed!")
+        print("Authentication failed!")
         sys.exit(1)
 
 

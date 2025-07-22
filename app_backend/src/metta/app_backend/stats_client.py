@@ -68,8 +68,9 @@ class StatsClient:
         self.http_client.close()
 
     def validate_authenticated(self) -> str:
+        auth_user = None
         try:
-            response = self.http_client.get("/whoami")
+            response = self.http_client.get("/whoami", headers={"X-Auth-Token": self.machine_token})
             response.raise_for_status()
             if (auth_user := response.json().get("user_email")) not in ["unknown", None]:
                 return auth_user
@@ -78,7 +79,7 @@ class StatsClient:
                 raise _NotAuthenticatedError(None) from e
             else:
                 raise e
-        raise _NotAuthenticatedError()
+        raise _NotAuthenticatedError(auth_user and f"Authenticated as {auth_user}")
 
     def get_policy_ids(self, policy_names: List[str]) -> ClientPolicyIdResponse:
         """
@@ -217,6 +218,7 @@ class StatsClient:
         replay_url: Optional[str] = None,
         attributes: Optional[Dict[str, Any]] = None,
         eval_task_id: Optional[uuid.UUID] = None,
+        tags: Optional[List[str]] = None,
     ) -> ClientEpisodeResponse:
         """
         Record a new episode with agent policies and metrics.
@@ -231,6 +233,7 @@ class StatsClient:
             replay_url: Optional URL to the replay
             attributes: Optional additional attributes
             eval_task_id: Optional UUID of the eval task this episode is for
+            tags: Optional list of tags to associate with the episode
 
         Returns:
             ClientEpisodeResponse containing the created episode UUID
@@ -254,6 +257,7 @@ class StatsClient:
             replay_url=replay_url,
             attributes=attributes or {},
             eval_task_id=eval_task_id_str,
+            tags=tags,
         )
         headers = {"X-Auth-Token": self.machine_token}
         response = self.http_client.post("/stats/episodes", json=data.model_dump(), headers=headers)
