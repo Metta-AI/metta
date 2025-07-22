@@ -10,7 +10,6 @@ import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
 import { renderMinimapObjects } from './minimap.js'
 
-
 /**
  * Clamps the map panel's pan position so that the world map always remains at
  * least partially visible within the panel.
