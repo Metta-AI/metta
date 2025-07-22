@@ -859,14 +859,17 @@ class MettaTrainer:
 
         # Add hyperparameter values
 
+        system_stats = {}  # self._system_monitor.stats()
+        memory_stats = {}  # self._memory_monitor.stats()
+
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self.grad_stats,
-            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
-            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            system_stats=system_stats,
+            memory_stats=memory_stats,
             parameters=parameters,
             hyperparameters=self.hyperparameters,
             evals=self.evals,
@@ -969,12 +972,6 @@ class MettaTrainer:
 
             if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
                 raise TypeError("env_cfg.game must be a dict with string keys")
-
-            # map_builder is currently in our game config but it is forbidden by the pydantic model. As we do in
-            # mettagrid, we will deal with this by removing it.
-            # See `mettagrid/src/metta/mettagrid/mettagrid_env.py:__initialize_c_env()` for details
-            if "map_builder" in game_cfg_dict:
-                del game_cfg_dict["map_builder"]
 
             game_cfg = PyPolicyGameConfig(**game_cfg_dict)  # type: ignore[arg-type]
 
