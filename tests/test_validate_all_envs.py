@@ -36,6 +36,8 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "navigation/training/sparse.yaml",
         # Is a curriculum, not an env
         "navigation/training/sparse_bucketed",
+        # These are broken into different files to work around curriculum needs. They don't load right in this test.
+        "cooperation/experimental/",
     ]
 
     # exclude some configs that won't work
@@ -63,7 +65,6 @@ class TestValidateAllEnvs:
         OmegaConf.resolve(cfg)
         game_config_dict = OmegaConf.to_container(cfg, resolve=True)
         assert isinstance(game_config_dict, dict)
-        del game_config_dict["map_builder"]
 
         # uncomment for debugging
         print(OmegaConf.to_yaml(OmegaConf.create(game_config_dict)))
