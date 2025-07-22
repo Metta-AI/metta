@@ -26,7 +26,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
 )
 from metta.common.util.collections import group_by
-from metta.common.util.script_decorators import setup_mettagrid_logger
+from metta.common.util.logging_helpers import init_logging
 
 
 class EvalTaskOrchestrator:
@@ -43,7 +43,7 @@ class EvalTaskOrchestrator:
         self._docker_image = docker_image
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
-        self._logger = logger or setup_mettagrid_logger("eval_worker_orchestrator")
+        self._logger = logger or logging.getLogger(__name__)
         self._task_client = EvalTaskClient(backend_url)
         self._container_manager = container_manager or create_container_manager()
 
@@ -168,8 +168,10 @@ class EvalTaskOrchestrator:
 
 
 async def main() -> None:
-    logger = setup_mettagrid_logger("eval_worker_orchestrator")
+    init_logging()
     logging.getLogger("httpx").setLevel(logging.WARNING)
+
+    logger = logging.getLogger(__name__)
 
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-local:latest")
