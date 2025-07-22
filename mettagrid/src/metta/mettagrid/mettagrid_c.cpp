@@ -751,34 +751,8 @@ py::dict MettaGrid::get_episode_stats() {
   // }
   // All stat values are guaranteed to be floats from StatsTracker::to_dict()
 
-  // Flush movement direction counters to stats
+  // Reset last action tracking for next episode
   for (auto& agent : _agents) {
-    auto& counters = agent->movement_counters;
-
-    // Only flush movement metrics if tracking is enabled
-    if (_track_movement_metrics) {
-      // Direction names corresponding to Orientation enum
-      static const char* direction_names[] = {"up", "down", "left", "right"};
-
-      // Flush direction counters
-      for (int i = 0; i < 4; i++) {
-        if (counters.directions[i] > 0) {
-          agent->stats.set(std::string("movement.direction.") + direction_names[i],
-                          static_cast<float>(counters.directions[i]));
-        }
-      }
-
-      // Flush rotation counters
-      for (int i = 0; i < 4; i++) {
-        if (counters.rotations[i] > 0) {
-          agent->stats.set(std::string("movement.rotation.to_") + direction_names[i],
-                          static_cast<float>(counters.rotations[i]));
-        }
-      }
-    }
-
-    // Always reset counters for next episode (even if not tracking)
-    counters = Agent::MovementCounters();
     agent->last_action_index = -1;  // Reset last action
   }
 

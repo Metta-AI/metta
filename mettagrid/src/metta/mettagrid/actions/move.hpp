@@ -38,9 +38,10 @@ protected:
 
     bool success = _grid->move_object(actor->id, target_location);
 
-    // Track movement direction on success using optimized counters (only if tracking enabled)
+    // Track movement direction on success (only if tracking enabled)
     if (success && _track_movement_metrics) {
-      actor->movement_counters.directions[static_cast<int>(move_direction)]++;
+      static const char* direction_names[] = {"up", "down", "left", "right"};
+      actor->stats.add(std::string("movement.direction.") + direction_names[static_cast<int>(move_direction)], 1);
     }
 
     return success;

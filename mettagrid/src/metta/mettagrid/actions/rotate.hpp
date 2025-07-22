@@ -23,7 +23,8 @@ protected:
 
     // Track which orientation the agent rotated to (only if tracking enabled)
     if (_track_movement_metrics) {
-      actor->movement_counters.rotations[static_cast<int>(orientation)]++;
+      static const char* direction_names[] = {"up", "down", "left", "right"};
+      actor->stats.add(std::string("movement.rotation.to_") + direction_names[static_cast<int>(orientation)], 1);
     }
 
     return true;

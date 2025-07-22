@@ -73,21 +73,6 @@ public:
   RewardType current_stat_reward;
   RewardType* reward;
 
-  // Movement direction counters (optimization to avoid string operations during gameplay)
-  struct MovementCounters {
-    // Indexed by Orientation enum (Up=0, Down=1, Left=2, Right=3)
-    uint32_t directions[4];
-    uint32_t rotations[4];
-
-    MovementCounters() {
-      for (int i = 0; i < 4; i++) {
-        directions[i] = 0;
-        rotations[i] = 0;
-      }
-    }
-  } movement_counters;
-
-
   int last_action_index = -1;  // Last non-noop action taken by this agent
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
