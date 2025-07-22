@@ -45,7 +45,7 @@ class Shot {
 /** Current active shot. */
 var shot: Shot | null = null
 
-export function initDemoMode() { }
+export function initDemoMode() {}
 
 export function startDemoMode() {
   state.demoMode = true
@@ -116,7 +116,6 @@ export function doDemoMode() {
 
       // Create a new shot that focuses on the agent.
       shot = new Shot(ShotType.FOCUS_AGENT, agentId, 3, choose([-0.1, 0.1]))
-
 
       const selectedAgent = state.replay.agents[shot.agentId]
       updateSelection(selectedAgent, true, true) // true for setFollow, true for instantCameraPan

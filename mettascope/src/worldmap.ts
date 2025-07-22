@@ -862,15 +862,15 @@ export function drawMap(panel: PanelInfo) {
       let targetY = -objY
 
       if (screenX < boxLeft) {
-        targetX += (boxWidth / 3) / panel.zoomLevel
+        targetX += boxWidth / 3 / panel.zoomLevel
       } else if (screenX > boxRight) {
-        targetX -= (boxWidth / 3) / panel.zoomLevel
+        targetX -= boxWidth / 3 / panel.zoomLevel
       }
 
       if (screenY < boxTop) {
-        targetY += (boxHeight / 3) / panel.zoomLevel
+        targetY += boxHeight / 3 / panel.zoomLevel
       } else if (screenY > boxBottom) {
-        targetY -= (boxHeight / 3) / panel.zoomLevel
+        targetY -= boxHeight / 3 / panel.zoomLevel
       }
 
       startCameraAnimation(new Vec2f(targetX, targetY), panel)
