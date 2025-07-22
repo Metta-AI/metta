@@ -150,7 +150,7 @@ class SystemMonitor:
             self._metric_collectors.update(
                 {
                     "gpu_count": lambda: 1,  # MPS presents as single device
-                    "gpu_available": lambda: torch.backends.mps.is_available(),
+                    "gpu_available": lambda: int(torch.backends.mps.is_available()),
                 }
             )
             self.logger.info("GPU monitoring enabled via MPS (Apple Silicon)")
