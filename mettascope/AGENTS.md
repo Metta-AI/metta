@@ -47,3 +47,4 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 
 - ./mettascope/src/vector_math.ts has Vec2f and Mat3f. use them!
 - Do not pass X and Y arguments separately. pass them as a Vec2f.
+- all code comments should be full sentences and include a period at the end.
