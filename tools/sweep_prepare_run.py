@@ -189,7 +189,7 @@ def generate_protein_suggestion(config: DictConfig, protein: MettaProtein):
     except Exception as e:
         # Catch the invalid exception and record it so Protein can learn from it
         logger.warning(f"Invalid suggestion: {e}")
-        protein.record_failure(str(e))
+        protein.observe_failure(suggestion)
         raise e
     return clean_numpy_types(suggestion)
 
