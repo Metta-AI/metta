@@ -98,7 +98,7 @@ def main():
         print(f"Operating in repository: {repo_info['nameWithOwner']}")
     except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
         print(
-            "Error: Could not determine current repository. Make sure you are in a git repository with a remote on GitHub.",
+            "Error: Could not determine current repository. Make sure you are in a git repo with a remote on GitHub.",
             file=sys.stderr,
         )
         sys.exit(1)
