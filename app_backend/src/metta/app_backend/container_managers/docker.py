@@ -11,7 +11,11 @@ class DockerContainerManager(AbstractContainerManager):
         self._logger = logging.getLogger(__name__)
 
     def start_worker_container(
-        self, git_hash: str, backend_url: str, docker_image: str, machine_token: str | None = None
+        self,
+        git_hash: str,
+        backend_url: str,
+        docker_image: str,
+        machine_token: str,
     ) -> WorkerInfo:
         container_name = self._format_container_name(git_hash)
         env_vars = {

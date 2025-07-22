@@ -22,7 +22,11 @@ class K8sPodManager(AbstractContainerManager):
         return cmd
 
     def _get_pod_manifest(
-        self, git_hash: str, backend_url: str, docker_image: str, machine_token: str | None = None
+        self,
+        git_hash: str,
+        backend_url: str,
+        docker_image: str,
+        machine_token: str,
     ) -> dict:
         pod_name = self._format_container_name(git_hash)
         return {
@@ -57,7 +61,11 @@ class K8sPodManager(AbstractContainerManager):
         }
 
     def start_worker_container(
-        self, git_hash: str, backend_url: str, docker_image: str, machine_token: str | None = None
+        self,
+        git_hash: str,
+        backend_url: str,
+        docker_image: str,
+        machine_token: str,
     ) -> WorkerInfo:
         # Create pod via kubectl
         pod_manifest = self._get_pod_manifest(git_hash, backend_url, docker_image, machine_token)

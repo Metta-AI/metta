@@ -33,7 +33,7 @@ class EvalTaskOrchestrator:
     def __init__(
         self,
         backend_url: str,
-        machine_token: str | None,
+        machine_token: str,
         docker_image: str = "metta-local:latest",
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 600.0,
@@ -45,7 +45,7 @@ class EvalTaskOrchestrator:
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
         self._machine_token = machine_token
-        self._logger = logger or setup_mettagrid_logger("eval_worker_orchestrator")
+        self._logger = logger or logging.getLogger(__name__)
         self._task_client = EvalTaskClient(backend_url)
         self._container_manager = container_manager or create_container_manager()
 
