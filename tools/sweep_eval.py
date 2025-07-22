@@ -22,7 +22,7 @@ from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.sweep.protein_metta import MettaProtein
+from metta.sweep.wandb_utils import record_protein_observation_to_wandb
 
 logger = logging.getLogger(__name__)
 
@@ -156,16 +156,27 @@ def main(cfg: DictConfig) -> int:
 
             # Record observation in Protein sweep
             total_time = train_time + eval_time
-            protein_wandb = MettaProtein(cfg.sweep, wandb_run)
 
-            # Record the observation properly so the Protein learns
-            protein_wandb.record_observation(eval_metric, total_time)
+            if wandb_run:
+                # Get the protein suggestion that was used for this run
+                # TODO: We can use the FS instead of WandB to save an API call.
+                protein_suggestion = wandb_run.summary.get("protein_suggestion", {})
+
+                # Record the observation with the actual results
+                record_protein_observation_to_wandb(
+                    wandb_run,
+                    protein_suggestion,  # The suggestion that was evaluated
+                    eval_metric or 0,  # The objective value achieved
+                    total_time,  # The cost (total time)
+                    False,  # is_failure
+                )
 
             # Save results for all ranks to read
             OmegaConf.save({"eval_metric": eval_metric, "total_time": total_time}, results_path)
 
             if wandb_run:
                 wandb_run.summary.update({"run_time": total_time})
+
             logger.info(f"Evaluation complete for run: {cfg.run}, score: {eval_metric}")
 
         return 0

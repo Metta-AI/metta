@@ -39,7 +39,6 @@ sweep_job:
   wandb: ${wandb}
   run: ???  # Will be set via command line override
   runs_dir: "${sweep_dir}/runs"
-  seed: null  # Will be randomly generated for each run if not specified
   stats_server_uri: null # No logging to observatory for sweeps
 
 # TODO: Remove and update references.
