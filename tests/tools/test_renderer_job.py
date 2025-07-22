@@ -137,7 +137,7 @@ class TestRendererJob:
                 hardware_config,
                 f"data_dir={temp_dir}",
                 "trainer.simulation.replay_dir=${run_dir}/replays/",
-                "trainer.curriculum=/env/mettagrid/debug",
+                "trainer.curriculum=/env/mettagrid/curriculum/debug",
                 "trainer.total_timesteps=50",  # Minimal training
                 "trainer.num_workers=1",
                 "wandb=off",

@@ -301,7 +301,17 @@ def create_trainer_config(
         # Handle string path reference
         if isinstance(curriculum, str):
             # Load CurriculumConfig from path
-            config_dict["curriculum"] = curriculum_config_from_path(curriculum).model_dump()
+            curriculum_config = curriculum_config_from_path(curriculum)
+            
+            # Convert to dict properly, handling the algorithm field
+            curriculum_dict = curriculum_config.model_dump(exclude={"algorithm"})
+            
+            # Handle algorithm separately to ensure proper serialization
+            if curriculum_config.algorithm:
+                # Use the algorithm_type() method for clean serialization
+                curriculum_dict["algorithm"] = curriculum_config.algorithm.algorithm_type()
+            
+            config_dict["curriculum"] = curriculum_dict
 
         # Handle dict with Hydra defaults
         elif isinstance(curriculum, dict):

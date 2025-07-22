@@ -7,6 +7,7 @@ from omegaconf import DictConfig
 from pydantic import ValidationError
 
 from metta.rl.trainer_config import OptimizerConfig, create_trainer_config
+from metta.util.init.mettagrid_environment import init_mettagrid_environment
 
 valid_optimizer_config = {
     "type": "adam",
@@ -322,7 +323,7 @@ class TestRealTypedConfigs:
                         overrides=default_overrides,
                     )
 
-                    cfg = process_cfg_like_metta_script_main(cfg)
+                    init_mettagrid_environment(cfg)
 
                     # Skip if curriculum is unresolved (indicated by ???)
                     if hasattr(cfg, "trainer") and hasattr(cfg.trainer, "curriculum"):
@@ -384,7 +385,7 @@ class TestRealTypedConfigs:
                         overrides=overrides_list,
                     )
 
-                    cfg = process_cfg_like_metta_script_main(cfg)
+                    init_mettagrid_environment(cfg)
 
                     # Skip if curriculum is unresolved (indicated by ???)
                     if hasattr(cfg, "trainer") and hasattr(cfg.trainer, "curriculum"):

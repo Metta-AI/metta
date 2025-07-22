@@ -1,0 +1,5 @@
+name: debug
+algorithm: discrete_random
+
+env_paths:
+  - /env/mettagrid/debug
