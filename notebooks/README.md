@@ -13,5 +13,5 @@ We expect that this won't be perfect at first but want to gauge its viability. P
 - Open your notebook in Cursor. When you open the file or try to run a cell (shift+enter by default), you should be prompted to select a Python kernel. Select the one from your uv-managed `.venv`
 
 ### Sharing results
-- Commit relatively freely to the `research/` subfolder for now. Don't hold yourself to a high quality bar: these are not intended to b depended on
+- Commit relatively freely to the `research/` subfolder for now. Don't hold yourself to a high quality bar: these are not intended to be depended on
 - Add tools you think others will also want to`utils/` files. These will undergo a more typical dev process
