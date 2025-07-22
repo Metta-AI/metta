@@ -122,4 +122,4 @@ metta-common = { workspace = true }
 metta-agent = { workspace = true }
 
 [tool.ruff]
-extend-exclude = ["*.ipynb"]
+exclude = ["*.ipynb"]
