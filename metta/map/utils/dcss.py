@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import urllib.request
 from dataclasses import dataclass
 from multiprocessing import Pool
@@ -56,7 +57,6 @@ class DCSSMap:
 
 def get_maps() -> list[DCSSMap]:
     simple = fetch_simple()
-    import re
 
     # Split by 'NAME:' but keep the delimiter at the beginning of the subsequent parts using a lookahead assertion.
     # If the string starts with 'NAME:', the first part will be an empty string.

@@ -172,9 +172,12 @@ def test_sampled_task_curriculum():
     # Setup: one value bucket, one range bucket (int), one range bucket (float)
     task_id = "test_task"
     task_cfg_template = OmegaConf.create({"param1": None, "param2": None, "param3": None})
-    bucket_parameters = ["param1", "param2", "param3"]
-    bucket_values = [42, {"range": (0, 10), "want_int": True}, {"range": (0.0, 1.0)}]
-    curr = SampledTaskCurriculum(task_id, task_cfg_template, bucket_parameters, bucket_values)
+    sampling_parameters = {
+        "param1": 42,
+        "param2": {"range": (0, 10), "want_int": True},
+        "param3": {"range": (0.0, 1.0)},
+    }
+    curr = SampledTaskCurriculum(task_id, task_cfg_template, sampling_parameters)
     task = curr.get_task()
     assert task.id() == task_id
     cfg = task.env_cfg()

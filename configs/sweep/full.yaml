@@ -62,12 +62,12 @@ parameters:
       mean: 4
       scale: auto
 
-    total_timesteps:
-      distribution: int_uniform
-      min: 10000000
-      max: 1000000000
-      mean: 500000000
-      scale: auto
+    # total_timesteps:
+    #   distribution: int_uniform
+    #   min: 10000000
+    #   max: 1000000000
+    #   mean: 500000000
+    #   scale: auto
 
     # compile: ${ss:int, 0, 1}
 

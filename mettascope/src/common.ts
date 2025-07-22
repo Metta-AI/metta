@@ -60,6 +60,15 @@ export const ui = {
   mainScrubberDown: false,
   mainTraceMinimapDown: false,
 
+  // Touch events for pinch-to-zoom
+  touches: [] as Touch[],
+  lastTouches: [] as Touch[],
+  pinchDistance: 0,
+  lastPinchDistance: 0,
+  pinchCenter: new Vec2f(0, 0),
+  lastPinchCenter: new Vec2f(0, 0),
+  isPinching: false,
+
   dpr: 1, // DPI scale factor used for Retina displays.
 
   // Split between trace and info panels.
