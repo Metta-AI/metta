@@ -14,6 +14,7 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import List, Tuple
@@ -83,7 +84,6 @@ def run_hydra_training(run_name: str, run_dir: str, group: str) -> subprocess.Po
     cmd = [
         sys.executable,
         "tools/train.py",
-        "--config-name=train_job_comparison",  # Use comparison-specific config
         f"+run={run_name}",
         "trainer.total_timesteps=200000000",
         "trainer.optimizer.type=muon",
@@ -153,6 +153,14 @@ def monitor_process(process: subprocess.Popen, name: str) -> Tuple[int, str, str
     return exit_code, stdout_output, stderr_output
 
 
+def monitor_process_thread(process: subprocess.Popen, name: str, results: dict, result_key: str):
+    """Monitor a process in a separate thread and store results"""
+    exit_code, stdout_output, stderr_output = monitor_process(process, name)
+    results[f"{result_key}_exit_code"] = exit_code
+    results[f"{result_key}_stdout"] = stdout_output
+    results[f"{result_key}_stderr"] = stderr_output
+
+
 def fetch_wandb_metrics(
     run_name: str, group: str, project: str = "comparision_trainer", entity: str = "metta-research"
 ):
@@ -207,21 +215,39 @@ def run_comparison_pair(pair_id: int, base_run_name: str, hourly_rate: float = D
         "functional_wandb": None,
         "hydra_wandb": None,
     }
+
+    functional_process = None
+    hydra_process = None
+    tmp_file_path = None
+
     try:
+        # Start both processes
         functional_process, tmp_file_path = run_functional_training(functional_run_name, functional_run_dir, group)
         hydra_process = run_hydra_training(hydra_run_name, hydra_run_dir, group)
-        logger.info("Both training processes started. Monitoring...")
-        results["functional_exit_code"], results["functional_stdout"], results["functional_stderr"] = monitor_process(
-            functional_process, "Functional"
+        logger.info("Both training processes started. Monitoring concurrently...")
+
+        # Monitor both processes concurrently using threads
+        functional_thread = threading.Thread(
+            target=monitor_process_thread, args=(functional_process, "Functional", results, "functional")
         )
+        hydra_thread = threading.Thread(target=monitor_process_thread, args=(hydra_process, "Hydra", results, "hydra"))
+
+        # Start monitoring threads
+        functional_thread.start()
+        hydra_thread.start()
+
+        # Wait for both processes to complete
+        functional_thread.join()
+        hydra_thread.join()
+
+        # Clean up temporary file
         if tmp_file_path and os.path.exists(tmp_file_path):
             os.unlink(tmp_file_path)
-        results["hydra_exit_code"], results["hydra_stdout"], results["hydra_stderr"] = monitor_process(
-            hydra_process, "Hydra"
-        )
+
         # Fetch W&B metrics
         results["functional_wandb"] = fetch_wandb_metrics(functional_run_name, group)
         results["hydra_wandb"] = fetch_wandb_metrics(hydra_run_name, group)
+
         # Print summary table
         print("\nComparison Summary for Pair", pair_id)
         print("Run Type      | Wall-time (s) | Samples | hearts.get | $ Price | W&B URL")
@@ -236,9 +262,27 @@ def run_comparison_pair(pair_id: int, base_run_name: str, hourly_rate: float = D
                 print(f"{typ:<13} | {wall_time:>12} | {samples:>7} | {hearts:>9} | {price:>6.2f} | {url}")
             else:
                 print(f"{typ:<13} | {'NA':>12} | {'NA':>7} | {'NA':>9} | {'NA':>6} | NA")
+
     except Exception as e:
         logger.error(f"Error in comparison pair {pair_id}: {e}")
         results["error"] = str(e)
+
+        # Clean up processes if they're still running
+        if functional_process and functional_process.poll() is None:
+            logger.warning("Terminating functional process due to error")
+            functional_process.terminate()
+        if hydra_process and hydra_process.poll() is None:
+            logger.warning("Terminating hydra process due to error")
+            hydra_process.terminate()
+
+    finally:
+        # Ensure cleanup happens even if there's an exception
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            try:
+                os.unlink(tmp_file_path)
+            except Exception as e:
+                logger.warning(f"Failed to clean up temp file {tmp_file_path}: {e}")
+
     return results
 
 
