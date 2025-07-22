@@ -23,20 +23,7 @@ protected:
 
     // Track which orientation the agent rotated to (only if tracking enabled)
     if (_track_movement_metrics) {
-      switch (orientation) {
-        case Orientation::Up:
-          actor->movement_counters.rotation_to_up++;
-          break;
-        case Orientation::Down:
-          actor->movement_counters.rotation_to_down++;
-          break;
-        case Orientation::Left:
-          actor->movement_counters.rotation_to_left++;
-          break;
-        case Orientation::Right:
-          actor->movement_counters.rotation_to_right++;
-          break;
-      }
+      actor->movement_counters.rotations[static_cast<int>(orientation)]++;
     }
 
     return true;

@@ -776,31 +776,23 @@ py::dict MettaGrid::get_episode_stats() {
 
     // Only flush movement metrics if tracking is enabled
     if (_track_movement_metrics) {
-      if (counters.direction_up > 0) {
-        agent->stats.set("movement.direction.up", static_cast<float>(counters.direction_up));
-      }
-      if (counters.direction_down > 0) {
-        agent->stats.set("movement.direction.down", static_cast<float>(counters.direction_down));
-      }
-      if (counters.direction_left > 0) {
-        agent->stats.set("movement.direction.left", static_cast<float>(counters.direction_left));
-      }
-      if (counters.direction_right > 0) {
-        agent->stats.set("movement.direction.right", static_cast<float>(counters.direction_right));
+      // Direction names corresponding to Orientation enum
+      static const char* direction_names[] = {"up", "down", "left", "right"};
+
+      // Flush direction counters
+      for (int i = 0; i < 4; i++) {
+        if (counters.directions[i] > 0) {
+          agent->stats.set(std::string("movement.direction.") + direction_names[i],
+                          static_cast<float>(counters.directions[i]));
+        }
       }
 
       // Flush rotation counters
-      if (counters.rotation_to_up > 0) {
-        agent->stats.set("movement.rotation.to_up", static_cast<float>(counters.rotation_to_up));
-      }
-      if (counters.rotation_to_down > 0) {
-        agent->stats.set("movement.rotation.to_down", static_cast<float>(counters.rotation_to_down));
-      }
-      if (counters.rotation_to_left > 0) {
-        agent->stats.set("movement.rotation.to_left", static_cast<float>(counters.rotation_to_left));
-      }
-      if (counters.rotation_to_right > 0) {
-        agent->stats.set("movement.rotation.to_right", static_cast<float>(counters.rotation_to_right));
+      for (int i = 0; i < 4; i++) {
+        if (counters.rotations[i] > 0) {
+          agent->stats.set(std::string("movement.rotation.to_") + direction_names[i],
+                          static_cast<float>(counters.rotations[i]));
+        }
       }
     }
 

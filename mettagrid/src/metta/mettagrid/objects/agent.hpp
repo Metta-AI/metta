@@ -75,16 +75,16 @@ public:
 
   // Movement direction counters (optimization to avoid string operations during gameplay)
   struct MovementCounters {
-    uint32_t direction_up = 0;
-    uint32_t direction_down = 0;
-    uint32_t direction_left = 0;
-    uint32_t direction_right = 0;
+    // Indexed by Orientation enum (Up=0, Down=1, Left=2, Right=3)
+    uint32_t directions[4];
+    uint32_t rotations[4];
 
-    // Rotation tracking - which orientations the agent rotated to
-    uint32_t rotation_to_up = 0;
-    uint32_t rotation_to_down = 0;
-    uint32_t rotation_to_left = 0;
-    uint32_t rotation_to_right = 0;
+    MovementCounters() {
+      for (int i = 0; i < 4; i++) {
+        directions[i] = 0;
+        rotations[i] = 0;
+      }
+    }
   } movement_counters;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
