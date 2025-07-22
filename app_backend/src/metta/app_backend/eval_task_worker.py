@@ -23,7 +23,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
 )
 from metta.common.util.collections import remove_none_values
-from metta.common.util.logging_helpers import setup_mettagrid_logger
+from metta.common.util.logging_helpers import init_logging
 
 
 class EvalTaskWorker:
@@ -32,7 +32,7 @@ class EvalTaskWorker:
         self._git_hash = git_hash
         self._assignee = assignee
         self._client = EvalTaskClient(backend_url)
-        self._logger = logger or setup_mettagrid_logger("eval_worker_worker")
+        self._logger = logger or logging.getLogger(__name__)
         self._poll_interval = 5.0
 
     async def __aenter__(self):
@@ -166,8 +166,9 @@ class EvalTaskWorker:
 
 
 async def main() -> None:
-    logger = setup_mettagrid_logger("eval_worker_worker")
+    init_logging()
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logger = logging.getLogger(__name__)
 
     backend_url = os.environ["BACKEND_URL"]
     git_hash = os.environ["GIT_HASH"]
