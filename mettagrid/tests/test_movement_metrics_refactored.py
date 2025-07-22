@@ -55,7 +55,7 @@ def test_movement_metrics_refactored():
     # Expected behavior:
     # - Move forward (should track movement.direction based on orientation)
     # - Rotate, noop, noop, rotate, noop, rotate, move
-    #   Should count as 3 sequential rotations (noops don't break sequence)
+    #   Should count as 2 sequential rotations (only rotations that follow another rotation)
 
     actions_sequence = [
         [move_idx, 0],  # Move forward (direction depends on initial orientation)
@@ -122,7 +122,7 @@ def print_results(stats, early_end=False, step=None):
     key = "movement.sequential_rotations"
     value = stats.get(key, 0)
     print(f"  {key}: {value}")
-    print("  Expected: 3 (one sequence of 3 rotations with noops between)")
+    print("  Expected: 2 (rotations that follow another rotation, ignoring the first)")
 
     # Show existing action metrics for comparison
     print("\nExisting action metrics (for comparison):")
@@ -134,5 +134,83 @@ def print_results(stats, early_end=False, step=None):
                 print(f"  {key}: {value}")
 
 
+def test_movement_stats_reset_between_episodes():
+    """Test that movement stats are properly reset between episodes."""
+
+    # Get the benchmark config and modify it
+    cfg = get_cfg("benchmark")
+    del cfg.game.map_builder
+    cfg.game.num_agents = 1
+    cfg.game.max_steps = 20  # Longer episodes to ensure moves
+    cfg.game.episode_truncates = True
+    cfg.game.track_movement_metrics = True
+
+    # Create a larger level to ensure movement space
+    level_builder = Random(width=10, height=10, objects=OmegaConf.create({}), agents=1, border_width=1)
+    level = level_builder.build()
+
+    # Create curriculum and environment
+    curriculum = SingleTaskCurriculum("test", cfg)
+    env = MettaGridEnv(curriculum, render_mode=None, level=level)
+
+    action_names = env.action_names
+    move_idx = action_names.index("move")
+    rotate_idx = action_names.index("rotate")
+
+    print("\nTesting stats reset between episodes...")
+
+    # Episode 1: Force successful movements by trying different directions
+    env.reset()
+    successful_moves = 0
+    for direction in range(4):  # Try all 4 directions
+        # Rotate to this direction
+        actions = np.array([[rotate_idx, direction]], dtype=np.int32)
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        if terminals.any() or truncations.any():
+            break
+
+        # Try to move forward
+        actions = np.array([[move_idx, 0]], dtype=np.int32)
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        if env.action_success[0]:  # If move succeeded
+            successful_moves += 1
+        if terminals.any() or truncations.any():
+            break
+
+    # Force episode end to get stats
+    while not (terminals.any() or truncations.any()):
+        actions = np.array([[0, 0]], dtype=np.int32)  # noop
+        obs, rewards, terminals, truncations, info = env.step(actions)
+
+    # Get stats from episode 1
+    stats1 = info.get("agent", {})
+    move_count1 = sum(stats1.get(f"movement.direction.{d}", 0) for d in ["up", "down", "left", "right"])
+
+    print(f"Episode 1 - Attempted moves: 4, Successful: {successful_moves}, Tracked: {move_count1}")
+
+    # Episode 2: Only do rotations (no moves)
+    env.reset()
+    for _ in range(3):
+        actions = np.array([[rotate_idx, 1]], dtype=np.int32)  # Just rotate
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        if terminals.any() or truncations.any():
+            break
+
+    # Force episode end
+    while not (terminals.any() or truncations.any()):
+        actions = np.array([[0, 0]], dtype=np.int32)  # noop
+        obs, rewards, terminals, truncations, info = env.step(actions)
+
+    # Get stats from episode 2
+    stats2 = info.get("agent", {})
+    move_count2 = sum(stats2.get(f"movement.direction.{d}", 0) for d in ["up", "down", "left", "right"])
+
+    print(f"Episode 2 - Total moves: {move_count2}")
+    print(f"Stats properly reset: {move_count1 > 0 and move_count2 == 0}")
+
+    return move_count1, move_count2
+
+
 if __name__ == "__main__":
     test_movement_metrics_refactored()
+    test_movement_stats_reset_between_episodes()
