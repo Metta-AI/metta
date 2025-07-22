@@ -1,7 +1,12 @@
+import json
 import os
 import re
 import subprocess
+from datetime import datetime
+from itertools import islice
+from typing import Any
 
+import ipywidgets as widgets
 import pandas as pd
 import wandb
 import yaml
@@ -9,6 +14,7 @@ from IPython.display import IFrame, display
 from wandb.apis.public.runs import Run
 
 from metta.common.util.collections import remove_none_values
+from metta.common.util.fs import get_repo_root
 
 
 def get_run(run_name: str, entity: str = "metta-research", project: str = "metta") -> Run | None:
@@ -37,7 +43,7 @@ def get_run(run_name: str, entity: str = "metta-research", project: str = "metta
 
 
 def _load_available_environments():
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs", "sim", "all.yaml")
+    config_path = os.path.join(get_repo_root(), "configs", "sim", "all.yaml")
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     environments = []
@@ -59,6 +65,7 @@ def launch_training(
     skip_git_check: bool | None = None,
     additional_args: list[str] | None = None,
     dry_run: bool | None = None,
+    wandb_tags: list[str] | None = None,
 ) -> dict:
     """
     Launch a training job on SkyPilot.
@@ -84,7 +91,6 @@ def launch_training(
             "no_spot": no_spot,
             "git_ref": git_ref,
             "skip_git_check": skip_git_check,
-            "trainer.curriculum": curriculum,
             "dry_run": dry_run,
         }
     )
@@ -95,6 +101,11 @@ def launch_training(
         f"run={run_name}",
         *[f"--{k}={v}" for k, v in cmd_args.items()],
     ]
+
+    if curriculum:
+        cmd.append(f"trainer.curriculum={curriculum}")
+    if wandb_tags:
+        cmd.append(f"+wandb.tags={json.dumps(wandb_tags)}")
 
     if additional_args:
         cmd.extend(additional_args)
@@ -117,7 +128,7 @@ def launch_training(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            cwd=get_repo_root(),
         )
 
         for line in process.stdout or []:
@@ -144,6 +155,183 @@ def launch_training(
         result["output"].append(f"Error: {str(e)}")
 
     return result
+
+
+def find_training_jobs(
+    wandb_tags: list[str] | None = None,
+    author: str | None = None,
+    state: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
+    entity: str = "metta-research",
+    project: str = "metta",
+    order_by: str = "-created_at",
+    limit: int = 50,
+) -> list[str]:
+    """
+    Search for training jobs based on various criteria.
+
+    Args:
+        wandb_tags: List of tags to filter by (runs must have ALL tags)
+        author: Filter by run author/username
+        state: Filter by run state ('running', 'finished', 'failed', 'crashed')
+        created_after: ISO format date string (e.g., '2024-07-01')
+        created_before: ISO format date string
+        entity: W&B entity name
+        project: W&B project name
+        limit: Maximum number of runs to return
+
+    Returns:
+        List of run names matching the criteria
+    """
+    filters = {}
+    if state:
+        filters["state"] = state
+    if author:
+        filters["username"] = author
+    if created_after:
+        filters["created_at"] = {"$gte": created_after}
+
+    if created_before:
+        if "created_at" in filters:
+            filters["created_at"]["$lte"] = created_before
+        else:
+            filters["created_at"] = {"$lte": created_before}
+    if wandb_tags:
+        filters["tags"] = {"$in": wandb_tags}
+    runs = islice(wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit)
+
+    return [run.name for run in runs]
+
+
+def monitor_training_statuses(
+    run_names: list[str],
+    show_metrics: list[str] | None = None,
+    entity: str = "metta-research",
+    project: str = "metta",
+) -> pd.DataFrame:
+    """
+    Monitor the status of multiple training runs in a table format.
+
+    Args:
+        run_names: List of W&B run names to monitor
+        show_metrics: List of metric names to display (e.g., ['overview/reward', '_step'])
+                     If None, shows default metrics
+        entity: W&B entity name
+        project: W&B project name
+        fetch_data: If False, only shows run names and URLs without fetching run data
+
+    Returns:
+        DataFrame with run statuses and metrics
+    """
+    if show_metrics is None:
+        show_metrics = ["_step", "overview/reward"]
+
+    runs = wandb.Api().runs(f"{entity}/{project}", filters={"name": {"$in": run_names}})
+
+    # Collect data for each run
+    data = []
+    for run_name in run_names:
+        run = next((r for r in runs if r.name == run_name), None)
+        row = {
+            "name": run_name,
+            "state": "NOT FOUND",
+            "created": None,
+            "url": None,
+        }
+        if run:
+            row.update(
+                {
+                    "name": run_name,
+                    "state": run.state,
+                    "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
+                }
+            )
+            if run.summary:
+                for metric in show_metrics:
+                    if metric in run.summary:
+                        value = run.summary[metric]
+                        if isinstance(value, float):
+                            row[metric] = f"{value:.4f}"
+                        else:
+                            row[metric] = value
+                    else:
+                        row[metric] = "-"
+            else:
+                for metric in show_metrics:
+                    row[metric] = "-"
+            row["url"] = run.url
+        data.append(row)
+
+    df = pd.DataFrame(data)
+
+    if not df.empty:
+        _display_training_table_widget(df)
+
+    return df
+
+
+def _display_training_table_widget(df: pd.DataFrame) -> None:
+    """Display training table as interactive widget in Jupyter."""
+
+    # Create styled HTML table
+    html_rows = []
+
+    def wrap_with_component(component: str, value: Any, additional_style: str = "") -> str:
+        return f"<{component} style='padding: 8px; text-align: right; {additional_style}'>{value}</{component}>"
+
+    # Header
+    header_html = (
+        "<tr>" + "".join(wrap_with_component("th", h, "background-color: #f0f0f0;") for h in df.columns) + "</tr>"
+    )
+
+    # Rows with styling
+    for _, row in df.iterrows():
+        cells = []
+        for col in df.columns:
+            value = row[col]
+
+            # Special styling for different columns
+            if col == "state":
+                color = {
+                    "running": "#28a745",
+                    "finished": "#007bff",
+                    "failed": "#dc3545",
+                    "crashed": "#dc3545",
+                    "NOT FOUND": "#ffc107",
+                }.get(str(value), "#000")
+                cell_html = wrap_with_component("td", value, f"color: {color}; font-weight: bold;")
+            elif col == "url" and bool(value):
+                cell_html = wrap_with_component(
+                    "td",
+                    f"<a href='{value}' target='_blank' style='text-decoration: none;'>wandb link</a>",
+                )
+            else:
+                cell_html = wrap_with_component("td", value if value is not None else "-")
+            cells.append(cell_html)
+
+        html_rows.append("<tr style='border-bottom: 1px solid #ddd;'>" + "".join(cells) + "</tr>")
+
+    # Create complete table HTML
+    table_html = f"""
+    <style>
+        .training-table {{
+            border-collapse: collapse;
+            width: 100%;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }}
+        .training-table tr:hover {{
+            background-color: #f5f5f5;
+        }}
+    </style>
+    <table class='training-table'>
+        <thead>{header_html}</thead>
+        <tbody>{"".join(html_rows)}</tbody>
+    </table>
+    """
+
+    display(widgets.HTML(table_html))
 
 
 def fetch_metrics(run_names: list[str], samples: int = 1000) -> dict[str, pd.DataFrame]:
