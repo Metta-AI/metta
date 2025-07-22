@@ -60,8 +60,6 @@ class Kind:
 
     def up(self) -> None:
         """Start orchestrator in Kind cluster using Helm."""
-        # Ensure cluster exists first
-        self.build()
         self._use_local_context()
         # Get credentials
         wandb_api_key = self._get_wandb_api_key()
