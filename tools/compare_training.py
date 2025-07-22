@@ -194,10 +194,49 @@ def fetch_wandb_metrics(
             return None
         run = runs[0]
         summary = run.summary
-        wall_time = (run.stop_time - run.created_at).total_seconds() if run.stop_time and run.created_at else None
-        samples = summary.get("env_steps") or summary.get("samples") or summary.get("total_timesteps")
+
+        # Calculate wall time from runtime in summary
+        wall_time = summary.get("_runtime") or summary.get("runtime")
+        if wall_time is None:
+            # Fallback: try to calculate from metadata
+            try:
+                if hasattr(run, "metadata") and "startedAt" in run.metadata:
+                    import datetime
+
+                    started_at = datetime.datetime.fromisoformat(run.metadata["startedAt"].replace("Z", "+00:00"))
+                    if hasattr(run, "_timestamp"):
+                        end_time = datetime.datetime.fromtimestamp(run._timestamp, tz=datetime.timezone.utc)
+                        wall_time = (end_time - started_at).total_seconds()
+            except Exception as e:
+                logger.warning(f"Could not calculate wall time from metadata: {e}")
+
+        samples = (
+            summary.get("env_steps") or summary.get("samples") or summary.get("total_timesteps") or summary.get("_step")
+        )
         hearts = summary.get("hearts.get")
         price = (wall_time / 3600) * DEFAULT_HOURLY_RATE if wall_time else None
+
+        # Get steps per second from summary (prefer cumulative over overview)
+        steps_per_second = None
+        if summary:
+            # Try different possible keys for steps per second
+            sps_keys = [
+                "overview/sps",  # Now should be fixed to use cumulative
+                "timing_cumulative/sps",  # Fallback
+                "sps",  # Direct key
+            ]
+
+            for key in sps_keys:
+                if key in summary:
+                    value = summary[key]
+                    if value is not None and value != 0:
+                        steps_per_second = float(value)
+                        break
+
+            # If still no sps, try to calculate from samples and wall time
+            if steps_per_second is None and samples and wall_time:
+                steps_per_second = samples / wall_time if wall_time > 0 else 0
+
         return {
             "run_name": run_name,
             "group": group,
@@ -205,6 +244,7 @@ def fetch_wandb_metrics(
             "samples": samples,
             "hearts.get": hearts,
             "price": price,
+            "steps_per_second": steps_per_second,
             "url": run.url,
         }
     except Exception as e:
@@ -336,18 +376,24 @@ def run_comparison_pair(pair_id: int, base_run_name: str, hourly_rate: float = D
 
         # Print summary table
         print("\nComparison Summary for Pair", pair_id)
-        print("Run Type      | Wall-time (s) | Samples | hearts.get | $ Price | W&B URL")
-        print("--------------|--------------|---------|-----------|--------|--------")
+        print("Run Type      | Wall-time (s) | Samples | Steps/sec | hearts.get | $ Price | W&B URL")
+        print("--------------|--------------|---------|-----------|-----------|--------|--------")
         for typ, wandb_data in [("Functional", results["functional_wandb"]), ("Hydra", results["hydra_wandb"])]:
             if wandb_data:
                 wall_time = wandb_data["wall_time"] or "NA"
                 samples = wandb_data["samples"] or "NA"
+                steps_per_sec = wandb_data.get("steps_per_second", "NA")
+                if steps_per_sec is not None and steps_per_sec != "NA":
+                    steps_per_sec = f"{steps_per_sec:.0f}"
                 hearts = wandb_data["hearts.get"] or "NA"
                 price = wandb_data["price"] or "NA"
                 url = wandb_data["url"]
-                print(f"{typ:<13} | {wall_time:>12} | {samples:>7} | {hearts:>9} | {price:>6.2f} | {url}")
+                print(
+                    f"{typ:<13} | {wall_time:>12} | {samples:>7} | {steps_per_sec:>9} | "
+                    f"{hearts:>9} | {price:>6.2f} | {url}"
+                )
             else:
-                print(f"{typ:<13} | {'NA':>12} | {'NA':>7} | {'NA':>9} | {'NA':>6} | NA")
+                print(f"{typ:<13} | {'NA':>12} | {'NA':>7} | {'NA':>9} | {'NA':>9} | {'NA':>6} | NA")
 
     except Exception as e:
         logger.error(f"Error in comparison pair {pair_id}: {e}")

@@ -215,8 +215,13 @@ def build_wandb_stats(
         Complete dictionary ready for wandb logging
     """
     # Build overview with sps and rewards
+    # Use cumulative steps per second for overview, fall back to epoch if cumulative is 0
+    sps_value = timing_info["steps_per_second"]
+    if sps_value == 0:
+        sps_value = timing_info["epoch_steps_per_second"]
+
     overview = {
-        "sps": timing_info["epoch_steps_per_second"],
+        "sps": sps_value,
         **processed_stats["overview"],
     }
 
