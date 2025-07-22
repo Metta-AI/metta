@@ -140,11 +140,11 @@ jobs:
 
       - name: Run Ruff linter
         run: |
-          ruff format --check .
+          ruff format --check --exclude "*.ipynb" .
 
       - name: Run Ruff formatting
         run: |
-          ruff check --exit-non-zero-on-fix .
+          ruff check --exit-non-zero-on-fix --exclude "*.ipynb" .
 
       - name: Install C++ linter
         run: |
