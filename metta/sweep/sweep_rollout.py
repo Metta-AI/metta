@@ -8,20 +8,19 @@ This module replaces sweep_rollout.sh with a Python implementation that:
 - Maintains compatibility with existing sweep infrastructure
 """
 
+import logging
 import os
 import subprocess
 import sys
-from logging import Logger
 
 import hydra
 from omegaconf import DictConfig
 
 from metta.common.util.lock import run_once
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from tools.sweep_eval import main as sweep_eval_main
 from tools.sweep_prepare_run import setup_next_run
 
-logger = setup_mettagrid_logger("sweep_rollout")
+logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path="../../configs", config_name="sweep_job", version_base=None)
@@ -88,7 +87,7 @@ def main(cfg: DictConfig) -> int:
         return 1
 
 
-def prepare_sweep_run(cfg: DictConfig, logger: Logger) -> tuple[str, str]:
+def prepare_sweep_run(cfg: DictConfig, logger: logging.Logger) -> tuple[str, str]:
     """
     Prepare a sweep run by calling setup_next_run.
     Returns the generated run ID and the dist_cfg_path.
@@ -119,7 +118,7 @@ def run_training(
     data_dir: str,
     sweep_name: str,
     hardware_arg: str | None = None,
-    logger: Logger | None = None,
+    logger: logging.Logger | None = None,
 ) -> subprocess.CompletedProcess:
     """Launch training as a subprocess and wait for completion."""
 
