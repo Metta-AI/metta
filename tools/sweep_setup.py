@@ -48,7 +48,6 @@ def main(cfg: DictConfig) -> int:
     # Extract sweep base name from CLI sweep_name parameter (e.g., "simple_sweep")
     # Individual training runs will be "simple_sweep.r.0", etc.
 
-    # TODO: Check run_once -- I think it's messing with the CUDA context.
     run_once(lambda: create_sweep(cfg, logger))
 
     return 0
@@ -85,7 +84,9 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
             "sweep": cfg.sweep,  # The sweep parameters/settings
             "sweep_name": cfg.sweep_name,
             "wandb_sweep_id": wandb_sweep_id,
-            "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}/{wandb_sweep_id}",
+            "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}",
+            "wandb_entity": cfg.wandb.entity,
+            "wandb_project": cfg.wandb.project,
         },
         os.path.join(cfg.sweep_dir, "metadata.yaml"),
     )
