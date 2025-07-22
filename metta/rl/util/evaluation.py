@@ -90,11 +90,12 @@ def generate_replay(
     vectorization: str,
     replay_dir: str,
     wandb_run: Optional[Any] = None,
-) -> None:
+) -> Optional[str]:
     """Generate and upload replay."""
     from metta.sim.simulation import Simulation
     from metta.sim.simulation_config import SingleEnvSimulationConfig
 
+    player_url = None
     replay_sim_config = SingleEnvSimulationConfig(
         env="/env/mettagrid/mettagrid",
         num_episodes=1,

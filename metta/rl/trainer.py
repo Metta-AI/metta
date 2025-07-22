@@ -539,7 +539,7 @@ def train(
                     trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides)
                 )
 
-                generate_replay(
+                replay_url = generate_replay(
                     policy_record=latest_saved_policy_record,
                     policy_store=policy_store,
                     curriculum=curriculum,
@@ -549,6 +549,13 @@ def train(
                     replay_dir=trainer_cfg.simulation.replay_dir,
                     wandb_run=wandb_run,
                 )
+                if replay_url:
+                    upload_replay_html(
+                        replay_urls={"replay": [replay_url]},
+                        agent_step=agent_step,
+                        epoch=epoch,
+                        wandb_run=wandb_run,
+                    )
 
         # Compute gradient stats
         if should_run(epoch, trainer_cfg.grad_mean_variance_interval, is_master):
