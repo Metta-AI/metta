@@ -120,8 +120,10 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]
     del game_cpp_params["groups"]
-    del game_cpp_params["params"]
-    del game_cpp_params["map_builder"]
+    if "params" in game_cpp_params:
+        del game_cpp_params["params"]
+    if "map_builder" in game_cpp_params:
+        del game_cpp_params["map_builder"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs

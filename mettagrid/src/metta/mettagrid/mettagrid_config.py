@@ -197,8 +197,8 @@ class PyGameConfig(BaseModelWithForbidExtra):
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
-    params: Any
-    map_builder: Any
+    params: Optional[Any] = None
+    map_builder: Optional[Any] = None
 
 
 class PyPolicyGameConfig(PyGameConfig):
