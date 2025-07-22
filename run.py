@@ -108,11 +108,20 @@ curriculum = "/env/mettagrid/curriculum/navigation/bucketed"
 bptt_horizon = 64
 update_epochs = 1
 forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 2048
-async_factor = 2
+
+# Adjust defaults based on vectorization mode
+# Detect vectorization mode (could be passed as parameter, using multiprocessing as default)
+vectorization_mode = "multiprocessing"  # Default, could be made configurable
+if vectorization_mode == "serial":
+    async_factor = 1
+    zero_copy = False
+else:
+    async_factor = 2
+    zero_copy = True
+
 grad_mean_variance_interval = 150
 scale_batches_by_world_size = False
 cpu_offload = False
-zero_copy = True
 
 # Individual component configs with explicit values
 ppo_config = PPOConfig(
@@ -422,6 +431,7 @@ eval_scores = EvalRewardSummary()  # Initialize eval_scores
 latest_saved_policy_record = policy_record
 initial_policy_uri = policy_record.uri if policy_record else None
 initial_generation = policy_record.metadata.get("generation", 0) if policy_record else 0
+last_evaluation_epoch = epoch - 1  # Track last epoch when evaluation was performed
 
 # Training loop
 logger.info(f"Starting training on {device}")
@@ -450,7 +460,7 @@ while agent_step < trainer_config.total_timesteps:
     while not experience.ready_for_training:
         # Receive environment data
         o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
-        agent_step += num_steps
+        agent_step += num_steps * world_size  # Scale by world size for distributed training
 
         # Run policy inference
         actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
@@ -780,13 +790,11 @@ while agent_step < trainer_config.total_timesteps:
         )
 
         # Add training task to the suite
-        # Use the environment's current task configuration
-        # Note: This is a simplified approach - in practice, you might want to
-        # save the actual task configuration during training
+        # Get the actual task configuration from the curriculum
         training_task_config = SingleEnvSimulationConfig(
-            env=trainer_config.curriculum,  # Use the same curriculum path
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic env_cfg() should override all of it
             num_episodes=1,
-            env_overrides={},  # Empty overrides - use curriculum defaults
+            env_overrides=curr_obj.get_task().env_cfg(),
         )
         extended_eval_config.simulations["eval/training_task"] = training_task_config
 
@@ -843,6 +851,9 @@ while agent_step < trainer_config.total_timesteps:
 
         stats_db.close()
 
+        # Track that we evaluated at this epoch
+        last_evaluation_epoch = epoch
+
         # Replay generation (master only)
         if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
@@ -875,6 +886,84 @@ if is_master:
         system_monitor.stop()
     if memory_monitor:
         memory_monitor.clear()
+
+# Always evaluate policy at training end if we haven't just evaluated
+if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
+    logger.info(f"Performing final evaluation at epoch {epoch}")
+
+    # Create extended evaluation config with training task
+    extended_eval_config = SimulationSuiteConfig(
+        name=evaluation_config.name,
+        simulations=dict(evaluation_config.simulations),
+        env_overrides=evaluation_config.env_overrides,
+        num_episodes=evaluation_config.num_episodes,
+    )
+
+    # Add training task to the suite
+    # Get the actual task configuration from the curriculum
+    curr_obj = getattr(metta_grid_env, "_curriculum", None)
+    if curr_obj:
+        training_task_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic env_cfg() should override all of it
+            num_episodes=1,
+            env_overrides=curr_obj.get_task().env_cfg(),
+        )
+        extended_eval_config.simulations["eval/training_task"] = training_task_config
+
+    # Run evaluation suite
+    sim_suite = SimulationSuite(
+        config=extended_eval_config,
+        policy_pr=latest_saved_policy_record,
+        policy_store=policy_store,
+        device=device,
+        vectorization="serial",
+        stats_dir=dirs.stats_dir,
+        stats_client=None,
+        stats_epoch_id=None,
+        wandb_policy_name=None,
+    )
+
+    results = sim_suite.simulate()
+    stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
+    logger.info("Final evaluation complete")
+
+    # Build evaluation metrics
+    categories = set()
+    for sim_name in extended_eval_config.simulations.keys():
+        categories.add(sim_name.split("/")[0])
+
+    category_scores = {}
+    for category in categories:
+        score = stats_db.get_average_metric_by_filter(
+            "reward", latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
+        )
+        logger.info(f"{category} score: {score}")
+        record_heartbeat()
+        if score is not None:
+            category_scores[category] = score
+
+    # Get detailed per-simulation scores
+    simulation_scores = {}
+    all_scores = stats_db.simulation_scores(latest_saved_policy_record, "reward")
+    for (_, sim_name, _), score in all_scores.items():
+        simulation_scores[sim_name] = score
+
+    # Create EvalRewardSummary
+    category_score_values = list(category_scores.values())
+    simulation_score_values = list(simulation_scores.values())
+    eval_scores = EvalRewardSummary(
+        category_scores=category_scores,
+        simulation_scores=simulation_scores,
+        avg_category_score=np.mean(category_score_values) if category_score_values else 0.0,
+        avg_simulation_score=np.mean(simulation_score_values) if simulation_score_values else 0.0,
+    )
+
+    # Update policy metadata with score
+    if category_score_values:
+        latest_saved_policy_record.metadata["score"] = float(np.mean(category_score_values))
+        logger.info(f"Set policy metadata score to {latest_saved_policy_record.metadata['score']}")
+
+    stats_db.close()
 
 # Save final checkpoint
 # Save policy with metadata (master only)

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
+import numpy as np
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
@@ -68,11 +69,16 @@ def save_policy_with_metadata(
     # Extract average reward from evals
     # Handle both EvalRewardSummary object and dict
     avg_reward = 0.0
+    score = 0.0  # Aggregated score for sweep evaluation
     evals_dict = {}
     if evals:
         if hasattr(evals, "avg_category_score"):
             # It's an EvalRewardSummary object
             avg_reward = evals.avg_category_score if evals.avg_category_score is not None else 0.0
+            # Calculate aggregated score for sweep evaluation
+            category_scores = list(evals.category_scores.values())
+            if category_scores:
+                score = float(np.mean(category_scores))
             evals_dict = {
                 "category_scores": evals.category_scores,
                 "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
@@ -84,6 +90,7 @@ def save_policy_with_metadata(
             avg_reward = sum(v for k, v in evals.items() if k.endswith("/score")) / max(
                 1, len([k for k in evals.keys() if k.endswith("/score")])
             )
+            score = avg_reward  # Use avg_reward as score for dict case
             evals_dict = evals
 
     metadata = {
@@ -96,6 +103,7 @@ def save_policy_with_metadata(
         "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
         "evals": evals_dict,
         "avg_reward": avg_reward,
+        "score": score,  # Aggregated score for sweep evaluation
     }
 
     # Save original feature mapping
