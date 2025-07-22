@@ -257,10 +257,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # reward modes:
         if self.special_reward_mode == "ffa":
-            if self.truncations.any():
-                self.rewards[:] = self.cumulative_rewards
-            else:
-                self.rewards[:] = 0
+            # if self.truncations.any():
+            #     self.rewards[:] = self.cumulative_rewards
+            # else:
+            #     self.rewards[:] = 0
 
             self.rewards[:] = self.rewards
         elif self.special_reward_mode == "best_on_map":
