@@ -970,12 +970,6 @@ class MettaTrainer:
             if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
                 raise TypeError("env_cfg.game must be a dict with string keys")
 
-            # map_builder is currently in our game config but it is forbidden by the pydantic model. As we do in
-            # mettagrid, we will deal with this by removing it.
-            # See `mettagrid/src/metta/mettagrid/mettagrid_env.py:__initialize_c_env()` for details
-            if "map_builder" in game_cfg_dict:
-                del game_cfg_dict["map_builder"]
-
             game_cfg = PyPolicyGameConfig(**game_cfg_dict)  # type: ignore[arg-type]
 
         except ValidationError as e:

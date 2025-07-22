@@ -4,7 +4,11 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/learning_progress
+  curriculum: /env/mettagrid/curriculum/overcooked
+
+replay_job:
+  sim:
+    env: /env/mettagrid/cooperation/experimental/confined_room_coord_env
 
 seed: null
 run_id: 20250720.01

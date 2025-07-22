@@ -145,10 +145,6 @@ class MettaGridEnv(ABC):
         if not isinstance(game_config_dict, dict):
             raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
 
-        # Clean up config for C++ consumption
-        if "map_builder" in game_config_dict:
-            del game_config_dict["map_builder"]
-
         # Handle episode desyncing for training
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
