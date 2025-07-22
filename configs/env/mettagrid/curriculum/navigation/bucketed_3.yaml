@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy
 
@@ -24,7 +24,10 @@ buckets:
         "varied_terrain/cylinder-world_small",
       ]
   game.map_builder.room.objects.altar:
-    range: [1, 20]
+    range: [5, 30]
+    bins: 4
+  game.max_steps:
+    range: [500, 2000]
     bins: 4
 
 env_overrides:
