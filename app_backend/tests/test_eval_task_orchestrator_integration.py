@@ -122,7 +122,6 @@ def orchestrator(mock_container_manager, mock_task_client, monkeypatch):
         backend_url="http://test-backend",
         machine_token="test-machine-token",
         docker_image="test-image:latest",
-        machine_token="test-token",
         poll_interval=1.0,
         worker_idle_timeout=60.0,
         container_manager=mock_container_manager,

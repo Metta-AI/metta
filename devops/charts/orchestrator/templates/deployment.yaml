@@ -23,8 +23,8 @@ spec:
         env:
         - name: BACKEND_URL
           value: {{ .Values.env.BACKEND_URL | quote }}
-        - name: CONTAINER_MANAGER
-          value: {{ .Values.env.CONTAINER_MANAGER | quote }}
+        - name: CONTAINER_RUNTIME
+          value: {{ .Values.env.CONTAINER_RUNTIME | quote }}
         - name: POLL_INTERVAL
           value: {{ .Values.env.POLL_INTERVAL | quote }}
         - name: WORKER_IDLE_TIMEOUT

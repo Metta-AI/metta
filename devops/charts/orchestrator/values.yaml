@@ -15,7 +15,7 @@ workerImage:
 
 env:
   BACKEND_URL: "https://api.observatory.softmax-research.net"
-  CONTAINER_MANAGER: "k8s"
+  CONTAINER_RUNTIME: "k8s"
   POLL_INTERVAL: "5"
   WORKER_IDLE_TIMEOUT: "600"
 
