@@ -33,7 +33,8 @@ permissions:
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
-  PYTEST_WORKERS: auto
+  # Use 4 workers for parallel test execution (GitHub Actions runners have 2 CPU cores)
+  PYTEST_WORKERS: 4
 
 jobs:
   # check if CI should run based on Graphite's stack position
@@ -154,13 +155,19 @@ jobs:
         run: ./mettagrid/tests/cpplint.sh
 
   test:
-    name: "Tests"
+    name: "Tests - ${{ matrix.package || 'core' }}"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ['core', app_backend, agent, mettagrid, common]
+    env:
+      SUBPACKAGES: "app_backend agent mettagrid common"  # keep this synced with the non-empty items in strategy.matrix.package
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -171,12 +178,13 @@ jobs:
           install-mode: "no-mettagrid"
 
       - name: Build MettaGrid C++
+        if: matrix.package == 'core' || matrix.package == 'mettagrid'
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py
 
       - name: Check MettaGrid build warnings
-        if: always()
+        if: matrix.package == 'core' && always()
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
@@ -196,40 +204,41 @@ jobs:
           fi
 
       - name: Install metta-mettagrid package
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: (matrix.package == 'core' || matrix.package == 'mettagrid') && steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
-      - name: Run Pytest on core tests
+      - name: Run tests
         run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v
-
-      - name: Run Pytest on subpackage tests
-        env:
-          SUBPACKAGES: "app_backend agent mettagrid common"
-        run: |
-          for package in $SUBPACKAGES; do
-            echo "Running tests for $package..."
-            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v) || exit 1
-          done
+          if [ "${{ matrix.package }}" == "core" ]; then
+            # build ignore list from SUBPACKAGES
+            IGNORE_ARGS=""
+            for pkg in $SUBPACKAGES; do
+              IGNORE_ARGS="$IGNORE_ARGS --ignore=$pkg"
+            done
+            pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml:coverage.xml --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v $IGNORE_ARGS
+          else
+            # Subpackage tests
+            cd ${{ matrix.package }}
+            pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml:coverage.xml --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v
+          fi
 
       - name: Upload coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "app_backend agent mettagrid common"
         run: |
           chmod +x .github/scripts/upload_codecov.py
-          .github/scripts/upload_codecov.py
+          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
       - name: Run MettaGrid C++ coverage
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: matrix.package == 'mettagrid' && steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           cd mettagrid
           make coverage
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
