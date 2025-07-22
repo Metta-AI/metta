@@ -2,12 +2,11 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.distributed
-import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
@@ -16,7 +15,6 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.wandb.helpers import abort_requested
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
@@ -33,7 +31,7 @@ from metta.rl.util.batch_utils import (
     calculate_prioritized_sampling_params,
 )
 from metta.rl.util.distributed import setup_distributed_vars
-from metta.rl.util.evaluation import generate_replay
+from metta.rl.util.evaluation import generate_replay, upload_replay_html
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
@@ -56,7 +54,7 @@ from metta.rl.util.stats import (
     accumulate_rollout_stats,
     process_stats,
 )
-from metta.rl.util.utils import should_run
+from metta.rl.util.utils import check_abort, should_run
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
@@ -558,7 +556,7 @@ def train(
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort
-        if _check_abort(wandb_run, trainer_cfg, agent_step):
+        if check_abort(wandb_run, trainer_cfg, agent_step):
             break
 
     logger.info("Training complete!")
@@ -907,7 +905,7 @@ def _maybe_evaluate_policy(
 
     # Upload replay HTML if we have wandb
     if wandb_run is not None and evaluation_results.replay_urls:
-        _upload_replay_html(
+        upload_replay_html(
             replay_urls=evaluation_results.replay_urls,
             agent_step=agent_step,
             epoch=epoch,
@@ -915,68 +913,6 @@ def _maybe_evaluate_policy(
         )
 
     return evaluation_results.scores
-
-
-def _upload_replay_html(
-    replay_urls: Dict[str, list[str]],
-    agent_step: int,
-    epoch: int,
-    wandb_run: Any,
-) -> None:
-    """Upload replay HTML to wandb with unified view of all replay links."""
-
-    # Create unified HTML with all replay links on a single line
-    if replay_urls:
-        # Group replays by base name
-        replay_groups = {}
-
-        for sim_name, urls in sorted(replay_urls.items()):
-            if "training_task" in sim_name:
-                # Training replays
-                if "training" not in replay_groups:
-                    replay_groups["training"] = []
-                replay_groups["training"].extend(urls)
-            else:
-                # Evaluation replays - clean up the display name
-                display_name = sim_name.replace("eval/", "")
-                if display_name not in replay_groups:
-                    replay_groups[display_name] = []
-                replay_groups[display_name].extend(urls)
-
-        # Build HTML with episode numbers
-        links = []
-        for name, urls in replay_groups.items():
-            if len(urls) == 1:
-                # Single episode - just show the name
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
-                links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
-            else:
-                # Multiple episodes - show with numbers
-                episode_links = []
-                for i, url in enumerate(urls, 1):
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
-                    episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
-                links.append(f"{name} [{' '.join(episode_links)}]")
-
-        # Join all links with " | " separator and add epoch prefix
-        html_content = f"epoch {epoch}: " + " | ".join(links)
-    else:
-        html_content = f"epoch {epoch}: No replays available."
-
-    # Log the unified HTML with step parameter for wandb's epoch slider
-    link_summary = {"replays/all_links": wandb.Html(html_content)}
-    wandb_run.log(link_summary, step=agent_step)
-
-
-def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
-    """Check for abort tag in wandb run."""
-    if abort_requested(wandb_run, min_interval_sec=60):
-        logger.info("Abort tag detected. Stopping the run.")
-        trainer_cfg.total_timesteps = int(agent_step)
-        if wandb_run:
-            wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
-        return True
-    return False
 
 
 def _initialize_stats_tracking(

@@ -16,7 +16,6 @@ from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.helpers import (
-    abort_requested,
     upload_env_configs,
 )
 from metta.common.wandb.wandb_context import WandbContext
@@ -30,17 +29,16 @@ from metta.interface import (
 )
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config
-from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
     InitialPolicyConfig,
+    KickstartConfig,
     OptimizerConfig,
     PPOConfig,
     PrioritizedExperienceReplayConfig,
@@ -54,8 +52,10 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
-from metta.rl.util.distributed import setup_device_and_distributed
-from metta.rl.util.evaluation import generate_replay
+from metta.rl.util.distributed import (
+    setup_device_and_distributed,
+)
+from metta.rl.util.evaluation import generate_replay, upload_replay_html
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
@@ -80,7 +80,7 @@ from metta.rl.util.stats import (
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.util.utils import should_run
+from metta.rl.util.utils import check_abort, should_run
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
@@ -636,11 +636,24 @@ while agent_step < trainer_config.total_timesteps:
             "ppo_l2_init_loss_coef": trainer_config.ppo.l2_init_loss_coef,
         }
 
+        # Compute weight stats if configured
+        weight_stats = {}
+        if hasattr(trainer_config, "agent") and hasattr(trainer_config.agent, "analyze_weights_interval"):
+            if (
+                trainer_config.agent.analyze_weights_interval != 0
+                and epoch % trainer_config.agent.analyze_weights_interval == 0
+            ):
+                for metrics in agent.compute_weight_metrics():
+                    name = metrics.get("name", "unknown")
+                    for key, value in metrics.items():
+                        if key != "name":
+                            weight_stats[f"weights/{key}/{name}"] = value
+
         # Build complete stats dictionary
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
             timing_info=timing_info,
-            weight_stats={},  # Weight stats not computed in run.py
+            weight_stats=weight_stats,
             grad_stats=stats_tracker.grad_stats,
             system_stats=system_stats,
             memory_stats=memory_stats,
@@ -768,8 +781,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Abort check via wandb tag (master only)
     if is_master and wandb_run and should_run(epoch, 5, True):
-        if abort_requested(wandb_run, 60):
-            logger.info("Abort tag detected. Stopping the run.")
+        if check_abort(wandb_run, trainer_config, agent_step):
             break
 
     # Policy evaluation (master only)
@@ -853,6 +865,15 @@ while agent_step < trainer_config.total_timesteps:
 
         # Track that we evaluated at this epoch
         last_evaluation_epoch = epoch
+
+        # Upload replay HTML if we have replay URLs
+        if is_master and wandb_run and hasattr(results, "replay_urls") and results.replay_urls:
+            upload_replay_html(
+                replay_urls=results.replay_urls,
+                agent_step=agent_step,
+                epoch=epoch,
+                wandb_run=wandb_run,
+            )
 
         # Replay generation (master only)
         if is_master and latest_saved_policy_record:
@@ -964,6 +985,15 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
         logger.info(f"Set policy metadata score to {latest_saved_policy_record.metadata['score']}")
 
     stats_db.close()
+
+    # Upload replay HTML if we have replay URLs from final evaluation
+    if wandb_run and hasattr(results, "replay_urls") and results.replay_urls:
+        upload_replay_html(
+            replay_urls=results.replay_urls,
+            agent_step=agent_step,
+            epoch=epoch,
+            wandb_run=wandb_run,
+        )
 
 # Save final checkpoint
 # Save policy with metadata (master only)

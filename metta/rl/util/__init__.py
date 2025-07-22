@@ -14,7 +14,7 @@ from .batch_utils import calculate_batch_sizes, calculate_prioritized_sampling_p
 from .distributed import setup_device_and_distributed, setup_distributed_vars
 
 # Evaluation utilities
-from .evaluation import evaluate_policy, generate_replay
+from .evaluation import evaluate_policy, generate_replay, upload_replay_html
 
 # Loss computation
 from .losses import compute_ppo_losses, process_minibatch_update
@@ -49,7 +49,7 @@ from .stats import (
 )
 
 # Utility functions
-from .utils import should_run
+from .utils import check_abort, should_run
 
 __all__ = [
     # Advantage
@@ -64,6 +64,7 @@ __all__ = [
     # Evaluation
     "evaluate_policy",
     "generate_replay",
+    "upload_replay_html",
     # Losses
     "compute_ppo_losses",
     "process_minibatch_update",
@@ -90,4 +91,5 @@ __all__ = [
     "process_training_stats",
     # Utils
     "should_run",
+    "check_abort",
 ]
