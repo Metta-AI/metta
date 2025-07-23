@@ -10,8 +10,9 @@ from omegaconf import DictConfig
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.rl.util.evaluation import generate_replay, upload_replay_html
+from metta.rl.util.evaluation import generate_replay
 from metta.rl.util.stats import StatsTracker
+from metta.rl.wandb import upload_replay_html
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 

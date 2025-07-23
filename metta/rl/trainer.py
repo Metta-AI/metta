@@ -23,14 +23,12 @@ from metta.rl.evaluate import evaluate_policy, generate_policy_replay
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.metrics import setup_wandb_metrics_and_log_model
 from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.train import train_ppo
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.util.batch_utils import calculate_batch_sizes
 from metta.rl.util.distributed import setup_distributed_vars
-from metta.rl.util.evaluation import upload_replay_html
 from metta.rl.util.optimization import (
     compute_gradient_stats,
     maybe_update_l2_weights,
@@ -46,6 +44,7 @@ from metta.rl.util.stats import (
 )
 from metta.rl.util.utils import check_abort, should_run
 from metta.rl.vecenv import make_vecenv
+from metta.rl.wandb import setup_wandb_metrics_and_log_model, upload_policy_to_wandb, upload_replay_html
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -490,11 +489,12 @@ def train(
                     policy_path=saved_record.uri,
                     timer=timer,
                     run_dir=cfg.run_dir,
+                    kickstarter=kickstarter,
                 )
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
-            wandb_policy_name = _upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record)
+            wandb_policy_name = upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record)
 
         # Evaluate policy
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
@@ -591,11 +591,12 @@ def train(
                 policy_path=saved_record.uri,
                 timer=timer,
                 run_dir=cfg.run_dir,
+                kickstarter=kickstarter,
                 force=True,
             )
 
     if wandb_run and latest_saved_policy_record:
-        _upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record, force=True)
+        upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record, force=True)
 
     # Cleanup
     vecenv.close()
@@ -604,22 +605,6 @@ def train(
             memory_monitor.clear()
         if system_monitor:
             system_monitor.stop()
-
-
-def _upload_policy_to_wandb(
-    wandb_run: Any, policy_store: Any, policy_record: Any, force: bool = False
-) -> Optional[str]:
-    """Upload policy to wandb."""
-    if not wandb_run or not policy_record:
-        return None
-
-    try:
-        result = policy_store.add_to_wandb_run(wandb_run.id, policy_record)
-        logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.get('epoch', 'unknown')}")
-        return result
-    except Exception as e:
-        logger.warning(f"Failed to upload policy to wandb: {e}")
-        return None
 
 
 def _initialize_stats_tracking(
