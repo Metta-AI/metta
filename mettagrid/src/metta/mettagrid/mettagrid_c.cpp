@@ -183,6 +183,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
             converter_config->cooldown,
             converter_config->initial_resource_count,
             converter_config->color,
+            converter_config->phase,
+            converter_config->cyclical,
             converter_config->recipe_details_obs,
             _obs_encoder->get_input_recipe_offset(),
             _obs_encoder->get_output_recipe_offset());
@@ -935,7 +937,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     ObservationType,
                     unsigned short,
                     bool,
-                    bool>(),
+                    bool,
+                    ObservationType,
+                    ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -947,7 +951,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("color") = 0,
            py::arg("phase") = 0,
            py::arg("cyclical") = false,
-           py::arg("recipe_details_obs") = false)
+           py::arg("recipe_details_obs") = false,
+           py::arg("input_recipe_offset") = 0,
+           py::arg("output_recipe_offset") = 0)
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)

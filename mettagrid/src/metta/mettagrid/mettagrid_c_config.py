@@ -107,6 +107,8 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 phase=getattr(object_config, "phase", 0),
                 cyclical=getattr(object_config, "cyclical", False),
                 recipe_details_obs=game_config.recipe_details_obs,
+                input_recipe_offset=0,  # Will be set by observation encoder
+                output_recipe_offset=0,  # Will be set by observation encoder
             )
             objects_cpp_params[object_type] = cpp_converter_config
         elif isinstance(object_config, PyWallConfig):
