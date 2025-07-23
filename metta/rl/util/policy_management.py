@@ -425,6 +425,12 @@ def load_or_initialize_policy(
             broadcast_obj = [dict(policy_record.metadata), policy_record.uri, policy_record.run_name]
         torch.distributed.broadcast_object_list(broadcast_obj, src=0)
         metadata_dict, uri, run_name = broadcast_obj
+
+        if run_name is None:
+            raise RuntimeError("Failed to receive run_name from master broadcast")
+        if uri is None:
+            raise RuntimeError("Failed to receive uri from master broadcast")
+
         metadata = PolicyMetadata.from_dict(metadata_dict) if metadata_dict else PolicyMetadata()
         if not is_master:
             policy_record = PolicyRecord(policy_store, run_name, uri, metadata)
