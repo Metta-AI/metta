@@ -233,6 +233,10 @@ class MettaCLI:
     def cmd_shell(self) -> None:
         subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
 
+    def cmd_report_env_details(self) -> None:
+        info(f"UV Project Directory: {self.repo_root}")
+        info(f"Metta CLI Working Directory: {Path.cwd()}")
+
     def cmd_local(self, args, unknown_args=None) -> None:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
@@ -568,6 +572,11 @@ Examples:
         # Shell command
         subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
 
+        # Report Environment Details command
+        subparsers.add_parser(
+            "report-env-details", help="Report environment details including which UV project directory is being used"
+        )
+
         # Local command
         local_parser = subparsers.add_parser("local", help="Local development commands")
         local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
@@ -625,8 +634,8 @@ Examples:
             return
 
         # Check if configuration is required for this command
-        # Allow configure, symlink-setup, and local to run without config
-        if args.command not in ["configure", "symlink-setup", "local"]:
+        # Allow configure, symlink-setup, report-env-details, and local to run without config
+        if args.command not in ["configure", "symlink-setup", "report-env-details", "local"]:
             if not self.config.config_path.exists():
                 error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
@@ -659,6 +668,8 @@ Examples:
             self.cmd_lint(args)
         elif args.command == "shell":
             self.cmd_shell()
+        elif args.command == "report-env-details":
+            self.cmd_report_env_details()
         elif args.command == "local":
             self.cmd_local(args, unknown_args)
         else:
