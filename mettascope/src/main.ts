@@ -273,11 +273,17 @@ onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
 
 /** Handles scroll events. */
 onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as WheelEvent
-  ui.scrollDelta = event.deltaY
-  // Prevent scaling the web page
-  event.preventDefault()
-  requestFrame()
+  const event = e as WheelEvent
+
+  // Allow natural scrolling inside scrollable containers
+  const path = event.composedPath() as HTMLElement[]
+  const allowScroll = path.some((el) => el instanceof HTMLElement && el.closest('.glyph-table-container'))
+
+  if (!allowScroll) {
+    ui.scrollDelta = event.deltaY
+    event.preventDefault()
+    requestFrame()
+  }
 })
 
 /** Handles the pointer moving outside the window. */

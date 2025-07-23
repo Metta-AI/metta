@@ -452,127 +452,129 @@ function injectGlyphEditorModal() {
   const closeButton = document.querySelector('#glyph-editor-modal .close-button')
   if (closeButton) {
     closeButton.addEventListener('click', () => {
-      ;(document.querySelector('#glyph-toggle') as HTMLButtonElement)?.click()
+      ; (document.querySelector('#glyph-toggle') as HTMLButtonElement)?.click()
     })
   }
 }
 
-// CSS styles as a string constant
+// Export the associations for use in other parts of the application
+export function getGlyphAssociations(): Array<string> {
+  return [...glyphAssociations]
+}
+
 const GLYPH_EDITOR_STYLES = `
-/* Glyph Editor Modal Styles */
+/* Core Layout */
 .glyph-editor-content {
-  width: 90%;
-  max-width: 900px;
-  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  background-color: #1a1a1a;
+  width: 90%;
+  max-width: 900px;
+  height: 90vh;
+  background: #1a1a1a;
   border: 1px solid #444;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  position: relative;
 }
 
 .modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   padding: 20px;
-  background-color: #252525;
+  background: #252525;
   border-bottom: 1px solid #444;
   border-radius: 8px 8px 0 0;
 }
 
 .modal-header h2 {
   margin: 0;
-  color: #fff;
   font-size: 1.5em;
   font-weight: 600;
+  color: #fff;
 }
 
 .glyph-count {
-  color: #888;
-  font-size: 0.9em;
   margin-left: auto;
   margin-right: 20px;
+  font-size: 0.9em;
+  color: #888;
 }
 
 .close-button {
   background: none;
   border: none;
-  color: #888;
   font-size: 28px;
+  color: #888;
   cursor: pointer;
-  padding: 0;
   width: 36px;
   height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  transition: all 0.2s;
+  transition: 0.2s;
 }
 
 .close-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
 
 .modal-body {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  padding-bottom: 10px;
+  padding: 20px 20px 10px;
 }
 
+/* Controls */
 .glyph-editor-controls {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
-  align-items: center;
   flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.glyph-search,
+.glyph-button {
+  font-size: 14px;
+  border-radius: 6px;
+  padding: 10px 16px;
+  border: 1px solid #3a3a3a;
+  transition: 0.2s;
 }
 
 .glyph-search {
   flex: 1;
   min-width: 250px;
-  padding: 10px 16px;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  background-color: #252525;
+  background: #252525;
   color: #fff;
-  font-size: 14px;
-  transition: all 0.2s;
 }
 
-.glyph-search::placeholder {
-  color: #666;
-}
-
+.glyph-search::placeholder { color: #666; }
 .glyph-search:focus {
   outline: none;
+  background: #2a2a2a;
   border-color: #555;
-  background-color: #2a2a2a;
 }
 
 .glyph-button {
-  padding: 10px 18px;
-  background-color: #2a2a2a;
-  color: #ccc;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
   display: flex;
   align-items: center;
   gap: 8px;
+  background: #2a2a2a;
+  color: #ccc;
+  cursor: pointer;
   white-space: nowrap;
 }
 
 .glyph-button:hover {
-  background-color: #333;
+  background: #333;
   border-color: #444;
   color: #fff;
   transform: translateY(-1px);
@@ -588,35 +590,37 @@ const GLYPH_EDITOR_STYLES = `
   stroke: currentColor;
 }
 
+/* Table Layout */
 .glyph-table-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
   border: 1px solid #333;
   border-radius: 6px;
-  background-color: #1a1a1a;
+  background: #1a1a1a;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .glyph-table {
   width: 100%;
-  border-collapse: collapse;
   table-layout: fixed;
+  border-collapse: collapse;
 }
 
 .glyph-table th {
   position: sticky;
   top: 0;
-  background-color: #252525;
+  background: #252525;
   color: #ccc;
   padding: 12px;
   text-align: left;
   font-weight: 600;
-  border-bottom: 1px solid #444;
-  z-index: 10;
   font-size: 13px;
+  border-bottom: 1px solid #444;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  z-index: 10;
 }
 
 .glyph-table td {
@@ -625,67 +629,24 @@ const GLYPH_EDITOR_STYLES = `
   color: #ddd;
 }
 
-.glyph-table tbody tr {
-  transition: background-color 0.1s;
-}
-
 .glyph-table tbody tr:hover {
-  background-color: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .glyph-table tbody tr.modified {
-  background-color: rgba(100, 200, 100, 0.03);
+  background: rgba(100, 200, 100, 0.03);
 }
 
 .glyph-table tbody tr.modified:hover {
-  background-color: rgba(100, 200, 100, 0.05);
+  background: rgba(100, 200, 100, 0.05);
 }
 
+/* Inputs & Actions */
 .glyph-id {
   text-align: center;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
-  color: #666;
+  font-family: monospace;
   font-size: 12px;
-}
-
-.glyph-preview-cell {
-  text-align: center;
-}
-
-.glyph-preview {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background-color: #252525;
-  border: 1px solid #333;
-  border-radius: 6px;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
-  font-size: 18px;
-  color: #fff;
-  transition: all 0.15s;
-  cursor: default;
-}
-
-.glyph-preview:hover {
-  background-color: #2a2a2a;
-  border-color: #444;
-  transform: scale(1.05);
-}
-
-.glyph-preview.non-printable {
-  color: #555;
-  font-size: 14px;
-}
-
-.glyph-preview.null,
-.glyph-preview.tab,
-.glyph-preview.newline,
-.glyph-preview.return,
-.glyph-preview.space {
-  color: #888;
-  font-size: 20px;
+  color: #666;
 }
 
 .glyph-description-cell {
@@ -695,22 +656,20 @@ const GLYPH_EDITOR_STYLES = `
 .glyph-description-input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #333;
   border-radius: 4px;
-  background-color: #252525;
-  color: #fff;
   font-size: 14px;
-  transition: all 0.15s;
+  color: #fff;
+  background: #252525;
+  border: 1px solid #333;
+  transition: 0.15s;
 }
 
-.glyph-description-input::placeholder {
-  color: #555;
-}
+.glyph-description-input::placeholder { color: #555; }
 
 .glyph-description-input:focus {
   outline: none;
+  background: #2a2a2a;
   border-color: #444;
-  background-color: #2a2a2a;
 }
 
 .glyph-actions-cell {
@@ -718,27 +677,26 @@ const GLYPH_EDITOR_STYLES = `
   gap: 6px;
   justify-content: center;
   align-items: center;
-  white-space: nowrap;
   padding: 4px;
+  white-space: nowrap;
 }
 
 .glyph-action-button {
   padding: 6px 10px;
-  margin: 0;
-  background-color: #2a2a2a;
-  color: #888;
-  border: 1px solid #333;
-  border-radius: 4px;
-  cursor: pointer;
   font-size: 12px;
-  transition: all 0.15s;
+  border-radius: 4px;
+  background: #2a2a2a;
+  border: 1px solid #333;
+  color: #888;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: 0.15s;
 }
 
 .glyph-action-button:hover {
-  background-color: #333;
+  background: #333;
   border-color: #444;
   color: #fff;
   transform: translateY(-1px);
@@ -755,7 +713,7 @@ const GLYPH_EDITOR_STYLES = `
 }
 
 .glyph-action-button.save.success {
-  background-color: #2d5a2d;
+  background: #2d5a2d;
   border-color: #3a6a3a;
   color: #8fc98f;
 }
@@ -765,13 +723,14 @@ const GLYPH_EDITOR_STYLES = `
 }
 
 @keyframes checkmark {
-  0% { transform: scale(0.8); opacity: 0; }
-  50% { transform: scale(1.2); }
+  0%   { transform: scale(0.8); opacity: 0; }
+  50%  { transform: scale(1.2); }
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* Footer */
 .glyph-editor-footer {
-  padding: 12px 0 0 0;
+  padding-top: 12px;
   text-align: center;
   color: #666;
   font-size: 12px;
@@ -779,58 +738,38 @@ const GLYPH_EDITOR_STYLES = `
   margin-top: 10px;
 }
 
-.hint {
-  opacity: 0.8;
-}
+.hint { opacity: 0.8; }
 
-/* Scrollbar styling */
+/* Scrollbar */
 .glyph-table-container::-webkit-scrollbar {
   width: 10px;
 }
-
 .glyph-table-container::-webkit-scrollbar-track {
   background: #1a1a1a;
   border-radius: 5px;
 }
-
 .glyph-table-container::-webkit-scrollbar-thumb {
   background: #333;
   border-radius: 5px;
-  transition: background 0.2s;
 }
-
 .glyph-table-container::-webkit-scrollbar-thumb:hover {
   background: #444;
 }
 
-#glyph-editor-modal {
-  position: relative;
-}
-
-
-/* Responsive adjustments */
+/* Responsive */
 @media (max-width: 768px) {
   .glyph-editor-content {
     width: 95%;
-    max-height: 90vh;
   }
-
   .glyph-editor-controls {
     flex-direction: column;
     align-items: stretch;
   }
-
   .glyph-search {
     min-width: auto;
   }
-
   .glyph-button {
     justify-content: center;
   }
 }
 `
-
-// Export the associations for use in other parts of the application
-export function getGlyphAssociations(): Array<string> {
-  return [...glyphAssociations]
-}
