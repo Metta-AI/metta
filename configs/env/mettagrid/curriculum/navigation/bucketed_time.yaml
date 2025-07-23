@@ -24,7 +24,10 @@ buckets:
         "varied_terrain/cylinder-world_small",
       ]
   game.map_builder.room.objects.altar:
-    range: [3, 30]
+    range: [5, 30]
+    bins: 4
+  game.max_steps:
+    range: [500, 2000]
     bins: 4
 
 env_overrides:

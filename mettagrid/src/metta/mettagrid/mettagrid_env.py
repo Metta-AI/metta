@@ -106,6 +106,25 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
 
+    def _check_reward_termination(self) -> bool:
+        """Check if episode should terminate based on total reward threshold."""
+        # Get termination threshold from config (None means no termination)
+        num_altars = True  # HACK FOR NOW
+
+        if num_altars:
+            termination_reward = self.num_altars
+
+        if termination_reward is None:
+            return False
+
+        # Calculate total episode reward across all agents
+        total_episode_reward = self._c_env.get_episode_rewards().sum()
+
+        # logger.info(f"Total episode reward: {total_episode_reward}, termination reward: {termination_reward}")
+
+        # Check if total reward has reached the threshold
+        return total_episode_reward >= termination_reward
+
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
@@ -123,9 +142,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+
         assert task.env_cfg().game.num_agents == level_agents, (
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
+        level_altars = np.count_nonzero(np.char.startswith(level.grid, "altar"))
+        self.num_altars = level_altars
 
         game_config_dict = OmegaConf.to_container(task.env_cfg().game, resolve=True)
         assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
@@ -217,6 +239,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         infos = {}
+        if self._check_reward_termination():
+            logger.info("Reward-based termination triggered")
+            # Set all terminals to True to end the episode
+            self.terminals.fill(True)
+            self.rewards *= 10  # if agents get all hearts, they get a 3x reward
+
         if self.terminals.all() or self.truncations.all():
             # TODO: re-enable diversity bonus
             # if self._task.env_cfg().game.diversity_bonus.enabled:

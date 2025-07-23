@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: all
+  - sim: navigation
   - _self_
 
 run: null # Auto-generated if not provided
@@ -9,11 +9,27 @@ policy_uri: ???
 
 sim_job:
   policy_uris:
-    - ${policy_uri}
+    - wandb://run/daphne.2agents.full.navigation.4gpus.07-17
+    - wandb://run/daphne.2agents.navigation.4gpus.07-16
+    - wandb://run/daphne.navigation.2bucketed.2agents.includemedium.07-16
+    - wandb://run/george.navigation.bucketed.07-14
+    - wandb://run/george.navigation.lp.bucketed.07-14
+    - wandb://run/daphne.navigation.lp.07-14
+    - wandb://run/george.navigation.lp.bucketed.07-14
+    - wandb://run/daphne.navigation.2agents.metta1.07-16
+    - wandb://run/daphne.navigation.bucketed.2agents.metta2.07-16
+    - wandb://run/daphne.navigation.bucketed.2agents.4gpus.07-16
+    - wandb://run/daphne.navigation.bucketed.2agents.07-16
+    - wandb://run/daphne.navigation.bucketed.2agents.includemedium.4gpus.07-16
+    - wandb://run/daphne.navigation.bucketed.2agents.includemedium.07-16
+    - wandb://run/daphne.navigation.bucketed.2agents.includemedium.pretrained.07-16
+    - wandb://run/daphne.navigation.bucketed.2agents.pretrained.07-16
+    - wandb://run/daphne.navigation.2bucketed.2agents.pretrained.07-16
   simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
-  stats_db_uri: ${run_dir}/stats.db
-  replay_dir: ${run_dir}/replays/evals
+  stats_db_uri: ${run_dir}/daphne.custom.db
+  replay_dir: s3://softmax-public/replays/${run}
+  # stats_server_uri: http://localhost:8000
 
 eval_task_id: null
 

@@ -78,11 +78,13 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         border_width: int = 0,
         border_object: str = "wall",
+        group_agents: bool = False,
     ):
         self._dir = dir
         self._file = file
         self._agents = agents
         self._objects = objects
+        self._group_agents = group_agents
         super().__init__(border_width=border_width, border_object=border_object)
 
     def get_valid_positions(self, level):
@@ -139,6 +141,7 @@ class TerrainFromNumpy(Room):
 
         # remove agents to then repopulate
         level[level == "agent.agent"] = "empty"
+        # level[level == "altar"] = "empty"
 
         # 3. Prepare agent labels
         if isinstance(self._agents, int):
@@ -148,17 +151,22 @@ class TerrainFromNumpy(Room):
         else:
             raise TypeError("Unsupported _agents type")
         num_agents = len(agent_labels)
+        assert num_agents == 2
 
         valid_positions = self.get_valid_positions(level)
-        random.shuffle(valid_positions)
 
-        # 5. Place agents in first slice
+        # Agents are placed together initially ("head-to-head")
+        if not self._group_agents:
+            random.shuffle(valid_positions)
+
         agent_positions = valid_positions[:num_agents]
-        for pos, label in zip(agent_positions, agent_labels, strict=False):
+        for pos, label in zip(agent_positions, agent_labels, strict=True):
             level[pos] = label
 
-        # Convert to set for O(1) removal operations
-        valid_positions_set = set(valid_positions[num_agents:])
+        # randomize the rest of the objects
+        valid_positions = valid_positions.copy()[num_agents:]
+        random.shuffle(valid_positions)
+        valid_positions_set = set(valid_positions)
 
         for obj_name, count in self._objects.items():
             count = count - np.where(level == obj_name, 1, 0).sum()

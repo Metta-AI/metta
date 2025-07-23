@@ -4,8 +4,8 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 4
-  max_steps: 1000
+  num_agents: 8
+  max_steps: 1500
   actions:
     attack:
       enabled: false
@@ -17,12 +17,13 @@ game:
       enabled: false
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    num_rooms: ${div:${..num_agents},2}
     border_width: 6
     room:
       _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
-      agents: 1
+      agents: 2
+      group_agents: true
       objects:
         altar: ${sampling:3, 50, 25}
   objects:
