@@ -168,11 +168,7 @@ export function Dashboard({ repo }: DashboardProps) {
     const loadHeatmapData = async () => {
       if (!selectedSuite || !selectedMetric) return
 
-      const heatmapData = await repo.getHeatmapData(
-        selectedMetric,
-        selectedSuite,
-        policySelector
-      )
+      const heatmapData = await repo.getHeatmapData(selectedMetric, selectedSuite, policySelector)
       setHeatmapData(heatmapData)
     }
 
