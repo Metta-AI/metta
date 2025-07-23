@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, cast
 import numpy as np
 from gymnasium import Env as GymEnv
 from gymnasium import spaces
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
@@ -118,7 +118,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True)
+                if isinstance(map_builder_config, DictConfig):
+                    map_builder = instantiate(map_builder_config, _recursive_=True)
+                else:
+                    map_builder = map_builder_config
                 level = map_builder.build()
 
         # Validate the level
