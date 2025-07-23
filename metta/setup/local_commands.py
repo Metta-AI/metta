@@ -6,6 +6,7 @@ from pathlib import Path
 
 import wandb
 
+from metta.setup.tools.local.kind import Kind
 from metta.setup.tools.local.load_policies import get_recent_runs, post_policies_to_stats, print_runs_with_artifacts
 from metta.setup.utils import error, info, success
 
@@ -13,6 +14,7 @@ from metta.setup.utils import error, info, success
 class LocalCommands:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
+        self._kind_manager = Kind(repo_root)
 
     def build_app_backend_img(self) -> None:
         """Build local development Docker image."""
@@ -133,3 +135,30 @@ class LocalCommands:
         except Exception as e:
             error(f"Error: {e}")
             sys.exit(1)
+
+    def kind(self, args) -> None:
+        """Handle Kind cluster management for Kubernetes testing."""
+        action = args.action
+
+        if action == "build":
+            self._kind_manager.build()
+        elif action == "up":
+            self._kind_manager.up()
+        elif action == "down":
+            self._kind_manager.down()
+        elif action == "clean":
+            self._kind_manager.clean()
+        elif action == "get-pods":
+            self._kind_manager.get_pods()
+        elif action == "logs":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.logs(args.pod_name)
+            else:
+                error("Pod name is required for logs command")
+                sys.exit(1)
+        elif action == "enter":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.enter(args.pod_name)
+            else:
+                error("Pod name is required for enter command")
+                sys.exit(1)
