@@ -35,7 +35,7 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        # Initialize max_vec with working values - these will be updated during initialize_to_environment
+        # Initialize max_vec with empirically determined normalization values
         max_vec = torch.tensor(
             [
                 9.0,

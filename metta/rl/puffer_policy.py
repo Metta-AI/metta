@@ -163,29 +163,6 @@ class PytorchAgent(nn.Module):
         """Initialize to environment - forward to wrapped policy if it has this method."""
         # is_training parameter is deprecated and ignored - mode is auto-detected
 
-        # Extract feature normalizations from features dict
-        feature_normalizations = {}
-        for _feature_name, feature_props in features.items():
-            if "id" in feature_props and "normalization" in feature_props:
-                feature_normalizations[feature_props["id"]] = feature_props["normalization"]
-
-        # Store normalizations for the policy to use
-        # Check if this is a wrapped policy (e.g., Recurrent wrapping Policy)
-        target_policy = self.policy
-        if hasattr(self.policy, "policy") and hasattr(self.policy.policy, "max_vec"):
-            # This is a wrapped policy, get the inner policy
-            target_policy = self.policy.policy
-
-        if hasattr(target_policy, "set_feature_normalizations"):
-            target_policy.set_feature_normalizations(feature_normalizations)
-        elif hasattr(target_policy, "max_vec") and hasattr(target_policy, "num_layers"):
-            # For policies like example.py that have max_vec
-            max_values = []
-            for i in range(target_policy.num_layers):
-                max_values.append(feature_normalizations.get(i, 1.0))
-            max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
-            target_policy.register_buffer("max_vec", max_vec)
-
         # TODO: This hasattr pattern is a transitional state to support both old and new interfaces.
         # Once all policies have been migrated to implement initialize_to_environment,
         # we should remove these checks and make the interface mandatory.
