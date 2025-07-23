@@ -1,5 +1,11 @@
 [build-system]
-requires = ["scikit-build-core", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
+requires = [
+    "scikit-build-core", 
+    "wheel", 
+    "numpy<2",
+    "pybind11==2.10.4",
+    "metta-common @ git+https://github.com/metta-ai/metta.git@richard-alt-versions#subdirectory=common"
+]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -27,6 +33,7 @@ dependencies = [
     "gymnasium==0.29.1",
     "hydra-core>=1.4.0.dev1",
     "matplotlib>=3.10.3",
+    "metta-common @ git+https://github.com/metta-ai/metta.git@richard-alt-versions#subdirectory=common",
     "numpy<2",
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",
