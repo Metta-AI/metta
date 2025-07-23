@@ -125,12 +125,16 @@ class TestRendererJob:
             print(f"Full map path: {full_map_path}")
             print(f"Map file exists: {full_map_path.exists()}")
 
+            # Detect if running in CI
+            is_ci = os.environ.get("CI", "").lower() == "true"
+            hardware_config = "+hardware=github" if is_ci else "+hardware=macbook"
+
             cmd = [
                 "python",
                 "-m",
                 "tools.train",
                 f"run={run_name}",
-                "+hardware=macbook",
+                hardware_config,
                 f"data_dir={temp_dir}",
                 "trainer.simulation.replay_dir=${run_dir}/replays/",
                 "trainer.curriculum=/env/mettagrid/debug",
