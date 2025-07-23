@@ -401,9 +401,6 @@ def load_or_initialize_policy(
     rank: int,
 ) -> Tuple[Any, Any, Any]:
     """Load or initialize policy with distributed coordination."""
-    distributed = torch.distributed.is_initialized()
-    load_here = not (distributed and not is_master)
-
     # Use existing maybe_load_checkpoint to handle core loading/creation
     checkpoint, policy_record, _, _ = maybe_load_checkpoint(
         run_dir=cfg.run_dir,
@@ -419,7 +416,7 @@ def load_or_initialize_policy(
     policy = policy_record.policy
 
     # Broadcast metadata from master to workers
-    if distributed:
+    if torch.distributed.is_initialized():
         broadcast_obj = [None, None, None]
         if is_master:
             broadcast_obj = [dict(policy_record.metadata), policy_record.uri, policy_record.run_name]
@@ -448,7 +445,7 @@ def load_or_initialize_policy(
     initial_policy_record = policy_record
     latest_saved_policy_record = policy_record
 
-    if distributed and is_master:
+    if torch.distributed.is_initialized() and is_master:
         torch.distributed.barrier()
 
     logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
