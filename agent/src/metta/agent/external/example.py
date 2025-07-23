@@ -11,7 +11,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
+    def __init__(self, env, cnn_channels=128, hidden_size=512, feature_normalizations=None, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.is_continuous = False
@@ -35,36 +35,44 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        # max_vec = torch.tensor([  1.,   9.,   1.,  30.,   1.,   3., 255.,  26.,   1.,   1.,   1.,   1.,
-        #  1.,  47.,   3.,   3.,   2.,   1.,   1.,   1.,   1., 1.])[None, :, None, None]
-        max_vec = torch.tensor(
-            [
-                9.0,
-                1.0,
-                1.0,
-                10.0,
-                3.0,
-                254.0,
-                1.0,
-                1.0,
-                235.0,
-                8.0,
-                9.0,
-                250.0,
-                29.0,
-                1.0,
-                1.0,
-                8.0,
-                1.0,
-                1.0,
-                6.0,
-                3.0,
-                1.0,
-                2.0,
-            ],
-            dtype=torch.float32,
-        )[None, :, None, None]
-        # max_vec = torch.ones(22)[None, :, None, None]
+        # Use normalization values from environment if provided, otherwise use defaults
+        if feature_normalizations is not None:
+            # Convert dict to ordered tensor based on feature IDs (0 to num_layers-1)
+            max_values = []
+            for i in range(self.num_layers):
+                max_values.append(feature_normalizations.get(i, 1.0))
+            max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
+        else:
+            # Fallback to hardcoded values if normalizations not provided
+            # Values from mettagrid/src/metta/mettagrid/objects/constants.hpp
+            max_vec = torch.tensor(
+                [
+                    1.0,  # TypeId
+                    10.0,  # Group
+                    30.0,  # Hp
+                    1.0,  # Frozen
+                    1.0,  # Orientation
+                    255.0,  # Color
+                    1.0,  # ConvertingOrCoolingDown
+                    1.0,  # Swappable
+                    255.0,  # EpisodeCompletionPct
+                    10.0,  # LastAction
+                    10.0,  # LastActionArg
+                    100.0,  # LastReward
+                    255.0,  # Glyph
+                    255.0,  # ResourceRewards
+                    # Remaining are inventory items (DEFAULT_INVENTORY_NORMALIZATION = 100.0)
+                    100.0,
+                    100.0,
+                    100.0,
+                    100.0,
+                    100.0,
+                    100.0,
+                    100.0,
+                    100.0,
+                ],
+                dtype=torch.float32,
+            )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
         action_nvec = env.single_action_space.nvec
@@ -123,14 +131,7 @@ class Policy(nn.Module):
 
         observations = box_obs
 
-        # max_vec = box_obs.max(0)[0].max(1)[0].max(1)[0]
-        # self.max_vec = torch.maximum(self.max_vec, max_vec[None, :, None, None])
-        # if (np.random.rand() < 0.001):
-        #    breakpoint()
-
         features = observations / self.max_vec
-        # mmax = features.max(0)[0].max(1)[0].max(1)[0]
-        # self.max_vec = torch.maximum(self.max_vec, mmax[None, :, None, None])
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)
