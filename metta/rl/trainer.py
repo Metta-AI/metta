@@ -1014,6 +1014,7 @@ class MettaTrainer:
             num_workers=trainer_cfg.num_workers,
             zero_copy=trainer_cfg.zero_copy,
             is_training=True,
+            run_dir=self.cfg.run_dir,
         )
 
         if self.cfg.seed is None:
