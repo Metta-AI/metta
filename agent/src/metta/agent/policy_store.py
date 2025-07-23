@@ -176,16 +176,18 @@ class PolicyStore:
         sample = prs[0]
 
         # Check in eval_scores first
-        if (
-            "eval_scores" in sample.metadata
-            and sample.metadata["eval_scores"] is not None
-            and metric in sample.metadata["eval_scores"]
-        ):
-            logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
-            return {p: p.metadata.get("eval_scores", {}).get(metric) for p in prs}
+        sample_eval_scores = sample.metadata.get("eval_scores", {})
+        candidate_metric_keys = [metric]
+        if metric.endswith("_score"):
+            candidate_metric_keys.append(metric[:-6])
+
+        for candidate_metric_key in candidate_metric_keys:
+            if candidate_metric_key in sample_eval_scores:
+                logger.info(f"Found metric '{candidate_metric_key}' in metadata['eval_scores']")
+                return {p: p.metadata.get("eval_scores", {}).get(candidate_metric_key) for p in prs}
 
         # Check directly in metadata
-        elif metric in sample.metadata:
+        if metric in sample.metadata:
             logger.info(f"Found metric '{metric}' directly in metadata")
             return {p: p.metadata.get(metric) for p in prs}
 
