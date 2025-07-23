@@ -89,49 +89,30 @@ class DualPolicyRollout:
             # Fall back to single policy inference
             return run_policy_inference(main_policy, observations, experience, training_env_id_start, self.device)
 
-        # Split observations by policy
-        policy_a_obs = observations[self.policy_a_mask]
-        npc_obs = observations[self.npc_mask]
+        # Instead of splitting observations, we'll run the main policy on all observations
+        # and then replace the actions for NPC environments with scripted actions
+        actions, selected_action_log_probs, values, lstm_state = run_policy_inference(
+            main_policy, observations, experience, training_env_id_start, self.device
+        )
 
-        # Get actions from main policy
-        if self.policy_a_env_count > 0:
-            policy_a_actions, policy_a_log_probs, policy_a_values, policy_a_lstm_state = run_policy_inference(
-                main_policy, policy_a_obs, experience, training_env_id_start, self.device
-            )
-        else:
-            policy_a_actions = torch.empty(0, 2, device=self.device, dtype=torch.int32)
-            policy_a_log_probs = torch.empty(0, device=self.device)
-            policy_a_values = torch.empty(0, device=self.device)
-            policy_a_lstm_state = None
-
-        # Get actions from NPC policy
+        # For NPC environments, replace actions with scripted actions
         if self.npc_env_count > 0:
-            npc_actions, npc_log_probs, npc_values, npc_lstm_state = self._get_npc_actions(npc_obs)
-        else:
-            npc_actions = torch.empty(0, 2, device=self.device, dtype=torch.int32)
-            npc_log_probs = torch.empty(0, device=self.device)
-            npc_values = torch.empty(0, device=self.device)
-            npc_lstm_state = None
+            # Get scripted actions for NPC environments
+            npc_obs = observations[self.npc_mask]
+            npc_actions, _, _, _ = self._get_npc_actions(npc_obs)
 
-        # Combine actions and values
-        combined_actions = torch.zeros(self.num_envs, 2, device=self.device, dtype=torch.int32)
-        combined_log_probs = torch.zeros(self.num_envs, device=self.device)
-        combined_values = torch.zeros(self.num_envs, device=self.device)
+            # Replace actions for NPC environments
+            actions[self.npc_mask] = npc_actions
 
-        if self.policy_a_env_count > 0:
-            combined_actions[self.policy_a_mask] = policy_a_actions
-            combined_log_probs[self.policy_a_mask] = policy_a_log_probs
-            combined_values[self.policy_a_mask] = policy_a_values
+            # For scripted NPCs, we don't have proper log probs or values, so we'll use zeros
+            # This is a simplification - in practice you might want to handle this differently
+            if self.config.npc_type == "scripted":
+                # Set log probs and values to zero for NPC environments
+                # This is a reasonable approximation since scripted NPCs don't have proper probabilities
+                selected_action_log_probs[self.npc_mask] = 0.0
+                values[self.npc_mask] = 0.0
 
-        if self.npc_env_count > 0:
-            combined_actions[self.npc_mask] = npc_actions
-            combined_log_probs[self.npc_mask] = npc_log_probs
-            combined_values[self.npc_mask] = npc_values
-
-        # Combine LSTM states (simplified - in practice you'd need more sophisticated handling)
-        combined_lstm_state = policy_a_lstm_state if policy_a_lstm_state else npc_lstm_state
-
-        return combined_actions, combined_log_probs, combined_values, combined_lstm_state
+        return actions, selected_action_log_probs, values, lstm_state
 
     def _get_npc_actions(self, observations: Tensor) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
         """Get actions from the NPC policy."""
