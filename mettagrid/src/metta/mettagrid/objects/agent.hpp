@@ -67,7 +67,9 @@ public:
   std::string group_name;
   ObservationType color;
   ObservationType glyph;
-  unsigned char agent_id;  // index into MettaGrid._agents (std::vector<Agent*>)
+  // Despite being a GridObjectId, this is different from the `id` property.
+  // This is the index into MettaGrid._agents (std::vector<Agent*>)
+  GridObjectId agent_id;
   StatsTracker stats;
   RewardType current_resource_reward;
   RewardType current_stat_reward;
