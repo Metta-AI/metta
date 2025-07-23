@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from metta.common.util.fs import get_repo_root
 from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
 from metta.setup.local_commands import LocalCommands
 from metta.setup.registry import get_all_modules, get_applicable_modules
@@ -17,7 +18,7 @@ import_all_modules_from_subpackage("metta.setup", "components")
 
 class MettaCLI:
     def __init__(self):
-        self.repo_root: Path = Path(__file__).parent.parent.parent
+        self.repo_root: Path = get_repo_root()
         self.config: SetupConfig = SetupConfig()
         self.path_setup: PathSetup = PathSetup(self.repo_root)
         self.local_commands: LocalCommands = LocalCommands(self.repo_root)
