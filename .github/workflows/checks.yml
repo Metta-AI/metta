@@ -172,7 +172,13 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
         with:
-          install-mode: "testing"
+          install-mode: 'testing'
+
+      - name: Build MettaGrid C++
+        if: matrix.package == 'mettagrid' || matrix.package == 'core'
+        id: mettagrid_build_check
+        run: |
+          .github/scripts/check_mettagrid_build.py
 
       - name: Run tests
         run: |
@@ -198,12 +204,6 @@ jobs:
         run: |
           chmod +x .github/scripts/upload_codecov.py
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
-
-      - name: Build MettaGrid C++
-        if: matrix.package == 'mettagrid'
-        id: mettagrid_build_check
-        run: |
-          .github/scripts/check_mettagrid_build.py
 
       - name: Run MettaGrid C++ coverage
         if: matrix.package == 'mettagrid'

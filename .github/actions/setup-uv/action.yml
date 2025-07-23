@@ -35,24 +35,15 @@ runs:
         case "${{ inputs.install-mode }}" in
 
           "testing")
-            # Install specific workspace members excluding mettagrid
-            echo "Installing dependencies and workspace members (except mettagrid)..."
-            # First sync to get all external dependencies
             uv sync --no-install-workspace
-            # Then install specific workspace members (excluding mettagrid)
             uv pip install --no-deps -e .
             uv pip install --no-deps -e ./common
             uv pip install --no-deps -e ./agent
             uv pip install --no-deps -e ./app_backend
-            # Also install mettagrid's build dependencies
-            echo "Installing build dependencies..."
-            uv pip install scikit-build-core
-            echo "Installing test dependencies..."
-            uv pip install pytest pytest-cov gcovr
+            uv pip install scikit-build-core pytest pytest-cov gcovr
             ;;
 
           "linting")
-            # Just install linting tools
             uv pip install ruff cpplint
             ;;
 
