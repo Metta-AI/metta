@@ -118,7 +118,8 @@ class WandbProtein:
         )
 
         # Also record the failure with the Protein
-        self._protein.observe(self._suggestion, 0.0, 0.0, True)
+        # Non-Zero cost to avoid division/log errors
+        self._protein.observe(self._suggestion, 0.0, 0.001, True)
 
     def suggest(self, fill=None) -> Tuple[dict[str, Any], dict[str, Any]]:
         """
@@ -134,7 +135,7 @@ class WandbProtein:
         cleaned = clean_numpy_types(suggestion)
 
         # Test if it's JSON serializable
-        json.dumps(cleaned)
+        # json.dumps(cleaned)
         return cleaned
 
     def _deep_clean(self, obj):

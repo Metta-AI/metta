@@ -3,12 +3,29 @@ name: Asana Integration
 on:
   pull_request:
     # TODO: also handle reviews and comments
-    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+    types:
+      [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
 
 jobs:
-  asana_integration:
+  check-context:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
+    outputs:
+      is_external: ${{ steps.detect-pr.outputs.is_external }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect PR context
+        id: detect-pr
+        uses: ./.github/actions/detect-external-pr
+
+  asana_integration:
+    needs: check-context
+    runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.draft == false &&
+      needs.check-context.outputs.is_external != 'true'
     concurrency: ${{ github.workflow }}-${{ github.event.pull_request.number }}
     permissions:
       contents: read

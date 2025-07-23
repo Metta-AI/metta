@@ -1,6 +1,8 @@
 #!/usr/bin/env -S uv run
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
+import logging
+
 import numpy as np  # noqa: E402
 
 if not hasattr(np, "byte"):
@@ -8,19 +10,19 @@ if not hasattr(np, "byte"):
 
 import json
 import os
-import sys
 import time
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
+from metta.util.metta_script import metta_script
+
+logger = logging.getLogger(__name__)
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -39,12 +41,8 @@ def load_file(run_dir, name):
         return OmegaConf.load(f)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-@metta_script
 def main(cfg: DictConfig) -> int:
-    logger = get_metta_logger()
-
-    simulation_suite_cfg = SimulationSuiteConfig(**cfg.sim)
+    simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
@@ -61,14 +59,15 @@ def main(cfg: DictConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            # First get the policy records from the run to find the artifact URI
-            policy_records = policy_store.policy_records("wandb://run/" + cfg.run)
-            if not policy_records:
-                raise ValueError(f"No policy records found for run {cfg.run}")
+            # Fetch the latest policy record from the run
+            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run, selector_type="latest")
+            if not policy_pr:
+                raise ValueError(f"No policy record found for run {cfg.run}")
 
-            # Get the first policy record and load it directly using its wandb URI
+            # Load the policy record directly using its wandb URI
             # This will download the artifact and give us a local path
-            policy_pr = policy_store.load_from_uri(policy_records[0].uri)
+            policy_pr = policy_store.load_from_uri(policy_pr.uri)
+
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             # Record failure in WandB directly since we don't have a Protein instance yet
@@ -82,6 +81,7 @@ def main(cfg: DictConfig) -> int:
             device=cfg.device,
             vectorization=cfg.vectorization,
         )
+
         # Start evaluation process
         sweep_stats = {}
         start_time = time.time()
@@ -143,7 +143,7 @@ def main(cfg: DictConfig) -> int:
         )
 
         # Add policy to wandb sweep
-        policy_store.add_to_wandb_sweep(cfg.sweep_run, policy_pr)
+        policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
 
         # Record observation in Protein sweep
         total_time = train_time + eval_time
@@ -162,5 +162,4 @@ def main(cfg: DictConfig) -> int:
         return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+metta_script(main, "sweep_eval")

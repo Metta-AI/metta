@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
-        env_cfg_template: str,
+        env_cfg_template_path: str,
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
@@ -28,14 +28,16 @@ class BucketedCurriculum(LearningProgressCurriculum):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
         self._id_to_curriculum = {}
-        base_cfg = config_from_path(env_cfg_template, env_overrides)
+        base_cfg = config_from_path(env_cfg_template_path, env_overrides)
+        # We copy to reset the config's root.
         env_cfg_template = copy_omegaconf_config(base_cfg)
 
         logger.info("Generating bucketed tasks")
         for parameter_values in tqdm(product(*expanded_buckets.values())):
             curriculum_id = get_id(expanded_buckets.keys(), parameter_values)
+            sampling_parameters = {k: v for k, v in zip(expanded_buckets.keys(), parameter_values, strict=True)}
             self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(
-                curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
+                curriculum_id, env_cfg_template, sampling_parameters
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
         super().__init__(tasks=tasks, env_overrides=env_overrides)
@@ -48,7 +50,7 @@ def get_id(parameters, values):
     curriculum_id = ""
     for k, v in zip(parameters, values, strict=False):
         if isinstance(v, dict):
-            v = v.get("range", "values")
+            v = v.values()
         if isinstance(v, tuple):
             v = tuple(round(x, 3) if isinstance(x, float) else x for x in v)
         elif isinstance(v, float):
@@ -66,6 +68,8 @@ def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -
     for parameter, bucket_spec in buckets.items():
         if "values" in bucket_spec:
             buckets_unpacked[parameter] = bucket_spec["values"]
+        elif "choice" in bucket_spec:
+            buckets_unpacked[parameter] = bucket_spec["choice"]
         elif "range" in bucket_spec:
             lo, hi = bucket_spec["range"]
             n = int(bucket_spec.get("bins", default_bins))

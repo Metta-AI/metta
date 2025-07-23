@@ -6,7 +6,7 @@ inputs:
     required: false
     default: "true"
   install-mode:
-    description: "Installation mode: 'full' (default), 'no-mettagrid', or 'linting'"
+    description: "Installation mode: 'full' (default), 'testing', or 'linting'"
     required: false
     default: "full"
 
@@ -18,6 +18,9 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
+        cache-local-path: "~/.cache/uv"
+        prune-cache: false
+        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.include-dev }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
 
     - name: Create virtual environment with uv
       shell: bash
@@ -30,30 +33,22 @@ runs:
 
         # Handle different installation modes
         case "${{ inputs.install-mode }}" in
-          "no-mettagrid")
-            # Install specific workspace members excluding mettagrid
-            echo "Installing dependencies and workspace members (except mettagrid)..."
-            # First sync to get all external dependencies
-            uv sync --no-install-workspace
-            # Then install specific workspace members (excluding mettagrid)
-            uv pip install --no-deps -e .
-            uv pip install --no-deps -e ./common
-            uv pip install --no-deps -e ./agent
-            uv pip install --no-deps -e ./app_backend
-            # Also install mettagrid's build dependencies
-            echo "Installing build dependencies..."
-            uv pip install scikit-build-core
+
+          "testing")
+            uv sync --no-default-groups
+            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
             ;;
+
           "linting")
-            # Just install linting tools
             uv pip install ruff cpplint
             ;;
+
           "full"|*)
-            # Normal installation
             if [ "${{ inputs.include-dev }}" = "true" ]; then
               uv sync
             else
               uv sync --no-default-groups
             fi
             ;;
+
         esac

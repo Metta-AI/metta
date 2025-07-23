@@ -29,11 +29,11 @@ export function initActionButtons() {
   })
 
   find('#action-buttons .put-recipe-items').addEventListener('click', () => {
-    sendAction('put_recipe_items', 0)
+    sendAction('put_items', 0)
   })
 
   find('#action-buttons .get-output').addEventListener('click', () => {
-    sendAction('get_output', 0)
+    sendAction('get_items', 0)
   })
 
   find('#action-buttons .noop').addEventListener('click', () => {
@@ -112,11 +112,11 @@ export function processActions(event: KeyboardEvent) {
     }
     if (event.key == 'q') {
       // Put recipe items.
-      sendAction('put_recipe_items', 0)
+      sendAction('put_items', 0)
     }
     if (event.key == 'e') {
       // Get the output.
-      sendAction('get_output', 0)
+      sendAction('get_items', 0)
     }
     if (event.key == 'x') {
       // No-op.

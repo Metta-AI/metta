@@ -1,0 +1,12 @@
+image:
+  repository: metta-local
+  tag: "latest"
+  pullPolicy: Never
+
+workerImage:
+  repository: metta-local
+  tag: "latest"
+  pullPolicy: Never
+
+env:
+  BACKEND_URL: "http://host.docker.internal:8000"

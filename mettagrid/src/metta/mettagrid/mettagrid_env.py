@@ -127,16 +127,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
-        # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
-        # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
-        if "map_builder" in game_config_dict:
-            del game_config_dict["map_builder"]
+        game_config_dict = OmegaConf.to_container(task.env_cfg().game, resolve=True)
+        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
+        game_config_dict = cast(Dict[str, Any], game_config_dict)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if self._is_training and self._resets == 0:
+        if isinstance(game_config_dict, dict) and self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
             # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
@@ -281,7 +279,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
-            "completion_time": time.time(),
+            "completion_time": int(time.time()),
         }
         infos["attributes"] = attributes
 
@@ -374,9 +372,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         Return the observation space for a single agent.
         Returns:
-            Box: A Box space with shape depending on whether observation tokens are used.
-                If using tokens: (num_agents, num_observation_tokens, 3)
-                Otherwise: (obs_height, obs_width, num_grid_features)
+            Box: A Box space with shape (num_agents, num_observation_tokens, 3)
         """
         return self._c_env.observation_space
 
@@ -390,8 +386,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         return self._c_env.action_space
 
-    # obs_width and obs_height correspond to the view window size, and should indicate the grid from which
-    # tokens are being computed.
     @property
     def obs_width(self):
         return self._c_env.obs_width
@@ -424,7 +418,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
-    def get_observation_features(self) -> dict[str, dict]:
+    def get_observation_features(self) -> dict[str, dict[str, int | float]]:
         """
         Build the features dictionary for initialize_to_environment.
 
@@ -436,7 +430,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
-            feature_dict = {"id": feature_info["id"]}
+            feature_dict: dict[str, int | float] = {"id": feature_info["id"]}
 
             # Add normalization if present
             if "normalization" in feature_info:

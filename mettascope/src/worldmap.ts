@@ -8,6 +8,58 @@ import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
+import { renderMinimapObjects } from './minimap.js'
+
+/**
+ * Clamps the map panel's pan position so that the world map always remains at
+ * least partially visible within the panel.
+ */
+function clampMapPan(panel: PanelInfo) {
+  if (state.replay === null) {
+    return
+  }
+
+  // The bounds of the world map in world-space coordinates. Tiles are drawn
+  // starting at (−TILE_SIZE/2, −TILE_SIZE/2).
+  const mapMinX = -Common.TILE_SIZE / 2
+  const mapMinY = -Common.TILE_SIZE / 2
+  const mapMaxX = state.replay.map_size[0] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+  const mapMaxY = state.replay.map_size[1] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+
+  // Dimensions of the visible area in world-space coordinates.
+  const rect = panel.rectInner()
+  const viewHalfWidth = rect.width / (2 * panel.zoomLevel)
+  const viewHalfHeight = rect.height / (2 * panel.zoomLevel)
+
+  // Current viewport centre in world-space.
+  let cx = -panel.panPos.x()
+  let cy = -panel.panPos.y()
+
+  const mapWidth = mapMaxX - mapMinX
+  const mapHeight = mapMaxY - mapMinY
+
+  // Minimum number of pixels of the map that must remain visible.
+  const minVisiblePixels = 500
+
+  // Convert to world coordinates based on current zoom level.
+  const minVisibleWorldUnits = minVisiblePixels / panel.zoomLevel
+
+  // Ensure the required visible area doesn't exceed the actual map size.
+  const maxVisibleUnitsX = Math.min(minVisibleWorldUnits, mapWidth / 2)
+  const maxVisibleUnitsY = Math.min(minVisibleWorldUnits, mapHeight / 2)
+
+  // Clamp horizontally.
+  const minCenterX = mapMinX + maxVisibleUnitsX - viewHalfWidth
+  const maxCenterX = mapMaxX - maxVisibleUnitsX + viewHalfWidth
+  cx = Math.max(minCenterX, Math.min(cx, maxCenterX))
+
+  // Clamp vertically.
+  const minCenterY = mapMinY + maxVisibleUnitsY - viewHalfHeight
+  const maxCenterY = mapMaxY - maxVisibleUnitsY + viewHalfHeight
+  cy = Math.max(minCenterY, Math.min(cy, maxCenterY))
+
+  panel.panPos = new Vec2f(-cx, -cy)
+}
 
 /** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
@@ -157,7 +209,12 @@ function drawObject(gridObject: any) {
 
     const agent_id = getAttr(gridObject, 'agent_id')
 
-    ctx.drawSprite('agents/agent.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, colorFromId(agent_id))
+    ctx.drawSprite(
+      'agents/agent.' + suffix + '.png',
+      x * Common.TILE_SIZE,
+      y * Common.TILE_SIZE,
+      Common.colorFromId(agent_id)
+    )
   } else {
     // Draw regular objects.
 
@@ -246,7 +303,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'put_recipe_items') {
+        } else if (action_name == 'put_items') {
           ctx.drawSprite(
             'actions/put_recipe_items.png',
             x * Common.TILE_SIZE,
@@ -255,7 +312,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'get_output') {
+        } else if (action_name == 'get_items') {
           ctx.drawSprite(
             'actions/get_output.png',
             x * Common.TILE_SIZE,
@@ -761,14 +818,17 @@ export function drawMap(panel: PanelInfo) {
         }
       }
     } else {
-      ui.hoverObject = objectUnderMouse
-      clearTimeout(ui.hoverTimer)
-      ui.hoverTimer = setTimeout(() => {
-        if (ui.mouseTargets.includes('#worldmap-panel')) {
-          ui.delayedHoverObject = ui.hoverObject
-          updateHoverPanel(ui.delayedHoverObject)
-        }
-      }, Common.INFO_PANEL_POP_TIME)
+      // Only reset the hover timer if we moved onto a different object (or off of an object).
+      if (ui.hoverObject !== objectUnderMouse) {
+        ui.hoverObject = objectUnderMouse
+        clearTimeout(ui.hoverTimer)
+        ui.hoverTimer = setTimeout(() => {
+          if (ui.mouseTargets.includes('#worldmap-panel')) {
+            ui.delayedHoverObject = ui.hoverObject
+            updateHoverPanel(ui.delayedHoverObject)
+          }
+        }, Common.INFO_PANEL_POP_TIME)
+      }
     }
   }
 
@@ -779,6 +839,9 @@ export function drawMap(panel: PanelInfo) {
     panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
   }
 
+  // Ensure that at least a portion of the map remains visible.
+  clampMapPan(panel)
+
   ctx.save()
   const rect = panel.rectInner()
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
@@ -787,17 +850,29 @@ export function drawMap(panel: PanelInfo) {
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
-  drawFloor()
-  drawWalls()
-  drawTrajectory()
-  drawObjects()
-  drawActions()
-  drawSelection()
-  drawInventory()
-  drawRewards()
-  drawVisibility()
-  drawGrid()
-  drawThoughtBubbles()
+  if (panel.zoomLevel < Common.MACROMAP_ZOOM_THRESHOLD) {
+    /** Draw the Macromap of the world map instead of objects.
+     * The user has zoomed out so far that we should switch to a minimap-style rendering.
+     * This is used when the user zooms out far enough that normal
+     * sprites would be unreadable. */
+    ctx.save()
+    ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
+    renderMinimapObjects(new Vec2f(-0.5, -0.5))
+    ctx.restore()
+    drawSelection()
+  } else {
+    drawFloor()
+    drawWalls()
+    drawTrajectory()
+    drawObjects()
+    drawActions()
+    drawSelection()
+    drawInventory()
+    drawRewards()
+    drawVisibility()
+    drawGrid()
+    drawThoughtBubbles()
+  }
 
   if (search.active) {
     // Draw the black overlay over the map.

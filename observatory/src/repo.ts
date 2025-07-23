@@ -87,6 +87,73 @@ export type TrainingRunTagsUpdate = {
   tags: string[]
 }
 
+export type Episode = {
+  id: string
+  created_at: string
+  primary_policy_id: string
+  eval_category: string | null
+  env_name: string | null
+  attributes: Record<string, any>
+  // Policy information
+  policy_name: string | null
+  // Training run information
+  training_run_id: string | null
+  training_run_name: string | null
+  training_run_user_id: string | null
+  // Episode tags
+  tags: string[]
+}
+
+export type EpisodeFilterResponse = {
+  episodes: Episode[]
+  total_count: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export type EpisodeTagRequest = {
+  episode_ids: string[]
+  tag: string
+}
+
+export type EpisodeTagByFilterRequest = {
+  filter_query: string
+  tag: string
+}
+
+export type EpisodeTagResponse = {
+  episodes_affected: number
+}
+
+export type AllTagsResponse = {
+  tags: string[]
+}
+
+export type EvalTaskCreateRequest = {
+  policy_id: string
+  git_hash: string | null
+  env_overrides?: Record<string, any>
+  sim_suite?: string
+}
+
+export type EvalTask = {
+  id: string
+  policy_id: string
+  sim_suite: string
+  status: 'unprocessed' | 'canceled' | 'done' | 'error'
+  assigned_at: string | null
+  assignee: string | null
+  created_at: string
+  attributes: Record<string, any>
+  policy_name: string | null
+  retries: number
+}
+
+export type EvalTasksResponse = {
+  tasks: EvalTask[]
+}
+
 export type TableInfo = {
   table_name: string
   column_count: number
@@ -126,11 +193,7 @@ export interface Repo {
   getAllMetrics(): Promise<string[]>
   getGroupIds(suite: string): Promise<string[]>
 
-  getHeatmapData(
-    metric: string,
-    suite: string,
-    policySelector?: PolicySelector
-  ): Promise<HeatmapData>
+  getHeatmapData(metric: string, suite: string, policySelector?: PolicySelector): Promise<HeatmapData>
 
   // Token management methods
   createToken(tokenData: TokenCreate): Promise<TokenResponse>
@@ -157,15 +220,26 @@ export interface Repo {
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
   updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  getTrainingRunHeatmapData(
-    runId: string,
-    metric: string,
-    suite: string,
-  ): Promise<HeatmapData>
+  getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData>
+
+  // Episode methods
+  filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse>
+  addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
+  removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
+  addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
+  removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
+  getAllEpisodeTags(): Promise<AllTagsResponse>
+
+  // Eval task methods
+  createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
+  getEvalTasks(): Promise<EvalTask[]>
+
+  // Policy methods
+  getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') {}
+  constructor(private baseUrl: string = 'http://localhost:8000') { }
 
   private async apiCall<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`)
@@ -228,11 +302,7 @@ export class ServerRepo implements Repo {
     return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`)
   }
 
-  async getHeatmapData(
-    metric: string,
-    suite: string,
-    policySelector: PolicySelector = 'latest'
-  ): Promise<HeatmapData> {
+  async getHeatmapData(metric: string, suite: string, policySelector: PolicySelector = 'latest'): Promise<HeatmapData> {
     // Use POST endpoint for GroupDiff
     const apiData = await this.apiCallWithBody<HeatmapData>(
       `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
@@ -312,13 +382,67 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
-  async getTrainingRunHeatmapData(
-    runId: string,
-    metric: string,
-    suite: string,
-  ): Promise<HeatmapData> {
+  async getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData> {
     return this.apiCall<HeatmapData>(
-      `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
+      `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`
     )
+  }
+
+  // Episode methods
+  async filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+      filter_query: filterQuery,
+    })
+    return this.apiCall<EpisodeFilterResponse>(`/episodes?${params}`)
+  }
+
+  async addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
+    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/add', {
+      episode_ids: episodeIds,
+      tag: tag,
+    })
+  }
+
+  async removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
+    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/remove', {
+      episode_ids: episodeIds,
+      tag: tag,
+    })
+  }
+
+  async addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse> {
+    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/add-by-filter', {
+      filter_query: filterQuery,
+      tag: tag,
+    })
+  }
+
+  async removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse> {
+    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/remove-by-filter', {
+      filter_query: filterQuery,
+      tag: tag,
+    })
+  }
+
+  async getAllEpisodeTags(): Promise<AllTagsResponse> {
+    return this.apiCall<AllTagsResponse>('/episodes/tags/all')
+  }
+
+  async createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask> {
+    return this.apiCallWithBody<EvalTask>('/tasks', request)
+  }
+
+  async getEvalTasks(): Promise<EvalTask[]> {
+    const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
+    return response.tasks
+  }
+
+  async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
+    const params = new URLSearchParams()
+    policyNames.forEach(name => params.append('policy_names', name))
+    const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
+    return response.policy_ids
   }
 }
