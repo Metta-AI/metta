@@ -33,7 +33,6 @@ dependencies = [
     "gymnasium==0.29.1",
     "hydra-core>=1.4.0.dev1",
     "matplotlib>=3.10.3",
-    "metta-bootstrap @ git+https://github.com/metta-ai/metta.git@richard-alt-versions#subdirectory=bootstrap",
     "metta-common @ git+https://github.com/metta-ai/metta.git@richard-alt-versions#subdirectory=common",
     "numpy<2",
     "omegaconf>=2.4.0.dev3",
