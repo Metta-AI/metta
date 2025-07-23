@@ -33,7 +33,7 @@ permissions:
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
-  PYTEST_WORKERS: auto
+  PYTEST_WORKERS: 4
 
 jobs:
   # check if CI should run based on Graphite's stack position
@@ -160,7 +160,7 @@ jobs:
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
