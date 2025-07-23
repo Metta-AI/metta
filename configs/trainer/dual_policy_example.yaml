@@ -1,0 +1,63 @@
+# Example configuration for dual-policy training
+# This shows how to enable dual-policy training with scripted NPCs
+
+defaults:
+  - /trainer/trainer@
+  - _self_
+
+# Enable dual-policy training
+dual_policy:
+  enabled: true
+  policy_a_percentage: 0.5  # 50% of agents use the main policy
+
+  # Configure scripted NPC behavior
+  npc_type: "scripted"
+  scripted_npc:
+    type: "roomba"  # Options: "roomba", "grid_search"
+    approach_items: true
+    interact_with_items: true
+    roomba_direction: "clockwise"  # For roomba type
+    grid_search_pattern: "spiral"  # For grid_search type
+
+# Alternative: Use checkpoint-based NPC
+# dual_policy:
+#   enabled: true
+#   policy_a_percentage: 0.5
+#   npc_type: "checkpoint"
+#   npc_policy_uri: "path/to/npc/policy/checkpoint"
+
+# Training parameters (can be overridden)
+total_timesteps: 10_000_000
+batch_size: 524288
+minibatch_size: 16384
+
+# PPO parameters
+ppo:
+  clip_coef: 0.1
+  ent_coef: 0.0021
+  gae_lambda: 0.916
+  gamma: 0.977
+
+# Optimizer
+optimizer:
+  type: "adam"
+  learning_rate: 0.000457
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-12
+  weight_decay: 0
+
+# Checkpointing
+checkpoint:
+  checkpoint_interval: 50
+  wandb_checkpoint_interval: 50
+
+# Evaluation
+simulation:
+  evaluate_interval: 200
+  replay_dir: "s3://softmax-public/replays/${run}"
+
+# System configuration
+num_workers: 4
+forward_pass_minibatch_target_size: 4096
+async_factor: 2

@@ -41,6 +41,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
+from metta.rl.util.dual_policy_rollout import DualPolicyRollout
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
@@ -273,6 +274,17 @@ class MettaTrainer:
 
         self._make_experience_buffer()
 
+        # Initialize dual-policy system if enabled
+        self.dual_policy_rollout = None
+        if trainer_cfg.dual_policy.enabled:
+            self.dual_policy_rollout = DualPolicyRollout(
+                config=trainer_cfg.dual_policy,
+                policy_store=self.policy_store,
+                num_agents=self.vecenv.num_agents,
+                device=self.device,
+            )
+            logger.info(f"Dual-policy system initialized: {self.dual_policy_rollout.get_agent_assignments()}")
+
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
         self._stats_run_id: UUID | None = None
@@ -419,6 +431,10 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
+        # Reset dual-policy reward tracking for new episode
+        if self.dual_policy_rollout:
+            self.dual_policy_rollout.reset_reward_tracking()
+
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
             if trainer_cfg.require_contiguous_env_ids:
@@ -432,10 +448,19 @@ class MettaTrainer:
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps * self._world_size
 
-            # Run policy inference
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                self.policy, o, experience, training_env_id.start, self.device
-            )
+            # Run policy inference (with dual-policy support if enabled)
+            if self.dual_policy_rollout:
+                actions, selected_action_log_probs, values, lstm_state_to_store = (
+                    self.dual_policy_rollout.run_dual_policy_inference(
+                        self.policy, o, experience, training_env_id.start
+                    )
+                )
+                # Track rewards separately for each policy type
+                self.dual_policy_rollout.track_rewards(r)
+            else:
+                actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                    self.policy, o, experience, training_env_id.start, self.device
+                )
 
             # Store experience
             experience.store(
@@ -829,6 +854,12 @@ class MettaTrainer:
 
         # Update self.stats with mean values for consistency
         self.stats = processed_stats["mean_stats"]
+
+        # Add dual-policy reward statistics if enabled
+        if self.dual_policy_rollout:
+            dual_policy_stats = self.dual_policy_rollout.get_reward_stats()
+            for key, value in dual_policy_stats.items():
+                self.stats[f"dual_policy/{key}"] = value
 
         # Compute weight stats if on interval
         weight_stats = {}
