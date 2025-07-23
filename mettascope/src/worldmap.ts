@@ -808,7 +808,7 @@ export function drawMap(panel: PanelInfo) {
         ui.hoverObject = objectUnderMouse
         clearTimeout(ui.hoverTimer)
         ui.hoverTimer = setTimeout(() => {
-          if (ui.mouseTargets.includes('#worldmap-panel') || ui.mouseTargets.includes('.hover-bubble')) {
+          if (ui.mouseTargets.includes('#worldmap-panel')) {
             ui.delayedHoverObject = ui.hoverObject
             updateHoverBubble(ui.delayedHoverObject)
           }

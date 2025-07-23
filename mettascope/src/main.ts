@@ -252,7 +252,7 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
     onTraceMinimapChange(event)
   }
 
-  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-bubble')) {
+  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
     // Start a timer to hide the hover bubble after a delay
     if (ui.hideHoverTimer === null) {
       ui.hideHoverTimer = setTimeout(() => {
