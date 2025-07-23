@@ -5,7 +5,7 @@ import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './rep
 import { focusFullMap, drawMap } from './worldmap.js'
 import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
-import { processActions, initActionButtons } from './actions.js'
+import { processActions, initActionButtons, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import {
   localStorageSetNumber,
@@ -529,6 +529,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
 
 /** Draws a frame. */
 export function onFrame() {
+
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
@@ -953,6 +954,7 @@ initObjectMenu()
 initTimeline()
 initDemoMode()
 initializeTooltips()
+startGamepadPolling()
 
 window.addEventListener('load', async () => {
   // Use a local atlas texture.
