@@ -3,7 +3,12 @@
 
 defaults:
   - /trainer/trainer@
+  - sim:evals@all
   - _self_
+
+# Required fields for validation
+num_workers: 1  # Will be overridden by train.py if not specified
+curriculum: /env/mettagrid/curriculum/simple
 
 # WandB configuration for dual-policy training project
 wandb:
@@ -63,6 +68,5 @@ simulation:
   replay_dir: "s3://softmax-public/replays/${run}"
 
 # System configuration
-num_workers: 4
 forward_pass_minibatch_target_size: 4096
 async_factor: 2
