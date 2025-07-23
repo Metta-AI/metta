@@ -1,9 +1,8 @@
-# BBC Learning Progress Curriculum
+name: bbc_curriculum
+algorithm: learning_progress
 
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
-
-tasks:
-  /env/mettagrid/curriculum/bbc/agents/1: 1
-  /env/mettagrid/curriculum/bbc/agents/2: 1
-  /env/mettagrid/curriculum/bbc/agents/3: 1
-  /env/mettagrid/curriculum/bbc/agents/24: 1
+children:
+  - /env/mettagrid/curriculum/bbc/agents/1
+  - /env/mettagrid/curriculum/bbc/agents/2
+  - /env/mettagrid/curriculum/bbc/agents/3
+  - /env/mettagrid/curriculum/bbc/agents/24

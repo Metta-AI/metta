@@ -1,0 +1,7 @@
+name: arena_prioritize_regressed
+algorithm: prioritize_regressed
+
+# Inherit from base random configuration
+defaults:
+  - random
+  - _self_

@@ -27,8 +27,8 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
-from metta.interface.environment import PreBuiltConfigCurriculum
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
+from metta.common.util.config import config_from_path
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -130,12 +130,12 @@ class Simulation:
             # Apply any additional env_overrides to the pre_built config
             if env_overrides:
                 pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
-            curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
+            curriculum = single_task(config.env, pre_built_config)
         else:
-            # Use the standard SamplingCurriculum that loads from Hydra
-            curriculum = SamplingCurriculum(config.env, env_overrides)
+            env_config = config_from_path(config.env, env_overrides)
+            curriculum = single_task(config.env, env_config)
 
-        env_cfg = curriculum.get_task().env_cfg()
+        env_cfg = curriculum.sample().env_config
         self._vecenv = make_vecenv(
             curriculum,
             vectorization,

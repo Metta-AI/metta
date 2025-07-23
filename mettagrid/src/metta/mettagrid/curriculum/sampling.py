@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum, Task
+from metta.mettagrid.curriculum.curriculum import Curriculum, Task
 from metta.mettagrid.util.hydra import config_from_path
 
 logger = logging.getLogger(__name__)

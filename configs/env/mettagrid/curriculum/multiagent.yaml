@@ -1,12 +1,12 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+name: multiagent_curriculum
+algorithm: prioritize_regressed
 
-tasks:
-  /env/mettagrid/multiagent/experiments/boxshare: 1
-  /env/mettagrid/multiagent/experiments/boxy: 1
-  # /env/mettagrid/multiagent/experiments/cylinder_world: 1
-  /env/mettagrid/multiagent/experiments/manhatten: 1
-  /env/mettagrid/multiagent/experiments/narrow_world: 1
-  /env/mettagrid/multiagent/experiments/varied_terrain_sparse: 1
-  /env/mettagrid/multiagent/experiments/varied_terrain_balanced: 1
-  /env/mettagrid/multiagent/experiments/varied_terrain_maze: 1
-  /env/mettagrid/multiagent/experiments/varied_terrain_dense: 1
+env_paths:
+  /env/mettagrid/multiagent/experiments/boxshare
+  /env/mettagrid/multiagent/experiments/boxy
+  /env/mettagrid/multiagent/experiments/manhatten
+  /env/mettagrid/multiagent/experiments/narrow_world
+  /env/mettagrid/multiagent/experiments/varied_terrain_sparse
+  /env/mettagrid/multiagent/experiments/varied_terrain_balanced
+  /env/mettagrid/multiagent/experiments/varied_terrain_maze
+  /env/mettagrid/multiagent/experiments/varied_terrain_dense

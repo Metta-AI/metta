@@ -11,7 +11,7 @@ This package contains modular components for training Metta agents:
 
 from metta.interface.agent import Agent
 from metta.interface.directories import RunDirectories, setup_device_and_distributed, setup_run_directories
-from metta.interface.environment import Environment, PreBuiltConfigCurriculum
+from metta.interface.environment import Environment
 from metta.interface.evaluation import (
     create_evaluation_config_suite,
     create_replay_config,
@@ -29,7 +29,6 @@ __all__ = [
     "setup_device_and_distributed",
     # Environment
     "Environment",
-    "PreBuiltConfigCurriculum",
     # Evaluation
     "create_evaluation_config_suite",
     "create_replay_config",

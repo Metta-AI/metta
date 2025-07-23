@@ -1,7 +1,9 @@
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+name: sparse
 
-env_cfg_template_path: /env/mettagrid/navigation/training/sparse
-buckets:
+env_paths:
+  - /env/mettagrid/navigation/training/sparse
+
+parameters:
   game.map_builder.width: { range: [60, 120] }
   game.map_builder.height: { range: [60, 120] }
   game.map_builder.root.params.objects.altar: { range: [1, 10] }

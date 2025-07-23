@@ -1,5 +1,7 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+name: object_use_curriculum
+algorithm: prioritize_regressed
 
-tasks:
-  /env/mettagrid/curriculum/objects/all_objects: 2
-  /env/mettagrid/curriculum/objects/sequence: 1
+# This is a hierarchical curriculum that references object sub-curricula
+children:
+  - /env/mettagrid/curriculum/objects/all_objects
+  - /env/mettagrid/curriculum/objects/sequence

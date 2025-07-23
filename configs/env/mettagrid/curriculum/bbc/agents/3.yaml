@@ -1,3 +1,6 @@
+name: bbc_agents_3
+algorithm: learning_progress
+
 defaults:
   - defaults
 
