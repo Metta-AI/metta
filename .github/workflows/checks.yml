@@ -153,7 +153,6 @@ jobs:
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
-
   test-matrix:
     name: "Unit Tests - ${{ matrix.package }}"
     needs: [setup-checks]
@@ -167,7 +166,6 @@ jobs:
       matrix:
         package: [core, app_backend, agent, mettagrid, common]
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v4
 
