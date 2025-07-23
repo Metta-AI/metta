@@ -28,18 +28,22 @@ class DualPolicyRollout:
         self.num_agents = num_agents
         self.device = device
 
-        # Calculate agent assignments
-        self.policy_a_count = int(num_agents * config.policy_a_percentage)
-        self.npc_count = num_agents - self.policy_a_count
+        # Calculate environment assignments (assuming 2 agents per environment)
+        # This is a simplification - in practice you'd need to get the actual num_envs
+        self.num_envs = num_agents // 2  # Assuming 2 agents per environment
 
-        # Create agent assignment masks
-        self.policy_a_mask = torch.zeros(num_agents, dtype=torch.bool, device=device)
-        self.npc_mask = torch.zeros(num_agents, dtype=torch.bool, device=device)
+        # Calculate environment assignments
+        self.policy_a_env_count = int(self.num_envs * config.policy_a_percentage)
+        self.npc_env_count = self.num_envs - self.policy_a_env_count
 
-        if self.policy_a_count > 0:
-            self.policy_a_mask[: self.policy_a_count] = True
-        if self.npc_count > 0:
-            self.npc_mask[self.policy_a_count :] = True
+        # Create environment assignment masks
+        self.policy_a_mask = torch.zeros(self.num_envs, dtype=torch.bool, device=device)
+        self.npc_mask = torch.zeros(self.num_envs, dtype=torch.bool, device=device)
+
+        if self.policy_a_env_count > 0:
+            self.policy_a_mask[: self.policy_a_env_count] = True
+        if self.npc_env_count > 0:
+            self.npc_mask[self.policy_a_env_count :] = True
 
         # Initialize NPC policy
         self.npc_policy = None
@@ -53,14 +57,14 @@ class DualPolicyRollout:
 
     def _initialize_npc_policy(self):
         """Initialize the NPC policy based on configuration."""
-        if not self.config.enabled or self.npc_count == 0:
+        if not self.config.enabled or self.npc_env_count == 0:
             return
 
         if self.config.npc_type == "scripted":
             from metta.rl.scripted_npc import create_scripted_npc
 
-            self.npc_policy = create_scripted_npc(self.config.scripted_npc, self.npc_count, self.device)
-            logger.info(f"Initialized scripted NPC with {self.npc_count} agents")
+            self.npc_policy = create_scripted_npc(self.config.scripted_npc, self.npc_env_count, self.device)
+            logger.info(f"Initialized scripted NPC with {self.npc_env_count} agents")
 
         elif self.config.npc_type == "checkpoint":
             if not self.config.npc_policy_uri:
@@ -90,7 +94,7 @@ class DualPolicyRollout:
         npc_obs = observations[self.npc_mask]
 
         # Get actions from main policy
-        if self.policy_a_count > 0:
+        if self.policy_a_env_count > 0:
             policy_a_actions, policy_a_log_probs, policy_a_values, policy_a_lstm_state = run_policy_inference(
                 main_policy, policy_a_obs, experience, training_env_id_start, self.device
             )
@@ -101,7 +105,7 @@ class DualPolicyRollout:
             policy_a_lstm_state = None
 
         # Get actions from NPC policy
-        if self.npc_count > 0:
+        if self.npc_env_count > 0:
             npc_actions, npc_log_probs, npc_values, npc_lstm_state = self._get_npc_actions(npc_obs)
         else:
             npc_actions = torch.empty(0, 2, device=self.device, dtype=torch.int32)
@@ -110,16 +114,16 @@ class DualPolicyRollout:
             npc_lstm_state = None
 
         # Combine actions and values
-        combined_actions = torch.zeros(self.num_agents, 2, device=self.device, dtype=torch.int32)
-        combined_log_probs = torch.zeros(self.num_agents, device=self.device)
-        combined_values = torch.zeros(self.num_agents, device=self.device)
+        combined_actions = torch.zeros(self.num_envs, 2, device=self.device, dtype=torch.int32)
+        combined_log_probs = torch.zeros(self.num_envs, device=self.device)
+        combined_values = torch.zeros(self.num_envs, device=self.device)
 
-        if self.policy_a_count > 0:
+        if self.policy_a_env_count > 0:
             combined_actions[self.policy_a_mask] = policy_a_actions
             combined_log_probs[self.policy_a_mask] = policy_a_log_probs
             combined_values[self.policy_a_mask] = policy_a_values
 
-        if self.npc_count > 0:
+        if self.npc_env_count > 0:
             combined_actions[self.npc_mask] = npc_actions
             combined_log_probs[self.npc_mask] = npc_log_probs
             combined_values[self.npc_mask] = npc_values
@@ -136,8 +140,8 @@ class DualPolicyRollout:
             if self.npc_policy is None:
                 raise ValueError("NPC policy not initialized")
             actions = self.npc_policy.get_actions(observations)
-            log_probs = torch.zeros(observations.shape[0], device=self.device)
-            values = torch.zeros(observations.shape[0], device=self.device)
+            log_probs = torch.zeros(int(observations.shape[0]), device=self.device)
+            values = torch.zeros(int(observations.shape[0]), device=self.device)
             lstm_state = None
 
         elif self.config.npc_type == "checkpoint":
@@ -158,9 +162,13 @@ class DualPolicyRollout:
                 device=self.device,
                 hidden_size=256,  # Default value
             )
-            actions, log_probs, values, lstm_state = run_policy_inference(
-                self.npc_policy, observations, dummy_experience, 0, self.device
-            )
+            # Type check for checkpoint policies
+            if hasattr(self.npc_policy, "forward"):
+                actions, log_probs, values, lstm_state = run_policy_inference(
+                    self.npc_policy, observations, dummy_experience, 0, self.device
+                )
+            else:
+                raise ValueError("Checkpoint NPC policy must be a PyTorch module")
 
         else:
             raise ValueError(f"Unknown NPC type: {self.config.npc_type}")
@@ -173,8 +181,8 @@ class DualPolicyRollout:
             return
 
         # Split rewards by policy
-        policy_a_reward = rewards[self.policy_a_mask].sum().item() if self.policy_a_count > 0 else 0.0
-        npc_reward = rewards[self.npc_mask].sum().item() if self.npc_count > 0 else 0.0
+        policy_a_reward = rewards[self.policy_a_mask].sum().item() if self.policy_a_env_count > 0 else 0.0
+        npc_reward = rewards[self.npc_mask].sum().item() if self.npc_env_count > 0 else 0.0
         combined_reward = rewards.sum().item()
 
         # Store for later aggregation
@@ -204,8 +212,8 @@ class DualPolicyRollout:
             "npc_reward_total": total_npc_reward,
             "combined_reward": avg_combined_reward,
             "combined_reward_total": total_combined_reward,
-            "policy_a_agent_count": self.policy_a_count,
-            "npc_agent_count": self.npc_count,
+            "policy_a_agent_count": self.policy_a_env_count,
+            "npc_agent_count": self.npc_env_count,
         }
 
     def reset_reward_tracking(self):
@@ -217,8 +225,8 @@ class DualPolicyRollout:
     def get_agent_assignments(self) -> Dict[str, Any]:
         """Get information about agent assignments."""
         return {
-            "policy_a_count": self.policy_a_count,
-            "npc_count": self.npc_count,
+            "policy_a_count": self.policy_a_env_count,
+            "npc_count": self.npc_env_count,
             "policy_a_percentage": self.config.policy_a_percentage,
             "npc_type": self.config.npc_type,
             "enabled": self.config.enabled,
