@@ -294,9 +294,6 @@ def maybe_load_checkpoint(
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
         return checkpoint, saved_pr, agent_step, epoch
 
 
