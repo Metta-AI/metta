@@ -18,6 +18,7 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy, generate_policy_replay
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -26,7 +27,6 @@ from metta.rl.metrics import setup_wandb_metrics_and_log_model
 from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.train import train_ppo
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.util.batch_utils import calculate_batch_sizes
 from metta.rl.util.distributed import setup_distributed_vars
@@ -36,9 +36,6 @@ from metta.rl.util.optimization import (
     maybe_update_l2_weights,
 )
 from metta.rl.util.policy_management import (
-    cleanup_old_policies,
-    maybe_load_checkpoint,
-    save_policy_with_metadata,
     validate_policy_environment_match,
 )
 from metta.rl.util.rollout import get_lstm_config
@@ -128,16 +125,22 @@ def create_training_components(
     stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Load checkpoint and policy
-    checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
-        run_dir=cfg.run_dir,
+    # Create checkpoint manager
+    checkpoint_manager = CheckpointManager(
+        checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
         policy_store=policy_store,
         trainer_cfg=trainer_cfg,
-        metta_grid_env=metta_grid_env,
-        cfg=cfg,
         device=device,
         is_master=is_master,
         rank=rank,
+        run_name=cfg.run,
+    )
+
+    # Load checkpoint and policy
+    checkpoint, policy_record, agent_step, epoch = checkpoint_manager.load_checkpoint(
+        run_dir=cfg.run_dir,
+        metta_grid_env=metta_grid_env,
+        cfg=cfg,
     )
 
     # Restore timer state if checkpoint exists
@@ -243,6 +246,7 @@ def create_training_components(
         initial_generation,
         eval_scores,
         curriculum,
+        checkpoint_manager,
     )
 
 
@@ -324,6 +328,7 @@ def train(
         initial_generation,
         eval_scores,
         curriculum,
+        checkpoint_manager,
     ) = create_training_components(
         cfg=cfg,
         wandb_run=wandb_run,
@@ -458,37 +463,34 @@ def train(
             )
 
         # Save policy
-        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
-            saved_record = _maybe_save_policy(
-                policy,
-                policy_store,
-                latest_saved_policy_record,
-                initial_policy_uri,
-                initial_generation,
-                agent_step,
-                epoch,
-                eval_scores,
-                timer,
-                cfg.run,
-                is_master,
-                trainer_cfg,
+        if checkpoint_manager.should_checkpoint(epoch):
+            # Create initial policy record for metadata if needed
+            initial_policy_record = None
+            if initial_policy_uri:
+                initial_policy_record = type(
+                    "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
+                )()
+
+            saved_record = checkpoint_manager.save_policy(
+                policy=policy,
+                epoch=epoch,
+                agent_step=agent_step,
+                evals=eval_scores,
+                timer=timer,
+                initial_policy_record=initial_policy_record,
             )
             if saved_record:
                 latest_saved_policy_record = saved_record
 
-        # Save training state
-        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
-            _maybe_save_training_state(
-                checkpoint_dir=cfg.run_dir,
-                agent_step=agent_step,
-                epoch=epoch,
-                optimizer=optimizer,
-                timer=timer,
-                latest_saved_policy_uri=latest_saved_policy_record.uri if latest_saved_policy_record else None,
-                kickstarter=kickstarter,
-                trainer_cfg=trainer_cfg,
-                is_master=is_master,
-            )
+                # Save training state with the new policy path
+                checkpoint_manager.save_checkpoint(
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    optimizer=optimizer,
+                    policy_path=saved_record.uri,
+                    timer=timer,
+                    run_dir=cfg.run_dir,
+                )
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
@@ -562,36 +564,35 @@ def train(
 
     # Force final saves
     if is_master:
-        saved_record = _maybe_save_policy(
-            policy,
-            policy_store,
-            latest_saved_policy_record,
-            initial_policy_uri,
-            initial_generation,
-            agent_step,
-            epoch,
-            eval_scores,
-            timer,
-            cfg.run,
-            is_master,
-            trainer_cfg,
+        # Create initial policy record for metadata if needed
+        initial_policy_record = None
+        if initial_policy_uri:
+            initial_policy_record = type(
+                "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
+            )()
+
+        saved_record = checkpoint_manager.save_policy(
+            policy=policy,
+            epoch=epoch,
+            agent_step=agent_step,
+            evals=eval_scores,
+            timer=timer,
+            initial_policy_record=initial_policy_record,
             force=True,
         )
         if saved_record:
             latest_saved_policy_record = saved_record
 
-    _maybe_save_training_state(
-        checkpoint_dir=cfg.run_dir,
-        agent_step=agent_step,
-        epoch=epoch,
-        optimizer=optimizer,
-        timer=timer,
-        latest_saved_policy_uri=latest_saved_policy_record.uri if latest_saved_policy_record else None,
-        kickstarter=kickstarter,
-        trainer_cfg=trainer_cfg,
-        is_master=is_master,
-        force=True,
-    )
+            # Save final training state
+            checkpoint_manager.save_checkpoint(
+                agent_step=agent_step,
+                epoch=epoch,
+                optimizer=optimizer,
+                policy_path=saved_record.uri,
+                timer=timer,
+                run_dir=cfg.run_dir,
+                force=True,
+            )
 
     if wandb_run and latest_saved_policy_record:
         _upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record, force=True)
@@ -603,68 +604,6 @@ def train(
             memory_monitor.clear()
         if system_monitor:
             system_monitor.stop()
-
-
-def _maybe_save_policy(
-    policy: Any,
-    policy_store: Any,
-    latest_saved_policy_record: Optional[Any],
-    initial_policy_uri: Optional[str],
-    initial_generation: int,
-    agent_step: int,
-    epoch: int,
-    evals: Any,  # EvalRewardSummary
-    timer: Any,
-    run_name: str,
-    is_master: bool,
-    trainer_cfg: Any,
-    force: bool = False,
-) -> Optional[Any]:
-    """Save policy with distributed synchronization."""
-    # Check if should save
-    should_save = force or (
-        trainer_cfg.checkpoint.checkpoint_interval and epoch % trainer_cfg.checkpoint.checkpoint_interval == 0
-    )
-    if not should_save:
-        return None
-
-    # All ranks participate in barrier for distributed sync
-    if not is_master:
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-        return None
-
-    # Create a temporary initial_policy_record for save_policy_with_metadata
-    # This is a bit of a hack to maintain compatibility with existing function
-    initial_policy_record = None
-    if initial_policy_uri:
-        initial_policy_record = type(
-            "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
-        )()
-
-    # Save policy with metadata
-    saved_record = save_policy_with_metadata(
-        policy=policy,
-        policy_store=policy_store,
-        epoch=epoch,
-        agent_step=agent_step,
-        evals=evals,
-        timer=timer,
-        initial_policy_record=initial_policy_record,
-        run_name=run_name,
-        is_master=is_master,
-    )
-
-    if saved_record:
-        # Clean up old policies periodically
-        if epoch % 10 == 0:
-            cleanup_old_policies(trainer_cfg.checkpoint.checkpoint_dir, keep_last_n=5)
-
-    # Sync all ranks after save
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
-    return saved_record
 
 
 def _upload_policy_to_wandb(
@@ -709,51 +648,3 @@ def _initialize_stats_tracking(
         ).id
     except Exception as e:
         logger.warning(f"Failed to create training run: {e}")
-
-
-def _maybe_save_training_state(
-    checkpoint_dir: str,
-    agent_step: int,
-    epoch: int,
-    optimizer: Any,
-    timer: Any,
-    latest_saved_policy_uri: Optional[str],
-    kickstarter: Any,
-    trainer_cfg: Any,
-    is_master: bool = True,
-    force: bool = False,
-) -> None:
-    """Save training checkpoint state.
-
-    Only master saves, but all ranks should call this for distributed sync.
-    """
-    # Check interval for all ranks to ensure synchronization
-    if not force and trainer_cfg.checkpoint.checkpoint_interval:
-        if epoch % trainer_cfg.checkpoint.checkpoint_interval != 0:
-            return
-
-    # Only master saves training state, but all ranks must participate in barrier
-    if not is_master:
-        # Non-master ranks need to participate in the barrier below
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-        return
-
-    extra_args = {}
-    if kickstarter.enabled and kickstarter.teacher_uri is not None:
-        extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
-
-    checkpoint = TrainerCheckpoint(
-        agent_step=agent_step,
-        epoch=epoch,
-        optimizer_state_dict=optimizer.state_dict(),
-        stopwatch_state=timer.save_state(),
-        policy_path=latest_saved_policy_uri,
-        extra_args=extra_args,
-    )
-    checkpoint.save(checkpoint_dir)
-    logger.info(f"Saved training state at epoch {epoch}")
-
-    # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
