@@ -25,7 +25,6 @@ from metta.interface.evaluation import create_evaluation_config_suite
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.metrics import setup_wandb_metrics_and_log_model
 from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.train import train_ppo
@@ -46,7 +45,7 @@ from metta.rl.util.batch_utils import calculate_batch_sizes
 from metta.rl.util.distributed import (
     setup_device_and_distributed,
 )
-from metta.rl.util.evaluation import generate_replay, upload_replay_html
+from metta.rl.util.evaluation import generate_replay
 from metta.rl.util.optimization import (
     compute_gradient_stats,
     maybe_update_l2_weights,
@@ -66,7 +65,7 @@ from metta.rl.util.stats import (
     process_training_stats,
 )
 from metta.rl.util.utils import check_abort, should_run
-from metta.rl.wandb import upload_env_configs
+from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_env_configs, upload_replay_html
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
@@ -339,7 +338,9 @@ if torch.distributed.is_initialized():
     torch.distributed.barrier()
 
 # Set up wandb metrics and log model parameters
-setup_wandb_metrics_and_log_model(agent, wandb_run, is_master)
+if wandb_run and is_master:
+    setup_wandb_metrics(wandb_run)
+    log_model_parameters(agent, wandb_run)
 
 # Log to console
 if is_master:

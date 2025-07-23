@@ -44,7 +44,7 @@ from metta.rl.util.stats import (
 )
 from metta.rl.util.utils import check_abort, should_run
 from metta.rl.vecenv import make_vecenv
-from metta.rl.wandb import setup_wandb_metrics_and_log_model, upload_policy_to_wandb, upload_replay_html
+from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_policy_to_wandb, upload_replay_html
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -287,7 +287,9 @@ def create_master_trainer_components(
         )
 
         # Set up wandb metrics
-        setup_wandb_metrics_and_log_model(policy, wandb_run, is_master)
+        if wandb_run and is_master:
+            setup_wandb_metrics(wandb_run)
+            log_model_parameters(policy, wandb_run)
 
     return memory_monitor, system_monitor
 
