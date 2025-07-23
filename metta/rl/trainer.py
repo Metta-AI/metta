@@ -73,7 +73,7 @@ def create_training_components(
     sim_suite_config: Any,
     stats_client: Optional[Any] = None,
 ) -> Tuple[Any, ...]:
-    """Create training components individually, similar to run.py."""
+    """Create training components needed on all ranks."""
     logger.info(f"run_dir = {cfg.run_dir}")
 
     # Log recent checkpoints like the MettaTrainer did
@@ -92,21 +92,6 @@ def create_training_components(
     # Create utilities
     timer = Stopwatch(logger)
     timer.start()
-
-    memory_monitor = None
-    if is_master:
-        memory_monitor = MemoryMonitor()
-
-    # Instantiate system monitor (master only)
-    system_monitor = None
-    if is_master:
-        system_monitor = SystemMonitor(
-            sampling_interval_sec=1.0,
-            history_size=100,
-            logger=logger,
-            auto_start=True,
-            external_timer=timer,
-        )
 
     # Instantiate losses tracker and torch profiler
     losses = Losses()
@@ -239,14 +224,6 @@ def create_training_components(
             optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
         )
 
-    # Set up wandb metrics
-    setup_wandb_metrics_and_log_model(policy, wandb_run, is_master)
-
-    # Add memory monitor tracking
-    if is_master and memory_monitor:
-        memory_monitor.add(experience, name="Experience", track_attributes=True)
-        memory_monitor.add(policy, name="Policy", track_attributes=False)
-
     hyperparameter_scheduler = None  # Disabled for now
 
     # Return all components in the expected order
@@ -261,8 +238,6 @@ def create_training_components(
         losses,
         timer,
         torch_profiler,
-        memory_monitor,
-        system_monitor,
         trainer_cfg,
         device,
         is_master,
@@ -277,6 +252,49 @@ def create_training_components(
         eval_scores,
         curriculum,
     )
+
+
+def create_master_trainer_components(
+    policy: Any,
+    experience: Experience,
+    wandb_run: Optional[Any],
+    is_master: bool,
+    timer: Optional[Stopwatch] = None,
+) -> Tuple[Optional[MemoryMonitor], Optional[SystemMonitor]]:
+    """Create components only needed on the master rank.
+
+    Args:
+        policy: The policy model
+        experience: The experience buffer
+        wandb_run: Weights & Biases run object
+        is_master: Whether this is the master rank
+        timer: Stopwatch timer instance (optional)
+
+    Returns:
+        Tuple of (memory_monitor, system_monitor)
+    """
+    memory_monitor = None
+    system_monitor = None
+
+    if is_master:
+        # Create memory monitor
+        memory_monitor = MemoryMonitor()
+        memory_monitor.add(experience, name="Experience", track_attributes=True)
+        memory_monitor.add(policy, name="Policy", track_attributes=False)
+
+        # Create system monitor
+        system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,
+            history_size=100,
+            logger=logger,
+            auto_start=True,
+            external_timer=timer,
+        )
+
+        # Set up wandb metrics
+        setup_wandb_metrics_and_log_model(policy, wandb_run, is_master)
+
+    return memory_monitor, system_monitor
 
 
 def train(
@@ -302,8 +320,6 @@ def train(
         losses,
         timer,
         torch_profiler,
-        memory_monitor,
-        system_monitor,
         trainer_cfg,
         device,
         is_master,
@@ -323,6 +339,15 @@ def train(
         policy_store=policy_store,
         sim_suite_config=sim_suite_config,
         stats_client=stats_client,
+    )
+
+    # Create master-only components
+    memory_monitor, system_monitor = create_master_trainer_components(
+        policy=policy,
+        experience=experience,
+        wandb_run=wandb_run,
+        is_master=is_master,
+        timer=timer,
     )
 
     # Initialize stats tracking
