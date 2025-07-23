@@ -140,7 +140,7 @@ class CLIAuthenticator:
             print("Failed to open browser automatically")
             print(f"Please manually visit: {url}")
 
-    def _save_token(self, token: str) -> None:
+    def save_token(self, token: str) -> None:
         """Save the token to a YAML file with secure permissions"""
         try:
             # Read existing tokens
@@ -237,7 +237,7 @@ class CLIAuthenticator:
                 raise Exception("No token received")
 
             # Save token
-            self._save_token(self.token)
+            self.save_token(self.token)
 
             return True
 
