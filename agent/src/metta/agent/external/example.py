@@ -59,7 +59,8 @@ class Policy(nn.Module):
                 3.0,
                 1.0,
                 2.0,
-            ]
+            ],
+            dtype=torch.float32,
         )[None, :, None, None]  # noqa:E231
         self.register_buffer("max_vec", max_vec)
 
