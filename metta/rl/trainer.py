@@ -47,6 +47,7 @@ from metta.rl.util.optimization import (
 )
 from metta.rl.util.policy_management import (
     cleanup_old_policies,
+    load_or_initialize_policy,
     validate_policy_environment_match,
 )
 from metta.rl.util.rollout import (
@@ -175,54 +176,15 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        # Load or create policy with distributed coordination
-        distributed = torch.distributed.is_initialized()
-        load_here = not (distributed and not self._master)
-        policy_record = self._load_policy(checkpoint, policy_store) if load_here else None
-
-        if policy_record is None:
-            if distributed and not self._master:
-                # Workers start with a fresh policy and will get weights from DDP
-                self.policy = make_policy(metta_grid_env, self.cfg)
-            else:
-                logger.info(f"Rank {self._rank}: No existing policy found, creating new one")
-                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
-                self.policy = policy_record.policy
-
-        else:
-            logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
-            self.latest_saved_policy_record = policy_record
-            self.policy = policy_record.policy
-
-        # Broadcast metadata from master to workers so they can restore mappings
-        if distributed:
-            broadcast_obj = [None, None, None]
-            if self._master:
-                broadcast_obj = [dict(policy_record.metadata), policy_record.uri, policy_record.run_name]
-            torch.distributed.broadcast_object_list(broadcast_obj, src=0)
-            metadata_dict, uri, run_name = broadcast_obj
-            metadata = PolicyMetadata.from_dict(metadata_dict) if metadata_dict else PolicyMetadata()
-            if not self._master:
-                policy_record = PolicyRecord(policy_store, run_name, uri, metadata)
-
-        else:
-            metadata = policy_record.metadata if policy_record else PolicyMetadata()
-
-        mapping = metadata.get("original_feature_mapping")
-        if mapping and hasattr(self.policy, "restore_original_feature_mapping"):
-            self.policy.restore_original_feature_mapping(mapping)
-
-        # Initialize the policy to the environment
-        self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-
-        self.initial_policy_record = policy_record
-        self.latest_saved_policy_record = policy_record
-
-        if distributed and self._master:
-            # Ensure workers wait until policy is saved/broadcast
-            torch.distributed.barrier()
-
-        logging.info(f"Rank {self._rank}: USING {self.initial_policy_record.uri}")
+        self.policy, self.initial_policy_record, self.latest_saved_policy_record = load_or_initialize_policy(
+            self.cfg,
+            checkpoint,
+            policy_store,
+            metta_grid_env,
+            self.device,
+            self._master,
+            self._rank,
+        )
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -1043,16 +1005,6 @@ class MettaTrainer:
 
         with self.timer("grad_stats"):
             self.grad_stats = compute_gradient_stats(self.policy)
-
-    def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
-        """Helper method to initialize a policy to the environment using the appropriate interface."""
-        if hasattr(policy, "initialize_to_environment"):
-            features = metta_grid_env.get_observation_features()
-            policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, device
-            )
-        else:
-            policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
 
 class AbortingTrainer(MettaTrainer):

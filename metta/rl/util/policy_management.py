@@ -8,6 +8,8 @@ from typing import Any, Optional, Tuple
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.policy_metadata import PolicyMetadata
+from metta.agent.policy_record import PolicyRecord
 
 logger = logging.getLogger(__name__)
 
@@ -387,3 +389,71 @@ def ensure_initial_policy(
         # Save through policy store
         saved_policy_record = policy_store.save(policy_record)
         logger.info(f"Saved initial policy to {saved_policy_record.uri}")
+
+
+def load_or_initialize_policy(
+    cfg: Any,
+    checkpoint: Optional[Any],
+    policy_store: Any,
+    metta_grid_env: Any,
+    device: torch.device,
+    is_master: bool,
+    rank: int,
+) -> Tuple[Any, Any, Any]:
+    """Load or initialize policy with distributed coordination."""
+    distributed = torch.distributed.is_initialized()
+    load_here = not (distributed and not is_master)
+
+    # Use existing maybe_load_checkpoint to handle core loading/creation
+    checkpoint, policy_record, _, _ = maybe_load_checkpoint(
+        run_dir=cfg.run_dir,
+        policy_store=policy_store,
+        trainer_cfg=cfg.trainer,
+        metta_grid_env=metta_grid_env,
+        cfg=cfg,
+        device=device,
+        is_master=is_master,
+        rank=rank,
+    )
+
+    policy = policy_record.policy
+
+    # Broadcast metadata from master to workers
+    if distributed:
+        broadcast_obj = [None, None, None]
+        if is_master:
+            broadcast_obj = [dict(policy_record.metadata), policy_record.uri, policy_record.run_name]
+        torch.distributed.broadcast_object_list(broadcast_obj, src=0)
+        metadata_dict, uri, run_name = broadcast_obj
+        metadata = PolicyMetadata.from_dict(metadata_dict) if metadata_dict else PolicyMetadata()
+        if not is_master:
+            policy_record = PolicyRecord(policy_store, run_name, uri, metadata)
+    else:
+        metadata = policy_record.metadata if policy_record else PolicyMetadata()
+
+    # Restore feature mapping
+    mapping = metadata.get("original_feature_mapping")
+    if mapping and hasattr(policy, "restore_original_feature_mapping"):
+        policy.restore_original_feature_mapping(mapping)
+
+    # Initialize policy to environment
+    _initialize_policy_to_environment(policy, metta_grid_env, device)
+
+    initial_policy_record = policy_record
+    latest_saved_policy_record = policy_record
+
+    if distributed and is_master:
+        torch.distributed.barrier()
+
+    logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
+
+    return policy, initial_policy_record, latest_saved_policy_record
+
+
+def _initialize_policy_to_environment(policy, metta_grid_env, device):
+    """Helper method to initialize a policy to the environment using the appropriate interface."""
+    if hasattr(policy, "initialize_to_environment"):
+        features = metta_grid_env.get_observation_features()
+        policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    else:
+        policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
