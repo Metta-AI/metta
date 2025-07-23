@@ -80,6 +80,11 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         num_agents = self._core_env.num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
 
+        # Create space objects once to avoid memory leaks
+        # PettingZoo requires same space object instances to be returned
+        self._observation_space_obj = self._core_env.observation_space
+        self._action_space_obj = self._core_env.action_space
+
         # Buffers for environment data
         self._observations: Optional[np.ndarray] = None
         self._terminals: Optional[np.ndarray] = None
@@ -209,30 +214,18 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
 
         return obs_dict, reward_dict, terminal_dict, truncation_dict, info_dict
 
-    # PettingZoo required properties and methods
-    @property
-    def observation_space(self) -> spaces.Box:
-        """Get observation space for a single agent."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._core_env.observation_space
-
-    @property
-    def action_space(self) -> spaces.MultiDiscrete:
-        """Get action space for a single agent."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._core_env.action_space
-
-    def observation_space_for_agent(self, agent: str) -> spaces.Box:
+    # PettingZoo required methods
+    def observation_space(self, agent: str) -> spaces.Box:
         """Get observation space for a specific agent."""
-        del agent  # Unused parameter
-        return self.observation_space
+        del agent  # Unused parameter - all agents have same space
+        # Return the same space object instance (PettingZoo requirement)
+        return self._observation_space_obj
 
-    def action_space_for_agent(self, agent: str) -> spaces.MultiDiscrete:
+    def action_space(self, agent: str) -> spaces.MultiDiscrete:
         """Get action space for a specific agent."""
-        del agent  # Unused parameter
-        return self.action_space
+        del agent  # Unused parameter - all agents have same space
+        # Return the same space object instance (PettingZoo requirement)
+        return self._action_space_obj
 
     def state(self) -> np.ndarray:
         """
