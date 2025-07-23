@@ -1,7 +1,7 @@
 """Test getting items from converters functionality.
 
 This test file verifies that agents can successfully retrieve items from converters
-using the get_items action (which maps to get_output in C++).
+using the get_items action.
 """
 
 import numpy as np
@@ -76,8 +76,8 @@ def create_converter_test_env(initial_output_count=5, max_steps=100, converter_t
         "inventory_item_names": ["ore_red", "battery_red", "heart", "laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
-            "get_items": {"enabled": True},  # This action is called get_output internally
-            "put_items": {"enabled": True},  # This action is called put_recipe_items internally
+            "get_items": {"enabled": True},
+            "put_items": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "attack": {"enabled": False},
@@ -175,7 +175,7 @@ def get_items_from_converter(env, orientation_to_converter, agent_idx=0):
         return False, {}
 
     # Get items from converter
-    obs, reward, success = perform_action(env, "get_output", 0)
+    obs, reward, success = perform_action(env, "get_items", 0)
 
     if success:
         # Check inventory after action
