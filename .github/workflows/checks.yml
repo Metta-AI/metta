@@ -124,7 +124,7 @@ jobs:
 
   lint:
     name: "Lint"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
@@ -156,7 +156,7 @@ jobs:
   test-setup:
     name: Setup Test Environment
     runs-on: ubuntu-latest
-    needs: [setup-checks, graphite-ci-optimizer]
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
@@ -180,9 +180,9 @@ jobs:
         run: |
           uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
-  test:
-    name: "Tests - ${{ matrix.package }}"
-    needs: [test-setup, graphite-ci-optimizer, setup-checks]
+  test-matrix:
+    name: "Unit Tests - ${{ matrix.package }}"
+    needs: [test-setup]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
@@ -239,8 +239,8 @@ jobs:
           verbose: true
 
   tests-summary:
-    name: "Tests"
-    needs: [test]
+    name: "Check Tests"
+    needs: [test-matrix]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -261,7 +261,7 @@ jobs:
     name: "Smoke Tests"
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -352,7 +352,7 @@ jobs:
 
   python-benchmark:
     name: "Python Benchmarks"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
@@ -387,7 +387,7 @@ jobs:
 
   cpp-benchmark:
     name: "C++ Benchmarks"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
@@ -421,7 +421,7 @@ jobs:
 
   upload-benchmarks:
     name: "Upload Benchmarks"
-    needs: [python-benchmark, cpp-benchmark, setup-checks]
+    needs: [python-benchmark, cpp-benchmark]
     if: |
       (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (always() && (needs.python-benchmark.result == 'success' || needs.cpp-benchmark.result == 'success'))
