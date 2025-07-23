@@ -206,7 +206,7 @@ jobs:
           .github/scripts/check_mettagrid_build.py
 
       - name: Check MettaGrid build warnings
-        if: matrix.package == 'mettagrid'
+        if: matrix.package == 'mettagrid' && always()
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
