@@ -13,7 +13,7 @@ defaultGlyphAssociations[2] = '↓' // down
 defaultGlyphAssociations[3] = '→' // right
 defaultGlyphAssociations[4] = '←' // left
 
-let glyphAssociations: string[] = []
+export let glyphAssociations: string[] = []
 
 function loadGlyphAssociations() {
   const saved = localStorage.getItem('glyphAssociations')
@@ -457,10 +457,6 @@ function injectGlyphEditorModal() {
   }
 }
 
-// Export the associations for use in other parts of the application
-export function getGlyphAssociations(): Array<string> {
-  return [...glyphAssociations]
-}
 
 const GLYPH_EDITOR_STYLES = `
 /* Core Layout */

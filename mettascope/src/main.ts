@@ -985,7 +985,10 @@ window.addEventListener('load', async () => {
   const atlasImageUrl = 'dist/atlas.png'
   const atlasJsonUrl = 'dist/atlas.json'
 
-  const success = await ctx.init(atlasJsonUrl, atlasImageUrl)
+  const fontImageUrl = 'dist/bitty.png'
+  const fontJsonUrl = 'dist/bitty.json'
+
+  const success = await ctx.init(atlasJsonUrl, atlasImageUrl, fontJsonUrl, fontImageUrl)
   if (!success) {
     Common.showModal('error', 'Initialization failed', 'Please check the console for more information.')
     return
