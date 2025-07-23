@@ -187,8 +187,8 @@ export function processGamepad() {
 
   // Map of gamepad button indices to associated keys.
   const buttonKeyMap: Record<number, string> = {
-    0: 'q', // A – put items
-    1: 'e', // B – get items
+    0: 'q', // A – get items
+    1: 'e', // B – put items
     2: '', // X – unmapped
     3: '', // Y – unmapped
     6: 'g', // LT – swap
