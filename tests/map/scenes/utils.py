@@ -17,7 +17,7 @@ def render_scene(
 ):
     grid = np.full(shape, "empty", dtype="<U50")
     area = Area.root_area_from_grid(grid)
-    scene = cls(area=area, params=params, children=children or [], seed=seed)
+    scene = cls(area=area, params=params, children_actions=children or [], seed=seed)
     scene.render_with_children()
     return scene
 
