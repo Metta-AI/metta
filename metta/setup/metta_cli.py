@@ -237,7 +237,7 @@ class MettaCLI:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
             if args.local_command == "build-policy-evaluator-img":
-                self.local_commands.build_policy_evaluator_img()
+                self.local_commands.build_policy_evaluator_img(unknown_args)
             elif args.local_command == "build-app-backend-img":
                 self.local_commands.build_app_backend_img()
             elif args.local_command == "load-policies":
@@ -607,8 +607,12 @@ Examples:
         args, unknown_args = parser.parse_known_args()
 
         # Allow unknown args for certain commands
-        if args.command == "local" and hasattr(args, "local_command") and args.local_command == "load-policies":
-            # load-policies handles its own args
+        if (
+            args.command == "local"
+            and hasattr(args, "local_command")
+            and args.local_command in ["load-policies", "build-policy-evaluator-img"]
+        ):
+            # These commands handle their own args
             pass
         elif args.command not in ["test", "test-changed", "tool"]:
             if unknown_args:
