@@ -175,7 +175,7 @@ jobs:
           install-mode: 'testing'
 
       - name: Build MettaGrid C++
-        if: matrix.package == 'mettagrid' || matrix.package == 'core'
+        if: matrix.package == 'mettagrid'
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py
