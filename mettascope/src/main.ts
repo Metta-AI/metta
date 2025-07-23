@@ -529,7 +529,6 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
 
 /** Draws a frame. */
 export function onFrame() {
-
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }

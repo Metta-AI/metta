@@ -217,10 +217,10 @@ export function processGamepad() {
   const axisThreshold = 0.5
 
   const directionActives: Record<string, boolean> = {
-    'w': false, // up
-    's': false, // down
-    'a': false, // left
-    'd': false  // right
+    w: false, // up
+    s: false, // down
+    a: false, // left
+    d: false, // right
   }
 
   // Set from D-pad buttons.
