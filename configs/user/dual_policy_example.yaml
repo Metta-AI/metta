@@ -16,22 +16,25 @@ wandb:
   project: dual_policy_training
   enabled: true
 
-# Enable dual-policy training
-dual_policy:
-  enabled: true
-  policy_a_percentage: 0.5  # 50% of agents use the main policy
+# Trainer configuration with dual-policy enabled
+trainer:
+  # Enable dual-policy training
+  dual_policy:
+    enabled: true
+    policy_a_percentage: 0.5  # 50% of agents use the main policy
 
-  # Configure scripted NPC behavior - roomba
-  npc_type: "scripted"
-  scripted_npc:
-    type: "roomba"  # Roomba behavior: move in consistent direction, turn when hitting walls
-    approach_items: true
-    interact_with_items: true
-    roomba_direction: "clockwise"  # For roomba type
+    # Configure scripted NPC behavior - roomba
+    npc_type: "scripted"
+    scripted_npc:
+      type: "roomba"  # Roomba behavior: move in consistent direction, turn when hitting walls
+      approach_items: true
+      interact_with_items: true
+      roomba_direction: "clockwise"  # For roomba type
 
 # Alternative: Use checkpoint-based NPC
-# dual_policy:
-#   enabled: true
-#   policy_a_percentage: 0.5
-#   npc_type: "checkpoint"
-#   npc_policy_uri: "path/to/npc/policy/checkpoint"
+# trainer:
+#   dual_policy:
+#     enabled: true
+#     policy_a_percentage: 0.5
+#     npc_type: "checkpoint"
+#     npc_policy_uri: "path/to/npc/policy/checkpoint"
