@@ -39,7 +39,9 @@ runs:
             uv pip install --no-deps -e ./common
             uv pip install --no-deps -e ./agent
             uv pip install --no-deps -e ./app_backend
-            uv pip install scikit-build-core pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+            uv pip install scikit-build-core
+            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+            uv pip install torch numpy pydantic typing-extensions
             ;;
 
           "linting")
