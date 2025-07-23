@@ -107,15 +107,15 @@ device, is_master, world_size, rank = setup_distributed_training("cuda" if torch
 
 # Core training parameters
 num_workers = 4
-total_timesteps = 200_000_000  # Increased to 200M timesteps for longer comparison
+total_timesteps = 10_000_000_000  # Match Hydra trainer default
 batch_size = 524288 if torch.cuda.is_available() else 131072  # 512k for GPU, 128k for CPU
 minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
-curriculum = "/env/mettagrid/curriculum/arena/learning_progress"
+curriculum = "/env/mettagrid/arena/basic_easy_shaped"  # Match Hydra trainer
 bptt_horizon = 64
 update_epochs = 1
 forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 2048
 async_factor = 2
-grad_mean_variance_interval = 150
+grad_mean_variance_interval = 0  # Match Hydra trainer default
 scale_batches_by_world_size = False
 cpu_offload = False
 zero_copy = True
@@ -123,30 +123,30 @@ zero_copy = True
 # Individual component configs with explicit values
 ppo_config = PPOConfig(
     clip_coef=0.1,
-    ent_coef=0.01,
-    gamma=0.99,
-    gae_lambda=0.95,
+    ent_coef=0.0021,  # Match Hydra trainer default
+    gamma=0.977,  # Match Hydra trainer default
+    gae_lambda=0.916,  # Match Hydra trainer default
     max_grad_norm=0.5,  # Add gradient clipping for stability
 )
 
 optimizer_config = OptimizerConfig(
-    type="muon",
-    learning_rate=2.0e-3,  # Reduced learning rate for stability
+    type="adam",  # Match Hydra trainer default
+    learning_rate=0.000457,  # Match Hydra trainer default
 )
 
 checkpoint_config = CheckpointConfig(
     checkpoint_dir=dirs.checkpoint_dir,
     checkpoint_interval=50,
-    wandb_checkpoint_interval=0,
+    wandb_checkpoint_interval=50,  # Match Hydra trainer default
 )
 
 simulation_config = SimulationConfig(
-    evaluate_interval=50,  # Arena-specific evaluation interval
+    evaluate_interval=200,  # Match Hydra trainer default
     replay_dir=dirs.replay_dir,
 )
 
 profiler_config = TorchProfilerConfig(
-    interval_epochs=0,  # Disabled by default
+    interval_epochs=10000,  # Match Hydra trainer default
     profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
 )
 
@@ -189,8 +189,8 @@ if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_
 save_experiment_config(dirs, device, trainer_config)
 
 # Calculate batch sizes like trainer.py does
-# We need to know num_agents first, so let's assume 4 for arena curriculum
-num_agents = 4  # Default for arena tasks
+# We need to know num_agents first, so let's assume 24 for arena curriculum
+num_agents = 24  # Default for arena tasks (match Hydra trainer)
 target_batch_size, batch_size, num_envs = calculate_batch_sizes(
     forward_pass_minibatch_target_size=trainer_config.forward_pass_minibatch_target_size,
     num_agents=num_agents,
@@ -200,10 +200,10 @@ target_batch_size, batch_size, num_envs = calculate_batch_sizes(
 
 # Create environment
 env = Environment(
-    curriculum_path="/env/mettagrid/curriculum/arena/learning_progress",
-    num_agents=num_agents,
-    width=32,
-    height=32,
+    curriculum_path="/env/mettagrid/arena/basic_easy_shaped",
+    num_agents=24,  # Match Hydra trainer default
+    width=25,  # Match Hydra trainer default
+    height=25,  # Match Hydra trainer default
     device=str(device),
     num_envs=num_envs,
     num_workers=trainer_config.num_workers,
@@ -211,7 +211,7 @@ env = Environment(
     async_factor=trainer_config.async_factor,
     zero_copy=trainer_config.zero_copy,
     is_training=True,
-    vectorization="serial",  # Match the vectorization mode
+    vectorization="multiprocessing",  # Match Hydra trainer default
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
@@ -223,9 +223,9 @@ hidden_size, num_lstm_layers = get_lstm_config(agent)
 # Create arena-specific evaluation configs
 base_arena_config = {
     "sampling": 0,  # Disable sampling for evaluation
-    "num_agents": 4,
-    "width": 32,
-    "height": 32,
+    "num_agents": 24,  # Match Hydra trainer default
+    "width": 25,  # Match Hydra trainer default
+    "height": 25,  # Match Hydra trainer default
 }
 
 # Create evaluation configs for different arena tasks
@@ -234,8 +234,8 @@ arena_simulations = {}
 # Basic arena evaluation
 arena_simulations["arena/basic"] = {
     "env": "/env/mettagrid/arena/basic",
-    "num_episodes": 10,  # Increased for longer training
-    "max_time_s": 30,
+    "num_episodes": 1,  # Match Hydra trainer default
+    "max_time_s": 60,  # Match Hydra trainer default
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
     },
@@ -244,8 +244,8 @@ arena_simulations["arena/basic"] = {
 # Combat arena evaluation
 arena_simulations["arena/combat"] = {
     "env": "/env/mettagrid/arena/combat",
-    "num_episodes": 10,  # Increased for longer training
-    "max_time_s": 30,
+    "num_episodes": 1,  # Match Hydra trainer default
+    "max_time_s": 60,  # Match Hydra trainer default
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
     },
@@ -254,8 +254,8 @@ arena_simulations["arena/combat"] = {
 # Advanced arena evaluation
 arena_simulations["arena/advanced"] = {
     "env": "/env/mettagrid/arena/advanced",
-    "num_episodes": 10,  # Increased for longer training
-    "max_time_s": 30,
+    "num_episodes": 1,  # Match Hydra trainer default
+    "max_time_s": 60,  # Match Hydra trainer default
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
     },
@@ -264,8 +264,8 @@ arena_simulations["arena/advanced"] = {
 # Tag arena evaluation
 arena_simulations["arena/tag"] = {
     "env": "/env/mettagrid/arena/tag",
-    "num_episodes": 10,  # Increased for longer training
-    "max_time_s": 30,
+    "num_episodes": 1,  # Match Hydra trainer default
+    "max_time_s": 60,  # Match Hydra trainer default
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
     },
@@ -275,7 +275,7 @@ arena_simulations["arena/tag"] = {
 evaluation_config = SimulationSuiteConfig(
     name="arena_evaluation",
     simulations=arena_simulations,
-    num_episodes=20,  # Increased for longer training (will be overridden by individual configs)
+    num_episodes=1,  # Match Hydra trainer default (will be overridden by individual configs)
     env_overrides={},  # Suite-level overrides
 )
 
