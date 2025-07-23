@@ -355,9 +355,6 @@ def load_or_initialize_policy(
     initial_policy_record = policy_record
     latest_saved_policy_record = policy_record
 
-    if torch.distributed.is_initialized() and is_master:
-        torch.distributed.barrier()
-
     logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
 
     return policy, initial_policy_record, latest_saved_policy_record
