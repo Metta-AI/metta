@@ -21,18 +21,21 @@ logger = logging.getLogger("metta_agent")
 
 
 def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
+    print("debug_dff: Starting make_policy")
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
             "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
     )
+    print("debug_dff: Created obs_space")
 
     # Convert agent config to dict for unpacking as kwargs
     agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
+    print("debug_dff: Converted agent config")
 
     # Create MettaAgent directly without Hydra
-    return MettaAgent(
+    agent = MettaAgent(
         obs_space=obs_space,
         obs_width=env.obs_width,
         obs_height=env.obs_height,
@@ -42,6 +45,8 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
         device=cfg.device,  # cfg.device is required
         **agent_cfg,
     )
+    print("debug_dff: Created MettaAgent")
+    return agent
 
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -82,16 +87,19 @@ class MettaAgent(nn.Module):
         device: str,
         **cfg,
     ):
+        print("debug_dff: Starting MettaAgent __init__")
         super().__init__()
         # Note that this doesn't instantiate the components -- that will happen later once
         # we've built up the right parameters for them.
         cfg = OmegaConf.create(cfg)
+        print("debug_dff: Created config")
 
         logger.info(f"obs_space: {obs_space} ")
 
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
+        print("debug_dff: Set hidden_size, core_num_layers, clip_range")
 
         assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
             "Configuration is missing required field 'observations.obs_key'"
@@ -99,6 +107,7 @@ class MettaAgent(nn.Module):
         obs_key = cfg.observations.obs_key  # typically "grid_obs"
 
         obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
+        print("debug_dff: Got obs_shape")
 
         self.agent_attributes = {
             "clip_range": self.clip_range,
@@ -111,12 +120,14 @@ class MettaAgent(nn.Module):
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
+        print("debug_dff: Set agent_attributes")
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
         self.components = nn.ModuleDict()
         # Keep component configs as DictConfig to support both dict and attribute access
         component_cfgs = cfg.components
+        print("debug_dff: Initialized components dict")
 
         # First pass: instantiate all configured components
         for component_key in component_cfgs:
@@ -128,22 +139,29 @@ class MettaAgent(nn.Module):
 
             # Instantiate component
             self.components[component_name] = instantiate(comp_dict)
+            print(f"debug_dff: Instantiated component {component_name}")
 
         component = self.components["_value_"]
         self._setup_components(component)
+        print("debug_dff: Setup _value_ component")
         component = self.components["_action_"]
         self._setup_components(component)
+        print("debug_dff: Setup _action_ component")
 
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(
                     f"Component {name} in MettaAgent was never setup. It might not be accessible by other components."
                 )
+        print("debug_dff: Verified all components ready")
 
         self.components = self.components.to(device)
+        print("debug_dff: Moved components to device")
 
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
+        print("debug_dff: Calculated total params")
+        print("debug_dff: Finished MettaAgent __init__")
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
@@ -190,9 +208,13 @@ class MettaAgent(nn.Module):
             device: Device to place tensors on
             is_training: Deprecated. Training mode is now automatically detected.
         """
+        print("debug_dff: Starting initialize_to_environment")
         # Use PyTorch's built-in training mode detection
         self._initialize_observations(features, device, self.training)
+        print("debug_dff: Observations initialized")
         self.activate_actions(action_names, action_max_params, device)
+        print("debug_dff: Actions activated")
+        print("debug_dff: Finished initialize_to_environment")
 
     def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
         """Initialize observation features by storing the feature mapping."""

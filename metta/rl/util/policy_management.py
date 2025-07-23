@@ -288,11 +288,14 @@ def maybe_load_checkpoint(
             return checkpoint, policy_record, agent_step, epoch
 
         # Create new policy
+        print("debug_dff: Creating new policy")
         name = policy_store.make_model_name(0)
         pr = policy_store.create_empty_policy_record(name)
         pr.policy = make_policy(metta_grid_env, cfg)
+        print("debug_dff: New policy created and assigned")
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
+        print("debug_dff: New policy saved")
 
         return checkpoint, saved_pr, agent_step, epoch
 
@@ -349,8 +352,10 @@ def load_or_initialize_policy(
     if mapping and hasattr(policy, "restore_original_feature_mapping"):
         policy.restore_original_feature_mapping(mapping)
 
+    print("debug_dff: Initializing policy to environment")
     # Initialize policy to environment
     _initialize_policy_to_environment(policy, metta_grid_env, device)
+    print("debug_dff: Policy initialized to environment")
 
     initial_policy_record = policy_record
     latest_saved_policy_record = policy_record
@@ -362,8 +367,13 @@ def load_or_initialize_policy(
 
 def _initialize_policy_to_environment(policy, metta_grid_env, device):
     """Helper method to initialize a policy to the environment using the appropriate interface."""
+    print("debug_dff: Starting policy environment initialization")
     if hasattr(policy, "initialize_to_environment"):
         features = metta_grid_env.get_observation_features()
+        print("debug_dff: Got observation features")
         policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+        print("debug_dff: Called initialize_to_environment")
     else:
         policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+        print("debug_dff: Called activate_actions")
+    print("debug_dff: Finished policy environment initialization")
