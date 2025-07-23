@@ -111,7 +111,7 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common", "agent", "notebooks"]
+members = ["mettagrid", "app_backend", "common", "agent", "notebooks", "bootstrap"]
 
 [tool.uv.sources]
 metta-app-backend = { workspace = true }
