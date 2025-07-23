@@ -15,6 +15,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@playwright/test": "^1.53.2",
+    "@types/node": "^20.0.0",
     "@webgpu/types": "^0.1.38",
     "playwright": "^1.53.2",
     "typescript": "^5.2.2"
