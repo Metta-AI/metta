@@ -4,7 +4,7 @@ import logging
 from itertools import product
 from typing import Any, Dict, List, Optional, Tuple
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
 from metta.common.util.config import copy_omegaconf_config
@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
-        env_cfg_template_path: str,
+        *,
+        env_cfg_template: DictConfig | None = None,
+        env_cfg_template_path: str | None = None,
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
@@ -28,9 +30,19 @@ class BucketedCurriculum(LearningProgressCurriculum):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
         self._id_to_curriculum = {}
-        base_cfg = config_from_path(env_cfg_template_path, env_overrides)
-        # We copy to reset the config's root.
-        env_cfg_template = copy_omegaconf_config(base_cfg)
+        assert (env_cfg_template is not None) != (env_cfg_template_path is not None), (
+            "Exactly one of env_cfg_template or env_cfg_template_path must be provided"
+        )
+
+        if env_cfg_template_path is not None:
+            base_cfg = config_from_path(env_cfg_template_path, env_overrides)
+            # We copy to reset the config's root.
+            env_cfg_template = copy_omegaconf_config(base_cfg)
+        else:
+            # Allow non-existent keys, as per config_from_path
+            OmegaConf.set_struct(env_cfg_template, False)
+            env_cfg_template = OmegaConf.merge(env_cfg_template, env_overrides)
+            OmegaConf.set_struct(env_cfg_template, True)
 
         logger.info("Generating bucketed tasks")
         for parameter_values in tqdm(product(*expanded_buckets.values())):

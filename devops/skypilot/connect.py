@@ -8,7 +8,7 @@ import subprocess
 import sky.jobs
 
 from devops.skypilot.utils import get_jobs_controller_name
-from metta.common.util.colorama import bold
+from metta.common.util.text_styles import bold
 
 
 def main():

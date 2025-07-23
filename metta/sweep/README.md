@@ -276,29 +276,29 @@ To add a new parameter distribution:
 
 ### Extracting Best Parameters
 
-The `tools/sweep_best_params.py` script helps you extract the best performing hyperparameters from a completed sweep:
+The `tools/get_best_params_from_sweep.py` script helps you extract the best performing hyperparameters from a completed sweep:
 
 ```bash
 # Basic usage - generates config patch file
-./tools/sweep_best_params.py sweep_name=my_sweep_name
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name
 
 # Show top N configurations
-./tools/sweep_best_params.py sweep_name=my_sweep_name --top-n 5
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --top-n 5
 
 # Show all run scores
-./tools/sweep_best_params.py sweep_name=my_sweep_name --show-scores
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --show-scores
 
 # Custom output directory for patches
-./tools/sweep_best_params.py sweep_name=my_sweep_name --output-dir my_patches
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --output-dir my_patches
 
 # Skip patch generation (only show parameters)
-./tools/sweep_best_params.py sweep_name=my_sweep_name --no-patch
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --no-patch
 
 # Combine multiple options
-./tools/sweep_best_params.py sweep_name=my_sweep_name --top-n 3 --show-scores
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --top-n 3 --show-scores
 
 # Show help
-./tools/sweep_best_params.py --help
+./tools/get_best_params_from_sweep.py --help
 ```
 
 #### Features

@@ -8,8 +8,8 @@ import subprocess
 import sys
 
 from metta.common.util.cli import get_user_confirmation, sh
-from metta.common.util.colorama import bold
 from metta.common.util.fs import cd_repo_root
+from metta.common.util.text_styles import bold
 
 
 def main():

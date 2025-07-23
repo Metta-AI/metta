@@ -8,7 +8,7 @@ import os
 import shutil
 from pathlib import Path
 
-from metta.common.util.colorama import bold, cyan, green, magenta, red, yellow
+from metta.common.util.text_styles import bold, cyan, green, magenta, red, yellow
 
 
 def is_dir_empty_or_pycache_only(dir_path):

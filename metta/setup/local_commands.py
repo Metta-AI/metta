@@ -15,18 +15,27 @@ class LocalCommands:
         self.repo_root = repo_root
         self._kind_manager = Kind(repo_root)
 
-    def _build_img(self, tag: str, dockerfile_path: Path) -> None:
-        subprocess.run(
-            ["docker", "build", "-t", tag, "-f", str(dockerfile_path), str(self.repo_root)],
-            check=True,
-        )
+    def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
+        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
+        if build_args:
+            cmd.extend(build_args)
+        cmd.append(str(self.repo_root))
+        subprocess.run(cmd, check=True)
 
     def build_app_backend_img(self) -> None:
         self._build_img("metta-app-backend:latest", self.repo_root / "app_backend" / "Dockerfile")
 
-    def build_policy_evaluator_img(self) -> None:
+    def build_policy_evaluator_img(self, unknown_args: list[str] | None = None) -> None:
+        # Parse arguments for docker build
+        build_args = []
+        if unknown_args:
+            # Pass through any docker build arguments
+            build_args = unknown_args
+
         self._build_img(
-            "metta-policy-evaluator-local:latest", self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator"
+            "metta-policy-evaluator-local:latest",
+            self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
+            build_args,
         )
 
     def load_policies(self, unknown_args) -> None:

@@ -22,7 +22,6 @@ from omegaconf import OmegaConf
 from pydantic import validate_call
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.common.util.instantiate import instantiate
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
@@ -125,21 +124,21 @@ class MettaGridEnv(ABC):
             New MettaGridCore instance
         """
         task = self._task
+        task_cfg = task.env_cfg()
         level = self._level
 
         if level is None:
-            map_builder_config = task.env_cfg().game.map_builder
-            with self.timer("_create_core_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True)
-                level = map_builder.build()
+            with self.timer("_initialize_c_env.build_map"):
+                level = task_cfg.game.map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
+        assert task_cfg.game.num_agents == level_agents, (
+            f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
 
         # Ensure we have a dict
         if not isinstance(game_config_dict, dict):
@@ -148,8 +147,7 @@ class MettaGridEnv(ABC):
         # Handle episode desyncing for training
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
-            if isinstance(max_steps, int):
-                game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
 
         self._map_labels = level.labels
 
