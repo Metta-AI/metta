@@ -171,6 +171,16 @@ class DualPolicyRollout:
         self.npc_rewards.append(npc_reward)
         self.combined_rewards.append(combined_reward)
 
+        # Debug logging every 100 steps
+        if len(self.policy_a_rewards) % 100 == 0:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"Dual-policy rewards tracked - Policy A: {policy_a_reward:.3f}, "
+                f"NPC: {npc_reward:.3f}, Combined: {combined_reward:.3f}"
+            )
+
     def get_reward_stats(self) -> Dict[str, float]:
         """Get aggregated reward statistics."""
         if not self.config.enabled or not self.policy_a_rewards:
