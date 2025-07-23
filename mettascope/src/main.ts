@@ -16,7 +16,7 @@ import {
   hideMenu,
   hideDropdown,
 } from './htmlutils.js'
-import { updateReadout, hideHoverPanel } from './hoverpanels.js'
+import { updateReadout, hideHoverBubble } from './hoverbubbles.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
 import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
@@ -252,8 +252,8 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
     onTraceMinimapChange(event)
   }
 
-  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
-    hideHoverPanel()
+  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-bubble')) {
+    hideHoverBubble()
   }
 
   requestFrame()
@@ -282,14 +282,14 @@ onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
 /** Handles the pointer moving outside the window. */
 document.addEventListener('pointerout', function (e) {
   if (!e.relatedTarget) {
-    hideHoverPanel()
+    hideHoverBubble()
     requestFrame()
   }
 })
 
 /** Handles the window losing focus. */
 document.addEventListener('blur', function (e) {
-  hideHoverPanel()
+  hideHoverBubble()
   requestFrame()
 })
 
