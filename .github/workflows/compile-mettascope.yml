@@ -20,8 +20,11 @@ jobs:
           cache: "npm"
           cache-dependency-path: mettascope/package-lock.json
 
-      - name: Build Mettascope
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install Mettascope
         run: |
-          cd mettascope
-          npm ci
-          npx tsc
+          ./mettascope/install.sh
