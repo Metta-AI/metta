@@ -158,6 +158,8 @@ def main():
         task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
         time.sleep(1)
 
+    print("\n⏳ This will take a few minutes...")
+
     try:
         request_id = sky.launch(
             task,
@@ -183,7 +185,7 @@ def main():
         return
 
     # Don't use spinner during log tailing - it interferes with output
-    print("Waiting for setup job to start...")
+    print("⚙️ Running setup job...")
     try:
         setup_result = sky.tail_logs(cluster_name, job_id=1, follow=True)
         if setup_result != 0:
@@ -200,7 +202,7 @@ def main():
     print(f"\n{green('✓')} Sandbox is ready!")
     print("\nConnect to your sandbox:")
     print(f"  {green(f'ssh {cluster_name}')}")
-    print(f"\n\nThe cluster will be automatically stopped after {bold(str(autostop_hours))} hours.")
+    print(f"\n\n⚠️ The cluster will be automatically stopped after {bold(str(autostop_hours))} hours.")
     print("To disable autostop:")
     print(f"  {green(f'sky autostop --cancel {cluster_name}')}")
 
