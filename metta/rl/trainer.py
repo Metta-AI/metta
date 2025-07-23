@@ -22,6 +22,7 @@ from metta.rl.evaluate import evaluate_policy, generate_policy_replay
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
+from metta.rl.metrics import setup_wandb_metrics_and_log_model
 from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.train import train_ppo
@@ -239,17 +240,7 @@ def create_training_components(
         )
 
     # Set up wandb metrics
-    if wandb_run and is_master:
-        metrics = ["agent_step", "epoch", "total_time", "train_time"]
-        for metric in metrics:
-            wandb_run.define_metric(f"metric/{metric}")
-        wandb_run.define_metric("*", step_metric="metric/agent_step")
-        wandb_run.define_metric("overview/reward_vs_total_time", step_metric="metric/total_time")
-
-        # Log model parameters
-        num_params = sum(p.numel() for p in policy.parameters())
-        if wandb_run.summary:
-            wandb_run.summary["model/total_parameters"] = num_params
+    setup_wandb_metrics_and_log_model(policy, wandb_run, is_master)
 
     # Add memory monitor tracking
     if is_master and memory_monitor:

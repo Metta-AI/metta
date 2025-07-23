@@ -25,11 +25,13 @@ from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config, setup_run_directories
 from metta.interface.environment import Environment
 from metta.interface.evaluation import create_evaluation_config_suite
-from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
+from metta.rl.metrics import setup_wandb_metrics_and_log_model
+from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.train import train_ppo
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
@@ -43,18 +45,12 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
-from metta.rl.util.advantage import compute_advantage
-from metta.rl.util.batch_utils import (
-    calculate_batch_sizes,
-    calculate_prioritized_sampling_params,
-)
+from metta.rl.util.batch_utils import calculate_batch_sizes
 from metta.rl.util.distributed import (
     setup_device_and_distributed,
 )
 from metta.rl.util.evaluation import generate_replay, upload_replay_html
-from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
-    calculate_explained_variance,
     compute_gradient_stats,
     maybe_update_l2_weights,
 )
@@ -64,11 +60,7 @@ from metta.rl.util.policy_management import (
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
-from metta.rl.util.rollout import (
-    get_lstm_config,
-    get_observation,
-    run_policy_inference,
-)
+from metta.rl.util.rollout import get_lstm_config
 from metta.rl.util.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -348,11 +340,12 @@ agent = wrap_agent_distributed(agent, device)
 if torch.distributed.is_initialized():
     torch.distributed.barrier()
 
-# Log model parameters to wandb
-if is_master and wandb_run:
+# Set up wandb metrics and log model parameters
+setup_wandb_metrics_and_log_model(agent, wandb_run, is_master)
+
+# Log to console
+if is_master:
     num_params = sum(p.numel() for p in agent.parameters())  # type: ignore
-    if wandb_run.summary:
-        wandb_run.summary["model/total_parameters"] = num_params
     logger.info(f"Model has {num_params:,} parameters")
 
 # Create experience buffer
@@ -438,227 +431,128 @@ while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
 
     # ===== ROLLOUT PHASE =====
-    rollout_start = time.time()
-    raw_infos = []
-    experience.reset_for_rollout()
-
-    # Collect experience
-    while not experience.ready_for_training:
-        # Receive environment data
-        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
+    with timer("_rollout"):
+        num_steps, raw_infos = rollout(
+            vecenv=env,
+            policy=agent,
+            experience=experience,
+            device=device,
+            timer=timer,
+        )
         agent_step += num_steps * world_size  # Scale by world size for distributed training
 
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            agent, o, experience, training_env_id.start, device
-        )
-
-        # Store experience
-        experience.store(
-            obs=o,
-            actions=actions,
-            logprobs=selected_action_log_probs,
-            rewards=r,
-            dones=d,
-            truncations=t,
-            values=values,
-            env_id=training_env_id,
-            mask=mask,
-            lstm_state=lstm_state_to_store,
-        )
-
-        # Send actions back to environment
-        with timer("_rollout.env"):
-            env.send(actions.cpu().numpy().astype(dtype_actions))  # type: ignore - env is vecenv wrapper
-
-        if info:
-            raw_infos.extend(info)
-
-    # Process rollout statistics
-    accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
-    rollout_time = time.time() - rollout_start
+        # Process rollout statistics
+        accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
     # ===== TRAINING PHASE =====
-    train_start = time.time()
-    losses.zero()
-    experience.reset_importance_sampling_ratios()
-
-    # Calculate prioritized replay parameters
-    anneal_beta = calculate_prioritized_sampling_params(
-        epoch=epoch,
-        total_timesteps=trainer_config.total_timesteps,
-        batch_size=trainer_config.batch_size,
-        prio_alpha=trainer_config.prioritized_experience_replay.prio_alpha,
-        prio_beta0=trainer_config.prioritized_experience_replay.prio_beta0,
-    )
-
-    advantages = torch.zeros(experience.values.shape, device=device)
-    initial_importance_sampling_ratio = torch.ones_like(experience.values)
-
-    advantages = compute_advantage(
-        experience.values,
-        experience.rewards,
-        experience.dones,
-        initial_importance_sampling_ratio,
-        advantages,
-        trainer_config.ppo.gamma,
-        trainer_config.ppo.gae_lambda,
-        trainer_config.vtrace.vtrace_rho_clip,
-        trainer_config.vtrace.vtrace_c_clip,
-        device,
-    )
-
-    # Train for multiple epochs
-    total_minibatches = experience.num_minibatches * trainer_config.update_epochs
-    minibatch_idx = 0
-
-    for _update_epoch in range(trainer_config.update_epochs):
-        for _ in range(experience.num_minibatches):
-            # Sample minibatch
-            minibatch = experience.sample_minibatch(
-                advantages=advantages,
-                prio_alpha=trainer_config.prioritized_experience_replay.prio_alpha,
-                prio_beta=anneal_beta,
-                minibatch_idx=minibatch_idx,
-                total_minibatches=total_minibatches,
-            )
-
-            # Train on minibatch
-            loss = process_minibatch_update(
-                policy=agent,
-                experience=experience,
-                minibatch=minibatch,
-                advantages=advantages,
-                trainer_cfg=trainer_config,
-                kickstarter=kickstarter,
-                agent_step=agent_step,
-                losses=losses,
-                device=device,
-            )
-
-            # Optimizer step like trainer.py
-            optimizer.zero_grad()
-            loss.backward()
-
-            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
-                torch.nn.utils.clip_grad_norm_(agent.parameters(), trainer_config.ppo.max_grad_norm)
-                optimizer.step()
-
-                # Optional weight clipping
-                if hasattr(agent, "clip_weights"):
-                    agent.clip_weights()
-
-                if str(device).startswith("cuda"):
-                    torch.cuda.synchronize()
-
-            minibatch_idx += 1
-        epoch += 1
-
-        # Early exit if KL divergence is too high
-        if trainer_config.ppo.target_kl is not None:
-            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
-            if average_approx_kl > trainer_config.ppo.target_kl:
-                break
-
-    if minibatch_idx > 0 and str(device).startswith("cuda"):
-        torch.cuda.synchronize()
-
-    if lr_scheduler is not None:
-        lr_scheduler.step()
-
-    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
-
-    # Calculate performance metrics
-    train_time = time.time() - train_start
-
-    # ===== STATS PROCESSING PHASE =====
-    stats_start = time.time()
-
-    # Process collected stats (convert lists to means)
-    processed_stats = process_training_stats(
-        raw_stats=stats_tracker.rollout_stats,
-        losses=losses,
-        experience=experience,
-        trainer_config=trainer_config,
-        kickstarter=kickstarter,
-    )
-
-    # Update stats with mean values for consistency
-    stats_tracker.rollout_stats = processed_stats["mean_stats"]
-
-    # Compute timing stats
-    timing_info = compute_timing_stats(
-        timer=timer,
-        agent_step=agent_step,
-    )
-
-    # Build complete stats for wandb
-    if is_master:
-        # Get current learning rate
-        current_lr = optimizer.param_groups[0]["lr"]
-
-        # Build parameters dictionary
-        parameters = {
-            "learning_rate": current_lr,
-            "epoch_steps": timing_info["epoch_steps"],
-            "num_minibatches": experience.num_minibatches,
-            "generation": current_policy_generation,
-        }
-
-        # Get system and memory stats
-        system_stats = system_monitor.stats() if system_monitor else {}
-        memory_stats = memory_monitor.stats() if memory_monitor else {}
-
-        # Current hyperparameter values
-        hyperparameters = {
-            "learning_rate": current_lr,
-            "ppo_clip_coef": trainer_config.ppo.clip_coef,
-            "ppo_vf_clip_coef": trainer_config.ppo.vf_clip_coef,
-            "ppo_ent_coef": trainer_config.ppo.ent_coef,
-            "ppo_l2_reg_loss_coef": trainer_config.ppo.l2_reg_loss_coef,
-            "ppo_l2_init_loss_coef": trainer_config.ppo.l2_init_loss_coef,
-        }
-
-        # Compute weight stats if configured
-        weight_stats = {}
-        if hasattr(trainer_config, "agent") and hasattr(trainer_config.agent, "analyze_weights_interval"):
-            if (
-                trainer_config.agent.analyze_weights_interval != 0
-                and epoch % trainer_config.agent.analyze_weights_interval == 0
-            ):
-                for metrics in agent.compute_weight_metrics():
-                    name = metrics.get("name", "unknown")
-                    for key, value in metrics.items():
-                        if key != "name":
-                            weight_stats[f"weights/{key}/{name}"] = value
-
-        # Build complete stats dictionary
-        all_stats = build_wandb_stats(
-            processed_stats=processed_stats,
-            timing_info=timing_info,
-            weight_stats=weight_stats,
-            grad_stats=stats_tracker.grad_stats,
-            system_stats=system_stats,
-            memory_stats=memory_stats,
-            parameters=parameters,
-            hyperparameters=hyperparameters,
-            evals=eval_scores,
+    with timer("_train"):
+        epochs_trained = train_ppo(
+            policy=agent,
+            optimizer=optimizer,
+            experience=experience,
+            kickstarter=kickstarter,
+            losses=losses,
+            trainer_cfg=trainer_config,
             agent_step=agent_step,
             epoch=epoch,
+            device=device,
+        )
+        epoch += epochs_trained
+
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+
+    torch_profiler.on_epoch_end(epoch)
+
+    # ===== STATS PROCESSING PHASE =====
+    with timer("_process_stats"):
+        # Process collected stats (convert lists to means)
+        processed_stats = process_training_stats(
+            raw_stats=stats_tracker.rollout_stats,
+            losses=losses,
+            experience=experience,
+            trainer_config=trainer_config,
+            kickstarter=kickstarter,
         )
 
-        # Log to wandb if available
-        if wandb_run:
-            wandb_run.log(all_stats, step=agent_step)
+        # Update stats with mean values for consistency
+        stats_tracker.rollout_stats = processed_stats["mean_stats"]
 
-    # Clear stats for next iteration
-    stats_tracker.clear_rollout_stats()
-    stats_tracker.clear_grad_stats()
+        # Compute timing stats
+        timing_info = compute_timing_stats(
+            timer=timer,
+            agent_step=agent_step,
+        )
 
-    stats_time = time.time() - stats_start
+        # Build complete stats for wandb
+        if is_master:
+            # Get current learning rate
+            current_lr = optimizer.param_groups[0]["lr"]
+
+            # Build parameters dictionary
+            parameters = {
+                "learning_rate": current_lr,
+                "epoch_steps": timing_info["epoch_steps"],
+                "num_minibatches": experience.num_minibatches,
+                "generation": current_policy_generation,
+            }
+
+            # Get system and memory stats
+            system_stats = system_monitor.stats() if system_monitor else {}
+            memory_stats = memory_monitor.stats() if memory_monitor else {}
+
+            # Current hyperparameter values
+            hyperparameters = {
+                "learning_rate": current_lr,
+                "ppo_clip_coef": trainer_config.ppo.clip_coef,
+                "ppo_vf_clip_coef": trainer_config.ppo.vf_clip_coef,
+                "ppo_ent_coef": trainer_config.ppo.ent_coef,
+                "ppo_l2_reg_loss_coef": trainer_config.ppo.l2_reg_loss_coef,
+                "ppo_l2_init_loss_coef": trainer_config.ppo.l2_init_loss_coef,
+            }
+
+            # Compute weight stats if configured
+            weight_stats = {}
+            if hasattr(trainer_config, "agent") and hasattr(trainer_config.agent, "analyze_weights_interval"):
+                if (
+                    trainer_config.agent.analyze_weights_interval != 0
+                    and epoch % trainer_config.agent.analyze_weights_interval == 0
+                ):
+                    for metrics in agent.compute_weight_metrics():
+                        name = metrics.get("name", "unknown")
+                        for key, value in metrics.items():
+                            if key != "name":
+                                weight_stats[f"weights/{key}/{name}"] = value
+
+            # Build complete stats dictionary
+            all_stats = build_wandb_stats(
+                processed_stats=processed_stats,
+                timing_info=timing_info,
+                weight_stats=weight_stats,
+                grad_stats=stats_tracker.grad_stats,
+                system_stats=system_stats,
+                memory_stats=memory_stats,
+                parameters=parameters,
+                hyperparameters=hyperparameters,
+                evals=eval_scores,
+                agent_step=agent_step,
+                epoch=epoch,
+            )
+
+            # Log to wandb if available
+            if wandb_run:
+                wandb_run.log(all_stats, step=agent_step)
+
+        # Clear stats for next iteration
+        stats_tracker.clear_rollout_stats()
+        stats_tracker.clear_grad_stats()
 
     # Calculate total time and percentages
+    rollout_time = timer.get_last_elapsed("_rollout")
+    train_time = timer.get_last_elapsed("_train")
+    stats_time = timer.get_last_elapsed("_process_stats")
     steps_calculated = agent_step - steps_before
+
     total_time = train_time + rollout_time + stats_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
 
@@ -880,8 +774,6 @@ while agent_step < trainer_config.total_timesteps:
                     replay_dir=trainer_config.simulation.replay_dir,
                     wandb_run=wandb_run,
                 )
-
-    torch_profiler.on_epoch_end(epoch)
 
 # Training complete
 total_elapsed = time.time() - training_start_time
