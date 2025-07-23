@@ -266,6 +266,11 @@ jobs:
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Training smoke test
         id: train
@@ -353,6 +358,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run Python benchmarks
         env:
@@ -383,6 +393,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Build and run C++ benchmarks
         run: |
@@ -412,7 +427,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-
 
       - name: Download Python benchmark results
         uses: actions/download-artifact@v4
