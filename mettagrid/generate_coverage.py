@@ -22,7 +22,7 @@ script_path = Path(__file__).resolve()
 common_path = script_path.parents[1] / "common"
 sys.path.insert(0, str(common_path))
 
-from metta.common.util.colorama import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
+from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
 
 # Configuration
 BUILD_DIR = Path("build-coverage")

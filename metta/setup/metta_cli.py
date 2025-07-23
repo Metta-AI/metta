@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from metta.common.util.fs import get_repo_root
 from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
 from metta.setup.local_commands import LocalCommands
 from metta.setup.registry import get_all_modules, get_applicable_modules
@@ -17,7 +18,7 @@ import_all_modules_from_subpackage("metta.setup", "components")
 
 class MettaCLI:
     def __init__(self):
-        self.repo_root: Path = Path(__file__).parent.parent.parent
+        self.repo_root: Path = get_repo_root()
         self.config: SetupConfig = SetupConfig()
         self.path_setup: PathSetup = PathSetup(self.repo_root)
         self.local_commands: LocalCommands = LocalCommands(self.repo_root)
@@ -233,11 +234,15 @@ class MettaCLI:
     def cmd_shell(self) -> None:
         subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
 
+    def cmd_report_env_details(self) -> None:
+        info(f"UV Project Directory: {self.repo_root}")
+        info(f"Metta CLI Working Directory: {Path.cwd()}")
+
     def cmd_local(self, args, unknown_args=None) -> None:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
             if args.local_command == "build-policy-evaluator-img":
-                self.local_commands.build_policy_evaluator_img()
+                self.local_commands.build_policy_evaluator_img(unknown_args)
             elif args.local_command == "build-app-backend-img":
                 self.local_commands.build_app_backend_img()
             elif args.local_command == "load-policies":
@@ -568,6 +573,11 @@ Examples:
         # Shell command
         subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
 
+        # Report Environment Details command
+        subparsers.add_parser(
+            "report-env-details", help="Report environment details including which UV project directory is being used"
+        )
+
         # Local command
         local_parser = subparsers.add_parser("local", help="Local development commands")
         local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
@@ -607,8 +617,12 @@ Examples:
         args, unknown_args = parser.parse_known_args()
 
         # Allow unknown args for certain commands
-        if args.command == "local" and hasattr(args, "local_command") and args.local_command == "load-policies":
-            # load-policies handles its own args
+        if (
+            args.command == "local"
+            and hasattr(args, "local_command")
+            and args.local_command in ["load-policies", "build-policy-evaluator-img"]
+        ):
+            # These commands handle their own args
             pass
         elif args.command not in ["test", "test-changed", "tool"]:
             if unknown_args:
@@ -621,8 +635,8 @@ Examples:
             return
 
         # Check if configuration is required for this command
-        # Allow configure, symlink-setup, and local to run without config
-        if args.command not in ["configure", "symlink-setup", "local"]:
+        # Allow configure, symlink-setup, report-env-details, and local to run without config
+        if args.command not in ["configure", "symlink-setup", "report-env-details", "local"]:
             if not self.config.config_path.exists():
                 error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
@@ -655,6 +669,8 @@ Examples:
             self.cmd_lint(args)
         elif args.command == "shell":
             self.cmd_shell()
+        elif args.command == "report-env-details":
+            self.cmd_report_env_details()
         elif args.command == "local":
             self.cmd_local(args, unknown_args)
         else:

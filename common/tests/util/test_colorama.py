@@ -2,7 +2,7 @@
 
 from colorama import Fore, Style
 
-from metta.common.util.colorama import (
+from metta.common.util.text_styles import (
     blue,
     bold,
     colorize,
