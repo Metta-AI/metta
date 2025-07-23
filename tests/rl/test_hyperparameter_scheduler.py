@@ -110,17 +110,26 @@ class TestHyperparameterScheduler:
         optimizer = torch.optim.Adam(model.parameters(), lr=trainer_cfg.optimizer.learning_rate)
 
         total_timesteps = 1000
-        scheduler = HyperparameterScheduler(trainer_cfg, optimizer, total_timesteps, logging)
+        scheduler = HyperparameterScheduler.from_trainer_config(trainer_cfg, optimizer, total_timesteps, logging)
+
+        # Create update callbacks to update trainer_cfg
+        update_callbacks = {
+            "ppo_clip_coef": lambda v: setattr(trainer_cfg.ppo, "clip_coef", v),
+            "ppo_vf_clip_coef": lambda v: setattr(trainer_cfg.ppo, "vf_clip_coef", v),
+            "ppo_ent_coef": lambda v: setattr(trainer_cfg.ppo, "ent_coef", v),
+            "ppo_l2_reg_loss_coef": lambda v: setattr(trainer_cfg.ppo, "l2_reg_loss_coef", v),
+            "ppo_l2_init_loss_coef": lambda v: setattr(trainer_cfg.ppo, "l2_init_loss_coef", v),
+        }
 
         # Halfway through training
-        scheduler.step(500)
+        scheduler.step(500, update_callbacks)
 
         assert abs(optimizer.param_groups[0]["lr"] - 0.00055) < 1e-6  # Linear schedule
         assert trainer_cfg.ppo.clip_coef == 0.2  # Constant schedule
         assert abs(trainer_cfg.ppo.ent_coef - 0.005) < 1e-6  # Linear schedule
 
         # End of training
-        scheduler.step(1000)
+        scheduler.step(1000, update_callbacks)
 
         assert abs(optimizer.param_groups[0]["lr"] - 0.0001) < 1e-6
         assert trainer_cfg.ppo.clip_coef == 0.2
