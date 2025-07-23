@@ -66,6 +66,7 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> tuple[str, str]:
             wandb_run.tags += (f"sweep_id:{sweep_metadata.wandb_sweep_id}", f"sweep_name:{sweep_metadata.sweep_name}")
 
             protein = MettaProtein(cfg.sweep)
+            max_observations_to_load = cfg.sweep.get("max_observations_to_load", 100)
 
             # Load previous observations from WandB, and record them to Protein for
             # next suggestion.
@@ -73,7 +74,7 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> tuple[str, str]:
                 sweep_metadata.wandb_entity,
                 sweep_metadata.wandb_project,
                 sweep_metadata.wandb_sweep_id,
-                max_observations=100,  # TODO: Load from config
+                max_observations=max_observations_to_load,
             ):
                 # Extract the observation components and pass them correctly
                 protein.observe(
