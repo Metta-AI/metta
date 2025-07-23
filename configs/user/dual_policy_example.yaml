@@ -3,12 +3,12 @@
 
 defaults:
   - /trainer/trainer@
-  - /sim/evals@all
+  - /sim/all@sim
   - _self_
 
 # Required fields for validation
-num_workers: 1  # Will be overridden by train.py if not specified
-curriculum: /env/mettagrid/curriculum/simple
+num_workers: 4  # Will be overridden by train.py if not specified
+curriculum: /env/mettagrid/curriculum/arena/learning_progress
 
 # WandB configuration for dual-policy training project
 wandb:
