@@ -35,8 +35,6 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        # max_vec = torch.tensor([  1.,   9.,   1.,  30.,   1.,   3., 255.,  26.,   1.,   1.,   1.,   1.,
-        #  1.,  47.,   3.,   3.,   2.,   1.,   1.,   1.,   1., 1.])[None, :, None, None]
         max_vec = torch.tensor(
             [
                 9.0,
@@ -62,8 +60,7 @@ class Policy(nn.Module):
                 1.0,
                 2.0,
             ]
-        )[None, :, None, None]
-        # max_vec = torch.ones(22)[None, :, None, None]
+        )[None, :, None, None]  # noqa:E231
         self.register_buffer("max_vec", max_vec)
 
         action_nvec = env.single_action_space.nvec
