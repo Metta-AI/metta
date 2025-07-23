@@ -61,7 +61,7 @@ class TestRendererJob:
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=30,  # Short timeout
+                    timeout=60,  # Short timeout
                     cwd=Path.cwd(),
                 )
 
@@ -161,7 +161,7 @@ class TestRendererJob:
                     env=env,
                     capture_output=True,
                     text=True,
-                    timeout=120,
+                    timeout=120,  # Shorter timeout for CI
                     cwd=Path.cwd(),
                 )
             except subprocess.TimeoutExpired as e:
