@@ -183,6 +183,12 @@ jobs:
         package: [core, app_backend, agent, mettagrid, common]
     steps:
 
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
       - name: Run tests
         run: |
           PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
