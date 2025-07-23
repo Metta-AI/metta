@@ -3,7 +3,7 @@
 
 defaults:
   - /trainer/trainer@
-  - sim:evals@all
+  - /sim/evals@all
   - _self_
 
 # Required fields for validation
@@ -35,38 +35,3 @@ dual_policy:
 #   policy_a_percentage: 0.5
 #   npc_type: "checkpoint"
 #   npc_policy_uri: "path/to/npc/policy/checkpoint"
-
-# Training parameters (can be overridden)
-total_timesteps: 10_000_000
-batch_size: 524288
-minibatch_size: 16384
-
-# PPO parameters
-ppo:
-  clip_coef: 0.1
-  ent_coef: 0.0021
-  gae_lambda: 0.916
-  gamma: 0.977
-
-# Optimizer
-optimizer:
-  type: "adam"
-  learning_rate: 0.000457
-  beta1: 0.9
-  beta2: 0.999
-  eps: 1e-12
-  weight_decay: 0
-
-# Checkpointing
-checkpoint:
-  checkpoint_interval: 50
-  wandb_checkpoint_interval: 50
-
-# Evaluation
-simulation:
-  evaluate_interval: 200
-  replay_dir: "s3://softmax-public/replays/${run}"
-
-# System configuration
-forward_pass_minibatch_target_size: 4096
-async_factor: 2
