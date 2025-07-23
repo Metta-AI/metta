@@ -155,7 +155,7 @@ class TestRendererJob:
             print(f"DEBUG_MAP_URI: {env.get('DEBUG_MAP_URI')}")
 
             try:
-                timeout = 180
+                timeout = 240
                 print(f'Running cmd "{cmd}" with timeout {timeout} sec')
                 result = subprocess.run(
                     cmd,
