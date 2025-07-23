@@ -161,13 +161,26 @@ jobs:
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     outputs:
-      build_success: ${{ steps.mettagrid_build_check.outputs.build_success }}
+      venv_cache_key: ${{ steps.compute_venv_key.outputs.key }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
+      - name: Compute venv cache key
+        id: compute_venv_key
+        run: |
+          echo "key=${{ runner.os }}-venv-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      # Build fresh env (authoritative)
+      - name: Setup uv (fresh build)
         uses: ./.github/actions/setup-uv
+
+      # Save newly built env to cache
+      - name: Save venv cache
+        uses: actions/cache/save@v4
+        with:
+          path: .venv
+          key: ${{ steps.compute_venv_key.outputs.key }}
 
   test-matrix:
     name: "Unit Tests - ${{ matrix.package }}"
@@ -186,8 +199,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Restore virtualenv
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv
+          key: ${{ needs.test-setup.outputs.venv_cache_key }}
+
+      - name: Activate cached venv
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            echo "::error::Cached .venv missing!"
+            exit 1
+          fi
+          echo "VIRTUAL_ENV=$(pwd)/.venv" >> "$GITHUB_ENV"
+          echo "$(pwd)/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Run tests
         run: |
@@ -269,8 +295,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Restore virtualenv
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv
+          key: ${{ needs.test-setup.outputs.venv_cache_key }}
+
+      - name: Activate cached venv
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            echo "::error::Cached .venv missing!"
+            exit 1
+          fi
+          echo "VIRTUAL_ENV=$(pwd)/.venv" >> "$GITHUB_ENV"
+          echo "$(pwd)/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Training smoke test
         id: train
@@ -361,8 +400,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Restore virtualenv
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv
+          key: ${{ needs.test-setup.outputs.venv_cache_key }}
+
+      - name: Activate cached venv
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            echo "::error::Cached .venv missing!"
+            exit 1
+          fi
+          echo "VIRTUAL_ENV=$(pwd)/.venv" >> "$GITHUB_ENV"
+          echo "$(pwd)/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Run Python benchmarks
         env:
@@ -396,8 +448,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Restore virtualenv
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv
+          key: ${{ needs.test-setup.outputs.venv_cache_key }}
+
+      - name: Activate cached venv
+        shell: bash
+        run: |
+          if [ ! -d ".venv" ]; then
+            echo "::error::Cached .venv missing!"
+            exit 1
+          fi
+          echo "VIRTUAL_ENV=$(pwd)/.venv" >> "$GITHUB_ENV"
+          echo "$(pwd)/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Build and run C++ benchmarks
         run: |
