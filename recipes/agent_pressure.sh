@@ -7,7 +7,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0; do
   ./devops/skypilot/launch.py train \
-    run=$USER.navigation.ffa_8xfmb_rr_ms100_gamma_0.999_MASSIVE_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_8xfmb_rr_ms1000_gamma_0.999_MASSIVE_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/navigation/random \
     --gpus=4 \
     --nodes=8 \
@@ -15,7 +15,7 @@ for seed in 0; do
     +USER=greg \
     ++trainer.ppo.gamma=0.999 \
     ++trainer.minibatch_size=2048 \
-    ++trainer.env_overrides.game.max_steps=100 \
+    ++trainer.env_overrides.game.max_steps=1000 \
     ++trainer.env_overrides.special_reward_mode=ffa \
     ++trainer.env_overrides.game.map_builder.room.agent_cluster_type=${agent_cluster_type} \
     ++trainer.env_overrides.game.num_agents=$((num_agents_per_room * num_rooms)) \
