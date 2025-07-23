@@ -166,8 +166,13 @@ class TestRendererJob:
                 )
             except subprocess.TimeoutExpired as e:
                 print("\n=== Command timed out after 60 seconds ===")
-                print(f"Partial STDOUT: {e.stdout if e.stdout else 'None'}")
-                print(f"Partial STDERR: {e.stderr if e.stderr else 'None'}")
+
+                # Decode bytes to string, defaulting to empty string if None
+                stdout_text = e.stdout.decode("utf-8") if e.stdout else "None"
+                stderr_text = e.stderr.decode("utf-8") if e.stderr else "None"
+
+                print(f"Partial STDOUT: {stdout_text}")
+                print(f"Partial STDERR: {stderr_text}")
                 pytest.fail(f"Training validation timed out for {env_name}")
             except Exception as e:
                 print("\n=== Unexpected error running subprocess ===")
