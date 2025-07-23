@@ -94,7 +94,7 @@ def check_converter_state(env, converter_name):
     """Check the state of a converter in the environment."""
     grid_objects = env.grid_objects()
 
-    for obj_id, obj in grid_objects.items():
+    for _obj_id, obj in grid_objects.items():
         if obj.get("type_name") == converter_name:
             print(f"\n{converter_name} state:")
             print(f"  Position: ({obj['r']}, {obj['c']})")
@@ -132,10 +132,10 @@ def test_converter_production_cycle():
     env.reset()
 
     print("=== Initial State ===")
-    mine = check_converter_state(env, "mine_red")
+    check_converter_state(env, "mine_red")
 
     # Try to get from empty mine
-    rotate_result = rotate(env, Orientation.RIGHT)  # Face the mine
+    rotate(env, Orientation.RIGHT)  # Face the mine
     obs, reward, success = perform_action(env, "get_items", 0)
     print(f"\nTrying to get from empty mine: success={success}")
 
@@ -148,7 +148,7 @@ def test_converter_production_cycle():
             obs, reward, success = perform_action(env, "noop", 0)
 
             if step % 10 == 0:
-                mine = check_converter_state(env, "mine_red")
+                check_converter_state(env, "mine_red")
 
         # Try again after waiting
         obs, reward, success = perform_action(env, "get_items", 0)
@@ -158,7 +158,7 @@ def test_converter_production_cycle():
             print("✅ Successfully collected ore after mine produced!")
             # Check agent inventory
             grid_objects = env.grid_objects()
-            for obj_id, obj in grid_objects.items():
+            for _obj_id, obj in grid_objects.items():
                 if obj.get("type_name") == "agent":
                     print(f"Agent inventory: {obj.get('inventory', {})}")
         else:
@@ -220,10 +220,10 @@ def test_converter_with_initial_resources():
     env.reset()
 
     print("\n=== Testing Altar with initial_resource_count=1 ===")
-    altar = check_converter_state(env, "altar")
+    check_converter_state(env, "altar")
 
     # Try to get the initial heart
-    rotate_result = rotate(env, Orientation.RIGHT)  # Face the altar
+    rotate(env, Orientation.RIGHT)  # Face the altar
     obs, reward, success = perform_action(env, "get_items", 0)
     print(f"\nTrying to get initial heart from altar: success={success}, reward={reward}")
 
