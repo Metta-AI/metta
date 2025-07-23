@@ -6,7 +6,7 @@ inputs:
     required: false
     default: "true"
   install-mode:
-    description: "Installation mode: 'full' (default), 'no-mettagrid', or 'linting'"
+    description: "Installation mode: 'full' (default), 'testing', or 'linting'"
     required: false
     default: "full"
 
@@ -35,7 +35,7 @@ runs:
             uv pip install ruff cpplint
             ;;
           "full"|*)
-            # Normal installation
+            uv pip install pytest pytest-cov pytest-xdist
             if [ "${{ inputs.include-dev }}" = "true" ]; then
               uv sync
             else
