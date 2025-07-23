@@ -173,7 +173,7 @@ jobs:
         uses: ./.github/actions/setup-uv
 
       - name: Build MettaGrid C++
-        if: matrix.package == 'mettagrid'
+        if: matrix.package == 'mettagrid' || matrix.package == 'core'
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py
