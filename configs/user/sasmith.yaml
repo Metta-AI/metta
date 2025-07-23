@@ -11,5 +11,5 @@ replay_job:
     env: /env/mettagrid/cooperation/experimental/confined_room_coord_env
 
 seed: null
-run_id: 20250720.01
+run_id: 20250720.03
 run: ${oc.env:USER}.local.${run_id}
