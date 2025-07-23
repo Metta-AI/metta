@@ -35,10 +35,8 @@ class TestCentralizedSweepIntegration:
         if hasattr(self, "test_dir") and os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir, ignore_errors=True)
 
-        # Clear the singleton cache to avoid test interference
-        from cogweb.cogweb_client import CogwebClient
-
-        CogwebClient._instances.clear()
+        # Clear the client cache to avoid test interference
+        CogwebClient.clear_cache()
 
     @patch("cogweb.cogweb_client.SweepClient")
     def test_centralized_sweep_creation_workflow(self, mock_client_class):
@@ -63,10 +61,11 @@ class TestCentralizedSweepIntegration:
         mock_client.get_next_run_id.side_effect = ["test_sweep.r.0", "test_sweep.r.1", "test_sweep.r.2"]
 
         # Create client and test methods
-        client = CogwebClient()
+        client = CogwebClient.get_client()
+        sweep_client = client.sweep_client()
 
         # 1. Create sweep in centralized database
-        response = client.create_sweep("test_sweep", "test_project", "test_entity", "wandb_central_123")
+        response = sweep_client.create_sweep("test_sweep", "test_project", "test_entity", "wandb_central_123")
 
         assert response.created is True
         assert response.sweep_id == "central-sweep-123"
@@ -74,15 +73,16 @@ class TestCentralizedSweepIntegration:
             "test_sweep", "test_project", "test_entity", "wandb_central_123"
         )
 
-        # 2. Retrieve sweep ID
-        sweep_id = client.sweep_id("test_sweep")
-        assert sweep_id == "wandb_central_123"
+        # 2. Retrieve sweep info
+        sweep_info = sweep_client.get_sweep("test_sweep")
+        assert sweep_info.exists is True
+        assert sweep_info.wandb_sweep_id == "wandb_central_123"
         mock_client.get_sweep.assert_called_once_with("test_sweep")
 
         # 3. Generate multiple run IDs atomically
         run_ids = []
         for _ in range(3):
-            run_id = client.sweep_next_run_id("test_sweep")
+            run_id = sweep_client.get_next_run_id("test_sweep")
             run_ids.append(run_id)
 
         assert run_ids == ["test_sweep.r.0", "test_sweep.r.1", "test_sweep.r.2"]
@@ -102,8 +102,8 @@ class TestCentralizedSweepIntegration:
 
         # Simulate concurrent workers requesting run IDs
         def worker_get_run_id(worker_id):
-            client = CogwebClient()
-            return client.sweep_next_run_id("test_sweep")
+            client = CogwebClient.get_client()
+            return client.sweep_client().get_next_run_id("test_sweep")
 
         # Use ThreadPoolExecutor to simulate concurrent access
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -207,24 +207,24 @@ class TestCentralizedSweepIntegration:
         mock_client.get_sweep.return_value = mock_info
 
         # Create clients and test idempotency
-        client1 = CogwebClient()
-        client2 = CogwebClient()  # Should be the same instance due to singleton
+        client1 = CogwebClient.get_client()
+        client2 = CogwebClient.get_client()  # Should be the same instance due to singleton
 
         # 1. First creation should create new sweep
-        response1 = client1.create_sweep("idempotent_sweep", "project", "entity", "wandb_idempotent_123")
+        response1 = client1.sweep_client().create_sweep("idempotent_sweep", "project", "entity", "wandb_idempotent_123")
         assert response1.created is True
         assert response1.sweep_id == "idempotent-sweep-123"
 
         # 2. Second creation should return existing sweep
-        response2 = client2.create_sweep("idempotent_sweep", "project", "entity", "wandb_idempotent_123")
+        response2 = client2.sweep_client().create_sweep("idempotent_sweep", "project", "entity", "wandb_idempotent_123")
         assert response2.created is False
         assert response2.sweep_id == "idempotent-sweep-123"  # Same ID
 
         # 3. Retrieval should be consistent
-        sweep_id1 = client1.sweep_id("idempotent_sweep")
-        sweep_id2 = client2.sweep_id("idempotent_sweep")
+        sweep_info1 = client1.sweep_client().get_sweep("idempotent_sweep")
+        sweep_info2 = client2.sweep_client().get_sweep("idempotent_sweep")
 
-        assert sweep_id1 == sweep_id2 == "wandb_idempotent_123"
+        assert sweep_info1.wandb_sweep_id == sweep_info2.wandb_sweep_id == "wandb_idempotent_123"
 
     @patch("cogweb.cogweb_client.SweepClient")
     def test_error_handling_and_recovery(self, mock_client_class):
@@ -236,10 +236,10 @@ class TestCentralizedSweepIntegration:
         # Test create_sweep error propagation
         mock_client.create_sweep.side_effect = Exception("Backend connection failed")
 
-        client = CogwebClient()
+        client = CogwebClient.get_client()
 
         with pytest.raises(Exception, match="Backend connection failed"):
-            client.create_sweep("error_sweep", "project", "entity", "wandb_123")
+            client.sweep_client().create_sweep("error_sweep", "project", "entity", "wandb_123")
 
     def test_backward_compatibility_with_existing_sweep_structure(self):
         """Test that new centralized approach maintains backward compatibility."""
@@ -303,9 +303,29 @@ class TestCentralizedSweepIntegration:
         # Simulate pipeline workflow
 
         # 1. sweep_setup.py would check for existing sweep
-        existing_sweep_id = CogwebClient().sweep_id("pipeline_sweep")
-        assert existing_sweep_id == "pipeline_wandb_123"
+        sweep_info = CogwebClient.get_client().sweep_client().get_sweep("pipeline_sweep")
+        assert sweep_info.exists is True
+        assert sweep_info.wandb_sweep_id == "pipeline_wandb_123"
 
         # 2. sweep_prepare_run.py would generate new run ID
-        new_run_id = CogwebClient().sweep_next_run_id("pipeline_sweep")
+        new_run_id = CogwebClient.get_client().sweep_client().get_next_run_id("pipeline_sweep")
         assert new_run_id == "pipeline_sweep.r.5"
+
+    def test_direct_instantiation_for_testing(self):
+        """Test that direct instantiation bypasses cache for testing purposes."""
+        # Direct instantiation creates uncached instances
+        client1 = CogwebClient("http://test.com", "test-token-1")
+        client2 = CogwebClient("http://test.com", "test-token-1")
+
+        # These are different instances (not cached)
+        assert client1 is not client2
+
+        # Factory method returns cached instances
+        cached1 = CogwebClient.get_client("http://test.com", "test-token-1")
+        cached2 = CogwebClient.get_client("http://test.com", "test-token-1")
+
+        # These are the same instance
+        assert cached1 is cached2
+
+        # Direct instances are different from cached instances
+        assert client1 is not cached1

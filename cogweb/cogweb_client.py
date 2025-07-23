@@ -3,6 +3,7 @@
 from typing import Optional
 
 from metta.app_backend.sweep_client import SweepClient
+from metta.common.util.stats_client_cfg import get_machine_token
 
 
 class CogwebClient:
@@ -10,96 +11,68 @@ class CogwebClient:
 
     _instances = {}
 
-    # Type hints for dynamic attributes set in __new__
-    _resolved_base_url: str
-    _resolved_auth_token: Optional[str]
-
-    def __new__(cls, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None):
+    def __init__(self, base_url: str, auth_token: str):
         """
-        Create or return cached CogwebClient instance to avoid redundant authentication.
+        Initialize the Cogweb client.
+
+        Note: Use get_client() factory method for cached instances.
+
+        Args:
+            base_url: Base URL of the API server (already normalized)
+            auth_token: Authentication token (already resolved)
+        """
+        self._base_url = base_url
+        self._auth_token = auth_token
+        self._sweep_client = SweepClient(base_url, auth_token)
+
+    @classmethod
+    def get_client(cls, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None) -> "CogwebClient":
+        """
+        Factory method to get or create a cached CogwebClient instance.
 
         Args:
             base_url: Base URL of the API server
             auth_token: Authentication token. If None, will attempt to get machine token.
-        """
-        # Get machine token if no auth_token provided
-        if auth_token is None:
-            from metta.common.util.stats_client_cfg import get_machine_token
 
+        Returns:
+            CogwebClient instance (cached if already exists for this URL/token combo)
+        """
+        # Resolve auth token if not provided
+        if auth_token is None:
             auth_token = get_machine_token(base_url)
 
-        # Use base_url and auth_token as cache key
-        cache_key = (base_url.rstrip("/"), auth_token)
+        # If still None, use empty string (SweepClient will handle authentication errors)
+        if auth_token is None:
+            auth_token = ""
 
-        # Return existing instance if available
-        if cache_key in cls._instances:
-            return cls._instances[cache_key]
+        # Normalize base URL
+        normalized_url = base_url.rstrip("/")
 
-        # Create new instance and cache it
-        instance = super().__new__(cls)
-        # Store resolved values for __init__
-        instance._resolved_base_url = base_url.rstrip("/")
-        instance._resolved_auth_token = auth_token
-        cls._instances[cache_key] = instance
-        return instance
+        # Check cache
+        cache_key = (normalized_url, auth_token)
+        if cache_key not in cls._instances:
+            cls._instances[cache_key] = cls(normalized_url, auth_token)
 
-    def __init__(self, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None):
-        """
-        Initialize the Cogweb client (only called once per unique instance).
+        return cls._instances[cache_key]
 
-        Args:
-            base_url: Base URL of the API server
-            auth_token: Authentication token. If None, will attempt to get machine token.
-        """
-        # Skip initialization if already initialized (due to caching)
-        if hasattr(self, "_initialized"):
-            return
+    @classmethod
+    def clear_cache(cls):
+        """Clear the instance cache. Useful for testing."""
+        cls._instances.clear()
 
-        # Create the underlying SweepClient
-        self._sweep_client = SweepClient(self._resolved_base_url, self._resolved_auth_token)
-
-        self._initialized = True
-
-    # ========================================================================
-    # Sweep Methods
-    # ========================================================================
-
-    def sweep_id(self, sweep_name: str) -> str | None:
-        """Get sweep ID from centralized database.
-
-        Args:
-            sweep_name: Name of the sweep
+    def sweep_client(self) -> SweepClient:
+        """Get the sweep client for direct access to sweep operations.
 
         Returns:
-            The wandb sweep ID or None if sweep doesn't exist
+            SweepClient instance for sweep coordination operations
         """
-        info = self._sweep_client.get_sweep(sweep_name)
-        if info.exists:
-            return info.wandb_sweep_id
-        else:
-            return None
+        return self._sweep_client
 
-    def sweep_next_run_id(self, sweep_name: str) -> str:
-        """Get the next run ID for a sweep (atomic operation).
-
-        Args:
-            sweep_name: Name of the sweep
-
-        Returns:
-            The next run ID for the sweep
-        """
-        return self._sweep_client.get_next_run_id(sweep_name)
-
-    def create_sweep(self, sweep_name: str, project: str, entity: str, wandb_sweep_id: str):
-        """Create sweep in centralized database.
-
-        Args:
-            sweep_name: Name of the sweep
-            project: Project name
-            entity: Entity name
-            wandb_sweep_id: WandB sweep ID
-
-        Returns:
-            SweepCreateResponse containing creation status and sweep ID
-        """
-        return self._sweep_client.create_sweep(sweep_name, project, entity, wandb_sweep_id)
+    # NOTE: Future service clients can be added here:
+    # def stats_client(self) -> StatsClient:
+    #     """Get the stats client for metrics and logging operations."""
+    #     return self._stats_client
+    #
+    # def policy_store(self) -> PolicyStore:
+    #     """Get the policy store for model management."""
+    #     return self._policy_store

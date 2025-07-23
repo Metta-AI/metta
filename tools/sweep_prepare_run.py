@@ -44,8 +44,8 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
     # Use centralized database for atomic run ID generation
     backend_url = cfg.sweep_server_uri
-    client = CogwebClient(base_url=backend_url)
-    run_id = client.sweep_next_run_id(cfg.sweep_name)
+    cogweb_client = CogwebClient.get_client(base_url=backend_url)
+    run_id = cogweb_client.sweep_client().get_next_run_id(cfg.sweep_name)
     logger.info(f"Creating new run: {run_id}")
 
     run_dir = os.path.join(cfg.runs_dir, run_id)
