@@ -6,7 +6,7 @@ inputs:
     required: false
     default: "true"
   install-mode:
-    description: "Installation mode: 'full' (default), 'testing', or 'linting'"
+    description: "Installation mode: 'full' (default), or 'linting'"
     required: false
     default: "full"
 
