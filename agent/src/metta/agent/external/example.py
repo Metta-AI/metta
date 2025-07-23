@@ -24,7 +24,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
+    def __init__(self, env, cnn_channels=128, hidden_size=512, use_env_normalizations=False, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.is_continuous = False
@@ -32,6 +32,7 @@ class Policy(nn.Module):
         self.out_width = 11
         self.out_height = 11
         self.num_layers = 22
+        self.use_env_normalizations = use_env_normalizations
 
         self.network = nn.Sequential(
             pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
@@ -50,7 +51,10 @@ class Policy(nn.Module):
 
         # Initialize max_vec with empirically determined normalization values
         # These values work well across different environments and game configurations
-        # Note: These do NOT directly correspond to feature IDs - they are positional
+        # Note: These values correspond to feature IDs (position i = feature ID i)
+        #
+        # To use environment normalizations instead (for new models only):
+        # policy = Policy(env, use_env_normalizations=True)
         max_vec = torch.tensor(
             [
                 9.0,
@@ -166,13 +170,10 @@ class Policy(nn.Module):
             if "id" in feature_props and "normalization" in feature_props:
                 feature_normalizations[feature_props["id"]] = feature_props["normalization"]
 
-        # Only update if we have normalizations from the environment
-        if feature_normalizations:
-            # Store old values for comparison
-            old_values = self.max_vec[0, :, 0, 0].clone().cpu().tolist()
-
-            # Start with current values as defaults
-            max_values = old_values.copy()
+        # Only update normalizations if explicitly enabled (for new models)
+        # For trained models, changing normalizations breaks learned patterns
+        if self.use_env_normalizations and feature_normalizations:
+            max_values = self.max_vec[0, :, 0, 0].clone().cpu().tolist()
 
             # Update with environment normalizations where available
             for feature_id, normalization in feature_normalizations.items():
@@ -182,9 +183,4 @@ class Policy(nn.Module):
             # Create new max_vec tensor on the correct device
             new_max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
             self.max_vec.data = new_max_vec
-
-            print(f"Updated max_vec with {len(feature_normalizations)} normalizations")
-            # Debug: show what changed
-            for i in range(min(14, self.num_layers)):  # Show first 14 features
-                if abs(old_values[i] - max_values[i]) > 0.01:
-                    print(f"  Position {i}: {old_values[i]:.1f} -> {max_values[i]:.1f}")
+            print(f"Updated max_vec with {len(feature_normalizations)} normalizations from environment")
