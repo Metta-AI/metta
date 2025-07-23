@@ -33,8 +33,7 @@ permissions:
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
-  # Use 4 workers for parallel test execution (GitHub Actions runners have 2 CPU cores)
-  PYTEST_WORKERS: 4
+  PYTEST_WORKERS: auto
 
 jobs:
   # check if CI should run based on Graphite's stack position
