@@ -24,7 +24,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, cnn_channels=128, hidden_size=512, use_env_normalizations=False, **kwargs):
+    def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.is_continuous = False
@@ -32,7 +32,34 @@ class Policy(nn.Module):
         self.out_width = 11
         self.out_height = 11
         self.num_layers = 22
-        self.use_env_normalizations = use_env_normalizations
+
+        # Define the standard feature order and their empirically determined normalizations
+        # This acts like original_feature_mapping in MettaAgent
+        self.feature_normalizations = {
+            "type_id": 9.0,
+            "agent:group": 1.0,
+            "hp": 1.0,
+            "agent:frozen": 10.0,
+            "agent:orientation": 3.0,
+            "agent:color": 254.0,
+            "converting": 1.0,
+            "swappable": 1.0,
+            "episode_completion_pct": 235.0,
+            "last_action": 8.0,
+            "last_action_arg": 9.0,
+            "last_reward": 250.0,
+            "agent:glyph": 29.0,
+            "resource_rewards": 1.0,
+            # Inventory features (positions 14-21)
+            "inv:0": 1.0,
+            "inv:1": 8.0,
+            "inv:2": 1.0,
+            "inv:3": 1.0,
+            "inv:4": 6.0,
+            "inv:5": 3.0,
+            "inv:6": 1.0,
+            "inv:7": 2.0,
+        }
 
         self.network = nn.Sequential(
             pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
@@ -49,39 +76,9 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        # Initialize max_vec with empirically determined normalization values
-        # These values work well across different environments and game configurations
-        # Note: These values correspond to feature IDs (position i = feature ID i)
-        #
-        # To use environment normalizations instead (for new models only):
-        # policy = Policy(env, use_env_normalizations=True)
-        max_vec = torch.tensor(
-            [
-                9.0,
-                1.0,
-                1.0,
-                10.0,
-                3.0,
-                254.0,
-                1.0,
-                1.0,
-                235.0,
-                8.0,
-                9.0,
-                250.0,
-                29.0,
-                1.0,
-                1.0,
-                8.0,
-                1.0,
-                1.0,
-                6.0,
-                3.0,
-                1.0,
-                2.0,
-            ],
-            dtype=torch.float32,
-        )[None, :, None, None]
+        # Initialize max_vec with ones - will be properly set during initialize_to_environment
+        # This ensures the model works even if initialize_to_environment isn't called
+        max_vec = torch.ones(self.num_layers, dtype=torch.float32)[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
         action_nvec = env.single_action_space.nvec
@@ -158,29 +155,31 @@ class Policy(nn.Module):
         action_max_params: list[int],
         device,
     ):
-        """Initialize policy with environment-specific normalizations.
+        """Initialize policy by mapping our feature normalizations to current environment IDs.
 
-        In encode_observations, atr_indices (feature IDs) are used directly as
-        indices into the observation tensor layers. So position i in max_vec
-        corresponds to feature ID i.
+        This works like MettaAgent's feature remapping: we have a fixed set of known
+        features with empirically determined normalizations, and we map them to whatever
+        IDs the current environment uses.
         """
-        # Build normalization values indexed by feature ID
-        feature_normalizations = {}
-        for _feature_name, feature_props in features.items():
-            if "id" in feature_props and "normalization" in feature_props:
-                feature_normalizations[feature_props["id"]] = feature_props["normalization"]
+        # Create max_vec based on current environment's feature IDs
+        max_values = [1.0] * self.num_layers  # Default normalization
 
-        # Only update normalizations if explicitly enabled (for new models)
-        # For trained models, changing normalizations breaks learned patterns
-        if self.use_env_normalizations and feature_normalizations:
-            max_values = self.max_vec[0, :, 0, 0].clone().cpu().tolist()
+        # Map our known features to the environment's feature IDs
+        for feature_name, feature_props in features.items():
+            if "id" in feature_props and 0 <= feature_props["id"] < self.num_layers:
+                feature_id = feature_props["id"]
 
-            # Update with environment normalizations where available
-            for feature_id, normalization in feature_normalizations.items():
-                if 0 <= feature_id < self.num_layers:
-                    max_values[feature_id] = normalization
+                # Check if this is a feature we know about
+                if feature_name in self.feature_normalizations:
+                    # Use our empirically determined normalization
+                    max_values[feature_id] = self.feature_normalizations[feature_name]
+                elif feature_name.startswith("inv:") and "inv:0" in self.feature_normalizations:
+                    # For unknown inventory items, use a default inventory normalization
+                    max_values[feature_id] = 100.0  # DEFAULT_INVENTORY_NORMALIZATION
+                elif "normalization" in feature_props:
+                    # Use environment's normalization for unknown features
+                    max_values[feature_id] = feature_props["normalization"]
 
-            # Create new max_vec tensor on the correct device
-            new_max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
-            self.max_vec.data = new_max_vec
-            print(f"Updated max_vec with {len(feature_normalizations)} normalizations from environment")
+        # Update max_vec with the mapped values
+        new_max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
+        self.max_vec.data = new_max_vec
