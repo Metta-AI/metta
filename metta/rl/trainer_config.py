@@ -307,13 +307,14 @@ def create_trainer_config(
             try:
                 import sys
                 from pathlib import Path
+
                 experiments_path = Path(__file__).parent.parent.parent / "experiments"
                 if str(experiments_path) not in sys.path:
                     sys.path.insert(0, str(experiments_path))
                 import curriculum_defs  # noqa: F401
             except ImportError:
                 pass  # Curriculum definitions not available
-            
+
             stored_config = curriculum_store.get(curriculum)
             if stored_config:
                 curriculum_config = stored_config
@@ -358,7 +359,7 @@ def create_trainer_config(
                 # For regular dicts, we need to handle the algorithm field if present
                 # Remove Hydra's defaults field which is not part of CurriculumConfig
                 curriculum.pop("defaults", None)
-                
+
                 # Check if algorithm needs serialization
                 if "algorithm" in curriculum and isinstance(curriculum["algorithm"], dict):
                     # This is likely a CurriculumAlgorithmHypers that needs proper serialization

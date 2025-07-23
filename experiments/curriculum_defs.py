@@ -6,9 +6,10 @@ allowing for better type safety and easier programmatic access.
 
 from metta.mettagrid.curriculum import CurriculumConfig
 from metta.mettagrid.curriculum.curriculum_algorithm import DiscreteRandomHypers
+from metta.mettagrid.curriculum.curriculum_config import ParameterRange
+from metta.mettagrid.curriculum.curriculum_store import curriculum_store
 from metta.mettagrid.curriculum.learning_progress import LearningProgressHypers
 from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedHypers
-
 
 # Arena curricula
 ARENA_TASKS = [
@@ -49,8 +50,6 @@ arena_prioritize_regressed = CurriculumConfig(
 
 
 # Navigation curricula
-from metta.mettagrid.curriculum.curriculum_config import ParameterRange
-
 navigation_bucketed = CurriculumConfig(
     name="navigation_bucketed",
     algorithm=DiscreteRandomHypers(),
@@ -102,8 +101,6 @@ navigation_prioritize_regressed = CurriculumConfig(
 
 
 # Register all curricula in the store
-from metta.mettagrid.curriculum.curriculum_store import curriculum_store
-
 curriculum_store.register("arena_random", arena_random)
 curriculum_store.register("arena_learning_progress", arena_learning_progress)
 curriculum_store.register("arena_prioritize_regressed", arena_prioritize_regressed)

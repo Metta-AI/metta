@@ -246,37 +246,39 @@ def _get_short_name(full_name: str) -> str:
     return name
 
 
-def curriculum_config_from_python(name_or_path: str) -> "CurriculumConfig":
+def curriculum_config_from_python(name_or_path: str):
     """Load a CurriculumConfig from a Python module.
-    
+
     Args:
         name_or_path: Either:
             - A simple name like "arena_random" (looks in experiments.curriculum_defs)
             - A full module path like "experiments.curriculum_defs.arena_random"
-        
+
     Returns:
         A CurriculumConfig instance
     """
     from metta.mettagrid.curriculum.curriculum_config import CurriculumConfig
-    
+
     # If it's a simple name (no dots), look in the default location
     if "." not in name_or_path:
         module_path = f"curriculum_defs.{name_or_path}"
     else:
         module_path = name_or_path
-    
+
     parts = module_path.split(".")
     module_name = ".".join(parts[:-1]) if len(parts) > 1 else parts[0]
     attr_name = parts[-1] if len(parts) > 1 else None
-    
+
     # Ensure experiments directory is in path
     import sys
     from pathlib import Path
+
     experiments_path = Path(__file__).parent.parent.parent.parent.parent.parent / "experiments"
     if str(experiments_path) not in sys.path:
         sys.path.insert(0, str(experiments_path))
-    
+
     import importlib
+
     try:
         module = importlib.import_module(module_name)
         if attr_name:
@@ -285,11 +287,11 @@ def curriculum_config_from_python(name_or_path: str) -> "CurriculumConfig":
             # If no attribute specified, module itself should be the config
             config = module
     except (ImportError, AttributeError) as e:
-        raise ValueError(f"Could not load curriculum '{name_or_path}': {e}")
-    
+        raise ValueError(f"Could not load curriculum '{name_or_path}': {e}") from e
+
     if not isinstance(config, CurriculumConfig):
         raise ValueError(f"Expected CurriculumConfig, got {type(config)} from {module_path}")
-    
+
     return config
 
 
