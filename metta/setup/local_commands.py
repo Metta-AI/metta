@@ -24,8 +24,10 @@ class LocalCommands:
     def build_app_backend_img(self) -> None:
         self._build_img("metta-app-backend:latest", self.repo_root / "app_backend" / "Dockerfile")
 
-    def build_docker_img(self) -> None:
-        self._build_img("metta-local:latest", self.repo_root / "devops" / "docker" / "Dockerfile.local")
+    def build_policy_evaluator_img(self) -> None:
+        self._build_img(
+            "metta-policy-evaluator-local:latest", self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator"
+        )
 
     def load_policies(self, unknown_args) -> None:
         """Load W&B artifacts as policies into stats database."""
