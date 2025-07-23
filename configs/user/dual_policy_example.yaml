@@ -1,40 +1,164 @@
-# Example configuration for dual-policy training
-# This shows how to enable dual-policy training with scripted NPCs
+# Standalone dual-policy trainer configuration
+# This creates a complete trainer configuration with dual-policy enabled
 
-defaults:
-  - /trainer/trainer@
-  - /sim/all@sim
-  - _self_
+_target_: metta.rl.trainer.MettaTrainer
 
-# Required fields for validation
-num_workers: 4  # Will be overridden by train.py if not specified
+# Core training parameters
+num_workers: 4
 curriculum: /env/mettagrid/curriculum/arena/learning_progress
+env_overrides: {}
 
-# WandB configuration for dual-policy training project
+total_timesteps: 10_000_000_000
+
+# System monitoring configuration (enables cost tracking)
+system_monitor:
+  enabled: true
+  sampling_interval_sec: 1.0
+  history_size: 100
+  auto_start: true
+
+# Dual-policy configuration
+dual_policy:
+  enabled: true
+  policy_a_percentage: 0.5  # 50% of agents use the main policy
+
+  # Configure scripted NPC behavior - roomba
+  npc_type: "scripted"
+  scripted_npc:
+    type: "roomba"  # Roomba behavior: move in consistent direction, turn when hitting walls
+    approach_items: true
+    interact_with_items: true
+    roomba_direction: "clockwise"  # For roomba type
+
+# Initial policy configuration
+initial_policy:
+  uri: null
+  type: top
+  range: 1
+  metric: epoch
+  filters: {}
+
+# Checkpoint configuration
+checkpoint:
+  checkpoint_dir: ${run_dir}/checkpoints
+  checkpoint_interval: 50
+  wandb_checkpoint_interval: 50
+
+# Simulation configuration
+simulation:
+  evaluate_interval: 200
+  replay_dir: s3://softmax-public/replays/${run}
+
+# PPO configuration
+ppo:
+  clip_coef: 0.1
+  ent_coef: 0.0021
+  gae_lambda: 0.916
+  gamma: 0.977
+  max_grad_norm: 0.5
+  vf_clip_coef: 0.1
+  vf_coef: 0.44
+  l2_reg_loss_coef: 0
+  l2_init_loss_coef: 0
+  norm_adv: true
+  clip_vloss: true
+  target_kl: null
+
+# Optimizer configuration
+optimizer:
+  type: adam
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-12
+  learning_rate: 0.000457
+  weight_decay: 0
+
+# Learning rate scheduler
+lr_scheduler:
+  enabled: false
+  anneal_lr: false
+  warmup_steps: null
+  schedule_type: null
+
+# Experience replay configuration
+prioritized_experience_replay:
+  prio_alpha: 0.0
+  prio_beta0: 0.6
+
+# V-trace configuration
+vtrace:
+  vtrace_rho_clip: 1.0
+  vtrace_c_clip: 1.0
+
+# System configuration
+zero_copy: true
+require_contiguous_env_ids: false
+verbose: true
+
+# Batch configuration
+batch_size: 524288
+minibatch_size: 16384
+bptt_horizon: 64
+update_epochs: 1
+
+# Performance configuration
+cpu_offload: false
+compile: false
+compile_mode: reduce-overhead
+profiler:
+  interval_epochs: 10000
+  profile_dir: s3://softmax-public/torch_traces/${run}
+
+# Distributed training
+forward_pass_minibatch_target_size: 4096
+async_factor: 2
+scale_batches_by_world_size: false
+
+# Hyperparameter scheduler configuration
+hyperparameter_scheduler:
+  learning_rate_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.CosineSchedule
+    min_value: 0.00003
+    initial_value: ${...optimizer.learning_rate}
+
+  ppo_clip_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LogarithmicSchedule
+    min_value: 0.05
+    decay_rate: 0.1
+    initial_value: ${...ppo.clip_coef}
+
+  ppo_ent_coef_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+    min_value: 0.0
+    initial_value: ${...ppo.ent_coef}
+
+  ppo_vf_clip_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+    min_value: 0.05
+    initial_value: ${...ppo.vf_clip_coef}
+
+  ppo_l2_reg_loss_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+    initial_value: ${...ppo.l2_reg_loss_coef}
+
+  ppo_l2_init_loss_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+    initial_value: ${...ppo.l2_init_loss_coef}
+
+# Kickstart configuration
+kickstart:
+  teacher_uri: null
+  action_loss_coef: 1
+  value_loss_coef: 1
+  anneal_ratio: 0.65
+  kickstart_steps: 1_000_000_000
+  additional_teachers: []
+
+# Grad mean variance logging
+grad_mean_variance_interval: 0
+
+# WandB configuration
 wandb:
   entity: metta-research
   project: dual_policy_training
   enabled: true
-
-# Trainer configuration with dual-policy enabled
-trainer:
-  # Enable dual-policy training
-  dual_policy:
-    enabled: true
-    policy_a_percentage: 0.5  # 50% of agents use the main policy
-
-    # Configure scripted NPC behavior - roomba
-    npc_type: "scripted"
-    scripted_npc:
-      type: "roomba"  # Roomba behavior: move in consistent direction, turn when hitting walls
-      approach_items: true
-      interact_with_items: true
-      roomba_direction: "clockwise"  # For roomba type
-
-# Alternative: Use checkpoint-based NPC
-# trainer:
-#   dual_policy:
-#     enabled: true
-#     policy_a_percentage: 0.5
-#     npc_type: "checkpoint"
-#     npc_policy_uri: "path/to/npc/policy/checkpoint"
