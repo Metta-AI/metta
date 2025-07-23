@@ -100,7 +100,9 @@ class EpisodeReplay:
                 if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
 
-        self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg(), resolve=True)
+        self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg())
+        # The map_builder is not needed for replay, and it's not serializable.
+        del self.replay_data["config"]["game"]["map_builder"]
 
         return self.replay_data
 
