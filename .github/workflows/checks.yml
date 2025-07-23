@@ -174,12 +174,6 @@ jobs:
         with:
           install-mode: 'testing'
 
-      - name: Build MettaGrid C++
-        if: matrix.package == 'mettagrid'
-        id: mettagrid_build_check
-        run: |
-          .github/scripts/check_mettagrid_build.py
-
       - name: Run tests
         run: |
           PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
@@ -197,13 +191,39 @@ jobs:
           fi
           pytest $PYTEST_ARGS
 
-      - name: Upload coverage to Codecov
+      - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
           chmod +x .github/scripts/upload_codecov.py
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
+
+      - name: Build MettaGrid C++
+        if: matrix.package == 'mettagrid'
+        id: mettagrid_build_check
+        run: |
+          .github/scripts/check_mettagrid_build.py
+
+      - name: Check MettaGrid build warnings
+        if: always()
+        run: |
+          errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
+          warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
+          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
+
+          echo "Build Summary: $errors errors, $warnings warnings"
+          echo "Maximum allowed warnings: $max_warnings"
+
+          if [ "$errors" -gt 0 ]; then
+            echo "❌ MettaGrid has build errors!"
+            exit 1
+          elif [ "$warnings" -gt "$max_warnings" ]; then
+            echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
+            exit 1
+          else
+            echo "✅ MettaGrid build quality check passed"
+          fi
 
       - name: Run MettaGrid C++ coverage
         if: matrix.package == 'mettagrid'
@@ -221,25 +241,6 @@ jobs:
           name: mettagrid-cpp-coverage
           fail_ci_if_error: false
           verbose: true
-
-  tests-summary:
-    name: "Check Tests"
-    needs: [test-matrix]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check test results
-        run: |
-          echo "Test job results: ${{ toJSON(needs) }}"
-          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
-            echo "❌ One or more test jobs failed"
-            exit 1
-          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
-            echo "⚠️ One or more test jobs were cancelled"
-            exit 1
-          else
-            echo "✅ All test jobs completed successfully"
-          fi
 
   smoke-test:
     name: "Smoke Tests"
