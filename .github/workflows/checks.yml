@@ -171,6 +171,8 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "testing"
 
       - name: Run tests
         run: |
