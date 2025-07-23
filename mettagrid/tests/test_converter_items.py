@@ -175,7 +175,7 @@ def get_items_from_converter(env, orientation_to_converter, agent_idx=0):
         return False, {}
 
     # Get items from converter
-    obs, reward, success = perform_action(env, "get_items", 0)
+    obs, reward, success = perform_action(env, "get_output", 0)
 
     if success:
         # Check inventory after action
