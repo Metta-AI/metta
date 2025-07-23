@@ -125,10 +125,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
-        game_config_dict = cast(Dict[str, Any], game_config_dict)
-        assert isinstance(game_config_dict, dict)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
@@ -136,7 +134,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 
