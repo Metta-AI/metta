@@ -5,8 +5,8 @@ defaults:
 
 game:
   num_agents: 1
-  obs_width: 7
-  obs_height: 7
+  obs_width: 11
+  obs_height: 11
   max_steps: 500
 
   # Simple single-agent setup
@@ -26,14 +26,14 @@ game:
   objects:
     # Regular converter (lowercase 'c')
     converter:
-      type_id: 5
+      type_id: 101
       input_resources: {}
       output_resources:
         heart: 1
-      conversion_ticks: 5   # 5 ticks to produce
-      cooldown: 5          # 5 tick cooldown
+      conversion_ticks: 40   # 5 ticks to produce
+      cooldown: 10          # 5 tick cooldown
       max_output: 1
-      initial_resource_count: 0
+      initial_resource_count: 1
       color: 14
 
     # Cyclical converter (uppercase 'C')
@@ -42,7 +42,7 @@ game:
       input_resources: {}
       output_resources:
         heart: 1
-      conversion_ticks: 10  # 10 ticks to produce
+      conversion_ticks: 40  # 10 ticks to produce
       cooldown: 10         # 10 tick cooldown (auto-empties after this)
       max_output: 1
       initial_resource_count: 0
@@ -51,7 +51,7 @@ game:
   # Map configuration using the ASCII map file
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii
-    uri: "configs/env/mettagrid/maps/debug/cyclical_converter.map"
+    uri: "configs/env/mettagrid/maps/cyclical/cyclical_hallway.map"
     border_width: 0
 
   # Enable actions for interacting with converters
