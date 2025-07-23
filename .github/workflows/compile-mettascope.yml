@@ -10,8 +10,13 @@ jobs:
   compile-mettascope:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "minimal"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -19,11 +24,6 @@ jobs:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: mettascope/package-lock.json
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
 
       - name: Install Mettascope
         run: |

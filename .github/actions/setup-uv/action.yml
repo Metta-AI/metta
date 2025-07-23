@@ -1,12 +1,8 @@
 name: "Setup uv"
 description: "Set up uv and activate the environment"
 inputs:
-  include-dev:
-    description: "Whether to include dev dependencies"
-    required: false
-    default: "true"
   install-mode:
-    description: "Installation mode: 'full' (default), 'testing', or 'linting'"
+    description: "Installation mode: 'full' (default), 'testing', 'minimal', or 'linting'"
     required: false
     default: "full"
 
@@ -34,6 +30,10 @@ runs:
         # Handle different installation modes
         case "${{ inputs.install-mode }}" in
 
+          "minimal")
+            uv sync --no-default-groups
+            ;;
+
           "testing")
             uv sync --no-default-groups
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
@@ -44,11 +44,7 @@ runs:
             ;;
 
           "full"|*)
-            if [ "${{ inputs.include-dev }}" = "true" ]; then
-              uv sync
-            else
-              uv sync --no-default-groups
-            fi
+            uv sync
             ;;
 
         esac
