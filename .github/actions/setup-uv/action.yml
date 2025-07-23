@@ -35,13 +35,8 @@ runs:
         case "${{ inputs.install-mode }}" in
 
           "testing")
-            uv pip install --no-deps -e .
-            uv pip install --no-deps -e ./common
-            uv pip install --no-deps -e ./agent
-            uv pip install --no-deps -e ./app_backend
-            uv pip install scikit-build-core
+            uv sync --no-default-groups
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
-            uv pip install torch numpy pydantic typing-extensions
             ;;
 
           "linting")
