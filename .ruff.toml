@@ -3,7 +3,7 @@ line-length = 120
 # Specify the target Python version for compatibility checks
 target-version = "py311"
 
-# Exclude directories from linting
+# Exclude directories and files from linting
 # These are common directories that typically don't need linting
 exclude = [
   ".git",           # Git version control
@@ -14,6 +14,7 @@ exclude = [
   "__pypackages__", # PEP 582 packages
   "dist",           # Distribution builds
   "node_modules",   # Node.js packages
+  "*.ipynb",        # Jupyter notebooks
 ]
 
 [lint.isort]

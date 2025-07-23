@@ -55,6 +55,9 @@ dependencies = [
   "uvicorn[standard]>=0.34.2",
   "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
+  "ipykernel>=6.30.0",
+  "seaborn>=0.13.2",
+  "scikit-learn>=1.7.1",
 ]
 name = "metta"
 version = "0.1"
