@@ -155,17 +155,18 @@ class TestRendererJob:
             print(f"DEBUG_MAP_URI: {env.get('DEBUG_MAP_URI')}")
 
             try:
-                # Run with shorter timeout and better error handling
+                timeout = 120
+                print(f'Running cmd "{cmd}" with timeout {timeout} sec')
                 result = subprocess.run(
                     cmd,
                     env=env,
                     capture_output=True,
                     text=True,
-                    timeout=120,  # Shorter timeout for CI
+                    timeout=timeout,
                     cwd=Path.cwd(),
                 )
             except subprocess.TimeoutExpired as e:
-                print("\n=== Command timed out after 60 seconds ===")
+                print(f"\n=== Command timed out after {timeout} seconds ===")
 
                 # Decode bytes to string, defaulting to empty string if None
                 stdout_text = e.stdout.decode("utf-8") if e.stdout else "None"
