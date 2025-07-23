@@ -50,7 +50,7 @@ def get_id(parameters, values):
     curriculum_id = ""
     for k, v in zip(parameters, values, strict=False):
         if isinstance(v, dict):
-            v = v.get("range", "values")
+            v = v.values()
         if isinstance(v, tuple):
             v = tuple(round(x, 3) if isinstance(x, float) else x for x in v)
         elif isinstance(v, float):
@@ -68,6 +68,8 @@ def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -
     for parameter, bucket_spec in buckets.items():
         if "values" in bucket_spec:
             buckets_unpacked[parameter] = bucket_spec["values"]
+        elif "choice" in bucket_spec:
+            buckets_unpacked[parameter] = bucket_spec["choice"]
         elif "range" in bucket_spec:
             lo, hi = bucket_spec["range"]
             n = int(bucket_spec.get("bins", default_bins))
