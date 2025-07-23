@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from metta.common.wandb.helpers import abort_requested
+from metta.rl.wandb import abort_requested
 
 
 def should_run(

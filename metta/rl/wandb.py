@@ -43,16 +43,18 @@ def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec:
     return state["cached_result"]
 
 
-def upload_env_configs(curriculum: Any, wandb_run: wandb.sdk.wandb_run.Run | None) -> None:
-    """Serialize resolved env configs for each bucket and upload to run files."""
+def upload_env_configs(env_configs: dict[str, Any], wandb_run: wandb.sdk.wandb_run.Run | None) -> None:
+    """Serialize resolved env configs and upload to run files.
+
+    Args:
+        env_configs: Dictionary mapping bucket names to their environment configurations
+        wandb_run: The wandb run to upload to
+    """
     if wandb_run is None:
         return
+
     try:
-        if not hasattr(curriculum, "get_env_cfg_by_bucket"):
-            logger.debug("Curriculum does not implement get_env_cfg_by_bucket; skipping env config upload")
-            return
-        env_cfgs: Dict[str, Any] = curriculum.get_env_cfg_by_bucket()  # type: ignore[attr-defined]
-        resolved = {k: OmegaConf.to_container(v, resolve=True) for k, v in env_cfgs.items()}
+        resolved = {k: OmegaConf.to_container(v, resolve=True) for k, v in env_configs.items()}
         payload = json.dumps(resolved, indent=2)
         file_path = os.path.join(wandb_run.dir, "env_configs.json")
         with open(file_path, "w", encoding="utf-8") as fp:

@@ -15,9 +15,6 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.wandb.helpers import (
-    upload_env_configs,
-)
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -69,6 +66,7 @@ from metta.rl.util.stats import (
     process_training_stats,
 )
 from metta.rl.util.utils import check_abort, should_run
+from metta.rl.wandb import upload_env_configs
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
@@ -413,8 +411,9 @@ current_policy_generation = initial_generation + 1 if policy_record else 0
 # After environment is initialized but before training loop
 if is_master and wandb_run:
     curr_obj = getattr(metta_grid_env, "_curriculum", None)
-    if curr_obj is not None:
-        upload_env_configs(curriculum=curr_obj, wandb_run=wandb_run)
+    if curr_obj is not None and hasattr(curr_obj, "get_env_cfg_by_bucket"):
+        env_configs = curr_obj.get_env_cfg_by_bucket()
+        upload_env_configs(env_configs=env_configs, wandb_run=wandb_run)
 
 # Create torch profiler (matches trainer.py)
 torch_profiler = TorchProfiler(is_master, trainer_config.profiler, wandb_run, dirs.run_dir)
