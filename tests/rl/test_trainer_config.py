@@ -135,7 +135,7 @@ class TestTypedConfigs:
 
         # Test that runtime paths are set correctly
         assert trainer_config.checkpoint.checkpoint_dir == "/tmp/test_run/checkpoints"
-        assert trainer_config.simulation.replay_dir == "s3://softmax-public/replays/test_run"
+        assert trainer_config.simulation.replay_dir == "/tmp/test_run/replays/"
 
     def test_config_field_validation(self):
         # invalid field
