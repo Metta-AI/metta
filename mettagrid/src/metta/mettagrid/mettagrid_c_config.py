@@ -104,6 +104,8 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
                 color=object_config.color,
+                phase=getattr(object_config, 'phase', 0),
+                cyclical=getattr(object_config, 'cyclical', False),
                 recipe_details_obs=game_config.recipe_details_obs,
             )
             objects_cpp_params[object_type] = cpp_converter_config

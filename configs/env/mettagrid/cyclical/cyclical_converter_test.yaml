@@ -26,25 +26,29 @@ game:
   objects:
     # Regular converter (lowercase 'c')
     converter:
+      cyclical: true
       type_id: 101
       input_resources: {}
       output_resources:
         heart: 1
-      conversion_ticks: 40   # 5 ticks to produce
-      cooldown: 10          # 5 tick cooldown
+      conversion_ticks: 20   # 5 ticks to produce
+      cooldown: 20          # 5 tick cooldown
       max_output: 1
-      initial_resource_count: 1
+      initial_resource_count: 0
+      phase: 0
       color: 14
 
     # Cyclical converter (uppercase 'C')
     C:
       type_id: 100
+      cyclical: true
       input_resources: {}
       output_resources:
         heart: 1
-      conversion_ticks: 40  # 10 ticks to produce
-      cooldown: 10         # 10 tick cooldown (auto-empties after this)
+      conversion_ticks: 20  # 10 ticks to produce
+      cooldown: 20         # 10 tick cooldown (auto-empties after this)
       max_output: 1
+      phase: 20
       initial_resource_count: 0
       color: 13
 

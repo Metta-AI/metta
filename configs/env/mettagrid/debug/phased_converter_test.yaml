@@ -1,0 +1,83 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/basic@game.objects  # wall, agent
+  - _self_
+
+game:
+  num_agents: 1
+  obs_width: 11
+  obs_height: 11
+  max_steps: 500
+
+  # Simple single-agent setup
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_resource_limit: 10
+    rewards:
+      inventory:
+        heart: 1
+
+  # Define converters with different phases for natural dephasing
+  objects:
+    # Regular converter - starts immediately (phase 0)
+    converter:
+      type_id: 5
+      input_resources: {}
+      output_resources:
+        heart: 1
+      conversion_ticks: 40   # 40 ticks to produce
+      cooldown: 10          # 10 tick cooldown
+      max_output: 1
+      initial_resource_count: 0
+      color: 14
+      phase: 0              # No initial delay
+
+        # Cyclical converter 1 - starts after 15 ticks
+    C1:
+      type_id: 6
+      input_resources: {}
+      output_resources:
+        heart: 1
+      conversion_ticks: 40  # 40 ticks to produce
+      cooldown: 10         # 10 tick cooldown (auto-empties after this)
+      max_output: 1
+      initial_resource_count: 0
+      color: 13
+      phase: 15            # Starts 15 ticks later
+      cyclical: true       # Auto-empties inventory after cooldown
+
+    # Cyclical converter 2 - starts after 30 ticks
+    C2:
+      type_id: 7
+      input_resources: {}
+      output_resources:
+        heart: 1
+      conversion_ticks: 40  # 40 ticks to produce
+      cooldown: 10         # 10 tick cooldown (auto-empties after this)
+      max_output: 1
+      initial_resource_count: 0
+      color: 12
+      phase: 30            # Starts 30 ticks later
+      cyclical: true       # Auto-empties inventory after cooldown
+
+  # Map configuration using a simple test map
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    uri: "configs/env/mettagrid/maps/debug/phased_converter_test.map"
+    border_width: 0
+
+  # Enable actions for interacting with converters
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    get_items:
+      enabled: true
