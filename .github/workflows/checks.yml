@@ -242,6 +242,25 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  tests-summary:
+    name: "Tests"
+    needs: [test-matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          echo "Test job results: ${{ toJSON(needs) }}"
+          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
+            echo "One or more test jobs failed"
+            exit 1
+          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
+            echo "One or more test jobs were cancelled"
+            exit 1
+          else
+            echo "All test jobs completed successfully"
+          fi
+
   smoke-test:
     name: "Smoke Tests"
     if: |
