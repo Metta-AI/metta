@@ -26,7 +26,7 @@ class MockContainerManager(AbstractContainerManager):
     async def discover_alive_workers(self) -> list[WorkerInfo]:
         return list(self.workers.values())
 
-    def start_worker_container(self, git_hash: str, backend_url: str, docker_image: str) -> WorkerInfo:
+    def start_worker_container(self, git_hash: str, backend_url: str, docker_image: str, *args, **kwargs) -> WorkerInfo:
         worker = WorkerInfo(
             git_hash=git_hash,
             container_id=f"container_{git_hash}_{len(self.start_worker_calls)}",
@@ -119,6 +119,7 @@ def orchestrator(mock_container_manager, mock_task_client, monkeypatch):
     orchestrator = EvalTaskOrchestrator(
         backend_url="http://test-backend",
         docker_image="test-image:latest",
+        machine_token="test-token",
         poll_interval=1.0,
         worker_idle_timeout=60.0,
         container_manager=mock_container_manager,
