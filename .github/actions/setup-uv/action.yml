@@ -20,6 +20,7 @@ runs:
         enable-cache: true
         cache-local-path: "~/.cache/uv"
         prune-cache: false
+        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.include-dev }}"
 
     - name: Create virtual environment with uv
       shell: bash
