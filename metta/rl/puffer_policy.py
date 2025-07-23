@@ -35,7 +35,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         num_actions = 9
         hidden_size = 512
         num_action_args = 10
-        obs_channels = 24
+        obs_channels = 22  # Updated default to 22 channels
 
     env = SimpleNamespace(
         observation_space=SimpleNamespace(shape=(11, 11, obs_channels)),
@@ -47,14 +47,21 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     # Use common instantiate function
     if pytorch_cfg is None:
         # Default to Recurrent policy if no config provided
-        from metta.agent.external.example import Recurrent
+        from metta.agent.external.example import Policy, Recurrent
 
+        # Create the Policy first
+        policy = Policy(
+            env=env,
+            cnn_channels=128,
+            hidden_size=hidden_size,
+        )
+
+        # Then wrap it in Recurrent
         policy = Recurrent(
             env=env,
-            policy=None,
+            policy=policy,
+            input_size=512,
             hidden_size=hidden_size,
-            conv_depth=2,
-            conv_channels=32,
         )
     else:
         # Use the common instantiate utility
@@ -88,7 +95,54 @@ class PytorchAgent(nn.Module):
         logprob -> logprob_act
         hidden -> logits then, after sample_logits(), log_sftmx_logits
         """
-        hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
+        # For tokenized observations, we need to handle them differently
+        # The pufferlib Recurrent/LSTMWrapper expects already-encoded observations,
+        # but we have raw tokenized observations that need to be processed first
+
+        if hasattr(self.policy, "policy") and hasattr(self.policy.policy, "encode_observations"):
+            # This is a wrapped policy (e.g., Recurrent wrapping Policy)
+            # Encode observations first
+            hidden = self.policy.policy.encode_observations(obs, state)
+
+            # Handle LSTM state
+            h, c = state.lstm_h, state.lstm_c
+            if h is not None:
+                if len(h.shape) == 3:
+                    h, c = h.squeeze(), c.squeeze()
+                assert h.shape[0] == c.shape[0] == obs.shape[0], "LSTM state must be (h, c)"
+                lstm_state = (h, c)
+            else:
+                lstm_state = None
+
+            # LSTM forward pass
+            if hasattr(self.policy, "cell"):
+                hidden, c = self.policy.cell(hidden, lstm_state)
+                # Update state
+                state.hidden = hidden
+                state.lstm_h = hidden
+                state.lstm_c = c
+
+            # Decode actions
+            logits, critic = self.policy.policy.decode_actions(hidden)
+
+            # sample_logits expects a list of logits for multi-discrete action spaces
+            hidden = logits  # Keep as list for sample_logits
+
+        else:
+            # Fallback to original behavior
+            state_dict = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c, "hidden": getattr(state, "hidden", None)}
+
+            (hidden, critic), _ = self.policy(obs, state_dict)
+
+            # Update state
+            if "lstm_h" in state_dict:
+                state.lstm_h = state_dict["lstm_h"]
+            if "lstm_c" in state_dict:
+                state.lstm_c = state_dict["lstm_c"]
+            if "hidden" in state_dict and state_dict["hidden"] is not None:
+                state.hidden = state_dict["hidden"]
+
+        # Sample actions from logits
         action, logprob, logits_entropy = sample_logits(hidden, action)
         return action, logprob, logits_entropy, critic, hidden
 
