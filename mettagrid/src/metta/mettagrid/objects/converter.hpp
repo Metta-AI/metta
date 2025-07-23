@@ -180,6 +180,13 @@ public:
   }
 
   void finish_cooldown() {
+    // Type IDs 100-199 are cyclical converters that auto-empty on cooldown completion
+    if (this->type_id >= 100 && this->type_id < 200) {
+      // Empty all inventory items
+      this->inventory.clear();
+      stats.incr("inventory.auto_emptied");
+    }
+
     this->cooling_down = false;
     stats.incr("cooldown.completed");
     this->maybe_start_converting();

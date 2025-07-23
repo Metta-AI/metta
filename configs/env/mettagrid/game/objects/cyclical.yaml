@@ -1,0 +1,64 @@
+# Cyclical Converters - Type IDs 100-199
+# These converters automatically empty their inventory after cooldown completion
+# Creating timing-based on/off components for strategic gameplay
+
+# Basic cyclical converter - produces hearts on a timer
+cyclical_converter:
+  type_id: 100
+  input_resources: {}  # No input required
+  output_resources:
+    heart: 1
+  conversion_ticks: 10  # 10 ticks to produce a heart
+  cooldown: 20         # Heart available for 20 ticks before auto-empty
+  max_output: 1        # Only produces one heart at a time
+  initial_resource_count: 0
+  color: 13  # Pink/purple color for heart-related object
+
+# Slower cyclical heart altar
+cyclical_heart_altar:
+  type_id: 101
+  input_resources: {}
+  output_resources:
+    heart: 1
+  conversion_ticks: 20
+  cooldown: 30
+  max_output: 1
+  initial_resource_count: 0
+  color: 13
+
+# Cyclical battery generator
+cyclical_battery_gen:
+  type_id: 102
+  input_resources: {}
+  output_resources:
+    battery_yellow: 1
+  conversion_ticks: 40  # Slower production
+  cooldown: 20         # Shorter availability window
+  max_output: 1
+  initial_resource_count: 0
+  color: 6  # Yellow for battery
+
+# Cyclical ore processor - requires input
+cyclical_ore_processor:
+  type_id: 103
+  input_resources:
+    ore_red: 3  # Requires ore to convert
+  output_resources:
+    heart: 1
+  conversion_ticks: 15
+  cooldown: 25  # Product available for 25 ticks
+  max_output: 1
+  initial_resource_count: 0
+  color: 11  # Red-ish color
+
+# Fast cyclical converter for testing
+cyclical_fast_test:
+  type_id: 110
+  input_resources: {}
+  output_resources:
+    heart: 1
+  conversion_ticks: 2  # Very fast for testing
+  cooldown: 3         # Very short window
+  max_output: 1
+  initial_resource_count: 0
+  color: 12

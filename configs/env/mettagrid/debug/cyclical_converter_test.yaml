@@ -1,0 +1,77 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/basic@game.objects  # wall, agent
+  - _self_
+
+game:
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 500
+
+  # Simple single-agent setup
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_resource_limit: 10
+    rewards:
+      inventory:
+        heart: 1
+
+  # Define our converter types
+  objects:
+    # Regular converter (lowercase 'c')
+    converter:
+      type_id: 5
+      input_resources: {}
+      output_resources:
+        heart: 1
+      conversion_ticks: 5   # 5 ticks to produce
+      cooldown: 5          # 5 tick cooldown
+      max_output: 1
+      initial_resource_count: 0
+      color: 14
+
+    # Cyclical converter (uppercase 'C')
+    C:
+      type_id: 100
+      input_resources: {}
+      output_resources:
+        heart: 1
+      conversion_ticks: 10  # 10 ticks to produce
+      cooldown: 10         # 10 tick cooldown (auto-empties after this)
+      max_output: 1
+      initial_resource_count: 0
+      color: 13
+
+  # Map configuration using the ASCII map file
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    uri: "configs/env/mettagrid/maps/debug/cyclical_converter.map"
+    border_width: 0
+
+  # Enable actions for interacting with converters
+  actions:
+    noop:
+      enabled: false
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: false
+    get_items:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    change_glyph:
+      enabled: false
+      number_of_glyphs: 4
