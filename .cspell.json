@@ -86,6 +86,7 @@
     "finfo",
     "fvisibility",
     "GBENCHMARK",
+    "gcovr",
     "genai",
     "generativeai",
     "gethostname",
