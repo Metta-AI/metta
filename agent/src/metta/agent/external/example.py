@@ -49,6 +49,8 @@ class Policy(nn.Module):
         )
 
         # Initialize max_vec with empirically determined normalization values
+        # These values work well across different environments and game configurations
+        # Note: These do NOT directly correspond to feature IDs - they are positional
         max_vec = torch.tensor(
             [
                 9.0,
@@ -152,20 +154,37 @@ class Policy(nn.Module):
         action_max_params: list[int],
         device,
     ):
-        """Initialize policy with environment-specific normalizations."""
-        # Extract feature normalizations from features dict
+        """Initialize policy with environment-specific normalizations.
+
+        In encode_observations, atr_indices (feature IDs) are used directly as
+        indices into the observation tensor layers. So position i in max_vec
+        corresponds to feature ID i.
+        """
+        # Build normalization values indexed by feature ID
         feature_normalizations = {}
         for _feature_name, feature_props in features.items():
             if "id" in feature_props and "normalization" in feature_props:
                 feature_normalizations[feature_props["id"]] = feature_props["normalization"]
 
-        # Update max_vec with actual normalization values from environment
+        # Only update if we have normalizations from the environment
         if feature_normalizations:
-            max_values = []
-            for i in range(self.num_layers):
-                # Use environment value if available, otherwise keep existing value
-                max_values.append(feature_normalizations.get(i, self.max_vec[0, i, 0, 0].item()))
+            # Store old values for comparison
+            old_values = self.max_vec[0, :, 0, 0].clone().cpu().tolist()
+
+            # Start with current values as defaults
+            max_values = old_values.copy()
+
+            # Update with environment normalizations where available
+            for feature_id, normalization in feature_normalizations.items():
+                if 0 <= feature_id < self.num_layers:
+                    max_values[feature_id] = normalization
 
             # Create new max_vec tensor on the correct device
             new_max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
             self.max_vec.data = new_max_vec
+
+            print(f"Updated max_vec with {len(feature_normalizations)} normalizations")
+            # Debug: show what changed
+            for i in range(min(14, self.num_layers)):  # Show first 14 features
+                if abs(old_values[i] - max_values[i]) > 0.01:
+                    print(f"  Position {i}: {old_values[i]:.1f} -> {max_values[i]:.1f}")
