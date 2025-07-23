@@ -10,7 +10,7 @@ from metta.app_backend.container_managers.models import WorkerInfo
 class K8sPodManager(AbstractContainerManager):
     def __init__(self, namespace: str | None = None, kubeconfig: str | None = None, wandb_api_key: str | None = None):
         self._logger = logging.getLogger(__name__)
-        self._namespace = namespace or os.environ.get("KUBERNETES_NAMESPACE", "observatory")
+        self._namespace = namespace or os.environ.get("KUBERNETES_NAMESPACE", "orchestrator")
         self._kubeconfig = kubeconfig or os.environ.get("KUBERNETES_KUBECONFIG", None)
         self._wandb_api_key = wandb_api_key or os.environ.get("WANDB_API_KEY", None)
 
@@ -46,7 +46,7 @@ class K8sPodManager(AbstractContainerManager):
                     {
                         "name": "eval-worker",
                         "image": docker_image,
-                        "imagePullPolicy": "Never",
+                        "imagePullPolicy": os.getenv("IMAGE_PULL_POLICY", "IfNotPresent"),
                         "command": ["uv", "run", "python", "-m", "metta.app_backend.eval_task_worker"],
                         "env": [
                             {"name": "BACKEND_URL", "value": backend_url},

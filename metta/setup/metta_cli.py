@@ -237,7 +237,7 @@ class MettaCLI:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
             if args.local_command == "build-docker-img":
-                self.local_commands.build_docker_img(args)
+                self.local_commands.build_docker_img()
             elif args.local_command == "build-app-backend-img":
                 self.local_commands.build_app_backend_img()
             elif args.local_command == "load-policies":

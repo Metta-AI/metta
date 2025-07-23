@@ -97,3 +97,12 @@ releases:
       lambdaAiSecretName: lambda-ai-credentials
     storage:
       size: 50Gi
+
+- name: orchestrator
+  chart: ./orchestrator
+  version: 0.1.0
+  namespace: observatory
+  hooks:
+  - events: ["presync"]
+    command: "kubectl"
+    args: ["create", "namespace", "orchestrator", "--dry-run=client"]
