@@ -5,19 +5,24 @@ defaults:
   - /trainer/trainer@
   - _self_
 
+# WandB configuration for dual-policy training project
+wandb:
+  entity: metta-research
+  project: dual_policy_training
+  enabled: true
+
 # Enable dual-policy training
 dual_policy:
   enabled: true
   policy_a_percentage: 0.5  # 50% of agents use the main policy
 
-  # Configure scripted NPC behavior
+  # Configure scripted NPC behavior - roomba
   npc_type: "scripted"
   scripted_npc:
-    type: "roomba"  # Options: "roomba", "grid_search"
+    type: "roomba"  # Roomba behavior: move in consistent direction, turn when hitting walls
     approach_items: true
     interact_with_items: true
     roomba_direction: "clockwise"  # For roomba type
-    grid_search_pattern: "spiral"  # For grid_search type
 
 # Alternative: Use checkpoint-based NPC
 # dual_policy:
