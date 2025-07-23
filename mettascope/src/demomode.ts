@@ -45,7 +45,7 @@ class Shot {
 /** Current active shot. */
 var shot: Shot | null = null
 
-export function initDemoMode() {}
+export function initDemoMode() { }
 
 export function startDemoMode() {
   state.demoMode = true
@@ -119,7 +119,7 @@ export function doDemoMode() {
 
       const selectedAgent = state.replay.agents[shot.agentId]
       updateSelection(selectedAgent, true, true) // true for setFollow, true for instantCameraPan
-      shot.zoomLevel = ui.mapPanel.zoomLevel * 1.5
+      shot.zoomLevel = shot.zoomLevel * ui.dpr * 1.5
     }
   }
 
