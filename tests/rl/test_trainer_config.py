@@ -290,6 +290,7 @@ class TestTypedConfigs:
         trainer_config = create_trainer_config(make_cfg(config_with_disabled_eval))
         assert trainer_config.simulation.evaluate_interval == 0
 
+
 def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None) -> DictConfig:
     configs_dir = str(Path(__file__).parent.parent.parent / "configs")
     default_overrides = [

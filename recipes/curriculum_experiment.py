@@ -11,14 +11,15 @@ import subprocess
 import time
 from datetime import datetime
 
-# Map from (task_tree, algorithm) to curriculum config path
+# Map from (task_tree, algorithm) to curriculum config name
+# Using curriculum store names
 CURRICULUM_PATHS = {
-    ("arena", "discrete_random"): "env/mettagrid/curriculum/arena/random",
-    ("arena", "learning_progress"): "env/mettagrid/curriculum/arena/learning_progress",
-    ("arena", "prioritize_regressed"): "env/mettagrid/curriculum/arena/prioritize_regressed",
-    ("navigation", "discrete_random"): "env/mettagrid/curriculum/navigation/bucketed",
-    ("navigation", "learning_progress"): "env/mettagrid/curriculum/navigation/learning_progress",
-    ("navigation", "prioritize_regressed"): "env/mettagrid/curriculum/navigation/prioritize_regressed",
+    ("arena", "discrete_random"): "arena_random",
+    ("arena", "learning_progress"): "arena_learning_progress",
+    ("arena", "prioritize_regressed"): "arena_prioritize_regressed",
+    ("navigation", "discrete_random"): "navigation_bucketed",
+    ("navigation", "learning_progress"): "navigation_learning_progress",
+    ("navigation", "prioritize_regressed"): "navigation_prioritize_regressed",
 }
 
 # Default algorithms and tasks to run

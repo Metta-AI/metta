@@ -5,6 +5,8 @@ from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.mettagrid.curriculum import CurriculumConfig, curriculum_config_from_path
+from metta.mettagrid.curriculum.curriculum_builder import curriculum_config_from_python
+from metta.mettagrid.curriculum.curriculum_store import curriculum_store
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
@@ -300,17 +302,38 @@ def create_trainer_config(
 
         # Handle string path reference
         if isinstance(curriculum, str):
-            # Load CurriculumConfig from path
-            curriculum_config = curriculum_config_from_path(curriculum)
+            # First check if it's in the curriculum store (simple name)
+            # Ensure curriculum definitions are loaded
+            try:
+                import sys
+                from pathlib import Path
+                experiments_path = Path(__file__).parent.parent.parent / "experiments"
+                if str(experiments_path) not in sys.path:
+                    sys.path.insert(0, str(experiments_path))
+                import curriculum_defs  # noqa: F401
+            except ImportError:
+                pass  # Curriculum definitions not available
             
+            stored_config = curriculum_store.get(curriculum)
+            if stored_config:
+                curriculum_config = stored_config
+            # Check if it's a Python module reference
+            elif curriculum.startswith("python:"):
+                # Load from Python module
+                module_path = curriculum[7:]  # Remove "python:" prefix
+                curriculum_config = curriculum_config_from_python(module_path)
+            else:
+                # Load CurriculumConfig from YAML path
+                curriculum_config = curriculum_config_from_path(curriculum)
+
             # Convert to dict properly, handling the algorithm field
             curriculum_dict = curriculum_config.model_dump(exclude={"algorithm"})
-            
+
             # Handle algorithm separately to ensure proper serialization
             if curriculum_config.algorithm:
                 # Use the algorithm_type() method for clean serialization
                 curriculum_dict["algorithm"] = curriculum_config.algorithm.algorithm_type()
-            
+
             config_dict["curriculum"] = curriculum_dict
 
         # Handle dict with Hydra defaults
@@ -332,8 +355,28 @@ def create_trainer_config(
 
                 config_dict["curriculum"] = curriculum_dict
             else:
+                # For regular dicts, we need to handle the algorithm field if present
                 # Remove Hydra's defaults field which is not part of CurriculumConfig
                 curriculum.pop("defaults", None)
+                
+                # Check if algorithm needs serialization
+                if "algorithm" in curriculum and isinstance(curriculum["algorithm"], dict):
+                    # This is likely a CurriculumAlgorithmHypers that needs proper serialization
+                    # For now, we'll try to extract the type from the dict structure
+                    # This is a temporary fix - ideally we'd have the actual hypers object
+                    if "_target_" in curriculum["algorithm"]:
+                        # Extract algorithm type from target
+                        target = curriculum["algorithm"]["_target_"]
+                        if "DiscreteRandom" in target:
+                            curriculum["algorithm"] = "discrete_random"
+                        elif "LearningProgress" in target:
+                            curriculum["algorithm"] = "learning_progress"
+                        elif "PrioritizeRegressed" in target:
+                            curriculum["algorithm"] = "prioritize_regressed"
+                        elif "Progressive" in target:
+                            curriculum["algorithm"] = "progressive"
+                        elif "SimpleProgressive" in target:
+                            curriculum["algorithm"] = "simple_progressive"
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
