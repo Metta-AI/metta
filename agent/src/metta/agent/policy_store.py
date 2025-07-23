@@ -28,7 +28,7 @@ from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.common.wandb.wandb_context import WandbRun
-from metta.rl.policy import load_pytorch_policy
+from metta.rl.puffer_policy import load_pytorch_policy
 from metta.rl.trainer_config import TrainerConfig, create_trainer_config
 
 logger = logging.getLogger("policy_store")
