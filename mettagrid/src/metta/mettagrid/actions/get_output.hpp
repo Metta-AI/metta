@@ -12,7 +12,7 @@
 
 class GetOutput : public ActionHandler {
 public:
-  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_items") {}
 
   unsigned char max_arg() const override {
     return 0;
