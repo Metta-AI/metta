@@ -41,10 +41,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Assumes install.sh is in root of repo
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 # Source common functions
-. "$SCRIPT_DIR/devops/tools/common.sh"
+. "$REPO_ROOT/devops/tools/common.sh"
 
 echo "Welcome to Metta!"
 

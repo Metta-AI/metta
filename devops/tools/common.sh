@@ -14,8 +14,8 @@ check_cmd() {
 
 _find_project_root() {
   # When sourced from install.sh, SCRIPT_DIR is already the project root
-  if [ -n "${SCRIPT_DIR:-}" ]; then
-    echo "$SCRIPT_DIR"
+  if [ -n "${REPO_ROOT:-}" ]; then
+    echo "$REPO_ROOT"
   else
     # Fallback for other scripts - use the directory of the calling script
     echo "$(cd "$(dirname "$0")/../.." && pwd)"
