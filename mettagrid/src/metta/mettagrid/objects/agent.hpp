@@ -71,7 +71,6 @@ public:
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;
   StatsTracker stats;
-  RewardType current_resource_reward;
   RewardType current_stat_reward;
   RewardType* reward;
 
@@ -92,7 +91,6 @@ public:
         glyph(0),
         agent_id(0),
         stats(),  // default constructor
-        current_resource_reward(0),
         current_stat_reward(0),
         reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
@@ -215,7 +213,6 @@ private:
 
     // Update both the current resource reward and the total reward
     float reward_delta = new_contribution - old_contribution;
-    this->current_resource_reward += reward_delta;
     *this->reward += reward_delta;
   }
 };
