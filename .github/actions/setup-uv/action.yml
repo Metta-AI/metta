@@ -31,7 +31,7 @@ runs:
         case "${{ inputs.install-mode }}" in
 
           "minimal")
-            uv sync --no-default-groups
+            # don't install any packages
             ;;
 
           "testing")
