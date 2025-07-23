@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import List
 
 import hydra
 from omegaconf import DictConfig
@@ -33,16 +33,13 @@ class Curriculum:
 
 
 class Task:
-    def __init__(self, id: str, curriculum: "Curriculum", env_cfg: Optional[DictConfig] = None):
+    def __init__(self, id: str, curriculum: "Curriculum", env_cfg: DictConfig):
         self._id = id
         self._is_complete = False
         self._curricula = [(curriculum, id)]
         # We may have been lazy about instantiation up to this point, since that allows us to
-        # override the config. We need to complete the instantiation now.
-        if isinstance(env_cfg, DictConfig):
-            self._env_cfg = hydra.utils.instantiate(env_cfg)
-        else:
-            self._env_cfg = env_cfg
+        # override the config. Now we complete the instantiation.
+        self._env_cfg = hydra.utils.instantiate(env_cfg)
         self._name = self._id
 
     def complete(self, score: float):
