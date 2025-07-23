@@ -171,8 +171,7 @@ jobs:
         run: |
           echo "key=${{ runner.os }}-venv-${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      # Build fresh env (authoritative)
-      - name: Setup uv (fresh build)
+      - name: Setup uv
         uses: ./.github/actions/setup-uv
 
       # Save newly built env to cache
@@ -205,15 +204,8 @@ jobs:
           path: .venv
           key: ${{ needs.test-setup.outputs.venv_cache_key }}
 
-      - name: Activate cached venv
-        shell: bash
-        run: |
-          if [ ! -d ".venv" ]; then
-            echo "::error::Cached .venv missing!"
-            exit 1
-          fi
-          echo "VIRTUAL_ENV=$(pwd)/.venv" >> "$GITHUB_ENV"
-          echo "$(pwd)/.venv/bin" >> "$GITHUB_PATH"
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run tests
         run: |
@@ -310,6 +302,16 @@ jobs:
           fi
           echo "VIRTUAL_ENV=$(pwd)/.venv" >> "$GITHUB_ENV"
           echo "$(pwd)/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Debug venv contents
+        run: |
+          ls -lah .venv
+          ls -lah .venv/bin
+          which python
+          python --version
+          which pytest
+          pytest --version || true
+
 
       - name: Training smoke test
         id: train
