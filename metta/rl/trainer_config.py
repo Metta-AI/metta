@@ -288,9 +288,6 @@ def create_trainer_config(
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
 
-    # Remove _target_ from dict if present since we're not using Hydra instantiation
-    config_dict.pop("_target_", None)
-
     # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
     if cfg.vectorization == "serial":
         config_dict["async_factor"] = 1
