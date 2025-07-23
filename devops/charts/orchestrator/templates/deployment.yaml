@@ -30,7 +30,7 @@ spec:
         - name: WORKER_IDLE_TIMEOUT
           value: {{ .Values.env.WORKER_IDLE_TIMEOUT | quote }}
         - name: DOCKER_IMAGE
-          value: "{{ .Values.workerImage.repository }}:{{ .Values.workerImage.tag }}"
+          value: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         - name: KUBERNETES_NAMESPACE
           valueFrom:
             fieldRef:
