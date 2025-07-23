@@ -8,6 +8,9 @@ class EvalRewardSummary(BaseModelWithForbidExtra):
     simulation_scores: dict[tuple[str, str], float] = Field(
         default_factory=dict, description="Average reward for each simulation (category, short_sim_name)"
     )
+    exploration_rates: dict[tuple[str, str], float] = Field(
+        default_factory=dict, description="Average exploration rate for each simulation (category, short_sim_name)"
+    )
 
     @property
     def avg_category_score(self) -> float:
@@ -17,10 +20,15 @@ class EvalRewardSummary(BaseModelWithForbidExtra):
     def avg_simulation_score(self) -> float:
         return sum(self.simulation_scores.values()) / len(self.simulation_scores) if self.simulation_scores else 0
 
+    @property
+    def avg_exploration_rate(self) -> float:
+        return sum(self.exploration_rates.values()) / len(self.exploration_rates) if self.exploration_rates else 0
+
     def to_wandb_metrics_format(self) -> dict[str, float]:
         return {
             **{f"{category}/score": score for category, score in self.category_scores.items()},
             **{f"{category}/{sim}": score for (category, sim), score in self.simulation_scores.items()},
+            **{f"{category}/{sim}_exploration": rate for (category, sim), rate in self.exploration_rates.items()},
         }
 
 

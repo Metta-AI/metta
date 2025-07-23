@@ -194,6 +194,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    track_exploration: bool = Field(default=False)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.

@@ -97,6 +97,7 @@ def extract_scores(
         if score is None:
             continue
         category_scores[category] = score
+
     per_sim_scores: dict[tuple[str, str], float] = {}
     all_scores = stats_db.simulation_scores(policy_record, "reward")
     for (_, sim_name, _), score in all_scores.items():
@@ -104,7 +105,34 @@ def extract_scores(
         sim_short_name = sim_name.split("/")[-1]
         per_sim_scores[(category, sim_short_name)] = score
 
+    # Extract exploration rates per simulation
+    per_sim_exploration_rates: dict[tuple[str, str], float] = {}
+    try:
+        all_exploration_rates = stats_db.simulation_scores(policy_record, "exploration_rate")
+
+        # Log exploration rates prominently for each environment
+        logger.info("=== Exploration Rates by Environment ===")
+        for (_, sim_name, _), rate in all_exploration_rates.items():
+            category = sim_name.split("/")[0]
+            sim_short_name = sim_name.split("/")[-1]
+            per_sim_exploration_rates[(category, sim_short_name)] = rate
+            logger.info(f"  {category}/{sim_short_name}: {rate:.4f}")
+
+        # Log summary statistics
+        if per_sim_exploration_rates:
+            rates = list(per_sim_exploration_rates.values())
+            avg_rate = sum(rates) / len(rates)
+            min_rate = min(rates)
+            max_rate = max(rates)
+            logger.info(f"Exploration Rate Summary: avg={avg_rate:.4f}, min={min_rate:.4f}, max={max_rate:.4f}")
+        logger.info("=========================================")
+
+    except Exception as e:
+        logger.warning(f"Could not extract exploration rates: {e}")
+        # Exploration rates may not be available if tracking is disabled
+
     return EvalRewardSummary(
         category_scores=category_scores,
         simulation_scores=per_sim_scores,
+        exploration_rates=per_sim_exploration_rates,
     )
