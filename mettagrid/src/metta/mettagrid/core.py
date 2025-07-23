@@ -55,9 +55,6 @@ class MettaGridCore:
         self._map_grid = map_grid
         self._seed = seed
 
-        # Add PufferLib compatibility attributes
-        self.emulated = False  # Required by PufferLib vectorization
-
         # Store buffer references
         self._observation_buffer = observation_buffer
         self._terminal_buffer = terminal_buffer

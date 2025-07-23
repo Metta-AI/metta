@@ -69,9 +69,6 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
             **kwargs,
         )
 
-        # Add PufferLib compatibility attributes
-        self.emulated = False  # Required by PufferLib vectorization
-
         # Create initial core environment for property access
         self._core_env = self._create_core_env(0)
 
