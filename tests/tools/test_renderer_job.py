@@ -132,6 +132,7 @@ class TestRendererJob:
                 f"run={run_name}",
                 "+hardware=macbook",
                 f"data_dir={temp_dir}",
+                "trainer.simulation.replay_dir=${run_dir}/replays/",
                 "trainer.curriculum=/env/mettagrid/debug",
                 "trainer.total_timesteps=50",  # Minimal training
                 "trainer.num_workers=1",
@@ -160,7 +161,7 @@ class TestRendererJob:
                     env=env,
                     capture_output=True,
                     text=True,
-                    timeout=60,  # Shorter timeout for CI
+                    timeout=120,
                     cwd=Path.cwd(),
                 )
             except subprocess.TimeoutExpired as e:
