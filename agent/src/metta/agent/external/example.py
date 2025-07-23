@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import einops
 import pufferlib.models
 import pufferlib.pytorch
@@ -8,6 +10,17 @@ from torch import nn
 class Recurrent(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy, input_size=512, hidden_size=512):
         super().__init__(env, policy, input_size, hidden_size)
+
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+    ):
+        """Pass initialization to wrapped policy."""
+        if hasattr(self.policy, "initialize_to_environment"):
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device)
 
 
 class Policy(nn.Module):
@@ -131,3 +144,28 @@ class Policy(nn.Module):
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
+
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+    ):
+        """Initialize policy with environment-specific normalizations."""
+        # Extract feature normalizations from features dict
+        feature_normalizations = {}
+        for feature_name, feature_props in features.items():
+            if "id" in feature_props and "normalization" in feature_props:
+                feature_normalizations[feature_props["id"]] = feature_props["normalization"]
+
+        # Update max_vec with actual normalization values from environment
+        if feature_normalizations:
+            max_values = []
+            for i in range(self.num_layers):
+                # Use environment value if available, otherwise keep existing value
+                max_values.append(feature_normalizations.get(i, self.max_vec[0, i, 0, 0].item()))
+
+            # Create new max_vec tensor on the correct device
+            new_max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
+            self.max_vec.data = new_max_vec
