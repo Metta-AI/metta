@@ -18,6 +18,8 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
+        cache-local-path: "~/.cache/uv"
+        prune-cache: false
 
     - name: Create virtual environment with uv
       shell: bash
