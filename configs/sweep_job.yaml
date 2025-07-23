@@ -19,8 +19,8 @@ trainer:
 
 sim:
   name: sweep_eval  # Required field
-  num_episodes: 2
-  max_time_s: 10
+  num_episodes: 5
+  max_time_s: 240
   env_overrides: {}
   simulations:
     simple:
@@ -34,6 +34,7 @@ sweep_job:
   trainer: ${trainer}
   agent: ${agent}
   wandb: ${wandb}
+  run: ???
   runs_dir: "${sweep_dir}/runs"
   seed: null  # Will be randomly generated for each run if not specified
   stats_server_uri: null # No logging to observatory for sweeps
