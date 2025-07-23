@@ -2,6 +2,7 @@
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
 import logging
+import sys
 
 import numpy as np  # noqa: E402
 
@@ -12,6 +13,7 @@ import json
 import os
 import time
 
+import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
@@ -21,7 +23,6 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
-from metta.util.metta_script import metta_script
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,14 @@ def load_file(run_dir, name):
         return OmegaConf.load(f)
 
 
+@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
+    # Load run information from dist_cfg_path
+    dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
+    logger.info(f"Loaded run info from {cfg.dist_cfg_path}: run={dist_cfg.run}")
+    cfg.run = dist_cfg.run
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
 
     # Function to run evaluation - only executed by rank 0
@@ -184,4 +190,5 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-metta_script(main, "sweep_eval")
+if __name__ == "__main__":
+    sys.exit(main())

@@ -12,7 +12,7 @@ sweep_name: ???  # Will be set via command line override
 
 trainer:
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
-  curriculum: /env/mettagrid/arena/basic_easy_shaped # This won't be used, but needed for Pydantic
+  curriculum: /env/mettagrid/arena/basic_easy_shaped
   simulation:
     evaluate_interval: 0  # No evaluation during training for speed
     replay_dir: "" # No replays for sweeps
