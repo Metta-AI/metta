@@ -1,74 +1,42 @@
 import argparse
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import wandb
 
+from metta.setup.tools.local.kind import Kind
 from metta.setup.tools.local.load_policies import get_recent_runs, post_policies_to_stats, print_runs_with_artifacts
-from metta.setup.utils import error, info, success
+from metta.setup.utils import error, info
 
 
 class LocalCommands:
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
+        self._kind_manager = Kind(repo_root)
+
+    def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
+        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
+        if build_args:
+            cmd.extend(build_args)
+        cmd.append(str(self.repo_root))
+        subprocess.run(cmd, check=True)
 
     def build_app_backend_img(self) -> None:
-        """Build local development Docker image."""
-        docker_dir = self.repo_root / "app_backend"
-        dockerfile_path = docker_dir / "Dockerfile"
-        subprocess.run(
-            ["docker", "build", "-t", "metta-app-backend:latest", "-f", str(dockerfile_path), str(self.repo_root)],
-            check=True,
+        self._build_img("metta-app-backend:latest", self.repo_root / "app_backend" / "Dockerfile")
+
+    def build_policy_evaluator_img(self, unknown_args: list[str] | None = None) -> None:
+        # Parse arguments for docker build
+        build_args = []
+        if unknown_args:
+            # Pass through any docker build arguments
+            build_args = unknown_args
+
+        self._build_img(
+            "metta-policy-evaluator-local:latest",
+            self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
+            build_args,
         )
-
-    def build_docker_img(self, args) -> None:
-        """Build local development Docker image."""
-        docker_dir = self.repo_root / "devops" / "docker"
-        dockerfile_path = docker_dir / "Dockerfile.local"
-
-        if not dockerfile_path.exists():
-            error(f"Dockerfile not found at {dockerfile_path}")
-            sys.exit(1)
-
-        info("Building local development Docker image...")
-        info("Note: This will copy the entire repo and run install.sh during build.")
-        info("This may take several minutes...")
-        info("")
-
-        # Track if we copied .metta
-        copied_metta = False
-        metta_home_dir = Path.home() / ".metta"
-        metta_repo_dir = self.repo_root / ".metta"
-
-        try:
-            # Copy .metta directory if it exists
-            if metta_home_dir.exists():
-                info("Found ~/.metta directory - copying to build context")
-                shutil.copytree(metta_home_dir, metta_repo_dir, dirs_exist_ok=True)
-                copied_metta = True
-
-            tag = "metta-local:latest"
-            # Build the image with repo root as the build context
-            cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path), str(self.repo_root)]
-
-            result = subprocess.run(cmd, cwd=self.repo_root)
-
-            if result.returncode == 0:
-                info("")
-                info("Note: The container has a full copy of the repo at build time.")
-                info("Local changes won't be reflected unless you rebuild or attach.")
-                success(f"Build complete! Image available as {tag}")
-            else:
-                error("Build failed!")
-                sys.exit(result.returncode)
-
-        finally:
-            # Clean up .metta directory if we copied it
-            if copied_metta and metta_repo_dir.exists():
-                info("Cleaning up .metta directory from build context")
-                shutil.rmtree(metta_repo_dir)
 
     def load_policies(self, unknown_args) -> None:
         """Load W&B artifacts as policies into stats database."""
@@ -133,3 +101,30 @@ class LocalCommands:
         except Exception as e:
             error(f"Error: {e}")
             sys.exit(1)
+
+    def kind(self, args) -> None:
+        """Handle Kind cluster management for Kubernetes testing."""
+        action = args.action
+
+        if action == "build":
+            self._kind_manager.build()
+        elif action == "up":
+            self._kind_manager.up()
+        elif action == "down":
+            self._kind_manager.down()
+        elif action == "clean":
+            self._kind_manager.clean()
+        elif action == "get-pods":
+            self._kind_manager.get_pods()
+        elif action == "logs":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.logs(args.pod_name)
+            else:
+                error("Pod name is required for logs command")
+                sys.exit(1)
+        elif action == "enter":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.enter(args.pod_name)
+            else:
+                error("Pod name is required for enter command")
+                sys.exit(1)

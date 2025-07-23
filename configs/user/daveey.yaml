@@ -36,8 +36,9 @@ trainer:
 # policy_uri: wandb://run/b.daveey.dr9.muon.latest
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/george.deane.navigation.baseline.06-19.2
+# policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: wandb://run/daveey.lp.16x4.muon.lr3
+policy_uri: null
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
 # policy_uri: ${trained_policy_uri}

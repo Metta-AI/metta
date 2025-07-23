@@ -8,6 +8,7 @@ import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
+import { renderMinimapObjects } from './minimap.js'
 
 /**
  * Clamps the map panel's pan position so that the world map always remains at
@@ -208,7 +209,12 @@ function drawObject(gridObject: any) {
 
     const agent_id = getAttr(gridObject, 'agent_id')
 
-    ctx.drawSprite('agents/agent.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, colorFromId(agent_id))
+    ctx.drawSprite(
+      'agents/agent.' + suffix + '.png',
+      x * Common.TILE_SIZE,
+      y * Common.TILE_SIZE,
+      Common.colorFromId(agent_id)
+    )
   } else {
     // Draw regular objects.
 
@@ -282,7 +288,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'put_recipe_items') {
+        } else if (action_name == 'put_items') {
           ctx.drawSprite(
             'actions/put_recipe_items.png',
             x * Common.TILE_SIZE,
@@ -829,17 +835,29 @@ export function drawMap(panel: PanelInfo) {
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
-  drawFloor()
-  drawWalls()
-  drawTrajectory()
-  drawObjects()
-  drawActions()
-  drawSelection()
-  drawInventory()
-  drawRewards()
-  drawVisibility()
-  drawGrid()
-  drawThoughtBubbles()
+  if (panel.zoomLevel < Common.MACROMAP_ZOOM_THRESHOLD) {
+    /** Draw the Macromap of the world map instead of objects.
+     * The user has zoomed out so far that we should switch to a minimap-style rendering.
+     * This is used when the user zooms out far enough that normal
+     * sprites would be unreadable. */
+    ctx.save()
+    ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
+    renderMinimapObjects(new Vec2f(-0.5, -0.5))
+    ctx.restore()
+    drawSelection()
+  } else {
+    drawFloor()
+    drawWalls()
+    drawTrajectory()
+    drawObjects()
+    drawActions()
+    drawSelection()
+    drawInventory()
+    drawRewards()
+    drawVisibility()
+    drawGrid()
+    drawThoughtBubbles()
+  }
 
   if (search.active) {
     // Draw the black overlay over the map.

@@ -3,7 +3,8 @@ name: Asana Integration
 on:
   pull_request:
     # TODO: also handle reviews and comments
-    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+    types:
+      [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
 
 jobs:
   check-context:
@@ -18,7 +19,6 @@ jobs:
       - name: Detect PR context
         id: detect-pr
         uses: ./.github/actions/detect-external-pr
-
 
   asana_integration:
     needs: check-context

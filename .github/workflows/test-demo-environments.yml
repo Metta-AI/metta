@@ -1,0 +1,47 @@
+name: Test Demo Environments
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "mettagrid/demos/**"
+      - "mettagrid/src/**"
+      - "mettagrid/pyproject.toml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "mettagrid/demos/**"
+      - "mettagrid/src/**"
+      - "mettagrid/pyproject.toml"
+  workflow_dispatch:
+
+jobs:
+  test-demo-environments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [demo_train_pettingzoo, demo_train_puffer, demo_train_gym]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Test ${{ matrix.demo }}
+        run: |
+          echo "Testing ${{ matrix.demo }}..."
+          timeout 45 uv run python mettagrid/demos/${{ matrix.demo }}.py
+          exit_code=$?
+          if [ $exit_code -eq 124 ]; then
+            echo "TIMEOUT: ${{ matrix.demo }} ran for 45 seconds (expected completion ~5s)"
+            exit 1
+          elif [ $exit_code -eq 0 ]; then
+            echo "SUCCESS: ${{ matrix.demo }} completed successfully"
+          else
+            echo "FAILED: ${{ matrix.demo }} failed with exit code $exit_code"
+            exit 1
+          fi

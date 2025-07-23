@@ -144,10 +144,10 @@ jobs:
       - name: Fetch previous newsletters
         uses: ./.github/actions/fetch-artifacts
         with:
-          workflow-name: 'generate-newsletter.yml'
-          artifact-name-pattern: 'newsletter-*'
-          num-artifacts: '3'
-          output-directory: 'previous-newsletters'
+          workflow-name: "generate-newsletter.yml"
+          artifact-name-pattern: "newsletter-*"
+          num-artifacts: "3"
+          output-directory: "previous-newsletters"
         continue-on-error: true
 
       - name: Generate Newsletter

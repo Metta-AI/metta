@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, TypeVar
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -14,7 +15,7 @@ T = TypeVar("T")
 
 class TaskCreateRequest(BaseModel):
     policy_id: uuid.UUID
-    git_hash: str
+    git_hash: str | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     sim_suite: str = "all"
 
@@ -80,6 +81,17 @@ class TasksResponse(BaseModel):
     tasks: list[TaskResponse]
 
 
+async def _get_latest_main_commit() -> str:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.github.com/repos/Metta-AI/metta/commits/main",
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
+        response.raise_for_status()
+        commit_data = response.json()
+        return commit_data["sha"]
+
+
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/tasks", tags=["eval_tasks"])
 
@@ -88,9 +100,14 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("", response_model=TaskResponse)
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
+        # If no git_hash provided, fetch latest commit from main branch
+        git_hash = request.git_hash
+        if git_hash is None:
+            git_hash = await _get_latest_main_commit()
+
         attributes = {
             "env_overrides": request.env_overrides,
-            "git_hash": request.git_hash,
+            "git_hash": git_hash,
         }
         if not await stats_repo.get_policy_by_id(request.policy_id):
             raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
@@ -130,6 +147,15 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_claimed_tasks(assignee: str | None = Query(None)) -> TasksResponse:
         tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
+        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        return TasksResponse(tasks=task_responses)
+
+    @router.get("/all", response_model=TasksResponse)
+    @timed_http_handler
+    async def get_all_tasks(
+        limit: int = Query(default=500, ge=1, le=1000),
+    ) -> TasksResponse:
+        tasks = await stats_repo.get_all_tasks(limit=limit)
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
