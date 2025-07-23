@@ -35,13 +35,13 @@ export class HoverBubble {
   }
 }
 
-onEvent('click', '.hover-bubble .close', (target: HTMLElement, e: Event) => {
+onEvent('click', '.hover-panel .close', (target: HTMLElement, e: Event) => {
   let bubble = target.parentElement as HTMLElement
   bubble.remove()
   ui.hoverBubbles = ui.hoverBubbles.filter((p) => p.div !== bubble)
 })
 
-let hoverBubbleTemplate = find('.hover-bubble') as HTMLElement
+let hoverBubbleTemplate = find('.hover-panel') as HTMLElement
 let paramTemplate = findIn(hoverBubbleTemplate, '.param')
 let itemTemplate = findIn(hoverBubbleTemplate, '.inventory .item')
 let recipeArrow = findIn(hoverBubbleTemplate, '.recipe .arrow')

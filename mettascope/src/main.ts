@@ -253,7 +253,19 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   }
 
   if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-bubble')) {
-    hideHoverBubble()
+    // Start a timer to hide the hover bubble after a delay
+    if (ui.hideHoverTimer === null) {
+      ui.hideHoverTimer = setTimeout(() => {
+        hideHoverBubble()
+        ui.hideHoverTimer = null
+      }, Common.INFO_PANEL_POP_TIME)
+    }
+  } else {
+    // Cancel the hide timer if we're back over a valid area
+    if (ui.hideHoverTimer !== null) {
+      clearTimeout(ui.hideHoverTimer)
+      ui.hideHoverTimer = null
+    }
   }
 
   requestFrame()
@@ -469,6 +481,14 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
       // Remove focus from the search input
       searchInput.blur()
       // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
+    } else if (ui.hoverBubbles.length > 0) {
+      // Close the most recently opened hover bubble (last in array)
+      const lastBubble = ui.hoverBubbles[ui.hoverBubbles.length - 1]
+      lastBubble.div.remove()
+      ui.hoverBubbles.pop()
+    } else if (ui.delayedHoverObject !== null) {
+      // Close the main hover bubble if it's showing
+      hideHoverBubble()
     } else if (state.showAgentPanel) {
       state.showAgentPanel = false
       localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())

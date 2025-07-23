@@ -88,6 +88,7 @@ export const ui = {
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,
+  hideHoverTimer: null as any,
 }
 
 export const state = {
