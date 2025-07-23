@@ -163,22 +163,11 @@ jobs:
     outputs:
       build_success: ${{ steps.mettagrid_build_check.outputs.build_success }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
-        with:
-          install-mode: "no-mettagrid"
-
-      - name: Build MettaGrid C++
-        id: mettagrid_build_check
-        run: |
-          .github/scripts/check_mettagrid_build.py
-
-      - name: Install mettagrid
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
-        run: |
-          uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
   test-matrix:
     name: "Unit Tests - ${{ matrix.package }}"
@@ -193,8 +182,6 @@ jobs:
       matrix:
         package: [core, app_backend, agent, mettagrid, common]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Run tests
         run: |
@@ -220,6 +207,12 @@ jobs:
         run: |
           chmod +x .github/scripts/upload_codecov.py
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
+
+      - name: Build MettaGrid C++
+        if: matrix.package == 'mettagrid'
+        id: mettagrid_build_check
+        run: |
+          .github/scripts/check_mettagrid_build.py
 
       - name: Run MettaGrid C++ coverage
         if: matrix.package == 'mettagrid'
@@ -261,17 +254,12 @@ jobs:
     name: "Smoke Tests"
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
-    needs: [setup-checks]
+    needs: [test-setup]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
 
       - name: Training smoke test
         id: train
@@ -352,18 +340,13 @@ jobs:
 
   python-benchmark:
     name: "Python Benchmarks"
-    needs: [setup-checks]
+    needs: [test-setup]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
 
       - name: Run Python benchmarks
         env:
@@ -387,18 +370,13 @@ jobs:
 
   cpp-benchmark:
     name: "C++ Benchmarks"
-    needs: [setup-checks]
+    needs: [test-setup]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
 
       - name: Build and run C++ benchmarks
         run: |
@@ -428,8 +406,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+
 
       - name: Download Python benchmark results
         uses: actions/download-artifact@v4
