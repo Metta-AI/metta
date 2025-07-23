@@ -68,7 +68,9 @@ class Kind:
 
         from metta.setup.local_commands import LocalCommands
 
-        self._ensure_docker_img_built("metta-local:latest", LocalCommands(self.repo_root).build_docker_img)
+        self._ensure_docker_img_built(
+            "metta-policy-evaluator-local:latest", LocalCommands(self.repo_root).build_policy_evaluator_img
+        )
 
         # No need to create RBAC manually - Helm chart will handle it
         success("Kind cluster ready!")
