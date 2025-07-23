@@ -183,7 +183,7 @@ class PytorchAgent(nn.Module):
             max_values = []
             for i in range(target_policy.num_layers):
                 max_values.append(feature_normalizations.get(i, 1.0))
-            max_vec = torch.tensor(max_values, dtype=torch.float32)[None, :, None, None]
+            max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
             target_policy.register_buffer("max_vec", max_vec)
 
         # TODO: This hasattr pattern is a transitional state to support both old and new interfaces.
