@@ -124,7 +124,7 @@ jobs:
 
   lint:
     name: "Lint"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
@@ -153,14 +153,18 @@ jobs:
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
-  test:
-    name: "Tests"
-    needs: [graphite-ci-optimizer, setup-checks]
+  test-matrix:
+    name: "Unit Tests - ${{ matrix.package }}"
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [core, app_backend, agent, mettagrid, common]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -168,15 +172,41 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
         with:
-          install-mode: "no-mettagrid"
+          install-mode: 'testing'
+
+      - name: Run tests
+        run: |
+          PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
+          if [ "${{ matrix.package }}" == "core" ]; then
+            # Define packages to ignore (keep synced with non-core items in matrix)
+            SUBPACKAGES=(app_backend agent mettagrid common)
+            IGNORE_ARGS=""
+            for pkg in "${SUBPACKAGES[@]}"; do
+              IGNORE_ARGS="$IGNORE_ARGS --ignore=$pkg"
+            done
+            PYTEST_ARGS="$PYTEST_ARGS $IGNORE_ARGS"
+          else
+            # Subpackage tests
+            cd ${{ matrix.package }}
+          fi
+          pytest $PYTEST_ARGS
+
+      - name: Upload python test coverage to Codecov
+        if: needs.setup-checks.outputs.is_external != 'true'
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          chmod +x .github/scripts/upload_codecov.py
+          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
       - name: Build MettaGrid C++
+        if: matrix.package == 'mettagrid'
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py
 
       - name: Check MettaGrid build warnings
-        if: always()
+        if: matrix.package == 'mettagrid' && always()
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
@@ -195,41 +225,14 @@ jobs:
             echo "✅ MettaGrid build quality check passed"
           fi
 
-      - name: Install metta-mettagrid package
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
-        run: |
-          uv pip install --no-build-isolation --no-deps -e ./mettagrid
-
-      - name: Run Pytest on core tests
-        run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v
-
-      - name: Run Pytest on subpackage tests
-        env:
-          SUBPACKAGES: "app_backend agent mettagrid common"
-        run: |
-          for package in $SUBPACKAGES; do
-            echo "Running tests for $package..."
-            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v) || exit 1
-          done
-
-      - name: Upload coverage to Codecov
-        if: needs.setup-checks.outputs.is_external != 'true'
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "app_backend agent mettagrid common"
-        run: |
-          chmod +x .github/scripts/upload_codecov.py
-          .github/scripts/upload_codecov.py
-
       - name: Run MettaGrid C++ coverage
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: matrix.package == 'mettagrid' && steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           cd mettagrid
           make coverage
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -239,11 +242,30 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  tests-summary:
+    name: "Tests"
+    needs: [test-matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          echo "Test job results: ${{ toJSON(needs) }}"
+          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
+            echo "One or more test jobs failed"
+            exit 1
+          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
+            echo "One or more test jobs were cancelled"
+            exit 1
+          else
+            echo "All test jobs completed successfully"
+          fi
+
   smoke-test:
     name: "Smoke Tests"
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -334,7 +356,7 @@ jobs:
 
   python-benchmark:
     name: "Python Benchmarks"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
@@ -369,7 +391,7 @@ jobs:
 
   cpp-benchmark:
     name: "C++ Benchmarks"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
@@ -403,7 +425,7 @@ jobs:
 
   upload-benchmarks:
     name: "Upload Benchmarks"
-    needs: [python-benchmark, cpp-benchmark, setup-checks]
+    needs: [python-benchmark, cpp-benchmark]
     if: |
       (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (always() && (needs.python-benchmark.result == 'success' || needs.cpp-benchmark.result == 'success'))
