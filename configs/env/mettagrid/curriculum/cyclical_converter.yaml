@@ -1,0 +1,4 @@
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+
+tasks:
+  /env/mettagrid/cyclical/cyclical_converter_test: 1
