@@ -1,26 +1,27 @@
-import { Vec2f, Mat3f } from './vector_math.js'
-import * as Common from './common.js'
-import { ui, state, html, ctx, setFollowSelection } from './common.js'
-import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
-import { focusFullMap, drawMap } from './worldmap.js'
-import { drawTrace } from './traces.js'
-import { drawMiniMap } from './minimap.js'
-import { processActions, initActionButtons } from './actions.js'
+import { initActionButtons, processActions } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
+import * as Common from './common.js'
+import { ctx, html, setFollowSelection, state, ui } from './common.js'
+import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
+import { hideGlyphEditor, initGlyphTable, showGlyphEditor } from './glyphtable.js'
+import { hideHoverPanel, updateReadout } from './hoverpanels.js'
 import {
+  find,
+  hideDropdown,
+  hideMenu,
+  initHighDpiMode,
   localStorageSetNumber,
   onEvent,
-  initHighDpiMode,
-  find,
   toggleOpacity,
-  hideMenu,
-  hideDropdown,
 } from './htmlutils.js'
-import { updateReadout, hideHoverPanel } from './hoverpanels.js'
+import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
-import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
+import { fetchReplay, initWebSocket, readFile } from './replay.js'
+import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
+import { drawTrace } from './traces.js'
+import { Vec2f } from './vector_math.js'
+import { drawMap, focusFullMap } from './worldmap.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
@@ -910,6 +911,26 @@ if (localStorage.hasOwnProperty('showTraces')) {
 }
 toggleOpacity(html.tracesToggle, state.showTraces)
 
+onEvent('click', '#glyph-toggle', () => {
+  state.showGlyphEditor = !state.showGlyphEditor
+
+  localStorage.setItem('showGlyphEditor', state.showGlyphEditor.toString())
+  toggleOpacity(html.glyphToggle, state.showGlyphEditor)
+
+  if (state.showGlyphEditor) {
+    console.log('Calling showGlyphEditor()')
+    showGlyphEditor()
+  } else {
+    console.log('Calling hideGlyphEditor()')
+    hideGlyphEditor()
+  }
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showGlyphEditor')) {
+  state.showGlyphEditor = localStorage.getItem('showGlyphEditor') === 'true'
+}
+toggleOpacity(html.glyphToggle, state.showGlyphEditor)
+
 onEvent('click', '#info-panel .close', () => {
   state.showInfo = false
   localStorage.setItem('showInfo', state.showInfo.toString())
@@ -953,6 +974,7 @@ initObjectMenu()
 initTimeline()
 initDemoMode()
 initializeTooltips()
+initGlyphTable()
 
 window.addEventListener('load', async () => {
   // Use a local atlas texture.
