@@ -288,7 +288,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'put_recipe_items') {
+        } else if (action_name == 'put_items') {
           ctx.drawSprite(
             'actions/put_recipe_items.png',
             x * Common.TILE_SIZE,
