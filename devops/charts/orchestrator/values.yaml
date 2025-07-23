@@ -1,0 +1,32 @@
+replicaCount: 1
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-app-backend
+  tag: ""  # set by ci/cd
+
+serviceAccount:
+  create: true
+
+workerImage:
+  repository: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta
+  tag: "latest"
+
+env:
+  BACKEND_URL: "https://api.observatory.softmax-research.net"
+  CONTAINER_RUNTIME: "k8s"
+  POLL_INTERVAL: "5"
+  WORKER_IDLE_TIMEOUT: "600"
+
+secrets:
+  wandb: "wandb-api-secret"
+  machineToken: "machine-token-secret"
+
+resources:
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+  limits:
+    cpu: 2000m
+    memory: 10Gi

@@ -22,12 +22,6 @@ WORKDIR /workspace
 # Copy the entire repo
 COPY --chown=linuxbrew:linuxbrew . /workspace/metta
 
-# Copy .metta directory
-RUN if [ -d /workspace/metta/.metta ]; then \
-    cp -r /workspace/metta/.metta /home/linuxbrew/ && \
-    chown -R linuxbrew:linuxbrew /home/linuxbrew/.metta; \
-    fi
-
 WORKDIR /workspace/metta
 
 # Clean up git config for anonymous access
@@ -40,5 +34,10 @@ RUN git remote remove origin && \
 ENV PATH="/home/linuxbrew/.local/bin:${PATH}"
 
 RUN bash install.sh --profile=softmax-docker
+
+# Pre-build all packages to avoid OOM during container startup
+RUN uv sync --all-extras --frozen && \
+    uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
+    uv run python -c "import metta.app_backend.eval_task_worker"
 
 CMD ["/bin/bash"]
