@@ -39,7 +39,7 @@ runs:
             uv pip install --no-deps -e ./common
             uv pip install --no-deps -e ./agent
             uv pip install --no-deps -e ./app_backend
-            uv pip install scikit-build-core pytest pytest-cov gcovr
+            uv pip install scikit-build-core pytest pytest-cov pytest-xdist pytest-benchmark gcovr
             ;;
 
           "linting")
