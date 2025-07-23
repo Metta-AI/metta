@@ -236,8 +236,8 @@ class MettaCLI:
     def cmd_local(self, args, unknown_args=None) -> None:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
-            if args.local_command == "build-docker-img":
-                self.local_commands.build_docker_img()
+            if args.local_command == "build-policy-evaluator-img":
+                self.local_commands.build_policy_evaluator_img()
             elif args.local_command == "build-app-backend-img":
                 self.local_commands.build_app_backend_img()
             elif args.local_command == "load-policies":
@@ -573,7 +573,9 @@ Examples:
         local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
 
         # Local subcommands
-        local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
+        local_subparsers.add_parser(
+            "build-policy-evaluator-img", help="Build local development policy evaluator Docker image"
+        )
         local_subparsers.add_parser("build-app-backend-img", help="Build local development app_backend Docker image")
 
         # Add load-policies command

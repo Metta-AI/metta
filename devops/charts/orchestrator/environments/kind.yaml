@@ -1,10 +1,5 @@
 image:
-  repository: metta-local
-  tag: "latest"
-  pullPolicy: Never
-
-workerImage:
-  repository: metta-local
+  repository: metta-policy-evaluator-local
   tag: "latest"
   pullPolicy: Never
 
