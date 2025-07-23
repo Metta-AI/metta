@@ -61,15 +61,19 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     # Check if sweep already exists
     backend_url = cfg.sweep_server_uri
-    client = CogwebClient(base_url=backend_url)
-    wandb_sweep_id = client.sweep_id(cfg.sweep_name)
+    cogweb_client = CogwebClient.get_client(base_url=backend_url)
+    sweep_client = cogweb_client.sweep_client()
+
+    # Get sweep info and extract wandb_sweep_id if it exists
+    sweep_info = sweep_client.get_sweep(cfg.sweep_name)
+    wandb_sweep_id = sweep_info.wandb_sweep_id if sweep_info.exists else None
 
     # The sweep hasn't been registered with the centralized DB
     if wandb_sweep_id is None:
         # Create the sweep in WandB
         wandb_sweep_id = create_wandb_sweep(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project)
         # Register the sweep in the centralized DB
-        client.create_sweep(cfg.sweep_name, cfg.wandb.project, cfg.wandb.entity, wandb_sweep_id)
+        sweep_client.create_sweep(cfg.sweep_name, cfg.wandb.project, cfg.wandb.entity, wandb_sweep_id)
 
     # Save sweep metadata locally
     # in join(cfg.sweep_dir, "metadata.yaml"
