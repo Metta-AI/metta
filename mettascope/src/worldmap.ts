@@ -1,15 +1,15 @@
-import { Vec2f } from './vector_math.js'
-import { Grid } from './grid.js'
 import * as Common from './common.js'
-import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr, sendAction } from './replay.js'
-import { PanelInfo } from './panels.js'
-import { onFrame, updateSelection } from './main.js'
-import { parseHtmlColor, find } from './htmlutils.js'
-import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
-import { search, searchMatch } from './search.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
+import { glyphAssociations } from './glyphtable.js'
+import { Grid } from './grid.js'
+import { HoverPanel, updateHoverPanel, updateReadout } from './hoverpanels.js'
+import { parseHtmlColor } from './htmlutils.js'
+import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
-
+import { PanelInfo } from './panels.js'
+import { getAttr, sendAction } from './replay.js'
+import { search, searchMatch } from './search.js'
+import { Vec2f } from './vector_math.js'
 /**
  * Clamps the map panel's pan position so that the world map always remains at
  * least partially visible within the panel.
@@ -573,6 +573,58 @@ function drawThoughtBubbles() {
     }
   }
 }
+/** Draws a glyph bubble if the selected agent has a recent change_glyph action. */
+function drawGlyphBubbles() {
+  if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
+    let glyphActionStep: number | null = null
+    let glyphId: number | null = null
+
+    for (let actionStep = state.step; actionStep >= 0; actionStep--) {
+      const action = getAttr(state.selectedGridObject, 'action', actionStep)
+      if (!action || action[0] == null || action[1] == null) continue
+
+      const actionName = state.replay.action_names[action[0]]
+      if (actionName !== 'change_glyph') continue
+
+      const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
+      if (!actionSuccess) continue
+
+      glyphId = action[1]
+      glyphActionStep = actionStep
+      break
+    }
+
+    if (glyphId != null && glyphActionStep != null) {
+      const x = getAttr(state.selectedGridObject, 'c')
+      const y = getAttr(state.selectedGridObject, 'r')
+      const centerX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
+      const centerY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+
+      const glyphString = glyphAssociations[glyphId] || ''
+
+      if (glyphString !== '') {
+        ctx.drawSprite(
+          'actions/thoughts.png',
+          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+        )
+
+        ctx.drawText(
+          glyphString,
+          centerX,
+          centerY,
+          [1, 1, 1, 1],     // fill color
+          2,                // scale
+          0,                // spacing
+          true              // center horizontally
+        )
+
+      }
+    }
+
+  }
+}
+
 
 /** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {
@@ -857,6 +909,7 @@ export function drawMap(panel: PanelInfo) {
     drawVisibility()
     drawGrid()
     drawThoughtBubbles()
+    drawGlyphBubbles()
   }
 
   if (search.active) {
