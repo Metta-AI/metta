@@ -370,7 +370,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   agent->update_inventory(TestItems::ORE, 1);
   agent->update_inventory(TestItems::HEART, 1);
 
-  // Create put_recipe_items action handler
+  // Create put_items action handler
   ActionConfig put_cfg({}, {});
   PutRecipeItems put(put_cfg);
   put.init(&grid);
