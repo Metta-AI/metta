@@ -279,8 +279,8 @@ class MettaGridEnv(ABC):
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
         # Add curriculum stats
-        infos.update(self._curriculum.get_completion_rates())
-        curriculum_stats = self._curriculum.get_curriculum_stats()
+        infos.update(self._curriculum.stats().get_total_completions())
+        curriculum_stats = self._curriculum.stats().get_algorithm_stats()
         for key, value in curriculum_stats.items():
             infos[f"curriculum/{key}"] = value
 

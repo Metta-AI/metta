@@ -257,7 +257,7 @@ def run_curriculum_simulation(
     for step in range(num_steps):
         # Sample task from Curriculum
         metta_task = curriculum.sample()
-        task_name = metta_task.name
+        task_name = metta_task.short_name()
 
         # Record selection
         task_counts[task_name] = task_counts.get(task_name, 0) + 1
@@ -271,17 +271,17 @@ def run_curriculum_simulation(
         metta_task.complete(score)
 
         # Record current weights and probabilities
-        current_weights = curriculum.curriculum_algorithm.weights.copy()
-        current_probs = curriculum.curriculum_algorithm.probabilities.copy()
+        current_weights = curriculum.algorithm().weights.copy()
+        current_probs = curriculum.algorithm().probabilities.copy()
         weight_history.append({"weights": current_weights, "probabilities": current_probs, "step": step})
 
     # Collect final state
     final_weights = {
-        child.name: prob
-        for child, prob in zip(curriculum.tasks, curriculum.curriculum_algorithm.probabilities, strict=False)
+        child.short_name(): prob
+        for child, prob in zip(curriculum.tasks(), curriculum.algorithm().probabilities, strict=False)
     }
 
-    curriculum_stats = curriculum.get_curriculum_stats()
+    curriculum_stats = curriculum.stats().get_algorithm_stats()
 
     return {
         "task_counts": task_counts,
@@ -291,9 +291,9 @@ def run_curriculum_simulation(
         "final_weights": final_weights,
         "curriculum_stats": curriculum_stats,
         "total_steps": num_steps,
-        "completion_rates": curriculum.get_completion_rates(),
-        "sample_rates": curriculum.get_sample_rates(),
-        "task_probabilities": curriculum.get_task_probabilities(),
+        "completion_rates": curriculum.stats().get_total_completions(),
+        "sample_rates": curriculum.stats().get_sample_rates(),
+        "task_probabilities": curriculum.stats().get_task_probabilities(),
     }
 
 
@@ -645,14 +645,15 @@ class TestLearningProgressAlgorithmScenarios:
         curriculum = create_curriculum_with_algorithm(task_names, algorithm, env_cfg)
 
         # Check initial probabilities
-        initial_probs = curriculum.get_task_probabilities(relative_to_root=True)
+        initial_probs = curriculum.stats().get_task_probabilities(relative_to_root=True)
         print("\nTask probabilities:")
         for name, prob in initial_probs.items():
             print(f"  {name}: {prob:.4f}")
 
         # Check if bug is present: only 'basic' (first task) has probability 1.0
-        if initial_probs.get("basic", 0) > 0.99 and all(
-            prob < 0.01 for name, prob in initial_probs.items() if name != "basic"
+        full_basic_name = "test_curriculum/basic"
+        if initial_probs.get(full_basic_name, 0) > 0.99 and all(
+            prob < 0.01 for name, prob in initial_probs.items() if name != full_basic_name
         ):
             raise AssertionError(
                 "BUG DETECTED: Only 'basic' task has probability 1.0! "
@@ -662,7 +663,8 @@ class TestLearningProgressAlgorithmScenarios:
         # All tasks should have roughly equal probability
         expected_prob = 1.0 / len(task_names)
         for task_name in task_names:
-            actual_prob = initial_probs.get(task_name, 0)
+            full_name = f"test_curriculum/{task_name}"
+            actual_prob = initial_probs.get(full_name, 0)
             assert abs(actual_prob - expected_prob) < 0.01, (
                 f"Task {task_name} should have probability ~{expected_prob:.3f}, but got {actual_prob:.3f}"
             )
@@ -692,22 +694,23 @@ class TestLearningProgressAlgorithmScenarios:
 
         # Check initial probabilities BEFORE any sampling
         # Test both with and without relative_to_root (production uses relative_to_root=True)
-        initial_probs = curriculum.get_task_probabilities()
-        initial_probs_relative = curriculum.get_task_probabilities(relative_to_root=True)
+        initial_probs = curriculum.stats().get_task_probabilities()
+        initial_probs_relative = curriculum.stats().get_task_probabilities(relative_to_root=True)
         print(f"Initial probabilities: {initial_probs}")
         print(f"Initial probabilities (relative_to_root=True): {initial_probs_relative}")
 
         # All tasks should have equal probability initially (uniform distribution)
         expected_prob = 1.0 / len(task_names)
         for task_name in task_names:
-            actual_prob = initial_probs.get(task_name, 0)
+            full_name = f"test_curriculum/{task_name}"
+            actual_prob = initial_probs.get(full_name, 0)
             assert abs(actual_prob - expected_prob) < 0.01, (
                 f"Task {task_name} should have probability ~{expected_prob:.3f}, but got {actual_prob:.3f}"
             )
 
         # Also check the raw weights from the algorithm
-        weights = curriculum.curriculum_algorithm.weights
-        probabilities = curriculum.curriculum_algorithm.probabilities
+        weights = curriculum.algorithm().weights
+        probabilities = curriculum.algorithm().probabilities
         print(f"Raw weights: {weights}")
         print(f"Raw probabilities: {probabilities}")
 
@@ -720,7 +723,7 @@ class TestLearningProgressAlgorithmScenarios:
         task_count = {name: 0 for name in task_names}
         for _ in range(100):
             task = curriculum.sample()
-            task_count[task.name] += 1
+            task_count[task.short_name()] += 1
 
         print(f"Sample distribution (100 samples): {task_count}")
 
@@ -1109,7 +1112,7 @@ class TestPrioritizeRegressedAlgorithmScenarios:
         )
 
         # Get detailed stats for analysis
-        alg = curriculum.curriculum_algorithm
+        alg = curriculum.algorithm()
         print("\nDetailed task analysis:")
         print("(Note: PrioritizeRegressed prioritizes tasks where current performance < past peak)")
         for i, name in enumerate(task_names):
@@ -1149,19 +1152,19 @@ class TestCurriculumIntegration:
         for _ in range(10):
             task = curriculum.sample()
             assert isinstance(task, MettaGridTask)
-            assert task.name in task_names
+            assert task.short_name() in task_names
 
         # Test task completion
         task = curriculum.sample()
-        initial_completed = curriculum.total_completed_tasks
+        initial_completed = curriculum.stats()._total_completed_tasks
         task.complete(0.5)
-        assert curriculum.total_completed_tasks == initial_completed + 1
+        assert curriculum.stats()._total_completed_tasks == initial_completed + 1
 
         # Test statistics
-        completion_rates = curriculum.get_completion_rates()
-        sample_rates = curriculum.get_sample_rates()
-        task_probs = curriculum.get_task_probabilities()
-        curriculum_stats = curriculum.get_curriculum_stats()
+        completion_rates = curriculum.stats().get_total_completions()
+        sample_rates = curriculum.stats().get_sample_rates()
+        task_probs = curriculum.stats().get_task_probabilities()
+        curriculum_stats = curriculum.stats().get_algorithm_stats()
 
         assert isinstance(completion_rates, dict)
         assert isinstance(sample_rates, dict)
@@ -1192,7 +1195,7 @@ class TestCurriculumIntegration:
         counts = {name: 0 for name in task_names}
         for _ in range(1000):
             task = curriculum.sample()
-            counts[task.name] += 1
+            counts[task.short_name()] += 1
 
         total = sum(counts.values())
         ratios = {name: count / total for name, count in counts.items()}

@@ -226,7 +226,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
             # Add curriculum task probabilities to infos for distributed logging
-            infos["curriculum_task_probs"] = self._curriculum.get_task_probabilities()
+            infos["curriculum_task_probs"] = self._curriculum.stats().get_task_probabilities()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
@@ -247,10 +247,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
-        infos.update(self._curriculum.get_completion_rates())
+        infos.update(self._curriculum.stats().get_total_completions())
 
         # Add curriculum-specific stats
-        curriculum_stats = self._curriculum.get_curriculum_stats()
+        curriculum_stats = self._curriculum.stats().get_algorithm_stats()
         for key, value in curriculum_stats.items():
             infos[f"curriculum/{key}"] = value
 

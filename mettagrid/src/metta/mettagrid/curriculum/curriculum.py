@@ -24,169 +24,161 @@ Example structure:
 import copy
 from typing import Optional
 
-import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.curriculum_algorithm import CurriculumAlgorithm
+from metta.mettagrid.curriculum.curriculum_stats import CurriculumStats
 
 
 # Task Interface
 class Task:
     """Base class for tasks in a curriculum tree."""
 
+    #
     # Task State
-    parent: Optional["Curriculum"] = None
-    id: int = 0
-    name: str = ""
+    #
 
-    # Public API
-    def sample(self) -> "Task":
-        """Returns a potentially new instance of the task, which could include new diversity."""
-        return self
+    _parent: Optional["Curriculum"] = None
+    _id: int = 0
+    _name: str = ""
+
+    def __init__(self, name: str):
+        self._name = name
+
+    #
+    # Primary API
+    #
 
     def complete(self, score: float):
         """Completes the task and updates the parent with the score."""
-        if self.parent is not None:
-            self.parent.complete_task(self.id, score)
+        if self._parent is not None:
+            self._parent.complete_task(self._id, score)
 
+    #
+    # Accessors
+    #
+
+    def short_name(self) -> str:
+        return self._name
+
+    def full_name(self) -> str:
+        if self._parent is None:
+            return self._name
+        parent_name = self._parent.full_name()
+        if parent_name == "":
+            return self._name
+        else:
+            return f"{parent_name}/{self._name}"
+
+    def parent(self) -> Optional["Curriculum"]:
+        return self._parent
+
+    def root(self) -> "Curriculum":
+        if self._parent is None:
+            return self
+        else:
+            return self._parent.root()
+
+    #
     # Internal methods
-    def _adopt(self, parent: "Curriculum", child_idx: int):
+    #
+
+    def set_parent(self, parent: "Curriculum", child_idx: int):
         """Set parent and id for this task."""
-        self.parent = parent
-        self.id = child_idx
+        self._parent = parent
+        self._id = child_idx
+
+    def is_leaf(self) -> bool:
+        return True
 
 
 class MettaGridTask(Task):
+    """
+    A task that represents a specific environment configuration in MettaGrid.
+    """
+
     def __init__(self, name: str, env_config: DictConfig):
-        self.name = name
-        self.env_config = env_config
-        self.env_config_is_resolved = False
+        super().__init__(name)
+        self._unresolved_env_config = env_config
 
-    def sample(self) -> "MettaGridTask":
+    def env_config(self) -> DictConfig:
         """
-        Returns a new MettaGridTask with the env_config resolved, so that we can re-sample
-        any randomness currently owned by OmegaConf.
-
-        Note that no state (e.g. completion count) is stored on the returned task.
-        The returned_task must still forward its completions to the same parent.
+        Provide a new env config with all OmegaConf-included randomness resolved.
         """
-        assert not self.env_config_is_resolved, "Env config is already resolved"
-        resolved_copy = copy.copy(self)
-        resolved_copy.env_config = OmegaConf.create(self.env_config)
-        OmegaConf.resolve(resolved_copy.env_config)
-        assert resolved_copy.env_config is not None, "Env config is None"
-        resolved_copy.env_config_is_resolved = True
-        return resolved_copy
+        resolved_env_config = copy.copy(self._unresolved_env_config)
+        OmegaConf.resolve(resolved_env_config)
+        assert resolved_env_config is not None, "Env config is None"
+        return resolved_env_config
 
 
 class Curriculum(Task):
+    """
+    A curriculum is a system for selecting tasks.
+    """
+
+    #
+    # Init
+    #
+
     def __init__(
         self,
         name: str,
-        curriculum_algorithm: CurriculumAlgorithm,
+        algorithm: CurriculumAlgorithm,
         tasks: list[Task],
     ):
-        self.name = name
-        self.tasks = tasks
-        self.num_tasks = len(tasks)
-        self.curriculum_algorithm = curriculum_algorithm
-        self.completed_tasks = np.zeros(self.num_tasks, dtype=np.int32)
-        self.sampled_tasks = np.zeros(self.num_tasks, dtype=np.int32)
-        self.total_completed_tasks = 0
-        self.total_sampled_tasks = 0
-        if self.num_tasks == 0:
+        super().__init__(name)
+        self._tasks = tasks
+        num_tasks = len(tasks)
+        self._algorithm = algorithm
+        if num_tasks == 0:
             raise ValueError("Curriculum must have at least one task")
+        self._stats = CurriculumStats(self, num_tasks)
 
         # Set parent references
         for i, task in enumerate(tasks):
-            task._adopt(self, i)
+            task.set_parent(self, i)
+
+    def is_leaf(self) -> bool:
+        return False
+
+    #
+    # Primary API
+    # 1) sample() called by the trainer to generate a new task to train on
+    # 2) complete_task() called, via sample().complete(), by the trainer
+    # to update the curriculum with the score of the task
+    #
 
     def sample(self) -> MettaGridTask:
-        task_idx = self.curriculum_algorithm.sample_idx()
-        selected_task = self.tasks[task_idx]
-        self.sampled_tasks[task_idx] += 1
-        self.total_sampled_tasks += 1
+        task_idx = self._algorithm.sample_idx()
+        selected_task = self._tasks[task_idx]
+        self._stats.record_sample(task_idx)
         if isinstance(selected_task, MettaGridTask):
             return selected_task
         else:
             return selected_task.sample()
 
-    def full_name(self, task_idx: int) -> str:
-        name = self.tasks[task_idx].name
-        return f"{self.name}/{name}"
-
     def complete_task(self, task_idx: int, score: float):
-        self.completed_tasks[task_idx] += 1
-        self.total_completed_tasks += 1
-        self.curriculum_algorithm.update(task_idx, score)
-        if self.parent is not None:
-            self.parent.complete_task(self.id, score)
+        self._stats.record_completion(task_idx)
+        self._algorithm.update(task_idx, score)
+        if self._parent is not None:
+            self._parent.complete_task(self._id, score)
 
-    def get_completion_rates(self) -> dict[str, int]:
-        if self.total_completed_tasks != 0:
-            return self._completion_dict_with_prefix("task_completions/")
-        else:
-            return dict()
+    #
+    # Accessors
+    #
 
-    def get_sample_rates(self) -> dict[str, int]:
-        if self.total_sampled_tasks != 0:
-            return self._sample_dict_with_prefix("task_samples/")
-        else:
-            return dict()
+    def algorithm(self) -> CurriculumAlgorithm:
+        return self._algorithm
 
-    def get_task_probabilities(self, relative_to_root: bool = False) -> dict[str, float]:
-        return self._probability_dict_with_prefix(relative_to_root=relative_to_root)
+    def stats(self) -> CurriculumStats:
+        return self._stats
 
-    def get_curriculum_stats(self) -> dict[str, float]:
-        # TODO: make recursive and include stats from children
-        return self.curriculum_algorithm.stats()
+    def tasks(self) -> list[Task]:
+        return self._tasks
 
-    def _completion_dict_with_prefix(self, prefix: str = "") -> dict[str, int]:
-        result = dict()
-        for task_idx in range(self.num_tasks):
-            task = self.tasks[task_idx]
-            task_path = f"{prefix}{task.name}"
-            result[task_path] = self.completed_tasks[task_idx]
-            if isinstance(task, Curriculum):
-                result.update(task._completion_dict_with_prefix(f"{task_path}/"))
-        return result
-
-    def _sample_dict_with_prefix(self, prefix: str = "") -> dict[str, int]:
-        result = dict()
-        for task_idx in range(self.num_tasks):
-            task = self.tasks[task_idx]
-            task_path = f"{prefix}{task.name}"
-            result[task_path] = self.sampled_tasks[task_idx]
-            if isinstance(task, Curriculum):
-                result.update(task._sample_dict_with_prefix(f"{task_path}/"))
-        return result
-
-    def _probability_dict_with_prefix(
-        self, prefix: str = "", relative_to_root: bool = False, base_prob: float = 1.0
-    ) -> dict[str, float]:
-        """
-        If relative_to_root is True, then the probabiltiies for each chld are for the full path from root to child.
-        If relative_to_root is False, then the probabiltiies are for conditional on having reached this node.
-        If base_prob is provided, then the probabilities are multiplied by this value.
-        """
-        probs = {}
-        for task_idx in range(self.num_tasks):
-            task = self.tasks[task_idx]
-            task_prob = self.curriculum_algorithm.probabilities[task_idx]
-            if relative_to_root:
-                task_prob = task_prob * base_prob
-            task_path = f"{prefix}{task.name}"
-            probs[task_path] = task_prob
-            if isinstance(task, Curriculum):
-                probs.update(
-                    task._probability_dict_with_prefix(
-                        f"{task_path}/",
-                        relative_to_root,
-                        self.curriculum_algorithm.probabilities[task_idx] * base_prob,
-                    )
-                )
-
-        return probs
+    #
+    # Debugging
+    #
 
     def __repr__(self) -> str:
         """Return a tree representation showing structure, weights, and algorithms."""
@@ -198,17 +190,17 @@ class Curriculum(Task):
         lines = []
 
         # Current node info
-        algo_name = type(self.curriculum_algorithm).__name__
+        algo_name = type(self._algorithm).__name__
         lines.append(f"{indent_str}{prefix}Curriculum({algo_name})")
 
         # Show weights and probabilities for children
-        for i, task in enumerate(self.tasks):
-            weight = self.curriculum_algorithm.weights[i]
-            prob = self.curriculum_algorithm.probabilities[i]
-            task_name = self.full_name(i)
+        for i, task in enumerate(self._tasks):
+            weight = self._algorithm.weights[i]
+            prob = self._algorithm.probabilities[i]
+            task_name = self._tasks[i].full_name()
 
             # Prefix for last child vs others
-            is_last = i == len(self.tasks) - 1
+            is_last = i == len(self._tasks) - 1
             branch = "└─" if is_last else "├─"
             continuation = "  " if is_last else "│ "
 
@@ -222,6 +214,6 @@ class Curriculum(Task):
                 lines.append(subtree)
             else:
                 # Leaf case (MettaGridTask)
-                lines.append(f"{task_info} -> {task.name}")
+                lines.append(f"{task_info} -> {task.short_name()}")
 
         return "\n".join(lines)
