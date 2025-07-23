@@ -211,7 +211,6 @@ def maybe_load_checkpoint(
         Tuple of (checkpoint, policy_record, agent_step, epoch)
     """
     from metta.agent.metta_agent import make_policy
-    from metta.common.util.fs import wait_for_file
     from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
     # Try to load checkpoint
@@ -224,74 +223,71 @@ def maybe_load_checkpoint(
         epoch = checkpoint.epoch
         logger.info(f"Restored from checkpoint at {agent_step} steps")
 
-    # Try to load policy from checkpoint
-    if checkpoint and checkpoint.policy_path:
-        logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-        policy_record = policy_store.policy_record(checkpoint.policy_path)
+    # THREE OUT OF FOUR RETURN VALUES ARE ALREADY DETERMINED AT THIS POINT
+    # SO MAYBE WE SHOULD HAVE A SUBFUNCTION
 
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from checkpoint")
+    if not is_master:
+        # Just create an empty policy as it will be overwritten by the DDP sync anyway
+        # Some ugly stuff happens here; FIX BEFORE MERGE
+        throwaway_policy = make_policy(metta_grid_env, cfg)
+        throwaway_policy_record = PolicyRecord(policy_store, "", "", PolicyMetadata())
+        throwaway_policy_record.policy = throwaway_policy
 
-        return checkpoint, policy_record, agent_step, epoch
+        return checkpoint, throwaway_policy_record, agent_step, epoch
+    else:  # for master
+        # Try to load policy from checkpoint
+        if checkpoint and checkpoint.policy_path:
+            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+            policy_record = policy_store.policy_record(checkpoint.policy_path)
 
-    # Try to load initial policy from config
-    if trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
-        logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
-        policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(policy_record.policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                policy_record.policy.restore_original_feature_mapping(
+                    policy_record.metadata["original_feature_mapping"]
+                )
+                logger.info("Restored original_feature_mapping from checkpoint")
 
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from initial policy")
+            return checkpoint, policy_record, agent_step, epoch
 
-        return checkpoint, policy_record, agent_step, epoch
+        # Try to load initial policy from config
+        if trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
+            logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
+            policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
 
-    # Check for existing policy at default path
-    default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
-    if os.path.exists(default_path):
-        logger.info(f"Loading policy from default path: {default_path}")
-        policy_record = policy_store.policy_record(default_path)
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(policy_record.policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                policy_record.policy.restore_original_feature_mapping(
+                    policy_record.metadata["original_feature_mapping"]
+                )
+                logger.info("Restored original_feature_mapping from initial policy")
 
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from default path")
+            return checkpoint, policy_record, agent_step, epoch
 
-        return checkpoint, policy_record, agent_step, epoch
+        # Check for existing policy at default path
+        default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
+        if os.path.exists(default_path):
+            logger.info(f"Loading policy from default path: {default_path}")
+            policy_record = policy_store.policy_record(default_path)
 
-    # Create new policy with distributed coordination
-    if torch.distributed.is_initialized() and not is_master:
-        # Non-master waits for master to create
-        logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
-        torch.distributed.barrier()
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(policy_record.policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                policy_record.policy.restore_original_feature_mapping(
+                    policy_record.metadata["original_feature_mapping"]
+                )
+                logger.info("Restored original_feature_mapping from default path")
 
-        if not wait_for_file(default_path, timeout=300):
-            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
+            return checkpoint, policy_record, agent_step, epoch
 
-        policy_record = policy_store.policy_record(default_path)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info(f"Rank {rank}: Restored original_feature_mapping")
-
-        return checkpoint, policy_record, agent_step, epoch
-    else:
-        # Master creates new policy
+        # Create new policy
         name = policy_store.make_model_name(0)
         pr = policy_store.create_empty_policy_record(name)
         pr.policy = make_policy(metta_grid_env, cfg)
@@ -400,7 +396,11 @@ def load_or_initialize_policy(
     is_master: bool,
     rank: int,
 ) -> Tuple[Any, Any, Any]:
-    """Load or initialize policy with distributed coordination."""
+    """
+    Load or initialize policy with distributed coordination.
+    The master should load the policy in a distributed enviroment while the other ranks keep a random policy.
+    PyTorch DDP then later distributes the policy from the master to all other ranks.
+    """
     # Use existing maybe_load_checkpoint to handle core loading/creation
     checkpoint, policy_record, _, _ = maybe_load_checkpoint(
         run_dir=cfg.run_dir,
