@@ -34,6 +34,7 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
         "navigation/training/sparse.yaml",
+        "object_use/training/easy_all_objects.yaml",
         # Is a curriculum, not an env
         "navigation/training/sparse_bucketed",
         # These are broken into different files to work around curriculum needs. They don't load right in this test.
