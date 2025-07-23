@@ -76,6 +76,8 @@ class ConverterConfig(GridObjectConfig):
     cooldown: int
     initial_resource_count: int
     color: int
+    phase: int
+    cyclical: bool
 
 class ActionConfig:
     enabled: bool

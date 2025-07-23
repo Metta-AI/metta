@@ -26,6 +26,8 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
+                  unsigned short phase = 0,
+                  bool cyclical = false,
                   bool recipe_details_obs = false,
                   ObservationType input_recipe_offset = 0,
                   ObservationType output_recipe_offset = 0)
@@ -37,6 +39,8 @@ struct ConverterConfig : public GridObjectConfig {
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
+        phase(phase),
+        cyclical(cyclical),
         recipe_details_obs(recipe_details_obs),
         input_recipe_offset(input_recipe_offset),
         output_recipe_offset(output_recipe_offset) {}
@@ -48,6 +52,8 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
+  unsigned short phase;
+  bool cyclical;
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
@@ -64,7 +70,7 @@ private:
     // We also need to have an id to schedule the finishing event. If our id
     // is zero, we probably haven't been added to the grid yet.
     assert(this->id != 0);
-    if (this->converting || this->cooling_down) {
+    if (this->converting || this->cooling_down || this->phasing) {
       return;
     }
     // Check if the converter is already at max output.
@@ -119,8 +125,11 @@ public:
   short max_output;
   unsigned short conversion_ticks;  // Time to produce output
   unsigned short cooldown;          // Time to wait after producing before starting again
+  unsigned short phase;             // Initial delay before first conversion attempt
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
+  bool phasing;                     // Currently in initial phase delay
+  bool cyclical;                    // Whether to auto-empty inventory after cooldown
   unsigned char color;
   bool recipe_details_obs;
   EventManager* event_manager;
@@ -134,11 +143,14 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
+        phase(cfg.phase),
         color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
         converting(false),
         cooling_down(false),
+        phasing(cfg.phase > 0),
+        cyclical(cfg.cyclical),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
@@ -151,7 +163,12 @@ public:
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
-    this->maybe_start_converting();
+    if (this->phase > 0 && this->phasing) {
+      // Schedule phase completion event
+      this->event_manager->schedule_event(EventType::FinishPhase, this->phase, this->id, 0);
+    } else {
+      this->maybe_start_converting();
+    }
   }
 
   void finish_converting() {
@@ -180,8 +197,8 @@ public:
   }
 
   void finish_cooldown() {
-    // Type IDs 100-199 are cyclical converters that auto-empty on cooldown completion
-    if (this->type_id >= 100 && this->type_id < 200) {
+    // Cyclical converters auto-empty on cooldown completion
+    if (this->cyclical) {
       // Empty all inventory items
       this->inventory.clear();
       stats.incr("inventory.auto_emptied");
@@ -189,6 +206,12 @@ public:
 
     this->cooling_down = false;
     stats.incr("cooldown.completed");
+    this->maybe_start_converting();
+  }
+
+  void finish_phase() {
+    this->phasing = false;
+    stats.incr("phase.completed");
     this->maybe_start_converting();
   }
 
