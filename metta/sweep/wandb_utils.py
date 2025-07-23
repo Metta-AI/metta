@@ -108,35 +108,6 @@ def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
         logger.error(f"Failed to fetch sweeps after all retry attempts. Assuming no existing sweep. Error: {e}")
         # Return None to allow sweep creation to proceed
         return None
-<<<<<<< HEAD
-
-
-def generate_run_id_for_sweep(sweep_id: str, sweep_names_dir: str) -> str:
-    api = wandb.Api()
-    sweep = api.sweep(sweep_id)
-
-    used_ids = set()
-    used_names = set(run.name for run in sweep.runs).union(set(os.listdir(sweep_names_dir)))
-    for name in used_names:
-        # Skip None names
-        if name is None:
-            continue
-
-        # Only process names that look like they follow our pattern (contain '.r.')
-        if ".r." in name:
-            try:
-                # Extract ID from names like "sweep_name.r.123"
-                id = int(name.split(".r.")[-1])
-                used_ids.add(id)
-            except ValueError:
-                logger.warning(f"Invalid run name format: {name}, expected format: <sweep_name>.r.<integer>")
-        # Silently skip other names (WandB auto-generated names, artifacts, etc.)
-
-    id = 0
-    if len(used_ids) > 0:
-        id = max(used_ids) + 1
-
-    return f"{sweep.name}.r.{id}"
 
 
 def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
@@ -155,5 +126,3 @@ def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
     # Sort by score (descending for reward metric)
     runs.sort(key=lambda r: r.summary.get("score", r.summary.get("protein.objective", 0)), reverse=True)
     return runs
-=======
->>>>>>> a45f2dfbd (feat(sweep): Implement centralized sweep info database for sweep parallel worker support)
