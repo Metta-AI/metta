@@ -91,18 +91,7 @@ def save_experiment_config(
         "run_dir": dirs.run_dir,
         "data_dir": os.path.dirname(dirs.run_dir),
         "device": str(device),
-        "trainer": {
-            "num_workers": trainer_config.num_workers,
-            "total_timesteps": trainer_config.total_timesteps,
-            "batch_size": trainer_config.batch_size,
-            "minibatch_size": trainer_config.minibatch_size,
-            "checkpoint_dir": dirs.checkpoint_dir,
-            "optimizer": trainer_config.optimizer.model_dump(),
-            "ppo": trainer_config.ppo.model_dump(),
-            "checkpoint": trainer_config.checkpoint.model_dump(),
-            "simulation": trainer_config.simulation.model_dump(),
-            "profiler": trainer_config.profiler.model_dump(),
-        },
+        "trainer": trainer_config.model_dump(),
     }
 
     # Save to file
