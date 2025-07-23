@@ -35,33 +35,31 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        # Initialize max_vec with default values from mettagrid/src/metta/mettagrid/objects/constants.hpp
-        # These will be updated with actual values during initialize_to_environment if available
+        # Initialize max_vec with working values - these will be updated during initialize_to_environment
         max_vec = torch.tensor(
             [
-                1.0,  # TypeId
-                10.0,  # Group
-                30.0,  # Hp
-                1.0,  # Frozen
-                1.0,  # Orientation
-                255.0,  # Color
-                1.0,  # ConvertingOrCoolingDown
-                1.0,  # Swappable
-                255.0,  # EpisodeCompletionPct
-                10.0,  # LastAction
-                10.0,  # LastActionArg
-                100.0,  # LastReward
-                255.0,  # Glyph
-                255.0,  # ResourceRewards
-                # Remaining are inventory items (DEFAULT_INVENTORY_NORMALIZATION = 100.0)
-                100.0,
-                100.0,
-                100.0,
-                100.0,
-                100.0,
-                100.0,
-                100.0,
-                100.0,
+                9.0,
+                1.0,
+                1.0,
+                10.0,
+                3.0,
+                254.0,
+                1.0,
+                1.0,
+                235.0,
+                8.0,
+                9.0,
+                250.0,
+                29.0,
+                1.0,
+                1.0,
+                8.0,
+                1.0,
+                1.0,
+                6.0,
+                3.0,
+                1.0,
+                2.0,
             ],
             dtype=torch.float32,
         )[None, :, None, None]
