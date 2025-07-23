@@ -226,13 +226,13 @@ jobs:
           fi
 
       - name: Run MettaGrid C++ coverage
-        if: matrix.package == 'mettagrid'
+        if: matrix.package == 'mettagrid' && steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           cd mettagrid
           make coverage
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true'
+        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
