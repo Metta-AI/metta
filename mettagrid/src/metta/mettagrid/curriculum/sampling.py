@@ -48,11 +48,14 @@ class SampledTaskCurriculum(Curriculum):
         return Task(self._task_id, self, cfg)
 
 
-def _sample(choice: Any) -> Any:
-    if isinstance(choice, dict) and "range" in choice:
-        lo, hi = choice["range"]
-        value = np.random.uniform(lo, hi)
-        if choice.get("want_int", False):
-            value = int(value)
+def _sample(dist: Any) -> Any:
+    if isinstance(dist, dict):
+        if "range" in dist:
+            lo, hi = dist["range"]
+            value = np.random.uniform(lo, hi)
+            if dist.get("want_int", False):
+                value = int(value)
+        elif "choice" in dist:
+            value = np.random.choice(dist["choice"])
         return value
-    return choice
+    return dist
