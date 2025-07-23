@@ -180,7 +180,6 @@ jobs:
         run: |
           uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
-
   test:
     name: "Tests - ${{ matrix.package }}"
     needs: [test-setup, graphite-ci-optimizer, setup-checks]
