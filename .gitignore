@@ -1,6 +1,7 @@
 # Environment and IDE
 .envrc
 .env
+.env.*
 .vscode/PythonImportHelper-v2-Completion.json
 .idea/
 .task
@@ -36,6 +37,7 @@ node_modules/
 .pnpm/
 .vite/
 dist/
+*.tsbuildinfo
 
 # Project-specific build outputs
 /mettagrid/dist/
@@ -75,3 +77,6 @@ metta-research/
 terrain_maps_nohearts*
 gpu_names_cache.json
 sweep_id
+
+# Notebooks
+notebooks/.ipynb_checkpoints

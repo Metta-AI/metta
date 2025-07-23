@@ -1,7 +1,8 @@
 # @package __global__
 
 defaults:
-  - /sim/arena@sim
+  # - /sim/arena@sim
+  - /sim/navigation@sim
   # - /env/mettagrid/game/agent/rewards/shaped@replay_job.sim.env_overrides.game.agent.rewards
   - _self_
 
@@ -36,7 +37,8 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/daveey.lp.16x4.muon.lr3
+# policy_uri: wandb://run/daveey.lp.16x4.muon.lr3
+policy_uri: null
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
 # policy_uri: ${trained_policy_uri}
@@ -53,21 +55,21 @@ analyzer:
       - metric: episode_reward
       - metric: "heart.get"
 
-replay_job:
-  sim:
-    env:
-      /env/mettagrid/arena/combat
-      # env_overrides:
-    # game:
-    #   max_steps: 5000
-    #   num_agents: 36
-    #   map_builder:
-    #     width: 35
-    #     height: 25
+# replay_job:
+#   sim:
+#     env:
+#       /env/mettagrid/arena/combat
+# env_overrides:
+# game:
+#   max_steps: 5000
+#   num_agents: 36
+#   map_builder:
+#     width: 35
+#     height: 25
 
-    #     objects:
-    #       lasery:
-    #         initial_resource_count: 20
+#     objects:
+#       lasery:
+#         initial_resource_count: 20
 
 # sim_job:
 # policy_agents_pct: 1

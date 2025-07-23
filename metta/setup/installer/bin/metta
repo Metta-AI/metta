@@ -2,10 +2,31 @@
 # Wrapper script for metta command
 # This allows users to run 'metta' directly without prefixing with 'uv run'
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# Get the project root directory (three levels up from metta/setup/installer/bin)
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# Function to find the metta repository root
+find_metta_root() {
+    local dir="$PWD"
+    while [ "$dir" != "/" ]; do
+        # Check if this is a metta repository
+        if [ -f "$dir/metta/setup/metta_cli.py" ] && [ -d "$dir/.git" ]; then
+            echo "$dir"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    return 1
+}
+
+# First, try to find if we're in a metta repository
+if metta_root=$(find_metta_root); then
+    # We're in a metta repository (could be main repo or worktree)
+    PROJECT_DIR="$metta_root"
+else
+    # Fall back to the original install location
+    # Get the real path of this script (following symlinks)
+    SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || readlink "$0" 2>/dev/null || echo "$0")"
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+    PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+fi
 
 # Run metta using uv with the project directory
 exec uv run --project "$PROJECT_DIR" python -m metta.setup.metta_cli "$@"

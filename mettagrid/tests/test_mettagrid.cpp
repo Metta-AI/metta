@@ -55,11 +55,11 @@ protected:
   }
 
   // Helper function to create test resource_reward_max map
-  std::map<uint8_t, InventoryQuantity> create_test_resource_reward_max() {
-    std::map<uint8_t, InventoryQuantity> resource_reward_max;
-    resource_reward_max[TestItems::ORE] = 10;
-    resource_reward_max[TestItems::LASER] = 10;
-    resource_reward_max[TestItems::ARMOR] = 10;
+  std::map<uint8_t, RewardType> create_test_resource_reward_max() {
+    std::map<uint8_t, RewardType> resource_reward_max;
+    resource_reward_max[TestItems::ORE] = 10.0f;
+    resource_reward_max[TestItems::LASER] = 10.0f;
+    resource_reward_max[TestItems::ARMOR] = 10.0f;
     return resource_reward_max;
   }
 
@@ -73,6 +73,8 @@ protected:
                        create_test_resource_limits(),      // resource_limits
                        create_test_rewards(),              // resource_rewards
                        create_test_resource_reward_max(),  // resource_reward_max
+                       {},                                 // stat_rewards
+                       {},                                 // stat_reward_max
                        0.0f);                              // group_reward_pct
   }
 };
@@ -94,57 +96,170 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   AgentConfig agent_cfg = create_test_agent_config();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
 
-  float dummy_reward = 0.0f;
-  agent->init(&dummy_reward);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
 
   // Test adding items
   int delta = agent->update_inventory(TestItems::ORE, 5);
   EXPECT_EQ(delta, 5);
   EXPECT_EQ(agent->inventory[TestItems::ORE], 5);
+  EXPECT_FLOAT_EQ(agent_reward, 0.625f);  // 5 * 0.125
 
   // Test removing items
   delta = agent->update_inventory(TestItems::ORE, -2);
   EXPECT_EQ(delta, -2);
   EXPECT_EQ(agent->inventory[TestItems::ORE], 3);
+  EXPECT_FLOAT_EQ(agent_reward, 0.375f);  // 3 * 0.125
 
   // Test hitting zero
   delta = agent->update_inventory(TestItems::ORE, -10);
   EXPECT_EQ(delta, -3);  // Should only remove what's available
   // check that the item is not in the inventory
   EXPECT_EQ(agent->inventory.find(TestItems::ORE), agent->inventory.end());
+  EXPECT_FLOAT_EQ(agent_reward, 0.0f);
 
   // Test hitting resource_limits limit
   agent->update_inventory(TestItems::ORE, 30);
   delta = agent->update_inventory(TestItems::ORE, 50);  // resource_limits is 50
   EXPECT_EQ(delta, 20);                                 // Should only add up to resource_limits
   EXPECT_EQ(agent->inventory[TestItems::ORE], 50);
+  EXPECT_FLOAT_EQ(agent_reward, 6.25f);  // 50 * 0.125
 }
 
-TEST_F(MettaGridCppTest, AgentInventoryUpdate_Rewards) {
-  AgentConfig agent_cfg = create_test_agent_config();
+// Test for reward capping behavior with a lower cap to actually hit it
+TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
+  // Create a custom config with a lower ore reward cap that we can actually hit
+  auto resource_limits = create_test_resource_limits();
+  auto rewards = create_test_rewards();
+
+  // Set a lower cap for ORE so we can actually test capping
+  std::map<uint8_t, RewardType> resource_reward_max;
+  resource_reward_max[TestItems::ORE] = 2.0f;  // Cap at 2.0 instead of 10.0
+
+  AgentConfig agent_cfg(
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f);
+
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
 
-  float dummy_reward = 0.0f;
-  agent->init(&dummy_reward);
+  // Test 1: Add items up to the cap
+  // 16 ORE * 0.125 = 2.0 (exactly at cap)
+  int delta = agent->update_inventory(TestItems::ORE, 16);
+  EXPECT_EQ(delta, 16);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 16);
+  EXPECT_FLOAT_EQ(agent_reward, 2.0f);
 
-  int delta = agent->update_inventory(TestItems::ORE, 5);
-  EXPECT_EQ(delta, 5);
-  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 5);
+  // Test 2: Add more items beyond the cap
+  // 32 ORE * 0.125 = 4.0, but capped at 2.0
+  delta = agent->update_inventory(TestItems::ORE, 16);
+  EXPECT_EQ(delta, 16);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 32);
+  EXPECT_FLOAT_EQ(agent_reward, 2.0f);  // Still capped at 2.0
 
-  delta = agent->update_inventory(TestItems::ORE, 20);
-  EXPECT_EQ(delta, 20);
-  // The reward limit for ore is 10, so the reward should be capped at 10
-  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10);
+  // Test 3: Remove some items while still over cap
+  // 24 ORE * 0.125 = 3.0, but still capped at 2.0
+  delta = agent->update_inventory(TestItems::ORE, -8);
+  EXPECT_EQ(delta, -8);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 24);
+  EXPECT_FLOAT_EQ(agent_reward, 2.0f);  // Should remain at cap
 
-  delta = agent->update_inventory(TestItems::HEART, 40);
-  EXPECT_EQ(delta, 40);
-  // Hearts have no reward limit, so the reward should be 40
-  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10 + TestRewards::HEART * 40);
+  // Test 4: Remove enough items to go below cap
+  // 12 ORE * 0.125 = 1.5 (now below cap)
+  delta = agent->update_inventory(TestItems::ORE, -12);
+  EXPECT_EQ(delta, -12);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 12);
+  EXPECT_FLOAT_EQ(agent_reward, 1.5f);  // Now tracking actual value
 
-  // if we remove inventory, the current_resource_reward goes down.
-  delta = agent->update_inventory(TestItems::HEART, -20);
-  EXPECT_EQ(delta, -20);
-  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10 + TestRewards::HEART * 20);
+  // Test 5: Add items again, but not enough to hit cap
+  // 14 ORE * 0.125 = 1.75 (still below cap)
+  delta = agent->update_inventory(TestItems::ORE, 2);
+  EXPECT_EQ(delta, 2);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 14);
+  EXPECT_FLOAT_EQ(agent_reward, 1.75f);
+
+  // Test 6: Add items to go over cap again
+  // 20 ORE * 0.125 = 2.5, but capped at 2.0
+  delta = agent->update_inventory(TestItems::ORE, 6);
+  EXPECT_EQ(delta, 6);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 20);
+  EXPECT_FLOAT_EQ(agent_reward, 2.0f);
+}
+
+// Test multiple item types with different caps
+TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
+  auto resource_limits = create_test_resource_limits();
+  auto rewards = create_test_rewards();
+
+  // Set different caps for different items
+  std::map<uint8_t, RewardType> resource_reward_max;
+  resource_reward_max[TestItems::ORE] = 2.0f;     // Low cap for ORE
+  resource_reward_max[TestItems::HEART] = 30.0f;  // Cap for HEART
+  // LASER and ARMOR have no caps
+
+  AgentConfig agent_cfg(
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f);
+
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Add ORE beyond its cap
+  agent->update_inventory(TestItems::ORE, 50);  // 50 * 0.125 = 6.25, capped at 2.0
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 50);
+  EXPECT_FLOAT_EQ(agent_reward, 2.0f);
+
+  // Add HEART up to its cap
+  agent->update_inventory(TestItems::HEART, 30);  // 30 * 1.0 = 30.0
+  EXPECT_EQ(agent->inventory[TestItems::HEART], 30);
+  EXPECT_FLOAT_EQ(agent_reward, 32.0f);  // 2.0 + 30.0
+
+  // Add more HEART beyond its cap
+  agent->update_inventory(TestItems::HEART, 10);  // 40 * 1.0 = 40.0, capped at 30.0
+  EXPECT_EQ(agent->inventory[TestItems::HEART], 40);
+  EXPECT_FLOAT_EQ(agent_reward, 32.0f);  // Still 2.0 + 30.0
+
+  // Remove some ORE (still over cap)
+  agent->update_inventory(TestItems::ORE, -10);  // 40 * 0.125 = 5.0, still capped at 2.0
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 40);
+  EXPECT_FLOAT_EQ(agent_reward, 32.0f);  // No change
+
+  // Remove ORE to go below cap
+  agent->update_inventory(TestItems::ORE, -35);  // 5 * 0.125 = 0.625
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 5);
+  EXPECT_FLOAT_EQ(agent_reward, 30.625f);  // 0.625 + 30.0
+
+  // Remove HEART to go below its cap
+  agent->update_inventory(TestItems::HEART, -15);  // 25 * 1.0 = 25.0
+  EXPECT_EQ(agent->inventory[TestItems::HEART], 25);
+  EXPECT_FLOAT_EQ(agent_reward, 25.625f);  // 0.625 + 25.0
+}
+
+// Test edge case: going to zero
+TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardToZero) {
+  auto resource_limits = create_test_resource_limits();
+  auto rewards = create_test_rewards();
+
+  std::map<uint8_t, RewardType> resource_reward_max;
+  resource_reward_max[TestItems::ORE] = 2.0f;
+
+  AgentConfig agent_cfg(
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f);
+
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Add items beyond cap
+  agent->update_inventory(TestItems::ORE, 50);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 50);
+  EXPECT_FLOAT_EQ(agent_reward, 2.0f);
+
+  // Remove all items
+  agent->update_inventory(TestItems::ORE, -50);
+  // When inventory goes to zero, the item should be removed from the map
+  EXPECT_EQ(agent->inventory.find(TestItems::ORE), agent->inventory.end());
+  EXPECT_FLOAT_EQ(agent_reward, 0.0f);
 }
 
 // ==================== Grid Tests ====================
@@ -274,7 +389,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   agent->update_inventory(TestItems::ORE, 1);
   agent->update_inventory(TestItems::HEART, 1);
 
-  // Create put_recipe_items action handler
+  // Create put_items action handler
   ActionConfig put_cfg({}, {});
   PutRecipeItems put(put_cfg);
   put.init(&grid);

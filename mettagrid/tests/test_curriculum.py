@@ -26,6 +26,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
+from metta.map.mapgen import MapGen
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
@@ -34,6 +35,7 @@ from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedC
 from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum, ProgressiveMultiTaskCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum, SamplingCurriculum
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
 
 @pytest.fixture(autouse=True)
@@ -143,7 +145,7 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
         "game.map.width": {"values": [5, 10]},
         "game.map.height": {"values": [5, 10]},
     }
-    curr = BucketedCurriculum("dummy", buckets=buckets)
+    curr = BucketedCurriculum(env_cfg_template_path="dummy", buckets=buckets)
 
     # There should be 4 tasks (2x2 grid)
     assert len(curr._id_to_curriculum) == 4
@@ -151,6 +153,45 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
     task = curr.get_task()
     assert hasattr(task, "id")
     assert any(str(w) in task.id() for w in [5, 10])
+
+
+def test_bucketed_curriculum_from_yaml_with_map_builder():
+    """Test BucketedCurriculum loading from YAML file with buckets that impact map builder."""
+    from pathlib import Path
+
+    import hydra
+
+    # Get the path to the test YAML config file
+    test_dir = Path(__file__).parent
+    config_file = test_dir / "test_bucketed_config.yaml"
+
+    # Verify the config file exists
+    assert config_file.exists(), f"Config file not found: {config_file}"
+
+    # Initialize Hydra and load the config
+    with hydra.initialize(config_path=".", version_base=None):
+        # Instantiate the BucketedCurriculum using Hydra
+        curr = curriculum_from_config_path("test_bucketed_config", OmegaConf.create({"game": {"num_agents": 5}}))  # type: ignore
+
+    # There should be 27 tasks (3x3x3 grid)
+    assert len(curr._id_to_curriculum) == 27
+
+    # Sample tasks and verify the map builder parameters are correctly overridden
+    # Test that task IDs contain the bucket parameter values
+    task = curr.get_task()
+    task_id = task.id()
+    assert "width=" in task_id, f"Task ID should contain width parameter: {task_id}"
+    assert "height=" in task_id, f"Task ID should contain height parameter: {task_id}"
+    assert "room_size=" in task_id, f"Task ID should contain room_size parameter: {task_id}"
+
+    # Verify the task config structure is correct
+    task_cfg = task.env_cfg()
+    assert hasattr(task_cfg.game, "map_builder")
+    assert isinstance(task_cfg.game.map_builder, MapGen)
+    assert task_cfg.game.num_agents == 5, f"num_agents should have been overridden to 5, got {task_cfg.game.num_agents}"
+    assert task_cfg.game.map_builder.width in [20, 40, 60]
+    assert task_cfg.game.map_builder.height in [20, 40, 60]
+    assert task_cfg.game.map_builder.root["params"]["room_size"] in [1, 3, 5]
 
 
 def test_expand_buckets_values_and_range():
@@ -172,9 +213,12 @@ def test_sampled_task_curriculum():
     # Setup: one value bucket, one range bucket (int), one range bucket (float)
     task_id = "test_task"
     task_cfg_template = OmegaConf.create({"param1": None, "param2": None, "param3": None})
-    bucket_parameters = ["param1", "param2", "param3"]
-    bucket_values = [42, {"range": (0, 10), "want_int": True}, {"range": (0.0, 1.0)}]
-    curr = SampledTaskCurriculum(task_id, task_cfg_template, bucket_parameters, bucket_values)
+    sampling_parameters = {
+        "param1": 42,
+        "param2": {"range": (0, 10), "want_int": True},
+        "param3": {"range": (0.0, 1.0)},
+    }
+    curr = SampledTaskCurriculum(task_id, task_cfg_template, sampling_parameters)
     task = curr.get_task()
     assert task.id() == task_id
     cfg = task.env_cfg()

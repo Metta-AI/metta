@@ -28,7 +28,7 @@ def create_test_config():
                     "default_resource_limit": 10,
                     "resource_limits": {"heart": 255},
                     "freeze_duration": 0,
-                    "rewards": {"heart": 1.0},
+                    "rewards": {"inventory": {"heart": 1.0}},
                     "action_failure_penalty": 0.0,
                 },
                 "actions": {

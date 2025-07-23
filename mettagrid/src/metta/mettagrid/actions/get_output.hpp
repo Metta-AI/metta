@@ -12,7 +12,7 @@
 
 class GetOutput : public ActionHandler {
 public:
-  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_items") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -46,7 +46,7 @@ protected:
       InventoryDelta taken = actor->update_inventory(item, resources_available);
 
       if (taken > 0) {
-        actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);
+        actor->stats.add(actor->stats.inventory_item_name(item) + ".get", static_cast<float>(taken));
         converter->update_inventory(item, -taken);
         resources_taken = true;
       }

@@ -1,23 +1,21 @@
 import uuid
 from datetime import datetime
-from typing import Any, Literal, TypeVar
+from typing import Any, TypeVar
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.metta_repo import TaskStatusUpdate as RepoTaskStatusUpdate
+from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
 
 T = TypeVar("T")
 
-TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
-
 
 class TaskCreateRequest(BaseModel):
     policy_id: uuid.UUID
-    git_hash: str
+    git_hash: str | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     sim_suite: str = "all"
 
@@ -31,14 +29,9 @@ class TaskClaimResponse(BaseModel):
     claimed: list[uuid.UUID]
 
 
-class TaskStatusUpdate(BaseModel):
-    status: TaskStatus
-    details: dict[str, Any] | None = None
-
-
 class TaskUpdateRequest(BaseModel):
-    assignee: str
-    statuses: dict[uuid.UUID, TaskStatusUpdate]
+    require_assignee: str | None = None  # If supplied, the action only happens if the task is assigned to this worker
+    updates: dict[uuid.UUID, TaskStatusUpdate]
 
 
 class TaskResponse(BaseModel):
@@ -50,6 +43,19 @@ class TaskResponse(BaseModel):
     assignee: str | None = None
     created_at: datetime
     attributes: dict[str, Any]
+    policy_name: str | None = None
+    retries: int
+
+    def _attribute_property(self, key: str) -> Any | None:
+        return self.attributes.get(key)
+
+    @property
+    def git_hash(self) -> str | None:
+        return self._attribute_property("git_hash")
+
+    @property
+    def workers_spawned(self) -> int:
+        return self._attribute_property("workers_spawned") or 0
 
     @classmethod
     def from_db(cls, task: dict[str, Any]) -> "TaskResponse":
@@ -62,6 +68,8 @@ class TaskResponse(BaseModel):
             assignee=task["assignee"],
             created_at=task["created_at"],
             attributes=task["attributes"] or {},
+            policy_name=task.get("policy_name"),
+            retries=task["retries"],
         )
 
 
@@ -73,6 +81,17 @@ class TasksResponse(BaseModel):
     tasks: list[TaskResponse]
 
 
+async def _get_latest_main_commit() -> str:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.github.com/repos/Metta-AI/metta/commits/main",
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
+        response.raise_for_status()
+        commit_data = response.json()
+        return commit_data["sha"]
+
+
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/tasks", tags=["eval_tasks"])
 
@@ -81,9 +100,14 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("", response_model=TaskResponse)
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
+        # If no git_hash provided, fetch latest commit from main branch
+        git_hash = request.git_hash
+        if git_hash is None:
+            git_hash = await _get_latest_main_commit()
+
         attributes = {
             "env_overrides": request.env_overrides,
-            "git_hash": request.git_hash,
+            "git_hash": git_hash,
         }
         if not await stats_repo.get_policy_by_id(request.policy_id):
             raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
@@ -94,6 +118,12 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             attributes=attributes,
         )
         return TaskResponse.from_db(task)
+
+    @router.get("/latest", response_model=TaskResponse)
+    @timed_http_handler
+    async def get_latest_assigned_task_for_worker(assignee: str) -> TaskResponse | None:
+        task = await stats_repo.get_latest_assigned_task_for_worker(assignee=assignee)
+        return TaskResponse.from_db(task) if task else None
 
     @router.get("/available", response_model=TasksResponse)
     @timed_http_handler
@@ -120,27 +150,21 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
-    @router.get("/{task_id}", response_model=TaskResponse)
+    @router.get("/all", response_model=TasksResponse)
     @timed_http_handler
-    async def get_task_by_id(task_id: uuid.UUID) -> TaskResponse:
-        task = await stats_repo.get_task_by_id(task_id=task_id)
-
-        if not task:
-            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-
-        return TaskResponse.from_db(task)
+    async def get_all_tasks(
+        limit: int = Query(default=500, ge=1, le=1000),
+    ) -> TasksResponse:
+        tasks = await stats_repo.get_all_tasks(limit=limit)
+        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        return TasksResponse(tasks=task_responses)
 
     @router.post("/claimed/update")
     @timed_http_handler
     async def update_task_statuses(request: TaskUpdateRequest) -> TaskUpdateResponse:
-        task_updates = {
-            task_id: RepoTaskStatusUpdate(status=status_update.status, details=status_update.details)
-            for task_id, status_update in request.statuses.items()
-        }
-
         updated = await stats_repo.update_task_statuses(
-            assignee=request.assignee,
-            task_updates=task_updates,
+            updates=request.updates,
+            require_assignee=request.require_assignee,
         )
 
         return TaskUpdateResponse(statuses=updated)

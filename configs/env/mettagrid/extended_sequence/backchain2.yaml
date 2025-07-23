@@ -17,13 +17,14 @@ game:
       battery_blue: 1
       battery_green: 1
     rewards:
-      ore_red: ${sampling:0.005,0.1,0.01}
-      battery_red: ${sampling:0.01,0.3,0.1}
-      ore_blue: ${sampling:0.005,0.1,0.01}
-      battery_blue: ${sampling:0.01,0.3,0.1}
-      ore_green: ${sampling:0.005,0.1,0.01}
-      battery_green: ${sampling:0.01,0.3,0.1}
-      heart: 1
+      inventory:
+        ore_red: 0.01
+        battery_red: 0.1
+        ore_blue: 0.01
+        battery_blue: 0.1
+        ore_green: 0.01
+        battery_green: 0.1
+        heart: 1
 
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
@@ -32,16 +33,16 @@ game:
 
     room:
       _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:12,20,15}
-      height: ${sampling:12,20,15}
-      border_width: ${sampling:1,6,3}
+      width: 15
+      height: 15
+      border_width: 3
       agents: 1
       style: all-sparse
 
       objects:
-        altar: ${sampling:1,2,3}
+        altar: 2
         mine_red: 0
-        generator_red: ${sampling:1,2,3}
+        generator_red: 2
         mine_blue: 0
         generator_blue: 0
         mine_green: 0
@@ -57,7 +58,7 @@ game:
       conversion_ticks: 1
       initial_resource_count: 0
     generator_red:
-      cooldown: ${sampling:6,20,3}
+      cooldown: 3
       output_resources:
         battery_red: 1
       max_output: 1

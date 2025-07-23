@@ -12,7 +12,7 @@
 
 class PutRecipeItems : public ActionHandler {
 public:
-  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
+  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_items") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -43,7 +43,7 @@ protected:
         if (resources_put > 0) {
           InventoryDelta delta = actor->update_inventory(item, -resources_put);
           assert(delta == -resources_put);
-          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", resources_put);
+          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", static_cast<float>(resources_put));
           success = true;
         }
       }

@@ -1,8 +1,11 @@
 import importlib
 import textwrap
 from pathlib import Path
+from typing import TypeVar
 
-from metta.common.util.colorama import Fore, blue, bold, colorize, cyan, green, red, yellow
+from metta.common.util.text_styles import Fore, blue, bold, colorize, cyan, green, red, yellow
+
+T = TypeVar("T")
 
 
 def _format_message(message: str) -> str:
@@ -32,6 +35,46 @@ def header(message: str) -> None:
 
 def step(message: str) -> None:
     print(colorize(_format_message(message), Fore.WHITE))
+
+
+def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None) -> T:
+    """Prompt user to select from a list of choices.
+
+    Args:
+        prompt: The prompt message
+        choices: List of (value, description) tuples
+        default: Default choice if user presses Enter
+        current: Current value to highlight
+
+    Returns:
+        The selected value
+    """
+    print(f"\n{prompt}")
+    for i, (value, desc) in enumerate(choices):
+        markers = []
+        if current is not None and value == current:
+            markers.append("current")
+        if default is not None and value == default:
+            markers.append("default")
+
+        marker = f" ({', '.join(markers)})" if markers else ""
+        if current is not None and value == current:
+            print(cyan(f"  {i + 1}. {desc}{marker}"))
+        else:
+            print(f"  {i + 1}. {desc}{marker}")
+
+    while True:
+        try:
+            choice = input("\nEnter your choice (1-{}): ".format(len(choices))).strip()
+            if not choice and default is not None:
+                return default
+            idx = int(choice) - 1
+            if 0 <= idx < len(choices):
+                return choices[idx][0]
+            else:
+                warning(f"Please enter a number between 1 and {len(choices)}")
+        except ValueError:
+            warning("Please enter a valid number")
 
 
 def import_all_modules_from_subpackage(package_name: str, subpackage: str) -> None:

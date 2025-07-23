@@ -30,10 +30,9 @@ def create_game_config():
                 "inventory_item_names": ["ore_red", "ore_blue", "battery_red", "battery_blue", "heart"],
                 "groups": {"agent": {"id": 0, "sprite": 0}},
                 "agent": {
-                    "default_resource_limit": 20,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 10,
-                    "rewards": {"heart": 5.0, "ore_red": 0.1, "battery_red": 0.2},
+                    "default_resource_limit": 50,
+                    "freeze_duration": 5,
+                    "rewards": {"inventory": {"heart": 5.0, "ore_red": 0.1, "battery_red": 0.2}},
                     "action_failure_penalty": 0.1,
                 },
                 "actions": {
@@ -214,8 +213,8 @@ def test_pettingzoo_env():
 
     print("Environment created!")
     print(f"- Max agents: {env.max_num_agents}")
-    print(f"- Observation space: {env.observation_space}")
-    print(f"- Action space: {env.action_space}")
+    print(f"- Observation space: {env.observation_space(env.possible_agents[0])}")
+    print(f"- Action space: {env.action_space(env.possible_agents[0])}")
     print(f"- Max steps: {env.max_steps}")
 
     # Run a quick episode
@@ -227,7 +226,7 @@ def test_pettingzoo_env():
         # Random actions for all active agents
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, min(3, env.action_space.nvec.max()), size=2, dtype=np.int32)
+            actions[agent] = np.random.randint(0, min(3, env.action_space(agent).nvec.max()), size=2, dtype=np.int32)
 
         observations, rewards, _, _, _ = env.step(actions)
 
