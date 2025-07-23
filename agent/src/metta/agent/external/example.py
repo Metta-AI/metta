@@ -155,7 +155,7 @@ class Policy(nn.Module):
         """Initialize policy with environment-specific normalizations."""
         # Extract feature normalizations from features dict
         feature_normalizations = {}
-        for feature_name, feature_props in features.items():
+        for _feature_name, feature_props in features.items():
             if "id" in feature_props and "normalization" in feature_props:
                 feature_normalizations[feature_props["id"]] = feature_props["normalization"]
 
