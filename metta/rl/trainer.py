@@ -217,13 +217,6 @@ def create_training_components(
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-    # Create lr scheduler
-    lr_scheduler = None
-    if trainer_cfg.lr_scheduler.enabled:
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
-        )
-
     hyperparameter_scheduler = None  # Disabled for now
 
     # Return all components in the expected order
@@ -233,7 +226,6 @@ def create_training_components(
         optimizer,
         experience,
         kickstarter,
-        lr_scheduler,
         hyperparameter_scheduler,
         losses,
         timer,
@@ -315,7 +307,6 @@ def train(
         optimizer,
         experience,
         kickstarter,
-        lr_scheduler,
         hyperparameter_scheduler,
         losses,
         timer,
@@ -389,10 +380,6 @@ def train(
                     device=device,
                 )
                 epoch += epochs_trained
-
-                # Update learning rate scheduler
-                if lr_scheduler is not None:
-                    lr_scheduler.step()
 
         torch_profiler.on_epoch_end(epoch)
 

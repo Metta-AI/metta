@@ -379,12 +379,6 @@ losses = Losses()
 timer = Stopwatch(logger)
 timer.start()
 
-# Create learning rate scheduler
-lr_scheduler = None
-if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler.enabled:
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
-    )
 
 # Memory and System Monitoring (master only)
 system_monitor = None
@@ -458,9 +452,6 @@ while agent_step < trainer_config.total_timesteps:
             device=device,
         )
         epoch += epochs_trained
-
-        if lr_scheduler is not None:
-            lr_scheduler.step()
 
     torch_profiler.on_epoch_end(epoch)
 

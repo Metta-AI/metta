@@ -54,12 +54,6 @@ valid_trainer_config = {
         "target_kl": None,
     },
     "optimizer": valid_optimizer_config,
-    "lr_scheduler": {
-        "enabled": False,
-        "anneal_lr": False,
-        "warmup_steps": None,
-        "schedule_type": None,
-    },
     "prioritized_experience_replay": {
         "prio_alpha": 0.0,
         "prio_beta0": 0.6,
