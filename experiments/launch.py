@@ -6,17 +6,17 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from metta.common.util.fs import get_repo_root
+from experiments.types import TrainingJobConfig
 
 
 def launch_training_run(
     run_name: str,
     curriculum: str,
-    num_gpus: int = 1,
-    num_nodes: int = 1,
+    gpus: int = 1,
+    nodes: int = 1,
     no_spot: bool = False,
     additional_args: Optional[List[str]] = None,
     wandb_tags: Optional[List[str]] = None,
-    dry_run: bool = False,
 ) -> Dict[str, Any]:
     """Launch a single training run using skypilot.
 
@@ -25,12 +25,11 @@ def launch_training_run(
     Args:
         run_name: Name for the training run
         curriculum: Path to curriculum config
-        num_gpus: Number of GPUs per node
-        num_nodes: Number of nodes
+        gpus: Number of GPUs per node
+        nodes: Number of nodes
         no_spot: Whether to disable spot instances
         additional_args: Additional command line arguments
         wandb_tags: Tags for wandb
-        dry_run: If True, print command but don't execute
 
     Returns:
         Dictionary containing:
@@ -39,14 +38,15 @@ def launch_training_run(
             - success: Whether launch succeeded
             - command: Full command executed
             - output: Command output lines
+            - config: Configuration used for the run
     """
     # Build command
     cmd = [
         "./devops/skypilot/launch.py",
         "train",
         f"run={run_name}",
-        f"--gpus={num_gpus}",
-        f"--nodes={num_nodes}",
+        f"--gpus={gpus}",
+        f"--nodes={nodes}",
     ]
 
     if no_spot:
@@ -60,6 +60,16 @@ def launch_training_run(
     if additional_args:
         cmd.extend(additional_args)
 
+    # Create TrainingJobConfig object
+    config = TrainingJobConfig(
+        curriculum=curriculum,
+        gpus=gpus,
+        nodes=nodes,
+        no_spot=no_spot,
+        wandb_tags=wandb_tags,
+        additional_args=additional_args or []
+    )
+
     result = {
         "job_id": None,
         "run_name": run_name,
@@ -67,13 +77,9 @@ def launch_training_run(
         "command": " ".join(cmd),
         "output": [],
         "timestamp": datetime.now().isoformat(),
+        "config": config,
     }
 
-    if dry_run:
-        print(f"[DRY RUN] Would execute: {result['command']}")
-        result["success"] = True
-        result["job_id"] = "dry-run-job-id"
-        return result
 
     print(f"Launching training job: {run_name}")
     print(f"Command: {result['command']}")

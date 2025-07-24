@@ -12,7 +12,7 @@ from experiments.notebooks.replays import show_replay, get_available_replays
 from experiments.notebooks.training import launch_training, launch_multiple_training_runs
 
 # Import from experiments package
-from experiments.wandb import find_training_jobs, get_run, get_run_config, get_training_logs
+from experiments.wandb_utils import find_training_jobs, get_run, get_run_config, get_training_logs
 
 __all__ = [
     # Analysis

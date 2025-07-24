@@ -50,10 +50,9 @@ class MyExperiment(Experiment):
 experiments/
 ├── experiment.py          # Base Experiment class
 ├── launch.py             # Core training launch functionality
-├── templates/            # Experiment implementations
+├── recipes/              # Experiment implementations
 │   └── arena_experiment.py
-├── notebooks/            # Notebook utilities and analysis tools
-└── log/                  # Generated notebooks and metadata
+└── notebooks/            # Notebook utilities, analysis tools, and generated notebooks
 ```
 
 ## Experiment Interface

@@ -1,6 +1,6 @@
 import re
 
-from experiments.notebooks.metrics import get_run
+from experiments.wandb_utils import get_run
 
 
 def show_replay(run_name: str, step: str | int = "last", width: int = 1000, height: int = 600) -> None:

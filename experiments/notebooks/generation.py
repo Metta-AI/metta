@@ -29,10 +29,10 @@ def generate_notebook(
     name: str,
     description: str = "",
     sections: Optional[List[str]] = None,
-    wandb_run_ids: Optional[List[str]] = None,
+    wandb_run_names: Optional[List[str]] = None,
     skypilot_job_ids: Optional[List[str]] = None,
     additional_metadata: Optional[Dict[str, Any]] = None,
-    output_dir: str = "experiments/notebooks/research",
+    output_dir: str = "experiments/log",
 ) -> str:
     """Generate a research/experiment notebook.
     
@@ -40,7 +40,7 @@ def generate_notebook(
         name: Name for the notebook (will be used in filename)
         description: Optional description of the notebook purpose
         sections: List of sections to include (None = all sections)
-        wandb_run_ids: Optional pre-filled wandb run IDs (for experiments)
+        wandb_run_names: Optional pre-filled wandb run names (for experiments)
         skypilot_job_ids: Optional pre-filled sky job IDs (for experiments)
         additional_metadata: Optional metadata to include
         output_dir: Directory to save the notebook
@@ -66,7 +66,7 @@ def generate_notebook(
             name=name,
             description=description,
             sections=sections,
-            wandb_run_ids=wandb_run_ids,
+            wandb_run_names=wandb_run_names,
             skypilot_job_ids=skypilot_job_ids,
             additional_metadata=additional_metadata
         ),
@@ -110,7 +110,7 @@ def generate_notebook_from_template(
     
     Args:
         experiment_name: Name of the experiment
-        run_names: List of wandb run names (wandb_run_ids)
+        run_names: List of wandb run names
         sky_job_ids: Optional list of corresponding sky job IDs (skypilot_job_ids)
         additional_metadata: Optional additional metadata to include
         output_dir: Directory to save the notebook (default: experiments/log)
@@ -121,7 +121,7 @@ def generate_notebook_from_template(
     return generate_notebook(
         name=experiment_name,
         description=f"Analysis notebook for {experiment_name} experiment",
-        wandb_run_ids=run_names,
+        wandb_run_names=run_names,
         skypilot_job_ids=sky_job_ids,
         additional_metadata=additional_metadata,
         output_dir=output_dir
@@ -132,7 +132,7 @@ def _create_notebook_cells(
     name: str,
     description: str,
     sections: List[str],
-    wandb_run_ids: Optional[List[str]] = None,
+    wandb_run_names: Optional[List[str]] = None,
     skypilot_job_ids: Optional[List[str]] = None,
     additional_metadata: Optional[Dict[str, Any]] = None
 ) -> List[Dict[str, Any]]:
@@ -147,11 +147,11 @@ def _create_notebook_cells(
     cells.append(_create_markdown_cell(title))
     
     # If we have pre-filled IDs, add a summary cell
-    if wandb_run_ids:
+    if wandb_run_names:
         summary = f"""### Experiment Summary
 
 **Experiment**: {name}  
-**Runs**: {len(wandb_run_ids)} training runs  
+**Runs**: {len(wandb_run_names)} training runs  
 **Created**: {additional_metadata.get('created_at', 'Unknown') if additional_metadata else 'Unknown'}  
 **User**: {additional_metadata.get('user', 'Unknown') if additional_metadata else 'Unknown'}
 
@@ -161,7 +161,7 @@ This notebook was auto-generated from the experiment run. The wandb run IDs and 
     # Generate cells for each requested section
     section_generators = {
         "setup": _get_setup_section,
-        "state": lambda: _get_state_section(wandb_run_ids, skypilot_job_ids, additional_metadata, name),
+        "state": lambda: _get_state_section(wandb_run_names, skypilot_job_ids, additional_metadata, name),
         "launch": _get_launch_section,
         "monitor": _get_monitor_section,
         "metrics": _get_metrics_section,
@@ -204,7 +204,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime
 
 # Metta imports
-from experiments.wandb import find_training_jobs, get_run_config, get_training_logs
+from experiments.wandb_utils import find_training_jobs, get_run_config, get_training_logs
 from experiments.monitoring import get_training_status
 from experiments.notebooks.monitoring import monitor_training_statuses
 from experiments.notebooks.replays import show_replay, get_available_replays
@@ -222,150 +222,88 @@ print(f"Session started: {datetime.now().strftime('%Y-%m-%d %H:%M')}")""")
 
 
 def _get_state_section(
-    wandb_run_ids: Optional[List[str]] = None,
+    wandb_run_names: Optional[List[str]] = None,
     skypilot_job_ids: Optional[List[str]] = None,
     additional_metadata: Optional[Dict[str, Any]] = None,
     experiment_name: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Generate state management section cells."""
-    cells = [_create_markdown_cell("## Run State Management")]
+    # No section header needed - this is just initialization
+    cells = []
     
-    if wandb_run_ids:
-        # Pre-filled state for experiments
-        prefilled_code = f'''# Track wandb run IDs and sky job IDs for this session
-wandb_run_ids = {wandb_run_ids}  # List of wandb run names
-skypilot_job_ids = {skypilot_job_ids or []}  # Corresponding sky job IDs
+    # Initialize state with pre-filled data or empty
+    init_code = f'''# Initialize run tracking
+from experiments.notebooks.state import init_state, add_run, list_runs, kill_all_jobs
 
-# Dictionary to track experiment configurations
-experiments = {{}}
+# Initialize with pre-loaded data
+state = init_state(
+    wandb_run_names={wandb_run_names},
+    skypilot_job_ids={skypilot_job_ids or []},
+    metadata={json.dumps(additional_metadata, indent=2) if additional_metadata else '{}'}
+)
 
-# Add metadata from the experiment
-metadata = {json.dumps(additional_metadata, indent=2) if additional_metadata else '{}'}
+# Direct access to state data
+wandb_run_names = state.wandb_run_names
+skypilot_job_ids = state.skypilot_job_ids  
+experiments = state.experiments
 
-def add_run(run_name: str, job_id: str = None, config: dict = None, notes: str = ""):
-    """Add a run to track in this session."""
-    wandb_run_ids.append(run_name)
-    if job_id:
-        skypilot_job_ids.append(job_id)
+{f'print("Loaded {len(wandb_run_names)} runs from {experiment_name or "experiment"}")' if wandb_run_names else 'print("Ready to track runs. Use add_run() to add runs to track.")'}
+{'list_runs()' if wandb_run_names else ''}'''
     
-    # Store experiment info
-    experiments[run_name] = {{
-        'job_id': job_id,
-        'config': config or {{}},
-        'notes': notes,
-        'timestamp': datetime.now()
-    }}
-    print(f"Added run: {{run_name}}")
-    if job_id:
-        print(f"  Sky job: {{job_id}}")
-
-def list_runs():
-    """List all runs in this session."""
-    if not wandb_run_ids:
-        print("No runs tracked yet")
-        return
-    
-    print(f"Tracking {{len(wandb_run_ids)}} runs:")
-    for i, run_id in enumerate(wandb_run_ids):
-        job_info = f" (job: {{skypilot_job_ids[i]}})" if i < len(skypilot_job_ids) else ""
-        print(f"  {{i+1}}. {{run_id}}{{job_info}}")
-
-# Pre-populate experiment info
-for i, run_name in enumerate(wandb_run_ids):
-    job_id = skypilot_job_ids[i] if i < len(skypilot_job_ids) else None
-    experiments[run_name] = {{
-        'job_id': job_id,
-        'config': metadata.get('analysis_config', {{}}),
-        'notes': 'Pre-loaded from experiment',
-        'timestamp': metadata.get('created_at', 'Unknown')
-    }}
-
-print(f"Loaded {{len(wandb_run_ids)}} runs from {experiment_name or 'experiment'}")
-list_runs()'''
-        cells.append(_create_code_cell(prefilled_code))
-    else:
-        # Empty state for research notebooks
-        cells.append(_create_code_cell('''# Track wandb run IDs and sky job IDs for this session
-wandb_run_ids = []  # List of wandb run names
-skypilot_job_ids = []  # Corresponding sky job IDs
-
-# Dictionary to track experiment configurations
-experiments = {}
-
-def add_run(run_name: str, job_id: str = None, config: dict = None, notes: str = ""):
-    """Add a run to track in this session."""
-    wandb_run_ids.append(run_name)
-    if job_id:
-        skypilot_job_ids.append(job_id)
-    
-    # Store experiment info
-    experiments[run_name] = {
-        'job_id': job_id,
-        'config': config or {},
-        'notes': notes,
-        'timestamp': datetime.now()
-    }
-    print(f"Added run: {run_name}")
-    if job_id:
-        print(f"  Sky job: {job_id}")
-
-def list_runs():
-    """List all runs in this session."""
-    if not wandb_run_ids:
-        print("No runs tracked yet")
-        return
-    
-    print(f"Tracking {len(wandb_run_ids)} runs:")
-    for i, run_id in enumerate(wandb_run_ids):
-        job_info = f" (job: {skypilot_job_ids[i]})" if i < len(skypilot_job_ids) else ""
-        print(f"  {i+1}. {run_id}{job_info}")
-
-# Example: Load from a previous experiment
-# wandb_run_ids = ["user.exp.1", "user.exp.2"] 
-# skypilot_job_ids = ["sky-abc-123", "sky-def-456"]'''))
+    cells.append(_create_code_cell(init_code))
     
     return cells
 
 
 def _get_launch_section() -> List[Dict[str, Any]]:
     """Generate launch section cells."""
-    return [
-        _create_markdown_cell("## Launch Training"),
-        _create_code_cell('''# Launch new training runs
+    cells = [_create_markdown_cell("## Launch Training")]
+    
+    # Uncommented, ready-to-use launch code
+    launch_code = '''# Launch new training runs
 # The result will contain both run_name and job_id
 
-# Example: Single run
-# run_name = f"{os.environ.get('USER')}.research.{datetime.now().strftime('%m%d_%H%M')}"
-# result = launch_training(
-#     run_name=run_name,
-#     curriculum="env/mettagrid/curriculum/arena/learning_progress",
-#     num_gpus=1,
-#     wandb_tags=["research", "experiment"],
-#     additional_args=[
-#         "trainer.optimizer.learning_rate=0.001",
-#         "trainer.optimizer.type=adam"
-#     ]
-# )
-# 
-# # Add to tracking
-# if result['success']:
-#     add_run(result['run_name'], result.get('job_id'))
+# Single run example:
+run_name = f"{os.environ.get('USER')}.research.{datetime.now().strftime('%m%d_%H%M')}"
+result = launch_training(
+    run_name=run_name,
+    curriculum="env/mettagrid/curriculum/arena/learning_progress",
+    gpus=1,
+    wandb_tags=["research", "experiment"],
+    additional_args=[
+        "trainer.optimizer.learning_rate=0.001",
+        "trainer.optimizer.type=adam"
+    ]
+)
 
-# Example: Multiple runs with seed variation
+# Add to tracking
+if result['success']:
+    add_run(result['run_name'], result.get('job_id'))
+    print(f"✓ Successfully launched {run_name}")
+else:
+    print(f"✗ Failed to launch {run_name}")'''
+    
+    cells.append(_create_code_cell(launch_code))
+    
+    # Additional example for multiple runs (still commented)
+    multi_run_example = '''# Example: Multiple runs with seed variation
 # base_name = f"{os.environ.get('USER')}.ablation.{datetime.now().strftime('%m%d_%H%M')}"
 # results = launch_multiple_training_runs(
 #     base_run_name=base_name,
 #     curriculum="env/mettagrid/curriculum/arena/learning_progress",
 #     num_runs=3,
 #     vary_seeds=True,
-#     num_gpus=1
+#     gpus=1
 # )
 # 
 # # Add all successful runs
 # for result in results:
 #     if result['success']:
-#         add_run(result['run_name'], result.get('job_id'))''')
-    ]
+#         add_run(result['run_name'], result.get('job_id'))'''
+    
+    cells.append(_create_code_cell(multi_run_example))
+    
+    return cells
 
 
 def _get_monitor_section() -> List[Dict[str, Any]]:
@@ -399,7 +337,7 @@ def _get_metrics_section() -> List[Dict[str, Any]]:
     return [
         _create_markdown_cell("## Fetch & Analyze Metrics"),
         _create_code_cell('''# Fetch metrics for tracked runs
-# metrics_dfs = fetch_metrics(wandb_run_ids, samples=1000)
+# metrics_dfs = fetch_metrics(wandb_run_names, samples=1000)
 
 # Quick summary
 # for run_id, df in metrics_dfs.items():
@@ -410,7 +348,7 @@ def _get_metrics_section() -> List[Dict[str, Any]]:
 #         print(f"  Max reward: {df['overview/reward'].max():.4f}")
 
 # Create summary table
-# summary_df = create_run_summary_table(wandb_run_ids)
+# summary_df = create_run_summary_table(wandb_run_names)
 # print(summary_df)''')
     ]
 
@@ -452,7 +390,7 @@ def _get_visualize_section() -> List[Dict[str, Any]]:
 # fig.show()
 
 # Plot SPS (Steps Per Second)
-# fig_sps = plot_sps(wandb_run_ids)
+# fig_sps = plot_sps(wandb_run_names)
 # fig_sps.show()''')
     ]
 
@@ -464,11 +402,11 @@ def _get_replays_section() -> List[Dict[str, Any]]:
         _create_code_cell('''# View replays for tracked runs
 # if wandb_run_ids:
 #     # Show last replay for first run
-#     show_replay(wandb_run_ids[0], step="last", width=1000, height=600)
+#     show_replay(wandb_run_names[0], step="last", width=1000, height=600)
 
 # Get available replays
 # if wandb_run_ids:
-#     replays = get_available_replays(wandb_run_ids[0])
+#     replays = get_available_replays(wandb_run_names[0])
 #     for replay in replays[-5:]:  # Show last 5
 #         print(f"{replay['label']} - Step {replay['step']}")''')
     ]

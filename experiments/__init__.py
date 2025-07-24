@@ -6,10 +6,11 @@ analysis notebooks for training runs.
 
 from experiments.experiment import Experiment
 from experiments.launch import launch_training_run
-from experiments.types import TrainingJob
+from experiments.types import TrainingJob, TrainingJobConfig
 
 __all__ = [
     "Experiment",
     "launch_training_run", 
     "TrainingJob",
+    "TrainingJobConfig",
 ]

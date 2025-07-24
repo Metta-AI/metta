@@ -8,12 +8,11 @@ from experiments.launch import launch_training_run as core_launch
 def launch_training(
     run_name: str,
     curriculum: str,
-    num_gpus: int = 1,
-    num_nodes: int = 1,
+    gpus: int = 1,
+    nodes: int = 1,
     no_spot: bool = False,
     additional_args: Optional[List[str]] = None,
     wandb_tags: Optional[List[str]] = None,
-    dry_run: bool = False,
     **kwargs,
 ) -> Dict[str, Any]:
     """Launch a training run from a notebook.
@@ -24,12 +23,11 @@ def launch_training(
     Args:
         run_name: Name for the training run
         curriculum: Path to curriculum config (e.g. "env/mettagrid/arena/basic")
-        num_gpus: Number of GPUs per node
-        num_nodes: Number of nodes
+        gpus: Number of GPUs per node
+        nodes: Number of nodes
         no_spot: Whether to disable spot instances
         additional_args: Additional command line arguments
         wandb_tags: Tags for wandb
-        dry_run: If True, print command but don't execute
         **kwargs: Additional keyword arguments passed as trainer.key=value
 
     Returns:
@@ -39,7 +37,7 @@ def launch_training(
         >>> result = launch_training(
         ...     run_name="my_experiment",
         ...     curriculum="env/mettagrid/arena/basic",
-        ...     num_gpus=4,
+        ...     gpus=4,
         ...     wandb_tags=["arena", "test"],
         ...     learning_rate=0.001
         ... )
@@ -54,12 +52,11 @@ def launch_training(
     return core_launch(
         run_name=run_name,
         curriculum=curriculum,
-        num_gpus=num_gpus,
-        num_nodes=num_nodes,
+        gpus=gpus,
+        nodes=nodes,
         no_spot=no_spot,
         additional_args=additional_args,
         wandb_tags=wandb_tags,
-        dry_run=dry_run,
     )
 
 
