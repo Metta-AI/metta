@@ -23,6 +23,7 @@ class Area:
     width: int
     height: int
 
+    # slice of the outer grid (must match `width` and `height`)
     grid: MapGrid
 
     tags: list[str]
@@ -39,6 +40,11 @@ class Area:
             "height": self.height,
             "tags": self.tags,
         }
+
+    def transplant_to_grid(self, grid: MapGrid, shift_x: int, shift_y: int):
+        self.x += shift_x
+        self.y += shift_y
+        self.grid = grid[self.y : self.y + self.height, self.x : self.x + self.width]
 
     def __getitem__(self, key) -> "Area":
         # TODO - I think this method doesn't support negative indices.
