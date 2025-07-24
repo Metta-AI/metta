@@ -1,61 +1,29 @@
-"""Analysis utilities for experiment notebooks."""
+"""Analysis and visualization utilities for experiment notebooks."""
 
 from typing import List, Dict, Any, Optional
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import wandb
-from wandb.apis.public.runs import Run
+
+# Import data fetching functions from experiments
+from experiments.wandb import fetch_metrics_data, get_run_config, get_training_logs
 
 
-def get_run_config(run_name: str, entity: str = "metta-research", project: str = "metta") -> Dict[str, Any]:
-    """Fetch full configuration from a wandb run."""
-    try:
-        api = wandb.Api()
-        run = api.run(f"{entity}/{project}/{run_name}")
-        return run.config
-    except Exception as e:
-        print(f"Error fetching config for {run_name}: {str(e)}")
-        return {}
-
-
-def get_training_logs(
-    run_name: str, log_type: str = "stdout", entity: str = "metta-research", project: str = "metta"
-) -> List[str]:
-    """Fetch training logs (stdout/stderr) from a wandb run.
-
+def fetch_metrics(wandb_run_ids: list[str], samples: int = 1000) -> dict[str, pd.DataFrame]:
+    """Fetch metrics for analysis (notebook-friendly wrapper).
+    
     Args:
-        run_name: Name of the wandb run
-        log_type: Either "stdout" or "stderr"
-        entity: Wandb entity
-        project: Wandb project
-
+        wandb_run_ids: List of wandb run names
+        samples: Number of samples to fetch
+        
     Returns:
-        List of log lines
+        Dictionary mapping run names to dataframes
     """
-    try:
-        api = wandb.Api()
-        run = api.run(f"{entity}/{project}/{run_name}")
-
-        # Get log files
-        files = run.files()
-        log_filename = f"output.log" if log_type == "stdout" else f"error.log"
-
-        for file in files:
-            if file.name.endswith(log_filename):
-                # Download and read the log file
-                with file.download(replace=True, root="/tmp") as f:
-                    return f.read().decode("utf-8").splitlines()
-
-        print(f"No {log_type} logs found for {run_name}")
-        return []
-    except Exception as e:
-        print(f"Error fetching logs for {run_name}: {str(e)}")
-        return []
+    return fetch_metrics_data(wandb_run_ids, samples)
 
 
 def plot_sps(
-    run_names: List[str],
+    wandb_run_ids: List[str],
     samples: int = 1000,
     entity: str = "metta-research",
     project: str = "metta",
@@ -66,7 +34,7 @@ def plot_sps(
     """Plot steps per second for one or more runs.
 
     Args:
-        run_names: List of wandb run names to plot
+        wandb_run_ids: List of wandb run names to plot
         samples: Number of samples to fetch
         entity: Wandb entity
         project: Wandb project
@@ -82,10 +50,12 @@ def plot_sps(
     # Color palette for different runs
     colors = ["blue", "red", "green", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
 
-    for idx, run_name in enumerate(run_names):
+    for idx, run_name in enumerate(wandb_run_ids):
         try:
-            api = wandb.Api()
-            run = api.run(f"{entity}/{project}/{run_name}")
+            from experiments.wandb import get_run
+            run = get_run(run_name, entity, project)
+            if run is None:
+                continue
 
             # Fetch history
             history_df = run.history(samples=samples, pandas=True)
@@ -137,12 +107,12 @@ def plot_sps(
 
 
 def create_run_summary_table(
-    run_names: List[str], metrics: Optional[List[str]] = None, entity: str = "metta-research", project: str = "metta"
+    wandb_run_ids: List[str], metrics: Optional[List[str]] = None, entity: str = "metta-research", project: str = "metta"
 ) -> pd.DataFrame:
     """Create a summary table for multiple runs.
 
     Args:
-        run_names: List of wandb run names
+        wandb_run_ids: List of wandb run names
         metrics: List of metrics to include (if None, includes common ones)
         entity: Wandb entity
         project: Wandb project
@@ -160,11 +130,14 @@ def create_run_summary_table(
         ]
 
     data = []
-    api = wandb.Api()
-
-    for run_name in run_names:
+    
+    from experiments.wandb import get_run
+    for run_name in wandb_run_ids:
         try:
-            run = api.run(f"{entity}/{project}/{run_name}")
+            run = get_run(run_name, entity, project)
+            if run is None:
+                data.append({"run_name": run_name, "state": "NOT FOUND"})
+                continue
             row = {
                 "run_name": run_name,
                 "state": run.state,
