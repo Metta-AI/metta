@@ -39,6 +39,26 @@ class HeatmapData(BaseModel):
     evalMaxScores: Dict[str, float]
 
 
+class EpochHeatmapCell(BaseModel):
+    """Single cell in the epoch-based heatmap grid."""
+
+    evalName: str
+    epoch: int
+    replayUrl: Optional[str]
+    value: float
+
+
+class EpochHeatmapData(BaseModel):
+    """Epoch-based heatmap data structure showing multiple epochs per policy."""
+
+    evalNames: List[str]
+    epochs: List[int]
+    cells: Dict[str, Dict[str, Dict[int, EpochHeatmapCell]]]  # policy -> eval -> epoch -> cell
+    policyAverageScores: Dict[str, float]
+    evalAverageScores: Dict[str, float]
+    evalMaxScores: Dict[str, float]
+
+
 class PolicySelectorRequest(BaseModel):
     """Request body for policy selection."""
 
@@ -274,6 +294,72 @@ def build_heatmap(evaluations: List[PolicyEvaluation], all_eval_names: List[str]
     )
 
 
+def build_epoch_heatmap(evaluations: List[PolicyEvaluation], all_eval_names: List[str]) -> EpochHeatmapData:
+    """Build epoch-based heatmap data structure from evaluations."""
+    # Group evaluations by policy, eval, and epoch
+    data_map = {}
+    policy_uris = set()
+    all_epochs = set()
+
+    for eval in evaluations:
+        if eval.epoch is not None:
+            key = (eval.policy_uri, eval.eval_name, eval.epoch)
+            data_map[key] = eval
+            policy_uris.add(eval.policy_uri)
+            all_epochs.add(eval.epoch)
+
+    policy_uris = sorted(policy_uris)
+    epochs = sorted(all_epochs)
+
+    # Build cells
+    cells = {}
+    for policy_uri in policy_uris:
+        cells[policy_uri] = {}
+        for eval_name in all_eval_names:
+            cells[policy_uri][eval_name] = {}
+            for epoch in epochs:
+                eval = data_map.get((policy_uri, eval_name, epoch))
+                cells[policy_uri][eval_name][epoch] = EpochHeatmapCell(
+                    evalName=eval_name,
+                    epoch=epoch,
+                    replayUrl=eval.replay_url if eval else None,
+                    value=eval.value if eval else 0.0,
+                )
+
+    # Calculate averages across all epochs for each policy
+    policy_averages = {}
+    for policy_uri in policy_uris:
+        all_scores = []
+        for eval_name in all_eval_names:
+            for epoch in epochs:
+                cell = cells[policy_uri][eval_name][epoch]
+                if cell.value > 0:  # Only include non-zero values
+                    all_scores.append(cell.value)
+        policy_averages[policy_uri] = sum(all_scores) / len(all_scores) if all_scores else 0.0
+
+    # Calculate averages across all policies for each eval
+    eval_averages = {}
+    eval_max_scores = {}
+    for eval_name in all_eval_names:
+        all_scores = []
+        for policy_uri in policy_uris:
+            for epoch in epochs:
+                cell = cells[policy_uri][eval_name][epoch]
+                if cell.value > 0:  # Only include non-zero values
+                    all_scores.append(cell.value)
+        eval_averages[eval_name] = sum(all_scores) / len(all_scores) if all_scores else 0.0
+        eval_max_scores[eval_name] = max(all_scores) if all_scores else 0.0
+
+    return EpochHeatmapData(
+        evalNames=all_eval_names,
+        epochs=epochs,
+        cells=cells,
+        policyAverageScores=policy_averages,
+        evalAverageScores=eval_averages,
+        evalMaxScores=eval_max_scores,
+    )
+
+
 # ============================================================================
 # Cache Implementation
 # ============================================================================
@@ -454,6 +540,18 @@ def create_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
     async def get_heatmap_data(suite: str, metric: str, request: PolicySelectorRequest) -> HeatmapData:
         """Get cached heatmap data for a suite/metric combination."""
         return await cache.get(suite, metric, request.policy_selector)
+
+    @router.post("/suites/{suite}/metrics/{metric}/epoch-heatmap")
+    @timed_route("get_epoch_heatmap_data")
+    async def get_epoch_heatmap_data(suite: str, metric: str, request: PolicySelectorRequest) -> EpochHeatmapData:
+        """Get epoch-based heatmap data showing multiple epochs per policy."""
+        async with metta_repo.connect() as con:
+            # Fetch all evaluation data without filtering by latest/best
+            evaluations = await fetch_evaluation_data(con, suite, metric)
+            eval_names = await get_evaluation_names(con, suite)
+
+            # Build epoch-based heatmap
+            return build_epoch_heatmap(evaluations, eval_names)
 
     @router.get("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")
     @timed_route("get_training_run_heatmap_data")

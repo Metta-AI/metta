@@ -4,6 +4,13 @@ export type HeatmapCell = {
   value: number
 }
 
+export type EpochHeatmapCell = {
+  evalName: string
+  epoch: number
+  replayUrl: string | null
+  value: number
+}
+
 export type GroupDiff = {
   group_1: string
   group_2: string
@@ -16,6 +23,15 @@ export type GroupHeatmapMetric = GroupDiff | string
 export type HeatmapData = {
   evalNames: string[]
   cells: Record<string, Record<string, HeatmapCell>>
+  policyAverageScores: Record<string, number>
+  evalAverageScores: Record<string, number>
+  evalMaxScores: Record<string, number>
+}
+
+export type EpochHeatmapData = {
+  evalNames: string[]
+  epochs: number[]
+  cells: Record<string, Record<string, Record<string, EpochHeatmapCell>>>  // policy -> eval -> epoch (string) -> cell
   policyAverageScores: Record<string, number>
   evalAverageScores: Record<string, number>
   evalMaxScores: Record<string, number>
@@ -194,6 +210,7 @@ export interface Repo {
   getGroupIds(suite: string): Promise<string[]>
 
   getHeatmapData(metric: string, suite: string, policySelector?: PolicySelector): Promise<HeatmapData>
+  getEpochHeatmapData(metric: string, suite: string, policySelector?: PolicySelector): Promise<EpochHeatmapData>
 
   // Token management methods
   createToken(tokenData: TokenCreate): Promise<TokenResponse>
@@ -306,6 +323,15 @@ export class ServerRepo implements Repo {
     // Use POST endpoint for GroupDiff
     const apiData = await this.apiCallWithBody<HeatmapData>(
       `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
+      { policy_selector: policySelector }
+    )
+    return apiData
+  }
+
+  async getEpochHeatmapData(metric: string, suite: string, policySelector: PolicySelector = 'latest'): Promise<EpochHeatmapData> {
+    // Use POST endpoint for epoch-based heatmap
+    const apiData = await this.apiCallWithBody<EpochHeatmapData>(
+      `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/epoch-heatmap`,
       { policy_selector: policySelector }
     )
     return apiData

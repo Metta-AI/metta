@@ -56,9 +56,14 @@ export function TrainingRunRow({ run, canEdit, repo, onRunUpdate, onError }: Tra
   return (
     <tr>
       <td>
-        <Link to={`/training-run/${run.id}`} className={styles.trainingRunName}>
-          {run.name}
-        </Link>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <Link to={`/training-run/${run.id}`} className={styles.trainingRunName}>
+            {run.name}
+          </Link>
+          <Link to={`/policy/${run.name}`} style={{ fontSize: '12px', color: '#007bff', textDecoration: 'none' }}>
+            View Policy →
+          </Link>
+        </div>
       </td>
 
       <td className={styles.editDescriptionCell}>

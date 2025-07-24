@@ -7,6 +7,7 @@ import { TokenManager } from './TokenManager'
 import { SavedDashboards } from './SavedDashboards'
 import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
+import { PolicyView } from './PolicyView'
 import { TrainingRunDetail } from './TrainingRunDetail'
 import { EvalTasks } from './EvalTasks'
 import { config } from './config'
@@ -203,6 +204,12 @@ function App() {
               >
                 Training Runs
               </Link>
+              <Link
+                to="/policies"
+                className={`nav-tab ${location.pathname.startsWith('/policy/') ? 'active' : ''}`}
+              >
+                Policies
+              </Link>
               <Link to="/episodes" className={`nav-tab ${location.pathname === '/episodes' ? 'active' : ''}`}>
                 Episodes
               </Link>
@@ -230,6 +237,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
             <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
             <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
+            <Route path="/policy/:policyName" element={<PolicyView repo={state.repo} />} />
             <Route path="/episodes" element={<Episodes repo={state.repo} />} />
             <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
             <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />

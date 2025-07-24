@@ -700,6 +700,97 @@ class TestHeatmapRoutes:
         # Should be different from initial results (due to aggregation)
         assert first_updated["cells"] != first_result["cells"]
 
+    def test_epoch_heatmap_endpoint(self, test_client: TestClient, stats_client: StatsClient) -> None:
+        """Test the epoch-based heatmap endpoint."""
+        # Create test data with multiple epochs
+        test_data = self._create_test_data(stats_client, "epoch_test_run", num_policies=3)
+
+        # Create epochs with different training epochs
+        epoch1 = stats_client.create_epoch(
+            run_id=test_data["training_run"].id,
+            start_training_epoch=0,
+            end_training_epoch=100,
+            attributes={"learning_rate": "0.001"},
+        )
+
+        epoch2 = stats_client.create_epoch(
+            run_id=test_data["training_run"].id,
+            start_training_epoch=100,
+            end_training_epoch=200,
+            attributes={"learning_rate": "0.0005"},
+        )
+
+        epoch3 = stats_client.create_epoch(
+            run_id=test_data["training_run"].id,
+            start_training_epoch=200,
+            end_training_epoch=300,
+            attributes={"learning_rate": "0.0001"},
+        )
+
+        # Create policies for different epochs
+        policies = []
+        policy_names = []
+        epochs = [epoch1, epoch2, epoch3]
+
+        for i in range(3):
+            policy_name = f"policy_epoch_test_{i}"
+            policy = stats_client.create_policy(
+                name=policy_name,
+                description=f"Test policy {i} for epoch test",
+                epoch_id=epochs[i].id,
+            )
+            policies.append(policy)
+            policy_names.append(policy_name)
+
+        # Record episodes for each policy
+        eval_names = ["test_suite/eval_1", "test_suite/eval_2"]
+        for i, policy in enumerate(policies):
+            for eval_name in eval_names:
+                stats_client.record_episode(
+                    agent_policies={0: policy.id},
+                    agent_metrics={0: {"reward": 50.0 + i * 10}},
+                    primary_policy_id=policy.id,
+                    stats_epoch=epochs[i].id,
+                    eval_name=eval_name,
+                    simulation_suite=eval_name.split("/")[0],
+                    replay_url=f"https://example.com/replay/{policy_names[i]}/{eval_name}",
+                )
+
+        # Test the epoch-based heatmap endpoint
+        response = test_client.post(
+            "/dashboard/suites/test_suite/metrics/reward/epoch-heatmap", json={"policy_selector": "latest"}
+        )
+
+        assert response.status_code == 200
+        heatmap_data = response.json()
+
+        # Verify the structure
+        assert "evalNames" in heatmap_data
+        assert "epochs" in heatmap_data
+        assert "cells" in heatmap_data
+        assert "policyAverageScores" in heatmap_data
+        assert "evalAverageScores" in heatmap_data
+        assert "evalMaxScores" in heatmap_data
+
+        # Verify epochs are present
+        assert len(heatmap_data["epochs"]) == 3
+        assert 100 in heatmap_data["epochs"]
+        assert 200 in heatmap_data["epochs"]
+        assert 300 in heatmap_data["epochs"]
+
+        # Verify eval names
+        assert len(heatmap_data["evalNames"]) == 2
+        assert "eval_1" in heatmap_data["evalNames"]
+        assert "eval_2" in heatmap_data["evalNames"]
+
+        # Verify cells structure
+        assert len(heatmap_data["cells"]) == 3  # 3 policies
+        for policy_name in policy_names:
+            assert policy_name in heatmap_data["cells"]
+            assert len(heatmap_data["cells"][policy_name]) == 2  # 2 evals
+            for eval_name in heatmap_data["cells"][policy_name]:
+                assert len(heatmap_data["cells"][policy_name][eval_name]) == 3  # 3 epochs
+
 
 if __name__ == "__main__":
     # Simple test runner for debugging
