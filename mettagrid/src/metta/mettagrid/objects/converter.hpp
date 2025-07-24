@@ -168,9 +168,12 @@ public:
 
   void finish_converting() {
     this->converting = false;
+    // Increment the stat unconditionally
+    stats.incr("conversions.completed");
+
+    // Only increment the counter when tracking conversion limits
     if (this->max_conversions >= 0) {
       this->conversions_completed++;
-      stats.incr("conversions.completed");
     }
 
     // Add output to inventory
