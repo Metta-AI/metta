@@ -476,7 +476,12 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
       // Remove focus from the search input
       searchInput.blur()
       // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
-    } else if (state.showAgentPanel) {
+    } else if (state.showGlyphEditor) {
+      state.showGlyphEditor = false
+      localStorage.setItem('showGlyphEditor', state.showGlyphEditor.toString())
+      toggleOpacity(html.glyphToggle, state.showGlyphEditor)
+    }
+    else if (state.showAgentPanel) {
       state.showAgentPanel = false
       localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
       toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
@@ -985,8 +990,8 @@ window.addEventListener('load', async () => {
   const atlasImageUrl = 'dist/atlas.png'
   const atlasJsonUrl = 'dist/atlas.json'
 
-  const fontImageUrl = 'dist/bitty.png'
-  const fontJsonUrl = 'dist/bitty.json'
+  const fontImageUrl = 'dist/font.png'
+  const fontJsonUrl = 'dist/font.json'
 
   const success = await ctx.init(atlasJsonUrl, atlasImageUrl, fontJsonUrl, fontImageUrl)
   if (!success) {
