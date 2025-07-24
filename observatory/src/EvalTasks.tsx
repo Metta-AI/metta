@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Repo } from './repo'
 
 interface EvalTask {
@@ -23,7 +22,6 @@ interface Props {
 }
 
 export function EvalTasks({ repo }: Props) {
-  const navigate = useNavigate()
   const [tasks, setTasks] = useState<EvalTask[]>([])
   const [policyIdInput, setPolicyIdInput] = useState<string>('')
   const [gitHash, setGitHash] = useState<string>('')
