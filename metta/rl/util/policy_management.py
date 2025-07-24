@@ -7,9 +7,10 @@ from typing import Any, Optional, Tuple
 
 import torch
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
 logger = logging.getLogger(__name__)
 
@@ -210,9 +211,6 @@ def maybe_load_checkpoint(
     Returns:
         Tuple of (checkpoint, policy_record, agent_step, epoch)
     """
-    from metta.agent.metta_agent import make_policy
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
     # Try to load checkpoint
     checkpoint = TrainerCheckpoint.load(run_dir)
     agent_step = 0
@@ -227,13 +225,10 @@ def maybe_load_checkpoint(
     # SO MAYBE WE SHOULD HAVE A SUBFUNCTION
 
     if not is_master:
-        # Just create an empty policy as it will be overwritten by the DDP sync anyway
-        # Some ugly stuff happens here; FIX BEFORE MERGE
-        throwaway_policy = make_policy(metta_grid_env, cfg)
-        throwaway_policy_record = PolicyRecord(policy_store, "", "", PolicyMetadata())
-        throwaway_policy_record.policy = throwaway_policy
-
-        return checkpoint, throwaway_policy_record, agent_step, epoch
+        # On non-master ranks, we don't load a policy.
+        # A blank policy will be created later and it will be overwritten by DDP sync.
+        # We return None for the policy_record.
+        return checkpoint, None, agent_step, epoch
     else:  # for master
         # Try to load policy from checkpoint
         if checkpoint and checkpoint.policy_path:
@@ -323,12 +318,18 @@ def load_or_initialize_policy(
         rank=rank,
     )
 
-    policy = policy_record.policy
+    if policy_record:
+        policy = policy_record.policy
+    else:
+        # On non-master ranks, create a policy from scratch. It will be overwritten by DDP.
+        policy = make_policy(metta_grid_env, cfg)
 
     # Broadcast metadata from master to workers
     if torch.distributed.is_initialized():
         broadcast_obj = [None, None, None]
         if is_master:
+            if not policy_record:
+                raise ValueError("policy_record cannot be None on master rank")
             broadcast_obj = [dict(policy_record.metadata), policy_record.uri, policy_record.run_name]
         torch.distributed.broadcast_object_list(broadcast_obj, src=0)
         metadata_dict, uri, run_name = broadcast_obj
@@ -341,6 +342,8 @@ def load_or_initialize_policy(
         metadata = PolicyMetadata.from_dict(metadata_dict) if metadata_dict else PolicyMetadata()
         if not is_master:
             policy_record = PolicyRecord(policy_store, run_name, uri, metadata)
+            # Attach the newly created policy to the record to prevent reloading
+            policy_record.policy = policy
     else:
         metadata = policy_record.metadata if policy_record else PolicyMetadata()
 
@@ -355,7 +358,10 @@ def load_or_initialize_policy(
     initial_policy_record = policy_record
     latest_saved_policy_record = policy_record
 
-    logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
+    if initial_policy_record:
+        logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
+    else:
+        logger.info(f"Rank {rank}: No initial policy record found, using new policy")
 
     return policy, initial_policy_record, latest_saved_policy_record
 
