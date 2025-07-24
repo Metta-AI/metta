@@ -10,28 +10,28 @@ jobs:
   ui-test:
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.48.0-jammy
-      options: --user 1001
+      image: ghcr.io/${{ github.repository }}/mettascope-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: mettascope/package-lock.json
-
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: |
           cd mettascope
-          npm ci
+          # Use npm ci if lock file exists and is in sync, otherwise use npm install
+          if [ -f "package-lock.json" ]; then
+            npm ci || npm install
+          else
+            npm install
+          fi
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
         with:
-          install-mode: "full" # because we are training
+          install-mode: "minimal"
 
       - name: Install Mettascope
         run: |
