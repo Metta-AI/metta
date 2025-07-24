@@ -69,6 +69,7 @@ class Mesh {
 
   // Caching properties
   public cacheable: boolean = false
+  public isDirty: boolean = true
 
   constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
     this.name = name
@@ -177,6 +178,7 @@ class Mesh {
     // Reset counters instead of recreating arrays
     this.currentQuad = 0
     this.currentVertex = 0
+    this.isDirty = true
 
     // Reset scissor settings
     this.scissorEnabled = false
@@ -187,6 +189,7 @@ class Mesh {
   forceClear() {
     this.currentQuad = 0
     this.currentVertex = 0
+    this.isDirty = true
     this.scissorEnabled = false
     this.scissorRect = [0, 0, 0, 0]
   }
@@ -243,6 +246,7 @@ class Mesh {
     // Update counters
     this.currentVertex += 4
     this.currentQuad += 1
+    this.isDirty = true
   }
 
   /** Get the number of quads in the mesh. */
@@ -278,6 +282,7 @@ class Mesh {
 
     this.currentQuad = 0
     this.currentVertex = 0
+    this.isDirty = true
   }
 }
 
@@ -819,9 +824,12 @@ export class Context3d {
       const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
       const indexDataCount = quadCount * 6 // 6 indices per quad
 
-      // Update vertex buffer with current data
+      // Update vertex buffer with current data only if dirty
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer)
-      this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+      if (mesh.isDirty) {
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+        mesh.isDirty = false
+      }
 
       // Set up attributes
       this.gl.enableVertexAttribArray(this.positionLocation)
