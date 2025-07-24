@@ -41,7 +41,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
-from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.losses import PPO
 from metta.rl.util.optimization import (
     calculate_explained_variance,
     compute_gradient_stats,
@@ -268,7 +268,9 @@ class MettaTrainer:
             # Ensure all ranks have initialized DDP before proceeding
             torch.distributed.barrier()
 
+        self.ppo = PPO(self.policy, None, self.trainer_cfg, self.device, self.losses)
         self._make_experience_buffer()
+        self.ppo.experience = self.experience
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
@@ -526,18 +528,16 @@ class MettaTrainer:
                     prio_beta=anneal_beta,
                 )
 
+                # input_td = minibatch.select()  # select what policy wants
+                # new_td = self.policy(input_td, action=td["actions"])
+
                 # Use the helper function to process minibatch update
-                loss = process_minibatch_update(
-                    policy=self.policy,
-                    experience=experience,
+                loss = self.ppo(
                     td=minibatch,
                     indices=indices,
                     prio_weights=prio_weights,
-                    trainer_cfg=trainer_cfg,
                     kickstarter=self.kickstarter,
                     agent_step=self.agent_step,
-                    losses=self.losses,
-                    device=self.device,
                 )
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -938,7 +938,9 @@ class MettaTrainer:
         max_minibatch_size = trainer_cfg.minibatch_size
 
         # Get the experience buffer specification from the policy
-        experience_spec = self.policy.get_experience_spec()
+        policy_experience_spec = self.policy.get_experience_spec()
+        ppo_experience_spec = self.ppo.get_experience_spec()
+        experience_spec = policy_experience_spec.merge(ppo_experience_spec)
 
         # Create experience buffer
         self.experience = Experience(

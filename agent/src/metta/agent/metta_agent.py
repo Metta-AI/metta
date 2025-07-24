@@ -159,13 +159,7 @@ class MettaAgent(nn.Module):
         # The experience buffer will expand and move them to the correct device.
         return TensorDict(
             {
-                "obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
-                "rewards": torch.zeros((), dtype=torch.float32),
-                "dones": torch.zeros((), dtype=torch.float32),
-                "truncateds": torch.zeros((), dtype=torch.float32),
-                "actions": torch.zeros(self.agent_attributes["action_space"].shape, dtype=torch.int32),
-                "logprobs": torch.zeros((), dtype=torch.float32),
-                "values": torch.zeros((), dtype=torch.float32),
+                "dropout_mask": torch.zeros(self.components["c_dropout_mask"].output_size, dtype=torch.float32),
             },
             batch_size=[],
         )
