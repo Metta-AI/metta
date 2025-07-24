@@ -51,13 +51,15 @@ public:
   }
 
   inline bool add_object(GridObject* obj) {
+    // check if location within bounds
     if (!is_valid_location(obj->location)) {
       return false;
     }
+    // check if location has object already
     if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
       return false;
     }
-
+    // give object an id, add to object vector, and add to grid
     obj->id = static_cast<GridObjectId>(this->objects.size());
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
     this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;

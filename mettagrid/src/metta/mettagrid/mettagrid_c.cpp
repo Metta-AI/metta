@@ -86,6 +86,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
       _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      // _move_handler_idx = _action_handlers.size() - 1;
     } else if (action_name_str == "rotate") {
       _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
     } else if (action_name_str == "attack") {
@@ -429,6 +430,9 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   std::iota(agent_indices.begin(), agent_indices.end(), 0);
   std::shuffle(agent_indices.begin(), agent_indices.end(), _rng);
 
+  // Clear deferred moves
+  // _action_handlers[_move_handler_idx]->clear_deferred_moves();
+
   // Process actions by priority levels (highest to lowest)
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
@@ -460,6 +464,9 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
     }
   }
+
+  // Process deferred moves
+  // _action_handlers[_move_handler_idx]->process_deferred_moves();
 
   // Compute observations for next step
   _compute_observations(actions);

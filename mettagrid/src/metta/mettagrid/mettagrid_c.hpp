@@ -120,6 +120,7 @@ private:
   std::unique_ptr<EventManager> _event_manager;
 
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
+  // size_t _move_handler_idx;
   size_t _num_action_handlers;
   std::vector<unsigned char> _max_action_args;
   unsigned char _max_action_arg;
