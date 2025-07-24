@@ -10,7 +10,15 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from experiments.experiment import Experiment
-from experiments.types import TrainingJob, TrainingJobConfig
+from experiments.types import TrainingJob, TrainingJobConfig, BaseExperimentConfig
+from pydantic import Field
+
+
+class ArenaExperimentConfig(BaseExperimentConfig):
+    """Configuration specific to Arena experiments."""
+    # Add any arena-specific parameters here
+    # For now, just use base config
+    pass
 
 
 class ArenaExperiment(Experiment):
@@ -68,26 +76,31 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Run arena experiment")
-    parser.add_argument("--no-notebook", action="store_true", help="Skip notebook generation")
-    parser.add_argument("--name", help="Custom experiment name")
+    parser.add_argument("name", nargs="?", default="arena", help="Name for the experiment")
+    parser.add_argument("--no-launch", action="store_true", help="Skip launching new runs")
+    parser.add_argument("--job-ids", nargs="+", help="Load existing SkyPilot job IDs")
+    parser.add_argument("--open", action="store_true", help="Open notebook in Jupyter")
+    parser.add_argument("--sections", help="Comma-separated list of notebook sections")
 
     args = parser.parse_args()
 
-    # Create and run experiment
-    experiment = ArenaExperiment(name=args.name) if args.name else ArenaExperiment()
+    # Create config
+    config = ArenaExperimentConfig(
+        name=args.name,
+        launch=not args.no_launch,
+        job_ids=args.job_ids,
+        open_notebook=args.open,
+        sections=args.sections.split(",") if args.sections else None,
+    )
 
-    # Run experiment
-    results = experiment.run(generate_notebook=not args.no_notebook)
-
-    # Save metadata
-    if results["launched_jobs"]:
-        experiment.save_metadata()
-
-    print("\nExperiment complete!")
-    if results["notebook_path"]:
-        print(f"Analysis notebook: {results['notebook_path']}")
-
-    return 0 if results["launched_jobs"] else 1
+    # Create notebook
+    try:
+        notebook_path = ArenaExperiment.create_notebook(config)
+        print(f"\nNotebook created: {notebook_path}")
+        return 0
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
 
 
 if __name__ == "__main__":

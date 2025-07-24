@@ -14,7 +14,8 @@ def launch_training_run(
     curriculum: str,
     gpus: int = 1,
     nodes: int = 1,
-    no_spot: bool = False,
+    no_spot: bool = True,
+    skip_git_check: bool = False,
     additional_args: Optional[List[str]] = None,
     wandb_tags: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
@@ -28,6 +29,7 @@ def launch_training_run(
         gpus: Number of GPUs per node
         nodes: Number of nodes
         no_spot: Whether to disable spot instances
+        skip_git_check: Whether to skip git state validation
         additional_args: Additional command line arguments
         wandb_tags: Tags for wandb
 
@@ -51,11 +53,16 @@ def launch_training_run(
 
     if no_spot:
         cmd.append("--no-spot")
+    
+    if skip_git_check:
+        cmd.append("--skip-git-check")
 
     cmd.append(f"trainer.curriculum={curriculum}")
 
     if wandb_tags:
-        cmd.append(f"+wandb.tags={json.dumps(wandb_tags)}")
+        # Hydra expects list values as comma-separated strings in square brackets
+        tags_str = "[" + ",".join(wandb_tags) + "]"
+        cmd.append(f"+wandb.tags={tags_str}")
 
     if additional_args:
         cmd.extend(additional_args)
