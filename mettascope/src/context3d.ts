@@ -53,6 +53,7 @@ class Mesh {
   private gl: WebGLRenderingContext
   private vertexBuffer: WebGLBuffer | null = null
   private indexBuffer: WebGLBuffer | null = null
+  public texture: WebGLTexture | null = null;
 
   // Buffer management
   private maxQuads: number
@@ -754,7 +755,6 @@ export class Context3d {
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
   }
 
-
   drawText(
     text: string,
     x: number,
@@ -764,21 +764,75 @@ export class Context3d {
     spacing = 0,
     center = false
   ) {
-
     if (!this.ready) throw new Error("Context not ready")
     if (!this.fontAtlasData || !this.fontAtlasTexture) {
       console.error("Font atlas not loaded")
       return
     }
 
-    this.ensureMeshSelected()
+    // Save the current mesh by name
+    const previousMeshName = this.currentMeshName
+
+    // Switch to font mesh or create it if needed
+    this.useMesh('font')
+
+    // Set the font texture on the font mesh
+    this.currentMesh!.texture = this.fontAtlasTexture
+
+    // Cast fontAtlasData to any to access our custom structure
+    const fontData = this.fontAtlasData as any
+
+    // Helper function to get character info with emoji code support
+    const getCharInfo = (char: string) => {
+      if (!fontData) return null
+
+      // Check if it's an emoji code like :happy:
+      if (char.startsWith(':') && char.endsWith(':')) {
+        const emojiChar = fontData.emojiCodes?.[char]
+        if (emojiChar && fontData.characters) {
+          return fontData.characters[emojiChar]
+        }
+      }
+      return fontData.characters?.[char]
+    }
+
+    // Parse text to handle multi-character emoji codes
+    const parseText = (text: string): string[] => {
+      const chars: string[] = []
+      let i = 0
+      while (i < text.length) {
+        // Check for emoji code
+        if (text[i] === ':') {
+          const endIndex = text.indexOf(':', i + 1)
+          if (endIndex !== -1) {
+            const code = text.substring(i, endIndex + 1)
+            if (fontData.emojiCodes?.[code]) {
+              chars.push(code)
+              i = endIndex + 1
+              continue
+            }
+          }
+        }
+        // Regular character
+        chars.push(text[i])
+        i++
+      }
+      return chars
+    }
+
+    // Parse the text into characters/emoji codes
+    const textChars = parseText(text)
 
     // Compute total width (for centering)
     let totalWidth = 0
-    for (const char of text) {
-      const frame = this.fontAtlasData[char]
-      if (!frame) continue
-      totalWidth += frame[2] * scale + spacing
+    for (const char of textChars) {
+      const charInfo = getCharInfo(char)
+      if (!charInfo) continue
+      const charWidth = charInfo.width || fontData.metadata?.cellWidth || 24
+      totalWidth += charWidth * scale + spacing
+    }
+    if (totalWidth > 0) {
+      totalWidth -= spacing // Remove last spacing
     }
 
     let cursorX = x
@@ -786,29 +840,39 @@ export class Context3d {
       cursorX -= totalWidth / 2
     }
 
-    // Switch to font texture
-    this.gl.activeTexture(this.gl.TEXTURE0)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.fontAtlasTexture)
-    this.gl.uniform1i(this.samplerLocation, 0)
-
     // Draw each character
-    for (const char of text) {
-      const frame = this.fontAtlasData[char]
-      if (!frame) continue
+    for (const char of textChars) {
+      const charInfo = getCharInfo(char)
+      if (!charInfo) {
+        console.warn(`Character not found in font atlas: ${char}`)
+        continue
+      }
 
-      const [sx, sy, sw, sh] = frame
+      const sx = charInfo.x
+      const sy = charInfo.y
+      const sw = charInfo.width || fontData.metadata?.cellWidth || 24
+      const sh = charInfo.height || fontData.metadata?.cellHeight || 36
+
       const u0 = sx / this.fontTextureSize.x()
       const v0 = sy / this.fontTextureSize.y()
       const u1 = (sx + sw) / this.fontTextureSize.x()
       const v1 = (sy + sh) / this.fontTextureSize.y()
 
-      this.drawRect(cursorX, y, sw * scale, sh * scale, u0, v0, u1, v1, color)
+      // Check if this is an emoji (don't apply color tinting to emojis)
+      const isEmoji = char.startsWith(':') ||
+        ['😀', '😢', '😡', '👽', '✨', '💀', '💖', '←', '↑', '→', '↓'].includes(char)
+
+      const drawColor = isEmoji ? [1, 1, 1, 1] : color
+
+      this.drawRect(cursorX, y, sw * scale, sh * scale, u0, v0, u1, v1, drawColor)
 
       cursorX += sw * scale + spacing
     }
 
-    // Re-bind main texture for other draw calls
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.mainAtlasTexture)
+    // Restore previous mesh
+    if (previousMeshName) {
+      this.useMesh(previousMeshName)
+    }
   }
 
   /** Flushes all non-empty meshes to the screen. */
@@ -845,13 +909,15 @@ export class Context3d {
     // Set canvas size uniform
     this.gl.uniform2f(this.canvasSizeLocation, screenWidth, screenHeight)
 
-    // Bind texture
-    this.gl.activeTexture(this.gl.TEXTURE0)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.mainAtlasTexture)
-    this.gl.uniform1i(this.samplerLocation, 0)
-
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
+
+      // Bind texture
+      const texture = mesh.texture || this.mainAtlasTexture;
+      this.gl.activeTexture(this.gl.TEXTURE0)
+      this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
+      this.gl.uniform1i(this.samplerLocation, 0)
+
       const quadCount = mesh.getQuadCount()
       if (quadCount === 0) continue
 

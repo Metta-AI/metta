@@ -612,14 +612,7 @@ function drawGlyphBubbles() {
       const bubbleX = centerX - Common.TILE_SIZE * 0.6;
       const bubbleY = centerY - Common.TILE_SIZE / 2;
 
-
       const glyphString = glyphAssociations[glyphId] || ''
-
-      if (ctx.fontAtlasData) {
-        for (const char of glyphString) {
-          console.log(`Char '${char}':`, ctx.fontAtlasData[char]);
-        }
-      }
 
       if (glyphString !== '') {
         ctx.drawSprite(
@@ -632,29 +625,43 @@ function drawGlyphBubbles() {
           0 // rotation
         )
 
-        // Draw debug rectangle where text should be
-        let text_width = Common.TILE_SIZE * 0.8
-        let text_height = Common.TILE_SIZE * 0.3
-        let boxX = bubbleX - text_width / 2
-        let boxY = bubbleY - text_height / 2
+        let text_width = Common.TILE_SIZE * 0.95
+        let text_height = text_width * 0.6
 
-        // ctx.drawSprite(
-        //   'white.png', // 32x32 pixels
-        //   boxX + text_width / 2,
-        //   boxY + text_height / 2,
-        //   [1, 0, 0, 1], // RED tint
-        //   text_width / 64, // scale x
-        //   text_height / 64, // scale y
-        //   0             // no rotation
-        // )
+        let boxX = bubbleX + Common.TILE_SIZE * 0.02
+        let boxY = bubbleY - Common.TILE_SIZE * 0.05
+
+        ctx.drawSprite(
+          'white.png', // the sprite is 64x64
+          boxX,
+          boxY,
+          [1, 0, 0, 0.1], // red tint
+          text_width / 64, // scale x
+          text_height / 64, // scale y
+          0             // no rotation
+        )
+
+        // Remove all :emoji: patterns and count them
+        const emojiPattern = /:[a-zA-Z0-9_+-]+:/g;
+        const emojiMatches = glyphString.match(emojiPattern) || [];
+        const emojiCount = emojiMatches.length;
+
+        // Remove the emoji patterns from the string
+        const strippedString = glyphString.replace(emojiPattern, '');
+
+        // Calculate the modified length
+        const modifiedLength = strippedString.length + emojiCount;
+
+        // Use the modified length in your calculation
+        let one_grid_cell = Common.TILE_SIZE / 24 / modifiedLength;
 
         ctx.drawText(
           glyphString,
-          boxX + text_width / 2,
-          boxY + text_height / 2,
+          boxX,
+          boxY,
           [0, 0, 0, 1], // fill black
-          text_height / 8, // scale
-          0, // spacing
+          one_grid_cell * 0.8, // scale
+          -10, // spacing
           true // center horizontally
         )
 

@@ -18,5 +18,5 @@ npm run build
 ./tools/gen_atlas.py
 
 # Copy the font sprites to dist
-cp ./data/fonts/bitty.json ./dist/bitty.json
-cp ./data/fonts/bitty.png ./dist/bitty.png
+cp ./data/fonts/font.json ./dist/font.json
+cp ./data/fonts/font.png ./dist/font.png
