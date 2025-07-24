@@ -3,8 +3,7 @@ requires = [
     "scikit-build-core", 
     "wheel", 
     "numpy<2",
-    "pybind11==2.10.4",
-    "metta-common @ git+https://github.com/metta-ai/metta.git@richard-alt-versions#subdirectory=common"
+    "pybind11==2.10.4"
 ]
 build-backend = "scikit_build_core.build"
 
