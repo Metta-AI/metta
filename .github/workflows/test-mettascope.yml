@@ -42,34 +42,13 @@ jobs:
           echo "Installation complete"
           echo "::endgroup::"
 
-      - name: Check disk usage
-        run: df -h
-
       - name: Run quick training job for basic replay data
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
-
-          # Find what directories exist before training
-          echo "Directories before training:"
-          ls -la
-
-          # Run training
           uv run tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
-
-          # Find what was created
-          echo "Directories after training:"
-          ls -la
-
-          # Find large files created by training
-          echo "Large files created (modified in last 5 min):"
-          find . -type f -mmin -5 -size +100M -exec ls -lh {} \; 2>/dev/null || true
-
-          echo "Training job completed"
           echo "::endgroup::"
 
-      - name: Check disk usage
-        run: df -h
 
       - name: Generate replay
         run: |
@@ -78,9 +57,6 @@ jobs:
           uv run tools/replay.py run=smoke_test +hardware=github wandb=off
           echo "Replay generation completed"
           echo "::endgroup::"
-
-      - name: Check disk usage
-        run: df -h
 
       - name: Run mettascope playwright tests
         run: |
@@ -169,6 +145,23 @@ jobs:
             exit 1
           fi
 
+          echo "::endgroup::"
+
+
+      # this workflow fills the disk to 97% after training
+      - name: Clean up venv to free disk space
+        run: |
+          echo "::group::Cleaning up venv"
+          echo "Disk usage before cleanup:"
+          df -h
+          echo "Size of .venv:"
+          du -sh .venv || echo "No .venv found"
+
+          # Remove the entire venv - we're done with Python execution
+          rm -rf .venv
+
+          echo "Disk usage after removing .venv:"
+          df -h
           echo "::endgroup::"
 
       - name: Upload test artifacts
