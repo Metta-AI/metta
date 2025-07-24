@@ -13,6 +13,16 @@ enum EventType {
   EventTypeCount
 };
 
+enum Orientation {
+  Up = 0,
+  Down = 1,
+  Left = 2,
+  Right = 3
+};
+
+// Direction names for use with movement and rotation tracking
+constexpr const char* OrientationNames[] = {"up", "down", "left", "right"};
+
 namespace GridLayer {
 constexpr ObservationType AgentLayer = 0;
 constexpr ObservationType ObjectLayer = 1;
