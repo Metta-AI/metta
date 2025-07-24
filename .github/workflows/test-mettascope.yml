@@ -11,9 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/metta-ai/metta/mettascope-ci:pr-1638 # switch to latest after push to main
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
       options: --shm-size=2gb
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
