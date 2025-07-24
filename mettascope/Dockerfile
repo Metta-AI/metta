@@ -31,8 +31,5 @@ RUN apt-get update && apt-get install -y \
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
-
 # Set working directory
 WORKDIR /app
