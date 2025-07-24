@@ -318,6 +318,29 @@ class MettaCLI:
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
+    
+    def cmd_notebook(self, args) -> None:
+        """Create an experiment notebook."""
+        # Build command for the recipe
+        if args.recipe == "arena":
+            cmd = [sys.executable, str(self.repo_root / "experiments" / "recipes" / "arena_experiment.py")]
+            cmd.append(args.name)
+            
+            if args.no_launch:
+                cmd.append("--no-launch")
+            if args.job_ids:
+                cmd.extend(["--job-ids"] + args.job_ids)
+            if not args.no_open:
+                cmd.append("--open")
+                
+            try:
+                subprocess.run(cmd, cwd=self.repo_root, check=True)
+            except subprocess.CalledProcessError as e:
+                sys.exit(e.returncode)
+        else:
+            error(f"Unknown recipe: {args.recipe}")
+            info("Available recipes: arena")
+            sys.exit(1)
 
     def cmd_status(self, args) -> None:
         """Show status of all components."""
@@ -580,6 +603,14 @@ Examples:
         # Tool command
         tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
         tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
+        
+        # Notebook command
+        notebook_parser = subparsers.add_parser("notebook", help="Create experiment notebooks")
+        notebook_parser.add_argument("name", nargs="?", default="arena", help="Name for the notebook (default: arena)")
+        notebook_parser.add_argument("--recipe", default="arena", help="Experiment recipe to use (default: arena)")
+        notebook_parser.add_argument("--no-launch", action="store_true", help="Skip launching new runs")
+        notebook_parser.add_argument("--job-ids", nargs="+", help="Load existing SkyPilot job IDs")
+        notebook_parser.add_argument("--no-open", action="store_true", help="Don't open notebook after creation")
 
         # Shell command
         subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
@@ -680,6 +711,8 @@ Examples:
             self.cmd_pytest(unknown_args + ["--testmon"])
         elif args.command == "tool":
             self.cmd_tool(args.tool_name, unknown_args)
+        elif args.command == "notebook":
+            self.cmd_notebook(args)
         elif args.command == "lint":
             self.cmd_lint(args)
         elif args.command == "shell":

@@ -6,8 +6,10 @@ import json
 import os
 from datetime import datetime
 
-from experiments.types import TrainingJob, TrainingJobConfig
+from experiments.types import TrainingJob, TrainingJobConfig, BaseExperimentConfig
 from experiments.launch import launch_training_run
+from experiments.monitoring import get_wandb_run_name_from_sky_job
+import subprocess
 
 
 class Experiment(ABC):
@@ -77,6 +79,7 @@ class Experiment(ABC):
             gpus=config.gpus,
             nodes=config.nodes,
             no_spot=config.no_spot,
+            skip_git_check=config.skip_git_check,
             additional_args=config.additional_args,
             wandb_tags=config.wandb_tags,
         )
@@ -98,7 +101,7 @@ class Experiment(ABC):
         """Generate analysis notebook for the experiment.
 
         Args:
-            output_dir: Directory to save notebook. If None, uses experiments/log/.
+            output_dir: Directory to save notebook. If None, uses experiments/scratch/.
 
         Returns:
             Path to generated notebook
@@ -117,9 +120,9 @@ class Experiment(ABC):
         analysis_config = self.get_analysis_config()
         self.metadata["analysis_config"] = analysis_config
 
-        # Default to experiments/log/ directory
+        # Default to experiments/scratch/ directory
         if output_dir is None:
-            output_dir = os.path.join("experiments", "log")
+            output_dir = os.path.join("experiments", "scratch")
 
         # Generate notebook
         from experiments.notebooks.generation import generate_notebook_from_template
@@ -167,7 +170,7 @@ class Experiment(ABC):
         """Save experiment metadata to JSON file.
 
         Args:
-            filepath: Path to save metadata. If None, auto-generates in experiments/log/.
+            filepath: Path to save metadata. If None, auto-generates in experiments/scratch/.
 
         Returns:
             Path to saved file
@@ -175,7 +178,7 @@ class Experiment(ABC):
         if filepath is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{self.name}_{timestamp}_metadata.json"
-            filepath = os.path.join("experiments", "log", filename)
+            filepath = os.path.join("experiments", "scratch", filename)
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
@@ -191,3 +194,70 @@ class Experiment(ABC):
 
         print(f"Saved metadata to: {filepath}")
         return filepath
+    
+    @classmethod
+    def create_notebook(cls, config: BaseExperimentConfig) -> str:
+        """Create a notebook from configuration, handling job loading and launching.
+        
+        Args:
+            config: Experiment configuration
+            
+        Returns:
+            Path to generated notebook
+        """
+        # Create instance
+        instance = cls(config.name)
+        
+        # Load existing jobs if provided
+        if config.job_ids:
+            print(f"Loading {len(config.job_ids)} existing jobs...")
+            for job_id in config.job_ids:
+                run_name = get_wandb_run_name_from_sky_job(job_id)
+                if run_name:
+                    job = TrainingJob(
+                        wandb_run_name=run_name,
+                        skypilot_job_id=job_id,
+                    )
+                    instance.training_jobs.append(job)
+                    print(f"  ✓ Job {job_id} → {run_name}")
+                else:
+                    print(f"  ✗ Job {job_id} → Could not find run name")
+        
+        # Launch new runs if requested (and no jobs loaded)
+        if config.launch and not instance.training_jobs:
+            instance.launch_training_runs()
+        
+        # Generate notebook
+        from experiments.notebooks.generation import generate_notebook
+        
+        wandb_run_names = [job.wandb_run_name for job in instance.training_jobs] if instance.training_jobs else None
+        skypilot_job_ids = [job.skypilot_job_id for job in instance.training_jobs if job.skypilot_job_id] if instance.training_jobs else None
+        
+        notebook_path = generate_notebook(
+            name=config.name,
+            description=config.description or f"Notebook for {instance.__class__.__name__}",
+            sections=config.sections,
+            wandb_run_names=wandb_run_names,
+            skypilot_job_ids=skypilot_job_ids,
+            additional_metadata={
+                **instance.metadata,
+                "from_recipe": True,
+            },
+            output_dir=config.output_dir,
+        )
+        
+        # Open notebook if requested
+        if config.open_notebook:
+            print("\nOpening notebook in Jupyter...")
+            try:
+                subprocess.Popen(
+                    ["uv", "run", "jupyter", "notebook", notebook_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print("✓ Jupyter notebook launched")
+            except Exception as e:
+                print(f"Failed to open notebook: {e}")
+                print(f"\nTo open manually:\n  uv run jupyter notebook {notebook_path}")
+        
+        return notebook_path
