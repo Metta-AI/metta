@@ -21,7 +21,7 @@ class MettaCLI:
         self.repo_root: Path = get_repo_root()
         self.config: SetupConfig = SetupConfig()
         self.path_setup: PathSetup = PathSetup(self.repo_root)
-        self.local_commands: LocalCommands = LocalCommands(self.repo_root)
+        self.local_commands: LocalCommands = LocalCommands()
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
