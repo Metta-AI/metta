@@ -91,19 +91,20 @@ export function drawTrace(panel: PanelInfo) {
     lastCachedState.panPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
   }
 
+  // Clear and regenerate ALL content only when needed
+  if (!shouldRegenerate) {
+    return
+  }
+  console.log('Regenerating trace')
 
   ctx.save()
+  ctx.clearMesh()
+
   const rect = panel.rectInner()
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
   const fullSize = new Vec2f(state.replay.max_steps * Common.TRACE_WIDTH, state.replay.num_agents * Common.TRACE_HEIGHT)
 
-  // Clear and regenerate ALL content only when needed
-  if (!shouldRegenerate) {
-    return
-  }
-
-  ctx.clearMesh()
 
   // Draw the background.
   ctx.drawSolidRect(
