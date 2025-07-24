@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import importlib
-from dataclasses import dataclass
 from typing import Generic, Optional, Type, TypeVar, get_args, get_origin
 
 import numpy as np
@@ -13,13 +14,6 @@ from metta.map.types import Area, AreaQuery, ChildrenAction, SceneCfg
 ParamsT = TypeVar("ParamsT", bound=Config)
 
 SceneT = TypeVar("SceneT", bound="Scene")
-
-
-# This class is useful for debugging: we store every scene we produce dynamically.
-@dataclass
-class ChildInfo:
-    area: Area
-    scene: "Scene"
 
 
 class Scene(Generic[ParamsT]):
@@ -38,6 +32,7 @@ class Scene(Generic[ParamsT]):
 
     _areas: list[Area]
     children_actions: list[ChildrenAction]
+    children: list[Scene]
 
     # { "lock_name": [area_id1, area_id2, ...] }
     _locks: dict[str, set[int]]
@@ -83,7 +78,7 @@ class Scene(Generic[ParamsT]):
                 action = ChildrenAction(**action)
             self.children_actions.append(action)
 
-        self.child_infos: list[ChildInfo] = []
+        self.children = []
 
         self.area = area
 
@@ -107,9 +102,6 @@ class Scene(Generic[ParamsT]):
         """
         pass
 
-    def register_child(self, area: Area, child_scene: "Scene"):
-        self.child_infos.append(ChildInfo(area=area, scene=child_scene))
-
     # Subclasses can override this to provide a list of children actions.
     # By default, children actions are static, which makes them configurable in the config file, but then can't depend
     # on the specific generated content.
@@ -122,15 +114,15 @@ class Scene(Generic[ParamsT]):
             "type": self.__class__.__name__,
             "params": self.params.model_dump(),
             "area": self.area.as_dict(),
-            "children": [child.scene.get_scene_tree() for child in self.child_infos],
+            "children": [child.get_scene_tree() for child in self.children],
         }
 
     def print_scene_tree(self, indent=0):
         print(" " * indent + self.__class__.__name__)
         print(" " * indent + f"area: {self.area.as_dict()}")
         print(" " * indent + f"params: {self.params.model_dump()}")
-        for child in self.child_infos:
-            child.scene.print_scene_tree(indent + 2)
+        for child in self.children:
+            child.print_scene_tree(indent + 2)
 
     # Render implementations can do two things:
     # - update `self.grid` as it sees fit
@@ -146,7 +138,7 @@ class Scene(Generic[ParamsT]):
             for area in areas:
                 child_rng = self.rng.spawn(1)[0]
                 child_scene = make_scene(cfg=action.scene, area=area, rng=child_rng)
-                self.register_child(area, child_scene)
+                self.children.append(child_scene)
                 child_scene.render_with_children()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[list[str]] = None) -> Area:

@@ -36,7 +36,6 @@ def scene():
     return scene
 
 
-# Original tests remain unchanged
 def test_areas_are_correctly_created(scene):
     assert scene._areas[0].tags == ["tag1", "tag2", "scene1"]
     assert np.array_equal(scene._areas[0].grid, np.array([["A", "B", "C"], ["F", "G", "H"]]))
