@@ -57,12 +57,29 @@ class ObsTokenToBoxShaper(LayerBase):
         batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
         valid_tokens = coords_byte != 0xFF
+
+        # Additional validation: ensure atr_indices are within valid range
+        valid_atr = atr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_atr
+
+        # Log warning for out-of-bounds indices
+        invalid_atr_mask = valid_tokens & ~valid_atr
+        if invalid_atr_mask.any():
+            invalid_indices = atr_indices[invalid_atr_mask].unique()
+            import warnings
+
+            warnings.warn(
+                f"Found observation attribute indices {invalid_indices.tolist()} >= num_layers ({self.num_layers}). "
+                f"These tokens will be ignored. Check feature_normalizations configuration.",
+                stacklevel=2,
+            )
+
         box_obs[
-            batch_indices[valid_tokens],
-            atr_indices[valid_tokens],
-            x_coord_indices[valid_tokens],
-            y_coord_indices[valid_tokens],
-        ] = atr_values[valid_tokens]
+            batch_indices[valid_mask],
+            atr_indices[valid_mask],
+            x_coord_indices[valid_mask],
+            y_coord_indices[valid_mask],
+        ] = atr_values[valid_mask]
 
         td["_TT_"] = TT
         td["_batch_size_"] = B
