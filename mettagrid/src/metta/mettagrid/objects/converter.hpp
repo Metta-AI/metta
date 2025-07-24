@@ -187,6 +187,10 @@ public:
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
+    } else {
+      // Negative cooldown means never convert again
+      this->cooling_down = true;
+      stats.incr("conversions.permanent_stop");
     }
   }
 
