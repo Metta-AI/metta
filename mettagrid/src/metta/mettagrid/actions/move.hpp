@@ -6,6 +6,7 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "objects/constants.hpp"
 #include "types.hpp"
 
 class Move : public ActionHandler {
@@ -41,8 +42,7 @@ protected:
 
     // Track movement direction on success (only if tracking enabled)
     if (success && _track_movement_metrics) {
-      static const char* direction_names[] = {"up", "down", "left", "right"};
-      actor->stats.add(std::string("movement.direction.") + direction_names[static_cast<int>(move_direction)], 1);
+      actor->stats.add(std::string("movement.direction.") + OrientationNames[static_cast<int>(move_direction)], 1);
     }
 
     return success;

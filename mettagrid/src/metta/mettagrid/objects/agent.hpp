@@ -73,8 +73,6 @@ public:
   RewardType current_stat_reward;
   RewardType* reward;
 
-  int last_action_index = -1;  // Last non-noop action taken by this agent
-
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
         frozen(0),

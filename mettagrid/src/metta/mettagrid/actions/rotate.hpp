@@ -5,6 +5,7 @@
 
 #include "action_handler.hpp"
 #include "objects/agent.hpp"
+#include "objects/constants.hpp"
 #include "types.hpp"
 
 class Rotate : public ActionHandler {
@@ -24,8 +25,12 @@ protected:
 
     // Track which orientation the agent rotated to (only if tracking enabled)
     if (_track_movement_metrics) {
-      static const char* direction_names[] = {"up", "down", "left", "right"};
-      actor->stats.add(std::string("movement.rotation.to_") + direction_names[static_cast<int>(orientation)], 1);
+      actor->stats.add(std::string("movement.rotation.to_") + OrientationNames[static_cast<int>(orientation)], 1);
+
+      // Check if last action was also a rotation for sequential tracking
+      if (ActionHandler::get_last_action_name(actor->agent_id) == "rotate") {
+        actor->stats.add("movement.sequential_rotations", 1);
+      }
     }
 
     return true;

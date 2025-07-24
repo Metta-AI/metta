@@ -33,6 +33,9 @@
 
 namespace py = pybind11;
 
+// Static member definition for ActionHandler
+std::map<size_t, std::string> ActionHandler::_global_last_actions;
+
 MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int seed)
     : obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -76,9 +79,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   _action_success.resize(num_agents);
 
-  _rotate_action_index = -1;  // Initialize to invalid index
-  _noop_action_index = -1;    // Initialize to invalid index
-
   for (const auto& [action_name, action_config] : cfg.actions) {
     std::string action_name_str = action_name;
 
@@ -87,12 +87,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     } else if (action_name_str == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name_str == "noop") {
-      _noop_action_index = _action_handlers.size();  // Store index before adding
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
       _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "rotate") {
-      _rotate_action_index = _action_handlers.size();  // Store index before adding
       _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
@@ -243,11 +241,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     }
 
     _resource_rewards[agent_idx] = packed;
-  }
-
-  // Initialize movement tracking
-  if (_track_movement_metrics) {
-    // Per-agent tracking data is now stored in Agent objects
   }
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
@@ -472,28 +465,6 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     }
   }
 
-  // Track sequential rotations
-  if (_track_movement_metrics && _rotate_action_index >= 0) {
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
-      ActionType action = actions_view(agent_idx, 0);
-
-      // Check if this is a rotation
-              if (action == _rotate_action_index && _action_success[agent_idx]) {
-          // If last action was also a rotation, this is a sequential rotation
-          if (_agents[agent_idx]->last_action_index == _rotate_action_index) {
-            // Count this rotation as sequential (it follows another rotation)
-            _agents[agent_idx]->stats.add("movement.sequential_rotations", 1);
-          }
-        }
-      // Note: noop actions don't affect the sequence - they neither break it nor increment it
-
-              // Update last action index (but don't update for noop)
-        if (action != _noop_action_index) {
-          _agents[agent_idx]->last_action_index = action;
-        }
-    }
-  }
-
   // Compute observations for next step
   _compute_observations(actions);
 
@@ -527,6 +498,12 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
+  // Clear action tracking from previous episodes
+  ActionHandler::clear_all_tracking();
+  for (auto& handler : _action_handlers) {
+    handler->clear_tracking();
+  }
+
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
@@ -554,13 +531,6 @@ py::tuple MettaGrid::reset() {
   std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
             static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
             static_cast<ActionType>(0));
-
-      // Reset movement tracking state
-    if (_track_movement_metrics) {
-      for (auto& agent : _agents) {
-        agent->last_action_index = -1;  // No previous action
-      }
-    }
 
   _compute_observations(zero_actions);
 
@@ -750,11 +720,6 @@ py::dict MettaGrid::get_episode_stats() {
   //   "converter": list[dict[str, float]]  // Per-converter statistics
   // }
   // All stat values are guaranteed to be floats from StatsTracker::to_dict()
-
-  // Reset last action tracking for next episode
-  for (auto& agent : _agents) {
-    agent->last_action_index = -1;  // Reset last action
-  }
 
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());

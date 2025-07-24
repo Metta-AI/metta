@@ -152,8 +152,6 @@ private:
 
   // Movement tracking
   bool _track_movement_metrics;
-  int _rotate_action_index = -1;  // Index of the rotate action in _action_handlers
-  int _noop_action_index = -1;  // Index of the noop action in _action_handlers
 
   void init_action_handlers();
   void add_agent(Agent* agent);
