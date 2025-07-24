@@ -27,16 +27,12 @@ class LocalCommands:
         self._build_img("metta-app-backend:latest", self.repo_root / "app_backend" / "Dockerfile")
 
     def build_policy_evaluator_img(
-        self, tag: str = "metta-policy-evaluator-local:latest", unknown_args: list[str] | None = None
+        self, tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
     ) -> None:
-        build_args = []
-        if unknown_args:
-            build_args = unknown_args
-
         self._build_img(
             tag,
             self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
-            build_args,
+            build_args or [],
         )
 
     def load_policies(self, unknown_args) -> None:

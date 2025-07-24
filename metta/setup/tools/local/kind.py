@@ -273,7 +273,7 @@ class EksProd(Kind):
 
         LocalCommands().build_policy_evaluator_img(
             tag=local_image_name,
-            unknown_args=["--platform", "linux/amd64"],
+            build_args=["--platform", "linux/amd64"],
         )
         push_image(
             local_image_name=local_image_name,

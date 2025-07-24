@@ -242,7 +242,7 @@ class MettaCLI:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
             if args.local_command == "build-policy-evaluator-img":
-                self.local_commands.build_policy_evaluator_img(unknown_args)
+                self.local_commands.build_policy_evaluator_img(build_args=unknown_args)
             elif args.local_command == "build-app-backend-img":
                 self.local_commands.build_app_backend_img()
             elif args.local_command == "load-policies":
