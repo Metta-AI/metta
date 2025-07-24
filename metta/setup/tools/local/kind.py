@@ -111,21 +111,6 @@ class Kind:
             check=True,
         )
 
-        # Clean up secrets
-        subprocess.run(
-            [
-                "kubectl",
-                "delete",
-                "secret",
-                "wandb-api-secret",
-                "machine-token-secret",
-                "-n",
-                self.namespace,
-                "--ignore-not-found=true",
-            ],
-            check=True,
-        )
-
         success("Stopped (cluster preserved for faster restarts)")
 
     def clean(self) -> None:
