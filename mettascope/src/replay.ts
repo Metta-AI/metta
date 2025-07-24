@@ -10,13 +10,14 @@ export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): 
     // When the step is not passed in, use the global step.
     atStep = state.step
   }
-  if (obj[attr] === undefined) {
+  let prop = obj[attr]
+  if (prop === undefined) {
     return defaultValue
-  } else if (obj[attr] instanceof Array) {
-    return obj[attr][atStep]
+  } else if (prop instanceof Array) {
+    return prop[atStep]
   } else {
     // This must be a constant that does not change over time.
-    return obj[attr]
+    return prop
   }
 }
 
