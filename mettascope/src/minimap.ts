@@ -50,7 +50,6 @@ export function renderMinimapObjects(offset: Vec2f) {
         y + offset.y() + 0.5,
         Common.colorFromId(agent_id),
         pipScale,
-        pipScale,
         0
       )
     }

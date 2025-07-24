@@ -138,7 +138,6 @@ export function drawTrace(panel: PanelInfo) {
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT - 32,
           [1.0, 1.0, 1.0, 1.0],
-          1 / 4,
           1 / 4
         )
       }
@@ -164,7 +163,6 @@ export function drawTrace(panel: PanelInfo) {
               j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
               i * Common.TRACE_HEIGHT + y,
               color,
-              1 / 4,
               1 / 4
             )
             y += step
