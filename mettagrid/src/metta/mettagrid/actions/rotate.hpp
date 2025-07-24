@@ -9,7 +9,8 @@
 
 class Rotate : public ActionHandler {
 public:
-  explicit Rotate(const ActionConfig& cfg) : ActionHandler(cfg, "rotate") {}
+  explicit Rotate(const ActionConfig& cfg, bool track_movement_metrics = false)
+      : ActionHandler(cfg, "rotate"), _track_movement_metrics(track_movement_metrics) {}
 
   unsigned char max_arg() const override {
     return 3;
@@ -29,6 +30,9 @@ protected:
 
     return true;
   }
+
+private:
+  bool _track_movement_metrics;
 };
 
 #endif  // ACTIONS_ROTATE_HPP_

@@ -90,10 +90,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _noop_action_index = _action_handlers.size();  // Store index before adding
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "rotate") {
       _rotate_action_index = _action_handlers.size();  // Store index before adding
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
       if (!attack_config) {
@@ -274,7 +274,7 @@ void MettaGrid::init_action_handlers() {
 
   for (size_t i = 0; i < _action_handlers.size(); i++) {
     auto& handler = _action_handlers[i];
-    handler->init(_grid.get(), _track_movement_metrics);
+    handler->init(_grid.get());
     if (handler->priority > _max_action_priority) {
       _max_action_priority = handler->priority;
     }

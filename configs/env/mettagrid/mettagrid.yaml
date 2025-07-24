@@ -16,7 +16,7 @@ game:
   max_steps: 1000
 
   # Movement metrics tracking
-  track_movement_metrics: true 
+  track_movement_metrics: true
 
   # Global observation tokens configuration
   global_obs:
@@ -66,5 +66,3 @@ game:
     change_glyph:
       enabled: false
       number_of_glyphs: 4
-
-episode_truncates: true  # Use truncation instead of done for max_steps

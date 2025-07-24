@@ -70,7 +70,7 @@ def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
         if key in core_metrics:
             filtered[key] = value
         # Skip any movement metric with derived stats suffixes
-        elif "movement.direction" in key or "movement.sequential_rotations" in key or "movement.rotation" in key:
+        elif key.startswith("env_agent/movement"):
             continue
         # Keep all non-movement metrics
         else:

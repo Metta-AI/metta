@@ -25,7 +25,6 @@ class ActionHandler {
 public:
   unsigned char priority;
   Grid* _grid{};
-  bool _track_movement_metrics = false;
 
   ActionHandler(const ActionConfig& cfg, const std::string& action_name)
       : priority(0),
@@ -41,9 +40,8 @@ public:
 
   virtual ~ActionHandler() {}
 
-  void init(Grid* grid, bool track_movement_metrics = false) {
+  void init(Grid* grid) {
     this->_grid = grid;
-    this->_track_movement_metrics = track_movement_metrics;
   }
 
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {

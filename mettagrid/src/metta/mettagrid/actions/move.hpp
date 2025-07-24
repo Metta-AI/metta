@@ -10,7 +10,8 @@
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
+  explicit Move(const ActionConfig& cfg, bool track_movement_metrics = false)
+      : ActionHandler(cfg, "move"), _track_movement_metrics(track_movement_metrics) {}
 
   unsigned char max_arg() const override {
     return 1;  // 0 = move forward, 1 = move backward
@@ -48,6 +49,8 @@ protected:
   }
 
 private:
+  bool _track_movement_metrics;
+
   // Get the opposite direction (for backward movement)
   static Orientation get_opposite_direction(Orientation orientation) {
     switch (orientation) {
