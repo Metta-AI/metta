@@ -154,7 +154,7 @@ jobs:
         run: ./mettagrid/tests/cpplint.sh
 
   test-matrix:
-    name: "Unit Tests - ${{ matrix.package }}"
+    name: "Unit Tests - ${{ matrix.name }}"
     needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -164,7 +164,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [core, app_backend, agent, mettagrid, common]
+        include:
+          # Individual packages
+          - name: "app_backend"
+            package: "app_backend"
+          - name: "agent"
+            package: "agent"
+          - name: "mettagrid"
+            package: "mettagrid"
+          - name: "common"
+            package: "common"
+
+          # Core split by test type
+          - name: "core-maps"
+            package: "core"
+            test_pattern: "tests/maps/**"
+          - name: "core-rl"
+            package: "core"
+            test_pattern: "tests/rl/**"
+          - name: "core-sim-eval"
+            package: "core"
+            test_pattern: "tests/sims/** tests/eval/**"
+          - name: "core-sweep"
+            package: "core"
+            test_pattern: "tests/sweep/** tests/protein/**"
+          - name: "core-other"
+            package: "core"
+            test_pattern: "tests"
+            exclude_pattern: "tests/maps/** tests/rl/** tests/sims/** tests/eval/** tests/sweep/** tests/protein/**"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -177,18 +204,31 @@ jobs:
       - name: Run tests
         run: |
           PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
+
           if [ "${{ matrix.package }}" == "core" ]; then
-            # Define packages to ignore (keep synced with non-core items in matrix)
+            # Handle core package with test patterns
+            if [ -n "${{ matrix.test_pattern }}" ]; then
+              # Add test pattern(s) to pytest args
+              PYTEST_ARGS="$PYTEST_ARGS ${{ matrix.test_pattern }}"
+            fi
+
+            if [ -n "${{ matrix.exclude_pattern }}" ]; then
+              # Add exclusion patterns
+              for pattern in ${{ matrix.exclude_pattern }}; do
+                PYTEST_ARGS="$PYTEST_ARGS --ignore=$pattern"
+              done
+            fi
+
+            # Also ignore non-core packages
             SUBPACKAGES=(app_backend agent mettagrid common)
-            IGNORE_ARGS=""
             for pkg in "${SUBPACKAGES[@]}"; do
-              IGNORE_ARGS="$IGNORE_ARGS --ignore=$pkg"
+              PYTEST_ARGS="$PYTEST_ARGS --ignore=$pkg"
             done
-            PYTEST_ARGS="$PYTEST_ARGS $IGNORE_ARGS"
           else
             # Subpackage tests
             cd ${{ matrix.package }}
           fi
+
           pytest $PYTEST_ARGS
 
       - name: Upload python test coverage to Codecov
@@ -197,7 +237,8 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
           chmod +x .github/scripts/upload_codecov.py
-          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
+          # Use the matrix name for codecov flags
+          SUBPACKAGES="${{ matrix.name }}" .github/scripts/upload_codecov.py
 
       - name: Build MettaGrid C++
         if: matrix.package == 'mettagrid'
