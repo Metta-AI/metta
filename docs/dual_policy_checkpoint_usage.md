@@ -54,6 +54,16 @@ trainer:
 - **Default**: `0.5`
 - **Description**: Percentage of agents controlled by the main policy (the rest use the NPC)
 
+## PyTorch 2.6+ Compatibility
+
+The dual-policy system includes automatic compatibility with PyTorch 2.6+ checkpoint loading. The policy loader uses multiple strategies to handle different checkpoint formats:
+
+1. **weights_only=False**: Allows loading custom classes like `PolicyRecord`
+2. **Safe globals**: Adds `PolicyRecord` to PyTorch's safe globals list
+3. **weights_only=True**: Fallback for pure weight-only checkpoints
+
+This ensures compatibility with checkpoints saved by different PyTorch versions and different training runs.
+
 ## Finding Available WandB Policies
 
 ### Using the WandB Run Lister
@@ -239,6 +249,14 @@ The loader automatically detects common checkpoint structures and extracts the p
    - The system automatically handles device placement
    - Check that the checkpoint was saved on a compatible device
 
+4. **PyTorch 2.6+ loading issues**
+   ```
+   Error: Weights only load failed. This file can still be loaded...
+   ```
+   - The system automatically handles PyTorch 2.6+ compatibility
+   - Multiple loading strategies are tried automatically
+   - Check logs for which strategy succeeded
+
 ### Debug Tips
 
 1. **Enable debug logging**:
@@ -265,6 +283,11 @@ The loader automatically detects common checkpoint structures and extracts the p
 4. **List available runs**:
    ```bash
    python tools/list_wandb_runs.py --limit 10
+   ```
+
+5. **Check PyTorch version compatibility**:
+   ```bash
+   python -c "import torch; print(f'PyTorch version: {torch.__version__}')"
    ```
 
 ## Advanced Usage
@@ -301,3 +324,4 @@ For more complex scenarios, you can extend the system:
 5. **Enable cost tracking** to monitor resource usage
 6. **Test with local checkpoints** first before using WandB artifacts
 7. **Use the WandB run lister tool** to find valid run names instead of guessing
+8. **Check PyTorch version compatibility** if loading issues occur

@@ -33,7 +33,6 @@ def load_policy_from_checkpoint(checkpoint_path: str, device: torch.device) -> A
 
 def _load_policy_from_wandb(wandb_uri: str, device: torch.device) -> Any:
     """Load a policy from a WandB artifact."""
-
     import wandb
 
     # Parse WandB URI: wandb://entity/project/artifact_type/name:version
@@ -101,7 +100,42 @@ def _load_policy_from_local(file_path: str, device: torch.device) -> Any:
     """Load a policy from a local file."""
     logger.info(f"Loading policy from local file: {file_path}")
 
-    checkpoint = torch.load(file_path, map_location=device)
+    # Try multiple loading strategies for PyTorch 2.6+ compatibility
+    checkpoint = None
+
+    # Strategy 1: Try with weights_only=False (allows custom classes)
+    try:
+        checkpoint = torch.load(file_path, map_location=device, weights_only=False)
+        logger.info("Successfully loaded with weights_only=False")
+    except Exception as e:
+        logger.warning(f"Failed to load with weights_only=False: {e}")
+
+        # Strategy 2: Try with safe globals for PolicyRecord
+        try:
+            # Add PolicyRecord to safe globals if available
+            try:
+                from metta.agent.policy_record import PolicyRecord
+
+                torch.serialization.add_safe_globals([PolicyRecord])
+                logger.info("Added PolicyRecord to safe globals")
+            except ImportError:
+                logger.warning("PolicyRecord not available, skipping safe globals")
+
+            checkpoint = torch.load(file_path, map_location=device)
+            logger.info("Successfully loaded with safe globals")
+        except Exception as e2:
+            logger.warning(f"Failed to load with safe globals: {e2}")
+
+            # Strategy 3: Try with weights_only=True (default in PyTorch 2.6+)
+            try:
+                checkpoint = torch.load(file_path, map_location=device, weights_only=True)
+                logger.info("Successfully loaded with weights_only=True")
+            except Exception as e3:
+                logger.error(f"All loading strategies failed: {e3}")
+                raise
+
+    if checkpoint is None:
+        raise ValueError("Failed to load checkpoint with any strategy")
 
     # Extract the policy from the checkpoint
     if isinstance(checkpoint, dict):
