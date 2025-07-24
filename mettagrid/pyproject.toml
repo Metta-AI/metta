@@ -32,12 +32,14 @@ dependencies = [
     "gymnasium==0.29.1",
     "hydra-core>=1.4.0.dev1",
     "matplotlib>=3.10.3",
-    "metta-common @ git+https://github.com/metta-ai/metta.git@richard-alt-versions#subdirectory=common",
+    "metta-common",
     "numpy<2",
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",
     "pettingzoo>=1.24.1",
+    "pufferlib",
     "pydantic>=2.11.5",
+    "raylib>=5.5.0",
     "pyyaml>=6.0.2",
     "rich>=13.9.4",
     "scipy>=1.15.3",
@@ -93,3 +95,7 @@ include = ["metta.mettagrid"]
 
 [tool.coverage.run]
 source = ["metta.mettagrid"]
+
+[tool.uv.sources]
+metta-common = { workspace = true }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
