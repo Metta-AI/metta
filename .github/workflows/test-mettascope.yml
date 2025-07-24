@@ -48,7 +48,7 @@ jobs:
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
-          uv run tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
+          uv run --active tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
           echo "::endgroup::"
 
 
@@ -56,7 +56,7 @@ jobs:
         run: |
           echo "::group::Replay generation"
           echo "Generating replay..."
-          uv run tools/replay.py run=smoke_test +hardware=github wandb=off
+          uv run --active tools/replay.py run=smoke_test +hardware=github wandb=off
           echo "Replay generation completed"
           echo "::endgroup::"
 
@@ -69,7 +69,7 @@ jobs:
 
           # Start the backend with proper logging
           echo "Starting backend server..."
-          uv run tools/play.py run=smoke_test +hardware=github wandb=off replay_job.open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
+          uv run --active tools/play.py run=smoke_test +hardware=github wandb=off replay_job.open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
           BACKEND_PID=$!
           echo "Backend started with PID: $BACKEND_PID"
 
