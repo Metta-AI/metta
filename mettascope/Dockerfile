@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y \
     git \
     jq \
     # Cleanup
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Make Python 3.11 the default

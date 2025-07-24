@@ -14,9 +14,13 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+      options: --shm-size=2gb
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Check disk usage
+        run: df -h
 
       - name: Install Node dependencies
         run: |
@@ -152,8 +156,11 @@ jobs:
 
           echo "::endgroup::"
 
-      - name: Check disk usage
-        run: df -h
+      - name: Clean up some disk space
+        run: |
+          npm cache clean --force
+          rm -rf ~/.npm
+          df -h
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
