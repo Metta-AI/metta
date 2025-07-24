@@ -1,0 +1,7 @@
+- run=test_env_context
+- agent=fast_with_context
+- ++agent.environmental_context.enabled=True
+- trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed
+- sim=navigation
+- trainer.total_timesteps=10000
+- trainer.num_workers=1
