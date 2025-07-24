@@ -7,8 +7,12 @@ import { updateStep, updateSelection } from './main.js'
 import { parseHtmlColor } from './htmlutils.js'
 
 // Cache tracking.
-let lastCachedStep = -1
-let lastCachedSelection: any = null
+let lastCachedState = {
+  step: -1,
+  selection: null as any,
+  zoomLevel: -1,
+  panPos: null as Vec2f | null
+}
 
 /** Draws the trace panel. */
 export function drawTrace(panel: PanelInfo) {
@@ -70,13 +74,21 @@ export function drawTrace(panel: PanelInfo) {
     const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2
     const y = getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
     panel.panPos = new Vec2f(-x, -y)
+    shouldRegenerate = true
   }
 
   // if any state has changed, we need to regenerate the trace mesh.
-  if (state.step !== lastCachedStep || state.selectedGridObject !== lastCachedSelection) {
+  if (state.step !== lastCachedState.step ||
+    state.selectedGridObject !== lastCachedState.selection ||
+    panel.zoomLevel !== lastCachedState.zoomLevel ||
+    lastCachedState.panPos === null ||
+    panel.panPos.x() !== lastCachedState.panPos.x() ||
+    panel.panPos.y() !== lastCachedState.panPos.y()) {
     shouldRegenerate = true
-    lastCachedStep = state.step
-    lastCachedSelection = state.selectedGridObject
+    lastCachedState.step = state.step
+    lastCachedState.selection = state.selectedGridObject
+    lastCachedState.zoomLevel = panel.zoomLevel
+    lastCachedState.panPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
   }
 
 
