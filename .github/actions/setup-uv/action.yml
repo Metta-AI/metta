@@ -1,12 +1,8 @@
 name: "Setup uv"
 description: "Set up uv and activate the environment"
 inputs:
-  include-dev:
-    description: "Whether to include dev dependencies"
-    required: false
-    default: "true"
   install-mode:
-    description: "Installation mode: 'full' (default), 'testing', or 'linting'"
+    description: "Installation mode: 'full' (default), 'testing', 'minimal', or 'linting'"
     required: false
     default: "full"
 
@@ -20,7 +16,7 @@ runs:
         enable-cache: true
         cache-local-path: "~/.cache/uv"
         prune-cache: false
-        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.include-dev }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
+        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
 
     - name: Create virtual environment with uv
       shell: bash
@@ -34,6 +30,10 @@ runs:
         # Handle different installation modes
         case "${{ inputs.install-mode }}" in
 
+          "minimal")
+            # don't install any packages
+            ;;
+
           "testing")
             uv sync --no-default-groups
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
@@ -44,11 +44,38 @@ runs:
             ;;
 
           "full"|*)
-            if [ "${{ inputs.include-dev }}" = "true" ]; then
-              uv sync
-            else
-              uv sync --no-default-groups
-            fi
+            uv sync
             ;;
 
         esac
+
+    # Clean up immediately after installation
+    - name: Clean uv cache after installation
+      shell: bash
+      run: |
+        echo "Cache size before cleanup:"
+        du -sh ~/.cache/uv || true
+
+        # Remove build artifacts and temporary files
+        # These are not needed after packages are installed
+        rm -rf ~/.cache/uv/builds/* 2>/dev/null || true
+        rm -rf ~/.cache/uv/tmp/* 2>/dev/null || true
+
+        # Prune unused cache entries
+        uv cache prune || true
+
+        echo "Cache size after cleanup:"
+        du -sh ~/.cache/uv || true
+
+    # a full install generates ~13GB of temp data which can fill the hdd
+    - name: Clean cache temp files
+      shell: bash
+      run: |
+        echo "Disk usage before cleanup:"
+        df -h
+        echo
+        echo "Cleaning up cache extraction temp files..."
+        sudo rm -rf /__w/_temp/* 2>/dev/null || true
+        echo "Disk usage after cleanup:"
+        df -h
+        echo
