@@ -19,6 +19,7 @@ coverage.xml
 htmlcov/
 cython_debug/
 .venv/
+uv.lock
 
 # CMake FetchContent cache
 .deps/
@@ -77,3 +78,6 @@ metta-research/
 terrain_maps_nohearts*
 gpu_names_cache.json
 sweep_id
+
+# Notebooks
+experiments/notebooks/.ipynb_checkpoints

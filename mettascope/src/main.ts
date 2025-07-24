@@ -20,6 +20,7 @@ import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
 import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
+import { initializeTooltips } from './tooltips.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
@@ -951,6 +952,7 @@ initAgentTable()
 initObjectMenu()
 initTimeline()
 initDemoMode()
+initializeTooltips()
 
 window.addEventListener('load', async () => {
   // Use a local atlas texture.
