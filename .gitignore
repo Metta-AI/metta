@@ -19,6 +19,7 @@ coverage.xml
 htmlcov/
 cython_debug/
 .venv/
+uv.lock
 
 # CMake FetchContent cache
 .deps/
@@ -79,4 +80,4 @@ gpu_names_cache.json
 sweep_id
 
 # Notebooks
-notebooks/.ipynb_checkpoints
+experiments/notebooks/.ipynb_checkpoints
