@@ -35,7 +35,7 @@ game:
       cooldown: 20          # 5 tick cooldown
       max_output: 1
       initial_resource_count: 0
-      phase: 0
+ #     phase: 0
       color: 14
 
     # Cyclical converter (uppercase 'C')
@@ -48,7 +48,7 @@ game:
       conversion_ticks: 20  # 10 ticks to produce
       cooldown: 20         # 10 tick cooldown (auto-empties after this)
       max_output: 1
-      phase: 20
+ #     phase: 20
       initial_resource_count: 0
       color: 13
 
