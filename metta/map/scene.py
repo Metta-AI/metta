@@ -9,7 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
 from metta.map.random.int import MaybeSeed
-from metta.map.types import Area, AreaQuery, ChildrenAction, SceneCfg
+from metta.map.types import Area, AreaQuery, ChildrenAction, MapGrid, SceneCfg
 
 ParamsT = TypeVar("ParamsT", bound=Config)
 
@@ -243,6 +243,39 @@ class Scene(Generic[ParamsT]):
     def get_labels(self) -> list[str]:
         # default: use the scene class name as a label
         return [self.__class__.__name__]
+
+    def transplant_to_grid(self, grid: MapGrid, shift_x: int, shift_y: int, is_root: bool = True):
+        """
+        Transplants the scene to a new grid.
+
+        `shift_x` and `shift_y` are the shift of the scene area relative to the previous grid.
+        `grid` must point to the outer grid (the one that the area's `x` and `y`, absolute coordinates, are relative
+        to).
+
+        This method is useful for the multi-instance MapGen mode, where we sometimes render the scene on a temporary
+        grid, because we don't know the size of the full multi-instance grid in advance.
+        """
+
+        # Caution: the implementation of this method is tricky, especially the relative positioning.
+        # It's intended to be used by `TransplantScene` class only. If you call it from anywhere else, make sure it's
+        # doing the right thing, especially when it has multiple levels of nested sub-scenes.
+
+        if is_root:
+            # This function is recursive, but we only want to copy the grid once, on top level of recursion.
+            # Also, when we recurse into children, we don't need to update the scene's area, because it was already
+            # updated when we transplant all `_areas`.
+            original_grid = self.grid
+            self.area.transplant_to_grid(grid, shift_x, shift_y)
+            self.area.grid[:] = original_grid
+            self.grid = self.area.grid
+
+        # transplant all sub-areas
+        for sub_area in self._areas:
+            sub_area.transplant_to_grid(self.grid, shift_x, shift_y)
+
+        # recurse into children scenes
+        for child_scene in self.children:
+            child_scene.transplant_to_grid(grid, shift_x, shift_y, is_root=False)
 
 
 def load_class(full_class_name: str) -> type[Scene]:
