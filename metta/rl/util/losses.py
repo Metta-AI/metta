@@ -72,6 +72,20 @@ def process_minibatch_update(
     """Process a single minibatch update and return the total loss."""
     obs = minibatch["obs"]
 
+    # Set task IDs on the policy for environmental context
+    if "task_ids" in minibatch and hasattr(policy, "current_task_id"):
+        # For minibatch training, we need to handle multiple task IDs
+        # For now, we'll use the first task ID in the minibatch
+        # This is a simplification - ideally we'd handle each sample individually
+        task_ids = minibatch["task_ids"]
+        if task_ids.numel() > 0:
+            # Use the first task ID in the minibatch
+            policy.current_task_id = task_ids[0].item()
+        else:
+            policy.current_task_id = None
+    else:
+        policy.current_task_id = None
+
     lstm_state = PolicyState()
     _, new_logprobs, entropy, newvalue, full_logprobs = policy(obs, lstm_state, action=minibatch["actions"])
 

@@ -89,6 +89,9 @@ class Experience:
         self.truncateds = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.ratio = torch.ones(self.segments, bptt_horizon, device=self.device)
 
+        # Task ID tensor for environmental context
+        self.task_ids = torch.zeros(self.segments, bptt_horizon, device=self.device, dtype=torch.long)
+
         # Episode tracking
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
@@ -117,7 +120,9 @@ class Experience:
         minibatch_segments = self.minibatch_size / bptt_horizon
         self.minibatch_segments: int = int(minibatch_segments)
         if self.minibatch_segments != minibatch_segments:
-            raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
+            raise ValueError(
+                f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {self.bptt_horizon}"
+            )
 
         # Tracking for rollout completion
         self.full_rows = 0
@@ -160,6 +165,7 @@ class Experience:
         env_id: slice,
         mask: Tensor,
         lstm_state: Optional[Dict[str, Tensor]] = None,
+        task_ids: Optional[Tensor] = None,
     ) -> int:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
@@ -179,6 +185,10 @@ class Experience:
         self.dones[batch_slice] = dones.float()
         self.truncateds[batch_slice] = truncations.float()
         self.values[batch_slice] = values
+
+        # Store task IDs if provided
+        if task_ids is not None:
+            self.task_ids[batch_slice] = task_ids
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
@@ -260,6 +270,7 @@ class Experience:
             "indices": idx,
             "prio_weights": (self.segments * prio_probs[idx, None]) ** -prio_beta,
             "ratio": self.ratio[idx],
+            "task_ids": self.task_ids[idx],
         }
 
     def update_values(self, indices: Tensor, new_values: Tensor) -> None:

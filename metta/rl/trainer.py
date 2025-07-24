@@ -437,6 +437,19 @@ class MettaTrainer:
                 self.policy, o, experience, training_env_id.start, self.device, info
             )
 
+            # Extract task IDs from info for environmental context
+            task_ids = None
+            if info and len(info) > 0 and "task_id" in info[0]:
+                # Create task ID tensor with same batch size as observations
+                if o.dim() == 4:  # (BT, H, W, C)
+                    batch_size = o.shape[0]
+                else:  # (B, T, H, W, C)
+                    batch_size = o.shape[0] * o.shape[1]
+
+                # Extract task_id from the first info (assuming all environments have same task_id in this batch)
+                task_id = info[0]["task_id"]
+                task_ids = torch.full((batch_size,), task_id, dtype=torch.long, device=o.device)
+
             # Store experience
             experience.store(
                 obs=o,
@@ -449,6 +462,7 @@ class MettaTrainer:
                 env_id=training_env_id,
                 mask=mask,
                 lstm_state=lstm_state_to_store,
+                task_ids=task_ids,
             )
 
             # Send actions back to environment

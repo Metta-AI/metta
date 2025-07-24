@@ -52,9 +52,40 @@ class EnvironmentalContextEmbedding(LayerBase):
         # Get task ID from tensor dict (should be provided by environment)
         if "task_id" not in td:
             # If no task ID provided, use zero embedding (no environmental context)
-            task_id = torch.zeros(td["x"].shape[0], dtype=torch.long, device=td["x"].device)
+            # Get the batch size from the input tensor
+            input_tensor = None
+            if self._source_components is not None:
+                for source_name, _source_component in self._source_components.items():
+                    if source_name in td:
+                        input_tensor = td[source_name]
+                        break
+
+            if input_tensor is not None:
+                batch_size = input_tensor.shape[0]
+            else:
+                batch_size = td["x"].shape[0]
+
+            task_id = torch.zeros(batch_size, dtype=torch.long, device=td["x"].device)
         else:
             task_id = td["task_id"]
+
+            # Check if the task_id batch size matches the input tensor batch size
+            input_tensor = None
+            if self._source_components is not None:
+                for source_name, _source_component in self._source_components.items():
+                    if source_name in td:
+                        input_tensor = td[source_name]
+                        break
+
+            if input_tensor is not None and task_id.shape[0] != input_tensor.shape[0]:
+                # Resize the task_id tensor to match the input tensor batch size
+                # This can happen if the observation processing pipeline changes the batch size
+                if task_id.shape[0] == 1:
+                    # If task_id is a single value, repeat it to match the batch size
+                    task_id = task_id.repeat(input_tensor.shape[0])
+                else:
+                    # Otherwise, we need to handle this case - for now, use the first value
+                    task_id = task_id[0].repeat(input_tensor.shape[0])
 
         # Generate embedding for the task ID
         context_embedding = self.task_embeddings(task_id)
