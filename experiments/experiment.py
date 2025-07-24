@@ -6,6 +6,8 @@ import json
 import os
 from datetime import datetime
 
+from experiments.types import TrainingJob
+
 
 class Experiment(ABC):
     """Base class for all experiments.
@@ -29,6 +31,7 @@ class Experiment(ABC):
             "user": os.environ.get("USER", "unknown"),
         }
         self.launch_results = []
+        self.training_jobs: List[TrainingJob] = []
 
     @abstractmethod
     def launch_training_runs(self) -> Dict[str, Any]:
@@ -69,19 +72,14 @@ class Experiment(ABC):
         Returns:
             Path to generated notebook
         """
-        if not self.launch_results:
+        if not self.training_jobs:
             raise ValueError("No training runs launched yet. Call launch_training_runs() first.")
 
-        # Extract run names and job IDs
-        run_names = []
-        job_ids = []
-        for result in self.launch_results:
-            if result.get("success") and result.get("run_name"):
-                run_names.append(result["run_name"])
-                if result.get("job_id"):
-                    job_ids.append(result["job_id"])
+        # Extract run names and job IDs from TrainingJob objects
+        wandb_run_ids = [job.wandb_run_id for job in self.training_jobs]
+        skypilot_job_ids = [job.skypilot_job_id for job in self.training_jobs if job.skypilot_job_id]
 
-        if not run_names:
+        if not wandb_run_ids:
             raise ValueError("No successful runs to analyze")
 
         # Add analysis config to metadata
@@ -97,8 +95,8 @@ class Experiment(ABC):
 
         return generate_notebook_from_template(
             experiment_name=self.name,
-            run_names=run_names,
-            sky_job_ids=job_ids if job_ids else None,
+            run_names=wandb_run_ids,
+            sky_job_ids=skypilot_job_ids if skypilot_job_ids else None,
             additional_metadata=self.metadata,
             output_dir=output_dir,
         )

@@ -11,6 +11,7 @@ from typing import Any, Dict
 
 from experiments.experiment import Experiment
 from experiments.launch import launch_training_run
+from experiments.types import TrainingJob
 
 
 class ArenaExperiment(Experiment):
@@ -49,6 +50,22 @@ class ArenaExperiment(Experiment):
 
         # Store result
         self.launch_results.append(result)
+        
+        # Create TrainingJob object if successful
+        if result["success"]:
+            job = TrainingJob(
+                wandb_run_id=run_name,
+                skypilot_job_id=result.get("job_id"),
+                config={
+                    "curriculum": "env/mettagrid/curriculum/arena/learning_progress",
+                    "num_gpus": 4,
+                    "num_nodes": 8,
+                    "optimizer": "muon",
+                    "learning_rate": 0.0045,
+                },
+                notes="Arena training with learning progress curriculum"
+            )
+            self.training_jobs.append(job)
 
         # Return summary
         return {
