@@ -255,6 +255,11 @@ class Scene(Generic[ParamsT]):
         This method is useful for the multi-instance MapGen mode, where we sometimes render the scene on a temporary
         grid, because we don't know the size of the full multi-instance grid in advance.
         """
+
+        # Caution: the implementation of this method is tricky, especially the relative positioning.
+        # It's intended to be used by `TransplantScene` class only. If you call it from anywhere else, make sure it's
+        # doing the right thing, especially when it has multiple levels of nested sub-scenes.
+
         if is_root:
             # This function is recursive, but we only want to copy the grid once, on top level of recursion.
             # Also, when we recurse into children, we don't need to update the scene's area, because it was already
@@ -268,7 +273,7 @@ class Scene(Generic[ParamsT]):
         for sub_area in self._areas:
             sub_area.transplant_to_grid(self.grid, shift_x, shift_y)
 
-        # transplant all children
+        # recurse into children scenes
         for child_scene in self.children:
             child_scene.transplant_to_grid(grid, shift_x, shift_y, is_root=False)
 
