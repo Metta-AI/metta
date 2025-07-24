@@ -114,6 +114,75 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
+class ScriptedNPCConfig(BaseModelWithForbidExtra):
+    """Configuration for scripted NPC behaviors."""
+
+    type: Literal["roomba", "grid_search"] = "roomba"
+    # Roomba behavior: move in a consistent direction, turn when hitting walls
+    # Grid search behavior: systematic exploration pattern
+
+    # Common parameters
+    approach_items: bool = True  # Whether to approach items in field of view
+    interact_with_items: bool = True  # Whether to interact with items when close
+
+    # Roomba-specific parameters
+    roomba_direction: Literal["clockwise", "counterclockwise"] = "clockwise"
+
+    # Grid search parameters
+    grid_search_pattern: Literal["spiral", "snake", "random"] = "spiral"
+
+
+class CheckpointNPCConfig(BaseModelWithForbidExtra):
+    """Configuration for checkpoint-based NPC policies."""
+
+    # Path to the checkpoint policy to use as NPC
+    # Can be a local path or S3 URI
+    checkpoint_path: str | None = None
+
+    # Alternative: use policy URI (for backward compatibility)
+    policy_uri: str | None = None
+
+    # Optional: specify the policy store to load from
+    policy_store: str | None = None
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "CheckpointNPCConfig":
+        if not self.checkpoint_path and not self.policy_uri:
+            raise ValueError("Either checkpoint_path or policy_uri must be set for checkpoint NPCs")
+        return self
+
+
+class DualPolicyConfig(BaseModelWithForbidExtra):
+    """Configuration for dual-policy training with NPC policies."""
+
+    enabled: bool = False
+    policy_a_percentage: float = Field(default=0.5, ge=0.0, le=1.0)
+
+    # NPC policy configuration
+    npc_type: Literal["scripted", "checkpoint"] = "scripted"
+
+    # For checkpoint-based NPCs (new approach)
+    checkpoint_npc: CheckpointNPCConfig | None = None
+
+    # For checkpoint-based NPCs (legacy approach)
+    npc_policy_uri: str | None = None
+
+    # For scripted NPCs
+    scripted_npc: ScriptedNPCConfig = Field(default_factory=ScriptedNPCConfig)
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "DualPolicyConfig":
+        if self.enabled:
+            if self.npc_type == "checkpoint":
+                if not self.checkpoint_npc and not self.npc_policy_uri:
+                    raise ValueError("checkpoint_npc or npc_policy_uri must be set for checkpoint NPCs")
+            elif self.npc_type == "scripted":
+                pass  # scripted_npc has defaults
+            else:
+                raise ValueError(f"Unknown NPC type: {self.npc_type}")
+        return self
+
+
 class TorchProfilerConfig(BaseModelWithForbidExtra):
     interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
@@ -194,6 +263,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
+
+    # Dual policy configuration
+    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware

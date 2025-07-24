@@ -21,6 +21,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
@@ -40,6 +41,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
+from metta.rl.util.dual_policy_rollout import DualPolicyRollout
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
@@ -47,7 +49,6 @@ from metta.rl.util.optimization import (
 )
 from metta.rl.util.policy_management import (
     cleanup_old_policies,
-    load_or_initialize_policy,
     validate_policy_environment_match,
 )
 from metta.rl.util.rollout import (
@@ -176,15 +177,80 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        self.policy, self.initial_policy_record, self.latest_saved_policy_record = load_or_initialize_policy(
-            self.cfg,
-            checkpoint,
-            policy_store,
-            metta_grid_env,
-            self.device,
-            self._master,
-            self._rank,
-        )
+        # Load or create policy with distributed coordination
+        policy_record = self._load_policy(checkpoint, policy_store)
+
+        if policy_record is not None:
+            logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
+            self.latest_saved_policy_record = policy_record
+
+            # Get the policy from the record
+            self.policy = policy_record.policy
+
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(self.policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+                logger.info(f"Rank {self._rank}: Restored original_feature_mapping")
+
+            # Initialize the policy to the environment
+            self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+
+            self.initial_policy_record = policy_record
+
+        else:
+            logger.info(f"Rank {self._rank}: No existing policy found, creating new one")
+            # In distributed mode, handle policy creation/loading differently
+            if torch.distributed.is_initialized() and not self._master:
+                # Non-master ranks wait for master to create and save the policy
+                default_policy_path = os.path.join(
+                    trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0)
+                )
+                logger.info(f"Rank {self._rank}: Waiting for master to create policy at {default_policy_path}")
+
+                # Synchronize with master before attempting to load
+                torch.distributed.barrier()
+
+                def log_progress(elapsed: float, status: str) -> None:
+                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                    elif status == "found":
+                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
+                    elif status == "stable":
+                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
+
+                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+                    raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
+
+                try:
+                    policy_record = self.policy_store.policy_record(default_policy_path)
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Rank {self._rank}: Failed to load policy from {default_policy_path}: {e}"
+                    ) from e
+
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+
+                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+            else:
+                # Master creates and saves new policy
+                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+
+                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+
+                # Synchronize with non-master ranks after saving
+                if torch.distributed.is_initialized():
+                    logger.info("Master rank: Policy saved, synchronizing with other ranks")
+                    torch.distributed.barrier()
+
+        logging.info(f"Rank {self._rank}: USING {self.initial_policy_record.uri}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -207,6 +273,17 @@ class MettaTrainer:
             torch.distributed.barrier()
 
         self._make_experience_buffer()
+
+        # Initialize dual-policy system if enabled
+        self.dual_policy_rollout = None
+        if trainer_cfg.dual_policy.enabled:
+            self.dual_policy_rollout = DualPolicyRollout(
+                config=trainer_cfg.dual_policy,
+                policy_store=self.policy_store,
+                num_agents=self.vecenv.num_agents,
+                device=self.device,
+            )
+            logger.info(f"Dual-policy system initialized: {self.dual_policy_rollout.get_agent_assignments()}")
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
@@ -354,6 +431,10 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
+        # Reset dual-policy reward tracking for new episode
+        if self.dual_policy_rollout:
+            self.dual_policy_rollout.reset_reward_tracking()
+
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
             if trainer_cfg.require_contiguous_env_ids:
@@ -367,10 +448,19 @@ class MettaTrainer:
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps * self._world_size
 
-            # Run policy inference
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                self.policy, o, experience, training_env_id.start, self.device
-            )
+            # Run policy inference (with dual-policy support if enabled)
+            if self.dual_policy_rollout:
+                actions, selected_action_log_probs, values, lstm_state_to_store = (
+                    self.dual_policy_rollout.run_dual_policy_inference(
+                        self.policy, o, experience, training_env_id.start
+                    )
+                )
+                # Track rewards separately for each policy type
+                self.dual_policy_rollout.track_rewards(r)
+            else:
+                actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                    self.policy, o, experience, training_env_id.start, self.device
+                )
 
             # Store experience
             experience.store(
@@ -765,6 +855,12 @@ class MettaTrainer:
         # Update self.stats with mean values for consistency
         self.stats = processed_stats["mean_stats"]
 
+        # Add dual-policy reward statistics if enabled
+        if self.dual_policy_rollout:
+            dual_policy_stats = self.dual_policy_rollout.get_reward_stats()
+            for key, value in dual_policy_stats.items():
+                self.stats[f"dual_policy/{key}"] = value
+
         # Compute weight stats if on interval
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
@@ -811,6 +907,12 @@ class MettaTrainer:
             agent_step=self.agent_step,
             epoch=self.epoch,
         )
+
+        # Add dual-policy stats to all_stats if they exist
+        if self.dual_policy_rollout:
+            for key, value in self.stats.items():
+                if key.startswith("dual_policy/"):
+                    all_stats[key] = value
 
         # Log to wandb
         self.wandb_run.log(
@@ -1005,6 +1107,16 @@ class MettaTrainer:
 
         with self.timer("grad_stats"):
             self.grad_stats = compute_gradient_stats(self.policy)
+
+    def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
+        """Helper method to initialize a policy to the environment using the appropriate interface."""
+        if hasattr(policy, "initialize_to_environment"):
+            features = metta_grid_env.get_observation_features()
+            policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, device
+            )
+        else:
+            policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
 
 class AbortingTrainer(MettaTrainer):
