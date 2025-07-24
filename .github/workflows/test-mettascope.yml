@@ -34,6 +34,12 @@ jobs:
         with:
           install-mode: "minimal"
 
+      - name: Debug
+        run: |
+          df -h
+          uv cache dir
+
+
       - name: Install Mettascope
         run: |
           echo "::group::Mettascope installation"
