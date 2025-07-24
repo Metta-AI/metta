@@ -2,9 +2,7 @@
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
 import logging
-import sys
 
-import hydra
 import numpy as np  # noqa: E402
 
 if not hasattr(np, "byte"):
@@ -17,11 +15,11 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.lock import run_once
 from metta.sweep.wandb_utils import create_wandb_sweep, sweep_id_from_name
+from metta.util.metta_script import metta_script
 
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     # Extract sweep base name from CLI sweep_name parameter (e.g., "simple_sweep")
     # Individual training runs will be "simple_sweep.r.0", etc.
@@ -63,5 +61,4 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     )
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+metta_script(main, "sweep_job")

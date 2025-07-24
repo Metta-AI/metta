@@ -2,10 +2,10 @@
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
 import logging
-import sys
 
-import hydra
 import numpy as np
+
+from metta.util.metta_script import metta_script  # noqa: E402
 
 if not hasattr(np, "byte"):
     np.byte = np.int8
@@ -27,7 +27,6 @@ from metta.sweep.wandb_utils import generate_run_id_for_sweep
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     run_once(lambda: setup_next_run(cfg, logger))
     return 0
@@ -199,5 +198,4 @@ def apply_protein_suggestion(config: DictConfig, suggestion: dict):
             config[key] = cleaned_value
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+metta_script(main, "sweep_job")
