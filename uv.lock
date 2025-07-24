@@ -1228,7 +1228,6 @@ dependencies = [
     { name = "pixie-python" },
     { name = "plotly" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "pufferlib" },
     { name = "pybind11" },
     { name = "pydantic" },
     { name = "pynvml" },
@@ -1296,7 +1295,6 @@ requires-dist = [
     { name = "pixie-python", specifier = ">=4.3.0" },
     { name = "plotly", specifier = ">=6.1.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
-    { name = "pufferlib", git = "https://github.com/Metta-AI/PufferLib.git?rev=dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" },
     { name = "pybind11", specifier = ">=2.10.4" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pynvml", specifier = ">=11.5.3" },
@@ -1409,6 +1407,9 @@ dev = [
 name = "metta-common"
 version = "0.1.0"
 source = { editable = "common" }
+dependencies = [
+    { name = "pufferlib" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1421,6 +1422,7 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "pufferlib", git = "https://github.com/Metta-AI/PufferLib.git?rev=dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1449,7 +1451,6 @@ dependencies = [
     { name = "omegaconf" },
     { name = "pandas" },
     { name = "pettingzoo" },
-    { name = "pufferlib" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "raylib" },
@@ -1482,7 +1483,6 @@ requires-dist = [
     { name = "omegaconf", specifier = ">=2.4.0.dev3" },
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "pettingzoo", specifier = ">=1.24.1" },
-    { name = "pufferlib", git = "https://github.com/Metta-AI/PufferLib.git?rev=dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "raylib", specifier = ">=5.5.0" },
