@@ -178,6 +178,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
             converter_config->input_resources,
             converter_config->output_resources,
             converter_config->max_output,
+            converter_config->max_conversions,
             converter_config->conversion_ticks,
             converter_config->cooldown,
             converter_config->initial_resource_count,

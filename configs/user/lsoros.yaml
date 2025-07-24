@@ -1,11 +1,5 @@
 # @package __global__
 
-# This file is private property of Lisa Soros.
-# DO NOT MODIFY.
-
-run: test_new_branch6
-policy_uri: null
-
-# replay_job:
-#   sim:
-#     env: /env/mettagrid/laser_tag
+run: test_default_params
+trainer:
+  env: /env/mettagrid/arena/advanced
