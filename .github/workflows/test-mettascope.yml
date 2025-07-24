@@ -15,6 +15,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
       options: --shm-size=2gb
+      env:
+        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,12 +35,6 @@ jobs:
         uses: ./.github/actions/setup-uv
         with:
           install-mode: "minimal"
-
-      - name: Debug
-        run: |
-          df -h
-          uv cache dir
-
 
       - name: Install Mettascope
         run: |
@@ -157,19 +153,28 @@ jobs:
       # this workflow fills the disk to 97% after training
       - name: Free disk space
         run: |
-          echo "::group::Cleaning up venv"
+          echo "::group::Cleaning up disk space"
           echo "Disk usage before cleanup:"
           df -h
+          echo
 
-          echo "Size of .venv:"
-          du -sh .venv || echo "No .venv found"
-          rm -rf .venv
+          # Define directories to clean up
+          CLEANUP_DIRS=".venv train_dir .uv-cache"
 
-          echo "Size of train_dir:"
-          du -sh train_dir || echo "No train_dir found"
-          rm -rf train_dir
+          # Show sizes and remove directories
+          for dir in $CLEANUP_DIRS; do
+            if [ -d "$dir" ]; then
+              echo "Size of $dir:"
+              du -sh "$dir"
+              rm -rf "$dir"
+              echo "✓ Removed $dir"
+            else
+              echo "✗ $dir not found"
+            fi
+            echo
+          done
 
-          echo "Disk usage after:"
+          echo "Disk usage after cleanup:"
           df -h
           echo "::endgroup::"
 
