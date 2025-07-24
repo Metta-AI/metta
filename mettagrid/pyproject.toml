@@ -1,10 +1,5 @@
 [build-system]
-requires = [
-    "scikit-build-core", 
-    "wheel", 
-    "numpy<2",
-    "pybind11==2.10.4"
-]
+requires = ["scikit-build-core", "wheel", "numpy<2", "pybind11==2.10.4"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -37,8 +32,8 @@ dependencies = [
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",
     "pettingzoo>=1.24.1",
-    "pufferlib",
     "pydantic>=2.11.5",
+    "pufferlib",
     "raylib>=5.5.0",
     "pyyaml>=6.0.2",
     "rich>=13.9.4",
@@ -93,9 +88,9 @@ include = ["metta.mettagrid"]
 "metta" = ["__init__.py"]
 "metta.mettagrid" = ["py.typed"]
 
+[tool.uv.sources]
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
+metta-common = { workspace = true }
+
 [tool.coverage.run]
 source = ["metta.mettagrid"]
-
-[tool.uv.sources]
-metta-common = { workspace = true }
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
