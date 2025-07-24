@@ -17,8 +17,8 @@ import hydra
 from omegaconf import DictConfig
 
 from metta.common.util.lock import run_once
-from tools.sweep_eval import main as sweep_eval_main
-from tools.sweep_prepare_run import setup_next_run
+from metta.sweep.lifecycle.sweep_eval import main as sweep_eval_main
+from metta.sweep.lifecycle.sweep_prepare_run import setup_next_run
 
 logger = logging.getLogger(__name__)
 

@@ -182,7 +182,11 @@ def validate_protein_suggestion(config: DictConfig, suggestion: dict):
 
 @retry_on_exception(max_retries=10, retry_delay=0.1, exceptions=(ValueError,))
 def generate_protein_suggestion(config: DictConfig, protein: MettaProtein):
-    """Generate a protein suggestion."""
+    """Generate a protein suggestion.
+    We only validate constraints related batch_size, minibatch_size, bppt.
+    We must have: minibatch_size divides batch_size, bppt divides minibatch_size.
+    We do not validate other constraints, such as total_timesteps >= batch_size * bppt, etc...
+    """
     suggestion, _ = protein.suggest()
     logger.info(f"Protein suggestion: {suggestion}")
     try:
