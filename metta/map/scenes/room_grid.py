@@ -82,9 +82,9 @@ class RoomGrid(Scene[RoomGridParams]):
         # scene, e.g. `make_connected`, would lead to zero common labels.
         room_labels: list[list[str]] = []
 
-        for child_info in self.child_infos:
+        for child_scene in self.children:
             # how do we want to account for room lists with different labels?
-            room_labels.append(child_info.scene.get_labels())
+            room_labels.append(child_scene.get_labels())
 
         if not room_labels:
             return []
