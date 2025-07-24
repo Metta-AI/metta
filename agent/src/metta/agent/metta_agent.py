@@ -475,6 +475,10 @@ class MettaAgent(nn.Module):
         if "_obs_" in self.components:
             self.components["_obs_"](td)
 
+        # Process environmental context if enabled
+        if "environmental_context_embedding" in self.components:
+            self.components["environmental_context_embedding"](td)
+
         # Forward pass through value network
         self.components["_value_"](td)
         value = td["_value_"]

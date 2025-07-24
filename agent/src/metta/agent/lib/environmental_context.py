@@ -46,7 +46,7 @@ class EnvironmentalContextEmbedding(LayerBase):
         Forward pass to generate environmental context embedding.
 
         Expects task_id in the tensor dict from the environment.
-        For strategy "input_sum", adds the embedding to the observation.
+        For strategy "input_sum", adds the embedding to the encoded observation.
         For strategy "initial_state", stores the embedding for LSTM initialization.
         """
         # Get task ID from tensor dict (should be provided by environment)
@@ -60,9 +60,25 @@ class EnvironmentalContextEmbedding(LayerBase):
         context_embedding = self.task_embeddings(task_id)
 
         if self.strategy == "input_sum":
-            # Add the context embedding to the observation
-            # td["x"] should be the encoded observation from previous layer
-            td[self._name] = td["x"] + context_embedding
+            # Add the context embedding to the encoded observation
+            # The input should be from the encoded_obs layer (shape: [batch_size, 128])
+            # We need to find the correct input tensor from our sources
+            input_tensor = None
+
+            # Look for the input from our source components
+            if self._source_components is not None:
+                for source_name, _source_component in self._source_components.items():
+                    if source_name in td:
+                        input_tensor = td[source_name]
+                        break
+
+            # If we can't find the source tensor, it means the source hasn't been processed yet
+            # This should not happen now that we process environmental context after observation processing
+            if input_tensor is None:
+                raise ValueError(f"Source tensor not found in TensorDict. Available keys: {list(td.keys())}")
+
+            # Add the context embedding to the encoded observation
+            td[self._name] = input_tensor + context_embedding
         elif self.strategy == "initial_state":
             # Store the context embedding for LSTM initialization
             # This will be used by the LSTM layer to condition its initial state
