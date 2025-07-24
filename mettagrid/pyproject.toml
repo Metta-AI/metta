@@ -32,6 +32,7 @@ dependencies = [
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",
     "pettingzoo>=1.24.1",
+    "pufferlib",
     "pydantic>=2.11.5",
     "raylib>=5.5.0",
     "pyyaml>=6.0.2",
@@ -81,14 +82,13 @@ cache-keys = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.mettagrid"]
+include = ["metta*"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
 "metta.mettagrid" = ["py.typed"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 metta-common = { workspace = true }
 
 [tool.coverage.run]
