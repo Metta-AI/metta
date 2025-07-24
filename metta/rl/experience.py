@@ -195,7 +195,12 @@ class Experience:
             print(f"DEBUG: indices={indices}, episode_length={episode_length}")
             print(f"DEBUG: env_id={env_id}")
 
-            self.task_ids[batch_slice] = task_ids
+            # Reshape task_ids to match the segmented storage format
+            # task_ids is (batch_size,) but we need it to match the indices shape
+            # The indices tensor tells us which segments to store in
+            task_ids_reshaped = task_ids[indices]  # Select the task_ids for the specific indices
+
+            self.task_ids[batch_slice] = task_ids_reshaped
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
