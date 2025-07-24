@@ -6,6 +6,9 @@ Simulation driver for evaluating policies in the Metta environment.
    ▸ choose the checkpoint(s) according to selector/metric
    ▸ run the configured `SimulationSuite`
    ▸ export the merged stats DB if an output URI is provided
+
+With --remote flag:
+ ▸ Create evaluation tasks in the backend instead of running locally
 """
 
 from __future__ import annotations
@@ -14,14 +17,17 @@ import json
 import logging
 import sys
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
@@ -42,6 +48,8 @@ class SimJob(Config):
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
+    git_hash: str | None = None  # Git hash for remote mode
+    env_overrides: dict[str, Any] = {}  # Environment overrides for remote mode
 
 
 def _determine_run_name(policy_uri: str) -> str:
@@ -59,6 +67,25 @@ def _determine_run_name(policy_uri: str) -> str:
         return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
+def _create_remote_eval_tasks(
+    policy_records_by_uri: defaultdict[str, list[PolicyRecord]],
+    sim_job: SimJob,
+    stats_client: StatsClient,
+    logger: logging.Logger,
+) -> None:
+    all_policy_records = [pr for prs in policy_records_by_uri.values() for pr in prs]
+    policy_ids_by_name = stats_client.get_policy_ids([pr.run_name for pr in all_policy_records]).policy_ids
+    for policy_name, policy_id in policy_ids_by_name.items():
+        request = TaskCreateRequest(
+            policy_id=policy_id,
+            git_hash=sim_job.git_hash,
+            env_overrides=sim_job.env_overrides,
+            sim_suite=sim_job.simulation_suite.name,
+        )
+        response = stats_client.create_task(request)
+        logger.info(f"Created task {response.id} for policy {policy_name} ({policy_id})")
+
+
 # --------------------------------------------------------------------------- #
 # CLI entry-point                                                             #
 # --------------------------------------------------------------------------- #
@@ -73,23 +100,47 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
     sim_job = SimJob(cfg.sim_job)
 
-    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
-
     policy_store = PolicyStore(cfg, None)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client is not None:
         stats_client.validate_authenticated()
 
+    policy_records_by_uri: defaultdict[str, list[PolicyRecord]] = defaultdict(list)
+    for policy_uri in sim_job.policy_uris:
+        # TODO: institutionalize this better?
+        metric = sim_job.simulation_suite.name + "_score"  # TODO: make this configurable
+        policy_records_by_uri[policy_uri].extend(
+            policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
+        )
+
+    # Check if we're in remote mode
+    if cfg.remote:
+        if not stats_client:
+            raise ValueError("Not configured to use stats server. Please provide a stats_server_uri")
+        logger.info("Running in remote mode - creating evaluation tasks")
+        _create_remote_eval_tasks(policy_records_by_uri, sim_job, stats_client, logger)
+    else:
+        _run_local_simulations(cfg, policy_records_by_uri, sim_job, stats_client, policy_store, logger)
+
+
+def _run_local_simulations(
+    cfg: DictConfig,
+    policy_records_by_uri: defaultdict[str, list[PolicyRecord]],
+    sim_job: SimJob,
+    stats_client: StatsClient | None,
+    policy_store: PolicyStore,
+    logger: logging.Logger,
+) -> None:
+    if cfg.git_hash:
+        raise ValueError("git_hash is not supported in local mode")
+    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
     device = torch.device(cfg.device)
 
     # Get eval_task_id from config if provided
     eval_task_id = None
     if cfg.get("eval_task_id"):
         eval_task_id = uuid.UUID(cfg.eval_task_id)
-    for policy_uri in sim_job.policy_uris:
-        # TODO: institutionalize this better?
-        metric = sim_job.simulation_suite.name + "_score"
-        policy_prs = policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
+    for policy_uri, policy_prs in policy_records_by_uri.items():
         results = {"policy_uri": policy_uri, "checkpoints": []}
         for pr in policy_prs:
             policy_results = evaluate_policy(
