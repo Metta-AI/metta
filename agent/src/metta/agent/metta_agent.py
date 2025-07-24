@@ -166,8 +166,6 @@ class MettaAgent(nn.Module):
                 "actions": torch.zeros(self.agent_attributes["action_space"].shape, dtype=torch.int32),
                 "logprobs": torch.zeros((), dtype=torch.float32),
                 "values": torch.zeros((), dtype=torch.float32),
-                # "lstm_h": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
-                # "lstm_c": torch.zeros(self.core_num_layers, self.hidden_size, dtype=torch.float32),
             },
             batch_size=[],
         )

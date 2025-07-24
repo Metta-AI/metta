@@ -421,6 +421,8 @@ class MettaTrainer:
 
         # The policy is responsible for creating a zero state if one is not available.
         buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+        buffer_step.meta["roll_out"] = True
+        buffer_step.meta["train"] = False
 
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
@@ -441,23 +443,23 @@ class MettaTrainer:
 
             # Run policy inference
             with torch.no_grad():
-                experience_td = self.policy(td)
+                td = self.policy(td)
             if str(self.device).startswith("cuda"):
                 torch.cuda.synchronize()
 
             # Update buffer with data from the env that the policy doesn't get.
-            experience_td["rewards"] = r
-            experience_td["dones"] = d.float()
-            experience_td["truncateds"] = t.float()
+            td["rewards"] = r
+            td["dones"] = d.float()
+            td["truncateds"] = t.float()
 
             experience.store(
-                data_td=experience_td,
+                data_td=td,
                 env_id=training_env_id,
             )
 
             # Send actions back to environment
             with self.timer("_rollout.env"):
-                self.vecenv.send(experience_td["actions"].cpu().numpy().astype(dtype_actions))
+                self.vecenv.send(td["actions"].cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:
@@ -473,6 +475,8 @@ class MettaTrainer:
     def _train(self):
         """Perform training phase."""
         experience = self.experience
+        experience.buffer.meta["roll_out"] = False
+        experience.buffer.meta["train"] = True
         trainer_cfg = self.trainer_cfg
 
         self.losses.zero()
@@ -526,7 +530,7 @@ class MettaTrainer:
                 loss = process_minibatch_update(
                     policy=self.policy,
                     experience=experience,
-                    minibatch=minibatch,
+                    td=minibatch,
                     indices=indices,
                     prio_weights=prio_weights,
                     trainer_cfg=trainer_cfg,

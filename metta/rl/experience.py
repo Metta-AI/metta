@@ -118,7 +118,7 @@ class Experience:
         indices = self.ep_indices[env_id]
 
         # Store data in segmented tensors
-        self.buffer[indices, episode_length] = data_td
+        self.buffer[indices, episode_length].update(data_td.select(*self.buffer.keys(include_nested=True)))
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
@@ -153,7 +153,7 @@ class Experience:
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,  # av delete this
-    ) -> TensorDict:
+    ) -> tuple[TensorDict, Tensor, Tensor]:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)

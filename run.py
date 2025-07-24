@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import torch
 from omegaconf import DictConfig, OmegaConf
+from tensordict import TensorDict
 
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -255,7 +256,7 @@ kickstarter = Kickstarter(
     trainer_config.kickstart,
     str(device),
     policy_store,
-    metta_grid_env,  # Pass the full environment object, not individual attributes
+    metta_grid_env,
 )
 
 # Create losses tracker
@@ -312,10 +313,18 @@ while agent_step < trainer_config.total_timesteps:
         o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
         agent_step += num_steps
 
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            agent, o, experience, training_env_id.start, device
+        # # Run policy inference
+        # actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+        #     agent, o, experience, training_env_id.start, device
+        # )
+        td = TensorDict(
+            {"env_obs": o},
+            batch_size=training_env_id.start,
         )
+        td = agent(td)
+        actions = td["actions"]
+        selected_action_log_probs = td["logprobs"]
+        values = td["values"]
 
         # Store experience
         experience.store(
@@ -328,7 +337,6 @@ while agent_step < trainer_config.total_timesteps:
             values=values,
             env_id=training_env_id,
             mask=mask,
-            lstm_state=lstm_state_to_store,
         )
 
         # Send actions back to environment
@@ -392,7 +400,7 @@ while agent_step < trainer_config.total_timesteps:
             loss = process_minibatch_update(
                 policy=agent,
                 experience=experience,
-                minibatch=minibatch,
+                td=minibatch,
                 advantages=advantages,
                 trainer_cfg=trainer_config,
                 kickstarter=kickstarter,

@@ -60,7 +60,7 @@ def compute_ppo_losses(
 def process_minibatch_update(
     policy: torch.nn.Module,
     experience: Experience,
-    minibatch: TensorDict,
+    td: TensorDict,
     trainer_cfg: Any,
     indices: Tensor,
     prio_weights: Tensor,
@@ -71,22 +71,22 @@ def process_minibatch_update(
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
     # The policy's training forward pass returns a TD with required tensors for loss calculation.
-    policy_output = policy(minibatch, action=minibatch["actions"])
-    new_logprobs = policy_output["action_log_prob"].reshape(minibatch["logprobs"].shape)
-    entropy = policy_output["entropy"]
-    newvalue = policy_output["value"]
-    full_logprobs = policy_output["log_probs"]
+    td = policy(td, action=td["actions"])
+    new_logprobs = td["action_log_prob"].reshape(td["logprobs"].shape)
+    entropy = td["entropy"]
+    newvalue = td["value"]
+    full_logprobs = td["log_probs"]
 
-    logratio = new_logprobs - minibatch["logprobs"]
+    logratio = new_logprobs - td["logprobs"]
     importance_sampling_ratio = logratio.exp()
 
     # Re-compute advantages with new ratios (V-trace)
     adv = compute_advantage(
-        minibatch["values"],
-        minibatch["rewards"],
-        minibatch["dones"],
+        td["values"],
+        td["rewards"],
+        td["dones"],
         importance_sampling_ratio,
-        minibatch["advantages"],
+        td["advantages"],
         trainer_cfg.ppo.gamma,
         trainer_cfg.ppo.gae_lambda,
         trainer_cfg.vtrace.vtrace_rho_clip,
@@ -100,7 +100,7 @@ def process_minibatch_update(
 
     # Compute losses
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
-        minibatch,
+        td,
         new_logprobs,
         entropy,
         newvalue,
@@ -114,7 +114,7 @@ def process_minibatch_update(
         agent_step,
         full_logprobs,
         newvalue,
-        minibatch["obs"],
+        td["env_obs"],
         teacher_lstm_state=[],
     )
 
@@ -135,8 +135,8 @@ def process_minibatch_update(
 
     # Update values and ratio in experience buffer
     update_td = TensorDict(
-        {"values": newvalue.view(minibatch["values"].shape), "ratio": importance_sampling_ratio},
-        batch_size=minibatch.batch_size,
+        {"values": newvalue.view(td["values"].shape), "ratio": importance_sampling_ratio},
+        batch_size=td.batch_size,
     )
     experience.update(indices, update_td)
 
