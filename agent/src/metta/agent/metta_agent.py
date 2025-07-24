@@ -482,6 +482,12 @@ class MettaAgent(nn.Module):
         # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
         # - Inference input: (BT, *obs_shape) stays as (BT, *)
 
+        if "_core_" in td and isinstance(td["_core_"], torch.Tensor):
+            state.hidden = td["_core_"]
+
+        if "_core_" in td:
+            print(f"captured lstm output shape: {td['_core_'].shape}")
+
         # Update LSTM states
         split_size = self.core_num_layers
         state.lstm_h = td["state"][:split_size]

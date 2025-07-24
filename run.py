@@ -41,6 +41,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
     CheckpointConfig,
+    ContrastiveConfig,
     OptimizerConfig,
     PPOConfig,
     SimulationConfig,
@@ -90,12 +91,20 @@ trainer_config = TrainerConfig(
     total_timesteps=10_000_000,
     batch_size=524288 if torch.cuda.is_available() else 131072,  # 512k for GPU, 128k for CPU (minimum for navigation)
     minibatch_size=16384 if torch.cuda.is_available() else 4096,  # 16k for GPU, 4k for CPU
-    curriculum="/env/mettagrid/curriculum/navigation/bucketed",
+    curriculum="/env/mettagrid/curriculum/arena/learning_progress",
     ppo=PPOConfig(
         clip_coef=0.1,
         ent_coef=0.01,
         gamma=0.99,
         gae_lambda=0.95,
+    ),
+    contrastive=ContrastiveConfig(
+        enabled=True,
+        weight=0.1,
+        gamma=0.99,
+        temperature=0.1,
+        num_negatives=128,
+        logsumexp_coef=0.01,
     ),
     optimizer=OptimizerConfig(
         type="adam",

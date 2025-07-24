@@ -17,6 +17,11 @@ class Losses:
         self.current_logprobs_sum = 0.0
         self.explained_variance = 0.0
         self.minibatches_processed = 0
+        self.contrastive_loss_sum: float = 0.0
+        self.contrastive_infonce_sum: float = 0.0
+        self.contrastive_logsumexp_sum: float = 0.0
+        self.contrastive_pos_sim_sum: float = 0.0
+        self.contrastive_neg_sim_sum: float = 0.0
 
     def stats(self) -> dict[str, float]:
         """Convert losses to dictionary with proper averages"""
@@ -35,4 +40,9 @@ class Losses:
             "importance": self.importance_sum / n,
             "explained_variance": self.explained_variance,
             "current_logprobs": self.current_logprobs_sum / n,
+            "contrastive_loss": self.contrastive_loss_sum / n,
+            "contrastive_infonce": self.contrastive_infonce_sum / n,
+            "contrastive_logsumexp": self.contrastive_logsumexp_sum / n,
+            "contrastive_pos_sim": self.contrastive_pos_sim_sum / n,
+            "contrastive_neg_sim": self.contrastive_neg_sim_sum / n,
         }
