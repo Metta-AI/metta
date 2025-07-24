@@ -97,7 +97,6 @@ export function drawTrace(panel: PanelInfo) {
   if (!shouldRegenerate) {
     return
   }
-  console.log('Regenerating trace')
 
   ctx.save()
   ctx.clearMesh()
