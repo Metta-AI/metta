@@ -190,7 +190,7 @@ jobs:
             test_pattern: "tests/sweep/** tests/protein/**"
           - name: "core-other"
             package: "core"
-            test_pattern: "tests"
+            test_pattern: "tests/test_*.py"
             exclude_pattern: "tests/maps/** tests/rl/** tests/sims/** tests/eval/** tests/sweep/** tests/protein/**"
     steps:
       - name: Checkout code
