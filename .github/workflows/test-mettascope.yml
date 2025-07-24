@@ -159,7 +159,7 @@ jobs:
           echo
 
           # Define directories to clean up
-          CLEANUP_DIRS=".venv train_dir .uv-cache"
+          CLEANUP_DIRS=".venv .uv-cache mettascope/node_modules"
 
           # Show sizes and remove directories
           for dir in $CLEANUP_DIRS; do
