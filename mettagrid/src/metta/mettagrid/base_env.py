@@ -14,14 +14,13 @@ import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from gymnasium import spaces
 from omegaconf import OmegaConf
 from pydantic import validate_call
 
-from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
@@ -29,6 +28,9 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+
+if TYPE_CHECKING:
+    from metta.common.profiling.stopwatch import Stopwatch
 
 logger = logging.getLogger("MettaGridEnv")
 
@@ -66,6 +68,9 @@ class MettaGridEnv(ABC):
             is_training: Whether this is for training
             **kwargs: Additional arguments passed to subclasses
         """
+        # Lazy import of Stopwatch
+        from metta.common.profiling.stopwatch import Stopwatch
+        
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
@@ -112,7 +117,6 @@ class MettaGridEnv(ABC):
         """Generate unique episode ID."""
         return str(uuid.uuid4())
 
-    @with_instance_timer("_create_core_env")
     def _create_core_env(self, seed: Optional[int] = None) -> MettaGridCore:
         """
         Create a new MettaGridCore instance.
@@ -123,52 +127,53 @@ class MettaGridEnv(ABC):
         Returns:
             New MettaGridCore instance
         """
-        task = self._task
-        task_cfg = task.env_cfg()
-        level = self._level
+        with self.timer("_create_core_env"):
+            task = self._task
+            task_cfg = task.env_cfg()
+            level = self._level
 
-        if level is None:
-            with self.timer("_initialize_c_env.build_map"):
-                level = task_cfg.game.map_builder.build()
+            if level is None:
+                with self.timer("_initialize_c_env.build_map"):
+                    level = task_cfg.game.map_builder.build()
 
-        # Validate the level
-        level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task_cfg.game.num_agents == level_agents, (
-            f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
-        )
+            # Validate the level
+            level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+            assert task_cfg.game.num_agents == level_agents, (
+                f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
+            )
 
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
+            game_config_dict = OmegaConf.to_container(task_cfg.game)
+            assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
 
-        # Ensure we have a dict
-        if not isinstance(game_config_dict, dict):
-            raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
+            # Ensure we have a dict
+            if not isinstance(game_config_dict, dict):
+                raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
 
-        # Handle episode desyncing for training
-        if self._is_training and self._resets == 0:
-            max_steps = game_config_dict["max_steps"]
-            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            # Handle episode desyncing for training
+            if self._is_training and self._resets == 0:
+                max_steps = game_config_dict["max_steps"]
+                game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
 
-        self._map_labels = level.labels
+            self._map_labels = level.labels
 
-        # Create C++ config
-        with self.timer("_create_core_env.make_c_config"):
-            try:
-                c_cfg = from_mettagrid_config(game_config_dict)
-            except Exception as e:
-                logger.error(f"Error creating C++ config: {e}")
-                logger.error(f"Game config: {game_config_dict}")
-                raise e
+            # Create C++ config
+            with self.timer("_create_core_env.make_c_config"):
+                try:
+                    c_cfg = from_mettagrid_config(game_config_dict)
+                except Exception as e:
+                    logger.error(f"Error creating C++ config: {e}")
+                    logger.error(f"Game config: {game_config_dict}")
+                    raise e
 
-        # Create core environment
-        current_seed = seed if seed is not None else self._current_seed
-        core_env = MettaGridCore(c_cfg, level.grid.tolist(), current_seed)
+            # Create core environment
+            current_seed = seed if seed is not None else self._current_seed
+            core_env = MettaGridCore(c_cfg, level.grid.tolist(), current_seed)
 
-        # Initialize renderer if needed
-        if self._render_mode is not None and self._renderer is None:
-            self._renderer = self._renderer_class(core_env.object_type_names)
+            # Initialize renderer if needed
+            if self._render_mode is not None and self._renderer is None:
+                self._renderer = self._renderer_class(core_env.object_type_names)
 
-        return core_env
+            return core_env
 
     def reset_base(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """

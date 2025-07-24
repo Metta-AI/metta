@@ -6,7 +6,7 @@ import datetime
 import logging
 import time
 import uuid
-from typing import Any, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 import numpy as np
 from gymnasium import Env as GymEnv
@@ -16,7 +16,6 @@ from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
-from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
@@ -24,6 +23,9 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+
+if TYPE_CHECKING:
+    from metta.common.profiling.stopwatch import Stopwatch
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -71,6 +73,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         is_training: bool = False,
         **kwargs,
     ):
+        # Lazy import of Stopwatch
+        from metta.common.profiling.stopwatch import Stopwatch
+        
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
@@ -110,82 +115,73 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
-    @with_instance_timer("_initialize_c_env")
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
-        task = self._task
-        task_cfg = task.env_cfg()
-        level = self._level
+        with self.timer("_initialize_c_env"):
+            task = self._task
+            task_cfg = task.env_cfg()
+            level = self._level
 
-        if level is None:
-            with self.timer("_initialize_c_env.build_map"):
-                level = task_cfg.game.map_builder.build()
+            if level is None:
+                with self.timer("_initialize_c_env.build_map"):
+                    level = task_cfg.game.map_builder.build()
 
-        # Validate the level
-        level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task_cfg.game.num_agents == level_agents, (
-            f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
-        )
+            # Validate the level
+            level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+            assert task_cfg.game.num_agents == level_agents, (
+                f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
+            )
 
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
+            game_config_dict = OmegaConf.to_container(task_cfg.game)
+            assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
 
-        # During training, we run a lot of envs in parallel, and it's better if they are not
-        # all synced together. The desync_episodes flag is used to desync the episodes.
-        # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if self._is_training and self._resets == 0:
-            max_steps = game_config_dict["max_steps"]
-            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            # During training, we run a lot of envs in parallel, and it's better if they are not
+            # all synced together. The desync_episodes flag is used to desync the episodes.
+            # Ideally vecenv would have a way to desync the episodes, but it doesn't.
+            if self._is_training and self._resets == 0:
+                max_steps = game_config_dict["max_steps"]
+                game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
 
-        self._map_labels = level.labels
+            self._map_labels = level.labels
 
-        # Convert string array to list of strings for C++ compatibility
-        # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        with self.timer("_initialize_c_env.make_c_env"):
-            c_cfg = None
-            try:
-                c_cfg = from_mettagrid_config(game_config_dict)
-            except Exception as e:
-                logger.error(f"Error initializing C++ environment: {e}")
-                logger.error(f"Game config: {game_config_dict}")
-                raise e
+            # Convert string array to list of strings for C++ compatibility
+            # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
+            with self.timer("_initialize_c_env.make_c_env"):
+                c_cfg = None
+                try:
+                    c_cfg = from_mettagrid_config(game_config_dict)
+                except Exception as e:
+                    logger.error(f"Error initializing C++ environment: {e}")
+                    logger.error(f"Game config: {game_config_dict}")
+                    raise e
 
-            self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
+                self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
 
-        self._grid_env = self._c_env
+            self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
-    @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        self.timer.stop("thread_idle")
+        with self.timer("reset"):
+            self.timer.stop("thread_idle")
 
-        self._task = self._curriculum.get_task()
+            self._task = self._curriculum.get_task()
 
-        self._initialize_c_env()
-        self._steps = 0
-        self._resets += 1
+            self._initialize_c_env()
+            self._steps = 0
+            self._resets += 1
+            self._episode_id = self._make_episode_id()
+            self._current_seed = seed or 0
+            self._reset_at = datetime.datetime.now()
+            if self._replay_writer:
+                self._replay_writer.start_episode(self._episode_id, self)
 
-        assert self.observations.dtype == dtype_observations
-        assert self.terminals.dtype == dtype_terminals
-        assert self.truncations.dtype == dtype_truncations
-        assert self.rewards.dtype == dtype_rewards
+            obs, infos = self._c_env.reset()
+            self._should_reset = False
 
-        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
-        self._episode_id = self._make_episode_id()
-        self._current_seed = seed or 0
-        self._reset_at = datetime.datetime.now()
-        if self._replay_writer:
-            self._replay_writer.start_episode(self._episode_id, self)
-
-        obs, infos = self._c_env.reset()
-        self._should_reset = False
-
-        self.timer.start("thread_idle")
-        return obs, infos
+            self.timer.start("thread_idle")
+            return obs, infos
 
     @override  # pufferlib.PufferEnv.step
-    @with_instance_timer("step")
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
         Execute one timestep of the environment dynamics with the given actions.
@@ -201,7 +197,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             Tuple of (observations, rewards, terminals, truncations, infos)
 
         """
-        self.timer.stop("thread_idle")
+        with self.timer("step"):
+            self.timer.stop("thread_idle")
 
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
@@ -232,8 +229,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             # Add curriculum task probabilities to infos for distributed logging
             infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
 
-        self.timer.start("thread_idle")
-        return self.observations, self.rewards, self.terminals, self.truncations, infos
+            self.timer.start("thread_idle")
+            return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     @override
     def close(self):
