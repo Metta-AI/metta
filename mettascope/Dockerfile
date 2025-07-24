@@ -1,5 +1,5 @@
 # Start with Playwright base image that includes browsers and Node.js
-FROM mcr.microsoft.com/playwright:v1.53.0-jammy
+FROM mcr.microsoft.com/playwright:v1.53.2-jammy
 
 # Set non-interactive to avoid prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
