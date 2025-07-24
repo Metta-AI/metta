@@ -75,7 +75,7 @@ class Area:
 # Scene configs can be either:
 # - a dict with `type`, `params`, and optionally `children` keys (this is how we define scenes in YAML configs)
 # - a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
-# - a function that takes a MapGrid and returns a Scene instance (useful for children values produced in Python code)
+# - a function that takes a MapGrid and returns a Scene instance (useful for children actions produced in Python code)
 #
 # See `metta.map.scene.make_scene` implementation for more details.
 SceneCfg = dict | str | Callable[[Area, np.random.Generator], Any]

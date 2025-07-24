@@ -82,7 +82,7 @@ class MapGen(LevelBuilder):
                     columns=instance_cols,
                     border_width=self.instance_border_width,
                 ),
-                children=[
+                children_actions=[
                     ChildrenAction(
                         scene=self.root,
                         where=AreaWhere(tags=["room"]),
