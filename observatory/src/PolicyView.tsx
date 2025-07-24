@@ -638,7 +638,7 @@ export function PolicyView({ repo }: PolicyViewProps) {
 
     const renderSampleRunsGrid = () => (
         <div className="sample-runs-section">
-            <div className="metrics-section-title">Evaluation Scores during Training</div>
+            <div className="metrics-section-title">Sample Runs Used for Training</div>
             <div className="tabs-container">
                 <div className="tabs">
                     <div style={{ overflowX: 'auto', whiteSpace: 'nowrap' }}>
@@ -819,7 +819,7 @@ export function PolicyView({ repo }: PolicyViewProps) {
 
     const renderEvaluationScoresGrid = () => (
         <div className="evaluation-scores-section">
-            <div className="metrics-section-title">Evaluation Scores</div>
+            <div className="metrics-section-title">Evaluation Scores During Training</div>
             <div className="tabs-container">
                 <div className="tabs">
                     <div style={{ overflowX: 'auto', whiteSpace: 'nowrap' }}>
