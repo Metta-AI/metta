@@ -1,0 +1,10 @@
+packages:
+  - gridworks
+  - library
+  - mettascope
+  - observatory
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - "@biomejs/biome"
+  - es5-ext

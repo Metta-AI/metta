@@ -19,7 +19,6 @@
     "react-dom": "^19.0.0",
     "react-select": "^5.10.1",
     "react-textarea-autosize": "^8.5.9",
-    "use-pan-and-zoom": "^0.6.5",
     "zod": "^3.25.67"
   },
   "devDependencies": {
