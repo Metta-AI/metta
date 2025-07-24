@@ -25,6 +25,30 @@ heights = [0] * atlas_image.width
 padding = 64
 
 
+def needs_rebuild(atlas_dir):
+    """Check if the atlas needs to be rebuilt based on file timestamps."""
+    # Check if output files exist
+    atlas_png = "dist/atlas.png"
+    atlas_json = "dist/atlas.json"
+
+    if not os.path.exists(atlas_png) or not os.path.exists(atlas_json):
+        return True, "Output files missing"
+
+    # Get output file timestamps
+    output_time = min(os.path.getmtime(atlas_png), os.path.getmtime(atlas_json))
+
+    # Check if any input file is newer than output
+    for root, _dirs, files in os.walk(atlas_dir):
+        for file in files:
+            if file.endswith(".png"):
+                img_path = os.path.join(root, file)
+                if os.path.getmtime(img_path) > output_time:
+                    relative_path = os.path.relpath(img_path, atlas_dir)
+                    return True, f"Input file newer: {relative_path}"
+
+    return False, "No changes detected"
+
+
 def put_image(img, name):
     """
     Place an image in the atlas at the specified coordinates or find the best position.
@@ -106,6 +130,15 @@ def main():
     if not os.path.exists(atlas_dir):
         print(f"Error: Atlas directory '{atlas_dir}' not found", file=sys.stderr)
         sys.exit(1)
+
+    # Check if rebuild is needed
+    should_rebuild, reason = needs_rebuild(atlas_dir)
+
+    if not should_rebuild:
+        print("Atlas is up to date, skipping generation")
+        return
+
+    print(f"Rebuilding atlas: {reason}")
 
     image_count = 0
     for root, _dirs, files in os.walk(atlas_dir):
