@@ -1,5 +1,4 @@
-name: "Mettascope UI Test (Headless Chrome)"
-
+name: "Test Mettascope"
 on:
   pull_request:
     paths:
@@ -8,8 +7,11 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  smoke-test:
+  ui-test:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.48.0-jammy
+      options: --user 1001
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,11 +23,10 @@ jobs:
           cache: "npm"
           cache-dependency-path: mettascope/package-lock.json
 
-      - name: Install Playwright (Chromium only)
+      - name: Install dependencies
         run: |
           cd mettascope
-          npm install
-          npx playwright install --with-deps chromium
+          npm ci
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
@@ -44,7 +45,7 @@ jobs:
         run: |
           uv run tools/replay.py run=smoke_test +hardware=github wandb=off
 
-      - name: Run mettascope smoke test
+      - name: Run mettascope playwright tests
         run: |
           # start the backend
           uv run tools/play.py run=smoke_test +hardware=github wandb=off replay_job.open_browser_on_start=false &
@@ -62,8 +63,6 @@ jobs:
           done
 
           cd mettascope
-
-          # run tests
           npm run test
 
       - name: Upload test artifacts
