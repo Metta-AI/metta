@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import torch as th
 import uvicorn
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
@@ -183,7 +183,11 @@ def make_app(cfg: DictConfig):
         while True:
             # Main message loop.
 
-            message = await websocket.receive_json()
+            try:
+                message = await websocket.receive_json()
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected by client")
+                break
 
             if message["type"] == "action":
                 action_message = message
