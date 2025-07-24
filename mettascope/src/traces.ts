@@ -11,7 +11,7 @@ let lastCachedState = {
   step: -1,
   selection: null as any,
   zoomLevel: -1,
-  panPos: null as Vec2f | null
+  panPos: null as Vec2f | null,
 }
 
 /** Draws the trace panel. */
@@ -78,12 +78,14 @@ export function drawTrace(panel: PanelInfo) {
   }
 
   // if any state has changed, we need to regenerate the trace mesh.
-  if (state.step !== lastCachedState.step ||
+  if (
+    state.step !== lastCachedState.step ||
     state.selectedGridObject !== lastCachedState.selection ||
     panel.zoomLevel !== lastCachedState.zoomLevel ||
     lastCachedState.panPos === null ||
     panel.panPos.x() !== lastCachedState.panPos.x() ||
-    panel.panPos.y() !== lastCachedState.panPos.y()) {
+    panel.panPos.y() !== lastCachedState.panPos.y()
+  ) {
     shouldRegenerate = true
     lastCachedState.step = state.step
     lastCachedState.selection = state.selectedGridObject
@@ -104,7 +106,6 @@ export function drawTrace(panel: PanelInfo) {
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
   const fullSize = new Vec2f(state.replay.max_steps * Common.TRACE_WIDTH, state.replay.num_agents * Common.TRACE_HEIGHT)
-
 
   // Draw the background.
   ctx.drawSolidRect(

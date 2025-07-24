@@ -277,7 +277,7 @@ class Mesh {
   /** Reset the counters. */
   resetCounters() {
     if (this.cacheable) {
-      return; // Don't reset counters for cacheable meshes
+      return // Don't reset counters for cacheable meshes
     }
 
     this.currentQuad = 0
