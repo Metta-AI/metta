@@ -1,17 +1,71 @@
-## Mettabook - Research Analysis Notebooks
+# Experiments
 
-This is experimental. The hopes are that it makes analysis easier - providing a unified interface for launching training runs, monitoring them, and analyzing results all in one place.
+A framework for reproducible experiments that auto-generate analysis notebooks.
 
-More tools will be added over time, including integration with Observatory
+## Quick Start
 
-We expect that this won't be perfect at first but want to gauge its viability. Please post in #researcher-tools for anything that is painful or that you need!
+```bash
+# Run an existing experiment
+python experiments/templates/arena_experiment.py
 
-### How to Use
+```
 
-- Copy `mettabook-template.ipynb` to your own file in the research/ folder
-- Check you're up to date with `metta install`
-- Open your notebook in Cursor. When you open the file or try to run a cell (shift+enter by default), you should be prompted to select a Python kernel. Select the one from your uv-managed `.venv`
+This will:
 
-### Sharing results
-- Commit relatively freely to the `research/` subfolder for now. Don't hold yourself to a high quality bar: these are not intended to be depended on
-- Add tools you think others will also want to`utils/` files. These will undergo a more typical dev process
+1. Launch training runs on the cluster
+2. Generate an analysis notebook in `experiments/log/`
+3. Save experiment metadata for reproducibility
+
+## Creating a New Experiment
+
+Create a new file in `experiments/templates/`:
+
+```python
+from experiments.experiment import Experiment
+from experiments.launch import launch_training_run
+
+class MyExperiment(Experiment):
+    def launch_training_runs(self):
+        result = launch_training_run(
+            run_name="my_run",
+            curriculum="env/mettagrid/my_curriculum",
+            num_gpus=1,
+        )
+        self.launch_results.append(result)
+        return {
+            "run_names": [result["run_name"]],
+            "success": result["success"]
+        }
+
+    def get_analysis_config(self):
+        return {
+            "metrics_to_plot": ["overview/reward"],
+            "eval_suites": ["navigation"],
+        }
+```
+
+## Structure
+
+```
+experiments/
+├── experiment.py          # Base Experiment class
+├── launch.py             # Core training launch functionality
+├── templates/            # Experiment implementations
+│   └── arena_experiment.py
+├── notebooks/            # Notebook utilities and analysis tools
+└── log/                  # Generated notebooks and metadata
+```
+
+## Experiment Interface
+
+All experiments inherit from `Experiment` and must implement:
+
+- `launch_training_runs()`: Launch training and return metadata
+- `get_analysis_config()`: Specify metrics and analysis configuration
+
+Generated notebooks include:
+
+- Experiment metadata and configuration
+- Pre-configured analysis cells
+- Links to training runs
+- Standard visualizations (SPS, metrics, etc.)
