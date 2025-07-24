@@ -908,6 +908,12 @@ class MettaTrainer:
             epoch=self.epoch,
         )
 
+        # Add dual-policy stats to all_stats if they exist
+        if self.dual_policy_rollout:
+            for key, value in self.stats.items():
+                if key.startswith("dual_policy/"):
+                    all_stats[key] = value
+
         # Log to wandb
         self.wandb_run.log(
             all_stats,
