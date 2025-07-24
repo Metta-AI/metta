@@ -7,12 +7,12 @@
  * minimap for the traces.
  */
 
-import { PanelInfo } from './panels.js'
 import * as Common from './common.js'
-import { ui, state, html, ctx, setFollowSelection } from './common.js'
-import { onEvent } from './htmlutils.js'
-import { updateStep, requestFrame } from './main.js'
+import { ctx, html, state, ui } from './common.js'
 import { clamp } from './context3d.js'
+import { onEvent } from './htmlutils.js'
+import { requestFrame, updateStep } from './main.js'
+import { PanelInfo } from './panels.js'
 import { getAttr } from './replay.js'
 
 /** Initializes the timeline. */
@@ -120,7 +120,7 @@ export function drawTimeline(panel: PanelInfo) {
       let frozen = getAttr(agent, 'agent:frozen', j)
       if (frozen > 0 && prevFrozen == 0) {
         let x = 16 + (j / fullSteps) * scrubberWidth
-        ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
+        ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0.1, 0)
         ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
       }
       prevFrozen = frozen

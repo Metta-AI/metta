@@ -665,7 +665,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas centered at (x, y). */
-  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0) {
+  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scaleX = 1, scaleY = 1, rotation = 0) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -687,11 +687,11 @@ export class Context3d {
     const u1 = (sx + sw + m) / this.mainTextureSize.x()
     const v1 = (sy + sh + m) / this.mainTextureSize.y()
 
-    if (scale != 1 || rotation != 0) {
+    if (scaleX != 1 || scaleY != 1 || rotation != 0) {
       this.save()
       this.translate(x, y)
       this.rotate(rotation)
-      this.scale(scale, scale)
+      this.scale(scaleX, scaleY)
       this.drawRect(
         -sw / 2 - m, // Center horizontally with margin adjustment.
         -sh / 2 - m, // Center vertically with margin adjustment.
@@ -764,6 +764,7 @@ export class Context3d {
     spacing = 0,
     center = false
   ) {
+
     if (!this.ready) throw new Error("Context not ready")
     if (!this.fontAtlasData || !this.fontAtlasTexture) {
       console.error("Font atlas not loaded")
@@ -944,7 +945,7 @@ export class Context3d {
       if (i < skipStart || i >= numDashes - skipEnd) {
         continue
       }
-      this.drawSprite(imageName, x0 + i * dx, y0 + i * dy, color, 1, -angle)
+      this.drawSprite(imageName, x0 + i * dx, y0 + i * dy, color, 1, 1, -angle)
     }
   }
 }

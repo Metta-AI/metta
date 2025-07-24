@@ -1,10 +1,10 @@
-import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
-import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr } from './replay.js'
-import { PanelInfo } from './panels.js'
-import { updateStep, updateSelection } from './main.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
 import { parseHtmlColor } from './htmlutils.js'
+import { updateSelection, updateStep } from './main.js'
+import { PanelInfo } from './panels.js'
+import { getAttr } from './replay.js'
+import { Vec2f } from './vector_math.js'
 
 /** Draws the trace panel. */
 export function drawTrace(panel: PanelInfo) {
@@ -138,6 +138,7 @@ export function drawTrace(panel: PanelInfo) {
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT - 32,
           [1.0, 1.0, 1.0, 1.0],
+          1 / 4,
           1 / 4
         )
       }
@@ -163,6 +164,7 @@ export function drawTrace(panel: PanelInfo) {
               j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
               i * Common.TRACE_HEIGHT + y,
               color,
+              1 / 4,
               1 / 4
             )
             y += step

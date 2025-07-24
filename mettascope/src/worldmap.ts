@@ -277,6 +277,7 @@ function drawActions() {
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
+            1,
             rotation
           )
         } else if (action_name == 'attack_nearest') {
@@ -285,6 +286,7 @@ function drawActions() {
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
+            1,
             1,
             rotation
           )
@@ -295,6 +297,7 @@ function drawActions() {
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
+            1,
             rotation
           )
         } else if (action_name == 'get_items') {
@@ -304,10 +307,11 @@ function drawActions() {
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
+            1,
             rotation
           )
         } else if (action_name == 'swap') {
-          ctx.drawSprite('actions/swap.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1, rotation)
+          ctx.drawSprite('actions/swap.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1, 1, rotation)
         }
       }
     }
@@ -319,6 +323,7 @@ function drawActions() {
         x * Common.TILE_SIZE,
         y * Common.TILE_SIZE - 100,
         [1, 1, 1, 1],
+        1,
         1,
         // Apply a gentle rotation.
         -state.step * 0.1
@@ -369,6 +374,7 @@ function drawInventory(useSearch = false) {
               y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
               [1, 1, 1, 1],
               0.25,
+              0.25,
               0
             )
           }
@@ -377,6 +383,7 @@ function drawInventory(useSearch = false) {
             x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
             y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
             color,
+            1 / 8,
             1 / 8,
             0
           )
@@ -459,16 +466,16 @@ function drawTrajectory() {
 
           if (cx1 > cx0) {
             // East
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, 0)
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, 1, 0)
           } else if (cx1 < cx0) {
             // West
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, Math.PI)
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, 1, Math.PI)
           } else if (cy1 > cy0) {
             // South
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, -Math.PI / 2)
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, 1, -Math.PI / 2)
           } else if (cy1 < cy0) {
             // North
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, Math.PI / 2)
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, 1, Math.PI / 2)
           }
         }
       }
@@ -536,6 +543,7 @@ function drawThoughtBubbles() {
           y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
           [1, 1, 1, 1],
           1 / 4,
+          1 / 4,
           0
         )
       } else {
@@ -544,6 +552,7 @@ function drawThoughtBubbles() {
           x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
           y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
           [1, 1, 1, 1],
+          1 / 4,
           1 / 4,
           0
         )
@@ -562,7 +571,7 @@ function drawThoughtBubbles() {
           resourceX -= 32
         }
         for (let i = 0; i < Math.abs(gained); i++) {
-          ctx.drawSprite(image, resourceX, resourceY, color, 1 / 8, 0)
+          ctx.drawSprite(image, resourceX, resourceY, color, 1 / 8, 1 / 8, 0)
           if (gained > 0) {
             resourceX += 8
           } else {
@@ -600,23 +609,53 @@ function drawGlyphBubbles() {
       const centerX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
       const centerY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
 
+      const bubbleX = centerX - Common.TILE_SIZE * 0.6;
+      const bubbleY = centerY - Common.TILE_SIZE / 2;
+
+
       const glyphString = glyphAssociations[glyphId] || ''
+
+      if (ctx.fontAtlasData) {
+        for (const char of glyphString) {
+          console.log(`Char '${char}':`, ctx.fontAtlasData[char]);
+        }
+      }
 
       if (glyphString !== '') {
         ctx.drawSprite(
           'actions/thoughts.png',
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+          bubbleX,
+          bubbleY,
+          [1, 1, 1, 1], // color (white)
+          -2, // scale x - make it 50% bigger and mirror
+          2, // scale y - make it 50% bigger
+          0 // rotation
         )
+
+        // Draw debug rectangle where text should be
+        let text_width = Common.TILE_SIZE * 0.8
+        let text_height = Common.TILE_SIZE * 0.3
+        let boxX = bubbleX - text_width / 2
+        let boxY = bubbleY - text_height / 2
+
+        // ctx.drawSprite(
+        //   'white.png', // 32x32 pixels
+        //   boxX + text_width / 2,
+        //   boxY + text_height / 2,
+        //   [1, 0, 0, 1], // RED tint
+        //   text_width / 64, // scale x
+        //   text_height / 64, // scale y
+        //   0             // no rotation
+        // )
 
         ctx.drawText(
           glyphString,
-          centerX,
-          centerY,
-          [1, 1, 1, 1],     // fill color
-          2,                // scale
-          0,                // spacing
-          true              // center horizontally
+          boxX + text_width / 2,
+          boxY + text_height / 2,
+          [0, 0, 0, 1], // fill black
+          text_height / 8, // scale
+          0, // spacing
+          true // center horizontally
         )
 
       }
@@ -931,7 +970,7 @@ export function drawMap(panel: PanelInfo) {
       let y = getAttr(gridObject, 'r')
       if (searchMatch(typeName)) {
         // Draw halo behind the object.
-        ctx.drawSprite('effects/halo.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1.5, 0)
+        ctx.drawSprite('effects/halo.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1.5, 1.5, 0)
         drawObject(gridObject)
       }
     }

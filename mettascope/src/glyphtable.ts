@@ -7,11 +7,13 @@ import { state } from './common.js'
 import { find, onEvent } from './htmlutils.js'
 
 // Default glyph associations (can be customized)
+// Note that our font sprites only support a limited character set!
+// TODO: consider validating the associations
 const defaultGlyphAssociations: string[] = Array(256).fill('')
-defaultGlyphAssociations[1] = '↑' // up
-defaultGlyphAssociations[2] = '↓' // down
-defaultGlyphAssociations[3] = '→' // right
-defaultGlyphAssociations[4] = '←' // left
+defaultGlyphAssociations[1] = 'Up' // up
+defaultGlyphAssociations[2] = 'Down' // down
+defaultGlyphAssociations[3] = 'Right' // right
+defaultGlyphAssociations[4] = 'Left' // left
 
 export let glyphAssociations: string[] = []
 
