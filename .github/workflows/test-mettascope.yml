@@ -150,46 +150,6 @@ jobs:
           echo "::endgroup::"
 
 
-      # this workflow fills the disk to 97% after training
-      - name: Free disk space
-        run: |
-          echo "::group::Cleaning up disk space"
-          echo "Disk usage before cleanup:"
-          df -h
-          echo
-
-          echo "=== Finding large directories (>1GB) ==="
-          find / -type d -size +1G 2>/dev/null | head -20 || true
-          echo
-
-          echo "=== Largest directories in filesystem ==="
-          du -h --max-depth=2 / 2>/dev/null | sort -hr | head -30 || true
-          echo
-
-          echo "=== GitHub workspace usage ==="
-          du -h --max-depth=3 . | sort -hr | head -20
-          echo
-
-          # Define directories to clean up
-          CLEANUP_DIRS=".venv"
-
-          # Show sizes and remove directories
-          for dir in $CLEANUP_DIRS; do
-            if [ -d "$dir" ]; then
-              echo "Size of $dir:"
-              du -sh "$dir"
-              rm -rf "$dir"
-              echo "✓ Removed $dir"
-            else
-              echo "✗ $dir not found"
-            fi
-            echo
-          done
-
-          echo "Disk usage after cleanup:"
-          df -h
-          echo "::endgroup::"
-
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         if: ${{ always() && !env.ACT }} # Run even on failure, skip when testing locally
