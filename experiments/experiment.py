@@ -6,7 +6,8 @@ import json
 import os
 from datetime import datetime
 
-from experiments.types import TrainingJob
+from experiments.types import TrainingJob, TrainingJobConfig
+from experiments.launch import launch_training_run
 
 
 class Experiment(ABC):
@@ -34,20 +35,17 @@ class Experiment(ABC):
         self.training_jobs: List[TrainingJob] = []
 
     @abstractmethod
-    def launch_training_runs(self) -> Dict[str, Any]:
-        """Launch training runs and return metadata.
+    def launch_training_runs(self) -> List[TrainingJob]:
+        """Launch training runs and return TrainingJob objects.
 
         This method should:
         1. Launch one or more training runs
-        2. Record run names and job IDs
-        3. Return a summary dict
+        2. Create TrainingJob objects for successful launches
+        3. Store jobs in self.training_jobs
+        4. Return the list of TrainingJob objects
 
         Returns:
-            Dictionary containing:
-                - run_names: List of wandb run names
-                - job_ids: List of sky job IDs
-                - launch_results: Full launch result dicts
-                - success: Overall success boolean
+            List of TrainingJob objects for successful launches
         """
         pass
 
@@ -62,6 +60,39 @@ class Experiment(ABC):
                 - custom_analysis: Any experiment-specific config
         """
         pass
+    
+    def launch_training_run_from_config(self, run_name: str, config: TrainingJobConfig) -> Optional[TrainingJob]:
+        """Launch a training run from a TrainingJobConfig.
+        
+        Args:
+            run_name: Name for the training run
+            config: TrainingJobConfig with launch parameters
+            
+        Returns:
+            TrainingJob if successful, None otherwise
+        """
+        result = launch_training_run(
+            run_name=run_name,
+            curriculum=config.curriculum,
+            gpus=config.gpus,
+            nodes=config.nodes,
+            no_spot=config.no_spot,
+            additional_args=config.additional_args,
+            wandb_tags=config.wandb_tags,
+        )
+        
+        self.launch_results.append(result)
+        
+        if result["success"]:
+            job = TrainingJob(
+                wandb_run_name=run_name,
+                skypilot_job_id=result.get("job_id"),
+                config=config,
+            )
+            self.training_jobs.append(job)
+            return job
+        
+        return None
 
     def generate_notebook(self, output_dir: Optional[str] = None) -> str:
         """Generate analysis notebook for the experiment.
@@ -76,10 +107,10 @@ class Experiment(ABC):
             raise ValueError("No training runs launched yet. Call launch_training_runs() first.")
 
         # Extract run names and job IDs from TrainingJob objects
-        wandb_run_ids = [job.wandb_run_id for job in self.training_jobs]
+        wandb_run_names = [job.wandb_run_name for job in self.training_jobs]
         skypilot_job_ids = [job.skypilot_job_id for job in self.training_jobs if job.skypilot_job_id]
 
-        if not wandb_run_ids:
+        if not wandb_run_names:
             raise ValueError("No successful runs to analyze")
 
         # Add analysis config to metadata
@@ -95,8 +126,8 @@ class Experiment(ABC):
 
         return generate_notebook_from_template(
             experiment_name=self.name,
-            run_names=wandb_run_ids,
-            sky_job_ids=skypilot_job_ids if skypilot_job_ids else None,
+            run_names=wandb_run_names,  # Maps to wandb_run_names internally
+            sky_job_ids=skypilot_job_ids if skypilot_job_ids else None,  # Maps to skypilot_job_ids internally
             additional_metadata=self.metadata,
             output_dir=output_dir,
         )
@@ -114,11 +145,11 @@ class Experiment(ABC):
         print("=" * 50)
 
         # Launch training runs
-        launch_summary = self.launch_training_runs()
+        launched_jobs = self.launch_training_runs()
 
         # Generate notebook if requested and launches succeeded
         notebook_path = None
-        if generate_notebook and launch_summary.get("success", False):
+        if generate_notebook and launched_jobs:
             try:
                 notebook_path = self.generate_notebook()
                 print(f"\nGenerated analysis notebook: {notebook_path}")
@@ -127,7 +158,7 @@ class Experiment(ABC):
 
         return {
             "experiment_name": self.name,
-            "launch_summary": launch_summary,
+            "launched_jobs": launched_jobs,
             "notebook_path": notebook_path,
             "metadata": self.metadata,
         }

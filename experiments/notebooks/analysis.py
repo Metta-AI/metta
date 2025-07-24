@@ -6,24 +6,24 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # Import data fetching functions from experiments
-from experiments.wandb import fetch_metrics_data, get_run_config, get_training_logs
+from experiments.wandb_utils import fetch_metrics_data, get_run_config, get_training_logs
 
 
-def fetch_metrics(wandb_run_ids: list[str], samples: int = 1000) -> dict[str, pd.DataFrame]:
+def fetch_metrics(wandb_run_names: list[str], samples: int = 1000) -> dict[str, pd.DataFrame]:
     """Fetch metrics for analysis (notebook-friendly wrapper).
     
     Args:
-        wandb_run_ids: List of wandb run names
+        wandb_run_names: List of wandb run names
         samples: Number of samples to fetch
         
     Returns:
         Dictionary mapping run names to dataframes
     """
-    return fetch_metrics_data(wandb_run_ids, samples)
+    return fetch_metrics_data(wandb_run_names, samples)
 
 
 def plot_sps(
-    wandb_run_ids: List[str],
+    wandb_run_names: List[str],
     samples: int = 1000,
     entity: str = "metta-research",
     project: str = "metta",
@@ -34,7 +34,7 @@ def plot_sps(
     """Plot steps per second for one or more runs.
 
     Args:
-        wandb_run_ids: List of wandb run names to plot
+        wandb_run_names: List of wandb run names to plot
         samples: Number of samples to fetch
         entity: Wandb entity
         project: Wandb project
@@ -50,7 +50,7 @@ def plot_sps(
     # Color palette for different runs
     colors = ["blue", "red", "green", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
 
-    for idx, run_name in enumerate(wandb_run_ids):
+    for idx, run_name in enumerate(wandb_run_names):
         try:
             from experiments.wandb import get_run
             run = get_run(run_name, entity, project)
@@ -107,12 +107,12 @@ def plot_sps(
 
 
 def create_run_summary_table(
-    wandb_run_ids: List[str], metrics: Optional[List[str]] = None, entity: str = "metta-research", project: str = "metta"
+    wandb_run_names: List[str], metrics: Optional[List[str]] = None, entity: str = "metta-research", project: str = "metta"
 ) -> pd.DataFrame:
     """Create a summary table for multiple runs.
 
     Args:
-        wandb_run_ids: List of wandb run names
+        wandb_run_names: List of wandb run names
         metrics: List of metrics to include (if None, includes common ones)
         entity: Wandb entity
         project: Wandb project
@@ -132,7 +132,7 @@ def create_run_summary_table(
     data = []
     
     from experiments.wandb import get_run
-    for run_name in wandb_run_ids:
+    for run_name in wandb_run_names:
         try:
             run = get_run(run_name, entity, project)
             if run is None:

@@ -78,7 +78,7 @@ def get_sky_jobs_data() -> pd.DataFrame:
 
 
 def get_training_status(
-    wandb_run_ids: List[str],
+    wandb_run_names: List[str],
     skypilot_job_ids: Optional[List[str]] = None,
     show_metrics: Optional[List[str]] = None,
     entity: str = "metta-research",
@@ -87,7 +87,7 @@ def get_training_status(
     """Get combined status for training runs.
     
     Args:
-        wandb_run_ids: List of wandb run names
+        wandb_run_names: List of wandb run names
         skypilot_job_ids: Optional list of corresponding sky job IDs
         show_metrics: Metrics to include in status
         entity: Wandb entity
@@ -97,15 +97,15 @@ def get_training_status(
         DataFrame with combined status information
     """
     # Get wandb status
-    from experiments.wandb import get_run_statuses
-    wandb_status = get_run_statuses(wandb_run_ids, show_metrics, entity, project)
+    from experiments.wandb_utils import get_run_statuses
+    wandb_status = get_run_statuses(wandb_run_names, show_metrics, entity, project)
     
     # If we have sky job IDs, merge with sky status
     if skypilot_job_ids:
         sky_status = get_sky_jobs_data()
         
         # Create mapping of run names to job IDs
-        job_mapping = dict(zip(wandb_run_ids, skypilot_job_ids))
+        job_mapping = dict(zip(wandb_run_names, skypilot_job_ids))
         
         # Add sky status to wandb status
         wandb_status["sky_job_id"] = wandb_status["run_name"].map(job_mapping)
