@@ -6,19 +6,10 @@ import { updateAgentTable } from './agentpanel.js'
 
 /** Gets an attribute from a grid object, respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
-  if (atStep == -1) {
-    // When the step is not passed in, use the global step.
-    atStep = state.step
-  }
-  let prop = obj[attr]
-  if (prop === undefined) {
-    return defaultValue
-  } else if (prop instanceof Array) {
-    return prop[atStep]
-  } else {
-    // This must be a constant that does not change over time.
-    return prop
-  }
+  const prop = obj[attr]
+  if (prop === undefined) return defaultValue
+  if (!Array.isArray(prop)) return prop // This must be a constant that does not change over time.
+  return prop[atStep === -1 ? state.step : atStep] // When the step is not passed in, use the global step.
 }
 
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
