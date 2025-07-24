@@ -21,12 +21,12 @@ jobs:
       - name: Install Node dependencies
         run: |
           cd mettascope
-          # Use npm ci if lock file exists and is in sync, otherwise use npm install
-          if [ -f "package-lock.json" ]; then
-            npm ci || npm install
-          else
-            npm install
-          fi
+          echo "::group::Node dependency installation"
+          echo "Current directory: $(pwd)"
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          npm ci
+          echo "::endgroup::"
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
@@ -35,40 +35,131 @@ jobs:
 
       - name: Install Mettascope
         run: |
+          echo "::group::Mettascope installation"
+          echo "Installing Mettascope..."
           ./mettascope/install.sh
+          echo "Installation complete"
+          echo "::endgroup::"
 
       - name: Run quick training job for basic replay data
         run: |
+          echo "::group::Training job"
+          echo "Starting training job..."
           uv run tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
+          echo "Training job completed"
+          echo "::endgroup::"
 
       - name: Generate replay
         run: |
+          echo "::group::Replay generation"
+          echo "Generating replay..."
           uv run tools/replay.py run=smoke_test +hardware=github wandb=off
+          echo "Replay generation completed"
+          echo "::endgroup::"
 
       - name: Run mettascope playwright tests
         run: |
-          # start the backend
-          uv run tools/play.py run=smoke_test +hardware=github wandb=off replay_job.open_browser_on_start=false &
-          echo "Started backend"
+          echo "::group::Playwright tests"
 
-          # wait for server to be ready
-          echo "Waiting for server to be ready..."
-          for i in {1..30}; do
-            if curl -f http://localhost:8000 >/dev/null 2>&1; then
-              echo "Server is ready!"
-              break
+          # Create a log file for the backend
+          BACKEND_LOG="mettascope_backend.log"
+
+          # Start the backend with proper logging
+          echo "Starting backend server..."
+          uv run tools/play.py run=smoke_test +hardware=github wandb=off replay_job.open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
+          BACKEND_PID=$!
+          echo "Backend started with PID: $BACKEND_PID"
+
+          # Function to check if backend is still running
+          check_backend_alive() {
+            if ! kill -0 $BACKEND_PID 2>/dev/null; then
+              echo "ERROR: Backend process died!"
+              echo "Last 50 lines of backend log:"
+              tail -50 "$BACKEND_LOG"
+              return 1
             fi
-            echo "Attempt $i: Server not ready yet, waiting..."
+            return 0
+          }
+
+          # Wait for server to be ready with better diagnostics
+          echo "Waiting for server to be ready..."
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+
+            # Check if backend is still alive
+            if ! check_backend_alive; then
+              exit 1
+            fi
+
+            # Try to connect to the server
+            if curl -f http://localhost:8000 >/dev/null 2>&1; then
+              echo "✓ Server is ready after $ATTEMPT attempts!"
+              break
+            elif curl -v http://localhost:8000 2>&1 | grep -q "Connection refused"; then
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Connection refused, server not listening yet..."
+            else
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Server not ready (unknown error)..."
+              curl -v http://localhost:8000 2>&1 || true
+            fi
+
+            # Show recent backend logs every 5 attempts
+            if [ $((ATTEMPT % 5)) -eq 0 ]; then
+              echo "--- Recent backend logs ---"
+              tail -20 "$BACKEND_LOG"
+              echo "--- End of backend logs ---"
+            fi
+
             sleep 2
           done
 
+          # Check if we exhausted all attempts
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "ERROR: Server failed to start after $MAX_ATTEMPTS attempts"
+            echo "Full backend log:"
+            cat "$BACKEND_LOG"
+            exit 1
+          fi
+
+          # Run the actual tests
           cd mettascope
-          npm run test
+          echo "Running Playwright tests..."
+          echo "Current directory: $(pwd)"
+          echo "Test files:"
+          ls -la tests/*.test.ts || echo "No test files found!"
+
+          # Run tests with more verbose output
+          npm run test -- --reporter=list || TEST_FAILED=1
+
+          # Kill the backend
+          echo "Stopping backend server..."
+          kill $BACKEND_PID 2>/dev/null || true
+
+          # Show backend logs if tests failed
+          if [ -n "$TEST_FAILED" ]; then
+            echo "Tests failed! Backend logs:"
+            cat "../$BACKEND_LOG"
+            exit 1
+          fi
+
+          echo "::endgroup::"
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
-        if: ${{ !env.ACT }} # skip when testing locally with `act`
+        if: ${{ always() && !env.ACT }} # Run even on failure, skip when testing locally
         with:
           name: playwright-test-results
-          path: mettascope/tests/test-results/
+          path: |
+            mettascope/tests/test-results/
+            mettascope_backend.log
+          retention-days: 30
+
+      - name: Upload backend logs on failure
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() && !env.ACT }}
+        with:
+          name: backend-logs
+          path: mettascope_backend.log
           retention-days: 30
