@@ -75,12 +75,12 @@ def process_minibatch_update(
     # Set task IDs on the policy for environmental context
     if "task_ids" in minibatch and hasattr(policy, "current_task_id"):
         # For minibatch training, we need to handle multiple task IDs
-        # For now, we'll use the first task ID in the minibatch
-        # This is a simplification - ideally we'd handle each sample individually
+        # The task_ids tensor has shape (minibatch_segments, bptt_horizon)
         task_ids = minibatch["task_ids"]
         if task_ids.numel() > 0:
-            # Use the first task ID in the minibatch
-            policy.current_task_id = task_ids[0].item()
+            # Flatten the task_ids tensor and use the first value
+            task_ids_flat = task_ids.flatten()
+            policy.current_task_id = task_ids_flat[0].item()
         else:
             policy.current_task_id = None
     else:
