@@ -158,8 +158,16 @@ jobs:
           df -h
           echo
 
-          echo "Top 10 largest directories:"
-          du -h -d 2 . 2>/dev/null | sort -hr | head -20 || true
+          echo "=== Finding large directories (>1GB) ==="
+          find / -type d -size +1G 2>/dev/null | head -20 || true
+          echo
+
+          echo "=== Largest directories in filesystem ==="
+          du -h --max-depth=2 / 2>/dev/null | sort -hr | head -30 || true
+          echo
+
+          echo "=== GitHub workspace usage ==="
+          du -h --max-depth=3 . | sort -hr | head -20
           echo
 
           # Define directories to clean up
