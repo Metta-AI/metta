@@ -256,7 +256,9 @@ class Scene(Generic[ParamsT]):
         grid, because we don't know the size of the full multi-instance grid in advance.
         """
         if is_root:
-            print(f"Transplanting root scene, shift_x: {shift_x}, shift_y: {shift_y}")
+            # This function is recursive, but we only want to copy the grid once, on top level of recursion.
+            # Also, when we recurse into children, we don't need to update the scene's area, because it was already
+            # updated when we transplant all `_areas`.
             original_grid = self.grid
             self.area.transplant_to_grid(grid, shift_x, shift_y)
             self.area.grid[:] = original_grid

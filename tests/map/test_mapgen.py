@@ -2,7 +2,10 @@ import numpy as np
 import pytest
 
 from metta.map.mapgen import MapGen
+from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.room_grid import RoomGrid
+from metta.map.scenes.transplant_scene import TransplantScene
+from tests.map.scenes.utils import assert_raw_grid
 
 
 class TestMapGenSize:
@@ -64,7 +67,7 @@ class TestMapGenInstances:
             (24, 1),  # make sure it's 24 rooms, not 25 (5x5 grid but last room is empty)
         ],
     )
-    def test_mapgen_instances(self, instances, instance_bw):
+    def test_instances(self, instances, instance_bw):
         width, height, border_width = 5, 3, 2
         mg = MapGen(
             root={"type": "metta.map.scenes.inline_ascii.InlineAscii", "params": {"data": "@"}},
@@ -85,6 +88,56 @@ class TestMapGenInstances:
         assert isinstance(mg.root_scene, RoomGrid)
         assert np.count_nonzero(np.char.startswith(level.grid, "agent")) == instances
 
+    def test_num_agents(self):
+        mg = MapGen(
+            root={
+                "type": "metta.map.scenes.inline_ascii.InlineAscii",
+                "params": {
+                    "data": """
+                        .@.
+                        .@.
+                    """,
+                },
+            },
+            # 10 agents, 2 per instance, so 5 instances
+            num_agents=10,
+            instance_border_width=1,
+            border_width=2,
+        )
+        level = mg.build()
+        assert_raw_grid(
+            level.grid,
+            """
+###########
+###########
+##.@.#.@.##
+##.@.#.@.##
+###########
+##.@.#.@.##
+##.@.#.@.##
+###########
+##.@.#...##
+##.@.#...##
+###########
+###########
+    """,
+        )
+        assert np.count_nonzero(np.char.startswith(level.grid, "agent")) == 10
+
+        assert isinstance(mg.root_scene, RoomGrid)
+        assert isinstance(mg.root_scene.children[0], TransplantScene)
+
+        # first instance is transplanted
+        assert isinstance(mg.root_scene.children[0].children[0], InlineAscii)
+        assert isinstance(mg.root_scene.children[1], InlineAscii)
+
+        # sanity checks for transplant
+        first_child = mg.root_scene.children[0]
+        assert first_child.width == 3
+        assert first_child.height == 2
+        assert first_child.area.x == 2
+        assert first_child.area.y == 2
+
 
 class TestMapGenLabels:
     @pytest.mark.parametrize(
@@ -95,7 +148,7 @@ class TestMapGenLabels:
             (100, 80, "large"),  # area = 8 000
         ],
     )
-    def test_mapgen_size_labels(self, width, height, expected_label):
+    def test_size_labels(self, width, height, expected_label):
         mg = MapGen(
             root={"type": "metta.map.scenes.nop.Nop"},
             width=width,
