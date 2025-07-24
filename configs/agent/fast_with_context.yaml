@@ -1,0 +1,129 @@
+# see reference_design.yaml for explanation of components
+
+# This is a CNN-based model that takes environment tokens and converts them into a box with channels, width, and
+# height, and then passes it to a CNN encoder stack. It is not robust to changing observation features. For that,
+# use the attention-based models.
+
+# This version includes environmental context embedding to condition the agent on the task/environment.
+
+_target_: metta.agent.metta_agent.MettaAgent
+
+observations:
+  obs_key: grid_obs
+
+clip_range: 0 # set to 0 to disable clipping
+analyze_weights_interval: 300
+l2_init_weight_update_interval: 0
+
+# Environmental context configuration
+environmental_context:
+  enabled: false  # can be overridden via command line
+  strategy: "input_sum"  # or "initial_state"
+  embedding_dim: 128  # matches LSTM hidden size
+  num_task_embeddings: 1000  # reasonable upper bound for task hash space
+
+components:
+  #necessary layers: _core_, _action_embeds_, _action_, _value_
+  #necessary input_source: _obs_
+
+  _obs_:
+    _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
+    sources:
+      null
+
+  obs_normalizer:
+    _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
+    sources:
+      - name: _obs_
+
+  cnn1:
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
+    sources:
+      - name: obs_normalizer
+    nn_params:
+      out_channels: 64
+      kernel_size: 5
+      stride: 3
+
+  cnn2:
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
+    sources:
+      - name: cnn1
+    nn_params:
+      out_channels: 64
+      kernel_size: 3
+      stride: 1
+
+  obs_flattener:
+    _target_: metta.agent.lib.nn_layer_library.Flatten
+    sources:
+      - name: cnn2
+
+  fc1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: obs_flattener
+    nn_params:
+      out_features: 128
+
+  encoded_obs:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: fc1
+    nn_params:
+      out_features: 128
+
+  # Environmental context embedding layer (only active when enabled)
+  environmental_context_embedding:
+    _target_: metta.agent.lib.environmental_context.EnvironmentalContextEmbedding
+    sources:
+      - name: encoded_obs
+    embedding_dim: 128
+    num_task_embeddings: 1000
+    strategy: "input_sum"
+
+  _core_:
+    _target_: metta.agent.lib.lstm.LSTM
+    sources:
+      - name: environmental_context_embedding
+    output_size: 128
+    nn_params:
+      num_layers: 2
+
+  critic_1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: _core_
+    nn_params:
+      out_features: 1024
+    nonlinearity: nn.Tanh
+    effective_rank: true
+
+  _value_:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: critic_1
+    nn_params:
+      out_features: 1
+    nonlinearity: null
+
+  actor_1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: _core_
+    nn_params:
+      out_features: 512
+
+  _action_embeds_:
+    _target_: metta.agent.lib.action.ActionEmbedding
+    sources:
+      null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 16
+
+  _action_:
+    _target_: metta.agent.lib.actor.MettaActorSingleHead
+    sources:
+      - name: actor_1
+      - name: _action_embeds_ 

@@ -434,7 +434,7 @@ class MettaTrainer:
 
             # Run policy inference
             actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                self.policy, o, experience, training_env_id.start, self.device
+                self.policy, o, experience, training_env_id.start, self.device, info
             )
 
             # Store experience

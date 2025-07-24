@@ -47,6 +47,7 @@ def run_policy_inference(
     experience: Experience,
     training_env_id_start: int,
     device: torch.device,
+    info: Optional[list] = None,
 ) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
     """Run the policy to get actions and value estimates.
 
@@ -59,6 +60,14 @@ def run_policy_inference(
         if lstm_h is not None:
             state.lstm_h = lstm_h
             state.lstm_c = lstm_c
+
+        # Set task ID on the agent if available (for environmental context)
+        if hasattr(policy, "current_task_id"):
+            # Extract task ID from info if available
+            if info and len(info) > 0 and "task_id" in info[0]:
+                policy.current_task_id = info[0]["task_id"]
+            else:
+                policy.current_task_id = None
 
         actions, selected_action_log_probs, _, value, _ = policy(observations, state)
 

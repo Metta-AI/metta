@@ -452,6 +452,17 @@ class MettaAgent(nn.Module):
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
+        # Add task ID if available (for environmental context)
+        if hasattr(self, "current_task_id") and self.current_task_id is not None:
+            # Create task ID tensor with same batch size as observations
+            if x.dim() == 4:  # (BT, H, W, C)
+                batch_size = x.shape[0]
+            else:  # (B, T, H, W, C)
+                batch_size = x.shape[0] * x.shape[1]
+
+            task_id_tensor = torch.full((batch_size,), self.current_task_id, dtype=torch.long, device=x.device)
+            td["task_id"] = task_id_tensor
+
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
@@ -459,6 +470,10 @@ class MettaAgent(nn.Module):
             lstm_c = state.lstm_c.to(x.device)
             # Concatenate LSTM states along dimension 0
             td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
+
+        # Process observation components first (this will handle environmental context if enabled)
+        if "_obs_" in self.components:
+            self.components["_obs_"](td)
 
         # Forward pass through value network
         self.components["_value_"](td)

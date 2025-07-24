@@ -177,6 +177,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._replay_writer.start_episode(self._episode_id, self)
 
         obs, infos = self._c_env.reset()
+
+        # Compute task ID hash for environmental context
+        task_name = self._task.id()
+        task_id_hash = hash(task_name) % 1000  # Use modulo to keep within embedding range
+        infos["task_id"] = task_id_hash
+
         self._should_reset = False
 
         self.timer.start("thread_idle")
