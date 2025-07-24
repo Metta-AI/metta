@@ -1,21 +1,21 @@
-import { Vec2f, Mat3f } from './vector_math.js'
+import { Mat3f, Vec2f } from './vector_math.js'
 
 const VERTEX_SHADER_SOURCE = `
   attribute vec2 a_position;
   attribute vec2 a_texcoord;
   attribute vec4 a_color;
-  
+
   uniform vec2 u_canvasSize;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec2 zeroToOne = a_position / u_canvasSize;
     vec2 zeroToTwo = zeroToOne * 2.0;
     vec2 clipSpace = zeroToTwo - vec2(1.0, 1.0);
     gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
-    
+
     v_texcoord = a_texcoord;
     v_color = a_color;
   }
@@ -23,12 +23,12 @@ const VERTEX_SHADER_SOURCE = `
 
 const FRAGMENT_SHADER_SOURCE = `
   precision mediump float;
-  
+
   uniform sampler2D u_sampler;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec4 texColor = texture2D(u_sampler, v_texcoord);
     // Do the premultiplied alpha conversion.
@@ -645,8 +645,37 @@ export class Context3d {
     )
   }
 
-  /** Draws an image from the atlas centered at (x, y). */
-  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0) {
+  /*
+   * Draws a sprite from the texture atlas centered at the specified position.
+   *
+   * @param imageName - Name of the image in the atlas (e.g., 'player.png')
+   * @param x - X coordinate of the sprite's center
+   * @param y - Y coordinate of the sprite's center
+   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
+   * @param scale - Uniform scale (number) or non-uniform scale [scaleX, scaleY]
+   * @param rotation - Rotation angle in radians (positive = clockwise)
+   *
+   * @example
+   * // Draw at original size
+   * ctx.drawSprite('player.png', 100, 200)
+   *
+   * // Draw with uniform scale
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 2)
+   *
+   * // Draw mirrored horizontally
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], [-1, 1])
+   *
+   * // Draw with rotation (45 degrees)
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 1, Math.PI / 4)
+   */
+  drawSprite(
+    imageName: string,
+    x: number,
+    y: number,
+    color: number[] = [1, 1, 1, 1],
+    scale: number | [number, number] = 1,
+    rotation = 0
+  ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -661,23 +690,27 @@ export class Context3d {
     const [sx, sy, sw, sh] = this.atlasData[imageName]
     const m = this.atlasMargin
 
-    // Calculate UV coordinates (normalized 0.0 to 1.0).
-    // Add the margin to allow texture filtering to handle edge anti-aliasing.
+    // Calculate UV coordinates for the sprite in the texture atlas.
+    // The margin (m) is added to prevent texture bleeding at sprite edges.
     const u0 = (sx - m) / this.textureSize.x()
     const v0 = (sy - m) / this.textureSize.y()
     const u1 = (sx + sw + m) / this.textureSize.x()
     const v1 = (sy + sh + m) / this.textureSize.y()
 
-    if (scale != 1 || rotation != 0) {
+    // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
+    const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
+
+    // Apply transformations if needed (scale or rotation)
+    if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y)
-      this.rotate(rotation)
-      this.scale(scale, scale)
+      this.translate(x, y)          // Move origin to sprite center
+      this.rotate(rotation)         // Apply rotation
+      this.scale(scaleX, scaleY)    // Apply scaling
       this.drawRect(
-        -sw / 2 - m, // Center horizontally with margin adjustment.
-        -sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Reduce width by twice the margin.
-        sh + 2 * m, // Reduce height by twice the margin.
+        -sw / 2 - m,  // Left edge: center minus half width minus margin
+        -sh / 2 - m,  // Top edge: center minus half height minus margin
+        sw + 2 * m,   // Total width including margins on both sides
+        sh + 2 * m,   // Total height including margins on both sides
         u0,
         v0,
         u1,
@@ -686,13 +719,12 @@ export class Context3d {
       )
       this.restore()
     } else {
-      // Draw the rectangle with the image's texture coordinates.
-      // For centered drawing, we need to account for the reduced size.
+      // Fast path: no transformations needed, draw directly
       this.drawRect(
-        x - sw / 2 - m, // Center horizontally with margin adjustment.
-        y - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Reduce width by twice the margin.
-        sh + 2 * m, // Reduce height by twice the margin.
+        x - sw / 2 - m,  // Left edge position
+        y - sh / 2 - m,  // Top edge position
+        sw + 2 * m,      // Total width including margins
+        sh + 2 * m,      // Total height including margins
         u0,
         v0,
         u1,
