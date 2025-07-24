@@ -57,5 +57,13 @@ runs:
     - name: Clean cache temp files
       shell: bash
       run: |
+        echo "Disk usage before cleanup:"
+        df -h
+        echo
+
         echo "Cleaning up cache extraction temp files..."
         sudo rm -rf /__w/_temp/* 2>/dev/null || true
+
+        echo "Disk usage after cleanup:"
+        df -h
+        echo
