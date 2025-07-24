@@ -625,44 +625,22 @@ function drawGlyphBubbles() {
           0 // rotation
         )
 
-        let text_width = Common.TILE_SIZE * 0.95
-        let text_height = text_width * 0.6
-
-        let boxX = bubbleX + Common.TILE_SIZE * 0.02
-        let boxY = bubbleY - Common.TILE_SIZE * 0.05
-
-        ctx.drawSprite(
-          'white.png', // the sprite is 64x64
-          boxX,
-          boxY,
-          [1, 0, 0, 0.1], // red tint
-          text_width / 64, // scale x
-          text_height / 64, // scale y
-          0             // no rotation
-        )
-
-        // Remove all :emoji: patterns and count them
-        const emojiPattern = /:[a-zA-Z0-9_+-]+:/g;
-        const emojiMatches = glyphString.match(emojiPattern) || [];
-        const emojiCount = emojiMatches.length;
-
-        // Remove the emoji patterns from the string
-        const strippedString = glyphString.replace(emojiPattern, '');
-
-        // Calculate the modified length
-        const modifiedLength = strippedString.length + emojiCount;
-
-        // Use the modified length in your calculation
-        let one_grid_cell = Common.TILE_SIZE / 24 / modifiedLength;
-
+        const textWidth = Common.TILE_SIZE * 0.95
+        const textHeight = textWidth * 0.6
+        const textBbox: [number, number, number, number] = [
+          bubbleX + Common.TILE_SIZE * 0.02 - textWidth / 2,
+          bubbleY - Common.TILE_SIZE * 0.05 - textHeight / 2,
+          textWidth,
+          textHeight
+        ]
         ctx.drawText(
           glyphString,
-          boxX,
-          boxY,
-          [0, 0, 0, 1], // fill black
-          one_grid_cell * 0.8, // scale
-          -10, // spacing
-          true // center horizontally
+          textBbox,
+          [0, 0, 0, 1], // black text
+          'scale', // scale to fit while maintaining aspect ratio
+          'center', // center horizontally
+          'middle', // center vertically
+          -10 // spacing
         )
 
       }

@@ -755,14 +755,27 @@ export class Context3d {
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
   }
 
+  /**
+ * Draws text within the specified bounding box.
+ *
+ * @param text - Text to draw (supports emoji codes like :happy:)
+ * @param bbox - Target bounding box [x, y, width, height] in screen coordinates
+ * @param color - RGBA color multiplier [r, g, b, a] where each component is 0-1
+ * @param mode - Drawing mode:
+ *   - 'scale': Scales text as large as possible while maintaining aspect ratio
+ *   - 'stretch': Stretches text to fill entire bbox (may distort)
+ * @param align - Horizontal alignment: 'left', 'center', or 'right'
+ * @param valign - Vertical alignment: 'top', 'middle', or 'bottom'
+ * @param spacing - Additional spacing between characters (in pixels at scale 1)
+ */
   drawText(
     text: string,
-    x: number,
-    y: number,
+    bbox: [number, number, number, number],
     color: number[] = [1, 1, 1, 1],
-    scale = 1,
-    spacing = 0,
-    center = false
+    mode: 'scale' | 'stretch' = 'scale',
+    align: 'left' | 'center' | 'right' = 'left',
+    valign: 'top' | 'middle' | 'bottom' = 'top',
+    spacing = 0
   ) {
     if (!this.ready) throw new Error("Context not ready")
     if (!this.fontAtlasData || !this.fontAtlasTexture) {
@@ -782,13 +795,23 @@ export class Context3d {
     // Cast fontAtlasData to any to access our custom structure
     const fontData = this.fontAtlasData as any
 
+    // Get emoji codes from font data
+    const emojiCodes = fontData.emojiCodes || {}
+    const emojiValues = new Set(Object.values(emojiCodes))
+
+    // Build regex pattern from actual emoji codes in the font atlas
+    const emojiCodePattern = Object.keys(emojiCodes)
+      .map(code => code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    const emojiPattern = emojiCodePattern ? new RegExp(`^(${emojiCodePattern})`) : null
+
     // Helper function to get character info with emoji code support
     const getCharInfo = (char: string) => {
       if (!fontData) return null
 
       // Check if it's an emoji code like :happy:
-      if (char.startsWith(':') && char.endsWith(':')) {
-        const emojiChar = fontData.emojiCodes?.[char]
+      if (emojiCodes[char]) {
+        const emojiChar = emojiCodes[char]
         if (emojiChar && fontData.characters) {
           return fontData.characters[emojiChar]
         }
@@ -799,48 +822,48 @@ export class Context3d {
     // Parse text to handle multi-character emoji codes
     const parseText = (text: string): string[] => {
       const chars: string[] = []
-      let i = 0
-      while (i < text.length) {
-        // Check for emoji code
-        if (text[i] === ':') {
-          const endIndex = text.indexOf(':', i + 1)
-          if (endIndex !== -1) {
-            const code = text.substring(i, endIndex + 1)
-            if (fontData.emojiCodes?.[code]) {
-              chars.push(code)
-              i = endIndex + 1
-              continue
-            }
+      let remaining = text
+
+      while (remaining.length > 0) {
+        let matched = false
+
+        // Try to match emoji codes first
+        if (emojiPattern) {
+          const match = remaining.match(emojiPattern)
+          if (match && match.index === 0) {
+            chars.push(match[0])
+            remaining = remaining.substring(match[0].length)
+            matched = true
           }
         }
-        // Regular character
-        chars.push(text[i])
-        i++
+
+        // If no emoji code matched, take the next character
+        if (!matched) {
+          chars.push(remaining[0])
+          remaining = remaining.substring(1)
+        }
       }
+
       return chars
     }
+
+    // Extract bbox dimensions
+    const [bx, by, bw, bh] = bbox
 
     // Parse the text into characters/emoji codes
     const textChars = parseText(text)
 
-    // Compute total width (for centering)
-    let totalWidth = 0
-    for (const char of textChars) {
-      const charInfo = getCharInfo(char)
-      if (!charInfo) continue
-      const charWidth = charInfo.width || fontData.metadata?.cellWidth || 24
-      totalWidth += charWidth * scale + spacing
-    }
-    if (totalWidth > 0) {
-      totalWidth -= spacing // Remove last spacing
-    }
+    // Get base font metrics from metadata
+    const baseCharHeight = fontData.metadata?.cellHeight || 36
+    const baseCharWidth = fontData.metadata?.cellWidth || 24
 
-    let cursorX = x
-    if (center) {
-      cursorX -= totalWidth / 2
-    }
+    // Calculate actual text dimensions using real character widths
+    let textWidth = 0
+    let textHeight = baseCharHeight
 
-    // Draw each character
+    // Build character info array while calculating width
+    const charInfos: Array<{ char: string, info: any, width: number }> = []
+
     for (const char of textChars) {
       const charInfo = getCharInfo(char)
       if (!charInfo) {
@@ -848,25 +871,79 @@ export class Context3d {
         continue
       }
 
-      const sx = charInfo.x
-      const sy = charInfo.y
-      const sw = charInfo.width || fontData.metadata?.cellWidth || 24
-      const sh = charInfo.height || fontData.metadata?.cellHeight || 36
+      const charWidth = charInfo.width || baseCharWidth
+      charInfos.push({ char, info: charInfo, width: charWidth })
+      textWidth += charWidth
+    }
+
+    // Add spacing between characters
+    if (charInfos.length > 1) {
+      textWidth += (charInfos.length - 1) * spacing
+    }
+
+    // Calculate scale based on mode
+    let scaleX = 1
+    let scaleY = 1
+
+    if (mode === 'scale') {
+      // Scale as large as possible while maintaining aspect ratio
+      const widthScale = bw / textWidth
+      const heightScale = bh / textHeight
+      scaleX = scaleY = Math.min(widthScale, heightScale)
+    } else if (mode === 'stretch') {
+      // Stretch to fill entire bbox (may distort)
+      scaleX = bw / textWidth
+      scaleY = bh / textHeight
+    }
+
+    // Calculate actual rendered dimensions
+    const scaledWidth = textWidth * scaleX
+    const scaledHeight = textHeight * scaleY
+
+    // Calculate starting position based on alignment
+    let cursorX = bx
+    if (align === 'center') {
+      cursorX = bx + (bw - scaledWidth) / 2
+    } else if (align === 'right') {
+      cursorX = bx + bw - scaledWidth
+    }
+
+    let cursorY = by
+    if (valign === 'middle') {
+      cursorY = by + (bh - scaledHeight) / 2
+    } else if (valign === 'bottom') {
+      cursorY = by + bh - scaledHeight
+    }
+
+    // Draw each character
+    for (const { char, info, width } of charInfos) {
+      const sx = info.x
+      const sy = info.y
+      const sw = info.width || baseCharWidth
+      const sh = info.height || baseCharHeight
 
       const u0 = sx / this.fontTextureSize.x()
       const v0 = sy / this.fontTextureSize.y()
       const u1 = (sx + sw) / this.fontTextureSize.x()
       const v1 = (sy + sh) / this.fontTextureSize.y()
 
-      // Check if this is an emoji (don't apply color tinting to emojis)
-      const isEmoji = char.startsWith(':') ||
-        ['😀', '😢', '😡', '👽', '✨', '💀', '💖', '←', '↑', '→', '↓'].includes(char)
-
+      // Check if this is an emoji
+      const isEmoji = emojiValues.has(char) || emojiCodes.hasOwnProperty(char)
       const drawColor = isEmoji ? [1, 1, 1, 1] : color
 
-      this.drawRect(cursorX, y, sw * scale, sh * scale, u0, v0, u1, v1, drawColor)
+      this.drawRect(
+        cursorX,
+        cursorY,
+        sw * scaleX,
+        sh * scaleY,
+        u0,
+        v0,
+        u1,
+        v1,
+        drawColor
+      )
 
-      cursorX += sw * scale + spacing
+      cursorX += width * scaleX + spacing * scaleX
     }
 
     // Restore previous mesh
