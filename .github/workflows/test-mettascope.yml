@@ -10,10 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/metta-ai/metta/mettascope-ci:pr-1638 # switch to latest after push to main
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      image: ghcr.io/metta-ai/metta/mettascope-ci:latest
       options: --shm-size=2gb
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
@@ -149,21 +146,7 @@ jobs:
 
           echo "::endgroup::"
 
-      # this workflow fills the disk to 97% after training
-      - name: Clean up venv to free disk space
-        run: |
-          echo "::group::Cleaning up venv"
-          echo "Disk usage before cleanup:"
-          df -h
-
-          # Remove the entire venv - we're done with Python execution
-          rm -rf .venv
-
-          echo "Disk usage after removing .venv:"
-          df -h
-          echo "::endgroup::"
-
-      - name: Upload test artifacts
+      - name: Upload test artifacts and logs
         uses: actions/upload-artifact@v4
         if: ${{ always() && !env.ACT }} # Run even on failure, skip when testing locally
         with:
@@ -172,11 +155,4 @@ jobs:
             mettascope/tests/test-results/
             mettascope_backend.log
           retention-days: 30
-
-      - name: Upload backend logs on failure
-        uses: actions/upload-artifact@v4
-        if: ${{ failure() && !env.ACT }}
-        with:
-          name: backend-logs
-          path: mettascope_backend.log
-          retention-days: 30
+          if-no-files-found: ignore  # Don't fail if test-results/ doesn't exist

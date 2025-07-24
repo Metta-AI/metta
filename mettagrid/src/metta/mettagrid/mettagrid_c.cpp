@@ -33,6 +33,9 @@
 
 namespace py = pybind11;
 
+// Static member definition for ActionHandler
+std::map<size_t, std::string> ActionHandler::_global_last_actions;
+
 MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int seed)
     : obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -40,7 +43,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens),
-      _global_obs_config(cfg.global_obs) {
+      _global_obs_config(cfg.global_obs),
+      _track_movement_metrics(cfg.track_movement_metrics) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -85,9 +89,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
       if (!attack_config) {
@@ -494,6 +498,12 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
+  // Clear action tracking from previous episodes
+  ActionHandler::clear_all_tracking();
+  for (auto& handler : _action_handlers) {
+    handler->clear_tracking();
+  }
+
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
@@ -521,6 +531,7 @@ py::tuple MettaGrid::reset() {
   std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
             static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
             static_cast<ActionType>(0));
+
   _compute_observations(zero_actions);
 
   return py::make_tuple(_observations, py::dict());
@@ -1004,6 +1015,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool,
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -1015,6 +1027,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"),
+           py::arg("track_movement_metrics"),
            py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
@@ -1024,6 +1037,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
+      .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
