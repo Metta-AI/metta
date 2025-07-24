@@ -131,36 +131,59 @@ class DualPolicyRollout:
     def _get_npc_actions(self, observations: Tensor) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
         """Get actions from the NPC policy."""
         if self.config.npc_type == "scripted":
-            # Scripted NPCs don't return log probs or values, so we create dummy ones
+            # Use scripted NPC behavior
             if self.npc_policy is None:
-                raise ValueError("NPC policy not initialized")
+                raise ValueError("Scripted NPC policy not initialized")
+
             actions = self.npc_policy.get_actions(observations)
-            log_probs = torch.zeros(int(observations.shape[0]), device=self.device)
-            values = torch.zeros(int(observations.shape[0]), device=self.device)
+            # For scripted NPCs, return dummy values for log_probs, values, and lstm_state
+            log_probs = torch.zeros(observations.shape[0], device=self.device)
+            values = torch.zeros(observations.shape[0], device=self.device)
             lstm_state = None
 
         elif self.config.npc_type == "checkpoint":
             # Use the same inference function as the main policy
             if self.npc_policy is None:
                 raise ValueError("NPC policy not initialized")
-            # Create a dummy experience object for checkpoint policies
+
+            # For checkpoint policies, we need to create a proper experience object
+            # We'll use the same structure as the main policy but with the NPC observations
             from metta.rl.experience import Experience
 
-            dummy_experience = Experience(
-                total_agents=observations.shape[0],
-                batch_size=observations.shape[0],
+            # Get the observation and action spaces from the main policy's experience
+            # We'll create a minimal experience object for the NPC batch
+            npc_batch_size = observations.shape[0]
+
+            # Create a minimal experience object for the NPC batch
+            # We need to infer the spaces from the observations
+            obs_shape = observations.shape[1:]  # Remove batch dimension
+            atn_shape = (1,)  # Default action shape, will be overridden by policy
+
+            # Create a simple space-like object for the observations
+            class SimpleSpace:
+                def __init__(self, shape, dtype):
+                    self.shape = shape
+                    self.dtype = dtype
+
+            obs_space = SimpleSpace(obs_shape, observations.dtype)
+            atn_space = SimpleSpace(atn_shape, torch.int32)  # Default to int32 for actions
+
+            npc_experience = Experience(
+                total_agents=npc_batch_size,
+                batch_size=npc_batch_size,
                 bptt_horizon=1,
-                minibatch_size=observations.shape[0],
-                max_minibatch_size=observations.shape[0],
-                obs_space=None,  # Will be set by the policy
-                atn_space=None,  # Will be set by the policy
+                minibatch_size=npc_batch_size,
+                max_minibatch_size=npc_batch_size,
+                obs_space=obs_space,
+                atn_space=atn_space,
                 device=self.device,
                 hidden_size=256,  # Default value
             )
+
             # Type check for checkpoint policies
             if hasattr(self.npc_policy, "forward"):
                 actions, log_probs, values, lstm_state = run_policy_inference(
-                    self.npc_policy, observations, dummy_experience, 0, self.device
+                    self.npc_policy, observations, npc_experience, 0, self.device
                 )
             else:
                 raise ValueError("Checkpoint NPC policy must be a PyTorch module")

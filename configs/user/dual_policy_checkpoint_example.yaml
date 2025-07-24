@@ -29,9 +29,8 @@ trainer:
     # Configure checkpoint NPC behavior
     npc_type: "checkpoint"
     checkpoint_npc:
-      # Use an actual WandB policy as the NPC
-      # This is a real run from the metta-research project
-      checkpoint_path: "wandb://metta-research/metta/model/yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18:latest"
+      # Use the specific WandB policy as the NPC
+      checkpoint_path: "wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2"
 
       # Alternative examples - other actual runs:
       # checkpoint_path: "wandb://metta-research/metta/model/yudhister.recipes.arena.4x4.efficiency_baseline.07-24-00-17:latest"
