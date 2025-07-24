@@ -52,7 +52,8 @@ experiments/
 │   ├── monitoring.py     # Display widgets for monitoring
 │   ├── replays.py        # MettaScope replay utilities
 │   └── training.py       # Training launch helpers
-└── log/                  # Generated notebooks and metadata
+├── scratch/              # Generated notebooks (git-ignored)
+└── log/                  # HTML exports from notebooks
 ```
 
 ## Creating New Experiments
@@ -136,5 +137,6 @@ Available sections (use `--sections` to customize):
 
 - Use descriptive names with dates for tracking
 - Document hypotheses in the experiment log section
-- The `experiments/log/` directory contains all generated notebooks
+- The `experiments/scratch/` directory contains all generated notebooks (git-ignored)
+- The `experiments/log/` directory contains HTML exports
 - Notebooks auto-save as you work in Jupyter

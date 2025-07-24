@@ -52,7 +52,7 @@ def plot_sps(
 
     for idx, run_name in enumerate(wandb_run_names):
         try:
-            from experiments.wandb import get_run
+            from experiments.wandb_utils import get_run
             run = get_run(run_name, entity, project)
             if run is None:
                 continue
@@ -131,7 +131,7 @@ def create_run_summary_table(
 
     data = []
     
-    from experiments.wandb import get_run
+    from experiments.wandb_utils import get_run
     for run_name in wandb_run_names:
         try:
             run = get_run(run_name, entity, project)

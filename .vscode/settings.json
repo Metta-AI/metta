@@ -22,6 +22,8 @@
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing"
   },
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.terminal.activateEnvironment": true,
   "python.testing.unittestEnabled": true,
   "python.testing.pytestEnabled": false,
   "python.testing.unittestArgs": ["-v", "-s", "./tests", "-p", "test_*.py"],

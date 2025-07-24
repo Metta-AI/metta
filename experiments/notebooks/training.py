@@ -11,6 +11,7 @@ def launch_training(
     gpus: int = 1,
     nodes: int = 1,
     no_spot: bool = False,
+    skip_git_check: bool = False,
     additional_args: Optional[List[str]] = None,
     wandb_tags: Optional[List[str]] = None,
     **kwargs,
@@ -26,6 +27,7 @@ def launch_training(
         gpus: Number of GPUs per node
         nodes: Number of nodes
         no_spot: Whether to disable spot instances
+        skip_git_check: Whether to skip git state validation (useful for local changes)
         additional_args: Additional command line arguments
         wandb_tags: Tags for wandb
         **kwargs: Additional keyword arguments passed as trainer.key=value
@@ -38,6 +40,7 @@ def launch_training(
         ...     run_name="my_experiment",
         ...     curriculum="env/mettagrid/arena/basic",
         ...     gpus=4,
+        ...     skip_git_check=True,  # Allow uncommitted changes
         ...     wandb_tags=["arena", "test"],
         ...     learning_rate=0.001
         ... )
@@ -55,6 +58,7 @@ def launch_training(
         gpus=gpus,
         nodes=nodes,
         no_spot=no_spot,
+        skip_git_check=skip_git_check,
         additional_args=additional_args,
         wandb_tags=wandb_tags,
     )

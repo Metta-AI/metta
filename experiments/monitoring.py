@@ -77,6 +77,44 @@ def get_sky_jobs_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def get_wandb_run_name_from_sky_job(job_id: str) -> Optional[str]:
+    """Extract the wandb run name from a SkyPilot job.
+    
+    Args:
+        job_id: SkyPilot job ID
+        
+    Returns:
+        Wandb run name if found, None otherwise
+    """
+    try:
+        # Get sky jobs data to find the job name
+        sky_jobs_df = get_sky_jobs_data()
+        
+        if sky_jobs_df.empty:
+            print(f"No sky jobs data available")
+            return None
+            
+        # Find the job by ID
+        job_match = sky_jobs_df[sky_jobs_df["ID"] == job_id]
+        
+        if job_match.empty:
+            print(f"Job {job_id} not found in sky jobs queue")
+            return None
+            
+        # The NAME column contains the wandb run name
+        job_name = job_match.iloc[0]["NAME"]
+        
+        if job_name and job_name.strip():
+            return job_name.strip()
+        else:
+            print(f"Job {job_id} has no name")
+            return None
+            
+    except Exception as e:
+        print(f"Error extracting run name from job {job_id}: {str(e)}")
+        return None
+
+
 def get_training_status(
     wandb_run_names: List[str],
     skypilot_job_ids: Optional[List[str]] = None,

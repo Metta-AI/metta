@@ -8,6 +8,24 @@ from pydantic import Field, ConfigDict
 from metta.common.util.config import Config
 
 
+class BaseExperimentConfig(Config):
+    """Base configuration for all experiments with CLI parameters."""
+    model_config = ConfigDict(extra="forbid")
+    
+    # Notebook generation parameters
+    name: str = Field(..., description="Name for the experiment/notebook")
+    description: Optional[str] = Field(None, description="Description of the experiment")
+    sections: Optional[List[str]] = Field(None, description="Notebook sections to include")
+    
+    # Launch control
+    launch: bool = Field(True, description="Whether to launch training runs")
+    job_ids: Optional[List[str]] = Field(None, description="Existing SkyPilot job IDs to load")
+    
+    # Output control
+    open_notebook: bool = Field(False, description="Open notebook in Jupyter after creation")
+    output_dir: str = Field("experiments/scratch", description="Directory for notebook output")
+
+
 class TrainingJobConfig(Config):
     """Configuration for a training job."""
     model_config = ConfigDict(extra="forbid")
@@ -16,7 +34,8 @@ class TrainingJobConfig(Config):
     curriculum: str = Field(..., description="Path to curriculum config")
     gpus: int = Field(1, description="Number of GPUs per node")
     nodes: int = Field(1, description="Number of nodes")
-    no_spot: bool = Field(False, description="Whether to disable spot instances")
+    no_spot: bool = Field(True, description="Whether to disable spot instances")
+    skip_git_check: bool = Field(False, description="Skip git check for uncommitted changes")
     wandb_tags: Optional[List[str]] = Field(None, description="Tags for wandb")
     
     # Additional arguments passed to trainer (e.g., trainer.optimizer.learning_rate=0.001)

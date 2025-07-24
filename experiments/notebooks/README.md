@@ -13,7 +13,7 @@ python experiments/templates/arena_experiment.py
 This will:
 
 1. Launch training runs on the cluster
-2. Generate an analysis notebook in `experiments/log/`
+2. Generate an analysis notebook in `experiments/scratch/`
 3. Save experiment metadata for reproducibility
 
 ## Creating a New Experiment

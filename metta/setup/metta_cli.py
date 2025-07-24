@@ -92,6 +92,15 @@ def _setup_local_parser(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(local_parser=parser)
 
 
+def _setup_notebook_parser(parser: argparse.ArgumentParser) -> None:
+    """Setup notebook command parser."""
+    parser.add_argument("name", nargs="?", default="arena", help="Name for the notebook (default: arena)")
+    parser.add_argument("--recipe", default="arena", help="Experiment recipe to use (default: arena)")
+    parser.add_argument("--no-launch", action="store_true", help="Skip launching new runs")
+    parser.add_argument("--job-ids", nargs="+", help="Load existing SkyPilot job IDs")
+    parser.add_argument("--no-open", action="store_true", help="Don't open notebook after creation")
+
+
 # Command registry with all command definitions
 COMMAND_REGISTRY: Dict[str, CommandConfig] = {
     # Simple subprocess commands
@@ -178,6 +187,12 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         needs_components=True,
         pass_unknown_args=True,
         parser_setup=_setup_run_parser,
+    ),
+    "notebook": CommandConfig(
+        help="Create experiment notebooks",
+        handler="cmd_notebook",
+        needs_config=True,
+        parser_setup=_setup_notebook_parser,
     ),
 }
 
@@ -563,6 +578,29 @@ class MettaCLI:
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
+    
+    def cmd_notebook(self, args) -> None:
+        """Create an experiment notebook."""
+        # Build command for the recipe
+        if args.recipe == "arena":
+            cmd = [sys.executable, str(self.repo_root / "experiments" / "recipes" / "arena_experiment.py")]
+            cmd.append(args.name)
+            
+            if args.no_launch:
+                cmd.append("--no-launch")
+            if args.job_ids:
+                cmd.extend(["--job-ids"] + args.job_ids)
+            if not args.no_open:
+                cmd.append("--open")
+                
+            try:
+                subprocess.run(cmd, cwd=self.repo_root, check=True)
+            except subprocess.CalledProcessError as e:
+                sys.exit(e.returncode)
+        else:
+            error(f"Unknown recipe: {args.recipe}")
+            info("Available recipes: arena")
+            sys.exit(1)
 
     def cmd_status(self, args) -> None:
         from metta.setup.registry import get_all_modules
