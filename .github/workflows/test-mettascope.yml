@@ -41,6 +41,9 @@ jobs:
           echo "Installation complete"
           echo "::endgroup::"
 
+      - name: Check disk usage
+        run: df -h
+
       - name: Run quick training job for basic replay data
         run: |
           echo "::group::Training job"
@@ -56,6 +59,9 @@ jobs:
           uv run tools/replay.py run=smoke_test +hardware=github wandb=off
           echo "Replay generation completed"
           echo "::endgroup::"
+
+      - name: Check disk usage
+        run: df -h
 
       - name: Run mettascope playwright tests
         run: |
@@ -145,6 +151,9 @@ jobs:
           fi
 
           echo "::endgroup::"
+
+      - name: Check disk usage
+        run: df -h
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
