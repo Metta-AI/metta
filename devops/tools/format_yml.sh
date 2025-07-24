@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Initialize variables with default exclusion pattern
-EXCLUDE_PATTERN="/configs/\|/scenes/"
+EXCLUDE_PATTERN="/configs/\|/scenes/\|/charts/"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -17,7 +17,7 @@ while [[ $# -gt 0 ]]; do
     *)
       echo "Unknown option: $1"
       echo "Usage: $0 [--exclude \"pattern\"]"
-      echo "  Default: excludes paths containing /configs/ or /scenes/"
+      echo "  Default: excludes paths containing /configs/ or /scenes/ or /charts/"
       echo "  Use --exclude none to format all files"
       exit 1
       ;;

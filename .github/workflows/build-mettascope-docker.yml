@@ -5,17 +5,17 @@ on:
     branches:
       - main
     paths:
-      - 'mettascope/Dockerfile'
-      - '.github/workflows/build-mettascope-docker.yml'
+      - "mettascope/Dockerfile"
+      - ".github/workflows/build-mettascope-docker.yml"
   pull_request:
     paths:
-      - 'mettascope/Dockerfile'
-      - '.github/workflows/build-mettascope-docker.yml'
+      - "mettascope/Dockerfile"
+      - ".github/workflows/build-mettascope-docker.yml"
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: metta-ai/metta/mettascope-ci  # Must be lowercase for Docker
+  IMAGE_NAME: metta-ai/metta/mettascope-ci # Must be lowercase for Docker
 
 jobs:
   build:
