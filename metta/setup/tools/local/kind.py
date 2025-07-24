@@ -23,7 +23,7 @@ class Kind:
         result = subprocess.run(
             ["kubectl", "get", "namespace", self.namespace], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
-        return result.returncode != 0
+        return result.returncode == 0
 
     def _ensure_docker_img_built(self, img_name: str, load_fn: Callable[[], None]) -> None:
         result = subprocess.run(["docker", "image", "inspect", img_name], capture_output=True)
