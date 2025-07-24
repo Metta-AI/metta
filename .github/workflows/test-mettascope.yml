@@ -34,7 +34,7 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
         with:
-          install-mode: "minimal"
+          install-mode: "full" # for training/replay etc
 
       - name: Install Mettascope
         run: |
