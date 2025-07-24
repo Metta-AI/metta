@@ -10,7 +10,7 @@ class LayoutArea(Config):
     placement: Literal["center"] = "center"  # TODO - in the future, we will support more placements
     tag: str
     # TODO - should we support `scene: SceneCfg` here directly?
-    # It would be more readable than defining tags and targeting them with `children`.
+    # It would be more readable than defining tags and targeting them with `children_actions`.
 
 
 class LayoutParams(Config):

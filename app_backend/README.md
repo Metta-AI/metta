@@ -21,6 +21,9 @@ docker run -p 8000:8000 \
   metta-app-backend:latest
 ```
 
+### Postgres
+The app_backend service relies on postgres.
+
 If you are running a postgres instance locally, use `host.docker.internal` as host
 
 ## Environment Variables
@@ -57,7 +60,7 @@ Ensure that you have app_backend running. If it is running anywhere except for y
 #### Local docker
 
 Getting the service running
-- `metta local build-docker-img` to build the `metta-local:latest` image. This will serve as the base for both the orchestrator and the workers
+- `metta local build-policy-evaluator-img` to build the `metta-policy-evaluator-local:latest` image. This will serve as the base for both the orchestrator and the workers
 - `WANDB_API_KEY=your-key-here docker compose -f app_backend/src/metta/app_backend/docker-compose.yml up`
 
 Viewing logs
@@ -68,13 +71,10 @@ Viewing logs
 #### Local kind
 Kind is a tool for running local Kubernetes clusters using Docker container nodes. We use it for testing our Kubernetes deployment locally.
 
-Getting the service running
-- `./kind.sh build` to build
-- `./kind.sh up`
-
-See `./kind.sh` for other commands
-
-Viewing logs
-- `kubectl config use-context kind-metta-local`
-- `kubectl get pods -w` to see what pods are alive
-- `kubectl logs orchestrator --follow`. Replace `orchestrator` with the pod name of an eval worker if you wish
+- Ensure `metta status` shows that you are connected to `observatory-local-key` and `wandb`
+- Run your local app_backend server, which should be serving on `localhost:8000`
+- Run your local frontend from `observatory/`
+- Build orchestrator and worker images: `metta local build-policy-evaluator-img`
+- Set up helm: `metta local kind build`
+- Launch: `metta local kind up`
+- Monitor: `metta local kind get-pods` and `metta local kind pods {pod-name}`
