@@ -5,6 +5,9 @@ from typing import Optional, cast
 import hydra
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from metta.common.util.fs import cd_repo_root
+
+
 def config_from_path(
     config_path: str, overrides: Optional[DictConfig | ListConfig | dict] = None
 ) -> DictConfig | ListConfig:
@@ -51,9 +54,6 @@ def get_cfg(config_name: str) -> DictConfig:
     original_cwd = Path.cwd()
 
     try:
-        # Lazy import to avoid circular dependencies during build
-        from metta.common.util.fs import cd_repo_root
-        
         # Change to repository root
         cd_repo_root()
 

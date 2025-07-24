@@ -1,11 +1,8 @@
-from typing import Any, ClassVar, Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-# Local version to avoid import dependency during build
-class BaseModelWithForbidExtra(BaseModel):
-    """Base model with extra fields forbidden."""
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+from metta.common.util.typed_config import BaseModelWithForbidExtra
 
 # ===== Python Configuration Models =====
 

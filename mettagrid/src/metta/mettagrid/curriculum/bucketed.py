@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
+from metta.common.util.config import copy_omegaconf_config
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
@@ -36,8 +37,6 @@ class BucketedCurriculum(LearningProgressCurriculum):
         if env_cfg_template_path is not None:
             base_cfg = config_from_path(env_cfg_template_path, env_overrides)
             # We copy to reset the config's root.
-            # Lazy import to avoid circular dependencies during build
-            from metta.common.util.config import copy_omegaconf_config
             env_cfg_template = copy_omegaconf_config(base_cfg)
         else:
             # Allow non-existent keys, as per config_from_path
