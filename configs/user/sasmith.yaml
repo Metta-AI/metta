@@ -8,7 +8,7 @@ trainer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/cooperation/experimental/confined_room_coord_env
+    env: /env/mettagrid/curriculum/objects/all_objects
 
 seed: null
 run_id: 20250720.03
