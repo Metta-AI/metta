@@ -10,7 +10,6 @@
 enum EventType {
   FinishConverting = 0,
   CoolDown = 1,
-  FinishPhase = 2,
   EventTypeCount
 };
 

@@ -26,8 +26,8 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
-                  unsigned short phase = 0,
                   bool cyclical = false,
+                  unsigned short phase = 0,
                   bool recipe_details_obs = false,
                   ObservationType input_recipe_offset = 0,
                   ObservationType output_recipe_offset = 0)
@@ -39,8 +39,8 @@ struct ConverterConfig : public GridObjectConfig {
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
-        phase(phase),
         cyclical(cyclical),
+        phase(phase),
         recipe_details_obs(recipe_details_obs),
         input_recipe_offset(input_recipe_offset),
         output_recipe_offset(output_recipe_offset) {}
@@ -52,8 +52,8 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
-  unsigned short phase;
   bool cyclical;
+  unsigned short phase;
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
@@ -70,7 +70,7 @@ private:
     // We also need to have an id to schedule the finishing event. If our id
     // is zero, we probably haven't been added to the grid yet.
     assert(this->id != 0);
-    if (this->converting || this->cooling_down || this->phasing) {
+    if (this->converting || this->cooling_down) {
       return;
     }
     // Check if the converter is already at max output.
@@ -112,7 +112,8 @@ private:
     // This one is us starting to convert.
     this->converting = true;
     stats.incr("conversions.started");
-    this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
+
+        this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
 public:
@@ -125,11 +126,15 @@ public:
   short max_output;
   unsigned short conversion_ticks;  // Time to produce output
   unsigned short cooldown;          // Time to wait after producing before starting again
-  unsigned short phase;             // Initial delay before first conversion attempt
-  bool converting;                  // Currently in production phase
-  bool cooling_down;                // Currently in cooldown phase
-  bool phasing;                     // Currently in initial phase delay
-  bool cyclical;                    // Whether to auto-empty inventory after cooldown
+
+      // Pack flags into bitfields for memory efficiency
+  unsigned char converting : 1;         // Currently in production phase
+  unsigned char cooling_down : 1;       // Currently in cooldown phase
+  unsigned char cyclical : 1;           // Whether to auto-empty inventory after cooldown
+  unsigned char has_phase : 1;          // Whether this converter has a phase delay
+  unsigned char _reserved : 4;          // Reserved for future flags
+
+    unsigned short phase;                  // Initial delay before first conversion
   unsigned char color;
   bool recipe_details_obs;
   EventManager* event_manager;
@@ -143,14 +148,13 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        phase(cfg.phase),
         color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
         converting(false),
         cooling_down(false),
-        phasing(cfg.phase > 0),
         cyclical(cfg.cyclical),
+        phase(cfg.phase),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
@@ -163,13 +167,19 @@ public:
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
-    if (this->phase > 0 && this->phasing) {
-      // Schedule phase completion event
-      this->event_manager->schedule_event(EventType::FinishPhase, this->phase, this->id, 0);
+
+    // If there's a phase delay, schedule the initial start
+    if (this->phase > 0) {
+      // Schedule a "start phase" by scheduling a fake cooldown completion
+      this->cooling_down = true;  // Prevent immediate conversion
+      this->event_manager->schedule_event(EventType::CoolDown, this->phase, this->id, 0);
     } else {
+      // No phase delay, start immediately
       this->maybe_start_converting();
     }
   }
+
+
 
   void finish_converting() {
     this->converting = false;
@@ -199,9 +209,28 @@ public:
   void finish_cooldown() {
     // Cyclical converters auto-empty on cooldown completion
     if (this->cyclical) {
-      // Empty all inventory items
-      this->inventory.clear();
-      stats.incr("inventory.auto_emptied");
+      // For single-output converters (common case), optimize the clear
+      if (this->output_resources.size() == 1) {
+        auto output_item = this->output_resources.begin()->first;
+        auto it = this->inventory.find(output_item);
+        if (it != this->inventory.end()) {
+          this->inventory.erase(it);
+          stats.incr("inventory.auto_emptied");
+        }
+      } else {
+        // Multi-output case: clear all output items
+        bool emptied_something = false;
+        for (const auto& [item, _] : this->output_resources) {
+          auto it = this->inventory.find(item);
+          if (it != this->inventory.end()) {
+            this->inventory.erase(it);
+            emptied_something = true;
+          }
+        }
+        if (emptied_something) {
+          stats.incr("inventory.auto_emptied");
+        }
+      }
     }
 
     this->cooling_down = false;
@@ -209,11 +238,7 @@ public:
     this->maybe_start_converting();
   }
 
-  void finish_phase() {
-    this->phasing = false;
-    stats.incr("phase.completed");
-    this->maybe_start_converting();
-  }
+
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
     InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
