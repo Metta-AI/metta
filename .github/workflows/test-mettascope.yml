@@ -149,18 +149,21 @@ jobs:
 
 
       # this workflow fills the disk to 97% after training
-      - name: Clean up venv to free disk space
+      - name: Free disk space
         run: |
           echo "::group::Cleaning up venv"
           echo "Disk usage before cleanup:"
           df -h
+
           echo "Size of .venv:"
           du -sh .venv || echo "No .venv found"
-
-          # Remove the entire venv - we're done with Python execution
           rm -rf .venv
 
-          echo "Disk usage after removing .venv:"
+          echo "Size of train_dir:"
+          du -sh train_dir || echo "No train_dir found"
+          rm -rf train_dir
+
+          echo "Disk usage after:"
           df -h
           echo "::endgroup::"
 
