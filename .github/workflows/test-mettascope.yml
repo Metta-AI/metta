@@ -19,9 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check disk usage
-        run: df -h
-
       - name: Install Node dependencies
         run: |
           cd mettascope
@@ -52,9 +49,27 @@ jobs:
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
+
+          # Find what directories exist before training
+          echo "Directories before training:"
+          ls -la
+
+          # Run training
           uv run tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
+
+          # Find what was created
+          echo "Directories after training:"
+          ls -la
+
+          # Find large files created by training
+          echo "Large files created (modified in last 5 min):"
+          find . -type f -mmin -5 -size +100M -exec ls -lh {} \; 2>/dev/null || true
+
           echo "Training job completed"
           echo "::endgroup::"
+
+      - name: Check disk usage
+        run: df -h
 
       - name: Generate replay
         run: |
@@ -155,12 +170,6 @@ jobs:
           fi
 
           echo "::endgroup::"
-
-      - name: Clean up some disk space
-        run: |
-          npm cache clean --force
-          rm -rf ~/.npm
-          df -h
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
