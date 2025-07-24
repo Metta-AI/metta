@@ -450,6 +450,12 @@ class MettaTrainer:
                 task_id = info[0]["task_id"]
                 task_ids = torch.full((batch_size,), task_id, dtype=torch.long, device=o.device)
 
+                # Debug logging
+                print(f"DEBUG: o.shape={o.shape}, o.dim()={o.dim()}, batch_size={batch_size}")
+                print(f"DEBUG: task_ids.shape={task_ids.shape}")
+                print(f"DEBUG: training_env_id={training_env_id}, mask.shape={mask.shape}")
+                print(f"DEBUG: task_id={task_id}")
+
             # Store experience
             experience.store(
                 obs=o,

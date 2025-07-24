@@ -188,6 +188,13 @@ class Experience:
 
         # Store task IDs if provided
         if task_ids is not None:
+            # Debug logging
+            print(f"DEBUG: task_ids.shape={task_ids.shape}")
+            print(f"DEBUG: batch_slice={batch_slice}")
+            print(f"DEBUG: self.task_ids.shape={self.task_ids.shape}")
+            print(f"DEBUG: indices={indices}, episode_length={episode_length}")
+            print(f"DEBUG: env_id={env_id}")
+
             self.task_ids[batch_slice] = task_ids
 
         # Update episode tracking
