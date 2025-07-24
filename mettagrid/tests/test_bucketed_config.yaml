@@ -11,15 +11,15 @@ env_cfg_template:
 
     map_builder:
       _target_: metta.map.mapgen.MapGen
-      width: 30  # This will be overridden by buckets
-      height: 30  # This will be overridden by buckets
+      width: 30 # This will be overridden by buckets
+      height: 30 # This will be overridden by buckets
       border_width: 2
 
       root:
         type: metta.map.scenes.maze.Maze
         params:
           algorithm: kruskal
-          room_size: 2  # This will be overridden by buckets
+          room_size: 2 # This will be overridden by buckets
           wall_size: 1
 
 buckets:
@@ -29,4 +29,3 @@ buckets:
     values: [20, 40, 60]
   game.map_builder.root.params.room_size:
     values: [1, 3, 5]
-
