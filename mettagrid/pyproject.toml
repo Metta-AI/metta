@@ -82,14 +82,14 @@ cache-keys = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta*"]
+include = ["metta.mettagrid"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
 "metta.mettagrid" = ["py.typed"]
 
 [tool.uv.sources]
-metta-common = { workspace = true }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 
 [tool.coverage.run]
 source = ["metta.mettagrid"]
