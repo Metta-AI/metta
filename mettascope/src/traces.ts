@@ -6,11 +6,20 @@ import { PanelInfo } from './panels.js'
 import { updateStep, updateSelection } from './main.js'
 import { parseHtmlColor } from './htmlutils.js'
 
+// Cache tracking.
+let lastCachedStep = -1
+let lastCachedSelection: any = null
+
 /** Draws the trace panel. */
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
+
+  let shouldRegenerate = false
+
+  // The trace mesh should be cached and only updated when needed.
+  ctx.setCacheable(true)
 
   // Handle mouse events for the trace panel.
   if (ui.mouseTargets.includes('#trace-panel')) {
@@ -63,11 +72,26 @@ export function drawTrace(panel: PanelInfo) {
     panel.panPos = new Vec2f(-x, -y)
   }
 
+  // if any state has changed, we need to regenerate the trace mesh.
+  if (state.step !== lastCachedStep || state.selectedGridObject !== lastCachedSelection) {
+    shouldRegenerate = true
+    lastCachedStep = state.step
+    lastCachedSelection = state.selectedGridObject
+  }
+
+
   ctx.save()
   const rect = panel.rectInner()
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
   const fullSize = new Vec2f(state.replay.max_steps * Common.TRACE_WIDTH, state.replay.num_agents * Common.TRACE_HEIGHT)
+
+  // Clear and regenerate ALL content only when needed
+  if (!shouldRegenerate) {
+    return
+  }
+
+  ctx.clearMesh()
 
   // Draw the background.
   ctx.drawSolidRect(

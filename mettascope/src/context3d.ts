@@ -4,18 +4,18 @@ const VERTEX_SHADER_SOURCE = `
   attribute vec2 a_position;
   attribute vec2 a_texcoord;
   attribute vec4 a_color;
-  
+
   uniform vec2 u_canvasSize;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec2 zeroToOne = a_position / u_canvasSize;
     vec2 zeroToTwo = zeroToOne * 2.0;
     vec2 clipSpace = zeroToTwo - vec2(1.0, 1.0);
     gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
-    
+
     v_texcoord = a_texcoord;
     v_color = a_color;
   }
@@ -23,12 +23,12 @@ const VERTEX_SHADER_SOURCE = `
 
 const FRAGMENT_SHADER_SOURCE = `
   precision mediump float;
-  
+
   uniform sampler2D u_sampler;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec4 texColor = texture2D(u_sampler, v_texcoord);
     // Do the premultiplied alpha conversion.
@@ -66,6 +66,9 @@ class Mesh {
   // Scissor properties
   public scissorEnabled: boolean = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
+
+  // Caching properties
+  public cacheable: boolean = false
 
   constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
     this.name = name
@@ -167,11 +170,23 @@ class Mesh {
 
   /** Clear the mesh for a new frame. */
   clear() {
+    if (this.cacheable) {
+      return // Skip clearing cached meshes
+    }
+
     // Reset counters instead of recreating arrays
     this.currentQuad = 0
     this.currentVertex = 0
 
     // Reset scissor settings
+    this.scissorEnabled = false
+    this.scissorRect = [0, 0, 0, 0]
+  }
+
+  /** Force clear the mesh even if it's cacheable. */
+  forceClear() {
+    this.currentQuad = 0
+    this.currentVertex = 0
     this.scissorEnabled = false
     this.scissorRect = [0, 0, 0, 0]
   }
@@ -257,6 +272,10 @@ class Mesh {
 
   /** Reset the counters. */
   resetCounters() {
+    if (this.cacheable) {
+      return; // Don't reset counters for cacheable meshes
+    }
+
     this.currentQuad = 0
     this.currentVertex = 0
   }
@@ -343,6 +362,18 @@ export class Context3d {
   disableScissor() {
     this.ensureMeshSelected()
     this.currentMesh!.scissorEnabled = false
+  }
+
+  /** Set whether the current mesh should be cached between frames. */
+  setCacheable(cacheable: boolean) {
+    this.ensureMeshSelected()
+    this.currentMesh!.cacheable = cacheable
+  }
+
+  /** Clear the current mesh even if it's cacheable. */
+  clearMesh() {
+    this.ensureMeshSelected()
+    this.currentMesh!.forceClear()
   }
 
   /** Helper method to ensure a mesh is selected before drawing. */
