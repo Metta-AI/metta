@@ -12,7 +12,14 @@ license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
-dependencies = []
+dependencies = [
+    # pufferlib is a shared dependency needed by both metta and mettagrid
+    # This centralized location prevents circular dependency issues:
+    # - When installed via PufferLib: uses the local PufferLib (pip install -e .)
+    # - When installed via metta: uses the git version specified in tool.uv.sources
+    # mettagrid and metta no longer need to specify pufferlib directly
+    "pufferlib",
+]
 
 [dependency-groups]
 dev = [
@@ -38,3 +45,6 @@ pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["metta.common"]
+
+[tool.uv.sources]
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }

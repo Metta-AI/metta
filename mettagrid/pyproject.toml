@@ -20,6 +20,7 @@ keywords = [
     "gym",
 ]
 dependencies = [
+    # Note: pufferlib dependency is handled by metta-common to avoid circular dependency issues
     "boto3>=1.38.32",
     "botocore>=1.38.29",
     "duckdb>=1.3.0",
@@ -32,7 +33,6 @@ dependencies = [
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",
     "pettingzoo>=1.24.1",
-    "pufferlib",
     "pydantic>=2.11.5",
     "raylib>=5.5.0",
     "pyyaml>=6.0.2",
@@ -89,7 +89,7 @@ include = ["metta.mettagrid"]
 "metta.mettagrid" = ["py.typed"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
+metta-common = { workspace = true }
 
 [tool.coverage.run]
 source = ["metta.mettagrid"]

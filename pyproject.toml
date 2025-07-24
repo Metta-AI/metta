@@ -28,7 +28,6 @@ dependencies = [
   "pixie-python>=4.3.0",
   "plotly>=6.1.1",
   "psycopg[binary]>=3.2.9",
-  "pufferlib",
   "pybind11>=2.10.4",
   "pydantic>=2.11.5",
   "pynvml>=11.5.3",
@@ -115,7 +114,6 @@ default-groups = ["dev"]
 members = ["mettagrid", "app_backend", "common", "agent", "experiments"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 metta-app-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
