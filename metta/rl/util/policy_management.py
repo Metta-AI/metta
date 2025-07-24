@@ -221,9 +221,6 @@ def maybe_load_checkpoint(
         epoch = checkpoint.epoch
         logger.info(f"Restored from checkpoint at {agent_step} steps")
 
-    # THREE OUT OF FOUR RETURN VALUES ARE ALREADY DETERMINED AT THIS POINT
-    # SO MAYBE WE SHOULD HAVE A SUBFUNCTION
-
     if not is_master:
         # On non-master ranks, we don't load a policy.
         # A blank policy will be created later and it will be overwritten by DDP sync.
