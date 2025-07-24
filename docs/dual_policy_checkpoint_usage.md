@@ -45,7 +45,7 @@ trainer:
 - **Type**: `str`
 - **Description**: Path to the checkpoint file to use as the NPC
 - **Supported formats**:
-  - **WandB URI**: `"wandb://metta-research/metta/model/run_name:version"`
+  - **WandB URI**: `"wandb://metta-research/metta/model/run_name:latest"`
   - **Local file**: `"./train_dir/old_run/checkpoints/model_0000.pt"`
   - **S3 URI**: `"s3://bucket/path/to/checkpoint.pt"`
 
@@ -53,6 +53,43 @@ trainer:
 - **Type**: `float` (0.0 to 1.0)
 - **Default**: `0.5`
 - **Description**: Percentage of agents controlled by the main policy (the rest use the NPC)
+
+## Finding Available WandB Policies
+
+### Using the WandB Run Lister
+
+The easiest way to find available policies is to use the built-in tool:
+
+```bash
+# List recent finished runs
+python tools/list_wandb_runs.py --limit 10
+
+# List only the URIs for easy copying
+python tools/list_wandb_runs.py --format uris --limit 5
+
+# List runs in JSON format for detailed info
+python tools/list_wandb_runs.py --format json --limit 3
+```
+
+Example output:
+```
+Run Name                                           Score      Created      WandB URI
+------------------------------------------------------------------------------------------------------------
+yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18 N/A        2025-07-24   wandb://metta-research/metta/model/yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18:latest
+yudhister.recipes.arena.4x4.efficiency_baseline.07-24-00-17 N/A        2025-07-24   wandb://metta-research/metta/model/yudhister.recipes.arena.4x4.efficiency_baseline.07-24-00-17:latest
+```
+
+### Manual WandB API Access
+
+You can also query WandB directly:
+
+```python
+import wandb
+api = wandb.Api()
+runs = api.runs('metta-research/metta', filters={'state': 'finished'}, order='-created_at')
+for run in runs[:5]:
+    print(f"{run.name}: wandb://metta-research/metta/model/{run.name}:latest")
+```
 
 ## Usage Examples
 
@@ -66,13 +103,13 @@ The easiest way to run dual-policy training with a WandB checkpoint:
 
 # With a specific WandB policy
 ./recipes/dual_policy_checkpoint.sh \
-  "wandb://metta-research/metta/model/bullm_dual_policy_against_roomba_v5:latest" \
+  "wandb://metta-research/metta/model/yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18:latest" \
   5000000000 \
   8
 
 # With a different successful policy
 ./recipes/dual_policy_checkpoint.sh \
-  "wandb://metta-research/metta/model/recent_successful_run:latest"
+  "wandb://metta-research/metta/model/yudhister.recipes.arena.4x4.efficiency_baseline.07-24-00-17:latest"
 ```
 
 ### 2. Direct Command Line
@@ -85,7 +122,7 @@ export METTA_HOURLY_COST=10.0
 python tools/train.py \
   +user=dual_policy_checkpoint_example \
   run=my_experiment \
-  trainer.dual_policy.checkpoint_npc.checkpoint_path="wandb://metta-research/metta/model/your_old_policy_run:latest" \
+  trainer.dual_policy.checkpoint_npc.checkpoint_path="wandb://metta-research/metta/model/yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18:latest" \
   trainer.total_timesteps=10000000000 \
   trainer.num_workers=4
 ```
@@ -113,9 +150,9 @@ Look for recent training runs that have good performance:
 
 ```bash
 # Example WandB URIs for good policies:
-"wandb://metta-research/metta/model/bullm_dual_policy_against_roomba_v5:latest"
-"wandb://metta-research/metta/model/recent_successful_run:latest"
-"wandb://metta-research/metta/model/your_own_previous_run:latest"
+"wandb://metta-research/metta/model/yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18:latest"
+"wandb://metta-research/metta/model/yudhister.recipes.arena.4x4.efficiency_baseline.07-24-00-17:latest"
+"wandb://metta-research/metta/model/yudhister.recipes.arena.2x4.efficiency_baseline.07-24-00-17:latest"
 ```
 
 ### 2. Check WandB Dashboard
@@ -186,6 +223,7 @@ The loader automatically detects common checkpoint structures and extracts the p
    - Verify the WandB URI format is correct
    - Ensure the artifact exists and is accessible
    - Check that you have access to the WandB project
+   - **Use the WandB run lister tool**: `python tools/list_wandb_runs.py` to find valid run names
 
 2. **Policy loading errors**
    ```
@@ -224,6 +262,11 @@ The loader automatically detects common checkpoint structures and extracts the p
    INFO: Dual-policy system initialized: {...}
    ```
 
+4. **List available runs**:
+   ```bash
+   python tools/list_wandb_runs.py --limit 10
+   ```
+
 ## Advanced Usage
 
 ### Multiple Checkpoints
@@ -257,3 +300,4 @@ For more complex scenarios, you can extend the system:
 4. **Use meaningful run names** for easy identification
 5. **Enable cost tracking** to monitor resource usage
 6. **Test with local checkpoints** first before using WandB artifacts
+7. **Use the WandB run lister tool** to find valid run names instead of guessing

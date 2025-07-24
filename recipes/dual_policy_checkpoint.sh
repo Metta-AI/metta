@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 RUN_NAME="dual_policy_vs_checkpoint_$(date +%Y%m%d_%H%M%S)"
-WANDB_CHECKPOINT_URI="${1:-wandb://metta-research/metta/model/recent_successful_run:latest}"
+WANDB_CHECKPOINT_URI="${1:-wandb://metta-research/metta/model/yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18:latest}"
 TOTAL_TIMESTEPS="${2:-10000000000}"
 NUM_WORKERS="${3:-4}"
 

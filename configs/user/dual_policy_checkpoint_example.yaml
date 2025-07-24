@@ -29,13 +29,13 @@ trainer:
     # Configure checkpoint NPC behavior
     npc_type: "checkpoint"
     checkpoint_npc:
-      # Use a WandB policy URI for the NPC
-      # Format: wandb://entity/project/artifact_type/run_name:version
-      checkpoint_path: "wandb://metta-research/metta/model/recent_successful_run:latest"
+      # Use an actual WandB policy as the NPC
+      # This is a real run from the metta-research project
+      checkpoint_path: "wandb://metta-research/metta/model/yudhister.recipes.arena.2x8.efficiency_baseline.07-24-00-18:latest"
 
-      # Alternative examples:
-      # checkpoint_path: "wandb://metta-research/metta/model/bullm_dual_policy_against_roomba_v5:latest"
-      # checkpoint_path: "wandb://metta-research/metta/model/your_old_policy_run:latest"
+      # Alternative examples - other actual runs:
+      # checkpoint_path: "wandb://metta-research/metta/model/yudhister.recipes.arena.4x4.efficiency_baseline.07-24-00-17:latest"
+      # checkpoint_path: "wandb://metta-research/metta/model/yudhister.recipes.arena.2x4.efficiency_baseline.07-24-00-17:latest"
 
       # For local testing, you can still use local paths:
       # checkpoint_path: "./train_dir/previous_training_run/checkpoints/model_0000.pt"
