@@ -1,11 +1,12 @@
 import logging
 import time
-from pathlib import Path
 
 import pytest
 import requests
 from testcontainers.core.container import DockerContainer
 from testcontainers.postgres import PostgresContainer
+
+from metta.common.util.fs import get_repo_root
 
 
 class TestDockerIntegration:
@@ -56,8 +57,7 @@ class TestDockerIntegration:
         try:
             import docker
 
-            # Get the project root directory (assumes we're in tests/app/)
-            project_root = Path(__file__).parent.parent.parent
+            project_root = get_repo_root()
 
             # Build the Docker image first
             self.logger.info("Building Docker image for app_backend")

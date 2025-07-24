@@ -3,7 +3,8 @@ replicaCount: 1
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
   name: metta-policy-evaluator
-  tag: ""  # set by ci/cd
+  pullPolicy: Always
+  tag: "latest"
 
 serviceAccount:
   create: true

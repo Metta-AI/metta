@@ -5,15 +5,16 @@ from pathlib import Path
 
 import wandb
 
+from metta.common.util.fs import get_repo_root
 from metta.setup.tools.local.kind import Kind
 from metta.setup.tools.local.load_policies import get_recent_runs, post_policies_to_stats, print_runs_with_artifacts
 from metta.setup.utils import error, info
 
 
 class LocalCommands:
-    def __init__(self, repo_root: Path):
-        self.repo_root = repo_root
-        self._kind_manager = Kind(repo_root)
+    def __init__(self):
+        self.repo_root = get_repo_root()
+        self._kind_manager = Kind()
 
     def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
         cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
@@ -25,17 +26,13 @@ class LocalCommands:
     def build_app_backend_img(self) -> None:
         self._build_img("metta-app-backend:latest", self.repo_root / "app_backend" / "Dockerfile")
 
-    def build_policy_evaluator_img(self, unknown_args: list[str] | None = None) -> None:
-        # Parse arguments for docker build
-        build_args = []
-        if unknown_args:
-            # Pass through any docker build arguments
-            build_args = unknown_args
-
+    def build_policy_evaluator_img(
+        self, tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
+    ) -> None:
         self._build_img(
-            "metta-policy-evaluator-local:latest",
+            tag,
             self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
-            build_args,
+            build_args or [],
         )
 
     def load_policies(self, unknown_args) -> None:

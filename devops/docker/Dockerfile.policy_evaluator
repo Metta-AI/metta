@@ -9,14 +9,6 @@ RUN brew install cmake ninja
 # Install kubectl for EKS/Kind testing
 RUN brew install kubectl
 
-# Install Docker CLI manually
-RUN mkdir -p /home/linuxbrew/.local/bin && \
-    curl -fsSL https://download.docker.com/linux/static/stable/aarch64/docker-27.5.1.tgz | tar -xz -C /tmp && \
-    cp /tmp/docker/docker /home/linuxbrew/.local/bin/docker && \
-    chmod +x /home/linuxbrew/.local/bin/docker && \
-    rm -rf /tmp/docker
-
-
 WORKDIR /workspace
 
 # Copy the entire repo

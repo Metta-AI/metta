@@ -26,8 +26,6 @@ def main():
     if not account_id:
         sys.exit("ERROR: Failed to determine ACCOUNT_ID")
 
-    host = f"{account_id}.dkr.ecr.{args.region}.amazonaws.com"
-
     print(f"Uploading {bold(args.local_image_name)} to {bold(args.remote_image_name)}")
     print(f"Region: {bold(args.region)}")
     print(f"Account ID: {bold(account_id)}")
@@ -35,7 +33,12 @@ def main():
     if not get_user_confirmation("Images should normally be uploaded by CI. Do you want to proceed?"):
         sys.exit(0)
 
-    docker_pwd = sh(["aws", "ecr", "get-login-password", "--region", args.region])
+    push_image(args.local_image_name, args.remote_image_name, args.region, account_id)
+
+
+def push_image(local_image_name: str, remote_image_name: str, region: str, account_id: str) -> None:
+    docker_pwd = sh(["aws", "ecr", "get-login-password", "--region", region])
+    host = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
 
     subprocess.run(
         ["docker", "login", "--username", "AWS", "--password-stdin", host],
@@ -44,8 +47,8 @@ def main():
         check=True,
     )
 
-    subprocess.check_call(["docker", "tag", args.local_image_name, f"{host}/{args.remote_image_name}"])
-    subprocess.check_call(["docker", "push", f"{host}/{args.remote_image_name}"])
+    subprocess.check_call(["docker", "tag", local_image_name, f"{host}/{remote_image_name}"])
+    subprocess.check_call(["docker", "push", f"{host}/{remote_image_name}"])
 
     print("✓ Push complete")
 

@@ -21,7 +21,6 @@ from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
@@ -48,6 +47,7 @@ from metta.rl.util.optimization import (
 )
 from metta.rl.util.policy_management import (
     cleanup_old_policies,
+    load_or_initialize_policy,
     validate_policy_environment_match,
 )
 from metta.rl.util.rollout import (
@@ -176,80 +176,15 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        # Load or create policy with distributed coordination
-        policy_record = self._load_policy(checkpoint, policy_store)
-
-        if policy_record is not None:
-            logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
-            self.latest_saved_policy_record = policy_record
-
-            # Get the policy from the record
-            self.policy = policy_record.policy
-
-            # Restore original_feature_mapping from metadata if available
-            if (
-                hasattr(self.policy, "restore_original_feature_mapping")
-                and "original_feature_mapping" in policy_record.metadata
-            ):
-                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-                logger.info(f"Rank {self._rank}: Restored original_feature_mapping")
-
-            # Initialize the policy to the environment
-            self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-
-            self.initial_policy_record = policy_record
-
-        else:
-            logger.info(f"Rank {self._rank}: No existing policy found, creating new one")
-            # In distributed mode, handle policy creation/loading differently
-            if torch.distributed.is_initialized() and not self._master:
-                # Non-master ranks wait for master to create and save the policy
-                default_policy_path = os.path.join(
-                    trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0)
-                )
-                logger.info(f"Rank {self._rank}: Waiting for master to create policy at {default_policy_path}")
-
-                # Synchronize with master before attempting to load
-                torch.distributed.barrier()
-
-                def log_progress(elapsed: float, status: str) -> None:
-                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
-                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-                    elif status == "found":
-                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
-                    elif status == "stable":
-                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
-
-                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
-                    raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
-
-                try:
-                    policy_record = self.policy_store.policy_record(default_policy_path)
-                except Exception as e:
-                    raise RuntimeError(
-                        f"Rank {self._rank}: Failed to load policy from {default_policy_path}: {e}"
-                    ) from e
-
-                self.initial_policy_record = policy_record
-                self.latest_saved_policy_record = policy_record
-                self.policy = policy_record.policy
-
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-            else:
-                # Master creates and saves new policy
-                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
-                self.initial_policy_record = policy_record
-                self.latest_saved_policy_record = policy_record
-                self.policy = policy_record.policy
-
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-
-                # Synchronize with non-master ranks after saving
-                if torch.distributed.is_initialized():
-                    logger.info("Master rank: Policy saved, synchronizing with other ranks")
-                    torch.distributed.barrier()
-
-        logging.info(f"Rank {self._rank}: USING {self.initial_policy_record.uri}")
+        self.policy, self.initial_policy_record, self.latest_saved_policy_record = load_or_initialize_policy(
+            self.cfg,
+            checkpoint,
+            policy_store,
+            metta_grid_env,
+            self.device,
+            self._master,
+            self._rank,
+        )
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -1070,16 +1005,6 @@ class MettaTrainer:
 
         with self.timer("grad_stats"):
             self.grad_stats = compute_gradient_stats(self.policy)
-
-    def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
-        """Helper method to initialize a policy to the environment using the appropriate interface."""
-        if hasattr(policy, "initialize_to_environment"):
-            features = metta_grid_env.get_observation_features()
-            policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, device
-            )
-        else:
-            policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
 
 class AbortingTrainer(MettaTrainer):

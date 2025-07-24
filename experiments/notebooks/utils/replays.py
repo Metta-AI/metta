@@ -2,7 +2,7 @@ import re
 
 from IPython.display import IFrame, display
 
-from notebooks.utils.metrics import get_run
+from experiments.notebooks.utils.metrics import get_run
 
 
 def show_replay(run_name: str, step: str | int = "last", width: int = 1000, height: int = 600) -> None:
