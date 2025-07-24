@@ -67,6 +67,12 @@ jobs:
         with:
           install-mode: "full" # for training/replay etc
 
+      - name: Debug
+        run: |
+          df -h
+          uv cache dir
+
+
       - name: Install Mettascope
         run: |
           echo "::group::Mettascope installation"
