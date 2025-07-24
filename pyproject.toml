@@ -54,6 +54,7 @@ dependencies = [
   "notebook>=7.4.4",
   "jupyterlab>=4.4.4",
   "widgetsnbextension>=4.0.14",
+  "raylib>=5.5.0.0",
 ]
 name = "metta"
 version = "0.1"

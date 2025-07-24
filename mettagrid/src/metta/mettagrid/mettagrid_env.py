@@ -1,9 +1,8 @@
 from __future__ import annotations
-from raylib import *
-import math
 
 import datetime
 import logging
+import math
 import time
 import uuid
 from typing import Any, Dict, Optional, cast
@@ -402,18 +401,36 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
-        #self._c_env.render()
+        # Lazy import raylib to avoid hard dependency
+        try:
+            from raylib import (
+                FLAG_MSAA_4X_HINT,
+                PI,
+                WHITE,
+                BeginDrawing,
+                ClearBackground,
+                DrawTexturePro,
+                EndDrawing,
+                InitWindow,
+                LoadTexture,
+                SetConfigFlags,
+                SetTargetFPS,
+            )
+        except ImportError:
+            raise ImportError("Raylib is required for rendering") from None
+
+        # self._c_env.render()
         if self._renderer is None:
             self._renderer = True
             SetConfigFlags(FLAG_MSAA_4X_HINT)
-            InitWindow(16*self.map_width, 16*self.map_height, b'Mettagrid')
-            self.texture = LoadTexture(b'resources/shared/puffers.png')
+            InitWindow(16 * self.map_width, 16 * self.map_height, b"Mettagrid")
+            self.texture = LoadTexture(b"resources/shared/puffers.png")
             SetTargetFPS(60)
 
             self.tiles = {}
             for id, name in enumerate(self.object_type_names):
-                name = f'/puffertank/metta/mettascope/data/atlas/objects/{name}.png'
-                self.tiles[id] = LoadTexture(name.encode('utf-8'))
+                name = f"/puffertank/metta/mettascope/data/atlas/objects/{name}.png"
+                self.tiles[id] = LoadTexture(name.encode("utf-8"))
 
         BeginDrawing()
         background = [207, 169, 112, 255]
@@ -421,12 +438,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
         sz = 16
 
         for obj in self.grid_objects.values():
-            type = obj['type']
+            type = obj["type"]
             tex = self.tiles[type]
 
             tint = WHITE
-            if self.object_type_names[type] == 'agent':
-                id = obj['id']
+            if self.object_type_names[type] == "agent":
+                id = obj["id"]
                 tint = [
                     int(255 * ((id * PI) % 1.0)),
                     int(255 * ((id * math.e) % 1.0)),
@@ -434,20 +451,20 @@ class MettaGridEnv(PufferEnv, GymEnv):
                     255,
                 ]
 
-            y = obj['r']
-            x = obj['c']
+            y = obj["r"]
+            x = obj["c"]
             size = sz * (256.0 / 200.0)
             DrawTexturePro(
                 tex,
                 [0, 0, tex.width, tex.height],
-                [x*sz, y*sz, size, size],
+                [x * sz, y * sz, size, size],
                 [0, 0],
                 0,
                 tint,
             )
 
-        #DrawTexture(self.texture, 128, 128, WHITE)
-        #DrawText(b'Hello World!', 190, 200, 20, LIGHTGRAY)
+        # DrawTexture(self.texture, 128, 128, WHITE)
+        # DrawText(b'Hello World!', 190, 200, 20, LIGHTGRAY)
         EndDrawing()
 
     @property

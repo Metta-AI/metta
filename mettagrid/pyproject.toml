@@ -40,6 +40,7 @@ dependencies = [
     "termcolor>=2.4.0",
     "tqdm>=4.67.1",
     "wandb>=0.19.11",
+    "raylib>=5.5.0.0",
 ]
 
 [dependency-groups]
