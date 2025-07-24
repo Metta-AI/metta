@@ -67,15 +67,29 @@ class DualPolicyRollout:
             logger.info(f"Initialized scripted NPC with {self.npc_env_count} agents")
 
         elif self.config.npc_type == "checkpoint":
-            if not self.config.npc_policy_uri:
-                raise ValueError("npc_policy_uri must be set for checkpoint NPCs")
+            # Support both new checkpoint_npc config and legacy npc_policy_uri
+            if self.config.checkpoint_npc:
+                # New approach: use checkpoint_path
+                checkpoint_path = self.config.checkpoint_npc.checkpoint_path
+                if not checkpoint_path:
+                    raise ValueError("checkpoint_path must be set in checkpoint_npc config")
 
-            self.npc_policy_record = self.policy_store.policy_record(self.config.npc_policy_uri)
-            if not self.npc_policy_record:
-                raise ValueError(f"Could not load NPC policy from {self.config.npc_policy_uri}")
+                # Load the checkpoint policy
+                from metta.rl.util.policy_loader import load_policy_from_checkpoint
 
-            self.npc_policy = self.npc_policy_record.policy
-            logger.info(f"Loaded NPC policy from {self.config.npc_policy_uri}")
+                self.npc_policy = load_policy_from_checkpoint(checkpoint_path, self.device)
+                logger.info(f"Loaded NPC policy from checkpoint: {checkpoint_path}")
+
+            elif self.config.npc_policy_uri:
+                # Legacy approach: use policy URI
+                self.npc_policy_record = self.policy_store.policy_record(self.config.npc_policy_uri)
+                if not self.npc_policy_record:
+                    raise ValueError(f"Could not load NPC policy from {self.config.npc_policy_uri}")
+
+                self.npc_policy = self.npc_policy_record.policy
+                logger.info(f"Loaded NPC policy from {self.config.npc_policy_uri}")
+            else:
+                raise ValueError("Either checkpoint_npc or npc_policy_uri must be set for checkpoint NPCs")
 
     def run_dual_policy_inference(
         self,

@@ -1,0 +1,51 @@
+# @package __global__
+
+# Example dual-policy training with a specific WandB policy as NPC
+defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/all@evals
+  - _self_
+
+# Basic run configuration
+run: dual_policy_vs_wandb_policy
+cmd: train
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+# Trainer configuration overrides
+trainer:
+  curriculum: /env/mettagrid/curriculum/arena/learning_progress
+  num_workers: 4
+  total_timesteps: 10_000_000_000
+
+  # Dual-policy configuration
+  dual_policy:
+    enabled: true
+    policy_a_percentage: 0.5  # 50% of agents use the main policy
+
+    # Configure checkpoint NPC behavior
+    npc_type: "checkpoint"
+    checkpoint_npc:
+      # Use a specific WandB policy as the NPC
+      # Replace this with an actual run name from your WandB project
+      checkpoint_path: "wandb://metta-research/metta/model/bullm_dual_policy_against_roomba_v5:latest"
+
+      # Alternative examples - uncomment and modify as needed:
+      # checkpoint_path: "wandb://metta-research/metta/model/your_previous_run:latest"
+      # checkpoint_path: "wandb://metta-research/metta/model/successful_training_run:v1"
+
+# WandB configuration
+wandb:
+  entity: metta-research
+  project: dual_policy_training
+  enabled: true
+
+# System monitoring for cost tracking
+system_monitor:
+  enabled: true
+  sampling_interval_sec: 1.0
+  history_size: 100
+  auto_start: true

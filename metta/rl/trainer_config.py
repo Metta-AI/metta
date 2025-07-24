@@ -132,6 +132,26 @@ class ScriptedNPCConfig(BaseModelWithForbidExtra):
     grid_search_pattern: Literal["spiral", "snake", "random"] = "spiral"
 
 
+class CheckpointNPCConfig(BaseModelWithForbidExtra):
+    """Configuration for checkpoint-based NPC policies."""
+
+    # Path to the checkpoint policy to use as NPC
+    # Can be a local path or S3 URI
+    checkpoint_path: str | None = None
+
+    # Alternative: use policy URI (for backward compatibility)
+    policy_uri: str | None = None
+
+    # Optional: specify the policy store to load from
+    policy_store: str | None = None
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "CheckpointNPCConfig":
+        if not self.checkpoint_path and not self.policy_uri:
+            raise ValueError("Either checkpoint_path or policy_uri must be set for checkpoint NPCs")
+        return self
+
+
 class DualPolicyConfig(BaseModelWithForbidExtra):
     """Configuration for dual-policy training with NPC policies."""
 
@@ -141,7 +161,10 @@ class DualPolicyConfig(BaseModelWithForbidExtra):
     # NPC policy configuration
     npc_type: Literal["scripted", "checkpoint"] = "scripted"
 
-    # For checkpoint-based NPCs
+    # For checkpoint-based NPCs (new approach)
+    checkpoint_npc: CheckpointNPCConfig | None = None
+
+    # For checkpoint-based NPCs (legacy approach)
     npc_policy_uri: str | None = None
 
     # For scripted NPCs
@@ -150,8 +173,13 @@ class DualPolicyConfig(BaseModelWithForbidExtra):
     @model_validator(mode="after")
     def validate_fields(self) -> "DualPolicyConfig":
         if self.enabled:
-            if self.npc_type == "checkpoint" and not self.npc_policy_uri:
-                raise ValueError("npc_policy_uri must be set when npc_type is 'checkpoint'")
+            if self.npc_type == "checkpoint":
+                if not self.checkpoint_npc and not self.npc_policy_uri:
+                    raise ValueError("checkpoint_npc or npc_policy_uri must be set for checkpoint NPCs")
+            elif self.npc_type == "scripted":
+                pass  # scripted_npc has defaults
+            else:
+                raise ValueError(f"Unknown NPC type: {self.npc_type}")
         return self
 
 

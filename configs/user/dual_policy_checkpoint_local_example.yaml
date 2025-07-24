@@ -1,0 +1,47 @@
+# @package __global__
+
+# User config for dual-policy training with local checkpoint NPC (for testing)
+defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/all@evals
+  - _self_
+
+# Basic run configuration
+run: dual_policy_local_checkpoint_test
+cmd: train
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+# Trainer configuration overrides
+trainer:
+  curriculum: /env/mettagrid/curriculum/arena/learning_progress
+  num_workers: 2
+  total_timesteps: 1_000_000  # Shorter for testing
+
+  # Dual-policy configuration
+  dual_policy:
+    enabled: true
+    policy_a_percentage: 0.5  # 50% of agents use the main policy
+
+    # Configure checkpoint NPC behavior
+    npc_type: "checkpoint"
+    checkpoint_npc:
+      # Use a local checkpoint for testing
+      # Replace this path with an actual checkpoint file
+      checkpoint_path: "./train_dir/previous_run/checkpoints/model_0000.pt"
+
+# WandB configuration (disabled for local testing)
+wandb:
+  entity: metta-research
+  project: dual_policy_training
+  enabled: false  # Disable for local testing
+
+# System monitoring for cost tracking
+system_monitor:
+  enabled: true
+  sampling_interval_sec: 1.0
+  history_size: 100
+  auto_start: true
