@@ -55,6 +55,7 @@ runs:
 
     # a full install generates ~13GB of temp data which can fill the hdd
     - name: Clean cache temp files
+      shell: bash
       run: |
         echo "Cleaning up cache extraction temp files..."
         sudo rm -rf /__w/_temp/* 2>/dev/null || true
