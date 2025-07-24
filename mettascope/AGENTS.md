@@ -17,10 +17,10 @@ All commands are executed from the `mettascope/` directory.
 
 | Task | Command | Notes |
 |------|---------|-------|
-| Build once | `npm run build` | |
-| Lint & format | `npm run lint` / `npm run format` | should be run on code changes |
-| Full static checks | `npm run check` | should be run before committing |
-| Run tests | `npm run test` | frontend tests require the backend is already running |
+| Build once | `pnpm run build` | |
+| Lint & format | `pnpm run lint` / `pnpm run format` | should be run on code changes |
+| Full static checks | `pnpm run check` | should be run before committing |
+| Run tests | `pnpm run test` | frontend tests require the backend is already running |
 
 ### Texture Atlas
 
