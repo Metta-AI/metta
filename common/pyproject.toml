@@ -12,16 +12,7 @@ license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
-dependencies = [
-    # Build dependencies needed by other metta packages
-    "scikit-build-core>=0.10.0",
-    "pybind11==2.10.4",
-    "cmake>=3.22",
-    "ninja",
-    "wheel",
-    "numpy<2",
-    "setuptools>=61.0",  # Add setuptools explicitly
-]
+dependencies = []
 
 [dependency-groups]
 dev = [
@@ -35,7 +26,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta*"]
+include = ["metta.common"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
