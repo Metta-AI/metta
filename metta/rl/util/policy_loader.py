@@ -155,6 +155,16 @@ def _load_policy_from_local(file_path: str, device: torch.device) -> Any:
         # Assume the checkpoint is the policy itself
         policy = checkpoint
 
+    # Handle PolicyRecord objects - extract the actual model
+    if hasattr(policy, "__class__") and policy.__class__.__name__ == "PolicyRecord":
+        logger.info("Detected PolicyRecord, extracting model")
+        if hasattr(policy, "model"):
+            policy = policy.model
+        elif hasattr(policy, "policy"):
+            policy = policy.policy
+        else:
+            logger.warning("PolicyRecord found but no model/policy attribute, using as-is")
+
     # Ensure the policy is on the correct device
     if hasattr(policy, "to"):
         policy = policy.to(device)

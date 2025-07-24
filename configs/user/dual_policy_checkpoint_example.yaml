@@ -18,7 +18,7 @@ run_dir: ${data_dir}/${run}
 # Trainer configuration overrides
 trainer:
   curriculum: /env/mettagrid/curriculum/arena/learning_progress
-  num_workers: 4
+  num_workers: 8  # Increased for GPU training
   total_timesteps: 10_000_000_000
 
   # Dual-policy configuration
@@ -38,6 +38,11 @@ trainer:
 
       # For local testing, you can still use local paths:
       # checkpoint_path: "./train_dir/previous_training_run/checkpoints/model_0000.pt"
+
+# GPU configuration
+device: cuda  # Use CUDA GPU
+compile: true  # Enable PyTorch compilation for faster training
+compile_mode: reduce-overhead
 
 # WandB configuration
 wandb:
