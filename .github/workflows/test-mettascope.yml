@@ -149,7 +149,6 @@ jobs:
 
           echo "::endgroup::"
 
-      # this workflow fills the disk to 97% after training
       - name: Clean up venv to free disk space
         run: |
           echo "::group::Cleaning up venv"

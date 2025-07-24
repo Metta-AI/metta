@@ -15,7 +15,7 @@ runs:
         version: "0.7.3"
         enable-cache: true
         cache-local-path: "${{ github.workspace }}/.uv-cache"
-        prune-cache: false
+        prune-cache: true
         cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
@@ -52,37 +52,3 @@ runs:
             ;;
 
         esac
-
-    # Clean up immediately after installation
-    - name: Clean uv cache after installation
-      shell: bash
-      env:
-        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
-      run: |
-        echo "=== Disk use before cleanup ==="
-        df -h
-
-        rm -rf "$UV_CACHE_DIR/builds"/* 2>/dev/null || true
-        rm -rf "$UV_CACHE_DIR/tmp"/* 2>/dev/null || true
-
-        df -h
-
-        rm -rf "$UV_CACHE_DIR/wheels"/* 2>/dev/null || true
-        rm -rf ~/.cache/pip/* 2>/dev/null || true
-
-        df -h
-
-        sudo rm -rf /__w/_temp/* 2>/dev/null || true
-        sudo rm -rf /__w/_actions/* 2>/dev/null || true
-
-        df -h
-
-        sudo rm -rf /tmp/* 2>/dev/null || true
-        sudo apt-get clean 2>/dev/null || true
-
-        df -h
-
-        uv cache prune || true
-
-        echo "=== Disk use after cleanup ==="
-        df -h
