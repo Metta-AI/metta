@@ -138,6 +138,9 @@ class Experience:
         # Pre-allocate tensor to stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
+        # for contrastive learning
+        self.lstm_outputs = torch.zeros(self.segments, bptt_horizon, hidden_size, device=self.device)
+
     @property
     def full(self) -> bool:
         """Alias for ready_for_training for compatibility."""
@@ -191,6 +194,9 @@ class Experience:
         if lstm_state is not None and env_id.start in self.lstm_h:
             self.lstm_h[env_id.start] = lstm_state["lstm_h"]
             self.lstm_c[env_id.start] = lstm_state["lstm_c"]
+
+        if lstm_state is not None and hasattr(lstm_state, "hidden") and lstm_state.hidden is not None:
+            self.lstm_outputs[batch_slice] = lstm_state.hidden
 
         return int(num_steps)
 
