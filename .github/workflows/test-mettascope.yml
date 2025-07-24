@@ -149,6 +149,20 @@ jobs:
 
           echo "::endgroup::"
 
+      # this workflow fills the disk to 97% after training
+      - name: Clean up venv to free disk space
+        run: |
+          echo "::group::Cleaning up venv"
+          echo "Disk usage before cleanup:"
+          df -h
+
+          # Remove the entire venv - we're done with Python execution
+          rm -rf .venv
+
+          echo "Disk usage after removing .venv:"
+          df -h
+          echo "::endgroup::"
+
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         if: ${{ always() && !env.ACT }} # Run even on failure, skip when testing locally
