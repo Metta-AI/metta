@@ -33,7 +33,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.app_backend"]
+include = ["metta*"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]

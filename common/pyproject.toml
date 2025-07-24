@@ -34,7 +34,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.common"]
+include = ["metta*"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
