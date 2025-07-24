@@ -37,7 +37,6 @@ class ClientEpisodeResponse(BaseModel):
     id: uuid.UUID
 
 
-
 class _NotAuthenticatedError(ConnectionError):
     """Exception raised when the stats client is not authenticated."""
 
