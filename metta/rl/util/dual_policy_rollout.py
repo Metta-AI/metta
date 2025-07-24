@@ -146,15 +146,64 @@ class DualPolicyRollout:
             if self.npc_policy is None:
                 raise ValueError("NPC policy not initialized")
 
-            # For checkpoint policies, we'll use a simpler approach
-            # Just return dummy actions for now to get the system working
-            # TODO: Implement proper checkpoint policy inference
-            logger.warning("Checkpoint NPC inference not fully implemented yet, using dummy actions")
-            # Actions should be 2D: [batch_size, 2] for (action_type, action_param)
-            actions = torch.zeros(observations.shape[0], 2, dtype=torch.int32, device=self.device)
-            log_probs = torch.zeros(observations.shape[0], device=self.device)
-            values = torch.zeros(observations.shape[0], device=self.device)
-            lstm_state = None
+            # For checkpoint policies, we need to create a proper experience object
+            # We'll use the same structure as the main policy but with the NPC observations
+            import numpy as np
+
+            from metta.rl.experience import Experience
+
+            # Get the observation and action spaces from the main policy's experience
+            # We'll create a minimal experience object for the NPC batch
+            npc_batch_size = observations.shape[0]
+
+            # Create a minimal experience object for the NPC batch
+            # We need to infer the spaces from the observations
+            obs_shape = observations.shape[1:]  # Remove batch dimension
+            atn_shape = (2,)  # Action shape is (action_type, action_param)
+
+            # Create a simple space-like object for the observations
+            class SimpleSpace:
+                def __init__(self, shape, dtype):
+                    self.shape = shape
+                    # Convert PyTorch dtype to NumPy dtype for compatibility
+                    if hasattr(dtype, "numpy"):
+                        self.dtype = dtype.numpy()
+                    elif dtype == torch.int32:
+                        self.dtype = np.int32
+                    elif dtype == torch.int64:
+                        self.dtype = np.int64
+                    elif dtype == torch.float32:
+                        self.dtype = np.float32
+                    elif dtype == torch.float64:
+                        self.dtype = np.float64
+                    else:
+                        self.dtype = np.float32  # Default fallback
+
+            obs_space = SimpleSpace(obs_shape, observations.dtype)
+            atn_space = SimpleSpace(atn_shape, np.int32)  # Use NumPy dtype directly
+
+            # Get LSTM configuration from the NPC policy
+            from metta.rl.util.rollout import get_lstm_config
+
+            hidden_size, num_lstm_layers = get_lstm_config(self.npc_policy)
+
+            npc_experience = Experience(
+                total_agents=npc_batch_size,
+                batch_size=npc_batch_size,
+                bptt_horizon=1,
+                minibatch_size=npc_batch_size,
+                max_minibatch_size=npc_batch_size,
+                obs_space=obs_space,
+                atn_space=atn_space,
+                device=self.device,
+                hidden_size=hidden_size,
+                num_lstm_layers=num_lstm_layers,
+            )
+
+            # Use the same inference function as the main policy
+            actions, log_probs, values, lstm_state = run_policy_inference(
+                self.npc_policy, observations, npc_experience, 0, self.device
+            )
 
         else:
             raise ValueError(f"Unknown NPC type: {self.config.npc_type}")
