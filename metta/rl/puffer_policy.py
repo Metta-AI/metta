@@ -82,6 +82,33 @@ class PytorchAgent(nn.Module):
     differences like critic→value, hidden→logits, etc.
     """
 
+    # Default feature normalizations for legacy policies using max_vec
+    DEFAULT_FEATURE_NORMALIZATIONS = {
+        "type_id": 9.0,
+        "agent:group": 1.0,
+        "hp": 1.0,
+        "agent:frozen": 10.0,
+        "agent:orientation": 3.0,
+        "agent:color": 254.0,
+        "converting": 1.0,
+        "swappable": 1.0,
+        "episode_completion_pct": 235.0,
+        "last_action": 8.0,
+        "last_action_arg": 9.0,
+        "last_reward": 250.0,
+        "agent:glyph": 29.0,
+        "resource_rewards": 1.0,
+        # Inventory features (positions 14-21)
+        "inv:0": 1.0,
+        "inv:1": 8.0,
+        "inv:2": 1.0,
+        "inv:3": 1.0,
+        "inv:4": 6.0,
+        "inv:5": 3.0,
+        "inv:6": 1.0,
+        "inv:7": 2.0,
+    }
+
     def __init__(self, policy: nn.Module):
         super().__init__()
         self.policy = policy
@@ -160,18 +187,58 @@ class PytorchAgent(nn.Module):
         device,
         is_training: bool = True,
     ):
-        """Initialize to environment - forward to wrapped policy if it has this method."""
+        """Initialize to environment - handle max_vec normalization for legacy policies."""
         # is_training parameter is deprecated and ignored - mode is auto-detected
 
-        # TODO: This hasattr pattern is a transitional state to support both old and new interfaces.
-        # Once all policies have been migrated to implement initialize_to_environment,
-        # we should remove these checks and make the interface mandatory.
+        # Handle max_vec normalization for policies that use it
+        target_policy = self._get_inner_policy()
+        if hasattr(target_policy, "max_vec") and hasattr(target_policy, "num_layers"):
+            self._update_max_vec_normalizations(target_policy, features, device)
+
+        # Forward to wrapped policy if it has initialize_to_environment
         if hasattr(self.policy, "initialize_to_environment"):
             self.policy.initialize_to_environment(features, action_names, action_max_params, device)
         elif hasattr(self.policy, "activate_actions"):
             # Fallback to old interface if available
             self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
+
+    def _get_inner_policy(self):
+        """Get the inner policy (unwrap if this is a wrapped policy like Recurrent)."""
+        target_policy = self.policy
+        if hasattr(self.policy, "policy") and hasattr(self.policy.policy, "max_vec"):
+            # This is a wrapped policy, get the inner policy
+            target_policy = self.policy.policy
+        return target_policy
+
+    def _update_max_vec_normalizations(self, policy, features: dict[str, dict], device):
+        """Update max_vec based on feature normalizations for legacy policies."""
+        # Don't update if the policy has its own feature normalization system
+        if hasattr(policy, "feature_normalizations"):
+            return
+
+        # Create max_vec based on current environment's feature IDs
+        max_values = [1.0] * policy.num_layers  # Default normalization
+
+        # Map our known features to the environment's feature IDs
+        for feature_name, feature_props in features.items():
+            if "id" in feature_props and 0 <= feature_props["id"] < policy.num_layers:
+                feature_id = feature_props["id"]
+
+                # Check if this is a feature we know about
+                if feature_name in self.DEFAULT_FEATURE_NORMALIZATIONS:
+                    # Use our empirically determined normalization
+                    max_values[feature_id] = self.DEFAULT_FEATURE_NORMALIZATIONS[feature_name]
+                elif feature_name.startswith("inv:") and "inv:0" in self.DEFAULT_FEATURE_NORMALIZATIONS:
+                    # For unknown inventory items, use a default inventory normalization
+                    max_values[feature_id] = 100.0  # DEFAULT_INVENTORY_NORMALIZATION
+                elif "normalization" in feature_props:
+                    # Use environment's normalization for unknown features
+                    max_values[feature_id] = feature_props["normalization"]
+
+        # Update max_vec with the mapped values
+        new_max_vec = torch.tensor(max_values, dtype=torch.float32, device=device)[None, :, None, None]
+        policy.max_vec.data = new_max_vec
 
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss."""

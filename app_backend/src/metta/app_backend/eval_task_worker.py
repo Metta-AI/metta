@@ -94,6 +94,8 @@ class EvalTaskWorker:
             f"sim={sim_suite}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
+            "device=cpu",
+            "vectorization=serial",
         ]
 
         for key, value in env_overrides.items():
