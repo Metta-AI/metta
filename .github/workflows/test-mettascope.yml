@@ -158,8 +158,12 @@ jobs:
           df -h
           echo
 
+          echo "Top 10 largest directories:"
+          du -h -d 2 . 2>/dev/null | sort -hr | head -20 || true
+          echo
+
           # Define directories to clean up
-          CLEANUP_DIRS=".venv .uv-cache mettascope/node_modules"
+          CLEANUP_DIRS=".venv"
 
           # Show sizes and remove directories
           for dir in $CLEANUP_DIRS; do
