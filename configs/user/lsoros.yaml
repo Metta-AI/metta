@@ -1,5 +1,5 @@
 # @package __global__
 
-run: test_default_params
+run: test_test
 trainer:
   env: /env/mettagrid/arena/advanced
