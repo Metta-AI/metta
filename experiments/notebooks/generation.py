@@ -81,6 +81,7 @@ def generate_notebook(
                 "pygments_lexer": "ipython3",
                 "version": "3.11.7",
             },
+            "celltoolbar": "Tags",
         },
         "nbformat": 4,
         "nbformat_minor": 4,
@@ -158,10 +159,12 @@ def _create_notebook_cells(
 This notebook was auto-generated from the experiment run. The wandb run IDs and sky job IDs have been pre-loaded."""
         cells.append(_create_markdown_cell(summary))
     
-    # Generate cells for each requested section
+    # Always include setup and state initialization first (marked as auto-run)
+    cells.extend(_get_setup_section())
+    cells.extend(_get_state_section(wandb_run_names, skypilot_job_ids, additional_metadata, name))
+    
+    # Generate cells for other requested sections
     section_generators = {
-        "setup": _get_setup_section,
-        "state": lambda: _get_state_section(wandb_run_names, skypilot_job_ids, additional_metadata, name),
         "launch": _get_launch_section,
         "monitor": _get_monitor_section,
         "metrics": _get_metrics_section,
@@ -172,6 +175,7 @@ This notebook was auto-generated from the experiment run. The wandb run IDs and 
     }
     
     for section in sections:
+        # Skip setup and state since we already added them
         if section in section_generators:
             cells.extend(section_generators[section]())
     
