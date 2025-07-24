@@ -53,6 +53,24 @@ runs:
 
         esac
 
+    # Clean up immediately after installation
+    - name: Clean uv cache after installation
+      shell: bash
+      run: |
+        echo "Cache size before cleanup:"
+        du -sh ~/.cache/uv || true
+
+        # Remove build artifacts and temporary files
+        # These are not needed after packages are installed
+        rm -rf ~/.cache/uv/builds/* 2>/dev/null || true
+        rm -rf ~/.cache/uv/tmp/* 2>/dev/null || true
+
+        # Prune unused cache entries
+        uv cache prune || true
+
+        echo "Cache size after cleanup:"
+        du -sh ~/.cache/uv || true
+
     # a full install generates ~13GB of temp data which can fill the hdd
     - name: Clean cache temp files
       shell: bash
@@ -60,10 +78,8 @@ runs:
         echo "Disk usage before cleanup:"
         df -h
         echo
-
         echo "Cleaning up cache extraction temp files..."
         sudo rm -rf /__w/_temp/* 2>/dev/null || true
-
         echo "Disk usage after cleanup:"
         df -h
         echo
