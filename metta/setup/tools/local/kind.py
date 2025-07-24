@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+from devops.docker.push_image import push_image
 from metta.common.util.fs import get_repo_root
 from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.utils import error, info, success
@@ -66,38 +67,33 @@ class Kind:
         info("Creating namespace if needed...")
 
         self._maybe_load_secrets()
-        try:
-            # Check if release already exists
-            result = subprocess.run(["helm", "list", "-n", self.namespace, "-q"], capture_output=True, text=True)
-            cmd = "upgrade" if self.helm_release_name in result.stdout else "install"
-            info(f"Running {cmd} for {self.helm_release_name}...")
-            subprocess.run(
-                [
-                    "helm",
-                    cmd,
-                    self.helm_release_name,
-                    str(self.helm_chart_path),
-                    "-n",
-                    self.namespace,
-                    *(
-                        [
-                            "-f",
-                            str(self.environment_values_file),
-                        ]
-                        if self.environment_values_file
-                        else []
-                    ),
-                ],
-                check=True,
-            )
-            info("Orchestrator deployed via Helm")
-            info("To view pods: metta local kind get-pods")
-            info("To view logs: metta local kind logs <pod-name>")
-            info("To stop: metta local kind down")
 
-        except Exception as e:
-            error(f"Failed to deploy orchestrator: {e}")
-            raise
+        result = subprocess.run(["helm", "list", "-n", self.namespace, "-q"], capture_output=True, text=True)
+        cmd = "upgrade" if self.helm_release_name in result.stdout else "install"
+        info(f"Running {cmd} for {self.helm_release_name}...")
+        subprocess.run(
+            [
+                "helm",
+                cmd,
+                self.helm_release_name,
+                str(self.helm_chart_path),
+                "-n",
+                self.namespace,
+                *(
+                    [
+                        "-f",
+                        str(self.environment_values_file),
+                    ]
+                    if self.environment_values_file
+                    else []
+                ),
+            ],
+            check=True,
+        )
+        info("Orchestrator deployed via Helm")
+        info("To view pods: metta local kind get-pods")
+        info("To view logs: metta local kind logs <pod-name>")
+        info("To stop: metta local kind down")
 
     def down(self) -> None:
         """Stop orchestrator and worker pods."""
@@ -260,9 +256,28 @@ class KindLocal(Kind):
 
 
 class EksProd(Kind):
-    cluster_name = "arn:aws:eks:us-east-1:751442549699:cluster/main"
+    aws_account_id = "751442549699"
+    aws_region = "us-east-1"
+    cluster_name = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/main"
     namespace = "orchestrator"
-    context = "arn:aws:eks:us-east-1:751442549699:cluster/main"
+    context = cluster_name
     helm_release_name = "orchestrator"
     helm_chart_path = repo_root / "devops/charts/orchestrator"
     environment_values_file = None
+
+    def build(self):
+        info("Building AMD64 for EKS...")
+
+        local_image_name = "metta-policy-evaluator-local:latest-amd64"
+        from metta.setup.local_commands import LocalCommands
+
+        LocalCommands().build_policy_evaluator_img(
+            tag=local_image_name,
+            unknown_args=["--platform", "linux/amd64"],
+        )
+        push_image(
+            local_image_name=local_image_name,
+            remote_image_name="metta-policy-evaluator:latest",
+            region=self.aws_region,
+            account_id=self.aws_account_id,
+        )
