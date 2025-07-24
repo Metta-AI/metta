@@ -41,25 +41,20 @@ jobs:
             mettascope/package-lock.json
             observatory/package-lock.json
 
-      - name: Build Mettascope
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "minimal"
+
+      - name: Install Mettascope
         run: |
-          cd mettascope
-          npm ci
-          npx tsc
+          ./mettascope/install.sh
 
       - name: Build Observatory
         run: |
           cd observatory
           npm ci
           npm run build
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "0.7.3"
-          enable-cache: true
-
-      # Remove the Python setup and pip install steps - no longer needed!
 
       - name: Debug Output
         if: github.event_name == 'workflow_dispatch'
