@@ -10,7 +10,7 @@ jobs:
   ui-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}/mettascope-ci:latest
+      image: ghcr.io/metta-ai/metta/mettascope-ci:latest
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
