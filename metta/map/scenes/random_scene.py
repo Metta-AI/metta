@@ -25,7 +25,7 @@ class RandomScene(Scene[RandomSceneParams]):
 
         return [
             ChildrenAction(scene=scene, where="full"),
-            *self.children,
+            *self.children_actions,
         ]
 
     def render(self):

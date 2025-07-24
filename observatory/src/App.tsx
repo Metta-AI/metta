@@ -89,9 +89,6 @@ function App() {
       try {
         const repo = new ServerRepo(serverUrl)
 
-        // Test the connection by calling getSuites
-        await repo.getSuites()
-
         // Get current user
         const userInfo = await repo.whoami()
         const currentUser = userInfo.user_email
