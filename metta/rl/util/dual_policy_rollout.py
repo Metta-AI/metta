@@ -150,7 +150,8 @@ class DualPolicyRollout:
             # Just return dummy actions for now to get the system working
             # TODO: Implement proper checkpoint policy inference
             logger.warning("Checkpoint NPC inference not fully implemented yet, using dummy actions")
-            actions = torch.zeros(observations.shape[0], dtype=torch.int32, device=self.device)
+            # Actions should be 2D: [batch_size, 2] for (action_type, action_param)
+            actions = torch.zeros(observations.shape[0], 2, dtype=torch.int32, device=self.device)
             log_probs = torch.zeros(observations.shape[0], device=self.device)
             values = torch.zeros(observations.shape[0], device=self.device)
             lstm_state = None
