@@ -33,7 +33,6 @@ dependencies = [
     "pandas>=2.3.0",
     "pettingzoo>=1.24.1",
     "pydantic>=2.11.5",
-    "pufferlib",
     "raylib>=5.5.0",
     "pyyaml>=6.0.2",
     "rich>=13.9.4",
