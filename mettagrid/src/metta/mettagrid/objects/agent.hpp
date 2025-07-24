@@ -19,6 +19,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::string& group_name,
               unsigned char freeze_duration,
               float action_failure_penalty,
+              const std::map<InventoryItem, InventoryQuantity>& starting_inventory,
               const std::map<InventoryItem, InventoryQuantity>& resource_limits,
               const std::map<InventoryItem, RewardType>& resource_rewards,
               const std::map<InventoryItem, RewardType>& resource_reward_max,
@@ -30,6 +31,7 @@ struct AgentConfig : public GridObjectConfig {
         group_name(group_name),
         freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
+        starting_inventory(starting_inventory),
         resource_limits(resource_limits),
         resource_rewards(resource_rewards),
         resource_reward_max(resource_reward_max),
@@ -40,6 +42,7 @@ struct AgentConfig : public GridObjectConfig {
   std::string group_name;
   short freeze_duration;
   float action_failure_penalty;
+  std::map<InventoryItem, InventoryQuantity> starting_inventory;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
   std::map<InventoryItem, RewardType> resource_rewards;
   std::map<InventoryItem, RewardType> resource_reward_max;
@@ -78,7 +81,7 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::Up),
-        inventory(),  // default constructor
+        inventory(config.starting_inventory),  // default constructor
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),

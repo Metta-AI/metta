@@ -95,6 +95,13 @@ public:
     return _action_name;
   }
 
+  // MOVE has been modified so that moves onto empty squares are the most prioritized moves, and then after all other actions
+  // are processed, any move that was moving into another agent is processed for each agent in their random order,
+  // moving them in the chosen direction if nothing is blocking them, and swapping them with the agent there if they are blocked by one
+  virtual void clear_deferred_moves() {}
+
+  virtual void process_deferred_moves() {}
+
 protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 

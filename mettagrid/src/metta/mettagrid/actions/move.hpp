@@ -9,34 +9,41 @@
 #include "objects/agent.hpp"
 #include "types.hpp"
 
-// struct DeferredMove {
-//     GridObjectId agent_id;
-//     GridLocation target_location;
-//     ActionArg arg;
-// };
+// MOVE has been modified so that moves onto empty squares are the most prioritized moves, and then after all other actions
+// are processed, any move that was moving into another agent is processed for each agent in their random order,
+// moving them in the chosen direction if nothing is blocking them, and swapping them with the agent there if they are blocked by one
+
+struct DeferredMove {
+    GridObjectId agent_id;
+    GridLocation target_location;
+    ActionArg arg;
+};
 
 class Move : public ActionHandler {
 public:
-    // std::vector<DeferredMove> deferred_moves;
+    std::vector<DeferredMove> deferred_moves;
 
     explicit Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
 
-    // void clear_deferred_moves() {
-    //     deferred_moves.clear();
-    // }
+    void clear_deferred_moves() {
+        deferred_moves.clear();
+    }
 
-    // void process_deferred_moves() {
-    //     // Process all deferred moves: swap if target is still an agent
-    //     for (const auto& move : deferred_moves) {
-    //         Agent* agent = dynamic_cast<Agent*>(_grid->object(move.agent_id));
-    //         GridObject* target = _grid->object_at(move.target_location);
-    //         Agent* target_agent = dynamic_cast<Agent*>(target);
-    //         if (agent && target_agent) {
-    //             _grid->swap_objects(agent->id, target_agent->id);
-    //         }
-    //     }
-    //     deferred_moves.clear();
-    // }
+    void process_deferred_moves() {
+        // Process all deferred moves: swap if target is still an agent
+        for (const auto& move : deferred_moves) {
+            Agent* agent = dynamic_cast<Agent*>(_grid->object(move.agent_id));
+            GridObject* target = _grid->object_at(move.target_location);
+            Agent* target_agent = dynamic_cast<Agent*>(target);
+            if (agent && target_agent) {
+                _grid->swap_objects(agent->id, target_agent->id);
+            }
+            else if (agent) {
+                _grid->move_object(agent->id, move.target_location);
+            }
+        }
+        deferred_moves.clear();
+    }
 
     unsigned char max_arg() const override {
         return 1;  // 0 = move forward, 1 = move backward
@@ -59,12 +66,14 @@ protected:
 
         // check if we are blocked by an obstacle
         if (!_grid->is_empty(target_location.r, target_location.c)) {
-            // GridObject* target = _grid->object_at(target_location);
-            // if (target && dynamic_cast<Agent*>(target)) {
-            //     // Defer this move for later processing
-            //     deferred_moves.push_back({actor->id, target_location, arg});
-            //     return true;
-            // }
+          // If we are attempting to move into an agent, then we defer the move for later instead of rejecting it
+          // so that we can allow for agents to pass through each other
+            GridObject* target = _grid->object_at(target_location);
+            if (target && dynamic_cast<Agent*>(target)) {
+
+                deferred_moves.push_back({actor->id, target_location, arg});
+                return true;
+            }
             return false;
         }
 

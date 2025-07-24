@@ -86,6 +86,7 @@ class PyAgentConfig(BaseModelWithForbidExtra):
     """Python agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=0, ge=0)
+    starting_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
     resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=0, ge=-1)
     rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
