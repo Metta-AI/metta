@@ -52,3 +52,8 @@ runs:
             ;;
 
         esac
+
+    - name: Clean cache temp files
+      run: |
+        echo "Cleaning up cache extraction temp files..."
+        sudo rm -rf /__w/_temp/* 2>/dev/null || true
