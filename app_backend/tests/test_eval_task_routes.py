@@ -387,5 +387,7 @@ class TestEvalTaskRoutes:
         async with stats_repo.connect() as con:
             result = await con.execute("SELECT status, attributes FROM eval_tasks WHERE id = %s", (task_id,))
             row = await result.fetchone()
+            if row is None:
+                pytest.fail("Task not found in database")
             assert row[0] == "error"
             assert row[1]["error_reason"] == error_reason
