@@ -190,35 +190,41 @@ def _create_code_cell(content: str) -> Dict[str, Any]:
 
 def _get_setup_section() -> List[Dict[str, Any]]:
     """Generate setup section cells."""
-    return [
-        _create_markdown_cell("## Setup"),
-        _create_code_cell("""# Core imports
+    # Split into two cells - one for basic setup that should auto-run, one for imports
+    cells = []
+    
+    # Auto-run cell with notebook configuration
+    auto_run_cell = _create_code_cell("""# Notebook configuration (auto-run)
 %load_ext autoreload
 %autoreload 2
+%matplotlib inline
 
-import os
 import matplotlib.pyplot as plt
+plt.style.use("default")
+
+print("✓ Notebook configured")""")
+    auto_run_cell["metadata"] = {"tags": ["auto-run"]}
+    cells.append(auto_run_cell)
+    
+    # Regular imports cell
+    cells.append(_create_code_cell("""# Standard imports
+import os
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
 
-# Metta imports
+# Metta experiment utilities  
 from experiments.wandb_utils import find_training_jobs, get_run_config, get_training_logs
 from experiments.monitoring import get_training_status
 from experiments.notebooks.monitoring import monitor_training_statuses
 from experiments.notebooks.replays import show_replay, get_available_replays
 from experiments.notebooks.training import launch_training, launch_multiple_training_runs
-from experiments.notebooks.analysis import (
-    fetch_metrics, plot_sps, create_run_summary_table
-)
+from experiments.notebooks.analysis import fetch_metrics, plot_sps, create_run_summary_table
 
-%matplotlib inline
-plt.style.use("default")
-
-print("Setup complete! Auto-reload enabled.")
-print(f"Session started: {datetime.now().strftime('%Y-%m-%d %H:%M')}")""")
-    ]
+print(f"Session started: {datetime.now().strftime('%Y-%m-%d %H:%M')}")"""))
+    
+    return cells
 
 
 def _get_state_section(
@@ -232,7 +238,7 @@ def _get_state_section(
     cells = []
     
     # Initialize state with pre-filled data or empty
-    init_code = f'''# Initialize run tracking
+    init_code = f'''# Initialize run tracking (auto-run)
 from experiments.notebooks.state import init_state, add_run, list_runs, kill_all_jobs
 
 # Initialize with pre-loaded data
@@ -247,10 +253,12 @@ wandb_run_names = state.wandb_run_names
 skypilot_job_ids = state.skypilot_job_ids  
 experiments = state.experiments
 
-{f'print("Loaded {len(wandb_run_names)} runs from {experiment_name or "experiment"}")' if wandb_run_names else 'print("Ready to track runs. Use add_run() to add runs to track.")'}
+{f'print("✓ Loaded {len(wandb_run_names)} runs from {experiment_name or "experiment"}")' if wandb_run_names else 'print("✓ Run tracking initialized. Use add_run() to add runs.")'}
 {'list_runs()' if wandb_run_names else ''}'''
     
-    cells.append(_create_code_cell(init_code))
+    state_cell = _create_code_cell(init_code)
+    state_cell["metadata"] = {"tags": ["auto-run"]}
+    cells.append(state_cell)
     
     return cells
 
