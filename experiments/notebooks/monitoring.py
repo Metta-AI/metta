@@ -8,7 +8,7 @@ from experiments.monitoring import get_training_status
 
 
 def monitor_training_statuses(
-    wandb_run_ids: List[str],
+    wandb_run_names: List[str],
     skypilot_job_ids: Optional[List[str]] = None,
     show_metrics: Optional[List[str]] = None,
     entity: str = "metta-research",
@@ -18,7 +18,7 @@ def monitor_training_statuses(
     """Monitor training runs with optional widget display.
     
     Args:
-        wandb_run_ids: List of wandb run names
+        wandb_run_names: List of wandb run names
         skypilot_job_ids: Optional list of corresponding sky job IDs
         show_metrics: Metrics to display
         entity: Wandb entity
@@ -29,7 +29,7 @@ def monitor_training_statuses(
         DataFrame with status information
     """
     # Get status data
-    df = get_training_status(wandb_run_ids, skypilot_job_ids, show_metrics, entity, project)
+    df = get_training_status(wandb_run_names, skypilot_job_ids, show_metrics, entity, project)
     
     # Display widget if requested and in notebook environment
     if not df.empty and return_widget:
