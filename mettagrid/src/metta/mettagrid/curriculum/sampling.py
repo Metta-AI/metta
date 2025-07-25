@@ -49,6 +49,7 @@ class SampledTaskCurriculum(Curriculum):
 
 
 def _sample(dist: Any) -> Any:
+    print(f"Sampling {dist}")
     if isinstance(dist, dict):
         assert "range" in dist, f"Range not specified for {dist}"
         lo, hi = dist["range"]
@@ -59,4 +60,5 @@ def _sample(dist: Any) -> Any:
         value = np.random.choice(dist)
     else:
         value = dist
+    print(f"Sampled {value}")
     return value
