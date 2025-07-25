@@ -70,7 +70,7 @@ require_contiguous_env_ids: false
 verbose: true
 
 batch_size: 524288
-minibatch_size: 16384
+minibatch_size: 32768  # where: doubled from original 16384 to support larger agent count
 bptt_horizon: 64
 update_epochs: 1
 
@@ -81,7 +81,7 @@ profiler:
   interval_epochs: 10000
   profile_dir: s3://softmax-public/torch_traces/${run}
 
-forward_pass_minibatch_target_size: 4096
+forward_pass_minibatch_target_size: 2048  # where: halved from 4096 to get 8 envs with 512 agents each
 async_factor: 2
 scale_batches_by_world_size: false
 

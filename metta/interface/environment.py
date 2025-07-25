@@ -72,7 +72,7 @@ class NavigationBucketedCurriculum(Curriculum):
         return {terrain: prob for terrain in self.terrain_dirs}
 
 
-def _get_default_env_config(num_agents: int = 512, width: int = 32, height: int = 32) -> Dict[str, Any]:
+def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration for navigation training."""
     # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
     TYPE_MINE_RED = 2
@@ -235,7 +235,7 @@ class Environment:
         if env_config is None:
             # Use convenience parameters if provided
             env_config = _get_default_env_config(
-                num_agents=num_agents or 512,
+                num_agents=num_agents or 4,
                 width=width or 32,
                 height=height or 32,
             )
