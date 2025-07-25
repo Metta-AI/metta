@@ -100,7 +100,7 @@ def test_tensors_have_dtype():
         ".git",
         "__pycache__",
         ".pytest_cache",
-        ".uv_cache",
+        ".uv-cache",
         "node_modules",
         "wandb",  # Exclude wandb logs as they might contain generated code
         "tests",  # Exclude test files as they don't require explicit dtype
