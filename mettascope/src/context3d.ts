@@ -1,3 +1,4 @@
+import { getSpriteBounds, getWhiteUV, hasSprite, loadAtlas } from './atlas.js'
 import { Mesh } from './mesh.js'
 import { Mat3f, Vec2f } from './vector_math.js'
 
@@ -37,11 +38,6 @@ const FRAGMENT_SHADER_SOURCE = `
     gl_FragColor = premultipliedColor * v_color;
   }
 `
-
-/** Type definition for atlas data. */
-interface AtlasData {
-  [key: string]: [number, number, number, number] // [x, y, width, height]
-}
 
 /** Clamp a value between a minimum and maximum. */
 export function clamp(value: number, min: number, max: number): number {
@@ -208,18 +204,18 @@ export class Context3d {
       this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
     }
 
-    // Load Atlas and Texture.
-    const [atlasData, source] = await Promise.all([
-      this.loadAtlasJson(atlasJsonUrl),
-      this.loadAtlasImage(atlasImageUrl),
-    ])
+    // Load atlas using the utility function
+    this.atlas = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl, {
+      wrapS: this.gl.REPEAT,
+      wrapT: this.gl.REPEAT,
+      minFilter: this.gl.LINEAR_MIPMAP_LINEAR,
+      magFilter: this.gl.LINEAR
+    })
 
-    if (!atlasData || !source) {
-      this.fail('Failed to load atlas or texture')
+    if (!this.atlas) {
+      this.fail('Failed to load atlas')
       return false
     }
-    this.atlasData = atlasData
-    this.textureSize = new Vec2f(source.width, source.height)
 
     // Create and compile shaders
     const vertexShader = this.createShader(this.gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE)
@@ -244,26 +240,6 @@ export class Context3d {
     this.canvasSizeLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_canvasSize')
     this.samplerLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_sampler')
 
-    // Create texture
-    this.atlasTexture = this.gl.createTexture()
-    if (!this.atlasTexture) {
-      this.fail('Failed to create texture')
-      return false
-    }
-
-    // Upload texture data
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
-    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, source)
-
-    // Generate mipmaps
-    this.gl.generateMipmap(this.gl.TEXTURE_2D)
-
-    // Set texture parameters
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR)
-
     // Enable blending for premultiplied alpha
     this.gl.enable(this.gl.BLEND)
     this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA)
@@ -279,39 +255,6 @@ export class Context3d {
     failDiv.id = 'fail'
     failDiv.textContent = `Initialization Error: ${msg}. See console for details.`
     document.body.appendChild(failDiv)
-  }
-
-  /** Load the atlas image. */
-  private async loadAtlasImage(url: string): Promise<ImageBitmap | null> {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) {
-        throw new Error(`Failed to fetch image: ${res.statusText}`)
-      }
-      const blob = await res.blob()
-      // Use premultiplied alpha to fix border issues
-      return await createImageBitmap(blob, {
-        colorSpaceConversion: 'none',
-        premultiplyAlpha: 'premultiply',
-      })
-    } catch (err) {
-      console.error(`Error loading image ${url}:`, err)
-      return null
-    }
-  }
-
-  /** Load the atlas JSON. */
-  private async loadAtlasJson(url: string): Promise<AtlasData | null> {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) {
-        throw new Error(`Failed to fetch atlas: ${res.statusText}`)
-      }
-      return await res.json()
-    } catch (err) {
-      console.error(`Error loading atlas ${url}:`, err)
-      return null
-    }
   }
 
   /** Create and compile a shader. */
@@ -408,43 +351,33 @@ export class Context3d {
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return this.atlasData?.[imageName] !== undefined
+    return this.atlas ? hasSprite(this.atlas, imageName) : false
   }
 
-  /** Draws an image from the atlas with its top-right corner at (x, y). */
+  /** Draws an image from the atlas with its top-left corner at (x, y). */
   drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    const bounds = getSpriteBounds(this.atlas, imageName)
+    if (!bounds) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
-    const m = this.atlasMargin
-
-    // Calculate UV coordinates (normalized 0.0 to 1.0).
-    // Add the margin to allow texture filtering to handle edge anti-aliasing.
-    const u0 = (sx - m) / this.textureSize.x()
-    const v0 = (sy - m) / this.textureSize.y()
-    const u1 = (sx + sw + m) / this.textureSize.x()
-    const v1 = (sy + sh + m) / this.textureSize.y()
-
-    // Draw the rectangle with the image's texture coordinates.
-    // Adjust both UVs and vertex positions by the margin.
+    // Draw the rectangle with the image's texture coordinates
     this.drawRect(
-      x - m, // Adjust x position by adding margin (from the right).
-      y - m, // Adjust y position by adding margin.
-      sw + 2 * m, // Reduce width by twice the margin (left and right).
-      sh + 2 * m, // Reduce height by twice the margin (top and bottom).
-      u0,
-      v0,
-      u1,
-      v1,
+      bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height,
+      bounds.u0,
+      bounds.v0,
+      bounds.u1,
+      bounds.v1,
       color
     )
   }
@@ -486,7 +419,8 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    const bounds = getSpriteBounds(this.atlas, imageName)
+    if (!bounds) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
@@ -541,22 +475,18 @@ export class Context3d {
 
   /** Draws a solid filled rectangle. */
   drawSolidRect(x: number, y: number, width: number, height: number, color: number[]) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
 
-    const imageName = 'white.png'
-    if (!this.atlasData?.[imageName]) {
-      throw new Error(`Image "${imageName}" not found in atlas`)
+    const whiteUV = getWhiteUV(this.atlas)
+    if (!whiteUV) {
+      throw new Error('white.png not found in atlas')
     }
 
-    // Get the middle of the white texture.
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
-    const uvx = (sx + sw / 2) / this.textureSize.x()
-    const uvy = (sy + sh / 2) / this.textureSize.y()
-    this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
+    this.drawRect(x, y, width, height, whiteUV.u, whiteUV.v, whiteUV.u, whiteUV.v, color)
   }
 
   /** Draws a stroked rectangle with set stroke width. */
@@ -574,7 +504,7 @@ export class Context3d {
 
   /** Flushes all non-empty meshes to the screen. */
   flush() {
-    if (!this.ready || !this.gl || !this.shaderProgram) {
+    if (!this.ready || !this.gl || !this.shaderProgram || !this.atlas) {
       return
     }
 
@@ -608,7 +538,7 @@ export class Context3d {
 
     // Bind texture
     this.gl.activeTexture(this.gl.TEXTURE0)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlas.texture)
     this.gl.uniform1i(this.samplerLocation, 0)
 
     // Draw each mesh that has quads
