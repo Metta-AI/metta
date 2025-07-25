@@ -435,6 +435,7 @@ while agent_step < trainer_config.total_timesteps:
     # Process collected stats (convert lists to means)
     processed_stats = process_training_stats(
         raw_stats=stats,
+        curriculum_stats={},
         losses=losses,
         experience=experience,
         trainer_config=trainer_config,
@@ -474,6 +475,7 @@ while agent_step < trainer_config.total_timesteps:
         # Build complete stats dictionary
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
+            curriculum_stats={},
             timing_info=timing_info,
             weight_stats={},  # Weight stats not computed in run.py
             grad_stats={},  # Grad stats not computed in run.py

@@ -11,13 +11,15 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.curriculum.curriculum_client import CurriculumClient
 
 logger = logging.getLogger("vecenv")
 
 
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
-    curriculum: Curriculum,
+    curriculum_server_url: Optional[str] = None,
+    curriculum: Optional[Curriculum] = None,
     buf=None,
     render_mode="rgb_array",
     stats_writer: Optional[StatsWriter] = None,
@@ -31,6 +33,15 @@ def make_env_func(
         # Running in a new process, so we need to reinitialize logging and resolvers
         register_resolvers()
         init_logging(run_dir=run_dir)
+
+    assert curriculum_server_url is not None or curriculum is not None, (
+        "Either curriculum_server_url or curriculum must be provided"
+    )
+    assert curriculum_server_url is None or curriculum is None, (
+        "Only one of curriculum_server_url or curriculum must be provided"
+    )
+    if curriculum_server_url:
+        curriculum = CurriculumClient(curriculum_server_url)
 
     # Create the environment instance
     env = MettaGridEnv(
@@ -50,8 +61,9 @@ def make_env_func(
 
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_vecenv(
-    curriculum: Curriculum,
     vectorization: str,
+    curriculum_server_url: Optional[str] = None,
+    curriculum: Optional[Curriculum] = None,
     num_envs=1,
     batch_size=None,
     num_workers=1,
@@ -80,6 +92,7 @@ def make_vecenv(
 
     env_kwargs = {
         "curriculum": curriculum,
+        "curriculum_server_url": curriculum_server_url,
         "render_mode": render_mode,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,

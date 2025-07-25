@@ -231,20 +231,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
-            # TODO: re-enable diversity bonus
-            # if self._task.env_cfg().game.diversity_bonus.enabled:
-            #     self.rewards *= calculate_diversity_bonus(
-            #         self._c_env.get_episode_rewards(),
-            #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
-            #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
-            #     )
-
             self.process_episode_stats(infos)
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
-
-            # Add curriculum task probabilities to infos for distributed logging
-            infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
@@ -264,13 +253,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
-
-        infos.update(self._curriculum.get_completion_rates())
-
-        # Add curriculum-specific stats
-        curriculum_stats = self._curriculum.get_curriculum_stats()
-        for key, value in curriculum_stats.items():
-            infos[f"curriculum/{key}"] = value
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
@@ -363,14 +345,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
             },
             "frac/thread_idle": thread_idle_time / wall_time,
         }
-
-        task_init_time_msec = lap_times.get("_initialize_c_env", 0) * 1000
-        infos.update(
-            {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
-            }
-        )
 
         self._episode_id = None
 

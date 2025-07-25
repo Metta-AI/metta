@@ -28,7 +28,11 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         assert isinstance(env_cfg, DictConfig)
 
         level = Level(storable_map.grid, [])
-        env = MettaGridEnv(SingleTaskCurriculum("show_map", env_cfg), level=level, render_mode="none")
+        env = MettaGridEnv(
+            curriculum=SingleTaskCurriculum("show_map", env_cfg),
+            level=level,
+            render_mode="none",
+        )
 
         file_path = write_local_map_preview(env)
 

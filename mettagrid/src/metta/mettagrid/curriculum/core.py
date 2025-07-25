@@ -1,5 +1,5 @@
 import logging
-from typing import List
+import random
 
 import hydra
 from omegaconf import DictConfig
@@ -8,28 +8,39 @@ logger = logging.getLogger(__name__)
 
 
 class Curriculum:
+    def __init__(self):
+        self._task_completions = {}
+        self._task_rewards = {}
+        self._task_rewards_moving_avg = {}
+        self._moving_average_decay = 0.99
+
     def get_task(self) -> "Task":
         raise NotImplementedError("Subclasses must implement this method")
 
     def complete_task(self, id: str, score: float):
-        # logger.info(f"Task completed: {id} -> {score:.5f}")
-        pass
+        # We don't want this map to get too big, so we don't log it here.
+        if len(self._task_completions) > 1000:
+            self._task_completions.pop(random.choice(list(self._task_completions.keys())))
 
-    def completed_tasks(self) -> List[str]:
-        """Return a list of completed task identifiers."""
-        return []
+        self._task_completions[id] = self._task_completions.get(id, 0) + 1
+        self._task_rewards[id] = self._task_rewards.get(id, 0) + score
 
-    def get_completion_rates(self):
-        """Return a dictionary of completion rates for each task."""
-        return {}
+        self._task_rewards_moving_avg[id] = self._task_rewards_moving_avg.get(
+            id, 0
+        ) * self._moving_average_decay + score * (1 - self._moving_average_decay)
 
-    def get_task_probs(self) -> dict[str, float]:
-        """Return the current task probabilities for logging purposes."""
-        return {}
-
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         """Return curriculum statistics for logging purposes (default: empty)."""
-        return {}
+        task_rewards = {f"task_rewards/{id}": value for id, value in self._task_rewards.items()}
+        task_rewards_moving_avg = {
+            f"task_rewards_moving_avg/{id}": value for id, value in self._task_rewards_moving_avg.items()
+        }
+        task_completions = {f"task_completions/{id}": value for id, value in self._task_completions.items()}
+        return {
+            **task_rewards,
+            **task_completions,
+            **task_rewards_moving_avg,
+        }
 
 
 class Task:
@@ -69,11 +80,18 @@ class Task:
         self._curricula.append((parent_curriculum, parent_id))
         self._name = f"{parent_id}:{self._name}"
 
+    def clone(self) -> "Task":
+        cloned_task = Task(self._id, self._curricula[0][0], self._env_cfg)
+        cloned_task._curricula = self._curricula
+        cloned_task._name = self._name
+        return cloned_task
+
 
 class SingleTaskCurriculum(Curriculum):
     """Curriculum that only contains a single task."""
 
     def __init__(self, task_id: str, task_cfg: DictConfig):
+        super().__init__()
         self._task_id = task_id
         self._task_cfg = task_cfg
 

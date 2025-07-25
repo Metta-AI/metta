@@ -1,8 +1,11 @@
 _target_: metta.rl.trainer.MettaTrainer
-num_workers: null  # determined by train.py if not specified
+num_workers: null # determined by train.py if not specified
 
 curriculum: ???
 env_overrides: {}
+curriculum_server:
+  host: 127.0.0.1
+  port: 12346
 
 initial_policy:
   uri: null
