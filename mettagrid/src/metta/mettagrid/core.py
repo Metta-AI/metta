@@ -233,9 +233,6 @@ class MettaGridCore:
         """Get information about all grid objects."""
         return self._c_env.grid_objects()
 
-    def get_agent_groups(self) -> np.ndarray:
-        return self._c_env.get_agent_groups()
-
     @property
     def action_success(self) -> List[bool]:
         action_success_array = self._c_env.action_success()
