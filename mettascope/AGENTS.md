@@ -17,10 +17,10 @@ All commands are executed from the `mettascope/` directory.
 
 | Task | Command | Notes |
 |------|---------|-------|
-| Build once | `npm run build` | |
-| Lint & format | `npm run lint` / `npm run format` | should be run on code changes |
-| Full static checks | `npm run check` | should be run before committing |
-| Run tests | `npm run test` | frontend tests require the backend is already running |
+| Build once | `pnpm run build` | |
+| Lint & format | `pnpm run lint` / `pnpm run format` | should be run on code changes |
+| Full static checks | `pnpm run check` | should be run before committing |
+| Run tests | `pnpm run test` | frontend tests require the backend is already running |
 
 ### Texture Atlas
 
@@ -48,3 +48,4 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 - ./mettascope/src/vector_math.ts has Vec2f and Mat3f. use them!
 - Do not pass X and Y arguments separately. pass them as a Vec2f.
 - all code comments should be full sentences and include a period at the end.
+- when working with `gridObject`s, do not access properties directly. you must use `getAttr()` from replay.ts

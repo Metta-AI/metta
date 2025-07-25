@@ -2,7 +2,7 @@ import { Vec2f } from './vector_math.js'
 import { Context3d } from './context3d.js'
 import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
-import { HoverPanel } from './hoverpanels.js'
+import { HoverBubble } from './hoverbubbles.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
@@ -86,10 +86,11 @@ export const ui = {
   agentPanel: new PanelInfo('#agent-panel'),
   timelinePanel: new PanelInfo('#timeline-panel'),
 
-  hoverPanels: [] as HoverPanel[],
+  hoverBubbles: [] as HoverBubble[],
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,
+  hideHoverTimer: null as any,
 
   // Camera animation state
   cameraAnimating: false,

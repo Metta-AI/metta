@@ -1,3 +1,5 @@
+import os
+import re
 import subprocess
 
 from metta.setup.components.base import SetupModule
@@ -22,6 +24,49 @@ class GridworksSetup(SetupModule):
         gridworks_dir = self.repo_root / "gridworks"
         return (gridworks_dir / "node_modules").exists()
 
+    def _check_pnpm(self) -> bool:
+        """Check if pnpm is working."""
+        try:
+            env = os.environ.copy()
+            env["NODE_NO_WARNINGS"] = "1"
+            self.run_command(["pnpm", "--version"], capture_output=True, env=env)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
+    def _enable_corepack_with_cleanup(self):
+        """Enable corepack, removing dead symlinks as needed."""
+        for _ in range(10):
+            try:
+                # Try to enable corepack
+                self.run_command(["corepack", "enable"], capture_output=True, check=True)
+                info("Corepack enabled successfully")
+                return True
+            except subprocess.CalledProcessError as e:
+                error_output = e.output
+                # Look for EEXIST error with file path
+                match = re.search(r"EEXIST: file already exists, symlink .* -> '([^']+)'", error_output)
+                if match:
+                    conflicting_path = match.group(1)
+                    warning(f"Removing dead symlink: {conflicting_path}")
+                    try:
+                        if os.path.islink(conflicting_path):
+                            os.remove(conflicting_path)
+                            info(f"Removed conflicting file: {conflicting_path}")
+                        else:
+                            warning(f"Conflicting file not found: {conflicting_path}")
+                    except OSError as rm_err:
+                        warning(f"Failed to remove {conflicting_path}: {rm_err}")
+                        raise RuntimeError(f"Cannot remove conflicting file: {conflicting_path}") from rm_err
+                    continue
+                else:
+                    # Not an EEXIST error or couldn't parse it
+                    warning(f"Corepack enable failed: {error_output}")
+                    raise
+
+        warning("Failed to enable corepack after removing dead symlinks")
+        return False
+
     def install(self) -> None:
         info("Setting up Gridworks frontend...")
 
@@ -30,23 +75,15 @@ class GridworksSetup(SetupModule):
             warning("Gridworks directory not found")
             return
 
-        # Check if pnpm is already available
-        try:
-            self.run_command(["which", "pnpm"], capture_output=True)
-            info("pnpm is already available")
-        except subprocess.CalledProcessError:
-            # Try to enable corepack
-            try:
-                self.run_command(["corepack", "enable"], capture_output=False)
-            except subprocess.CalledProcessError as e:
-                warning("Failed to enable corepack. If Node.js was installed via Homebrew, you may need to run:")
-                warning("  sudo corepack enable")
-                warning("")
-                warning("Alternatively, you can install pnpm directly:")
-                warning("  npm install -g pnpm")
-                raise RuntimeError("pnpm is not available and corepack enable failed") from e
+        if not self._check_pnpm():
+            # Try to enable corepack with automatic cleanup
+            if not self._enable_corepack_with_cleanup():
+                raise RuntimeError("Failed to set up pnpm via corepack")
 
-        # pnpm install with frozen lockfile to avoid prompts
-        self.run_command(["pnpm", "install", "--frozen-lockfile"], cwd=gridworks_dir, capture_output=False)
+        # Run pnpm install
+        env = os.environ.copy()
+        env["NODE_NO_WARNINGS"] = "1"
+
+        self.run_command(["pnpm", "install", "--frozen-lockfile"], cwd=gridworks_dir, capture_output=False, env=env)
 
         success("Gridworks frontend installed")

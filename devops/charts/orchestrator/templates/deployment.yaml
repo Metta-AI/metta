@@ -17,7 +17,7 @@ spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["uv", "run", "python", "-m", "metta.app_backend.eval_task_orchestrator"]
         env:
@@ -30,7 +30,7 @@ spec:
         - name: WORKER_IDLE_TIMEOUT
           value: {{ .Values.env.WORKER_IDLE_TIMEOUT | quote }}
         - name: DOCKER_IMAGE
-          value: "{{ .Values.workerImage.repository }}:{{ .Values.workerImage.tag }}"
+          value: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         - name: KUBERNETES_NAMESPACE
           valueFrom:
             fieldRef:

@@ -2,11 +2,11 @@ import { Vec2f } from './vector_math.js'
 import { Grid } from './grid.js'
 import * as Common from './common.js'
 import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr, sendAction } from './replay.js'
+import { getAttr, sendAction, getObjectConfig } from './replay.js'
 import { PanelInfo } from './panels.js'
 import { onFrame, updateSelection, requestFrame } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
-import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
+import { updateHoverBubble, updateReadout, HoverBubble } from './hoverbubbles.js'
 import { search, searchMatch } from './search.js'
 import { renderMinimapObjects } from './minimap.js'
 
@@ -243,7 +243,22 @@ function drawObject(gridObject: any) {
 
     // Draw the item layer.
     if (hasInventory(gridObject)) {
-      ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      // Only render the overlay if the inventory contains output resources
+      let objectConfig = getObjectConfig(gridObject)
+      let outputItemExists = false
+
+      if (objectConfig && objectConfig.output_resources) {
+        // Check if any output resources are in the inventory
+        for (let resource in objectConfig.output_resources) {
+          if (getAttr(gridObject, 'inv:' + resource) > 0) {
+            outputItemExists = true
+            break
+          }
+        }
+      }
+      if (outputItemExists) {
+        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      }
     }
   }
 }
@@ -297,7 +312,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'put_recipe_items') {
+        } else if (action_name == 'put_items') {
           ctx.drawSprite(
             'actions/put_recipe_items.png',
             x * Common.TILE_SIZE,
@@ -739,23 +754,23 @@ function drawAttackMode() {
 }
 
 /** Draw the info line from the object to the info panel. */
-function drawInfoLine(panel: HoverPanel) {
-  const x = getAttr(panel.object, 'c')
-  const y = getAttr(panel.object, 'r')
+function drawInfoLine(bubble: HoverBubble) {
+  const x = getAttr(bubble.object, 'c')
+  const y = getAttr(bubble.object, 'r')
   ctx.drawSprite('info.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
-  // Compute the panel position in the world map coordinates.
-  const panelBounds = panel.div.getBoundingClientRect()
-  const panelScreenPos = new Vec2f(panelBounds.left + 20, panelBounds.top + 20)
-  const panelWorldPos = ui.mapPanel.transformOuter(panelScreenPos)
+  // Compute the bubble position in the world map coordinates.
+  const bubbleBounds = bubble.div.getBoundingClientRect()
+  const bubbleScreenPos = new Vec2f(bubbleBounds.left + 20, bubbleBounds.top + 20)
+  const bubbleWorldPos = ui.mapPanel.transformOuter(bubbleScreenPos)
 
-  // Draw a line from the object to the panel.
+  // Draw a line from the object to the bubble.
   ctx.drawSpriteLine(
     'dash.png',
     x * Common.TILE_SIZE,
     y * Common.TILE_SIZE,
-    panelWorldPos.x(),
-    panelWorldPos.y(),
+    bubbleWorldPos.x(),
+    bubbleWorldPos.y(),
     60,
     [1, 1, 1, 1],
     2
@@ -819,7 +834,7 @@ export function drawMap(panel: PanelInfo) {
         ui.hoverTimer = setTimeout(() => {
           if (ui.mouseTargets.includes('#worldmap-panel')) {
             ui.delayedHoverObject = ui.hoverObject
-            updateHoverPanel(ui.delayedHoverObject)
+            updateHoverBubble(ui.delayedHoverObject)
           }
         }, Common.INFO_PANEL_POP_TIME)
       }
@@ -943,12 +958,12 @@ export function drawMap(panel: PanelInfo) {
     drawAttackMode()
   }
 
-  updateHoverPanel(ui.delayedHoverObject)
+  updateHoverBubble(ui.delayedHoverObject)
   updateReadout()
 
-  for (const panel of ui.hoverPanels) {
-    panel.update()
-    drawInfoLine(panel)
+  for (const bubble of ui.hoverBubbles) {
+    bubble.update()
+    drawInfoLine(bubble)
   }
 
   ctx.restore()

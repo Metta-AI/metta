@@ -34,7 +34,7 @@ class EvalTaskOrchestrator:
         self,
         backend_url: str,
         machine_token: str,
-        docker_image: str = "metta-local:latest",
+        docker_image: str = "metta-policy-evaluator-local:latest",
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 600.0,
         container_manager: AbstractContainerManager | None = None,
@@ -179,7 +179,7 @@ async def main() -> None:
     logger = logging.getLogger(__name__)
 
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
-    docker_image = os.environ.get("DOCKER_IMAGE", "metta-local:latest")
+    docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "600"))
     machine_token = os.environ["MACHINE_TOKEN"]

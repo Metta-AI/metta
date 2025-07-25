@@ -6,18 +6,10 @@ import { updateAgentTable } from './agentpanel.js'
 
 /** Gets an attribute from a grid object, respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
-  if (atStep == -1) {
-    // When the step is not passed in, use the global step.
-    atStep = state.step
-  }
-  if (obj[attr] === undefined) {
-    return defaultValue
-  } else if (obj[attr] instanceof Array) {
-    return obj[attr][atStep]
-  } else {
-    // This must be a constant that does not change over time.
-    return obj[attr]
-  }
+  const prop = obj[attr]
+  if (prop === undefined) return defaultValue
+  if (!Array.isArray(prop)) return prop // This must be a constant that does not change over time.
+  return prop[atStep === -1 ? state.step : atStep] // When the step is not passed in, use the global step.
 }
 
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
@@ -337,7 +329,9 @@ export function loadReplayStep(replayStep: any) {
 
 /** Get object config. */
 export function getObjectConfig(object: any) {
-  let typeName = state.replay.object_types[object.type]
+  let typeId = getAttr(object, 'type')
+  let typeName = state.replay.object_types[typeId]
+
   if (state.replay.config == null) {
     return null
   }
