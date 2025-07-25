@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 from httpx import Client
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from metta.app_backend.stats_client import StatsClient
 

@@ -12,9 +12,18 @@ env_overrides:
         input_resources:
           blueprint: 1
 
-    actions: { attack: { consumed_resources: { blueprint: 0 } } }
-    agent: { rewards: { heart: 1 } }
+    actions: { attack: { consumed_resources: { laser: 1 } } }
+    agent: { rewards: { inventory: { heart: 1 } } }
+    map_builder:
+      root:
+        params:
+          objects:
+            mine_red: 3
+            generator_red: 3
+            altar: 3
+            lasery: 3
+            armory: 3
 
 buckets:
-  game.objects.lasery.initial_resource_count: { values: [0, 1] }
-  game.objects.armory.initial_resource_count: { values: [0, 1] }
+  game.objects.lasery.initial_resource_count: { values: [0, 1, 20] }
+  game.objects.armory.initial_resource_count: { values: [0, 1, 20] }

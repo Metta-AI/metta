@@ -6,10 +6,12 @@ defaults:
   # - /env/mettagrid/game/agent/rewards/shaped@replay_job.sim.env_overrides.game.agent.rewards
   - _self_
 
+stats_server_uri: null
 trainer:
   # env: /env/mettagrid/multienv_mettagrid
   curriculum: /env/mettagrid/curriculum/bbc/bbc
-
+  simulation:
+    evaluate_interval: 1000
   env_overrides:
     game:
       max_steps: 13
@@ -85,7 +87,7 @@ analyzer:
 #         agents: 4
 #       num_rooms: 4
 
-run_id: 1.8
+run_id: 1.10
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

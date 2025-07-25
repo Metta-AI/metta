@@ -56,3 +56,56 @@ def retry_on_exception(
         return wrapper
 
     return decorator
+
+
+def retry_function(
+    func: Callable[[], T],
+    max_retries: int = 3,
+    retry_delay: float = 1.0,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
+    error_prefix: str = "Function failed",
+    logger: logging.Logger | None = None,
+) -> T:
+    """
+    Execute a function with retry logic.
+
+    This is a non-decorator version that can be used inline with lambda functions.
+
+    Args:
+        func: Function to execute (should return the result or raise an exception)
+        max_retries: Maximum number of retry attempts
+        retry_delay: Delay between retries in seconds
+        exceptions: Tuple of exception types to catch and retry on
+        error_prefix: Prefix for error messages
+        logger: Logger instance for logging retry attempts
+
+    Returns:
+        The result of the successful function call
+
+    Raises:
+        The last exception if all retries fail
+
+    Example:
+        result = retry_function(
+            lambda: requests.get(url),
+            max_retries=3,
+            error_prefix="Failed to fetch data"
+        )
+    """
+    last_exception: Exception | None = None
+
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except exceptions as e:
+            last_exception = e
+            if logger:
+                logger.warning(f"{error_prefix} (attempt {attempt + 1}/{max_retries}): {e}")
+
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+
+    if last_exception is not None:
+        raise last_exception
+    else:
+        raise RuntimeError(f"{error_prefix}: All retries failed")

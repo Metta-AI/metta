@@ -38,5 +38,5 @@ game:
     altar:
       input_resources:
         blueprint: 1
-      initial_resource_count: 1
+      initial_resource_count: 20
       cooldown: 1

@@ -114,6 +114,11 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
+class CurriculumServerConfig(BaseModelWithForbidExtra):
+    host: str = "0.0.0.0"
+    port: int = 12346
+
+
 class TorchProfilerConfig(BaseModelWithForbidExtra):
     interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
@@ -202,6 +207,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Default curriculum: Simple environment for initial experiments
     curriculum: str | None = "/env/mettagrid/curriculum/simple"
     env_overrides: dict[str, Any] = Field(default_factory=dict)
+    curriculum_server: CurriculumServerConfig = Field(default_factory=CurriculumServerConfig)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
     # Checkpoint configuration

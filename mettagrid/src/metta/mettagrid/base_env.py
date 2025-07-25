@@ -279,12 +279,6 @@ class MettaGridEnv(ABC):
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
-        # Add curriculum stats
-        infos.update(self._curriculum.get_completion_rates())
-        curriculum_stats = self._curriculum.get_curriculum_stats()
-        for key, value in curriculum_stats.items():
-            infos[f"curriculum/{key}"] = value
-
         # Get episode stats from core environment
         with self.timer("_core_env.get_episode_stats"):
             stats = self._core_env.get_episode_stats()
@@ -325,9 +319,6 @@ class MettaGridEnv(ABC):
 
         # Update curriculum
         self._task.complete(episode_rewards_mean)
-
-        # Add curriculum task probabilities
-        infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
 
         # Add timing information
         self._add_timing_info(infos)

@@ -34,3 +34,8 @@ class RandomCurriculum(MultiTaskCurriculum):
 
     def _curriculum_from_id(self, cfg_path: str) -> Curriculum:
         return curriculum_from_config_path(cfg_path, self.env_overrides)
+
+    def stats(self) -> dict:
+        stats = super().stats()
+        stats.update({f"task_prob/{k}": v / sum(self._task_weights.values()) for k, v in self._task_weights.items()})
+        return stats

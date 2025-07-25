@@ -81,6 +81,7 @@ def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 def process_training_stats(
     raw_stats: Dict[str, Any],
+    curriculum_stats: Dict[str, Any],
     losses: Any,
     experience: Any,
     trainer_config: Any,
@@ -90,6 +91,7 @@ def process_training_stats(
 
     Args:
         raw_stats: Raw statistics dictionary (possibly with lists of values)
+        curriculum_stats: Output from curriculum server stats
         losses: Losses object with stats() method
         experience: Experience object with stats() method
         trainer_config: Training configuration
@@ -136,7 +138,7 @@ def process_training_stats(
     overview = {}
 
     # Calculate average reward from environment stats
-    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+    task_reward_values = [v for k, v in curriculum_stats.items() if k.startswith("task_rewards_moving_avg")]
     if task_reward_values:
         mean_reward = sum(task_reward_values) / len(task_reward_values)
         overview["reward"] = mean_reward
@@ -147,6 +149,7 @@ def process_training_stats(
         "experience_stats": experience_stats,
         "environment_stats": environment_stats,
         "overview": overview,
+        "curriculum_stats": curriculum_stats,
     }
 
 
@@ -220,6 +223,7 @@ def compute_timing_stats(
 
 def build_wandb_stats(
     processed_stats: Dict[str, Any],
+    curriculum_stats: Dict[str, Any],
     timing_info: Dict[str, Any],
     weight_stats: Dict[str, Any],
     grad_stats: Dict[str, Any],
@@ -236,6 +240,7 @@ def build_wandb_stats(
 
     Args:
         processed_stats: Output from process_training_stats
+        curriculum_stats: Output from curriculum server stats
         timing_info: Output from compute_timing_stats
         weight_stats: Weight analysis statistics
         grad_stats: Gradient statistics
@@ -284,6 +289,7 @@ def build_wandb_stats(
         **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
         **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
         **processed_stats["environment_stats"],
+        **curriculum_stats,
         **weight_stats,
         **timing_info["timing_stats"],
         **metric_stats,
@@ -293,6 +299,7 @@ def build_wandb_stats(
 
 def process_stats(
     stats: Dict[str, Any],
+    curriculum_stats: Dict[str, Any],
     losses: Any,
     evals: EvalRewardSummary,
     grad_stats: Dict[str, float],
@@ -318,6 +325,7 @@ def process_stats(
     # Process training stats
     processed_stats = process_training_stats(
         raw_stats=stats,
+        curriculum_stats=curriculum_stats,
         losses=losses,
         experience=experience,
         trainer_config=trainer_cfg,
@@ -350,6 +358,8 @@ def process_stats(
         "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
     }
 
+    hyperparameters = {}
+
     # Get system stats
     system_stats = system_monitor.stats() if system_monitor else {}
     memory_stats = memory_monitor.stats() if memory_monitor else {}
@@ -357,12 +367,14 @@ def process_stats(
     # Build complete stats
     all_stats = build_wandb_stats(
         processed_stats=processed_stats,
+        curriculum_stats=curriculum_stats,
         timing_info=timing_info,
         weight_stats=weight_stats,
         grad_stats=grad_stats,
         system_stats=system_stats,
         memory_stats=memory_stats,
         parameters=parameters,
+        hyperparameters=hyperparameters,
         evals=evals,
         agent_step=agent_step,
         epoch=epoch,
