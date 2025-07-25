@@ -1,6 +1,8 @@
 # This Dockerfile relies on turborepo to optimize the build process.
 # Refer to https://turborepo.com/docs/guides/tools/docker for more details.
 
+# Building this image requires the entire metta repo to be used as a build context, due to the global `pnpm-lock.yaml` file.
+
 # ================================ Base image - pnpm and turbo ================================
 FROM node:24-bookworm-slim AS base
 
