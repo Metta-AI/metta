@@ -43,14 +43,14 @@ class GridworksSetup(SetupModule):
                 info("Corepack enabled successfully")
                 return True
             except subprocess.CalledProcessError as e:
-                error_output = e.stderr.decode() if e.stderr else str(e)
+                error_output = e.output
                 # Look for EEXIST error with file path
                 match = re.search(r"EEXIST: file already exists, symlink .* -> '([^']+)'", error_output)
                 if match:
                     conflicting_path = match.group(1)
                     warning(f"Removing dead symlink: {conflicting_path}")
                     try:
-                        if os.path.exists(conflicting_path):
+                        if os.path.islink(conflicting_path):
                             os.remove(conflicting_path)
                             info(f"Removed conflicting file: {conflicting_path}")
                         else:
