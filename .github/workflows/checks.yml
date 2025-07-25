@@ -364,7 +364,7 @@ jobs:
       - name: Run super fast training
         if: matrix.test_type == 'replay'
         run: |
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
+          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +hardware=github wandb=off
 
       - name: Replay smoke test
         if: matrix.test_type == 'replay'
