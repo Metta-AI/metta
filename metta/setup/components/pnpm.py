@@ -8,21 +8,16 @@ from metta.setup.utils import info, success, warning
 
 
 @register_module
-class GridworksSetup(SetupModule):
-    @property
-    def name(self) -> str:
-        return "gridworks"
-
+class PnpmSetup(SetupModule):
     @property
     def description(self) -> str:
-        return "Gridworks frontend development"
+        return "JS dependencies installed via pnpm"
 
     def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("gridworks")
+        return self.config.is_component_enabled("pnpm")
 
     def check_installed(self) -> bool:
-        gridworks_dir = self.repo_root / "gridworks"
-        return (gridworks_dir / "node_modules").exists()
+        return (self.repo_root / "node_modules").exists()
 
     def _check_pnpm(self) -> bool:
         """Check if pnpm is working."""
@@ -68,22 +63,14 @@ class GridworksSetup(SetupModule):
         return False
 
     def install(self) -> None:
-        info("Setting up Gridworks frontend...")
-
-        gridworks_dir = self.repo_root / "gridworks"
-        if not gridworks_dir.exists():
-            warning("Gridworks directory not found")
-            return
+        info("Setting up pnpm...")
 
         if not self._check_pnpm():
             # Try to enable corepack with automatic cleanup
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
-        # Run pnpm install
-        env = os.environ.copy()
-        env["NODE_NO_WARNINGS"] = "1"
+        # pnpm install with frozen lockfile to avoid prompts
+        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False)
 
-        self.run_command(["pnpm", "install", "--frozen-lockfile"], cwd=gridworks_dir, capture_output=False, env=env)
-
-        success("Gridworks frontend installed")
+        success("JS dependencies installed")

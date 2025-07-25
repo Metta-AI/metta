@@ -8,6 +8,9 @@ class MettaScopeSetup(SetupModule):
     def description(self) -> str:
         return "MettaScope visualization and replay tools"
 
+    def dependencies(self) -> list[str]:
+        return ["pnpm"]
+
     @property
     def setup_script_location(self) -> str:
         return "mettascope/install.sh"
