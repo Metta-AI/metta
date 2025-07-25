@@ -495,10 +495,10 @@ export class Context3d {
   }
 
   /**
-   * Draw a sprite from the atlas with its top-left corner at (x, y).
+   * Draw a sprite from the atlas with its top-right corner at (x, y).
    *
    * @param imageName - Name of the sprite in the atlas
-   * @param x - Left edge position
+   * @param x - Right edge position
    * @param y - Top edge position
    * @param color - RGBA color multiplier (default: white/no tint)
    *
@@ -519,10 +519,14 @@ export class Context3d {
       return
     }
 
+    // Adjust the position to account for top-right corner:
+    const adjustedX = x - bounds.width // Subtract width to align with the top-right corner
+    const adjustedY = y
+
     // Draw the rectangle with the image's texture coordinates
     this.drawRect(
-      x + bounds.x,
-      y + bounds.y,
+      adjustedX + bounds.x,
+      adjustedY + bounds.y,
       bounds.width,
       bounds.height,
       bounds.u0,
