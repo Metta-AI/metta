@@ -92,8 +92,8 @@ def save_policy_with_metadata(
     metadata = {
         "epoch": epoch,
         "agent_step": agent_step,
-        "total_time": timer.get_elapsed(),
-        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
+        "total_time": timer.get_elapsed() if timer is not None else None,
+        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0) if timer is not None else None,
         "run": run_name,
         "initial_pr": initial_policy_record.uri if initial_policy_record else None,
         "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
