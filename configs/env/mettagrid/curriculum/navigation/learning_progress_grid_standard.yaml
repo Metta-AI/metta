@@ -10,8 +10,8 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
   /env/mettagrid/navigation/training/sparse: 1
 
-  # Raster grid tasks - using our new training config
-  /env/mettagrid/navigation/training/raster_grid_multiroom: 1
+  # Grid tasks - using our new training config
+/env/mettagrid/navigation/training/grid_multiroom: 1
 
 
 
