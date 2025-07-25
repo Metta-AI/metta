@@ -1,5 +1,5 @@
-# Latent linear network - uses linear projections instead of attention
-# Works directly with tokenized observations like attention models
+# Minimal latent linear network - smallest possible token-based agent
+# Direct mapping from tokens to actions with minimal processing
 _target_: metta.agent.metta_agent.MettaAgent
 
 observations:
@@ -18,95 +18,56 @@ components:
     sources:
       null
 
+  # Simple normalization
   obs_normalizer:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
     sources:
       - name: _obs_
 
-  obs_fourier:
+  # Minimal embedding - just embed attributes with tiny embedding dim
+  obs_embed:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
-    num_freqs: 8
-    attr_embed_dim: 8
+    num_freqs: 2  # Minimal fourier features
+    attr_embed_dim: 4  # Tiny embedding
     sources:
       - name: obs_normalizer
 
-  # First linear projection on each token independently
-  obs_token_linear_1:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: obs_fourier
-    nn_params:
-      out_features: 128
-    nonlinearity: nn.ReLU
-
-  # Second linear projection on each token
-  obs_token_linear_2:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: obs_token_linear_1
-    nn_params:
-      out_features: 128
-    nonlinearity: nn.ReLU
-
-  # Mean pooling over tokens to get fixed-size representation
-  # Pool over dimension 0 (token dimension, without batch)
-  obs_mean_pool:
+  # Mean pool tokens to get fixed size
+  obs_pool:
     _target_: metta.agent.lib.mean_pool.MeanPool
-    dim: 0  # Pool over the token dimension
+    dim: 0  # Pool over token dimension
     sources:
-      - name: obs_token_linear_2
+      - name: obs_embed
 
-  # Final projection to LSTM input size
-  obs_projection:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: obs_mean_pool
-    nn_params:
-      out_features: 128
-    nonlinearity: nn.ReLU
-
+  # Minimal LSTM (required by framework)
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: obs_projection
-    output_size: 128
+      - name: obs_pool
+    output_size: 32  # Even smaller LSTM
     nn_params:
-      num_layers: 2
+      num_layers: 1  # Single layer
 
-  critic_1:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: _core_
-    nn_params:
-      out_features: 1024
-    nonlinearity: nn.Tanh
-    effective_rank: true
-
+  # Direct value head
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: critic_1
+      - name: _core_
     nn_params:
       out_features: 1
     nonlinearity: null
 
-  actor_1:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: _core_
-    nn_params:
-      out_features: 512
-
+  # Direct actor head
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
     sources:
       null
     nn_params:
       num_embeddings: 100
-      embedding_dim: 16
+      embedding_dim: 4  # Tiny embeddings
 
   _action_:
     _target_: metta.agent.lib.actor.MettaActorSingleHead
     sources:
-      - name: actor_1
+      - name: _core_
       - name: _action_embeds_
