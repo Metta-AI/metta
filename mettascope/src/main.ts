@@ -1017,6 +1017,7 @@ window.addEventListener('load', async () => {
   ui.dpr = ctx.dpr
 
   await parseUrlParams()
+  setPlaybackSpeed(0.1)
 
   requestFrame()
 })
