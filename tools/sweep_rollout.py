@@ -40,7 +40,6 @@ def main(cfg: DictConfig) -> int:
     try:
         wandb_sweep_id = run_once(
             lambda: setup_sweep(cfg, logger),
-            destroy_on_finish=False,
         )
     except Exception as e:
         logger.error(f"Sweep setup failed: {e}", exc_info=True)
@@ -76,7 +75,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
 
     # Master node only
-    preparation_result = run_once(lambda: prepare_sweep_run(cfg, logger), destroy_on_finish=False)
+    preparation_result = run_once(lambda: prepare_sweep_run(cfg, logger))
 
     if preparation_result is None:
         logger.error("Failed to prepare sweep rollout")
@@ -95,9 +94,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
     logger.info("Training completed...")
 
     # Master node only
-    eval_results = run_once(
-        lambda: evaluate_rollout(downstream_cfg, protein_suggestion, logger), destroy_on_finish=False
-    )
+    eval_results = run_once(lambda: evaluate_rollout(downstream_cfg, protein_suggestion, logger))
 
     if eval_results is None:
         logger.error("Evaluation failed")
