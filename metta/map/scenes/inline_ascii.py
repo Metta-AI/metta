@@ -34,3 +34,9 @@ class InlineAscii(Scene[InlineAsciiParams]):
             params.row : params.row + ascii_height,
             params.column : params.column + ascii_width,
         ] = self.ascii_grid
+
+    @classmethod
+    def intrinsic_size(cls, params: InlineAsciiParams) -> tuple[int, int]:
+        params = cls.validate_params(params)
+        _, width, height = char_grid_to_lines(params.data)
+        return height + params.row, width + params.column

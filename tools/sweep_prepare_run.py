@@ -1,41 +1,39 @@
 #!/usr/bin/env -S uv run
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
-import numpy as np  # noqa: E402
+import logging
+import sys
+
+import hydra
+import numpy as np
 
 if not hasattr(np, "byte"):
     np.byte = np.int8
 
 import os
 import random
-import sys
-import time
 from logging import Logger
 
-import hydra
 import wandb
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.lock import run_once
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
-from metta.common.util.script_decorators import metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
 from metta.sweep.wandb_utils import generate_run_id_for_sweep
 
-logger = setup_mettagrid_logger("sweep_prepare_run")
+logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-@metta_script
-def main(cfg: DictConfig | ListConfig) -> int:
+def main(cfg: DictConfig) -> int:
     run_once(lambda: setup_next_run(cfg, logger))
     return 0
 
 
-def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
+def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
     """
     Create a new run for an existing sweep.
     Returns the run ID.
@@ -45,7 +43,6 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
     # TODO: Use sweep_id instead of sweep_path, currently very confusing.
-    # TODO: Once again cfg.runs_dir pops up, done dirty.
     run_id = generate_run_id_for_sweep(sweep_metadata.wandb_path, cfg.runs_dir)
     logger.info(f"Creating new run: {run_id}")
 
@@ -54,14 +51,6 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
     cfg.run = run_id  # Top-level for training scripts
     cfg.run_dir = run_dir  # Top-level for training scripts
-
-    # Set Wandb config values explicitly so they contain concrete strings
-    # rather than unresolved interpolations when validated by Pydantic.
-    # TODO: Check if this is actually necessary.
-    # TODO: Why isn't setting group name here sufficient?
-    cfg.wandb.group = cfg.sweep_name
-    cfg.wandb.name = run_id
-    cfg.wandb.run_id = run_id  # Required by WandbConfigOn schema
 
     def init_run():
         with WandbContext(cfg.wandb, cfg) as wandb_run:
@@ -86,16 +75,11 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
                 logger.warning("Failed to generate protein suggestion after 10 attempts. Giving up.")
                 raise e
 
-            # Apply Protein suggestions on top of sweep_job overrides
-            # Make a deepcopy of the sweep_job config to avoid modifying the original. We need
-            # to add the newly generated run-id into the subtree so that ${run} interpolations
-            # can resolve, but `cfg.sweep_job` is in struct mode, which forbids adding keys.
-            # Temporarily relax struct, insert the value, then restore the original safety.
-            OmegaConf.set_struct(cfg.sweep_job, False)
+            # Set the run ID in the sweep_job config
             cfg.sweep_job.run = cfg.run
-            OmegaConf.set_struct(cfg.sweep_job, True)
 
-            # TODO: I think we are close to getting rid of the need to pre-set a dist config file.
+            # Apply Protein suggestions on top of sweep_job overrides
+            # Make a deepcopy of the sweep_job config to avoid modifying the original.
             sweep_job_container = OmegaConf.to_container(cfg.sweep_job, resolve=True)
             assert isinstance(sweep_job_container, dict), "sweep_job must be a dictionary structure"
             sweep_job_copy = DictConfig(sweep_job_container)
@@ -116,7 +100,6 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
                     "run_dir": run_dir,
                     "seed": run_seed,
                     "sweep_name": cfg.sweep_name,  # Needed by sweep_eval.py
-                    "device": cfg.device,  # Ensure device is at top level <-- probably messing with the cuda config?
                     "wandb": {
                         "group": cfg.sweep_name,  # Group all runs under the sweep name
                         "name": run_id,  # Individual run name
@@ -145,20 +128,6 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
     logger.info(f"Run created: {run_id}")
     return run_id
-
-
-def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> None:
-    """
-    Wait for a run to exist.
-    """
-    # TODO: I am fairly certain this is not the right way to make workers wait.
-    for _ in range(10):
-        if os.path.exists(path):
-            break
-        time.sleep(5)
-
-    run_id = OmegaConf.load(path).run
-    logger.info(f"Run read: {run_id}")
 
 
 def validate_protein_suggestion(config: DictConfig, suggestion: dict):

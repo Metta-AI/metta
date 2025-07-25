@@ -2,7 +2,7 @@ import { Vec2f } from './vector_math.js'
 import { Context3d } from './context3d.js'
 import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
-import { HoverPanel } from './hoverpanels.js'
+import { HoverBubble } from './hoverbubbles.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
@@ -10,11 +10,12 @@ export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
-export const MAX_ZOOM_LEVEL = 2.0
-export const DEFAULT_ZOOM_LEVEL = 1 / 2
+export const MAX_ZOOM_LEVEL = 2.5
+export const DEFAULT_ZOOM_LEVEL = 1 / 3
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4
 export const SPLIT_DRAG_THRESHOLD = 10 // Pixels to detect split dragging.
-export const SCROLL_ZOOM_FACTOR = 1000 // Divisor for scroll delta to zoom conversion.
+export const ZOOM_SENSITIVITY = 0.003 // Controls zoom speed - smaller = slower, smoother zoom
+export const MACROMAP_ZOOM_THRESHOLD = 0.05 // when to switch the map to 'macromap' minimap-style rendering
 export const PANEL_BOTTOM_MARGIN = 60
 export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
@@ -83,10 +84,11 @@ export const ui = {
   agentPanel: new PanelInfo('#agent-panel'),
   timelinePanel: new PanelInfo('#timeline-panel'),
 
-  hoverPanels: [] as HoverPanel[],
+  hoverBubbles: [] as HoverBubble[],
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,
+  hideHoverTimer: null as any,
 }
 
 export const state = {
@@ -162,6 +164,12 @@ export const html = {
   // Utility
   modal: find('#modal'),
   toast: find('#toast'),
+}
+
+/** Generates a color from an agent ID. */
+export function colorFromId(agentId: number) {
+  let n = agentId + Math.PI + Math.E + Math.SQRT2
+  return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }
 
 /** Sets the follow selection state. You can pass null to leave a state unchanged. */

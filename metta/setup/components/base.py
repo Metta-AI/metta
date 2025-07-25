@@ -37,6 +37,10 @@ class SetupModule(ABC):
     def check_installed(self) -> bool:
         pass
 
+    def dependencies(self) -> list[str]:
+        # names of other components that must be installed before this one
+        return []
+
     def install(self) -> None:
         if self.setup_script_location:
             _ = self.run_script(self.setup_script_location)
@@ -52,11 +56,18 @@ class SetupModule(ABC):
         check: bool = True,
         capture_output: bool = True,
         input: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if cwd is None:
             cwd = self.repo_root
 
-        return subprocess.run(cmd, cwd=cwd, check=check, capture_output=capture_output, text=True, input=input)
+        params: dict[str, str | bool | Path | None | dict[str, str]] = dict(
+            cwd=cwd, check=check, capture_output=capture_output, text=True, input=input
+        )
+        if env is not None:
+            params["env"] = env
+
+        return subprocess.run(cmd, **params)  # type: ignore
 
     def run_script(self, script_path: str, args: list[str] | None = None) -> subprocess.CompletedProcess[str]:
         script = self.repo_root / script_path

@@ -338,6 +338,44 @@ MIGRATIONS = [
                ON eval_tasks(assignee, assigned_at, status)""",
         ],
     ),
+    SqlMigration(
+        version=19,
+        description="Add internal_id to wide_episodes view",
+        sql_statements=[
+            """DROP VIEW wide_episodes""",
+            """CREATE VIEW wide_episodes AS
+            SELECT
+                e.id,
+                e.internal_id,
+                e.created_at,
+                e.primary_policy_id,
+                e.stats_epoch,
+                e.replay_url,
+                e.eval_name,
+                e.simulation_suite,
+                e.eval_category,
+                e.env_name,
+                e.attributes,
+                e.eval_task_id,
+                p.name as policy_name,
+                p.description as policy_description,
+                p.url as policy_url,
+                ep.start_training_epoch as epoch_start_training_epoch,
+                ep.end_training_epoch as epoch_end_training_epoch,
+                tr.id as training_run_id,
+                tr.name as training_run_name,
+                tr.user_id as training_run_user_id,
+                tr.status as training_run_status,
+                tr.url as training_run_url,
+                tr.description as training_run_description,
+                tr.tags as training_run_tags
+            FROM episodes e
+            LEFT JOIN policies p ON e.primary_policy_id = p.id
+            LEFT JOIN epochs ep ON p.epoch_id = ep.id
+            LEFT JOIN training_runs tr ON ep.run_id = tr.id
+            """,
+        ],
+    ),
 ]
 
 
@@ -1282,3 +1320,34 @@ class MettaRepo:
                 "retries": row[8],
                 "policy_name": row[9],
             }
+
+    async def get_all_tasks(self, limit: int = 500) -> list[dict[str, Any]]:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                       et.assignee, et.created_at, et.attributes, et.retries,
+                       p.name as policy_name
+                FROM eval_tasks et
+                LEFT JOIN policies p ON et.policy_id = p.id
+                ORDER BY et.created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = await result.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "policy_id": row[1],
+                    "sim_suite": row[2],
+                    "status": row[3],
+                    "assigned_at": row[4],
+                    "assignee": row[5],
+                    "created_at": row[6],
+                    "attributes": row[7],
+                    "retries": row[8],
+                    "policy_name": row[9],
+                }
+                for row in rows
+            ]

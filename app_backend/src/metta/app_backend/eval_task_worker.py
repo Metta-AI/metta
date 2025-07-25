@@ -15,6 +15,7 @@ import subprocess
 import uuid
 from datetime import datetime
 
+from devops.observatory_login import CLIAuthenticator
 from metta.app_backend.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     TaskResponse,
@@ -23,16 +24,19 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
 )
 from metta.common.util.collections import remove_none_values
-from metta.common.util.logging_helpers import setup_mettagrid_logger
+from metta.common.util.logging_helpers import init_logging
 
 
 class EvalTaskWorker:
-    def __init__(self, backend_url: str, git_hash: str, assignee: str, logger: logging.Logger | None = None):
+    def __init__(
+        self, backend_url: str, git_hash: str, assignee: str, machine_token: str, logger: logging.Logger | None = None
+    ):
         self._backend_url = backend_url
         self._git_hash = git_hash
         self._assignee = assignee
+        CLIAuthenticator(self._backend_url).save_token(machine_token)
         self._client = EvalTaskClient(backend_url)
-        self._logger = logger or setup_mettagrid_logger("eval_worker_worker")
+        self._logger = logger or logging.getLogger(__name__)
         self._poll_interval = 5.0
 
     async def __aenter__(self):
@@ -89,6 +93,9 @@ class EvalTaskWorker:
             f"policy_uri=wandb://run/{policy_name}",
             f"sim={sim_suite}",
             f"eval_task_id={str(task.id)}",
+            f"stats_server_uri={self._backend_url}",
+            "device=cpu",
+            "vectorization=serial",
         ]
 
         for key, value in env_overrides.items():
@@ -166,14 +173,16 @@ class EvalTaskWorker:
 
 
 async def main() -> None:
-    logger = setup_mettagrid_logger("eval_worker_worker")
+    init_logging()
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logger = logging.getLogger(__name__)
 
     backend_url = os.environ["BACKEND_URL"]
     git_hash = os.environ["GIT_HASH"]
     assignee = os.environ["WORKER_ASSIGNEE"]
+    machine_token = os.environ["MACHINE_TOKEN"]
 
-    async with EvalTaskWorker(backend_url, git_hash, assignee, logger) as worker:
+    async with EvalTaskWorker(backend_url, git_hash, assignee, machine_token, logger) as worker:
         await worker.run()
 
 

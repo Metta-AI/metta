@@ -153,7 +153,7 @@ class BuildChecker:
         summary = self.get_summary()
 
         print("\n" + "=" * 80)
-        print("BUILD SUMMARY")
+        print("METTAGRID C++ BUILD SUMMARY")
         print("=" * 80)
 
         if summary["build_success"]:

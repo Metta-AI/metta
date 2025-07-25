@@ -19,6 +19,6 @@ trainer:
 
 policy_uri: wandb://run/george.navigation.bucketed.07-10
 
-run_id: 3
+run_id: 5
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
