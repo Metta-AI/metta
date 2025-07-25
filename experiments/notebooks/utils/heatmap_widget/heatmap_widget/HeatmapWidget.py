@@ -15,8 +15,8 @@ bundler_output_dir = pathlib.Path(__file__).parent / "static"
 
 
 # FIXME: we need something like `dotenv` and `.env.local` files up in here.
-# _DEV = False
-_DEV = True
+_DEV = False
+# _DEV = True
 
 bundled_assets_dir = pathlib.Path(__file__).parent / "static"
 src_dir = pathlib.Path(__file__).parent / "../src"
