@@ -38,6 +38,7 @@ node_modules/
 .vite/
 dist/
 *.tsbuildinfo
+.turbo/
 
 # Project-specific build outputs
 /mettagrid/dist/
@@ -77,3 +78,6 @@ metta-research/
 terrain_maps_nohearts*
 gpu_names_cache.json
 sweep_id
+
+# Notebooks
+experiments/notebooks/.ipynb_checkpoints
