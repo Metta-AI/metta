@@ -11,8 +11,11 @@ if [[ $(basename "$PWD") != "mettascope" ]]; then
 fi
 
 # Install dependencies
-npm install --force
-npm run build
+pnpm install
+pnpm run build
+
+# Install Playwright browsers
+pnpm run playwright:install
 
 # Generate atlas
 ./tools/gen_atlas.py
