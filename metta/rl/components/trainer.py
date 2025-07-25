@@ -18,14 +18,6 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbContext
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config
-from metta.rl.components import (
-    EnvironmentManager,
-    EvaluationManager,
-    OptimizerManager,
-    RolloutManager,
-    StatsManager,
-    TrainingManager,
-)
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -44,6 +36,13 @@ from metta.rl.util.rollout import get_lstm_config
 from metta.rl.util.stats import compute_timing_stats
 from metta.rl.util.utils import check_abort, should_run
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_env_configs
+
+from .environment_manager import EnvironmentManager
+from .evaluation_manager import EvaluationManager
+from .optimizer_manager import OptimizerManager
+from .rollout_manager import RolloutManager
+from .stats_manager import StatsManager
+from .training_manager import TrainingManager
 
 logger = logging.getLogger(__name__)
 
@@ -101,11 +100,24 @@ class Trainer:
             trainer_config.batch_size = trainer_config.batch_size // self.world_size
 
         # Save config
-        save_experiment_config(
-            type("Dirs", (), {"run_dir": run_dir, "run_name": run_name}),
-            self.device,
-            trainer_config,
-        )
+        # Handle both TrainerConfig objects and DictConfig from Hydra
+        if hasattr(trainer_config, "model_dump"):
+            # It's a TrainerConfig Pydantic model
+            save_experiment_config(
+                type("Dirs", (), {"run_dir": run_dir, "run_name": run_name}),
+                self.device,
+                trainer_config,
+            )
+        else:
+            # It's a DictConfig from Hydra - create a temporary object with model_dump method
+            temp_config = type(
+                "TempConfig", (), {"model_dump": lambda self: OmegaConf.to_container(trainer_config, resolve=True)}
+            )()
+            save_experiment_config(
+                type("Dirs", (), {"run_dir": run_dir, "run_name": run_name}),
+                self.device,
+                temp_config,
+            )
 
         # Initialize wandb
         self.wandb_run = None
@@ -161,7 +173,9 @@ class Trainer:
             "run": self.run_name,
             "run_dir": self.run_dir,
             "vectorization": "serial",  # Will be updated when env is created
-            "trainer": self.trainer_config.model_dump(),
+            "trainer": self.trainer_config.model_dump()
+            if hasattr(self.trainer_config, "model_dump")
+            else OmegaConf.to_container(self.trainer_config, resolve=True),
         }
 
         # Add wandb config if available

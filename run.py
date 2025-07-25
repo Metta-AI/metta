@@ -95,12 +95,12 @@ device, is_master, world_size, rank = setup_device_and_distributed("cuda" if tor
 # Core training parameters
 num_workers = 4
 total_timesteps = 10_000_000
-batch_size = 65536 if torch.cuda.is_available() else 16384  # 64k for GPU, 16k for CPU
-minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
+batch_size = 524288 if torch.cuda.is_available() else 16384  # 512k for GPU, 16k for CPU
+minibatch_size = 16384 if torch.cuda.is_available() else 1024  # 16k for GPU, 1k for CPU
 curriculum = "/env/mettagrid/curriculum/navigation/bucketed"
 bptt_horizon = 64
 update_epochs = 1
-forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 2048
+forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 256
 
 # Adjust defaults based on vectorization mode
 vectorization_mode = "multiprocessing"  # Default, could be made configurable
@@ -526,7 +526,11 @@ while agent_step < trainer_config.total_timesteps:
                 device=device,
             )
 
-            optimizer.step(loss, epoch, experience.accumulate_minibatches)
+            if optimizer_type == "adam":
+                optimizer.step()
+            else:
+                # ForeachMuon has custom step signature
+                optimizer.step(loss, epoch, experience.accumulate_minibatches)
             minibatch_idx += 1
         epoch += 1
 
