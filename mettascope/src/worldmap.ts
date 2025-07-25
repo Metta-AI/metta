@@ -476,6 +476,14 @@ function drawTrajectory() {
   }
 }
 
+function scaleTileX(x: number) {
+  return x * Common.TILE_SIZE + Common.TILE_SIZE / 2
+}
+
+function scaleTileY(y: number) {
+  return y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+}
+
 /** Draws the thought bubbles of the selected agent. */
 function drawThoughtBubbles() {
   // The idea behind thought bubbles is to show what an agent is thinking.
@@ -488,65 +496,64 @@ function drawThoughtBubbles() {
     // It must not be more than 20 steps in the future.
     var keyAction = null
     var keyActionStep = null
-    for (
-      var actionStep = state.step;
-      actionStep < state.replay.max_steps && actionStep < state.step + 20;
-      actionStep++
-    ) {
+    let actionHasTarget = false
+    let actionIsTarget = false
+    const actionStepEnd = Math.min(state.replay.max_steps, state.step + 20)
+    for (var actionStep = state.step; actionStep < actionStepEnd; actionStep++) {
       const action = getAttr(state.selectedGridObject, 'action', actionStep)
       if (action == null || action[0] == null || action[1] == null) {
         continue
       }
-      const actionName = state.replay.action_names[action[0]]
       const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
+      if (!actionSuccess) {
+        continue
+      }
+      const actionName = state.replay.action_names[action[0]]
       if (actionName == 'noop' || actionName == 'rotate' || actionName == 'move') {
         continue
       }
-      if (actionSuccess) {
-        keyAction = action
-        keyActionStep = actionStep
-        break
-      }
+      keyAction = action
+      keyActionStep = actionStep
+
+      actionIsTarget = actionName == 'swap'
+      actionHasTarget = actionIsTarget || actionName == 'put_items' || actionName == 'get_items'
+      break
     }
 
     if (keyAction != null) {
-      // We have a key action, so draw the thought bubble.
-      // Draw the key action icon with gained or lost resources.
       const x = getAttr(state.selectedGridObject, 'c')
       const y = getAttr(state.selectedGridObject, 'r')
+      const tileX = scaleTileX(x)
+      const tileY = scaleTileY(y)
+      if (actionHasTarget) {
+        let targetX = getAttr(state.selectedGridObject, 'c', actionStep)
+        let targetY = getAttr(state.selectedGridObject, 'r', actionStep)
+        if (!actionIsTarget) {
+          switch (getAttr(state.selectedGridObject, 'orientation', actionStep)) {
+            case 0: targetY -= 1; break
+            case 1: targetY += 1; break
+            case 2: targetX -= 1; break
+            case 3: targetX += 1; break
+          }
+        }
+        const targetTileX = scaleTileX(targetX)
+        const targetTileY = scaleTileY(targetY)
+        const angle = Math.PI / 2 - Math.atan2(targetTileY - tileY, targetTileX - tileX) // NOTE 90 degrees offset
+        ctx.drawSprite('actions/arrow.png', targetTileX, targetTileY, undefined, undefined, angle)
+      }
+      // We have a key action, so draw the thought bubble.
+      // Draw the key action icon with gained or lost resources.
       if (state.step == keyActionStep) {
-        ctx.drawSprite(
-          'actions/thoughts_lightning.png',
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-        )
+        ctx.drawSprite('actions/thoughts_lightning.png', tileX, tileY)
       } else {
-        ctx.drawSprite(
-          'actions/thoughts.png',
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-        )
+        ctx.drawSprite('actions/thoughts.png', tileX, tileY)
       }
       // Draw the action icon.
       var iconName = 'actions/icons/' + state.replay.action_names[keyAction[0]] + '.png'
       if (ctx.hasImage(iconName)) {
-        ctx.drawSprite(
-          iconName,
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
-          [1, 1, 1, 1],
-          1 / 4,
-          0
-        )
+        ctx.drawSprite(iconName, tileX, tileY, [1, 1, 1, 1], 1 / 4, 0)
       } else {
-        ctx.drawSprite(
-          'actions/icons/unknown.png',
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
-          [1, 1, 1, 1],
-          1 / 4,
-          0
-        )
+        ctx.drawSprite('actions/icons/unknown.png', tileX, tileY, [1, 1, 1, 1], 1 / 4, 0)
       }
 
       // Draw the resources lost on the left and gained on the right.
@@ -554,8 +561,8 @@ function drawThoughtBubbles() {
         const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1)
         const nextResources = getAttr(state.selectedGridObject, key, actionStep)
         const gained = nextResources - prevResources
-        var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
-        var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+        var resourceX = tileX
+        var resourceY = tileY
         if (gained > 0) {
           resourceX += 32
         } else {
