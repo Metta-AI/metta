@@ -476,14 +476,6 @@ function drawTrajectory() {
   }
 }
 
-function scaleTileX(x: number) {
-  return x * Common.TILE_SIZE + Common.TILE_SIZE / 2
-}
-
-function scaleTileY(y: number) {
-  return y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-}
-
 /** Draws the thought bubbles of the selected agent. */
 function drawThoughtBubbles() {
   // The idea behind thought bubbles is to show what an agent is thinking.
@@ -518,43 +510,35 @@ function drawThoughtBubbles() {
     }
 
     if (keyAction != null) {
-      const x = getAttr(state.selectedGridObject, 'c')
-      const y = getAttr(state.selectedGridObject, 'r')
-      const tileX = scaleTileX(x)
-      const tileY = scaleTileY(y)
-      if (actionHasTarget) {
+      const x = (getAttr(state.selectedGridObject, 'c') + 0.5) * Common.TILE_SIZE
+      const y = (getAttr(state.selectedGridObject, 'r') - 0.5) * Common.TILE_SIZE
+      if (actionHasTarget && actionStep !== state.step) {
         // Draw an arrow on a circle around the target, pointing at it.
-        let targetX = getAttr(state.selectedGridObject, 'c', actionStep)
-        let targetY = getAttr(state.selectedGridObject, 'r', actionStep)
-        if (actionStep !== state.step) { // Avoid drawing the arrow if target is the same as the agent
-          switch (getAttr(state.selectedGridObject, 'agent:orientation', actionStep)) {
-            case 0: targetY -= 1; break // North
-            case 1: targetY += 1; break // South
-            case 2: targetX -= 1; break // West
-            case 3: targetX += 1; break // East
-          }
-          const targetTileX = scaleTileX(targetX)
-          const targetTileY = scaleTileY(targetY)
-          const angle = Math.atan2(targetTileX - tileX, targetTileY - tileY)
-          const r = Common.TILE_SIZE / 3
-          const tX = targetTileX - Math.sin(angle) * r - Common.TILE_SIZE / 2
-          const tY = targetTileY - Math.cos(angle) * r + Common.TILE_SIZE / 2
-          ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
-        }
+        const [targetGridX, targetGridY] = applyOrientationOffset(
+          getAttr(state.selectedGridObject, 'c', actionStep),
+          getAttr(state.selectedGridObject, 'r', actionStep),
+          getAttr(state.selectedGridObject, 'agent:orientation', actionStep));
+        const targetX = (targetGridX + 0.5) * Common.TILE_SIZE
+        const targetY = (targetGridY - 0.5) * Common.TILE_SIZE
+        const angle = Math.atan2(targetX - x, targetY - y)
+        const r = Common.TILE_SIZE / 3
+        const tX = targetX - Math.sin(angle) * r - Common.TILE_SIZE / 2
+        const tY = targetY - Math.cos(angle) * r + Common.TILE_SIZE / 2
+        ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
       }
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
       if (state.step == keyActionStep) {
-        ctx.drawSprite('actions/thoughts_lightning.png', tileX, tileY)
+        ctx.drawSprite('actions/thoughts_lightning.png', x, y)
       } else {
-        ctx.drawSprite('actions/thoughts.png', tileX, tileY)
+        ctx.drawSprite('actions/thoughts.png', x, y)
       }
       // Draw the action icon.
       var iconName = 'actions/icons/' + state.replay.action_names[keyAction[0]] + '.png'
       if (ctx.hasImage(iconName)) {
-        ctx.drawSprite(iconName, tileX, tileY, [1, 1, 1, 1], 1 / 4, 0)
+        ctx.drawSprite(iconName, x, y, [1, 1, 1, 1], 1 / 4, 0)
       } else {
-        ctx.drawSprite('actions/icons/unknown.png', tileX, tileY, [1, 1, 1, 1], 1 / 4, 0)
+        ctx.drawSprite('actions/icons/unknown.png', x, y, [1, 1, 1, 1], 1 / 4, 0)
       }
 
       // Draw the resources lost on the left and gained on the right.
@@ -562,8 +546,8 @@ function drawThoughtBubbles() {
         const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1)
         const nextResources = getAttr(state.selectedGridObject, key, actionStep)
         const gained = nextResources - prevResources
-        var resourceX = tileX
-        var resourceY = tileY
+        var resourceX = x
+        var resourceY = y
         if (gained > 0) {
           resourceX += 32
         } else {
@@ -642,6 +626,17 @@ function drawGrid() {
         ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
     }
+  }
+}
+
+/** Given a position and an orientation, returns the position offset by the orientation. */
+function applyOrientationOffset(x: number, y: number, orientation: number) {
+  switch (orientation) {
+    case 0: return [x, y - 1]
+    case 1: return [x, y + 1]
+    case 2: return [x - 1, y]
+    case 3: return [x + 1, y]
+    default: return [x, y]
   }
 }
 
