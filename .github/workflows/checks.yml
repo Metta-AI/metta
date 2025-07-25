@@ -326,6 +326,10 @@ jobs:
     needs: [setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      matrix:
+        test_type: [train, replay, evals]
+      fail-fast: false
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
@@ -335,7 +339,9 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
+      # Training
       - name: Training smoke test
+        if: matrix.test_type == 'train'
         id: train
         env:
           WANDB_API_KEY: set_but_not_used
@@ -347,13 +353,16 @@ jobs:
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
+        if: matrix.test_type == 'train'
         uses: ./.github/actions/save-benchmarks
         with:
           name: train_smoke_test
           metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_peak_mb }}}'
           filename: smoke_test_train_benchmark_results.json
 
+      # Replay
       - name: Replay smoke test
+        if: matrix.test_type == 'replay'
         id: replay
         env:
           WANDB_API_KEY: set_but_not_used
@@ -363,15 +372,17 @@ jobs:
           uv run .github/scripts/replay_smoke_test.py
 
       - name: Save replay benchmark
+        if: matrix.test_type == 'replay'
         uses: ./.github/actions/save-benchmarks
         with:
           name: replay_smoke_test
           metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_peak_mb }}}'
           filename: smoke_test_replay_benchmark_results.json
 
+      # Eval
       - name: Check evals smoke test policy availability
+        if: matrix.test_type == 'evals' && needs.setup-checks.outputs.is_external != 'true'
         id: check_evals_policy
-        if: needs.setup-checks.outputs.is_external != 'true'
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
@@ -380,8 +391,8 @@ jobs:
           uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
       - name: Run evals smoke test
+        if: matrix.test_type == 'evals' && steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
         id: eval_smoke_test
-        if: steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
@@ -393,24 +404,41 @@ jobs:
           uv run .github/scripts/eval_smoke_test.py
 
       - name: Save evals benchmark
-        if: steps.eval_smoke_test.conclusion == 'success'
+        if: matrix.test_type == 'evals' && steps.eval_smoke_test.conclusion == 'success'
         uses: ./.github/actions/save-benchmarks
         with:
           name: evals_smoke_test
           metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_peak_mb }}}'
           filename: smoke_test_evals_benchmark_results.json
 
-      - name: Upload all benchmark files
+      - name: Upload benchmark file
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-test-benchmark-results
+          name: smoke-test-benchmark-${{ matrix.test_type }}
           path: |
-            smoke_test_train_benchmark_results.json
-            smoke_test_replay_benchmark_results.json
-            smoke_test_evals_benchmark_results.json
+            smoke_test_*_benchmark_results.json
           retention-days: 1
           if-no-files-found: warn
+
+  collect-smoke-test-results:
+    name: "Collect Smoke Test Results"
+    if: always()
+    needs: [smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: smoke-test-benchmark-*
+          merge-multiple: true
+
+      - name: Upload combined results
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-benchmark-results-combined
+          path: "*.json"
+          retention-days: 7
 
   python-benchmark:
     name: "Python Benchmarks"
