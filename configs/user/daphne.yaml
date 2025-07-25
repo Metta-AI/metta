@@ -12,8 +12,6 @@
 defaults:
   - _self_
 
-sim: systematic_exploration
-
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation/bucketed
 

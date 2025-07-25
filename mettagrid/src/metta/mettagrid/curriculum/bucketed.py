@@ -23,7 +23,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
         *,
         env_cfg_template: DictConfig | None = None,
         env_cfg_template_path: str | None = None,
-        buckets: Dict[str, Dict[str, Any]],
+        buckets: Dict[str, Any],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
     ):
@@ -71,7 +71,7 @@ def get_id(parameters, values):
     return curriculum_id
 
 
-def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Dict[str, Any]:
+def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str, Any]:
     """
     buckets: specified in the config, values or ranges for each parameter
     returns: unpacked configurations for each parameter given the number of bins
