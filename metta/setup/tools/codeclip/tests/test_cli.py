@@ -183,6 +183,46 @@ class TestCodeclipCLI(unittest.TestCase):
         # Should NOT have summary since -s was used
         self.assertNotIn("Copied", result.output)
 
+    @patch("subprocess.Popen")
+    def test_dry_run_flag(self, mock_popen):
+        """Test that --dry flag prevents output and clipboard copy."""
+        Path("test.py").write_text("print('test')\n")
+
+        # Mock the process
+        mock_process = MagicMock()
+        mock_process.communicate = MagicMock()
+        mock_popen.return_value = mock_process
+
+        result = self.runner.invoke(cli, [".", "--dry"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Check that pbcopy was NOT called
+        mock_popen.assert_not_called()
+        
+        # Should see "Would copy" summary in stderr
+        self.assertIn("Would copy", result.output)
+        self.assertIn("tokens", result.output)
+        
+        # Should NOT have file content in output
+        self.assertNotIn("print('test')", result.output)
+
+    @patch("subprocess.Popen")
+    def test_dry_run_with_stdout_flag(self, mock_popen):
+        """Test that --dry with -s still prevents output."""
+        Path("test.py").write_text("print('test')\n")
+
+        result = self.runner.invoke(cli, [".", "-s", "--dry"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT have file content in stdout
+        self.assertNotIn("print('test')", result.output)
+        
+        # Should see "Would copy" summary since dry run
+        self.assertIn("Would copy", result.output)
+        
+        # pbcopy should not be called
+        mock_popen.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -41,10 +41,11 @@ def copy_to_clipboard(content: str) -> None:
 @click.option("-s", "--stdout", is_flag=True, help="Output to stdout instead of clipboard")
 @click.option("-r", "--raw", is_flag=True, help="Output in raw format instead of XML")
 @click.option("-e", "--extension", multiple=True, help="File extensions to include (e.g. -e .py -e .js)")
-@click.option("--profile", is_flag=True, help="Show detailed token distribution analysis to stderr")
-@click.option("--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution")
+@click.option("-p", "--profile", is_flag=True, help="Show detailed token distribution analysis to stderr")
+@click.option("-f", "--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution")
+@click.option("-d", "--dry", is_flag=True, help="Dry run - no output to stdout or clipboard")
 def cli(
-    paths: Tuple[str, ...], stdout: bool, raw: bool, extension: Tuple[str, ...], profile: bool, flamegraph: bool
+    paths: Tuple[str, ...], stdout: bool, raw: bool, extension: Tuple[str, ...], profile: bool, flamegraph: bool, dry: bool
 ) -> None:
     """
     Provide codebase context to LLMs with smart defaults.
@@ -101,16 +102,19 @@ def cli(
         click.echo(f"Error loading context: {e}", err=True)
         return
 
-    # Output content to stdout or clipboard
-    if stdout:
+    # Output content to stdout or clipboard (unless dry run)
+    if dry:
+        # Dry run - no output at all
+        pass
+    elif stdout:
         # Output to stdout
         click.echo(output_content)
     else:
         # Default behavior: copy to clipboard
         copy_to_clipboard(output_content)
 
-    # Always show summary when not outputting to stdout (unless no files found)
-    if not stdout and profile_data:
+    # Show summary when copying to clipboard or in dry run (unless no files found)
+    if (not stdout or dry) and profile_data:
         total_tokens = profile_data["total_tokens"]
         total_files = profile_data["total_files"]
 
@@ -119,7 +123,8 @@ def cli(
             return
 
         # Build summary message
-        summary_parts = [f"Copied ~{total_tokens:,} tokens from {total_files} files"]
+        action = "Would copy" if dry else "Copied"
+        summary_parts = [f"{action} ~{total_tokens:,} tokens from {total_files} files"]
 
         # Get top-level breakdown
         node_cache = profile_data["node_cache"]
