@@ -54,11 +54,6 @@ class Vec2f {
     const length = this.length()
     return new Vec2f(this.x() / length, this.y() / length)
   }
-
-  /** Returns a new vector that is linearly interpolated between this vector and v by factor t (0-1). */
-  lerp(v: Vec2f, t: number): Vec2f {
-    return new Vec2f(this.x() + (v.x() - this.x()) * t, this.y() + (v.y() - this.y()) * t)
-  }
 }
 
 /**

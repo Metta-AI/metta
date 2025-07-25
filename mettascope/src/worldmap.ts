@@ -10,15 +10,6 @@ import { updateHoverBubble, updateReadout, HoverBubble } from './hoverbubbles.js
 import { search, searchMatch } from './search.js'
 import { renderMinimapObjects } from './minimap.js'
 
-/** Starts a smooth camera animation to the target position. */
-function startCameraAnimation(targetPos: Vec2f, panel: PanelInfo) {
-  ui.cameraStartPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
-  ui.cameraTargetPos = targetPos
-  ui.cameraAnimStartTime = performance.now()
-  ui.cameraAnimating = true
-  requestFrame()
-}
-
 /**
  * Clamps the map panel's pan position so that the world map always remains at
  * least partially visible within the panel.
@@ -845,7 +836,7 @@ export function drawMap(panel: PanelInfo) {
   if (state.followSelection && state.selectedGridObject !== null) {
     const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
     const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
-    startCameraAnimation(new Vec2f(-objX, -objY), panel)
+    panel.panPos = new Vec2f(-objX, -objY)
   }
   // If we have a selected object (but not following), keep it within a bounding box.
   else if (!state.followSelection && state.selectedGridObject !== null) {
@@ -888,7 +879,7 @@ export function drawMap(panel: PanelInfo) {
         targetY -= boxHeight / 3 / panel.zoomLevel
       }
 
-      startCameraAnimation(new Vec2f(targetX, targetY), panel)
+      panel.panPos = new Vec2f(targetX, targetY)
     }
   }
 

@@ -442,18 +442,11 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 }
 
 /** Centralized function to select an object. */
-export function updateSelection(object: any, setFollow = false, instantCameraPan = false) {
+export function updateSelection(object: any, setFollow = false) {
   const previousObject = state.selectedGridObject
   state.selectedGridObject = object
   if (setFollow) {
     setFollowSelection(true)
-  }
-
-  if (instantCameraPan && object !== previousObject && object !== null) {
-    const objX = getAttr(object, 'c') * Common.TILE_SIZE
-    const objY = getAttr(object, 'r') * Common.TILE_SIZE
-    ui.mapPanel.panPos = new Vec2f(-objX, -objY)
-    ui.cameraAnimating = false
   }
 
   console.info('Selected object:', state.selectedGridObject)
@@ -642,37 +635,6 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   requestFrame()
 })
 
-/** Easing function for smooth animations. */
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3)
-}
-
-/** Updates camera animation if active. */
-function updateCameraAnimation() {
-  if (!ui.cameraAnimating) {
-    return
-  }
-
-  const now = performance.now()
-  const elapsed = now - ui.cameraAnimStartTime
-
-  // Calculate duration based on playback speed.
-  const dynamicDuration = Common.CAMERA_PAN_DURATION / state.playbackSpeed
-
-  const progress = Math.min(elapsed / dynamicDuration, 1.0)
-  const easedProgress = easeOutCubic(progress)
-
-  // Interpolate between start and target positions.
-  const currentPos = ui.cameraStartPos.lerp(ui.cameraTargetPos, easedProgress)
-  ui.mapPanel.panPos = currentPos
-
-  // Has camera reached destination?
-  if (progress >= 1.0) {
-    ui.cameraAnimating = false
-    ui.mapPanel.panPos = ui.cameraTargetPos
-  }
-}
-
 /** Draws a frame. */
 export function onFrame() {
   if (state.replay === null || ctx === null || ctx.ready === false) {
@@ -680,7 +642,6 @@ export function onFrame() {
   }
 
   doDemoMode()
-  updateCameraAnimation()
 
   ctx.clear()
 
