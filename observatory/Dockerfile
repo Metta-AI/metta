@@ -7,15 +7,15 @@ WORKDIR /app
 # Copy package.json and package-lock.json for dependency installation
 COPY package*.json ./
 
-
 # Install dependencies
-RUN npm install
+RUN corepack enable
+RUN pnpm install
 
 # Copy the rest of the application code
 COPY . .
 
 # Build the application for production
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Serve the app with Nginx
 FROM nginx:alpine

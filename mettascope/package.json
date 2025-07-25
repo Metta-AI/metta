@@ -10,6 +10,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "ci": "biome ci .",
+    "playwright:install": "playwright install --with-deps",
     "test": "playwright test tests/*.test.ts"
   },
   "devDependencies": {

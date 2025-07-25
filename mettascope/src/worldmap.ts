@@ -503,74 +503,66 @@ function drawThoughtBubbles() {
     // It must not be more than 20 steps in the future.
     var keyAction = null
     var keyActionStep = null
-    for (
-      var actionStep = state.step;
-      actionStep < state.replay.max_steps && actionStep < state.step + 20;
-      actionStep++
-    ) {
+    let actionHasTarget = false
+    const actionStepEnd = Math.min(state.replay.max_steps, state.step + 20)
+    for (var actionStep = state.step; actionStep < actionStepEnd; actionStep++) {
       const action = getAttr(state.selectedGridObject, 'action', actionStep)
       if (action == null || action[0] == null || action[1] == null) {
         continue
       }
-      const actionName = state.replay.action_names[action[0]]
       const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
+      if (!actionSuccess) {
+        continue
+      }
+      const actionName = state.replay.action_names[action[0]]
       if (actionName == 'noop' || actionName == 'rotate' || actionName == 'move') {
         continue
       }
-      if (actionSuccess) {
-        keyAction = action
-        keyActionStep = actionStep
-        break
-      }
+      keyAction = action
+      keyActionStep = actionStep
+      actionHasTarget = !(actionName == 'attack' || actionName == 'attack_nearest')
+      break
     }
 
-    if (keyAction != null) {
+    if (keyAction != null && keyActionStep != null) {
+      const x = (getAttr(state.selectedGridObject, 'c') + 0.5) * Common.TILE_SIZE
+      const y = (getAttr(state.selectedGridObject, 'r') - 0.5) * Common.TILE_SIZE
+      if (actionHasTarget && actionStep !== state.step) {
+        // Draw an arrow on a circle around the target, pointing at it.
+        const [targetGridX, targetGridY] = applyOrientationOffset(
+          getAttr(state.selectedGridObject, 'c', actionStep),
+          getAttr(state.selectedGridObject, 'r', actionStep),
+          getAttr(state.selectedGridObject, 'agent:orientation', actionStep))
+        const targetX = (targetGridX + 0.5) * Common.TILE_SIZE
+        const targetY = (targetGridY - 0.5) * Common.TILE_SIZE
+        const angle = Math.atan2(targetX - x, targetY - y)
+        const r = Common.TILE_SIZE / 3
+        const tX = targetX - Math.sin(angle) * r - Common.TILE_SIZE / 2
+        const tY = targetY - Math.cos(angle) * r + Common.TILE_SIZE / 2
+        ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
+      }
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
-      const x = getAttr(state.selectedGridObject, 'c')
-      const y = getAttr(state.selectedGridObject, 'r')
       if (state.step == keyActionStep) {
-        ctx.drawSprite(
-          'actions/thoughts_lightning.png',
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-        )
+        ctx.drawSprite('actions/thoughts_lightning.png', x, y)
       } else {
-        ctx.drawSprite(
-          'actions/thoughts.png',
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-        )
+        ctx.drawSprite('actions/thoughts.png', x, y)
       }
       // Draw the action icon.
       var iconName = 'actions/icons/' + state.replay.action_names[keyAction[0]] + '.png'
       if (ctx.hasImage(iconName)) {
-        ctx.drawSprite(
-          iconName,
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
-          [1, 1, 1, 1],
-          1 / 4,
-          0
-        )
+        ctx.drawSprite(iconName, x, y, [1, 1, 1, 1], 1 / 4, 0)
       } else {
-        ctx.drawSprite(
-          'actions/icons/unknown.png',
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
-          [1, 1, 1, 1],
-          1 / 4,
-          0
-        )
+        ctx.drawSprite('actions/icons/unknown.png', x, y, [1, 1, 1, 1], 1 / 4, 0)
       }
 
       // Draw the resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1)
-        const nextResources = getAttr(state.selectedGridObject, key, actionStep)
+        const prevResources = getAttr(state.selectedGridObject, key, keyActionStep - 1)
+        const nextResources = getAttr(state.selectedGridObject, key, keyActionStep)
         const gained = nextResources - prevResources
-        var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
-        var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+        var resourceX = x
+        var resourceY = y
         if (gained > 0) {
           resourceX += 32
         } else {
@@ -649,6 +641,17 @@ function drawGrid() {
         ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
     }
+  }
+}
+
+/** Given a position and an orientation, returns the position offset by the orientation. */
+function applyOrientationOffset(x: number, y: number, orientation: number) {
+  switch (orientation) {
+    case 0: return [x, y - 1]
+    case 1: return [x, y + 1]
+    case 2: return [x - 1, y]
+    case 3: return [x + 1, y]
+    default: return [x, y]
   }
 }
 
