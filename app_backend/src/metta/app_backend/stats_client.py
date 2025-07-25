@@ -84,7 +84,7 @@ class StatsClient:
                 raise e
         raise _NotAuthenticatedError(auth_user and f"Authenticated as {auth_user}")
 
-    def get_policy_ids(self, policy_names: List[str]) -> ClientPolicyIdResponse:
+    def get_policy_ids(self, policy_names: list[str]) -> ClientPolicyIdResponse:
         """
         Get policy IDs for given policy names.
 
