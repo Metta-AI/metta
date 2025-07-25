@@ -14,5 +14,8 @@ fi
 pnpm install
 pnpm run build
 
+# Install Playwright browsers
+pnpm run playwright:install
+
 # Generate atlas
 ./tools/gen_atlas.py
