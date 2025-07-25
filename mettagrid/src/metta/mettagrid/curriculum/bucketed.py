@@ -93,4 +93,5 @@ def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str,
             buckets_unpacked[parameter] = binned_ranges
         else:
             buckets_unpacked[parameter] = bucket_spec
+    print(f"Buckets unpacked: {buckets_unpacked}")
     return buckets_unpacked
