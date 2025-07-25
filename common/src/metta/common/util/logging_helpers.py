@@ -33,11 +33,15 @@ class MillisecondFormatter(logging.Formatter):
         # Convert microseconds to milliseconds (keep only 3 digits)
         msec = created.microsecond // 1000
         if datefmt:
-            # Replace %f with just 3 digits for milliseconds
-            datefmt = datefmt.replace("%f", f"{msec:03d}")
+            # If datefmt contains %f, replace it with milliseconds
+            if "%f" in datefmt:
+                # Replace %f with the millisecond value
+                return created.strftime(datefmt.replace("%f", f"{msec:03d}"))
+            else:
+                return created.strftime(datefmt)
         else:
-            datefmt = "[%H:%M:%S.%03d]"
-        return created.strftime(datefmt) % msec
+            # Default format with milliseconds
+            return created.strftime(f"[%H:%M:%S.{msec:03d}]")
 
 
 # Create a custom handler that always shows the timestamp
@@ -46,6 +50,13 @@ class AlwaysShowTimeRichHandler(RichHandler):
         # Force a unique timestamp for each record
         record.created = record.created + (record.relativeCreated % 1000) / 1000000
         super().emit(record)
+
+
+# Simple handler that formats logs without Rich when needed
+class SimpleHandler(logging.StreamHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
 
 
 def get_log_level(provided_level: str | None = None) -> str:
@@ -106,11 +117,55 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
-    # Add back our custom Rich handler
-    rich_handler = AlwaysShowTimeRichHandler(rich_tracebacks=True)
-    formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
-    rich_handler.setFormatter(formatter)
-    root_logger.addHandler(rich_handler)
+    # Check if we're running with wandb or in a context where logs might be captured
+    # This includes wandb runs, batch jobs, or when NO_HYPERLINKS is set
+    use_simple_handler = (
+        os.environ.get("WANDB_MODE") is not None  # wandb is configured
+        or os.environ.get("WANDB_RUN_ID") is not None  # wandb run is active
+        or os.environ.get("METTA_RUN_ID") is not None  # metta run that might use wandb
+        or os.environ.get("AWS_BATCH_JOB_ID") is not None  # AWS batch job
+        or os.environ.get("SKYPILOT_TASK_ID") is not None  # SkyPilot job
+        or os.environ.get("NO_HYPERLINKS") is not None  # explicit disable
+        or os.environ.get("NO_RICH_LOGS") is not None  # explicit disable rich
+    )
+
+    if use_simple_handler:
+        # Use simple handler without Rich formatting
+        handler = SimpleHandler(sys.stdout)
+        # Apply custom formatting for timestamps
+        formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
+        handler.setFormatter(formatter)
+
+        # Prefix log level to message
+        class LevelPrefixFormatter(MillisecondFormatter):
+            def format(self, record):
+                # Get the base formatted message
+                msg = super().format(record)
+                # Add level prefix with padding to align messages
+                level_name = record.levelname
+                timestamp = self.formatTime(record)
+
+                # Add file location if available
+                location = ""
+                if hasattr(record, "pathname") and hasattr(record, "lineno"):
+                    filename = os.path.basename(record.pathname)
+                    location = f" [{filename}:{record.lineno}]"
+
+                # Format: [timestamp] LEVEL message [file:line]
+                return f"{timestamp} {level_name:<8} {msg}{location}"
+
+        handler.setFormatter(LevelPrefixFormatter("%(message)s", datefmt="[%H:%M:%S.%f]"))
+        root_logger.addHandler(handler)
+    else:
+        # Use Rich handler for interactive terminals
+        rich_handler = AlwaysShowTimeRichHandler(
+            rich_tracebacks=True,
+            show_path=True,
+            enable_link_path=True,  # Enable links in interactive mode
+        )
+        formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
+        rich_handler.setFormatter(formatter)
+        root_logger.addHandler(rich_handler)
 
     # Set the level
     root_logger.setLevel(getattr(logging, log_level))
