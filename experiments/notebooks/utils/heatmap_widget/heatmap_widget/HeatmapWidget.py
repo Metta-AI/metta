@@ -11,9 +11,6 @@ from typing import Any, Callable, Dict, List
 import anywidget
 import traitlets
 
-bundler_output_dir = pathlib.Path(__file__).parent / "static"
-
-
 # FIXME: we need something like `dotenv` and `.env.local` files up in here.
 _DEV = False
 # _DEV = True
