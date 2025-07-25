@@ -50,11 +50,11 @@ class SampledTaskCurriculum(Curriculum):
 
 def _sample(dist: Any) -> Any:
     if isinstance(dist, dict):
-        if "range" in dist:
-            lo, hi = dist["range"]
-            value = np.random.uniform(lo, hi)
-            if dist.get("want_int", False):
-                value = int(value)
+        assert "range" in dist, f"Range not specified for {dist}"
+        lo, hi = dist["range"]
+        value = np.random.uniform(lo, hi)
+        if dist.get("want_int", False):
+            value = int(value)
     elif isinstance(dist, list):
         value = np.random.choice(dist)
     else:
