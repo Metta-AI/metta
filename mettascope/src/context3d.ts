@@ -413,7 +413,7 @@ export class Context3d {
     scale: number | [number, number] = 1,
     rotation = 0
   ) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
 
@@ -424,16 +424,6 @@ export class Context3d {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
-
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
-    const m = this.atlasMargin
-
-    // Calculate UV coordinates for the sprite in the texture atlas.
-    // The margin (m) is added to prevent texture bleeding at sprite edges.
-    const u0 = (sx - m) / this.textureSize.x()
-    const v0 = (sy - m) / this.textureSize.y()
-    const u1 = (sx + sw + m) / this.textureSize.x()
-    const v1 = (sy + sh + m) / this.textureSize.y()
 
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
@@ -458,7 +448,7 @@ export class Context3d {
       )
       this.restore()
     } else {
-      // Fast path: no transformations needed, draw directly
+      // Fast path: no transformations needed, draw centered
       this.drawRect(
         x - sw / 2 - m, // Left edge position
         y - sh / 2 - m, // Top edge position
