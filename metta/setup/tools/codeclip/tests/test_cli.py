@@ -79,7 +79,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("project1/main.py", result.output)
 
-    def test_default_current_directory(self):
+    def test_process_current_directory(self):
         """Test processing current directory with explicit '.'."""
         # Create files in current directory
         Path("test.py").write_text("print('test')\n")
