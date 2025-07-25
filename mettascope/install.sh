@@ -5,8 +5,12 @@
 # Fail on errors:
 set -e
 
+# Determine base dir
+if [[ $(basename "$PWD") != "mettascope" ]]; then
+  cd mettascope
+fi
+
 # Install dependencies
-cd mettascope
 npm install --force
 npm run build
 
