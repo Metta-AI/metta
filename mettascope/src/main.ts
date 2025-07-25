@@ -5,7 +5,7 @@ import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './rep
 import { focusFullMap, drawMap } from './worldmap.js'
 import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
-import { processActions, initActionButtons } from './actions.js'
+import { processActions, initActionButtons, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import {
   localStorageSetNumber,
@@ -16,7 +16,7 @@ import {
   hideMenu,
   hideDropdown,
 } from './htmlutils.js'
-import { updateReadout, hideHoverPanel } from './hoverpanels.js'
+import { updateReadout, hideHoverBubble } from './hoverbubbles.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
 import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
@@ -253,7 +253,19 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   }
 
   if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
-    hideHoverPanel()
+    // Start a timer to hide the hover bubble after a delay
+    if (ui.hideHoverTimer === null) {
+      ui.hideHoverTimer = setTimeout(() => {
+        hideHoverBubble()
+        ui.hideHoverTimer = null
+      }, Common.INFO_PANEL_POP_TIME)
+    }
+  } else {
+    // Cancel the hide timer if we're back over a valid area
+    if (ui.hideHoverTimer !== null) {
+      clearTimeout(ui.hideHoverTimer)
+      ui.hideHoverTimer = null
+    }
   }
 
   requestFrame()
@@ -282,14 +294,14 @@ onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
 /** Handles the pointer moving outside the window. */
 document.addEventListener('pointerout', function (e) {
   if (!e.relatedTarget) {
-    hideHoverPanel()
+    hideHoverBubble()
     requestFrame()
   }
 })
 
 /** Handles the window losing focus. */
 document.addEventListener('blur', function (e) {
-  hideHoverPanel()
+  hideHoverBubble()
   requestFrame()
 })
 
@@ -469,6 +481,14 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
       // Remove focus from the search input
       searchInput.blur()
       // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
+    } else if (ui.hoverBubbles.length > 0) {
+      // Close the most recently opened hover bubble (last in array)
+      const lastBubble = ui.hoverBubbles[ui.hoverBubbles.length - 1]
+      lastBubble.div.remove()
+      ui.hoverBubbles.pop()
+    } else if (ui.delayedHoverObject !== null) {
+      // Close the main hover bubble if it's showing
+      hideHoverBubble()
     } else if (state.showAgentPanel) {
       state.showAgentPanel = false
       localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
@@ -557,6 +577,9 @@ export function onFrame() {
     drawTrace(ui.tracePanel)
   } else {
     ui.tracePanel.div.classList.add('hidden')
+    // Clear trace mesh when panel is hidden
+    ctx.useMesh('trace')
+    ctx.clearMesh()
   }
 
   ctx.useMesh('timeline')
@@ -953,6 +976,7 @@ initObjectMenu()
 initTimeline()
 initDemoMode()
 initializeTooltips()
+startGamepadPolling()
 
 window.addEventListener('load', async () => {
   // Use a local atlas texture.
