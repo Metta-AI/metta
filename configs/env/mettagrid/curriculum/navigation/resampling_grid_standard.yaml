@@ -1,6 +1,6 @@
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/navigation/training/grid_multiroom
+env_cfg_template_path: /env/mettagrid/navigation/training/grid_multiroom
 
 buckets:
   # Create a few bins to force variation - this will create multiple task instances

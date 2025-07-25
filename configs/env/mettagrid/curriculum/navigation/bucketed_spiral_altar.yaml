@@ -1,6 +1,6 @@
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/navigation/training/spiral_altar_base
+env_cfg_template_path: /env/mettagrid/navigation/training/spiral_altar_base
 
 buckets:
   # Vary the map size
