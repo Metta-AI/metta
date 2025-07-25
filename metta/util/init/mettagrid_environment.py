@@ -1,16 +1,24 @@
 import logging
+import multiprocessing
 import os
 import random
-import signal
 import warnings
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf
-from omegaconf.omegaconf import DictConfig
-from rich import traceback
+from omegaconf import DictConfig, OmegaConf
 
-logger = logging.getLogger("runtime_configuration")
+logger = logging.getLogger(__name__)
+
+
+def is_multiprocessing_available() -> bool:
+    try:
+        # Test if we can create a multiprocessing context with spawn method
+        # (spawn is the safest and most compatible method across platforms)
+        multiprocessing.get_context("spawn")
+        return True
+    except Exception:
+        return False
 
 
 def seed_everything(seed, torch_deterministic, rank: int = 0):
@@ -37,12 +45,14 @@ def seed_everything(seed, torch_deterministic, rank: int = 0):
     if torch_deterministic:
         # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
         # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
+        import os
+
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 
-def setup_mettagrid_environment(cfg: DictConfig) -> None:
+def init_mettagrid_environment(cfg: DictConfig) -> None:
     """
-    Configure the runtime environment for MettagridGrid simulations.
+    Configure the runtime environment for MettaGrid simulations.
     Initializes CUDA, sets thread counts, and handles reproducibility settings.
 
     Parameters:
@@ -50,6 +60,7 @@ def setup_mettagrid_environment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Configuration containing torch_deterministic flag and other runtime settings
     """
+
     # Validate device configuration
     device = cfg.get("device", "cpu")
 
@@ -57,10 +68,8 @@ def setup_mettagrid_environment(cfg: DictConfig) -> None:
     if device.startswith("cuda"):
         try:
             if not torch.cuda.is_available():
-                raise RuntimeError(
-                    f"Device '{device}' was requested but CUDA is not available. "
-                    "Please either install CUDA/PyTorch with GPU support or set device: cpu in your config."
-                )
+                logger.warning("CUDA is not available. Overriding device to 'cpu'.")
+                cfg.device = "cpu"
 
             # If device is cuda:X, check that the specific device exists
             if ":" in device:
@@ -86,11 +95,19 @@ def setup_mettagrid_environment(cfg: DictConfig) -> None:
             f"Invalid device '{device}'. Device must be 'cpu' or start with 'cuda' (e.g., 'cuda', 'cuda:0')."
         )
 
+    OmegaConf.set_struct(cfg, False)
+    cfg.device = device
+    OmegaConf.set_struct(cfg, True)
+
+    if cfg.vectorization == "multiprocessing" and not is_multiprocessing_available():
+        logger.warning(
+            "Vectorization 'multiprocessing' was requested but multiprocessing is not "
+            "available in this environment. Overriding to 'serial'."
+        )
+        cfg.vectorization = "serial"
+
     # Set CUDA launch blocking for better error messages in development
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
-    # Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
-    import metta.mettagrid.mettagrid_env  # noqa: F401
 
     # Set environment variables to run without display
     os.environ["GLFW_PLATFORM"] = "osmesa"  # Use OSMesa as the GLFW backend
@@ -109,12 +126,6 @@ def setup_mettagrid_environment(cfg: DictConfig) -> None:
         cfg.run = dist_cfg.run
         cfg.wandb.run_id = dist_cfg.wandb_run_id
 
-    # print(OmegaConf.to_yaml(cfg))
-    traceback.install(show_locals=False)
-
     # Get rank for distributed training seeding
     rank = int(os.environ.get("RANK", 0))
     seed_everything(cfg.seed, cfg.torch_deterministic, rank)
-
-    os.makedirs(cfg.run_dir, exist_ok=True)
-    signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))

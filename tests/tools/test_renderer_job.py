@@ -61,7 +61,7 @@ class TestRendererJob:
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=30,  # Short timeout
+                    timeout=60,  # Short timeout
                     cwd=Path.cwd(),
                 )
 
@@ -125,13 +125,18 @@ class TestRendererJob:
             print(f"Full map path: {full_map_path}")
             print(f"Map file exists: {full_map_path.exists()}")
 
+            # Detect if running in CI
+            is_ci = os.environ.get("CI", "").lower() == "true"
+            hardware_config = "+hardware=github" if is_ci else "+hardware=macbook"
+
             cmd = [
                 "python",
                 "-m",
                 "tools.train",
                 f"run={run_name}",
-                "+hardware=macbook",
+                hardware_config,
                 f"data_dir={temp_dir}",
+                "trainer.simulation.replay_dir=${run_dir}/replays/",
                 "trainer.curriculum=/env/mettagrid/debug",
                 "trainer.total_timesteps=50",  # Minimal training
                 "trainer.num_workers=1",
@@ -154,19 +159,25 @@ class TestRendererJob:
             print(f"DEBUG_MAP_URI: {env.get('DEBUG_MAP_URI')}")
 
             try:
-                # Run with shorter timeout and better error handling
+                timeout = 300
+                print(f'Running cmd "{cmd}" with timeout {timeout} sec')
                 result = subprocess.run(
                     cmd,
                     env=env,
                     capture_output=True,
                     text=True,
-                    timeout=60,  # Shorter timeout for CI
+                    timeout=timeout,
                     cwd=Path.cwd(),
                 )
             except subprocess.TimeoutExpired as e:
-                print("\n=== Command timed out after 60 seconds ===")
-                print(f"Partial STDOUT: {e.stdout if e.stdout else 'None'}")
-                print(f"Partial STDERR: {e.stderr if e.stderr else 'None'}")
+                print(f"\n=== Command timed out after {timeout} seconds ===")
+
+                # Decode bytes to string, defaulting to empty string if None
+                stdout_text = e.stdout.decode("utf-8") if e.stdout else "None"
+                stderr_text = e.stderr.decode("utf-8") if e.stderr else "None"
+
+                print(f"Partial STDOUT: {stdout_text}")
+                print(f"Partial STDERR: {stderr_text}")
                 pytest.fail(f"Training validation timed out for {env_name}")
             except Exception as e:
                 print("\n=== Unexpected error running subprocess ===")

@@ -6,11 +6,13 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "objects/constants.hpp"
 #include "types.hpp"
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
+  explicit Move(const ActionConfig& cfg, bool track_movement_metrics = false)
+      : ActionHandler(cfg, "move"), _track_movement_metrics(track_movement_metrics) {}
 
   unsigned char max_arg() const override {
     return 1;  // 0 = move forward, 1 = move backward
@@ -36,10 +38,19 @@ protected:
       return false;
     }
 
-    return _grid->move_object(actor->id, target_location);
+    bool success = _grid->move_object(actor->id, target_location);
+
+    // Track movement direction on success (only if tracking enabled)
+    if (success && _track_movement_metrics) {
+      actor->stats.add(std::string("movement.direction.") + OrientationNames[static_cast<int>(move_direction)], 1);
+    }
+
+    return success;
   }
 
 private:
+  bool _track_movement_metrics;
+
   // Get the opposite direction (for backward movement)
   static Orientation get_opposite_direction(Orientation orientation) {
     switch (orientation) {

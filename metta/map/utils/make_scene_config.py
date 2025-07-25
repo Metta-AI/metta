@@ -4,7 +4,7 @@ from metta.map.mapgen import MapGen
 
 
 def with_boundaries(pattern: str):
-    return "\n".join([f"|{line}|" for line in pattern.split("\n")])
+    return "\n".join([line for line in pattern.split("\n")])
 
 
 def make_convchain_config_from_pattern(pattern: str) -> dict:
@@ -34,7 +34,7 @@ def make_wfc_config_from_pattern(pattern: str) -> Optional[dict]:
 
     # Some WFC patterns are invalid, so we need to check that they are valid.
     # This is the slowest part of import, 2-20 seconds per map.
-    mapgen = MapGen(100, 100, config)
+    mapgen = MapGen(width=100, height=100, root=config)
     try:
         mapgen.build()
     except Exception:

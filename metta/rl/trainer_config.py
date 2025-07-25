@@ -305,7 +305,7 @@ def create_trainer_config(
         config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
+        config_dict["simulation"]["replay_dir"] = f"{cfg.run_dir}/replays/"
 
     if "profile_dir" not in config_dict.setdefault("profiler", {}):
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"

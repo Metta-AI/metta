@@ -1,8 +1,8 @@
-name: 'Fetch Artifacts'
-description: 'Downloads zipped artifacts from previous successful workflow runs'
+name: "Fetch Artifacts"
+description: "Downloads zipped artifacts from previous successful workflow runs"
 inputs:
   github-token:
-    description: 'GitHub token for API access'
+    description: "GitHub token for API access"
     required: false
     default: ${{ github.token }}
   workflow-name:
@@ -12,22 +12,22 @@ inputs:
     description: 'Pattern to match artifact names (supports wildcards like "build-*" or exact names)'
     required: true
   num-artifacts:
-    description: 'Number of artifacts to collect'
+    description: "Number of artifacts to collect"
     required: false
-    default: '5'
+    default: "5"
   output-directory:
-    description: 'Directory to save downloaded artifacts'
+    description: "Directory to save downloaded artifacts"
     required: false
-    default: 'downloaded-artifacts'
+    default: "downloaded-artifacts"
 outputs:
   artifacts-found:
-    description: 'Number of artifacts found and downloaded'
+    description: "Number of artifacts found and downloaded"
     value: ${{ steps.fetch-artifacts.outputs.artifacts-found }}
   success:
-    description: 'Whether the operation completed successfully'
+    description: "Whether the operation completed successfully"
     value: ${{ steps.fetch-artifacts.outputs.success }}
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Set up Python
       uses: actions/setup-python@v5
