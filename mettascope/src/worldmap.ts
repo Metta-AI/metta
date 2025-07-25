@@ -526,7 +526,7 @@ function drawThoughtBubbles() {
         // Draw an arrow on a circle around the target, pointing at it.
         let targetX = getAttr(state.selectedGridObject, 'c', actionStep)
         let targetY = getAttr(state.selectedGridObject, 'r', actionStep)
-        if (targetX !== x || targetY !== y) { // Avoid drawing the arrow if target is the same as the agent
+        if (actionStep !== state.step) { // Avoid drawing the arrow if target is the same as the agent
           switch (getAttr(state.selectedGridObject, 'agent:orientation', actionStep)) {
             case 0: targetY -= 1; break // North
             case 1: targetY += 1; break // South
