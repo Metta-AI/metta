@@ -1,11 +1,11 @@
 from .HeatmapWidget import HeatmapWidget, create_demo_heatmap
 from .metta_client import MettaAPIClient, fetch_real_heatmap_data
 
+
 __all__ = [
     "HeatmapWidget",
     "create_demo_heatmap",
     "MettaAPIClient",
-    "create_demo_heatmap",
     "fetch_real_heatmap_data",
 ]
 
