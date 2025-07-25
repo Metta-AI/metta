@@ -80,7 +80,7 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
     };
 
     // Controls for num_policies_to_show
-    const handleNumPoliciesChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleNumPoliciesChange = (event: any) => {
         const newValue = parseInt(event.target.value);
         if (newValue > 0) {
             setNumPoliciesToShow(newValue);
@@ -91,7 +91,7 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
 
     // Transform data to use selected metric
     const transformedData = React.useMemo(() => {
-        if (!heatmapData || !selectedMetric) return heatmapData;
+        if (!heatmapData || !selectedMetric || !heatmapData.cells) return heatmapData;
 
         const transformedCells: any = {};
         const transformedPolicyAverages: any = {};
