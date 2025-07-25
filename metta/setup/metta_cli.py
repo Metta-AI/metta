@@ -194,7 +194,7 @@ class MettaCLI:
 
         success("Installation complete!")
 
-    def cmd_clean(self, args) -> None:
+    def cmd_clean(self, args, verbose: bool = False) -> None:
         build_dir = self.repo_root / "build"
         if build_dir.exists():
             info("  Removing root build directory...")
@@ -210,8 +210,11 @@ class MettaCLI:
         # Run cleanup script to remove empty directories and __pycache__
         cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
         if cleanup_script.exists():
+            cmd = [str(cleanup_script)]
+            if verbose:
+                cmd.append("--verbose")
             try:
-                subprocess.run([sys.executable, str(cleanup_script), str(self.repo_root)], check=True)
+                subprocess.run(cmd, cwd=str(self.repo_root), check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
 
@@ -671,7 +674,7 @@ Examples:
         elif args.command == "status":
             self.cmd_status(args)
         elif args.command == "clean":
-            self.cmd_clean(args)
+            self.cmd_clean(args, verbose=True)
         elif args.command == "symlink-setup":
             self.cmd_symlink_setup(args)
         elif args.command == "test":
