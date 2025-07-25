@@ -54,13 +54,15 @@ function isGlyphModified(id: number): boolean {
 function getModifiedCount(): number {
   let count = 0
   for (let i = 0; i < 256; i++) {
-    if (isGlyphModified(i)) count++
+    if (isGlyphModified(i)) {
+      count++
+    }
   }
   return count
 }
 
 // Generate table rows for all glyphs
-function generateGlyphTableRows(filter: string = '') {
+function generateGlyphTableRows(filter = '') {
   const tbody = find('#glyph-table-body')
   tbody.innerHTML = ''
 
@@ -261,7 +263,7 @@ export function initGlyphTable() {
     let exportCount = 0
 
     glyphAssociations.forEach((desc, id) => {
-      if (desc && desc.trim()) {
+      if (desc?.trim()) {
         sparseData[id] = desc
         exportCount++
       }
@@ -299,7 +301,7 @@ export function initGlyphTable() {
 
             for (const [key, value] of Object.entries(data)) {
               const id = parseInt(key, 10)
-              if (!isNaN(id) && id >= 0 && id < 256 && typeof value === 'string') {
+              if (!Number.isNaN(id) && id >= 0 && id < 256 && typeof value === 'string') {
                 newAssociations[id] = value.substring(0, 20)
                 importCount++
               }
@@ -318,7 +320,7 @@ export function initGlyphTable() {
           } else {
             throw new Error('Expected a JSON object')
           }
-        } catch (e) {
+        } catch (_e) {
           alert('Failed to import file. Please ensure it is a valid JSON object.')
         }
       }
@@ -346,7 +348,7 @@ export function initGlyphTable() {
         const nextInput = document.querySelector(
           `.glyph-description-input[data-glyph-id="${nextId}"]`
         ) as HTMLInputElement
-        if (nextInput && nextInput.closest('tr')) {
+        if (nextInput?.closest('tr')) {
           nextInput.focus()
           nextInput.select()
         }
@@ -355,7 +357,7 @@ export function initGlyphTable() {
   })
 
   // Handle Escape key to close modal
-  onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
+  onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     const keyEvent = e as KeyboardEvent
     if (keyEvent.key === 'Escape') {
       const modal = find('#glyph-editor-modal')
