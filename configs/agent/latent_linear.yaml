@@ -49,10 +49,10 @@ components:
     nonlinearity: nn.ReLU
 
   # Mean pooling over tokens to get fixed-size representation
-  # We'll use a custom mean pooling component
+  # Pool over dimension 0 (token dimension, without batch)
   obs_mean_pool:
     _target_: metta.agent.lib.mean_pool.MeanPool
-    dim: 1  # Pool over the token dimension
+    dim: 0  # Pool over the token dimension
     sources:
       - name: obs_token_linear_2
 
