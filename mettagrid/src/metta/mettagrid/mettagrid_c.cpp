@@ -629,10 +629,12 @@ py::dict MettaGrid::grid_objects() {
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
-    obj_dict["type_name"] = obj->type_name;
-    obj_dict["r"] = obj->location.r;
-    obj_dict["c"] = obj->location.c;
-    obj_dict["layer"] = obj->location.layer;
+    obj_dict["location"] = py::make_tuple(obj->location.r, obj->location.c, obj->location.layer);
+    obj_dict["is_swappable"] = obj->swappable();
+
+    obj_dict["r"] = obj->location.r;          // To remove
+    obj_dict["c"] = obj->location.c;          // To remove
+    obj_dict["layer"] = obj->location.layer;  // To remove
 
     // Inject observation features
     auto features = obj->obs_features();
@@ -643,15 +645,47 @@ py::dict MettaGrid::grid_objects() {
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
-      obj_dict["group_name"] = agent->group_name;
-      obj_dict["frozen"] = agent->frozen;
+      obj_dict["group_id"] = agent->group;
+      obj_dict["is_frozen"] = !!agent->frozen;
+      obj_dict["freeze_remaining"] = agent->frozen;
+      obj_dict["freeze_duration"] = agent->freeze_duration;
+      obj_dict["color"] = agent->color;
 
       py::dict inventory_dict;
-      for (const auto& [item, quantity] : agent->inventory) {
-        inventory_dict[py::int_(item)] = quantity;
+      for (const auto& [resource, quantity] : agent->inventory) {
+        inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
+      py::dict resource_limits_dict;
+      for (const auto& [resource, quantity] : agent->resource_limits) {
+        resource_limits_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["resource_limits"] = resource_limits_dict;
       obj_dict["agent_id"] = agent->agent_id;
+    }
+
+    if (auto* converter = dynamic_cast<Converter*>(obj)) {
+      py::dict inventory_dict;
+      for (const auto& [resource, quantity] : converter->inventory) {
+        inventory_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+      obj_dict["is_converting"] = converter->converting;
+      obj_dict["is_cooling_down"] = converter->cooling_down;
+      obj_dict["conversion_remaining"] = converter->conversion_ticks;
+      obj_dict["cooldown_remaining"] = converter->cooldown;
+      obj_dict["output_limit"] = converter->max_output;
+      obj_dict["color"] = converter->color;
+      py::dict input_resources_dict;
+      for (const auto& [resource, quantity] : converter->input_resources) {
+        input_resources_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["input_resources"] = input_resources_dict;
+      py::dict output_resources_dict;
+      for (const auto& [resource, quantity] : converter->output_resources) {
+        output_resources_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["output_resources"] = output_resources_dict;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -788,15 +822,6 @@ py::list MettaGrid::inventory_item_names_py() {
   return py::cast(inventory_item_names);
 }
 
-py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
-  py::array_t<unsigned int> groups(static_cast<ssize_t>(_agents.size()));
-  auto groups_view = groups.mutable_unchecked<1>();
-  for (size_t i = 0; i < _agents.size(); i++) {
-    groups_view(i) = _agents[i]->group;
-  }
-  return groups;
-}
-
 // StatsTracker implementation that needs complete MettaGrid definition
 unsigned int StatsTracker::get_current_step() const {
   if (!_env) return 0;
@@ -864,7 +889,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
-      .def("get_agent_groups", &MettaGrid::get_agent_groups)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 
   // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.

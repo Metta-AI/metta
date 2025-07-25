@@ -104,7 +104,6 @@ public:
   py::list max_action_args();
   py::list object_type_names_py();
   py::list inventory_item_names_py();
-  py::array_t<unsigned int> get_agent_groups() const;
 
   uint64_t initial_grid_hash;
 
