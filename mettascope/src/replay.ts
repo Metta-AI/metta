@@ -21,7 +21,7 @@ async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<str
   const decompressionStream = new DecompressionStream('deflate')
   const decompressedStream = stream.pipeThrough(decompressionStream)
   const reader = decompressedStream.getReader()
-  const chunks: Array<Uint8Array> = []
+  const chunks: Uint8Array[] = []
   let result: ReadableStreamReadResult<Uint8Array>
 
   result = await reader.read()
@@ -100,8 +100,8 @@ export async function readFile(file: File) {
  * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
  */
 // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
-function expandSequence(sequence: Array<any>, numSteps: number): Array<any> {
-  const expanded: Array<any> = []
+function expandSequence(sequence: any[], numSteps: number): any[] {
+  const expanded: any[] = []
   let i = 0
   let j = 0
   let v: any = null
@@ -169,9 +169,9 @@ function fixReplay() {
   state.replay.object_types.forEach((originalTypeName: string) => {
     let typeName = originalTypeName
     // Remove known color suffixes.
-    for (const color of Common.COLORS) {
-      if (typeName.endsWith(`_${color[0]}`)) {
-        typeName = typeName.slice(0, -color[0].length - 1)
+    for (const colorName of Common.COLORS.keys()) {
+      if (typeName.endsWith(`_${colorName}`)) {
+        typeName = typeName.slice(0, -colorName.length - 1)
         break
       }
     }
@@ -208,7 +208,7 @@ function fixReplay() {
           }
           // Use the resource.png with a specific color.
           type = removeSuffix(type, `.${colorName}`)
-          color = colorValue as Array<number>
+          color = colorValue as number[]
           if (!ctx.hasImage(`resources/${type}.png`)) {
             // Use the unknown.png with a specific color.
             console.warn('Resource not supported: ', type)

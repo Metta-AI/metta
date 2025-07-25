@@ -26,7 +26,7 @@ export function find(selector: string): HTMLElement {
 }
 
 /** Finds multiple elements by CSS selector. */
-export function finds(selector: string): Array<HTMLElement> {
+export function finds(selector: string): HTMLElement[] {
   return Array.from(document.querySelectorAll(selector))
 }
 
@@ -71,7 +71,7 @@ type Handler = {
   callback: (target: HTMLElement, event: Event) => void
 }
 
-const globalHandlers: Map<string, Array<Handler>> = new Map()
+const globalHandlers: Map<string, Handler[]> = new Map()
 
 export function onEvent(event: string, selector: string, callback: (target: HTMLElement, event: Event) => void) {
   const handler: Handler = {

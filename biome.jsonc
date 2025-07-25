@@ -1,15 +1,15 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
   "files": {
-    "includes": [
-      "**",
-      "!**/node_modules",
-      "!**/dist",
-      "!**/build",
-      "!**/*.min.js",
-      "!**/node_modules",
-      "!**/dist",
-      "!**/build"
+    "include": ["**"],
+    "ignore":[
+      "**/node_modules",
+      "**/dist",
+      "**/build",
+      "**/*.min.js",
+      "**/node_modules",
+      "**/dist",
+      "**/build"
     ]
   },
   "formatter": {
@@ -33,7 +33,7 @@
         "useConsistentArrayType": {
           "level": "warn",
           "options": {
-            "syntax": "generic" // Array<T> instead of T[]
+            "syntax": "generic" // T[] instead of T[]
           }
         },
         "useForOf": "warn",

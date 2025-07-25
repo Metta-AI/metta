@@ -186,7 +186,7 @@ export function processActions(event: KeyboardEvent) {
 // rising edges (button just pressed) and avoid sending the same command
 // repeatedly every animation frame.
 
-const prevButtonPressed: Array<boolean> = []
+const prevButtonPressed: boolean[] = []
 
 /**
  * Processes the first connected gamepad (if any) and converts gamepad input

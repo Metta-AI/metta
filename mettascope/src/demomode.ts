@@ -7,8 +7,8 @@
  * - Shows overall view.
  */
 
-import { state, ui } from './common.js'
 import * as Common from './common.js'
+import { state, ui } from './common.js'
 import { requestFrame, setIsPlaying } from './main.js'
 import { getAttr } from './replay.js'
 import { focusFullMap, focusMap } from './worldmap.js'
@@ -64,7 +64,7 @@ function easeInOut(time: number) {
 }
 
 /** Chooses a random value from an array. */
-function choose<T>(values: Array<T>): T {
+function choose<T>(values: T[]): T {
   return values[Math.floor(Math.random() * values.length)]
 }
 

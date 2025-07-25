@@ -14,9 +14,9 @@
 // * The recipe of the object.
 // * The memory menu button.
 
-import { state, ui } from './common.js'
 import * as Common from './common.js'
-import { find, findAttr, findIn, onEvent, removeChildren } from './htmlutils.js'
+import { state, ui } from './common.js'
+import { find, findIn, onEvent, removeChildren } from './htmlutils.js'
 import { getAttr, getObjectConfig } from './replay.js'
 import { Vec2f } from './vector_math.js'
 
@@ -153,8 +153,9 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
     } else {
       if (key === 'type') {
         value = state.replay.object_types[value]
-      } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.length) {
-        value = Common.COLORS[value][0]
+      } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.size) {
+        const colorNames = Array.from(Common.COLORS.keys())
+        value = colorNames[value]
       } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
         // If the value is a float and not an integer, round it to three decimal places.
         if (typeof value === 'number' && !Number.isInteger(value)) {

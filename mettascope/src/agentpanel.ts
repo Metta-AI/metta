@@ -82,7 +82,7 @@ let mainSort: ColumnDefinition = columns[1]
 let typeaheadValue = ''
 
 /** Swaps the element 1 position to the right. */
-function swapRight(list: Array<any>, element: any) {
+function swapRight(list: any[], element: any) {
   const index = list.indexOf(element)
   if (index === -1) {
     return
@@ -93,7 +93,7 @@ function swapRight(list: Array<any>, element: any) {
 }
 
 /** Swaps the element 1 position to the left. */
-function swapLeft(list: Array<any>, element: any) {
+function swapLeft(list: any[], element: any) {
   const index = list.indexOf(element)
   if (index === -1) {
     return
@@ -303,7 +303,7 @@ export function updateAvailableColumns() {
   //   * The columns array.
   //   * The main sort column.
 
-  const availableColumns: Array<ColumnDefinition> = []
+  const availableColumns: ColumnDefinition[] = []
   const typeahead = find('#new-column-input') as HTMLInputElement
   typeaheadValue = typeahead.value
   const noMatchFound = find('#new-column-dropdown .no-match-found')

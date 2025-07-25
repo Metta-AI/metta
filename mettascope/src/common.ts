@@ -37,11 +37,11 @@ export const TRACE_WIDTH = 54
 export const INFO_PANEL_POP_TIME = 300 // ms
 
 // Colors for resources
-export const COLORS: Array<[string, [number, number, number, number]]> = [
+export const COLORS = new Map([
   ['red', parseHtmlColor('#E4433A')],
   ['green', parseHtmlColor('#66BB6A')],
   ['blue', parseHtmlColor('#3498DB')],
-]
+] as const)
 
 export const ui = {
   // Mouse events
@@ -50,7 +50,7 @@ export const ui = {
   mouseClick: false,
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
-  mouseTargets: [] as Array<string>,
+  mouseTargets: [] as string[],
   dragging: '',
   dragHtml: null as HTMLElement | null,
   dragOffset: new Vec2f(0, 0),
@@ -62,8 +62,8 @@ export const ui = {
   mainTraceMinimapDown: false,
 
   // Touch events for pinch-to-zoom
-  touches: [] as Array<Touch>,
-  lastTouches: [] as Array<Touch>,
+  touches: [] as Touch[],
+  lastTouches: [] as Touch[],
   pinchDistance: 0,
   lastPinchDistance: 0,
   pinchCenter: new Vec2f(0, 0),
@@ -84,7 +84,7 @@ export const ui = {
   agentPanel: new PanelInfo('#agent-panel'),
   timelinePanel: new PanelInfo('#timeline-panel'),
 
-  hoverBubbles: [] as Array<HoverBubble>,
+  hoverBubbles: [] as HoverBubble[],
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,

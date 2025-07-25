@@ -206,7 +206,7 @@ class Mesh {
     v0: number,
     u1: number,
     v1: number,
-    color: Array<number> = [1, 1, 1, 1]
+    color: number[] = [1, 1, 1, 1]
   ) {
     // Check if we need to resize before adding more vertices
     if (this.currentQuad >= this.maxQuads) {
@@ -316,7 +316,7 @@ export class Context3d {
 
   // Transformation state
   private currentTransform: Mat3f
-  private transformStack: Array<Mat3f> = []
+  private transformStack: Mat3f[] = []
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -619,7 +619,7 @@ export class Context3d {
     v0: number,
     u1: number,
     v1: number,
-    color: Array<number> = [1, 1, 1, 1]
+    color: number[] = [1, 1, 1, 1]
   ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
@@ -652,7 +652,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
-  drawImage(imageName: string, x: number, y: number, color: Array<number> = [1, 1, 1, 1]) {
+  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -716,7 +716,7 @@ export class Context3d {
     imageName: string,
     x: number,
     y: number,
-    color: Array<number> = [1, 1, 1, 1],
+    color: number[] = [1, 1, 1, 1],
     scale: number | [number, number] = 1,
     rotation = 0
   ) {
@@ -779,7 +779,7 @@ export class Context3d {
   }
 
   /** Draws a solid filled rectangle. */
-  drawSolidRect(x: number, y: number, width: number, height: number, color: Array<number>) {
+  drawSolidRect(x: number, y: number, width: number, height: number, color: number[]) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -799,7 +799,7 @@ export class Context3d {
   }
 
   /** Draws a stroked rectangle with set stroke width. */
-  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: Array<number>) {
+  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: number[]) {
     // Draw 4 rectangles as borders for the stroke rectangle.
     // Top border.
     this.drawSolidRect(x, y, width, strokeWidth, color)
@@ -932,7 +932,7 @@ export class Context3d {
     x1: number,
     y1: number,
     spacing: number,
-    color: Array<number>,
+    color: number[],
     skipStart = 0,
     skipEnd = 0
   ) {

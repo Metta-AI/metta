@@ -1,15 +1,15 @@
-import { type Page, expect, test } from '@playwright/test'
+import { type Page, test } from '@playwright/test'
 
 const host = 'http://localhost:8000'
 
 type ErrorCollections = {
-  consoleErrors: Array<string>
-  networkErrors: Array<string>
+  consoleErrors: string[]
+  networkErrors: string[]
 }
 
 function trackPageErrors(page: Page): ErrorCollections {
-  const consoleErrors: Array<string> = []
-  const networkErrors: Array<string> = []
+  const consoleErrors: string[] = []
+  const networkErrors: string[] = []
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') {

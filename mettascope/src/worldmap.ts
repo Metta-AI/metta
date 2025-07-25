@@ -223,12 +223,13 @@ function drawObject(gridObject: any) {
 
     // Draw the color layer.
     const colorIdx = getAttr(gridObject, 'color')
-    if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
+    if (colorIdx >= 0 && colorIdx < Common.COLORS.size) {
+      const colorValues = Array.from(Common.COLORS.values())
       ctx.drawSprite(
         state.replay.object_images[type][2],
         x * Common.TILE_SIZE,
         y * Common.TILE_SIZE,
-        Common.COLORS[colorIdx][1]
+        colorValues[colorIdx]
       )
     }
 

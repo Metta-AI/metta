@@ -18,14 +18,14 @@ searchItemTemplate.remove()
 export const search = {
   active: false,
   query: '',
-  parts: [] as Array<string>,
+  parts: [] as string[],
 }
 
 function updateSearchDropdown() {
   removeChildren(searchDropdown)
   // Add all of the resources to the search dropdown.
   const usedKeys = new Set<string>()
-  const keys: Array<string> = []
+  const keys: string[] = []
   for (const key of state.replay.resource_inventory.keys()) {
     keys.push(key)
   }
@@ -74,7 +74,7 @@ onEvent('click', '#search-input', (target: HTMLElement, event: Event) => {
   requestFrame()
 })
 
-function remove(array: Array<string>, item: string) {
+function remove(array: string[], item: string) {
   const index = array.indexOf(item)
   if (index !== -1) {
     array.splice(index, 1)

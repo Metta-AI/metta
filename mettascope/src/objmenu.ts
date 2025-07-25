@@ -91,7 +91,7 @@ onEvent('click', '#object-menu .paste-memory', async (target: HTMLElement, e: Ev
   const agentId = Number.parseInt(findAttr(target, 'data-agent-id'))
   try {
     const clipboardText = await navigator.clipboard.readText()
-    const memory = JSON.parse(clipboardText) as [Array<number>, Array<number>]
+    const memory = JSON.parse(clipboardText) as [number[], number[]]
     state.ws.send(
       JSON.stringify({
         type: 'paste_memory',
