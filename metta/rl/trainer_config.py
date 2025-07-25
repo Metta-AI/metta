@@ -114,6 +114,15 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
+class ContrastiveConfig(BaseModelWithForbidExtra):
+    enabled: bool = False
+    weight: float = Field(default=0.1, ge=0)
+    gamma: float = Field(default=0.99, ge=0, le=1.0)
+    temperature: float = Field(default=0.05, ge=0)
+    num_negatives: int = Field(default=10, gt=0)
+    logsumexp_coef: float = Field(default=0.0, ge=0)
+
+
 class TorchProfilerConfig(BaseModelWithForbidExtra):
     interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
@@ -139,6 +148,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # PPO configuration
     ppo: PPOConfig = Field(default_factory=PPOConfig)
+
+    contrastive: ContrastiveConfig = Field(default_factory=ContrastiveConfig)
 
     # Optimizer and scheduler
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)

@@ -41,6 +41,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
     CheckpointConfig,
+    ContrastiveConfig,
     OptimizerConfig,
     PPOConfig,
     SimulationConfig,
@@ -96,6 +97,13 @@ trainer_config = TrainerConfig(
         ent_coef=0.01,
         gamma=0.99,
         gae_lambda=0.95,
+    ),
+    contrastive=ContrastiveConfig(
+        enabled=True,
+        weight=0.1,
+        gamma=0.99,
+        temperature=0.05,
+        num_negatives=10,
     ),
     optimizer=OptimizerConfig(
         type="adam",

@@ -69,6 +69,8 @@ def run_policy_inference(
         lstm_state_to_store = None
         if state.lstm_h is not None and state.lstm_c is not None:
             lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
+            if state.hidden is not None:
+                lstm_state_to_store["hidden"] = state.hidden.detach()
 
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
