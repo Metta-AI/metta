@@ -106,6 +106,61 @@ def _should_ignore(
     rel_path = os.path.relpath(str(path), root_dir)
     basename = path.name
 
+    # Common dependency/build directories to always ignore
+    ignored_dirs = {
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "env",
+        ".env",
+        "virtualenv",
+        ".tox",
+        "dist",
+        "build",
+        "target",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "htmlcov",
+        ".coverage",
+        "site-packages",
+        "vendor",
+        "vendors",
+        "bower_components",
+        ".bundle",
+        "deps",
+        "dependencies",
+        ".cargo",
+        ".gradle",
+        ".idea",
+        ".vscode",
+        ".vs",
+        "obj",
+        "bin",
+        "out",
+        ".next",
+        ".nuxt",
+        ".cache",
+        ".parcel-cache",
+        ".turbo",
+        ".vercel",
+        ".netlify",
+        ".serverless",
+        "tmp",
+        "temp",
+        "logs",
+        ".git",
+        ".svn",
+        ".hg",
+    }
+
+    # Check if any part of the path contains ignored directories
+    path_parts = Path(rel_path).parts
+    for part in path_parts:
+        if part in ignored_dirs:
+            return True
+
     # Always skip binary or data files
     if _should_ignore_file_type(path):
         return True
@@ -165,6 +220,7 @@ def _should_ignore_file_type(path: Path) -> bool:
         ".so",
         ".dll",
         ".dylib",
+        ".node",
         # Executables
         ".exe",
         ".bin",
@@ -176,6 +232,7 @@ def _should_ignore_file_type(path: Path) -> bool:
         ".xz",
         ".7z",
         ".rar",
+        ".z",
         # Images
         ".jpg",
         ".jpeg",
@@ -186,6 +243,12 @@ def _should_ignore_file_type(path: Path) -> bool:
         ".ico",
         ".webp",
         ".tiff",
+        # Fonts
+        ".ttf",
+        ".otf",
+        ".woff",
+        ".woff2",
+        ".eot",
         # ML model files
         ".pt",
         ".pth",
@@ -198,12 +261,14 @@ def _should_ignore_file_type(path: Path) -> bool:
         ".db",
         ".sqlite",
         ".sqlite3",
+        ".duckdb",
         # Data formats
         ".parquet",
         ".feather",
         ".arrow",
         ".hdf5",
         ".h5",
+        ".pbf",
         # Package files
         ".whl",
         ".egg",
@@ -222,6 +287,7 @@ def _should_ignore_file_type(path: Path) -> bool:
         ".swp",
         ".swo",
         ".swn",
+        ".wal",
     }
 
     # Specific filenames to ignore
@@ -428,7 +494,7 @@ def get_context(
     if not paths:
         return "" if raw else "<documents></documents>"
 
-    processed_files: Set[str] = set()
+    processed_files: Set[Path] = set()
     documents = []
     next_index = 1
 

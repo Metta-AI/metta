@@ -47,8 +47,14 @@ def cli(
 ) -> None:
     """
     Provide codebase context to LLMs with smart defaults.
-    - PATHS can be space-separated. Example: manabot managym/tests
+    - PATHS can be space-separated. Example: metta/rl tests/rl
     """
+    # If no paths provided and no flags, show help
+    if not paths and not any([profile, flamegraph, extension]):
+        ctx = click.get_current_context()
+        click.echo(ctx.get_help())
+        ctx.exit()
+
     # Use provided paths or default to current directory
     path_list = list(paths) if paths else ["."]
     logger.debug(f"Paths: {path_list}")
