@@ -11,4 +11,12 @@ export default defineConfig({
     },
   },
   plugins: [anywidget()],
+  define: {
+    // Polyfill process for browser environment (needed by plotly.js)
+    'process.env': {},
+    'process.version': '"v16.0.0"',
+    'process.platform': '"browser"',
+    'process.browser': 'true',
+    'global': 'globalThis',
+  },
 });
