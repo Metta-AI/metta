@@ -443,12 +443,10 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
 /** Centralized function to select an object. */
 export function updateSelection(object: any, setFollow = false) {
-  const previousObject = state.selectedGridObject
   state.selectedGridObject = object
   if (setFollow) {
     setFollowSelection(true)
   }
-
   console.info('Selected object:', state.selectedGridObject)
   updateAgentTable()
   requestFrame()
