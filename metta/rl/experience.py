@@ -126,6 +126,7 @@ class Experience:
         # Check if episodes are complete and reset if needed
         if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
+            # av self.policy.reset_memory(env_id) ??
 
     def _reset_completed_episodes(self, env_id: slice) -> None:
         """Reset episode tracking for completed episodes."""

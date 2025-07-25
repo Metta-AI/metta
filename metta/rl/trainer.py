@@ -41,7 +41,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
-from metta.rl.util.losses import PPO
+from metta.rl.util.losses import PPO, Contrastive, ValueDetached
 from metta.rl.util.optimization import (
     calculate_explained_variance,
     compute_gradient_stats,
@@ -268,9 +268,13 @@ class MettaTrainer:
             # Ensure all ranks have initialized DDP before proceeding
             torch.distributed.barrier()
 
-        self.ppo = PPO(self.policy, None, self.trainer_cfg, self.device, self.losses)
+        self.ppo_loss = PPO(self.policy, None, self.trainer_cfg, self.device, self.losses)
+        self.contrastive_loss = Contrastive(self.policy, None, self.trainer_cfg, self.device, self.losses)
+        self.detached_value_loss = ValueDetached(self.policy, None, self.trainer_cfg, self.device, self.losses)
         self._make_experience_buffer()
-        self.ppo.experience = self.experience
+        self.ppo_loss.experience = self.experience
+        self.contrastive_loss.experience = self.experience
+        self.detached_value_loss.experience = self.experience
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
@@ -527,18 +531,37 @@ class MettaTrainer:
                     prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
                 )
-
-                # input_td = minibatch.select()  # select what policy wants
-                # new_td = self.policy(input_td, action=td["actions"])
+                policy_spec = self.policy.get_experience_spec()
+                train_td = minibatch.select(*policy_spec.keys(include_nested=True))  # select what policy wants
+                train_td = self.policy(train_td, action=minibatch["actions"])
 
                 # Use the helper function to process minibatch update
-                loss = self.ppo(
-                    td=minibatch,
+                loss = self.ppo_loss(
+                    minibatch=minibatch,
+                    train_td=train_td,
                     indices=indices,
                     prio_weights=prio_weights,
                     kickstarter=self.kickstarter,
                     agent_step=self.agent_step,
                 )
+                contrastive_loss = self.contrastive_loss(
+                    minibatch=minibatch,
+                    train_td=train_td,
+                    indices=indices,
+                    prio_weights=prio_weights,
+                    kickstarter=self.kickstarter,
+                    agent_step=self.agent_step,
+                )
+                detached_value_loss = self.detached_value_loss(
+                    minibatch=minibatch,
+                    train_td=train_td,
+                    indices=indices,
+                    prio_weights=prio_weights,
+                    kickstarter=self.kickstarter,
+                    agent_step=self.agent_step,
+                )
+                
+                loss += contrastive_loss + detached_value_loss
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
