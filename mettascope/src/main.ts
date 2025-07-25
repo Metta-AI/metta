@@ -557,6 +557,9 @@ export function onFrame() {
     drawTrace(ui.tracePanel)
   } else {
     ui.tracePanel.div.classList.add('hidden')
+    // Clear trace mesh when panel is hidden
+    ctx.useMesh('trace')
+    ctx.clearMesh()
   }
 
   ctx.useMesh('timeline')
