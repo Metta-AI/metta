@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: "heatmap_widget/static",
     lib: {
-      entry: ["src/index.js"],
+      entry: ["src/index.tsx"],
       formats: ["es"],
     },
   },
