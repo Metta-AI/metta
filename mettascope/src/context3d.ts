@@ -312,7 +312,7 @@ export class Context3d {
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
   private currentMesh: Mesh | null = null
-  private currentMeshName = ''
+  public currentMeshName = ''
 
   // Transformation state
   private currentTransform: Mat3f
@@ -744,7 +744,7 @@ export class Context3d {
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
 
-    // biome-ignore format:
+    // biome-ignore format: keep comments aligned
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()

@@ -183,7 +183,7 @@ export function drawTrace(panel: PanelInfo) {
       if (state.showResources && j > 0) {
         // Figure out how many resources to draw.
         let number = 0
-        for (const [key, [image, color]] of state.replay.resource_inventory) {
+        for (const [key, [_image, _color]] of state.replay.resource_inventory) {
           number += Math.abs(getAttr(agent, key, j + 1) - getAttr(agent, key, j))
         }
         // Draw the resources.

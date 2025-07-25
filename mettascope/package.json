@@ -11,7 +11,7 @@
     "test": "playwright test tests/*.test.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "^2.1.2",
     "@playwright/test": "^1.53.2",
     "@webgpu/types": "^0.1.38",
     "playwright": "^1.53.2",

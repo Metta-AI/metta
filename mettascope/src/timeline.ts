@@ -46,7 +46,7 @@ onEvent('pointerdown', '#timeline-panel', (target: HTMLElement, e: Event) => {
   // Are we clicking on the scrubber or behind it (trace window) or event?
   const event = e as PointerEvent
   const mouseY = event.clientY - target.getBoundingClientRect().top
-  const mouseX = event.clientX
+  const _mouseX = event.clientX
   if (mouseY > 34 && mouseY < 51) {
     ui.mainScrubberDown = true
     onScrubberChange(event)

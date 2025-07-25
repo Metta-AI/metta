@@ -61,15 +61,9 @@ function clampMapPan(panel: PanelInfo) {
   panel.panPos = new Vec2f(-cx, -cy)
 }
 
-/** Generates a color from an agent ID. */
-function colorFromId(agentId: number) {
-  const n = agentId + Math.PI + Math.E + Math.SQRT2
-  return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
-}
-
 /** Checks to see if an object has any inventory. */
 function hasInventory(obj: any) {
-  for (const [key, [icon, color]] of state.replay.resource_inventory) {
+  for (const [key, [_icon, _color]] of state.replay.resource_inventory) {
     if (getAttr(obj, key) > 0) {
       return true
     }
@@ -83,7 +77,7 @@ export function focusMap(x: number, y: number, w: number, h: number) {
 }
 
 /** Makes the panel focus on the full map; used at the start of the replay. */
-export function focusFullMap(panel: PanelInfo) {
+export function focusFullMap(_panel: PanelInfo) {
   if (state.replay === null) {
     return
   }
@@ -346,7 +340,7 @@ function drawInventory(useSearch = false) {
     // Sum up the object's inventory in case we need to condense it.
     let inventoryX = Common.INVENTORY_PADDING
     let numItems = 0
-    for (const [key, [icon, color]] of state.replay.resource_inventory) {
+    for (const [key, [_icon, _color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key)
       if (num !== null && num !== undefined && num > 0) {
         numItems += num
@@ -765,7 +759,7 @@ export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
-  let objectUnderMouse = undefined
+  let objectUnderMouse = null
   // Handle mouse events for the map panel.
   if (ui.mouseTargets.includes('#worldmap-panel')) {
     if (ui.dragging === '' && !state.showAttackMode) {
@@ -811,7 +805,7 @@ export function drawMap(panel: PanelInfo) {
       }
     } else {
       // Only reset the hover timer if we moved onto a different object (or off of an object).
-      if (objectUnderMouse !== undefined && ui.hoverObject !== objectUnderMouse) {
+      if (objectUnderMouse && ui.hoverObject !== objectUnderMouse) {
         ui.hoverObject = objectUnderMouse
         clearTimeout(ui.hoverTimer)
         ui.hoverTimer = setTimeout(() => {

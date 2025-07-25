@@ -35,7 +35,7 @@ export class HoverBubble {
   }
 }
 
-onEvent('click', '.hover-panel .close', (target: HTMLElement, e: Event) => {
+onEvent('click', '.hover-panel .close', (target: HTMLElement, _e: Event) => {
   const bubble = target.parentElement as HTMLElement
   bubble.remove()
   ui.hoverBubbles = ui.hoverBubbles.filter((p) => p.div !== bubble)

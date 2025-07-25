@@ -44,8 +44,7 @@ jobs:
 
       - name: Check format and lint
         run: |
-          which biome
-          npm biome --version
+          npx biome --version
           npm run check
 
       - name: Run training

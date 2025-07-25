@@ -17,14 +17,14 @@ export function initObjectMenu() {
 }
 
 /** Shows the object menu when the memory button on the info panel is clicked. */
-onEvent('click', '.hover-panel .memory', (target: HTMLElement, e: Event) => {
+onEvent('click', '.hover-panel .memory', (target: HTMLElement, _e: Event) => {
   const agentId = findAttr(target, 'data-agent-id')
   objectMenu.setAttribute('data-agent-id', agentId)
   showMenu(target, objectMenu)
 })
 
 /** In the object menu, sets the memory to 0. */
-onEvent('click', '#object-menu .set-memory-to-0', (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .set-memory-to-0', (target: HTMLElement, _e: Event) => {
   if (state.ws == null) {
     return
   }
@@ -39,7 +39,7 @@ onEvent('click', '#object-menu .set-memory-to-0', (target: HTMLElement, e: Event
 })
 
 /** In the object menu, sets the memory to 1. */
-onEvent('click', '#object-menu .set-memory-to-1', (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .set-memory-to-1', (target: HTMLElement, _e: Event) => {
   if (state.ws == null) {
     return
   }
@@ -54,7 +54,7 @@ onEvent('click', '#object-menu .set-memory-to-1', (target: HTMLElement, e: Event
 })
 
 /** In the object menu, sets the memory to random. */
-onEvent('click', '#object-menu .set-memory-to-random', (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .set-memory-to-random', (target: HTMLElement, _e: Event) => {
   if (state.ws == null) {
     return
   }
@@ -69,7 +69,7 @@ onEvent('click', '#object-menu .set-memory-to-random', (target: HTMLElement, e: 
 })
 
 /** In the object menu, copies the memory. */
-onEvent('click', '#object-menu .copy-memory', (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .copy-memory', (target: HTMLElement, _e: Event) => {
   if (state.ws == null) {
     return
   }
@@ -84,7 +84,7 @@ onEvent('click', '#object-menu .copy-memory', (target: HTMLElement, e: Event) =>
 })
 
 /** In the object menu, pastes the memory. */
-onEvent('click', '#object-menu .paste-memory', async (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .paste-memory', async (target: HTMLElement, _e: Event) => {
   if (state.ws == null) {
     return
   }

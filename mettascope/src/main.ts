@@ -29,7 +29,7 @@ let frameRequested = false
 export function requestFrame() {
   if (!frameRequested) {
     frameRequested = true
-    requestAnimationFrame((time) => {
+    requestAnimationFrame((_time) => {
       frameRequested = false
       onFrame()
     })
@@ -39,7 +39,7 @@ export function requestFrame() {
 /** Handles resize events. */
 export function onResize() {
   // Adjust for high DPI displays.
-  const dpr = window.devicePixelRatio || 1
+  const _dpr = window.devicePixelRatio || 1
 
   const screenWidth = window.innerWidth
   const screenHeight = window.innerHeight
@@ -148,7 +148,7 @@ function hideUi() {
 }
 
 /** Handles pointer down events. */
-onEvent('pointerdown', 'body', (target: HTMLElement, e: Event) => {
+onEvent('pointerdown', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.lastMousePos = ui.mousePos
@@ -183,7 +183,7 @@ onEvent('pointerup', 'body', () => {
   // Due to how we select objects on pointer-up (pointer-down is drag/pan),
   // we need to check for double-click on pointer-up as well.
   // BUT don't detect double-click if we're pinching or just finished pinching
-  const currentTime = new Date().getTime()
+  const currentTime = Date.now()
   if (!ui.isPinching && ui.touches.length === 0) {
     ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
     ui.lastClickTime = currentTime
@@ -283,7 +283,7 @@ onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles scroll events. */
-onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
+onEvent('wheel', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as WheelEvent
   ui.scrollDelta = event.deltaY
   // Prevent scaling the web page
@@ -300,13 +300,13 @@ document.addEventListener('pointerout', (e) => {
 })
 
 /** Handles the window losing focus. */
-document.addEventListener('blur', (e) => {
+document.addEventListener('blur', (_e) => {
   hideHoverBubble()
   requestFrame()
 })
 
 /** Handles touch start events for pinch-to-zoom. */
-onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
+onEvent('touchstart', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
@@ -340,7 +340,7 @@ onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles touch move events for pinch-to-zoom. */
-onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
+onEvent('touchmove', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
@@ -353,7 +353,7 @@ onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles touch end events for pinch-to-zoom. */
-onEvent('touchend', 'body', (target: HTMLElement, e: Event) => {
+onEvent('touchend', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
@@ -369,7 +369,7 @@ onEvent('touchend', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles touch cancel events for pinch-to-zoom. */
-onEvent('touchcancel', 'body', (target: HTMLElement, e: Event) => {
+onEvent('touchcancel', 'body', (_target: HTMLElement, _e: Event) => {
   // Reset all pinch state when touch is cancelled
   ui.isPinching = false
   ui.touches = []
@@ -453,7 +453,7 @@ export function updateSelection(object: any, setFollow = false) {
 }
 
 /** Handles key down events. */
-onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
+onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as KeyboardEvent
 
   // Prevent keyboard events if we are focused on a text field, except for the Escape key

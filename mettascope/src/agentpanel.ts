@@ -30,7 +30,7 @@ class ColumnDefinition {
     field: string,
     isFinal: boolean,
     sortDirection: SortDirection = SortDirection.None,
-    isStepColumn = false
+    _isStepColumn = false
   ) {
     this.field = field
     this.isFinal = isFinal
@@ -135,7 +135,7 @@ function getFieldInfo(target: HTMLElement): {
 }
 
 /** Clicking on the column menu button should show the column menu. */
-onEvent('click', '#agent-panel .header-cell .dropdown', (target: HTMLElement, e: Event) => {
+onEvent('click', '#agent-panel .header-cell .dropdown', (target: HTMLElement, _e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
   const columnMenu = find('#column-menu')
   columnMenu.setAttribute('data-column-field', columnField)
@@ -159,19 +159,19 @@ function toggleSortDirection(columnField: string, columnIsFinal: boolean) {
 }
 
 /** Clicking on the sort up button should sort the column in ascending order. */
-onEvent('click', '#column-menu .sort-up', (target: HTMLElement, e: Event) => {
+onEvent('click', '#column-menu .sort-up', (target: HTMLElement, _e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
   toggleSortDirection(columnField, columnIsFinal)
 })
 
 /** Clicking on the sort down button should sort the column in descending order. */
-onEvent('click', '#column-menu .sort-down', (target: HTMLElement, e: Event) => {
+onEvent('click', '#column-menu .sort-down', (target: HTMLElement, _e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
   toggleSortDirection(columnField, columnIsFinal)
 })
 
 /** Clicking on the move left button should move the column to the left. */
-onEvent('click', '#column-menu .move-left', (target: HTMLElement, e: Event) => {
+onEvent('click', '#column-menu .move-left', (target: HTMLElement, _e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
   const column = columns.find((column) => column.field === columnField && column.isFinal === columnIsFinal)
   if (column != null) {
@@ -183,7 +183,7 @@ onEvent('click', '#column-menu .move-left', (target: HTMLElement, e: Event) => {
 })
 
 /** Clicking on the move right button should move the column to the right. */
-onEvent('click', '#column-menu .move-right', (target: HTMLElement, e: Event) => {
+onEvent('click', '#column-menu .move-right', (target: HTMLElement, _e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
   const column = columns.find((column) => column.field === columnField && column.isFinal === columnIsFinal)
   if (column != null) {
@@ -195,7 +195,7 @@ onEvent('click', '#column-menu .move-right', (target: HTMLElement, e: Event) => 
 })
 
 /** Clicking on the hide column button should remove the column from the columns array. */
-onEvent('click', '#column-menu .hide-column', (target: HTMLElement, e: Event) => {
+onEvent('click', '#column-menu .hide-column', (target: HTMLElement, _e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
   columns = columns.filter((column) => !(column.field === columnField && column.isFinal === columnIsFinal))
   updateAgentTable()
@@ -204,7 +204,7 @@ onEvent('click', '#column-menu .hide-column', (target: HTMLElement, e: Event) =>
 })
 
 /** Clicking on the table directly should set is as main sort column or cycle the sort direction. */
-onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) => {
+onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, _e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
   if (columnField !== '') {
     for (const column of columns) {
@@ -230,7 +230,7 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
 })
 
 /** Clicking on a data cell should select the agent. */
-onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
+onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, _e: Event) => {
   const agentId = findAttr(target, 'data-agent-id')
   if (agentId !== '') {
     state.replay.grid_objects.forEach((gridObject: any) => {
@@ -246,14 +246,14 @@ onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
  * Clicking on the new column input should show the new column dropdown and
  * allow you to type-ahead to select or search for the column.
  */
-onEvent('click', '#new-column-input', (target: HTMLElement, e: Event) => {
+onEvent('click', '#new-column-input', (target: HTMLElement, _e: Event) => {
   const newColumnDropdown = find('#new-column-dropdown')
   updateAvailableColumns()
   showDropdown(target, newColumnDropdown)
 })
 
 /** When the user types in the typeahead, filter the available columns. */
-onEvent('input', '#new-column-input', (target: HTMLElement, e: Event) => {
+onEvent('input', '#new-column-input', (_target: HTMLElement, _e: Event) => {
   updateAvailableColumns()
 })
 
@@ -283,7 +283,7 @@ function toggleColumn(columnField: string, columnIsFinal: boolean) {
  * Clicking on the step check should add or remove the "current step" column
  * from the columns array.
  */
-onEvent('click', '#new-column-dropdown .step-check', (target: HTMLElement, e: Event) => {
+onEvent('click', '#new-column-dropdown .step-check', (target: HTMLElement, _e: Event) => {
   toggleColumn(findAttr(target, 'data-column-field'), false)
 })
 
@@ -291,7 +291,7 @@ onEvent('click', '#new-column-dropdown .step-check', (target: HTMLElement, e: Ev
  * Clicking on the final check should add or remove the "final step" column
  * from the columns array.
  */
-onEvent('click', '#new-column-dropdown .final-check', (target: HTMLElement, e: Event) => {
+onEvent('click', '#new-column-dropdown .final-check', (target: HTMLElement, _e: Event) => {
   toggleColumn(findAttr(target, 'data-column-field'), true)
 })
 

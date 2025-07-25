@@ -150,10 +150,10 @@ export function hideMenu() {
 let openDropdownTarget: HTMLElement | null = null
 let openDropdown: HTMLElement | null = null
 const scrim = find('#scrim') as HTMLDivElement
-const scrimTarget: HTMLElement | null = null
+const _scrimTarget: HTMLElement | null = null
 scrim.classList.add('hidden')
 
-onEvent('click', '#scrim', (target: HTMLElement, event: Event) => {
+onEvent('click', '#scrim', (_target: HTMLElement, _e: Event) => {
   hideMenu()
   hideDropdown()
 })

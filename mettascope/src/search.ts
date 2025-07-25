@@ -68,7 +68,7 @@ onEvent('input', '#search-input', () => {
   requestFrame()
 })
 
-onEvent('click', '#search-input', (target: HTMLElement, event: Event) => {
+onEvent('click', '#search-input', (target: HTMLElement, _e: Event) => {
   updateSearchDropdown()
   showDropdown(target, searchDropdown)
   requestFrame()
@@ -81,7 +81,7 @@ function remove(array: string[], item: string) {
   }
 }
 
-onEvent('click', '#search-dropdown .search-item', (target: HTMLElement, event: Event) => {
+onEvent('click', '#search-dropdown .search-item', (target: HTMLElement, _e: Event) => {
   const key = target.getAttribute('data-key')
   if (key != null) {
     if (search.parts.includes(key)) {

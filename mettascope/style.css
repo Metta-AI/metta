@@ -31,7 +31,7 @@
 .hover-icon {
   transition: background-color 0.3s ease;
   cursor: pointer;
-  background-color: rgba(255, 255, 255, 0.0);
+  background-color: rgba(255, 255, 255, 0);
   border-radius: 5px;
 }
 
@@ -42,7 +42,7 @@
 .hover {
   transition: background-color 0.3s ease;
   cursor: pointer;
-  background-color: rgba(255, 255, 255, 0.0);
+  background-color: rgba(255, 255, 255, 0);
 }
 
 .hover:hover {
@@ -82,7 +82,9 @@ html {
 
 #toast {
   opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
 }
 
 #toast.visible {

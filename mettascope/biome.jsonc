@@ -3,12 +3,10 @@
   "extends": ["../biome.jsonc"],
   // MettaScope uses all the workspace defaults
   "formatter": {
-    "include": ["**"],
-    "ignore": ["index.css", "index.html"]
+    "includes": ["**", "!index.css", "!index.html"]
   },
   "linter": {
-    "include": ["**"],
-    "ignore": ["index.css", "index.html"],
+    "includes": ["**", "!index.css", "!index.html"],
     "rules": {
       "suspicious": {
         "noExplicitAny": "off",
