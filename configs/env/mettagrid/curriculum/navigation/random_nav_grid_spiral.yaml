@@ -2,18 +2,17 @@ _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
     # Traditional navigation tasks
-  /env/mettagrid/navigation/training/terrain_from_numpy: 0.111
-  /env/mettagrid/navigation/training/cylinder_world: 0.111
-  /env/mettagrid/navigation/training/varied_terrain_sparse: 0.111
-  /env/mettagrid/navigation/training/varied_terrain_balanced: 0.111
-  /env/mettagrid/navigation/training/varied_terrain_maze: 0.111
-  /env/mettagrid/navigation/training/varied_terrain_dense: 0.111
-  /env/mettagrid/curriculum/navigation/subcurricula/sparse: 0.111
+  /env/mettagrid/navigation/training/terrain_from_numpy: 0.1
+  /env/mettagrid/navigation/training/cylinder_world: 0.1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 0.1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 0.1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 0.1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 0.1
+  /env/mettagrid/curriculum/navigation/subcurricula/sparse: 0.1
+  /env/mettagrid/navigation/training/sparse_bucketed: 0.1
 
   # Grid navigation pattern
-  /env/mettagrid/navigation/training/grid_multiroom: 0.111
+  /env/mettagrid/navigation/training/grid_multiroom: 0.1
 
   # Spiral navigation pattern
-  /env/mettagrid/navigation/training/spiral_altar_multiroom: 0.112
-
-# Equal probability for all tasks (≈ 1/9 each)
+  /env/mettagrid/navigation/training/spiral_altar_multiroom: 0.1
