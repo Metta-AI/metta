@@ -1,10 +1,10 @@
-import { initActionButtons, processActions } from './actions.js'
+import { initActionButtons, processActions, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import * as Common from './common.js'
 import { ctx, html, setFollowSelection, state, ui } from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
 import { hideGlyphEditorPanel, initGlyphTable, showGlyphEditorPanel } from './glyphtable.js'
-import { hideHoverPanel, updateReadout } from './hoverpanels.js'
+import { hideHoverBubble } from './hoverbubbles.js'
 import {
   find,
   hideDropdown,
@@ -254,7 +254,19 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   }
 
   if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
-    hideHoverPanel()
+    // Start a timer to hide the hover bubble after a delay
+    if (ui.hideHoverTimer === null) {
+      ui.hideHoverTimer = setTimeout(() => {
+        hideHoverBubble()
+        ui.hideHoverTimer = null
+      }, Common.INFO_PANEL_POP_TIME)
+    }
+  } else {
+    // Cancel the hide timer if we're back over a valid area
+    if (ui.hideHoverTimer !== null) {
+      clearTimeout(ui.hideHoverTimer)
+      ui.hideHoverTimer = null
+    }
   }
 
   requestFrame()
@@ -289,14 +301,14 @@ onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
 /** Handles the pointer moving outside the window. */
 document.addEventListener('pointerout', function (e) {
   if (!e.relatedTarget) {
-    hideHoverPanel()
+    hideHoverBubble()
     requestFrame()
   }
 })
 
 /** Handles the window losing focus. */
 document.addEventListener('blur', function (e) {
-  hideHoverPanel()
+  hideHoverBubble()
   requestFrame()
 })
 
@@ -476,12 +488,21 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
       // Remove focus from the search input
       searchInput.blur()
       // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
+
+
+    } else if (ui.hoverBubbles.length > 0) {
+      // Close the most recently opened hover bubble (last in array)
+      const lastBubble = ui.hoverBubbles[ui.hoverBubbles.length - 1]
+      lastBubble.div.remove()
+      ui.hoverBubbles.pop()
+    } else if (ui.delayedHoverObject !== null) {
+      // Close the main hover bubble if it's showing
+      hideHoverBubble()
     } else if (state.showGlyphEditor) {
       state.showGlyphEditor = false
       localStorage.setItem('showGlyphEditor', state.showGlyphEditor.toString())
       toggleOpacity(html.glyphToggle, state.showGlyphEditor)
-    }
-    else if (state.showAgentPanel) {
+    } else if (state.showAgentPanel) {
       state.showAgentPanel = false
       localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
       toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
@@ -503,6 +524,60 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     updateSelection(null)
     setFollowSelection(false)
   }
+  // WASD, numpad, and arrow keys for RTS style camera movement (when no unit is focused)
+  if (!state.selectedGridObject && !state.followSelection) {
+    const panSpeed = 150 / ui.mapPanel.zoomLevel // Adjust speed based on zoom level
+
+    if (event.key == 'w' || event.key == 'W' || event.key == 'ArrowUp') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
+    }
+    if (event.key == 'a' || event.key == 'A' || event.key == 'ArrowLeft') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
+    }
+    if (event.key == 's' || event.key == 'S' || event.key == 'ArrowDown') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
+    }
+    if (event.key == 'd' || event.key == 'D' || event.key == 'ArrowRight') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
+    }
+
+    // Numpad directional controls (classic 8-directional layout)
+    if (event.code == 'Numpad8') { // Up
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
+    }
+    if (event.code == 'Numpad2') { // Down
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
+    }
+    if (event.code == 'Numpad4') { // Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
+    }
+    if (event.code == 'Numpad6') { // Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
+    }
+    if (event.code == 'Numpad7') { // Up-Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, panSpeed * 0.707))
+    }
+    if (event.code == 'Numpad9') { // Up-Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, panSpeed * 0.707))
+    }
+    if (event.code == 'Numpad1') { // Down-Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, -panSpeed * 0.707))
+    }
+    if (event.code == 'Numpad3') { // Down-Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, -panSpeed * 0.707))
+    }
+  }
+
+  // Numpad 5 - advance simulation one frame
+  if (event.code == 'Numpad5' && state.selectedGridObject == null) {
+    setIsPlaying(false)
+    if (state.ws !== null) {
+      state.ws.send(JSON.stringify({ type: 'advance' }))
+    } else {
+      updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    }
+  }
+
   // '[' and ']' scrub forward and backward.
   if (event.key == '[') {
     setIsPlaying(false)
@@ -512,7 +587,17 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     setIsPlaying(false)
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
   }
-  // '<' and '>' control the playback speed.
+
+  // '<' and '>' for zoom out/in on keyboard
+  if (event.key == '<') {
+    const zoomSpeed = 0.06
+    ui.mapPanel.zoomLevel = Math.max(ui.mapPanel.zoomLevel - zoomSpeed, Common.MIN_ZOOM_LEVEL)
+  }
+  if (event.key == '>') {
+    const zoomSpeed = 0.06
+    ui.mapPanel.zoomLevel = Math.min(ui.mapPanel.zoomLevel + zoomSpeed, Common.MAX_ZOOM_LEVEL)
+  }
+  // ',' and '.' control the playback speed.
   if (event.key == ',') {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
   }
@@ -569,6 +654,9 @@ export function onFrame() {
     drawTrace(ui.tracePanel)
   } else {
     ui.tracePanel.div.classList.add('hidden')
+    // Clear trace mesh when panel is hidden
+    ctx.useMesh('trace')
+    ctx.clearMesh()
   }
 
   ctx.useMesh('timeline')
@@ -984,6 +1072,7 @@ initTimeline()
 initDemoMode()
 initializeTooltips()
 initGlyphTable()
+startGamepadPolling()
 
 window.addEventListener('load', async () => {
   // Use a local atlas texture.
