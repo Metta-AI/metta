@@ -536,7 +536,7 @@ function drawThoughtBubbles() {
           const targetTileX = scaleTileX(targetX)
           const targetTileY = scaleTileY(targetY)
           const angle = Math.atan2(targetTileX - tileX, targetTileY - tileY)
-          const r = Common.TILE_SIZE / 2
+          const r = Common.TILE_SIZE / 3
           const tX = targetTileX - Math.sin(angle) * r - Common.TILE_SIZE / 2
           const tY = targetTileY - Math.cos(angle) * r + Common.TILE_SIZE / 2
           ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
