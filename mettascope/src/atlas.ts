@@ -68,7 +68,7 @@ export function validateAtlas(atlas: Atlas): boolean {
   return (
     typeof atlas.margin === 'number' &&
     atlas.size instanceof Vec2f &&
-    atlas.texture instanceof WebGLTexture &&
+    atlas.texture !== null &&
     Object.values(atlas.data).every(
       (bounds) => Array.isArray(bounds) && bounds.length === 4 && bounds.every((n) => typeof n === 'number')
     )
