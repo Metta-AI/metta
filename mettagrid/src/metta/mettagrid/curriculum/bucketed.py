@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from omegaconf import DictConfig
 from tqdm import tqdm
@@ -59,7 +59,7 @@ def get_id(parameters, values):
     return curriculum_id
 
 
-def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Tuple[List[str], List[List[Any]]]:
+def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Dict[str, Any]:
     """
     buckets: specified in the config, values or ranges for each parameter
     returns: unpacked configurations for each parameter given the number of bins
@@ -69,7 +69,7 @@ def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -
         if "values" in bucket_spec:
             buckets_unpacked[parameter] = bucket_spec["values"]
         elif "choice" in bucket_spec:
-            buckets_unpacked[parameter] = bucket_spec["choice"]
+            buckets_unpacked[parameter] = {"choice": bucket_spec["choice"]}
         elif "range" in bucket_spec:
             lo, hi = bucket_spec["range"]
             n = int(bucket_spec.get("bins", default_bins))
