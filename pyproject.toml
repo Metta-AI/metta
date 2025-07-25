@@ -55,6 +55,7 @@ dependencies = [
   "jupyterlab>=4.4.4",
   "widgetsnbextension>=4.0.14",
   "anywidget>=0.9.18",
+  "traitlets>=5.14.3",
 ]
 name = "metta"
 version = "0.1"
