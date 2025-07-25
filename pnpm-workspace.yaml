@@ -4,7 +4,9 @@ packages:
   - mettascope
   - observatory
 onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - '@tailwindcss/oxide'
+  - es5-ext
   - esbuild
   - sharp
-  - "@biomejs/biome"
-  - es5-ext
+  - unrs-resolver
