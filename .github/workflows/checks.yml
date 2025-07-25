@@ -247,11 +247,11 @@ jobs:
           # Use the matrix name for codecov flags
           SUBPACKAGES="${{ matrix.name }}" .github/scripts/upload_codecov.py
 
-      - name: Build MettaGrid C++
+      - name: Build MettaGrid C++ (with coverage)
         if: matrix.package == 'mettagrid'
         id: mettagrid_build_check
         run: |
-          .github/scripts/check_mettagrid_build.py
+          .github/scripts/check_mettagrid_build.py --with-coverage
 
       - name: Check MettaGrid build warnings
         if: matrix.package == 'mettagrid' && always()
@@ -272,12 +272,6 @@ jobs:
           else
             echo "✅ MettaGrid build quality check passed"
           fi
-
-      - name: Run MettaGrid C++ coverage
-        if: matrix.package == 'mettagrid' && steps.mettagrid_build_check.outputs.build_success == 'true'
-        run: |
-          cd mettagrid
-          make coverage
 
       - name: Upload MettaGrid C++ coverage to Codecov
         if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
