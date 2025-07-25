@@ -45,7 +45,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
-            "pnpm": {"enabled": True},
+            "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -59,7 +59,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
-            "pnpm": {"enabled": True},
+            "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-key": {"enabled": False},
@@ -73,7 +73,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
-            "pnpm": {"enabled": False},
+            "nodejs": {"enabled": False},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": False},
             "observatory-key": {"enabled": False},
@@ -88,7 +88,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "system": {"enabled": True},
             "core": {"enabled": True},
             "codeclip": {"enabled": True},
-            "pnpm": {"enabled": True},
+            "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-key": {"enabled": True, "expected_connection": "@stem.ai"},
