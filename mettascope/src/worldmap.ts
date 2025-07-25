@@ -524,7 +524,7 @@ function drawThoughtBubbles() {
       break
     }
 
-    if (keyAction != null) {
+    if (keyAction != null && keyActionStep != null) {
       const x = (getAttr(state.selectedGridObject, 'c') + 0.5) * Common.TILE_SIZE
       const y = (getAttr(state.selectedGridObject, 'r') - 0.5) * Common.TILE_SIZE
       if (actionHasTarget && actionStep !== state.step) {
@@ -541,9 +541,7 @@ function drawThoughtBubbles() {
         const tY = targetY - Math.cos(angle) * r + Common.TILE_SIZE / 2
         ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
       }
-    }
 
-    if (keyAction != null && keyActionStep != null) {
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
       if (state.step == keyActionStep) {
