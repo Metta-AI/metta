@@ -1,5 +1,5 @@
 # Latent linear network - uses linear projections instead of attention
-# Converts tokenized observations to box format first for compatibility
+# Works directly with tokenized observations like attention models
 _target_: metta.agent.metta_agent.MettaAgent
 
 observations:
@@ -14,44 +14,53 @@ components:
   #necessary input_source: _obs_
 
   _obs_:
-    _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
+    _target_: metta.agent.lib.obs_tokenizers.ObsTokenPadStrip
     sources:
       null
 
   obs_normalizer:
-    _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
     sources:
       - name: _obs_
 
-  # Flatten the grid observations to a vector
-  obs_flatten:
-    _target_: metta.agent.lib.nn_layer_library.Flatten
+  obs_fourier:
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
+    num_freqs: 8
+    attr_embed_dim: 8
     sources:
       - name: obs_normalizer
 
-  # First linear projection layer
-  obs_linear_1:
+  # First linear projection on each token independently
+  obs_token_linear_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: obs_flatten
+      - name: obs_fourier
     nn_params:
-      out_features: 512
+      out_features: 128
     nonlinearity: nn.ReLU
 
-  # Second linear projection layer
-  obs_linear_2:
+  # Second linear projection on each token
+  obs_token_linear_2:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: obs_linear_1
+      - name: obs_token_linear_1
     nn_params:
-      out_features: 256
+      out_features: 128
     nonlinearity: nn.ReLU
+
+  # Mean pooling over tokens to get fixed-size representation
+  # We'll use a custom mean pooling component
+  obs_mean_pool:
+    _target_: metta.agent.lib.mean_pool.MeanPool
+    dim: 1  # Pool over the token dimension
+    sources:
+      - name: obs_token_linear_2
 
   # Final projection to LSTM input size
   obs_projection:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: obs_linear_2
+      - name: obs_mean_pool
     nn_params:
       out_features: 128
     nonlinearity: nn.ReLU
