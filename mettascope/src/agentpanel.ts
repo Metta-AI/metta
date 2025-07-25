@@ -41,7 +41,7 @@ class ColumnDefinition {
   generateName() {
     let name = propertyName(this.field)
     if (this.isFinal) {
-      name = 'Final: ' + name
+      name = `Final: ${name}`
     }
     return name
   }
@@ -52,9 +52,9 @@ class ColumnDefinition {
 
   // Unlike name, a tool tip has exact field.
   generateTooltip() {
-    let tooltip = this.field + ' field'
+    let tooltip = `${this.field} field`
     if (this.isFinal) {
-      tooltip = 'Final: ' + tooltip
+      tooltip = `Final: ${tooltip}`
     }
     return tooltip
   }
@@ -74,18 +74,18 @@ const columnOptions = find('#new-column-dropdown .column-options')
 const columnOptionTemplate = find('#new-column-dropdown .column-option')
 const typeahead = find('#new-column-input') as HTMLInputElement
 
-var columns = [
+let columns = [
   new ColumnDefinition('agent_id', false),
   new ColumnDefinition('total_reward', false),
   new ColumnDefinition('total_reward', true),
 ]
-var mainSort: ColumnDefinition = columns[1]
-var typeaheadValue = ''
+let mainSort: ColumnDefinition = columns[1]
+let typeaheadValue = ''
 
 /** Swaps the element 1 position to the right. */
-function swapRight(list: any[], element: any) {
+function swapRight(list: Array<any>, element: any) {
   const index = list.indexOf(element)
-  if (index == -1) {
+  if (index === -1) {
     return
   }
   const tmp = list[index]
@@ -94,9 +94,9 @@ function swapRight(list: any[], element: any) {
 }
 
 /** Swaps the element 1 position to the left. */
-function swapLeft(list: any[], element: any) {
+function swapLeft(list: Array<any>, element: any) {
   const index = list.indexOf(element)
-  if (index == -1) {
+  if (index === -1) {
     return
   }
   const tmp = list[index]
@@ -131,7 +131,7 @@ function getFieldInfo(target: HTMLElement): {
   columnIsFinal: boolean
 } {
   const columnField = findAttr(target, 'data-column-field')
-  const columnIsFinal = findAttr(target, 'data-column-is-final') == 'true'
+  const columnIsFinal = findAttr(target, 'data-column-is-final') === 'true'
   return { columnField, columnIsFinal }
 }
 
@@ -147,7 +147,7 @@ onEvent('click', '#agent-panel .header-cell .dropdown', (target: HTMLElement, e:
 /** Toggle the sort direction of the column. */
 function toggleSortDirection(columnField: string, columnIsFinal: boolean) {
   for (let i = 0; i < columns.length; i++) {
-    if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
+    if (columns[i].field === columnField && columns[i].isFinal === columnIsFinal) {
       columns[i].sortDirection = SortDirection.Ascending
       mainSort = columns[i]
     } else {
@@ -174,7 +174,7 @@ onEvent('click', '#column-menu .sort-down', (target: HTMLElement, e: Event) => {
 /** Clicking on the move left button should move the column to the left. */
 onEvent('click', '#column-menu .move-left', (target: HTMLElement, e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
-  const column = columns.find((column) => column.field == columnField && column.isFinal == columnIsFinal)
+  const column = columns.find((column) => column.field === columnField && column.isFinal === columnIsFinal)
   if (column != null) {
     swapLeft(columns, column)
     updateAgentTable()
@@ -186,7 +186,7 @@ onEvent('click', '#column-menu .move-left', (target: HTMLElement, e: Event) => {
 /** Clicking on the move right button should move the column to the right. */
 onEvent('click', '#column-menu .move-right', (target: HTMLElement, e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
-  const column = columns.find((column) => column.field == columnField && column.isFinal == columnIsFinal)
+  const column = columns.find((column) => column.field === columnField && column.isFinal === columnIsFinal)
   if (column != null) {
     swapRight(columns, column)
     updateAgentTable()
@@ -198,7 +198,7 @@ onEvent('click', '#column-menu .move-right', (target: HTMLElement, e: Event) => 
 /** Clicking on the hide column button should remove the column from the columns array. */
 onEvent('click', '#column-menu .hide-column', (target: HTMLElement, e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
-  columns = columns.filter((column) => !(column.field == columnField && column.isFinal == columnIsFinal))
+  columns = columns.filter((column) => !(column.field === columnField && column.isFinal === columnIsFinal))
   updateAgentTable()
   saveAgentTable()
   hideMenu()
@@ -207,15 +207,15 @@ onEvent('click', '#column-menu .hide-column', (target: HTMLElement, e: Event) =>
 /** Clicking on the table directly should set is as main sort column or cycle the sort direction. */
 onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) => {
   const { columnField, columnIsFinal } = getFieldInfo(target)
-  if (columnField != '') {
+  if (columnField !== '') {
     for (const column of columns) {
-      if (column.field == columnField && column.isFinal == columnIsFinal) {
-        if (mainSort == column) {
-          if (column.sortDirection == SortDirection.None) {
+      if (column.field === columnField && column.isFinal === columnIsFinal) {
+        if (mainSort === column) {
+          if (column.sortDirection === SortDirection.None) {
             column.sortDirection = SortDirection.Descending
           } else {
             column.sortDirection =
-              column.sortDirection == SortDirection.Descending ? SortDirection.Ascending : SortDirection.Descending
+              column.sortDirection === SortDirection.Descending ? SortDirection.Ascending : SortDirection.Descending
           }
         } else {
           column.sortDirection = SortDirection.Descending
@@ -233,10 +233,10 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
 /** Clicking on a data cell should select the agent. */
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
   const agentId = findAttr(target, 'data-agent-id')
-  if (agentId != '') {
+  if (agentId !== '') {
     for (let i = 0; i < state.replay.grid_objects.length; i++) {
       const gridObject = state.replay.grid_objects[i]
-      if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') == agentId) {
+      if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') === agentId) {
         updateSelection(gridObject, true)
         break
       }
@@ -262,14 +262,14 @@ onEvent('input', '#new-column-input', (target: HTMLElement, e: Event) => {
 /** Toggles the column in the columns array based on the field and isFinal. */
 function toggleColumn(columnField: string, columnIsFinal: boolean) {
   let found = -1
-  if (columnField != '') {
+  if (columnField !== '') {
     for (let i = 0; i < columns.length; i++) {
-      if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
+      if (columns[i].field === columnField && columns[i].isFinal === columnIsFinal) {
         found = i
       }
     }
   }
-  if (found != -1) {
+  if (found !== -1) {
     // Remove the column from the columns array.
     columns.splice(found, 1)
   } else {
@@ -305,10 +305,10 @@ export function updateAvailableColumns() {
   //   * The columns array.
   //   * The main sort column.
 
-  var availableColumns: ColumnDefinition[] = []
-  var typeahead = find('#new-column-input') as HTMLInputElement
+  const availableColumns: Array<ColumnDefinition> = []
+  const typeahead = find('#new-column-input') as HTMLInputElement
   typeaheadValue = typeahead.value
-  var noMatchFound = find('#new-column-dropdown .no-match-found')
+  const noMatchFound = find('#new-column-dropdown .no-match-found')
 
   // All agent keys:
   const agentKeys = new Set<string>()
@@ -319,16 +319,16 @@ export function updateAvailableColumns() {
   }
   // All inventory keys:
   for (const key of agentKeys) {
-    if (key != 'agent' && key != 'c' && key != 'r' && key != 'reward') {
+    if (key !== 'agent' && key !== 'c' && key !== 'r' && key !== 'reward') {
       // If there is a typeahead value, only show columns that match the typeahead value.
-      if (typeaheadValue != '' && !key.toLowerCase().includes(typeaheadValue.toLowerCase())) {
+      if (typeaheadValue !== '' && !key.toLowerCase().includes(typeaheadValue.toLowerCase())) {
         continue
       }
       availableColumns.push(new ColumnDefinition(key, false))
     }
   }
 
-  if (availableColumns.length == 0) {
+  if (availableColumns.length === 0) {
     noMatchFound.classList.remove('hidden')
   } else {
     noMatchFound.classList.add('hidden')
@@ -339,24 +339,24 @@ export function updateAvailableColumns() {
   for (const column of availableColumns) {
     const option = columnOptionTemplate.cloneNode(true) as HTMLElement
     option.querySelector('.name')!.textContent = column.generateName()
-    option.querySelector('.icon')!.setAttribute('src', column.generateIcon())
+    option.querySelector('.icon')?.setAttribute('src', column.generateIcon())
     option.setAttribute('title', column.generateTooltip())
     option.setAttribute('data-column-field', column.field)
-    var stepColumnExists = false
-    var finalColumnExists = false
+    let stepColumnExists = false
+    let finalColumnExists = false
     for (const c of columns) {
-      if (c.field == column.field && c.isFinal == false) {
+      if (c.field === column.field && c.isFinal === false) {
         stepColumnExists = true
-      } else if (c.field == column.field && c.isFinal == true) {
+      } else if (c.field === column.field && c.isFinal === true) {
         finalColumnExists = true
       }
     }
     option
-      .querySelector('.step-check')!
-      .setAttribute('src', stepColumnExists ? 'data/ui/check-on.png' : 'data/ui/check-off.png')
+      .querySelector('.step-check')
+      ?.setAttribute('src', stepColumnExists ? 'data/ui/check-on.png' : 'data/ui/check-off.png')
     option
-      .querySelector('.final-check')!
-      .setAttribute('src', finalColumnExists ? 'data/ui/check-on.png' : 'data/ui/check-off.png')
+      .querySelector('.final-check')
+      ?.setAttribute('src', finalColumnExists ? 'data/ui/check-on.png' : 'data/ui/check-off.png')
     columnOptions.appendChild(option)
   }
 }
@@ -374,7 +374,8 @@ export function updateAgentTable() {
 
   const list = state.replay.agents.slice()
   const agents = list.sort((a: any, b: any) => {
-    var aValue, bValue: number
+    let aValue
+    let bValue: number
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
       aValue = getAttr(a, mainSort.field, state.replay.max_steps - 1)
@@ -385,11 +386,10 @@ export function updateAgentTable() {
       bValue = getAttr(b, mainSort.field)
     }
     // Sort direction adjustment.
-    if (mainSort.sortDirection == SortDirection.Descending) {
+    if (mainSort.sortDirection === SortDirection.Descending) {
       return bValue - aValue
-    } else {
-      return aValue - bValue
     }
+    return aValue - bValue
   })
 
   // Create the columns.
@@ -403,9 +403,9 @@ export function updateAgentTable() {
     const icon = headerCell.querySelectorAll('.icon')[0]
     icon.setAttribute('src', columnDef.generateIcon())
     const sortIcon = headerCell.querySelector('.sort-icon') as HTMLElement
-    if (columnDef.sortDirection == SortDirection.Descending) {
+    if (columnDef.sortDirection === SortDirection.Descending) {
       sortIcon.setAttribute('src', 'data/ui/sort-down.png')
-    } else if (columnDef.sortDirection == SortDirection.Ascending) {
+    } else if (columnDef.sortDirection === SortDirection.Ascending) {
       sortIcon.setAttribute('src', 'data/ui/sort-up.png')
     } else {
       sortIcon.classList.add('hidden')
@@ -419,7 +419,7 @@ export function updateAgentTable() {
       if (agent != null) {
         const dataCell = dataCellTemplate.cloneNode(true) as HTMLElement
 
-        var value: number
+        let value: number
         if (columnDef.isFinal) {
           value = getAttr(agent, columnDef.field, state.replay.max_steps - 1)
         } else {
@@ -436,7 +436,7 @@ export function updateAgentTable() {
         dataCell.children[0].textContent = valueStr
         const agentId = getAttr(agent, 'agent_id')
         dataCell.setAttribute('data-agent-id', agentId.toString())
-        if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject, 'agent_id')) {
+        if (state.selectedGridObject != null && agentId === getAttr(state.selectedGridObject, 'agent_id')) {
           dataCell.classList.add('selected')
         }
         column.appendChild(dataCell)
@@ -453,7 +453,7 @@ export function updateAgentTable() {
     const agent = agents[i]
     const agentId = getAttr(agent, 'agent_id')
     dataCell.setAttribute('data-agent-id', agentId.toString())
-    if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject, 'agent_id')) {
+    if (state.selectedGridObject != null && agentId === getAttr(state.selectedGridObject, 'agent_id')) {
       dataCell.classList.add('selected')
     }
     newColumn.appendChild(dataCell)

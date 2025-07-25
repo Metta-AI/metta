@@ -43,7 +43,7 @@ class Shot {
 }
 
 /** Current active shot. */
-var shot: Shot | null = null
+let shot: Shot | null = null
 
 export function initDemoMode() {}
 
@@ -64,7 +64,7 @@ function easeInOut(time: number) {
 }
 
 /** Chooses a random value from an array. */
-function choose<T>(values: T[]): T {
+function choose<T>(values: Array<T>): T {
   return values[Math.floor(Math.random() * values.length)]
 }
 
@@ -86,7 +86,7 @@ export function doDemoMode() {
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.2
     } else {
       // Find an agent that will do some thing interesting soon.
-      var agentId = Math.floor(Math.random() * state.replay.agents.length)
+      let agentId = Math.floor(Math.random() * state.replay.agents.length)
       for (let i = 0; i < state.replay.agents.length; i++) {
         const agent = state.replay.agents[i]
         let actionFound = false
@@ -98,11 +98,11 @@ export function doDemoMode() {
           const actionName = state.replay.action_names[action[0]]
           const actionSuccess = getAttr(agent, 'action_success', state.step + j)
           if (
-            actionName != 'noop' &&
-            actionName != 'rotate' &&
-            actionName != 'move' &&
-            actionName != 'change_color' &&
-            actionName != 'change_shape' &&
+            actionName !== 'noop' &&
+            actionName !== 'rotate' &&
+            actionName !== 'move' &&
+            actionName !== 'change_color' &&
+            actionName !== 'change_shape' &&
             actionSuccess
           ) {
             agentId = i

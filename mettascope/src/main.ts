@@ -89,7 +89,7 @@ export function onResize() {
       ui.tracePanel.width = screenWidth
       ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
 
-      html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
+      html.actionButtons.style.top = `${ui.tracePanel.y - 148}px`
     } else {
       ui.tracePanel.x = 0
       ui.tracePanel.y = 0
@@ -99,7 +99,7 @@ export function onResize() {
       ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
       ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - ui.miniMapPanel.height
       ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300
-      html.actionButtons.style.top = ui.mapPanel.y + ui.mapPanel.height - 148 + 'px'
+      html.actionButtons.style.top = `${ui.mapPanel.y + ui.mapPanel.height - 148}px`
     }
 
     // Timeline panel is always on the bottom of the screen.
@@ -198,7 +198,7 @@ onEvent('pointerup', 'body', () => {
 onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
-  var target = event.target as HTMLElement
+  let target = event.target as HTMLElement
   while (target.id === '' && target.parentElement != null) {
     target = target.parentElement as HTMLElement
   }
@@ -206,10 +206,10 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   let p = event.target as HTMLElement
   while (p != null) {
     if (p.id !== '') {
-      ui.mouseTargets.push('#' + p.id)
+      ui.mouseTargets.push(`#${p.id}`)
     }
     for (const className of p.classList) {
-      ui.mouseTargets.push('.' + className)
+      ui.mouseTargets.push(`.${className}`)
     }
     p = p.parentElement as HTMLElement
   }
@@ -227,21 +227,21 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   }
 
   // Drag the trace panel up or down.
-  if (ui.dragging == 'trace-panel') {
+  if (ui.dragging === 'trace-panel') {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
     localStorageSetNumber('traceSplit', ui.traceSplit)
     onResize()
   }
 
-  if (ui.dragging == 'agent-panel') {
+  if (ui.dragging === 'agent-panel') {
     ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
     localStorageSetNumber('agentPanelSplit', ui.agentPanelSplit)
     onResize()
   }
 
   if (ui.dragHtml != null) {
-    ui.dragHtml.style.left = ui.mousePos.x() - ui.dragOffset.x() + 'px'
-    ui.dragHtml.style.top = ui.mousePos.y() - ui.dragOffset.y() + 'px'
+    ui.dragHtml.style.left = `${ui.mousePos.x() - ui.dragOffset.x()}px`
+    ui.dragHtml.style.top = `${ui.mousePos.y() - ui.dragOffset.y()}px`
   }
 
   if (ui.mainScrubberDown) {
@@ -411,7 +411,7 @@ function updateUrlParams() {
   }
 
   // Include the map zoom level.
-  if (ui.mapPanel.zoomLevel != 1) {
+  if (ui.mapPanel.zoomLevel !== 1) {
     // Only include zoom to three decimal places.
     urlParams.set('mapZoom', ui.mapPanel.zoomLevel.toFixed(3))
   }
@@ -424,7 +424,7 @@ function updateUrlParams() {
   }
 
   // Replace the current state without creating a history entry.
-  const newUrl = window.location.pathname + '?' + urlParams.toString()
+  const newUrl = `${window.location.pathname}?${urlParams.toString()}`
   history.replaceState(null, '', newUrl)
 }
 
@@ -464,7 +464,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     return
   }
 
-  if (event.key == 'Escape') {
+  if (event.key === 'Escape') {
     // Close any open context or dropdown menus.
     hideMenu()
     hideDropdown()
@@ -515,56 +515,56 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   if (!state.selectedGridObject && !state.followSelection) {
     const panSpeed = 150 / ui.mapPanel.zoomLevel // Adjust speed based on zoom level
 
-    if (event.key == 'w' || event.key == 'W' || event.key == 'ArrowUp') {
+    if (event.key === 'w' || event.key === 'W' || event.key === 'ArrowUp') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
     }
-    if (event.key == 'a' || event.key == 'A' || event.key == 'ArrowLeft') {
+    if (event.key === 'a' || event.key === 'A' || event.key === 'ArrowLeft') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
     }
-    if (event.key == 's' || event.key == 'S' || event.key == 'ArrowDown') {
+    if (event.key === 's' || event.key === 'S' || event.key === 'ArrowDown') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
     }
-    if (event.key == 'd' || event.key == 'D' || event.key == 'ArrowRight') {
+    if (event.key === 'd' || event.key === 'D' || event.key === 'ArrowRight') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
     }
 
     // Numpad directional controls (classic 8-directional layout)
-    if (event.code == 'Numpad8') {
+    if (event.code === 'Numpad8') {
       // Up
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
     }
-    if (event.code == 'Numpad2') {
+    if (event.code === 'Numpad2') {
       // Down
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
     }
-    if (event.code == 'Numpad4') {
+    if (event.code === 'Numpad4') {
       // Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
     }
-    if (event.code == 'Numpad6') {
+    if (event.code === 'Numpad6') {
       // Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
     }
-    if (event.code == 'Numpad7') {
+    if (event.code === 'Numpad7') {
       // Up-Left
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * Math.SQRT1_2, panSpeed * Math.SQRT1_2))
     }
-    if (event.code == 'Numpad9') {
+    if (event.code === 'Numpad9') {
       // Up-Right
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * Math.SQRT1_2, panSpeed * Math.SQRT1_2))
     }
-    if (event.code == 'Numpad1') {
+    if (event.code === 'Numpad1') {
       // Down-Left
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, -panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
     }
-    if (event.code == 'Numpad3') {
+    if (event.code === 'Numpad3') {
       // Down-Right
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, -panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
     }
   }
 
   // Numpad 5 - advance simulation one frame
-  if (event.code == 'Numpad5' && state.selectedGridObject == null) {
+  if (event.code === 'Numpad5' && state.selectedGridObject == null) {
     setIsPlaying(false)
     if (state.ws !== null) {
       state.ws.send(JSON.stringify({ type: 'advance' }))
@@ -574,37 +574,37 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   }
 
   // '[' and ']' scrub forward and backward.
-  if (event.key == '[') {
+  if (event.key === '[') {
     setIsPlaying(false)
     updateStep(Math.max(state.step - 1, 0))
   }
-  if (event.key == ']') {
+  if (event.key === ']') {
     setIsPlaying(false)
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
   }
 
   // '<' and '>' for zoom out/in on keyboard
-  if (event.key == '<') {
+  if (event.key === '<') {
     const zoomSpeed = 0.06
     ui.mapPanel.zoomLevel = Math.max(ui.mapPanel.zoomLevel - zoomSpeed, Common.MIN_ZOOM_LEVEL)
   }
-  if (event.key == '>') {
+  if (event.key === '>') {
     const zoomSpeed = 0.06
     ui.mapPanel.zoomLevel = Math.min(ui.mapPanel.zoomLevel + zoomSpeed, Common.MAX_ZOOM_LEVEL)
   }
   // ',' and '.' control the playback speed.
-  if (event.key == ',') {
+  if (event.key === ',') {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
   }
-  if (event.key == '.') {
+  if (event.key === '.') {
     state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000)
   }
   // The space bar presses the play button.
-  if (event.key == ' ') {
+  if (event.key === ' ') {
     setIsPlaying(!state.isPlaying)
   }
   // Make F2 toggle the UI.
-  if (event.key == 'F2') {
+  if (event.key === 'F2') {
     state.showUi = !state.showUi
     if (state.showUi) {
       showUi()
@@ -708,7 +708,7 @@ function handleDrop(event: DragEvent) {
   event.preventDefault()
   event.stopPropagation()
   const dt = event.dataTransfer
-  if (dt && dt.files.length) {
+  if (dt?.files.length) {
     const file = dt.files[0]
     readFile(file)
   }
@@ -1059,9 +1059,8 @@ window.addEventListener('load', async () => {
   if (!success) {
     Common.showModal('error', 'Initialization failed', 'Please check the console for more information.')
     return
-  } else {
-    console.info('Context3d initialized successfully.')
   }
+  console.info('Context3d initialized successfully.')
 
   // Match the DPI scale between the HTML and the GPU.
   ui.dpr = ctx.dpr

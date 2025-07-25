@@ -182,14 +182,14 @@ export function drawTrace(panel: PanelInfo) {
       // Draw resource gain/loss.
       if (state.showResources && j > 0) {
         // Figure out how many resources to draw.
-        var number = 0
+        let number = 0
         for (const [key, [image, color]] of state.replay.resource_inventory) {
           number += Math.abs(getAttr(agent, key, j + 1) - getAttr(agent, key, j))
         }
         // Draw the resources.
-        var y = 32
+        let y = 32
         // Compress the resources if there are too many so that they fit.
-        var step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number)
+        const step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number)
         for (const [key, [image, color]] of state.replay.resource_inventory) {
           const prevResources = getAttr(agent, key, j - 1)
           const nextResources = getAttr(agent, key, j)

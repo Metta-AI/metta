@@ -70,14 +70,14 @@ export class PanelInfo {
 
   /** Updates the pan and zoom level based on the mouse position and scroll delta. */
   updatePanAndZoom(): boolean {
-    if (!ui.mouseTargets.includes(this.name) || ui.dragging != '') {
+    if (!ui.mouseTargets.includes(this.name) || ui.dragging !== '') {
       return false
     }
 
     // apply zoom at a focal point.
     const applyZoom = (focalPoint: Vec2f, zoomDelta: number) => {
       const oldPoint = this.transformOuter(focalPoint)
-      this.zoomLevel = this.zoomLevel * Math.pow(1 - Common.ZOOM_SENSITIVITY, zoomDelta)
+      this.zoomLevel = this.zoomLevel * (1 - Common.ZOOM_SENSITIVITY) ** zoomDelta
       this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
       const newPoint = this.transformOuter(focalPoint)
       if (oldPoint != null && newPoint != null) {
@@ -148,9 +148,9 @@ export class PanelInfo {
 
   /** Updates the div's position and size. */
   updateDiv() {
-    this.div.style.top = this.y + 'px'
-    this.div.style.left = this.x + 'px'
-    this.div.style.width = this.width + 'px'
-    this.div.style.height = this.height + 'px'
+    this.div.style.top = `${this.y}px`
+    this.div.style.left = `${this.x}px`
+    this.div.style.width = `${this.width}px`
+    this.div.style.height = `${this.height}px`
   }
 }

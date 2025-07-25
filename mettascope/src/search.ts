@@ -8,24 +8,24 @@ import { find, findIn, onEvent, removeChildren, showDropdown } from './htmlutils
 import { requestFrame } from './main.js'
 import { propertyIcon, propertyName } from './replay.js'
 
-var searchInput = find('#search-input') as HTMLInputElement
-var searchDropdown = find('#search-dropdown')
+const searchInput = find('#search-input') as HTMLInputElement
+const searchDropdown = find('#search-dropdown')
 searchDropdown.classList.add('hidden')
-var searchItemTemplate = findIn(searchDropdown, '.search-item')
+const searchItemTemplate = findIn(searchDropdown, '.search-item')
 searchItemTemplate.remove()
 
 /** The search state. */
 export const search = {
   active: false,
   query: '',
-  parts: [] as string[],
+  parts: [] as Array<string>,
 }
 
 function updateSearchDropdown() {
   removeChildren(searchDropdown)
   // Add all of the resources to the search dropdown.
   const usedKeys = new Set<string>()
-  const keys: string[] = []
+  const keys: Array<string> = []
   for (const key of state.replay.resource_inventory.keys()) {
     keys.push(key)
   }
@@ -74,9 +74,9 @@ onEvent('click', '#search-input', (target: HTMLElement, event: Event) => {
   requestFrame()
 })
 
-function remove(array: string[], item: string) {
+function remove(array: Array<string>, item: string) {
   const index = array.indexOf(item)
-  if (index != -1) {
+  if (index !== -1) {
     array.splice(index, 1)
   }
 }

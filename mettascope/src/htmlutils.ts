@@ -13,7 +13,8 @@ export function findIn(parent: HTMLElement, selector: string): HTMLElement {
   const elements = parent.querySelectorAll(selector)
   if (elements.length === 0) {
     throw new Error(`Element with selector "${selector}" not found`)
-  } else if (elements.length > 1) {
+  }
+  if (elements.length > 1) {
     throw new Error(`Multiple elements with selector "${selector}" found`)
   }
   return elements[0] as HTMLElement
@@ -25,7 +26,7 @@ export function find(selector: string): HTMLElement {
 }
 
 /** Finds multiple elements by CSS selector. */
-export function finds(selector: string): HTMLElement[] {
+export function finds(selector: string): Array<HTMLElement> {
   return Array.from(document.querySelectorAll(selector))
 }
 
@@ -38,8 +39,8 @@ export function removeChildren(element: HTMLElement) {
 
 /** Walks up the DOM tree and finds the given attribute. */
 export function findAttr(element: HTMLElement, attribute: string): string {
-  var e = element
-  while (e != null && e != document.body) {
+  let e = element
+  while (e != null && e !== document.body) {
     if (e.hasAttribute(attribute)) {
       return e.getAttribute(attribute) as string
     }
@@ -70,7 +71,7 @@ type Handler = {
   callback: (target: HTMLElement, event: Event) => void
 }
 
-var globalHandlers: Map<string, Handler[]> = new Map()
+const globalHandlers: Map<string, Array<Handler>> = new Map()
 
 export function onEvent(event: string, selector: string, callback: (target: HTMLElement, event: Event) => void) {
   const handler: Handler = {
@@ -83,16 +84,16 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
     window.addEventListener(
       event,
       (e: Event) => {
-        if (event == 'click') {
+        if (event === 'click') {
           hideMenu()
         }
         const handlers = globalHandlers.get(event)
         if (handlers) {
-          var target = e.target as HTMLElement
+          let target = e.target as HTMLElement
           while (target != null) {
             for (const handler of handlers) {
               // target.matches may be null if the mouse leaves the browser window
-              if (target.matches && target.matches(handler.selector)) {
+              if (target.matches?.(handler.selector)) {
                 handler.callback(target, e)
                 return
               }
@@ -114,8 +115,8 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
  * through, as they have a scrim.
  */
 
-var openMenuTarget: HTMLElement | null = null
-var openMenu: HTMLElement | null = null
+let openMenuTarget: HTMLElement | null = null
+let openMenu: HTMLElement | null = null
 
 /** Shows a menu and sets the "scrim" target to the menu. */
 export function showMenu(target: HTMLElement, menu: HTMLElement) {
@@ -127,8 +128,8 @@ export function showMenu(target: HTMLElement, menu: HTMLElement) {
   openMenu = menu
   openMenuTarget.classList.add('selected')
   const rect = openMenuTarget.getBoundingClientRect()
-  openMenu.style.left = rect.left + 'px'
-  openMenu.style.top = rect.bottom + 2 + 'px'
+  openMenu.style.left = `${rect.left}px`
+  openMenu.style.top = `${rect.bottom + 2}px`
   openMenu.classList.remove('hidden')
   // Bring the menu to the front (move it to the end of the sibling list).
   openMenu.parentElement?.appendChild(openMenu)
@@ -146,10 +147,10 @@ export function hideMenu() {
   }
 }
 
-var openDropdownTarget: HTMLElement | null = null
-var openDropdown: HTMLElement | null = null
-var scrim = find('#scrim') as HTMLDivElement
-var scrimTarget: HTMLElement | null = null
+let openDropdownTarget: HTMLElement | null = null
+let openDropdown: HTMLElement | null = null
+const scrim = find('#scrim') as HTMLDivElement
+const scrimTarget: HTMLElement | null = null
 scrim.classList.add('hidden')
 
 onEvent('click', '#scrim', (target: HTMLElement, event: Event) => {
@@ -163,8 +164,8 @@ export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   openDropdown = dropdown
   openDropdownTarget = target
   const rect = openDropdownTarget.getBoundingClientRect()
-  openDropdown.style.left = rect.left + 'px'
-  openDropdown.style.top = rect.bottom + 2 + 'px'
+  openDropdown.style.left = `${rect.left}px`
+  openDropdown.style.top = `${rect.bottom + 2}px`
   openDropdown.classList.remove('hidden')
   scrim.classList.remove('hidden')
 }

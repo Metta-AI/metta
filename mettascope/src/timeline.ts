@@ -19,7 +19,7 @@ import { getAttr } from './replay.js'
 export function initTimeline() {
   console.info('Initializing timeline')
   // Move the step counter off-screen for now.
-  html.stepCounter.parentElement!.style.left = '-1000px'
+  html.stepCounter.parentElement?.style.left = '-1000px'
 }
 
 function getStepFromX(x: number) {
@@ -66,8 +66,7 @@ export function updateTimeline() {
   const scrubberWidth = ui.timelinePanel.width - 32
   const fullSteps = state.replay.max_steps - 1
   html.stepCounter.textContent = state.step.toString()
-  html.stepCounter.parentElement!.style.left =
-    (16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString() + 'px'
+  html.stepCounter.parentElement?.style.left = `${(16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString()}px`
 }
 
 /** Draws the timeline. */
@@ -118,7 +117,7 @@ export function drawTimeline(panel: PanelInfo) {
     for (let j = 0; j < state.replay.max_steps; j++) {
       // Draw the frozen state.
       const frozen = getAttr(agent, 'agent:frozen', j)
-      if (frozen > 0 && prevFrozen == 0) {
+      if (frozen > 0 && prevFrozen === 0) {
         const x = 16 + (j / fullSteps) * scrubberWidth
         ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
         ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])

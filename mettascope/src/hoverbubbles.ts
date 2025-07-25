@@ -101,7 +101,7 @@ export function updateHoverBubble(object: any) {
     }
 
     const typeName = state.replay.object_types[getAttr(object, 'type')]
-    if (typeName == 'wall') {
+    if (typeName === 'wall') {
       // Don't show hover bubble for walls.
       hoverBubble.classList.add('hidden')
       return
@@ -118,8 +118,8 @@ export function updateHoverBubble(object: any) {
     const uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
 
     // Put it in the center above the object.
-    hoverBubble.style.left = uiPoint.x() - bubbleRect.width / 2 + 'px'
-    hoverBubble.style.top = uiPoint.y() - bubbleRect.height + 'px'
+    hoverBubble.style.left = `${uiPoint.x() - bubbleRect.width / 2}px`
+    hoverBubble.style.top = `${uiPoint.y() - bubbleRect.height}px`
   } else {
     hoverBubble.classList.add('hidden')
   }
@@ -148,12 +148,12 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
       const item = itemTemplate.cloneNode(true) as HTMLElement
       item.querySelector('.amount')!.textContent = value
       const resource = key.replace('inv:', '').replace('agent:', '')
-      item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
       inventory.appendChild(item)
     } else {
-      if (key == 'type') {
+      if (key === 'type') {
         value = state.replay.object_types[value]
-      } else if (key == 'agent:color' && value >= 0 && value < Common.COLORS.length) {
+      } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.length) {
         value = Common.COLORS[value][0]
       } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
         // If the value is a float and not an integer, round it to three decimal places.
@@ -186,7 +186,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
       for (const resource in objectConfig.input_resources) {
         const item = itemTemplate.cloneNode(true) as HTMLElement
         item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
-        item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+        item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
         recipe.appendChild(item)
         displayedResources++
       }
@@ -197,7 +197,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
         for (const resource in objectConfig.output_resources) {
           const item = itemTemplate.cloneNode(true) as HTMLElement
           item.querySelector('.amount')!.textContent = objectConfig.output_resources[resource]
-          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
           recipe.appendChild(item)
           displayedResources++
         }
@@ -210,7 +210,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
           const amount = objectConfig[key]
           const item = itemTemplate.cloneNode(true) as HTMLElement
           item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
           recipe.appendChild(item)
           displayedResources++
         }
@@ -224,7 +224,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
           const amount = objectConfig[key]
           const item = itemTemplate.cloneNode(true) as HTMLElement
           item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
           recipe.appendChild(item)
           displayedResources++
         }
@@ -241,10 +241,10 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
 /** Updates the readout of the selected object or replay info. */
 export function updateReadout() {
   let readout = ''
-  readout += 'Step: ' + state.step + '\n'
-  readout += 'Map size: ' + state.replay.map_size[0] + 'x' + state.replay.map_size[1] + '\n'
-  readout += 'Num agents: ' + state.replay.num_agents + '\n'
-  readout += 'Max steps: ' + state.replay.max_steps + '\n'
+  readout += `Step: ${state.step}\n`
+  readout += `Map size: ${state.replay.map_size[0]}x${state.replay.map_size[1]}\n`
+  readout += `Num agents: ${state.replay.num_agents}\n`
+  readout += `Max steps: ${state.replay.max_steps}\n`
 
   const objectTypeCounts = new Map<string, number>()
   for (const gridObject of state.replay.grid_objects) {
@@ -253,7 +253,7 @@ export function updateReadout() {
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }
   for (const [key, value] of objectTypeCounts.entries()) {
-    readout += key + ' count: ' + value + '\n'
+    readout += `${key} count: ${value}\n`
   }
   const info = find('#info-panel .info')
   if (info !== null) {

@@ -107,7 +107,7 @@ function drawFloor() {
 /** Draws the walls, based on the adjacency map, and fills any holes. */
 function drawWalls() {
   // Construct a wall adjacency map.
-  var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
+  const wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
@@ -128,11 +128,11 @@ function drawWalls() {
     }
     const x = getAttr(gridObject, 'c')
     const y = getAttr(gridObject, 'r')
-    var suffix = '0'
-    var n = false,
-      w = false,
-      e = false,
-      s = false
+    let suffix = '0'
+    let n = false
+    let w = false
+    let e = false
+    let s = false
     if (wallMap.get(x, y - 1)) {
       n = true
     }
@@ -148,7 +148,7 @@ function drawWalls() {
     if (n || w || e || s) {
       suffix = (n ? 'n' : '') + (w ? 'w' : '') + (s ? 's' : '') + (e ? 'e' : '')
     }
-    ctx.drawSprite('objects/wall.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+    ctx.drawSprite(`objects/wall.${suffix}.png`, x * Common.TILE_SIZE, y * Common.TILE_SIZE)
   }
 
   // Draw the wall infill, following the adjacency map.
@@ -161,9 +161,9 @@ function drawWalls() {
     const x = getAttr(gridObject, 'c')
     const y = getAttr(gridObject, 'r')
     // If walls to the E, S, and SE are filled, draw a wall fill.
-    var s = false,
-      e = false,
-      se = false
+    let s = false
+    let e = false
+    let se = false
     if (wallMap.get(x + 1, y)) {
       e = true
     }
@@ -193,24 +193,24 @@ function drawObject(gridObject: any) {
   const x = getAttr(gridObject, 'c')
   const y = getAttr(gridObject, 'r')
 
-  if (gridObject['agent_id'] !== undefined) {
+  if (gridObject.agent_id !== undefined) {
     // Respect the orientation of an object, usually an agent.
     const orientation = getAttr(gridObject, 'agent:orientation')
-    var suffix = ''
-    if (orientation == 0) {
+    let suffix = ''
+    if (orientation === 0) {
       suffix = 'n'
-    } else if (orientation == 1) {
+    } else if (orientation === 1) {
       suffix = 's'
-    } else if (orientation == 2) {
+    } else if (orientation === 2) {
       suffix = 'w'
-    } else if (orientation == 3) {
+    } else if (orientation === 3) {
       suffix = 'e'
     }
 
     const agent_id = getAttr(gridObject, 'agent_id')
 
     ctx.drawSprite(
-      'agents/agent.' + suffix + '.png',
+      `agents/agent.${suffix}.png`,
       x * Common.TILE_SIZE,
       y * Common.TILE_SIZE,
       Common.colorFromId(agent_id)
@@ -222,7 +222,7 @@ function drawObject(gridObject: any) {
     ctx.drawSprite(state.replay.object_images[type][0], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
     // Draw the color layer.
-    var colorIdx = getAttr(gridObject, 'color')
+    const colorIdx = getAttr(gridObject, 'color')
     if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
       ctx.drawSprite(
         state.replay.object_images[type][2],
@@ -253,33 +253,33 @@ function drawActions() {
     const y = getAttr(gridObject, 'r')
 
     // Do agent actions.
-    if (gridObject['action'] !== undefined) {
+    if (gridObject.action !== undefined) {
       // Draw the action.
       const action = getAttr(gridObject, 'action')
       const action_success = getAttr(gridObject, 'action_success')
       if (action_success && action != null) {
         const action_name = state.replay.action_names[action[0]]
         const orientation = getAttr(gridObject, 'agent:orientation')
-        var rotation = 0
-        if (orientation == 0) {
+        let rotation = 0
+        if (orientation === 0) {
           rotation = Math.PI / 2 // North
-        } else if (orientation == 1) {
+        } else if (orientation === 1) {
           rotation = -Math.PI / 2 // South
-        } else if (orientation == 2) {
+        } else if (orientation === 2) {
           rotation = Math.PI // West
-        } else if (orientation == 3) {
+        } else if (orientation === 3) {
           rotation = 0 // East
         }
-        if (action_name == 'attack' && action[1] >= 1 && action[1] <= 9) {
+        if (action_name === 'attack' && action[1] >= 1 && action[1] <= 9) {
           ctx.drawSprite(
-            'actions/attack' + action[1] + '.png',
+            `actions/attack${action[1]}.png`,
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
           )
-        } else if (action_name == 'attack_nearest') {
+        } else if (action_name === 'attack_nearest') {
           ctx.drawSprite(
             'actions/attack_nearest.png',
             x * Common.TILE_SIZE,
@@ -288,7 +288,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'put_items') {
+        } else if (action_name === 'put_items') {
           ctx.drawSprite(
             'actions/put_recipe_items.png',
             x * Common.TILE_SIZE,
@@ -297,7 +297,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'get_items') {
+        } else if (action_name === 'get_items') {
           ctx.drawSprite(
             'actions/get_output.png',
             x * Common.TILE_SIZE,
@@ -306,7 +306,7 @@ function drawActions() {
             1,
             rotation
           )
-        } else if (action_name == 'swap') {
+        } else if (action_name === 'swap') {
           ctx.drawSprite('actions/swap.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1, rotation)
         }
       }
@@ -392,7 +392,7 @@ function drawRewards() {
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, 'c')
     const y = getAttr(gridObject, 'r')
-    if (gridObject['total_reward'] !== undefined) {
+    if (gridObject.total_reward !== undefined) {
       const totalReward = getAttr(gridObject, 'total_reward')
       let rewardX = 0
       const advanceX = Math.min(32, Common.TILE_SIZE / totalReward)
@@ -486,10 +486,10 @@ function drawThoughtBubbles() {
     // We need to find a key action in the future.
     // A key action is a successful action that is not a no-op, rotate, or move.
     // It must not be more than 20 steps in the future.
-    var keyAction = null
-    var keyActionStep = null
+    let keyAction = null
+    let keyActionStep = null
     for (
-      var actionStep = state.step;
+      let actionStep = state.step;
       actionStep < state.replay.max_steps && actionStep < state.step + 20;
       actionStep++
     ) {
@@ -499,7 +499,7 @@ function drawThoughtBubbles() {
       }
       const actionName = state.replay.action_names[action[0]]
       const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
-      if (actionName == 'noop' || actionName == 'rotate' || actionName == 'move') {
+      if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move') {
         continue
       }
       if (actionSuccess) {
@@ -514,7 +514,7 @@ function drawThoughtBubbles() {
       // Draw the key action icon with gained or lost resources.
       const x = getAttr(state.selectedGridObject, 'c')
       const y = getAttr(state.selectedGridObject, 'r')
-      if (state.step == keyActionStep) {
+      if (state.step === keyActionStep) {
         ctx.drawSprite(
           'actions/thoughts_lightning.png',
           x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
@@ -528,7 +528,7 @@ function drawThoughtBubbles() {
         )
       }
       // Draw the action icon.
-      var iconName = 'actions/icons/' + state.replay.action_names[keyAction[0]] + '.png'
+      const iconName = `actions/icons/${state.replay.action_names[keyAction[0]]}.png`
       if (ctx.hasImage(iconName)) {
         ctx.drawSprite(
           iconName,
@@ -554,8 +554,8 @@ function drawThoughtBubbles() {
         const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1)
         const nextResources = getAttr(state.selectedGridObject, key, actionStep)
         const gained = nextResources - prevResources
-        var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
-        var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+        let resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
+        const resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
         if (gained > 0) {
           resourceX += 32
         } else {
@@ -584,7 +584,9 @@ function drawVisibility() {
     function updateVisibilityMap(gridObject: any) {
       const x = getAttr(gridObject, 'c')
       const y = getAttr(gridObject, 'r')
-      var visionSize = Math.floor(getAttr(gridObject, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2)
+      const visionSize = Math.floor(
+        getAttr(gridObject, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2
+      )
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
           visibilityMap.set(x + dx, y + dy, true)
@@ -600,13 +602,13 @@ function drawVisibility() {
       for (const gridObject of state.replay.grid_objects) {
         const type = getAttr(gridObject, 'type')
         const typeName = state.replay.object_types[type]
-        if (typeName == 'agent') {
+        if (typeName === 'agent') {
           updateVisibilityMap(gridObject)
         }
       }
     }
 
-    var color = [0, 0, 0, 0.25]
+    let color = [0, 0, 0, 0.25]
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }
@@ -676,7 +678,8 @@ function attackGrid(orientation: number, idx: number) {
     return Math.floor(a / b)
   }
   const i = idx - 1
-  let dx, dy
+  let dx
+  let dy
   if (orientation === 0) {
     dx = mod(i, 3) - 1
     dy = -div(i, 3) - 1
@@ -696,7 +699,7 @@ function attackGrid(orientation: number, idx: number) {
 /** Draw the attack mode. */
 function drawAttackMode() {
   // We might be clicking on the map to attack something.
-  var gridMousePos: Vec2f | null = null
+  let gridMousePos: Vec2f | null = null
   if (ui.mouseUp && ui.mouseTargets.includes('#worldmap-panel') && state.showAttackMode) {
     state.showAttackMode = false
     const localMousePos = ui.mapPanel.transformOuter(ui.mousePos)
@@ -720,7 +723,7 @@ function drawAttackMode() {
       const targetX = x + dx
       const targetY = y + dy
       ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE)
-      if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
+      if (gridMousePos != null && targetX === gridMousePos.x() && targetY === gridMousePos.y()) {
         // Check if we are clicking this specific tile.
         console.info('Attack mode clicked on:', targetX, targetY)
         sendAction('attack', attackIndex)
@@ -761,9 +764,9 @@ export function drawMap(panel: PanelInfo) {
 
   // Handle mouse events for the map panel.
   if (ui.mouseTargets.includes('#worldmap-panel')) {
-    if (ui.dragging == '' && !state.showAttackMode) {
+    if (ui.dragging === '' && !state.showAttackMode) {
       // Find the object under the mouse.
-      var objectUnderMouse = null
+      let objectUnderMouse = null
       const localMousePos = panel.transformOuter(ui.mousePos)
       if (localMousePos != null) {
         const gridMousePos = new Vec2f(

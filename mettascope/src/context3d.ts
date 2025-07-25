@@ -107,7 +107,9 @@ class Mesh {
 
   /** Create WebGL buffers. */
   createBuffers() {
-    if (!this.gl) return
+    if (!this.gl) {
+      return
+    }
 
     // Create vertex buffer
     this.vertexBuffer = this.gl.createBuffer()
@@ -204,7 +206,7 @@ class Mesh {
     v0: number,
     u1: number,
     v1: number,
-    color: number[] = [1, 1, 1, 1]
+    color: Array<number> = [1, 1, 1, 1]
   ) {
     // Check if we need to resize before adding more vertices
     if (this.currentQuad >= this.maxQuads) {
@@ -314,7 +316,7 @@ export class Context3d {
 
   // Transformation state
   private currentTransform: Mat3f
-  private transformStack: Mat3f[] = []
+  private transformStack: Array<Mat3f> = []
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -378,7 +380,7 @@ export class Context3d {
   /** Clear the current mesh even if it's cacheable. */
   clearMesh() {
     this.ensureMeshSelected()
-    this.currentMesh!.forceClear()
+    this.currentMesh?.forceClear()
   }
 
   /** Helper method to ensure a mesh is selected before drawing. */
@@ -555,7 +557,9 @@ export class Context3d {
   /** Create and compile a shader. */
   private createShader(type: number, source: string): WebGLShader | null {
     const shader = this.gl.createShader(type)
-    if (!shader) return null
+    if (!shader) {
+      return null
+    }
 
     this.gl.shaderSource(shader, source)
     this.gl.compileShader(shader)
@@ -572,7 +576,9 @@ export class Context3d {
   /** Create and link a shader program. */
   private createProgram(vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
     const program = this.gl.createProgram()
-    if (!program) return null
+    if (!program) {
+      return null
+    }
 
     this.gl.attachShader(program, vertexShader)
     this.gl.attachShader(program, fragmentShader)
@@ -589,7 +595,9 @@ export class Context3d {
 
   /** Clears all meshes for a new frame. */
   clear() {
-    if (!this.ready) return
+    if (!this.ready) {
+      return
+    }
 
     // Clear all meshes in the map
     for (const mesh of this.meshes.values()) {
@@ -611,7 +619,7 @@ export class Context3d {
     v0: number,
     u1: number,
     v1: number,
-    color: number[] = [1, 1, 1, 1]
+    color: Array<number> = [1, 1, 1, 1]
   ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
@@ -635,7 +643,7 @@ export class Context3d {
     const bottomRight = this.currentTransform.transform(untransformedBottomRight)
 
     // Send pre-transformed vertices to the mesh
-    this.currentMesh!.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
+    this.currentMesh?.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
   }
 
   /** Check if the image is in the atlas. */
@@ -644,7 +652,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
-  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]) {
+  drawImage(imageName: string, x: number, y: number, color: Array<number> = [1, 1, 1, 1]) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -708,7 +716,7 @@ export class Context3d {
     imageName: string,
     x: number,
     y: number,
-    color: number[] = [1, 1, 1, 1],
+    color: Array<number> = [1, 1, 1, 1],
     scale: number | [number, number] = 1,
     rotation = 0
   ) {
@@ -771,7 +779,7 @@ export class Context3d {
   }
 
   /** Draws a solid filled rectangle. */
-  drawSolidRect(x: number, y: number, width: number, height: number, color: number[]) {
+  drawSolidRect(x: number, y: number, width: number, height: number, color: Array<number>) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -791,7 +799,7 @@ export class Context3d {
   }
 
   /** Draws a stroked rectangle with set stroke width. */
-  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: number[]) {
+  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: Array<number>) {
     // Draw 4 rectangles as borders for the stroke rectangle.
     // Top border.
     this.drawSolidRect(x, y, width, strokeWidth, color)
@@ -845,12 +853,16 @@ export class Context3d {
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
       const quadCount = mesh.getQuadCount()
-      if (quadCount === 0) continue
+      if (quadCount === 0) {
+        continue
+      }
 
       const vertexBuffer = mesh.getVertexBuffer()
       const indexBuffer = mesh.getIndexBuffer()
 
-      if (!vertexBuffer || !indexBuffer) continue
+      if (!vertexBuffer || !indexBuffer) {
+        continue
+      }
 
       // Calculate data sizes
       const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
@@ -920,7 +932,7 @@ export class Context3d {
     x1: number,
     y1: number,
     spacing: number,
-    color: number[],
+    color: Array<number>,
     skipStart = 0,
     skipEnd = 0
   ) {

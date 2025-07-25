@@ -26,7 +26,7 @@ export function renderMinimapObjects(offset: Vec2f) {
     const y = getAttr(gridObject, 'r')
     const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
-    var color = parseHtmlColor('#FFFFFF')
+    let color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
     } else if (typeName === 'agent') {
