@@ -584,7 +584,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     const zoomSpeed = 0.06
     ui.mapPanel.zoomLevel = Math.min(ui.mapPanel.zoomLevel + zoomSpeed, Common.MAX_ZOOM_LEVEL)
   }
-  // '<' and '>' control the playback speed.
+  // ',' and '.' control the playback speed.
   if (event.key == ',') {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
   }
