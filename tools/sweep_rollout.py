@@ -14,6 +14,7 @@ import sys
 import time
 
 import hydra
+import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.lock import run_once
@@ -59,6 +60,14 @@ def main(cfg: DictConfig) -> int:
             err_occurred = True
             logger.info(f"Waiting {cfg.rollout_retry_delay} seconds before retry...")
             time.sleep(cfg.rollout_retry_delay)
+
+        # Minimal cleanup between runs to prevent port conflicts
+        if dist.is_initialized():
+            logger.debug("Cleaning up distributed process group between runs...")
+            dist.destroy_process_group()
+            # Small delay to ensure port is released
+            time.sleep(1.0)
+
         if err_occurred:
             num_consecutive_failures += 1
             if num_consecutive_failures > cfg.max_consecutive_failures:
