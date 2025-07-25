@@ -194,7 +194,7 @@ jobs:
           - name: "core-other"
             package: "core"
             test_pattern: "tests/test_*.py"
-            exclude_pattern: "tests/map/** tests/rl/** tests/sim/** tests/eval/** tests/sweep/**
+            exclude_pattern: "tests/map/** tests/rl/** tests/sim/** tests/eval/** tests/sweep/**"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
