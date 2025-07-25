@@ -1263,11 +1263,6 @@ dependencies = [
     { name = "widgetsnbextension" },
 ]
 
-[package.optional-dependencies]
-render = [
-    { name = "raylib" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "ipykernel" },
@@ -1319,7 +1314,6 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "raylib", specifier = ">=5.5.0.0" },
-    { name = "raylib", marker = "extra == 'render'", specifier = ">=5.5.0.0" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
@@ -1338,7 +1332,6 @@ requires-dist = [
     { name = "wandb-core", specifier = ">=0.17.0b11" },
     { name = "widgetsnbextension", specifier = ">=4.0.14" },
 ]
-provides-extras = ["render"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1479,11 +1472,6 @@ dependencies = [
     { name = "wandb" },
 ]
 
-[package.optional-dependencies]
-render = [
-    { name = "raylib" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -1508,7 +1496,6 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "raylib", specifier = ">=5.5.0.0" },
-    { name = "raylib", marker = "extra == 'render'", specifier = ">=5.5.0.0" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
@@ -1516,7 +1503,6 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "wandb", specifier = ">=0.19.11" },
 ]
-provides-extras = ["render"]
 
 [package.metadata.requires-dev]
 dev = [
