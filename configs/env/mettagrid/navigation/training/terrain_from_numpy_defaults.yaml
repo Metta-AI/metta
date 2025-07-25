@@ -29,3 +29,6 @@ game:
     altar:
       cooldown: 1000
       initial_resource_count: 1
+  termination:
+    max_reward: ${game.map_builder.room.objects.altar}
+    condition: 0.5
