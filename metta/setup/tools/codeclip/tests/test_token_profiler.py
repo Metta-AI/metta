@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from codeflow.token_profiler import TokenProfiler
+from codeclip.token_profiler import TokenProfiler
 
 
 class TestTokenProfiler(unittest.TestCase):
