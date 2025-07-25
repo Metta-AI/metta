@@ -20,7 +20,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js environment
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -131,7 +131,7 @@ jobs:
           ls -la tests/*.test.ts || echo "No test files found!"
 
           # Run tests with more verbose output
-          npm run test -- --reporter=list || TEST_FAILED=1
+          pnpm run test -- --reporter=list || TEST_FAILED=1
 
           # Kill the backend
           echo "Stopping backend server..."
