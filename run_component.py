@@ -30,18 +30,18 @@ logger = logging.getLogger(__name__)
 # Set up directories
 dirs = setup_run_directories()
 
-# Core training parameters
-num_workers = 4
+# Core training parameters - match macbook config exactly
+num_workers = 1  # macbook uses 1 worker
 total_timesteps = 10_000_000
-batch_size = 524288 if torch.cuda.is_available() else 16384  # 512k for GPU, 16k for CPU
-minibatch_size = 16384 if torch.cuda.is_available() else 1024  # 16k for GPU, 1k for CPU
+batch_size = 1024  # macbook batch size
+minibatch_size = 1024  # macbook minibatch size
 curriculum = "/env/mettagrid/curriculum/navigation/bucketed"
-bptt_horizon = 64
+bptt_horizon = 8  # macbook bptt_horizon
 update_epochs = 1
-forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 256
+forward_pass_minibatch_target_size = 2  # macbook value
 
 # Adjust defaults based on vectorization mode
-vectorization_mode = "multiprocessing"
+vectorization_mode = "serial"  # Use serial for macOS compatibility
 if vectorization_mode == "serial":
     async_factor = 1
     zero_copy = False

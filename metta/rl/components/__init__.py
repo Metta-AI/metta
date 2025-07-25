@@ -1,6 +1,6 @@
 """Component-based architecture for RL training workflow."""
 
-from .environment_manager import EnvironmentManager
+from .environment_manager_simple import EnvironmentManager
 from .evaluation_manager import EvaluationManager
 from .optimizer_manager import OptimizerManager
 from .rollout_manager import RolloutManager

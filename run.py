@@ -103,7 +103,7 @@ update_epochs = 1
 forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 256
 
 # Adjust defaults based on vectorization mode
-vectorization_mode = "multiprocessing"  # Default, could be made configurable
+vectorization_mode = "serial"  # Use serial for macOS compatibility
 if vectorization_mode == "serial":
     async_factor = 1
     zero_copy = False

@@ -37,7 +37,7 @@ from metta.rl.util.stats import compute_timing_stats
 from metta.rl.util.utils import check_abort, should_run
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_env_configs
 
-from .environment_manager import EnvironmentManager
+from .environment_manager_simple import EnvironmentManager
 from .evaluation_manager import EvaluationManager
 from .optimizer_manager import OptimizerManager
 from .rollout_manager import RolloutManager
@@ -273,7 +273,7 @@ class Trainer:
         # Create experience buffer
         self.experience = Experience(
             total_agents=self.env_manager.num_agents,
-            batch_size=self.trainer_config.batch_size,
+            batch_size=self.env_manager.batch_size,  # Use actual environment batch size
             bptt_horizon=self.trainer_config.bptt_horizon,
             minibatch_size=self.trainer_config.minibatch_size,
             max_minibatch_size=self.trainer_config.minibatch_size,
