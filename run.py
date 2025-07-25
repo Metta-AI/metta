@@ -83,12 +83,12 @@ device, is_master, world_size, rank = setup_device_and_distributed("cuda" if tor
 
 # Configuration
 # Note: batch_size must be >= total_agents * bptt_horizon
-# With navigation curriculum: 4 agents per env * many envs = ~2048 total agents
-# Required batch_size >= 2048 * 64 (bptt_horizon) = 131072
+# With navigation curriculum: 512 agents per env * 8 envs = 4096 total agents
+# Required batch_size >= 4096 * 64 (bptt_horizon) = 262144
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
-    batch_size=524288 if torch.cuda.is_available() else 131072,  # 512k for GPU, 128k for CPU (minimum for navigation)
+    batch_size=524288 if torch.cuda.is_available() else 262144,  # 512k for GPU, 256k for CPU (minimum for navigation)
     minibatch_size=16384 if torch.cuda.is_available() else 4096,  # 16k for GPU, 4k for CPU
     curriculum="/env/mettagrid/curriculum/navigation/bucketed",
     ppo=PPOConfig(
@@ -127,8 +127,8 @@ if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_
 save_experiment_config(dirs, device, trainer_config)
 
 # Calculate batch sizes like trainer.py does
-# We need to know num_agents first, so let's assume 4 for navigation curriculum
-num_agents = 4  # Default for navigation tasks
+# We need to know num_agents first, so let's assume 512 for navigation curriculum
+num_agents = 512  # Default for navigation tasks
 target_batch_size, batch_size, num_envs = calculate_batch_sizes(
     forward_pass_minibatch_target_size=trainer_config.forward_pass_minibatch_target_size,
     num_agents=num_agents,
