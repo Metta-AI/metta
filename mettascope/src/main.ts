@@ -5,7 +5,6 @@ import { ctx, html, setFollowSelection, state, ui } from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
 import { hideGlyphEditorPanel, initGlyphTable, showGlyphEditorPanel } from './glyphtable.js'
 import { hideHoverBubble } from './hoverbubbles.js'
-import { updateReadout } from './hoverpanels.js'
 import {
   find,
   hideDropdown,
