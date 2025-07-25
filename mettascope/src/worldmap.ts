@@ -497,7 +497,6 @@ function drawThoughtBubbles() {
     var keyAction = null
     var keyActionStep = null
     let actionHasTarget = false
-    let actionIsTarget = false
     const actionStepEnd = Math.min(state.replay.max_steps, state.step + 20)
     for (var actionStep = state.step; actionStep < actionStepEnd; actionStep++) {
       const action = getAttr(state.selectedGridObject, 'action', actionStep)
@@ -514,9 +513,7 @@ function drawThoughtBubbles() {
       }
       keyAction = action
       keyActionStep = actionStep
-
-      actionIsTarget = actionName == 'swap'
-      actionHasTarget = actionIsTarget || actionName == 'put_items' || actionName == 'get_items'
+      actionHasTarget = !(actionName == 'attack' || actionName == 'attack_nearest')
       break
     }
 
@@ -526,20 +523,24 @@ function drawThoughtBubbles() {
       const tileX = scaleTileX(x)
       const tileY = scaleTileY(y)
       if (actionHasTarget) {
+        // Draw an arrow on a circle around the target, pointing at it.
         let targetX = getAttr(state.selectedGridObject, 'c', actionStep)
         let targetY = getAttr(state.selectedGridObject, 'r', actionStep)
-        if (!actionIsTarget) {
-          switch (getAttr(state.selectedGridObject, 'orientation', actionStep)) {
-            case 0: targetY -= 1; break
-            case 1: targetY += 1; break
-            case 2: targetX -= 1; break
-            case 3: targetX += 1; break
+        if (targetX !== x || targetY !== y) { // Avoid drawing the arrow if target is the same as the agent
+          switch (getAttr(state.selectedGridObject, 'agent:orientation', actionStep)) {
+            case 0: targetY -= 1; break // North
+            case 1: targetY += 1; break // South
+            case 2: targetX -= 1; break // West
+            case 3: targetX += 1; break // East
           }
+          const targetTileX = scaleTileX(targetX)
+          const targetTileY = scaleTileY(targetY)
+          const angle = Math.atan2(targetTileX - tileX, targetTileY - tileY)
+          const r = Common.TILE_SIZE / 2
+          const tX = targetTileX - Math.sin(angle) * r - Common.TILE_SIZE / 2
+          const tY = targetTileY - Math.cos(angle) * r + Common.TILE_SIZE / 2
+          ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
         }
-        const targetTileX = scaleTileX(targetX)
-        const targetTileY = scaleTileY(targetY)
-        const angle = Math.PI / 2 - Math.atan2(targetTileY - tileY, targetTileX - tileX) // NOTE 90 degrees offset
-        ctx.drawSprite('actions/arrow.png', targetTileX, targetTileY, undefined, undefined, angle)
       }
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
