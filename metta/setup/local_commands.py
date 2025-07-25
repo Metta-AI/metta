@@ -6,12 +6,16 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import wandb
+from omegaconf import DictConfig
 
+from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import get_repo_root
 from metta.common.util.stats_client_cfg import get_stats_client_direct
-from metta.common.wandb.wandb_runs import find_training_jobs, get_artifacts_for_runs, register_with_stats_server
+from metta.common.wandb.wandb_context import WandbConfigOn
+from metta.common.wandb.wandb_runs import find_training_runs
 from metta.setup.tools.local.kind import Kind
 from metta.setup.utils import error, info
+from metta.sim.utils import get_or_create_policy_ids
 
 
 class LocalCommands:
@@ -81,20 +85,46 @@ class LocalCommands:
             return
 
         print(f"\nConnecting to stats database at {args.stats_db_uri}...")
-        stats_client = get_stats_client_direct(args.stats_db_uri, logging.getLogger(__name__))
+        logger = logging.getLogger(__name__)
+        stats_client = get_stats_client_direct(args.stats_db_uri, logger)
         if not stats_client:
             print("No stats client")
             return
         stats_client.validate_authenticated()
-        runs = find_training_jobs(
+        runs = find_training_runs(
             entity=entity,
             project=project,
             created_after=(datetime.now() - timedelta(days=args.days_back)).isoformat(),
             limit=args.limit,
             run_names=[args.run_name] if args.run_name else None,
         )
-        run_infos = get_artifacts_for_runs(runs)
-        register_with_stats_server(run_infos, stats_client)
+        policy_store = PolicyStore(
+            DictConfig(
+                dict(
+                    wandb=WandbConfigOn(
+                        project=project,
+                        entity=entity,
+                        group=project,
+                        name="",
+                        run_id="",
+                        data_dir="",
+                        job_type="load-policies",
+                        tags=[],
+                        notes="",
+                    )
+                )
+            ),
+            wandb_run=None,
+        )
+        policy_records = []
+        for run in runs:
+            # n and metric are ignored
+            policy_records.extend(policy_store.policy_records(run.id, selector_type="all", n=1, metric="top"))
+        policy_ids = get_or_create_policy_ids(
+            stats_client,
+            [(pr.run_name, pr.uri) for pr in policy_records],
+        )
+        logger.info(f"Ensured {len(policy_ids)} policy IDs")
 
     def kind(self, args) -> None:
         """Handle Kind cluster management for Kubernetes testing."""

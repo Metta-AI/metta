@@ -30,10 +30,9 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
-from metta.common.wandb.wandb_context import WandbConfigOn
-from metta.common.wandb.wandb_runs import find_training_jobs, get_artifacts_for_runs, register_with_stats_server
 from metta.eval.eval_service import evaluate_policy
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.utils import get_or_create_policy_ids
 from metta.util.metta_script import metta_script
 
 # --------------------------------------------------------------------------- #
@@ -74,32 +73,18 @@ def _create_remote_eval_tasks(
     sim_job: SimJob,
     stats_client: StatsClient,
     logger: logging.Logger,
-    wandb_cfg: WandbConfigOn,
 ) -> None:
     stats_client.validate_authenticated()
-    all_policy_records = [pr for prs in policy_records_by_uri.values() for pr in prs]
-    policy_ids_by_name = stats_client.get_policy_ids([pr.run_name for pr in all_policy_records]).policy_ids
-    logger.info(f"Found {len(policy_ids_by_name)} policies in stats database")
-    missing_policy_records = [pr for pr in all_policy_records if not policy_ids_by_name.get(pr.run_name)]
-    if missing_policy_records:
-        if not sim_job.register_missing_policies:
-            logger.warning(f"Policy {missing_policy_records} not found in stats database")
-        else:
-            logger.info(f"Attempting to register {len(missing_policy_records)} policies in stats database...")
+    all_policy_records = {pr.run_name: pr for prs in policy_records_by_uri.values() for pr in prs}
+    policy_ids = get_or_create_policy_ids(
+        stats_client, [(pr.run_name, pr.uri) for pr in all_policy_records.values() if pr.uri is not None]
+    )
+    if not policy_ids:
+        logger.info("No policies found")
+        return
 
-            runs = find_training_jobs(
-                entity=wandb_cfg.entity,
-                project=wandb_cfg.project,
-                run_names=[pr.run_name for pr in missing_policy_records],
-            )
-            run_infos = get_artifacts_for_runs(runs)
-            register_with_stats_server(run_infos, stats_client)
-            policy_ids_by_name.update(
-                stats_client.get_policy_ids([pr.run_name for pr in missing_policy_records]).policy_ids
-            )
-
-    logger.info(f"Creating {len(missing_policy_records)} evaluation tasks")
-    for policy_name, policy_id in policy_ids_by_name.items():
+    logger.info(f"Creating {len(policy_ids)} evaluation tasks")
+    for policy_name, policy_id in policy_ids.items():
         request = TaskCreateRequest(
             policy_id=policy_id,
             git_hash=sim_job.git_hash,
@@ -108,6 +93,14 @@ def _create_remote_eval_tasks(
         )
         response = stats_client.create_task(request)
         logger.info(f"Created task {response.id} for policy {policy_name} ({policy_id})")
+
+    # TODO: mappings like this should determined somewhere else
+    frontend_base_url = {
+        "https://observatory.softtmax-research.com": "https://api.softtmax-research.com",
+        "http://localhost:8000": "http://localhost:5173",
+    }.get(str(stats_client.http_client.base_url))
+    if frontend_base_url:
+        logger.info(f"Visit {frontend_base_url}/eval-tasks to view tasks")
 
 
 # --------------------------------------------------------------------------- #
@@ -126,7 +119,7 @@ def main(cfg: DictConfig) -> None:
 
     policy_store = PolicyStore(cfg, None)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
-    if stats_client is not None:
+    if stats_client:
         stats_client.validate_authenticated()
 
     policy_records_by_uri: dict[str, list[PolicyRecord]] = {}
@@ -144,7 +137,7 @@ def main(cfg: DictConfig) -> None:
         if not cfg.wandb.enabled:
             raise ValueError("Wandb is not enabled. Please provide a wandb_api_key")
         logger.info("Running in remote mode - creating evaluation tasks")
-        _create_remote_eval_tasks(policy_records_by_uri, sim_job, stats_client, logger, cfg.wandb)
+        _create_remote_eval_tasks(policy_records_by_uri, sim_job, stats_client, logger)
     else:
         _run_local_simulations(cfg, policy_records_by_uri, sim_job, stats_client, policy_store, logger)
 
