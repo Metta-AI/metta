@@ -556,7 +556,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   }
 
   // Numpad 5 - advance simulation one frame
-  if (event.code == 'Numpad5') {
+  if (event.code == 'Numpad5' && state.selectedGridObject == null) {
     setIsPlaying(false)
     if (state.ws !== null) {
       state.ws.send(JSON.stringify({ type: 'advance' }))

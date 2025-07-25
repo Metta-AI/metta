@@ -123,8 +123,8 @@ export function processActions(event: KeyboardEvent) {
       // Get the output.
       sendAction('get_items', 0)
     }
-    if (event.key == 'x') {
-      // No-op.
+    if (event.key == 'x' || event.code == 'Numpad5') {
+      // No-op / wait.
       sendAction('noop', 0)
     }
     if (event.key >= '1' && event.key <= '9') {
