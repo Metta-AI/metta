@@ -22,9 +22,6 @@ class TestExperimentLaunch:
                     self.training_jobs.append(job)
                     jobs.append(job)
                 return jobs
-            
-            def get_analysis_config(self):
-                return {"metrics": ["reward"]}
         
         exp = TestExperiment("test_exp")
         launched_jobs = exp.launch_training_runs()
@@ -44,9 +41,6 @@ class TestExperimentLaunch:
             def launch_training_runs(self):
                 # No successful launches
                 return []
-            
-            def get_analysis_config(self):
-                return {}
         
         exp = FailedExperiment("failed_test")
         result = exp.run(generate_notebook=False)  # Skip notebook generation
@@ -80,9 +74,6 @@ class TestExperimentLaunch:
                 )
                 self.training_jobs.append(job)
                 return [job]
-            
-            def get_analysis_config(self):
-                return {"metrics": ["loss"]}
         
         exp = ConfigExperiment("config_test")
         jobs = exp.launch_training_runs()

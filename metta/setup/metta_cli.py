@@ -309,27 +309,22 @@ class MettaCLI:
             sys.exit(e.returncode)
     
     def cmd_notebook(self, args) -> None:
-        """Create an experiment notebook."""
-        # Build command for the recipe
-        if args.recipe == "arena":
-            cmd = [sys.executable, str(self.repo_root / "experiments" / "recipes" / "arena_experiment.py")]
+        """Create an experiment notebook using arena recipe."""
+        # Build command for arena recipe
+        cmd = [sys.executable, str(self.repo_root / "experiments" / "recipes" / "arena_experiment.py")]
+        
+        # Pass all arguments through to arena_experiment.py
+        if args.name:
             cmd.append(args.name)
-            
-            if args.no_launch:
-                cmd.append("--no-launch")
-            if args.job_ids:
-                cmd.extend(["--job-ids"] + args.job_ids)
-            if not args.no_open:
-                cmd.append("--open")
-                
-            try:
-                subprocess.run(cmd, cwd=self.repo_root, check=True)
-            except subprocess.CalledProcessError as e:
-                sys.exit(e.returncode)
-        else:
-            error(f"Unknown recipe: {args.recipe}")
-            info("Available recipes: arena")
-            sys.exit(1)
+        
+        # Pass through all unknown args
+        unknown_args = getattr(args, '_unknown_args', [])
+        cmd.extend(unknown_args)
+        
+        try:
+            subprocess.run(cmd, cwd=self.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            sys.exit(e.returncode)
 
     def cmd_status(self, args) -> None:
         """Show status of all components."""
@@ -593,13 +588,9 @@ Examples:
         tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
         tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
         
-        # Notebook command
-        notebook_parser = subparsers.add_parser("notebook", help="Create experiment notebooks")
-        notebook_parser.add_argument("name", nargs="?", default="arena", help="Name for the notebook (default: arena)")
-        notebook_parser.add_argument("--recipe", default="arena", help="Experiment recipe to use (default: arena)")
-        notebook_parser.add_argument("--no-launch", action="store_true", help="Skip launching new runs")
-        notebook_parser.add_argument("--job-ids", nargs="+", help="Load existing SkyPilot job IDs")
-        notebook_parser.add_argument("--no-open", action="store_true", help="Don't open notebook after creation")
+        # Notebook command - always uses arena recipe
+        notebook_parser = subparsers.add_parser("notebook", help="Create experiment notebook (uses arena recipe)")
+        notebook_parser.add_argument("name", nargs="?", help="Name for the notebook")
 
         # Shell command
         subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
@@ -697,6 +688,7 @@ Examples:
         elif args.command == "tool":
             self.cmd_tool(args.tool_name, unknown_args)
         elif args.command == "notebook":
+            args._unknown_args = unknown_args  # Store unknown args to pass through
             self.cmd_notebook(args)
         elif args.command == "lint":
             self.cmd_lint(args)

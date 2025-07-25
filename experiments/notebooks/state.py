@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 import subprocess
+from experiments.types import TrainingJob
 
 
 class RunState:
@@ -26,19 +27,28 @@ class RunState:
         
         # Track all jobs launched in this session
         self.all_launched_jobs: List[Tuple[str, str]] = []
+        self.training_jobs: List[TrainingJob] = []
         
         # Initialize with pre-populated jobs
-        if self.wandb_run_names and self.skypilot_job_ids:
+        if self.wandb_run_names:
             for i, run_name in enumerate(self.wandb_run_names):
-                if i < len(self.skypilot_job_ids):
-                    job_id = self.skypilot_job_ids[i]
+                job_id = self.skypilot_job_ids[i] if i < len(self.skypilot_job_ids) else None
+                job = TrainingJob(
+                    wandb_run_name=run_name,
+                    skypilot_job_id=job_id,
+                    notes='Pre-loaded from experiment',
+                )
+                self.training_jobs.append(job)
+                
+                if job_id:
                     self.all_launched_jobs.append((run_name, job_id))
-                    self.experiments[run_name] = {
-                        'job_id': job_id,
-                        'config': self.metadata.get('analysis_config', {}),
-                        'notes': 'Pre-loaded from experiment',
-                        'timestamp': self.metadata.get('created_at', 'Unknown')
-                    }
+                    
+                self.experiments[run_name] = {
+                    'job_id': job_id,
+                    'config': {},
+                    'notes': 'Pre-loaded from experiment',
+                    'timestamp': self.metadata.get('created_at', 'Unknown')
+                }
     
     def add_run(self, run_name: str, job_id: Optional[str] = None, 
                 config: Optional[Dict] = None, notes: str = "") -> None:
@@ -47,6 +57,14 @@ class RunState:
         if job_id:
             self.skypilot_job_ids.append(job_id)
             self.all_launched_jobs.append((run_name, job_id))
+        
+        # Create TrainingJob
+        job = TrainingJob(
+            wandb_run_name=run_name,
+            skypilot_job_id=job_id,
+            notes=notes,
+        )
+        self.training_jobs.append(job)
         
         # Store experiment info
         self.experiments[run_name] = {

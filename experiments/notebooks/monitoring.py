@@ -5,6 +5,36 @@ import pandas as pd
 
 # Import data fetching from experiments
 from experiments.monitoring import get_training_status
+from experiments.types import TrainingJob
+
+
+def job_status(training_jobs: List[TrainingJob], 
+               entity: str = "metta-research", 
+               project: str = "metta") -> pd.DataFrame:
+    """Get status for a list of TrainingJob objects.
+    
+    Args:
+        training_jobs: List of TrainingJob objects
+        entity: Wandb entity
+        project: Wandb project
+        
+    Returns:
+        DataFrame with job status information
+    """
+    if not training_jobs:
+        return pd.DataFrame()
+    
+    # Extract run names and job IDs
+    wandb_run_names = [job.wandb_run_name for job in training_jobs]
+    skypilot_job_ids = [job.skypilot_job_id for job in training_jobs if job.skypilot_job_id]
+    
+    # Get status
+    return get_training_status(
+        wandb_run_names=wandb_run_names,
+        skypilot_job_ids=skypilot_job_ids if skypilot_job_ids else None,
+        entity=entity,
+        project=project
+    )
 
 
 def monitor_training_statuses(
