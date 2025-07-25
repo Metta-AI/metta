@@ -8,13 +8,20 @@ on:
 
 jobs:
   test:
+    name: "Lint, Install, and Test"
     runs-on: ubuntu-latest
+
     container:
-      image: ghcr.io/metta-ai/metta/mettascope-ci:latest
+      image: ghcr.io/metta-ai/metta/mettascope-ci:${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || 'latest' }}
       options: --shm-size=2gb
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
+
     steps:
+      - name: Show image used
+        run: |
+          echo "Using image: ghcr.io/metta-ai/metta/mettascope-ci:${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || 'latest' }}"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -25,9 +32,10 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Node.js dependencies
-        run: pnpm install
+        run: pnpm install --filter @softmax/mettascope
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
@@ -41,6 +49,11 @@ jobs:
           ./mettascope/install.sh
           echo "Installation complete"
           echo "::endgroup::"
+
+      - name: Check format and lint
+        run: |
+          cd mettascope
+          pnpm run check
 
       - name: Run training
         run: |
