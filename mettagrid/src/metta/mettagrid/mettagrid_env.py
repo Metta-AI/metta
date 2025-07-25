@@ -400,6 +400,19 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
+        # Check if we have a text-based renderer already set up
+        if self._renderer is not None and hasattr(self._renderer, "render"):
+            # Use the text-based renderer (NethackRenderer or MiniscopeRenderer)
+            return self._renderer.render(self._steps, self.grid_objects)
+
+        # Check if we're in CI/testing environment
+        import os
+
+        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+            # In CI, skip raylib rendering
+            return None
+
+        # Otherwise, use raylib rendering
         # Lazy import raylib to avoid hard dependency
         try:
             from raylib import (
