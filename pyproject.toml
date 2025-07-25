@@ -56,6 +56,7 @@ dependencies = [
   "widgetsnbextension>=4.0.14",
   "tiktoken>=0.9.0",
   "nbconvert>=7.16.0",
+  "nbstripout>=0.7.0",
 ]
 name = "metta"
 version = "0.1"

@@ -12,27 +12,17 @@ from experiments.monitoring import get_wandb_run_name_from_sky_job
 import subprocess
 
 
+class ExperimentConfig(TrainingJobConfig):
+    pass
+
+
 class Experiment(ABC):
-    """Base class for all experiments.
+    """Base class for all experiments."""
 
-    Experiments encapsulate:
-    1. Training configuration and launch
-    2. Metadata tracking
-    3. Analysis notebook generation
-    """
-
-    def __init__(self, name: Optional[str] = None):
-        """Initialize experiment.
-
-        Args:
-            name: Optional experiment name. If not provided, uses class name.
-        """
-        self.name = name or self.__class__.__name__
-        self.metadata = {
-            "experiment_class": self.__class__.__name__,
-            "created_at": datetime.now().isoformat(),
-            "user": os.environ.get("USER", "unknown"),
-        }
+    def __init__(self, name: str):
+        self.name = name
+        self.user = os.environ.get("USER", "unknown")
+        self.created_at = datetime.now().isoformat()
         self.launch_results = []
         self.training_jobs: List[TrainingJob] = []
 
@@ -51,25 +41,13 @@ class Experiment(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_analysis_config(self) -> Dict[str, Any]:
-        """Get configuration for analysis notebook generation.
-
-        Returns:
-            Dictionary with analysis configuration like:
-                - metrics_to_plot: List of metric names
-                - eval_suites: List of eval suites to check
-                - custom_analysis: Any experiment-specific config
-        """
-        pass
-    
     def launch_training_run_from_config(self, run_name: str, config: TrainingJobConfig) -> Optional[TrainingJob]:
         """Launch a training run from a TrainingJobConfig.
-        
+
         Args:
             run_name: Name for the training run
             config: TrainingJobConfig with launch parameters
-            
+
         Returns:
             TrainingJob if successful, None otherwise
         """
@@ -83,9 +61,9 @@ class Experiment(ABC):
             additional_args=config.additional_args,
             wandb_tags=config.wandb_tags,
         )
-        
+
         self.launch_results.append(result)
-        
+
         if result["success"]:
             job = TrainingJob(
                 wandb_run_name=run_name,
@@ -94,7 +72,7 @@ class Experiment(ABC):
             )
             self.training_jobs.append(job)
             return job
-        
+
         return None
 
     def generate_notebook(self, output_dir: Optional[str] = None) -> str:
@@ -115,10 +93,6 @@ class Experiment(ABC):
 
         if not wandb_run_names:
             raise ValueError("No successful runs to analyze")
-
-        # Add analysis config to metadata
-        analysis_config = self.get_analysis_config()
-        self.metadata["analysis_config"] = analysis_config
 
         # Default to experiments/scratch/ directory
         if output_dir is None:
@@ -194,20 +168,27 @@ class Experiment(ABC):
 
         print(f"Saved metadata to: {filepath}")
         return filepath
-    
+
     @classmethod
     def create_notebook(cls, config: BaseExperimentConfig) -> str:
         """Create a notebook from configuration, handling job loading and launching.
-        
+
         Args:
             config: Experiment configuration
-            
+
         Returns:
             Path to generated notebook
         """
-        # Create instance
-        instance = cls(config.name)
-        
+        # Create instance - pass config if the experiment accepts it
+        # Check if the experiment class __init__ accepts a config parameter
+        import inspect
+
+        sig = inspect.signature(cls.__init__)
+        if "config" in sig.parameters:
+            instance = cls(config.name, config=config)
+        else:
+            instance = cls(config.name)
+
         # Load existing jobs if provided
         if config.job_ids:
             print(f"Loading {len(config.job_ids)} existing jobs...")
@@ -222,30 +203,31 @@ class Experiment(ABC):
                     print(f"  ✓ Job {job_id} → {run_name}")
                 else:
                     print(f"  ✗ Job {job_id} → Could not find run name")
-        
+
         # Launch new runs if requested (and no jobs loaded)
         if config.launch and not instance.training_jobs:
             instance.launch_training_runs()
-        
+
         # Generate notebook
         from experiments.notebooks.generation import generate_notebook
-        
+
         wandb_run_names = [job.wandb_run_name for job in instance.training_jobs] if instance.training_jobs else None
-        skypilot_job_ids = [job.skypilot_job_id for job in instance.training_jobs if job.skypilot_job_id] if instance.training_jobs else None
-        
+        skypilot_job_ids = (
+            [job.skypilot_job_id for job in instance.training_jobs if job.skypilot_job_id]
+            if instance.training_jobs
+            else None
+        )
+
         notebook_path = generate_notebook(
             name=config.name,
             description=config.description or f"Notebook for {instance.__class__.__name__}",
             sections=config.sections,
             wandb_run_names=wandb_run_names,
             skypilot_job_ids=skypilot_job_ids,
-            additional_metadata={
-                **instance.metadata,
-                "from_recipe": True,
-            },
+            additional_metadata=instance.metadata,
             output_dir=config.output_dir,
         )
-        
+
         # Open notebook if requested
         if config.open_notebook:
             print("\nOpening notebook in Jupyter...")
@@ -253,11 +235,11 @@ class Experiment(ABC):
                 subprocess.Popen(
                     ["uv", "run", "jupyter", "notebook", notebook_path],
                     stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
+                    stderr=subprocess.DEVNULL,
                 )
                 print("✓ Jupyter notebook launched")
             except Exception as e:
                 print(f"Failed to open notebook: {e}")
                 print(f"\nTo open manually:\n  uv run jupyter notebook {notebook_path}")
-        
+
         return notebook_path

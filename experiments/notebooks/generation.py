@@ -14,16 +14,14 @@ AVAILABLE_SECTIONS = {
     "state": "State management for tracking runs",
     "launch": "Launch training runs",
     "monitor": "Monitor training status",
-    "metrics": "Fetch and analyze metrics",
-    "visualize": "Visualizations and plots",
+    "analysis": "Analysis and visualizations",
     "replays": "View MettaScope replays",
-    "log": "Experiment log for documentation",
     "scratch": "Scratch space for experiments",
     "export": "Export notebook as HTML",
 }
 
 # Default sections if none specified
-DEFAULT_SECTIONS = ["launch", "monitor", "visualize", "export"]
+DEFAULT_SECTIONS = ["launch", "monitor", "analysis", "export"]
 
 
 def generate_notebook(
@@ -150,28 +148,17 @@ def _create_notebook_cells(
 
     # If we have pre-filled IDs, add a summary cell
     if wandb_run_names:
-        if additional_metadata and additional_metadata.get("from_recipe"):
-            # This was generated from a recipe/experiment
-            summary = f"""### Experiment Summary
+        summary = f"""### Experiment Summary
 
 **Experiment**: {name}
 **Runs**: {len(wandb_run_names)} training runs
-**Created**: {additional_metadata.get("created_at", "Unknown")}
-**User**: {additional_metadata.get("user", "Unknown")}
-
-This notebook was auto-generated from the experiment run. The wandb run IDs and sky job IDs have been pre-loaded."""
-        else:
-            # This was loaded from existing job IDs
-            summary = f"""### Loaded Jobs Summary
-
-**Analysis**: {name}
-**Jobs Loaded**: {len(wandb_run_names)} existing training runs
-**Created**: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-
-This notebook was created from existing SkyPilot jobs. The following runs have been loaded for analysis:"""
-            if skypilot_job_ids:
-                for i, (job_id, run_name) in enumerate(zip(skypilot_job_ids, wandb_run_names)):
-                    summary += f"\n- Job {job_id} → {run_name}"
+**Created**: {additional_metadata.get("created_at", datetime.now().strftime('%Y-%m-%d %H:%M'))}
+**User**: {additional_metadata.get("user", "Unknown")}"""
+        
+        if skypilot_job_ids:
+            summary += "\n\n**Tracked Jobs:**"
+            for i, (job_id, run_name) in enumerate(zip(skypilot_job_ids, wandb_run_names)):
+                summary += f"\n- Job {job_id} → {run_name}"
                     
         cells.append(_create_markdown_cell(summary))
 
@@ -198,10 +185,8 @@ This notebook was created from existing SkyPilot jobs. The following runs have b
     section_generators = {
         "launch": lambda: _get_launch_section(has_existing_jobs=has_existing_jobs),
         "monitor": _get_monitor_section,
-        "metrics": _get_metrics_section,
-        "visualize": _get_visualize_section,
+        "analysis": _get_analysis_section,
         "replays": _get_replays_section,
-        "log": _get_log_section,
         "scratch": _get_scratch_section,
         "export": lambda: _get_export_section(notebook_filename),
     }
@@ -233,7 +218,7 @@ def _get_setup_section() -> List[Dict[str, Any]]:
 
 import os
 from datetime import datetime
-from experiments.notebooks.monitoring import monitor_training_statuses
+from experiments.notebooks.monitoring import job_status
 from experiments.notebooks.training import launch_training
 from experiments.notebooks.analysis import plot_sps
 
@@ -252,6 +237,7 @@ def _get_state_section(
     # Initialize state with pre-filled data or empty
     init_code = f"""# Initialize run tracking
 from experiments.notebooks.state import init_state, add_run, list_runs, kill_all_jobs
+from experiments.types import TrainingJob
 
 state = init_state(
     wandb_run_names={wandb_run_names},
@@ -325,55 +311,14 @@ def _get_monitor_section() -> List[Dict[str, Any]]:
     return [
         _create_markdown_cell("## Job Status"),
         _create_code_cell("""# Display status of all tracked runs
-import pandas as pd
-from experiments.monitoring import get_sky_jobs_data
-from experiments.wandb_utils import get_run_statuses
-
-# Get Sky job status
-sky_jobs_df = get_sky_jobs_data() if skypilot_job_ids else pd.DataFrame()
-
-# Get WandB status  
-wandb_status_df = get_run_statuses(wandb_run_names) if wandb_run_names else pd.DataFrame()
-
-# Build status table
-status_data = []
-for i, wandb_name in enumerate(wandb_run_names):
-    row = {
-        "skypilot_job_id": skypilot_job_ids[i] if i < len(skypilot_job_ids) else None,
-        "wandb_run_name": wandb_name,
-        "sky_pilot_state": None,
-        "wandb_run_state": None
-    }
-    
-    # Get Sky status
-    if row["skypilot_job_id"] and not sky_jobs_df.empty:
-        # Use correct column names from get_sky_jobs_data
-        sky_match = sky_jobs_df[sky_jobs_df["ID"] == row["skypilot_job_id"]]
-        if not sky_match.empty:
-            row["sky_pilot_state"] = sky_match.iloc[0]["STATUS"]
-    
-    # Get WandB status
-    if not wandb_status_df.empty:
-        wandb_match = wandb_status_df[wandb_status_df["run_name"] == wandb_name]
-        if not wandb_match.empty:
-            row["wandb_run_state"] = wandb_match.iloc[0]["state"]
-    
-    status_data.append(row)
-
-# Display as DataFrame
-status_df = pd.DataFrame(status_data)
-status_df"""),
+job_status(state.training_jobs)"""),
     ]
 
 
-def _get_metrics_section() -> List[Dict[str, Any]]:
-    """Generate metrics section cells."""
-    # This section is now merged into visualize/analysis
-    return []
 
 
-def _get_visualize_section() -> List[Dict[str, Any]]:
-    """Generate visualization section cells."""
+def _get_analysis_section() -> List[Dict[str, Any]]:
+    """Generate analysis section cells."""
     return [
         _create_markdown_cell("## Analysis"),
         _create_code_cell("""# Plot SPS (Steps Per Second) to monitor training performance
@@ -400,22 +345,6 @@ if wandb_run_names:
     ]
 
 
-def _get_log_section() -> List[Dict[str, Any]]:
-    """Generate experiment log section cells."""
-    return [
-        _create_markdown_cell("## Experiment Log\n\nDocument your findings and iterations here:"),
-        _create_markdown_cell("""### Iteration 1
-
-**Hypothesis:**
-
-**Configuration:**
-- Runs:
-- Key parameters:
-
-**Results:**
-
-**Next Steps:**"""),
-    ]
 
 
 def _get_scratch_section() -> List[Dict[str, Any]]:
@@ -425,10 +354,35 @@ def _get_scratch_section() -> List[Dict[str, Any]]:
 
 def _get_export_section(notebook_filename: str) -> List[Dict[str, Any]]:
     """Generate export section cells."""
-    export_code = f'''# Export this notebook as HTML to experiments/log/
+    html_export_code = f'''# Export this notebook as HTML to experiments/log/
 from experiments.notebooks.export import export_to_html
 
 notebook_name = "{notebook_filename}"
-export_to_html(notebook_name)'''
+html_path = export_to_html(notebook_name)
+print(f"Exported HTML to: {{html_path}}")'''
 
-    return [_create_markdown_cell("## Export Results"), _create_code_cell(export_code)]
+    clean_export_code = f'''# Export a clean (no outputs) version of this notebook
+import subprocess
+import shutil
+from pathlib import Path
+
+notebook_name = "{notebook_filename}"
+clean_name = notebook_name.replace('.ipynb', '_clean.ipynb')
+
+# Create a copy
+shutil.copy(notebook_name, clean_name)
+
+# Strip outputs using nbstripout
+try:
+    subprocess.run(['nbstripout', clean_name], check=True)
+    print(f"✓ Created clean notebook: {{clean_name}}")
+except subprocess.CalledProcessError:
+    print("❌ Failed to run nbstripout. Install with: pip install nbstripout")
+except FileNotFoundError:
+    print("❌ nbstripout not found. Install with: pip install nbstripout")'''
+
+    return [
+        _create_markdown_cell("## Export Results"),
+        _create_code_cell(html_export_code),
+        _create_code_cell(clean_export_code)
+    ]
