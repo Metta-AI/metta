@@ -211,8 +211,8 @@ class MettaCLI:
         cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
         if cleanup_script.exists():
             cmd = [str(cleanup_script)]
-            if not verbose:
-                cmd.append("--verbose=false")
+            if verbose:
+                cmd.append("--verbose")
             try:
                 subprocess.run(cmd, cwd=str(self.repo_root), check=True)
             except subprocess.CalledProcessError as e:
