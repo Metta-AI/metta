@@ -11,6 +11,8 @@ import ast
 from pathlib import Path
 from typing import List, Tuple
 
+from pytest import fail
+
 
 class TensorDtypeChecker(ast.NodeVisitor):
     """AST visitor to find torch.tensor() calls without dtype parameter."""
@@ -83,6 +85,8 @@ def check_file_for_tensor_dtypes(filepath: Path) -> List[Tuple[int, str]]:
     except (SyntaxError, UnicodeDecodeError):
         # Skip files that can't be parsed
         return []
+    except Exception as e:
+        fail(f"Error checking file {filepath}: {e}")
 
 
 def test_tensors_have_dtype():
@@ -96,6 +100,7 @@ def test_tensors_have_dtype():
         ".git",
         "__pycache__",
         ".pytest_cache",
+        ".uv-cache",
         "node_modules",
         "wandb",  # Exclude wandb logs as they might contain generated code
         "tests",  # Exclude test files as they don't require explicit dtype
