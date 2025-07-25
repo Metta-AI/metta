@@ -42,9 +42,7 @@ from metta.rl.trainer_config import (
     VTraceConfig,
 )
 from metta.rl.util.batch_utils import calculate_batch_sizes
-from metta.rl.util.distributed import (
-    setup_device_and_distributed,
-)
+from metta.rl.util.distributed import setup_device_and_distributed
 from metta.rl.util.evaluation import generate_replay
 from metta.rl.util.optimization import (
     compute_gradient_stats,
@@ -305,8 +303,7 @@ validate_policy_environment_match(agent, metta_grid_env)  # type: ignore
 # Store initial policy record for later use
 initial_policy_record = policy_record
 
-# Create optimizer like trainer.py does
-
+# Create optimizer like bad_run.py does
 optimizer_type = trainer_config.optimizer.type
 opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
 # ForeachMuon expects int for weight_decay, Adam expects float
@@ -378,7 +375,6 @@ losses = Losses()
 timer = Stopwatch(logger)
 timer.start()
 
-
 # Memory and System Monitoring (master only)
 system_monitor = None
 memory_monitor = None
@@ -416,7 +412,7 @@ if is_master and wandb_run:
         env_configs = curr_obj.get_env_cfg_by_bucket()
         upload_env_configs(env_configs=env_configs, wandb_run=wandb_run)
 
-# Create torch profiler (matches trainer.py)
+# Create torch profiler (matches bad_run.py)
 torch_profiler = TorchProfiler(is_master, trainer_config.profiler, wandb_run, dirs.run_dir)
 
 training_start_time = time.time()
@@ -676,12 +672,14 @@ while agent_step < trainer_config.total_timesteps:
 
         # Add training task to the suite
         # Get the actual task configuration from the curriculum
-        training_task_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic env_cfg() should override all of it
-            num_episodes=1,
-            env_overrides=curr_obj.get_task().env_cfg(),
-        )
-        extended_eval_config.simulations["eval/training_task"] = training_task_config
+        curr_obj = getattr(metta_grid_env, "_curriculum", None)
+        if curr_obj:
+            training_task_config = SingleEnvSimulationConfig(
+                env="/env/mettagrid/mettagrid",  # won't be used, dynamic env_cfg() should override all of it
+                num_episodes=1,
+                env_overrides=curr_obj.get_task().env_cfg(),
+            )
+            extended_eval_config.simulations["eval/training_task"] = training_task_config
 
         # Run evaluation suite
         sim_suite = SimulationSuite(
