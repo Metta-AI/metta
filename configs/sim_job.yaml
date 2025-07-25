@@ -8,7 +8,6 @@ run: null # Auto-generated if not provided
 policy_uri: ???
 
 remote: false
-register_missing_policies: false
 
 sim_job:
   policy_uris:
