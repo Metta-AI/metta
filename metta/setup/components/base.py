@@ -52,11 +52,18 @@ class SetupModule(ABC):
         check: bool = True,
         capture_output: bool = True,
         input: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if cwd is None:
             cwd = self.repo_root
 
-        return subprocess.run(cmd, cwd=cwd, check=check, capture_output=capture_output, text=True, input=input)
+        params: dict[str, str | bool | Path | None | dict[str, str]] = dict(
+            cwd=cwd, check=check, capture_output=capture_output, text=True, input=input
+        )
+        if env is not None:
+            params["env"] = env
+
+        return subprocess.run(cmd, **params)  # type: ignore
 
     def run_script(self, script_path: str, args: list[str] | None = None) -> subprocess.CompletedProcess[str]:
         script = self.repo_root / script_path
