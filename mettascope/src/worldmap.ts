@@ -4,7 +4,7 @@ import * as Common from './common.js'
 import { ui, state, ctx, setFollowSelection } from './common.js'
 import { getAttr, sendAction, getObjectConfig } from './replay.js'
 import { PanelInfo } from './panels.js'
-import { onFrame, updateSelection, requestFrame } from './main.js'
+import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverBubble, updateReadout, HoverBubble } from './hoverbubbles.js'
 import { search, searchMatch } from './search.js'
@@ -832,7 +832,7 @@ export function drawMap(panel: PanelInfo) {
     }
   }
 
-  // If we're following a selection, center the map on it with smooth camera scrolling.
+  // If we're following a selection, center the map on it.
   if (state.followSelection && state.selectedGridObject !== null) {
     const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
     const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
