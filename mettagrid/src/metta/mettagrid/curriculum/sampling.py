@@ -43,7 +43,6 @@ class SampledTaskCurriculum(Curriculum):
 
     def get_task(self) -> Task:
         cfg = self._task_cfg_template.copy()
-        print(f"Sampling parameters: {self._sampling_parameters}")
         for k, v in self._sampling_parameters.items():
             OmegaConf.update(cfg, k, _sample(v), merge=False)
         return Task(self._task_id, self, cfg)
