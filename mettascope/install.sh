@@ -17,6 +17,6 @@ npm run build
 # Generate atlas
 ./tools/gen_atlas.py
 
-# Copy the font sprites to dist
+# Copy the font sprites to dist (see https://rjwalters.github.io/glyph-atlas/)
 cp ./data/fonts/font.json ./dist/font.json
 cp ./data/fonts/font.png ./dist/font.png
