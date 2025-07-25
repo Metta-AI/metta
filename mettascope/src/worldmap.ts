@@ -509,7 +509,7 @@ function drawThoughtBubbles() {
       }
     }
 
-    if (keyAction != null) {
+    if (keyAction != null && keyActionStep != null) {
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
       const x = getAttr(state.selectedGridObject, 'c')
@@ -551,8 +551,8 @@ function drawThoughtBubbles() {
 
       // Draw the resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1)
-        const nextResources = getAttr(state.selectedGridObject, key, actionStep)
+        const prevResources = getAttr(state.selectedGridObject, key, keyActionStep - 1)
+        const nextResources = getAttr(state.selectedGridObject, key, keyActionStep)
         const gained = nextResources - prevResources
         let resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
         const resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
@@ -693,6 +693,8 @@ function attackGrid(orientation: number, idx: number) {
   } else if (orientation === 3) {
     dx = div(i, 3) + 1
     dy = mod(i, 3) - 1
+  } else {
+    throw new Error(`Invalid orientation: ${orientation}`)
   }
   return [dx, dy]
 }
@@ -762,12 +764,12 @@ export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
-
+  let objectUnderMouse = undefined
   // Handle mouse events for the map panel.
   if (ui.mouseTargets.includes('#worldmap-panel')) {
     if (ui.dragging === '' && !state.showAttackMode) {
       // Find the object under the mouse.
-      let objectUnderMouse = null
+
       const localMousePos = panel.transformOuter(ui.mousePos)
       if (localMousePos != null) {
         const gridMousePos = new Vec2f(
@@ -808,7 +810,7 @@ export function drawMap(panel: PanelInfo) {
       }
     } else {
       // Only reset the hover timer if we moved onto a different object (or off of an object).
-      if (ui.hoverObject !== objectUnderMouse) {
+      if (objectUnderMouse !== undefined && ui.hoverObject !== objectUnderMouse) {
         ui.hoverObject = objectUnderMouse
         clearTimeout(ui.hoverTimer)
         ui.hoverTimer = setTimeout(() => {

@@ -8,7 +8,7 @@
  */
 
 import * as Common from './common.js'
-import { ctx, html, setFollowSelection, state, ui } from './common.js'
+import { ctx, html, state, ui } from './common.js'
 import { clamp } from './context3d.js'
 import { onEvent } from './htmlutils.js'
 import { requestFrame, updateStep } from './main.js'
@@ -19,7 +19,7 @@ import { getAttr } from './replay.js'
 export function initTimeline() {
   console.info('Initializing timeline')
   // Move the step counter off-screen for now.
-  html.stepCounter.parentElement?.style.left = '-1000px'
+  html.stepCounter.parentElement!.style.left = '-1000px'
 }
 
 function getStepFromX(x: number) {
@@ -66,7 +66,7 @@ export function updateTimeline() {
   const scrubberWidth = ui.timelinePanel.width - 32
   const fullSteps = state.replay.max_steps - 1
   html.stepCounter.textContent = state.step.toString()
-  html.stepCounter.parentElement?.style.left = `${(16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString()}px`
+  html.stepCounter.parentElement!.style.left = `${(16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString()}px`
 }
 
 /** Draws the timeline. */
