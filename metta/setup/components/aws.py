@@ -24,21 +24,8 @@ class AWSSetup(SetupModule):
         return any(self.config.is_component_enabled(dep) for dep in ["aws", "skypilot"])
 
     def check_installed(self) -> bool:
-        return self._get_aws_caller_identity() is not None
-
-    def _get_aws_caller_identity(self) -> str | None:
-        try:
-            result = self.run_command(["aws", "sts", "get-caller-identity"], check=False)
-        except FileNotFoundError:
-            return None
-
-        if result.returncode == 0:
-            try:
-                res = json.loads(result.stdout)
-                return res["Account"]
-            except Exception:
-                pass
-        return None
+        result = self.run_command(["aws", "--version"], check=False)
+        return result.returncode == 0
 
     def install(self) -> None:
         if self.config.user_type.is_softmax:
@@ -53,4 +40,15 @@ class AWSSetup(SetupModule):
             info("Please configure your AWS credentials using `aws configure` or `aws configure sso`")
 
     def check_connected_as(self) -> str | None:
-        return self._get_aws_caller_identity()
+        try:
+            result = self.run_command(["aws", "sts", "get-caller-identity"], check=False)
+        except FileNotFoundError:
+            return None
+
+        if result.returncode == 0:
+            try:
+                res = json.loads(result.stdout)
+                return res["Account"]
+            except Exception:
+                pass
+        return None
