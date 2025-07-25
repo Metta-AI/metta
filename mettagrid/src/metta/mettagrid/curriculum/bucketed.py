@@ -59,7 +59,7 @@ def get_id(parameters, values):
     return curriculum_id
 
 
-def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str, Any]:
+def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Dict[str, Any]:
     """
     buckets: specified in the config, values or ranges for each parameter
     returns: unpacked configurations for each parameter given the number of bins
@@ -68,22 +68,18 @@ def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str,
     for parameter, bucket_spec in buckets.items():
         # if its a dictionary, the parameter is a range
         if isinstance(bucket_spec, dict):
-            if "range" in bucket_spec:
-                # Handle range specification
-                lo, hi = bucket_spec["range"]
-                n = int(bucket_spec.get("bins", default_bins))
-                step = (hi - lo) / n
-                want_int = isinstance(lo, int) and isinstance(hi, int)
+            assert "range" in bucket_spec, f"Range not specified for {parameter}"
+            lo, hi = bucket_spec["range"]
+            n = int(bucket_spec.get("bins", default_bins))
+            step = (hi - lo) / n
+            want_int = isinstance(lo, int) and isinstance(hi, int)
 
-                binned_ranges = []
-                for i in range(n):
-                    lo_i, hi_i = lo + i * step, lo + (i + 1) * step
-                    binned_ranges.append({"range": (lo_i, hi_i), "want_int": want_int})
+            binned_ranges = []
+            for i in range(n):
+                lo_i, hi_i = lo + i * step, lo + (i + 1) * step
+                binned_ranges.append({"range": (lo_i, hi_i), "want_int": want_int})
 
-                buckets_unpacked[parameter] = binned_ranges
-            else:
-                raise ValueError(f"Unknown bucket specification format for {parameter}: {bucket_spec}")
+            buckets_unpacked[parameter] = binned_ranges
         else:
-            # Handle direct list or list of lists
             buckets_unpacked[parameter] = bucket_spec
     return buckets_unpacked
