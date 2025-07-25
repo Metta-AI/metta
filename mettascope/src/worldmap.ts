@@ -524,7 +524,7 @@ function drawThoughtBubbles() {
       break
     }
 
-    if (keyAction != null) {
+    if (keyAction != null && keyActionStep != null) {
       const x = (getAttr(state.selectedGridObject, 'c') + 0.5) * Common.TILE_SIZE
       const y = (getAttr(state.selectedGridObject, 'r') - 0.5) * Common.TILE_SIZE
       if (actionHasTarget && actionStep !== state.step) {
@@ -532,7 +532,7 @@ function drawThoughtBubbles() {
         const [targetGridX, targetGridY] = applyOrientationOffset(
           getAttr(state.selectedGridObject, 'c', actionStep),
           getAttr(state.selectedGridObject, 'r', actionStep),
-          getAttr(state.selectedGridObject, 'agent:orientation', actionStep));
+          getAttr(state.selectedGridObject, 'agent:orientation', actionStep))
         const targetX = (targetGridX + 0.5) * Common.TILE_SIZE
         const targetY = (targetGridY - 0.5) * Common.TILE_SIZE
         const angle = Math.atan2(targetX - x, targetY - y)
@@ -558,8 +558,8 @@ function drawThoughtBubbles() {
 
       // Draw the resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1)
-        const nextResources = getAttr(state.selectedGridObject, key, actionStep)
+        const prevResources = getAttr(state.selectedGridObject, key, keyActionStep - 1)
+        const nextResources = getAttr(state.selectedGridObject, key, keyActionStep)
         const gained = nextResources - prevResources
         var resourceX = x
         var resourceY = y
