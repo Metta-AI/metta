@@ -1,6 +1,45 @@
-/** Mesh class responsible for managing vertex data. */
+import { Vec2f } from './vector_math.js'
+
+/**
+ * Mesh class for efficient batched rendering of textured quads.
+ *
+ * A mesh accumulates draw calls into vertex and index buffers, allowing
+ * thousands of sprites to be rendered in a single GPU draw call. This is
+ * critical for performance in 2D games and applications.
+ *
+ * Features:
+ * - Pre-allocated buffers with automatic resizing
+ * - Batches all quads sharing the same texture
+ * - Supports per-quad color tinting
+ * - Optional scissor rectangle for clipping
+ *
+ * The mesh uses an indexed triangle list with 4 vertices per quad and
+ * 6 indices (2 triangles). Vertex format: position (2), texcoord (2), color (4).
+ *
+ * @example
+ * const mesh = new Mesh(gl)
+ * mesh.clear()
+ * mesh.addQuad(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
+ * mesh.uploadToGPU()
+ * mesh.bind(posLoc, texLoc, colorLoc)
+ * gl.drawElements(gl.TRIANGLES, mesh.getIndexCount(), gl.UNSIGNED_INT, 0)
+ */
 export class Mesh {
-  private name: string
+  /** Number of floats per vertex:
+   * - x, y: position
+   * - u, v: texture coordinates
+   * - r, g, b, a: color
+   */
+  private static readonly FLOATS_PER_VERTEX = 8
+  private static readonly BYTES_PER_VERTEX = Mesh.FLOATS_PER_VERTEX * 4
+
+  /** Byte offsets into a single vertex */
+  private static readonly OFFSET_POSITION = 0
+  private static readonly OFFSET_TEXCOORD = 2 * 4
+  private static readonly OFFSET_COLOR = 4 * 4
+  private static readonly VERTICES_PER_QUAD = 4
+  private static readonly INDICES_PER_QUAD = 6
+
   private gl: WebGLRenderingContext
   private vertexBuffer: WebGLBuffer | null = null
   private indexBuffer: WebGLBuffer | null = null
@@ -18,44 +57,68 @@ export class Mesh {
   public scissorEnabled: boolean = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
-  constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
-    this.name = name
+  /**
+   * Create a new mesh.
+   *
+   * @param gl - The WebGL rendering context
+   * @param maxQuads - Initial capacity in quads (default: 8192)
+   */
+  constructor(gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
     this.gl = gl
     this.maxQuads = maxQuads
 
     // Pre-allocated buffers for better performance
-    this.vertexCapacity = this.maxQuads * 4 // 4 vertices per quad
-    this.indexCapacity = this.maxQuads * 6 // 6 indices per quad (2 triangles)
+    this.vertexCapacity = this.maxQuads * Mesh.VERTICES_PER_QUAD // 4 vertices per quad
+    this.indexCapacity = this.maxQuads * Mesh.INDICES_PER_QUAD // 6 indices per quad (2 triangles)
 
     // Pre-allocated CPU-side buffers
-    this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex (pos*2, uv*2, color*4)
+
+    // Vertex layout per vertex:
+    // - x, y:       Position (screen space)
+    // - u, v:       Texture coordinates (UV)
+    // - r, g, b, a: Color multiplier (float 0-1)
+    // Total: 8 floats per vertex
+    this.vertexData = new Float32Array(this.vertexCapacity * Mesh.FLOATS_PER_VERTEX)
     this.indexData = new Uint32Array(this.indexCapacity)
 
-    // Create the index pattern once (it's always the same for quads)
+    // Create the index pattern once
     this.setupIndexPattern()
+    this.createBuffers()
   }
 
-  /** Set up the index buffer pattern once. */
-  setupIndexPattern() {
-    // For each quad: triangles are formed by indices
-    // 0-1-2 (top-left, bottom-left, top-right)
-    // 2-1-3 (top-right, bottom-left, bottom-right)
+  /**
+   * Set up the index buffer pattern for quads.
+   *
+   * Creates the index pattern for all quads at once. Each quad uses
+   * 6 indices to form 2 triangles in counter-clockwise order:
+   * - Triangle 1: top-left, bottom-left, top-right
+   * - Triangle 2: top-right, bottom-left, bottom-right
+   *
+   * @private
+   */
+  private setupIndexPattern() {
     for (let i = 0; i < this.maxQuads; i++) {
-      const baseVertex = i * 4
-      const baseIndex = i * 6
+      const baseVertex = i * Mesh.VERTICES_PER_QUAD
+      const baseIndex = i * Mesh.INDICES_PER_QUAD
 
       // [Top-left, Bottom-left, Top-right, Top-right, Bottom-left, Bottom-right]
       const indexPattern = [0, 1, 2, 2, 1, 3]
-      for (let j = 0; j < 6; j++) {
+      for (let j = 0; j < Mesh.INDICES_PER_QUAD; j++) {
         this.indexData[baseIndex + j] = baseVertex + indexPattern[j]
       }
     }
   }
 
-  /** Create WebGL buffers. */
-  createBuffers() {
-    if (!this.gl) return
-
+  /**
+   * Create WebGL vertex and index buffers.
+   *
+   * Allocates GPU memory and uploads the initial (empty) buffer data.
+   * The vertex buffer uses DYNAMIC_DRAW since it's updated every frame.
+   * The index buffer uses STATIC_DRAW since the pattern never changes.
+   *
+   * @private
+   */
+  private createBuffers() {
     // Create vertex buffer
     this.vertexBuffer = this.gl.createBuffer()
     if (this.vertexBuffer) {
@@ -71,64 +134,94 @@ export class Mesh {
     }
   }
 
-  /** Resize the maximum number of quads the mesh can hold. */
-  resizeMaxQuads(newMaxQuads: number) {
-    console.info('Resizing max ', this.name, ' quads from', this.maxQuads, 'to', newMaxQuads)
+  /**
+   * Resize the mesh to accommodate more quads.
+   *
+   * Automatically called when the mesh runs out of space. Creates new
+   * larger buffers, copies existing data, and recreates GPU buffers.
+   *
+   * @param newMaxQuads - New capacity in quads (must be larger than current)
+   * @private
+   */
+  private resize(newMaxQuads: number) {
+    if (newMaxQuads <= this.maxQuads) return
 
-    if (newMaxQuads <= this.maxQuads) {
-      console.warn('New max quads must be larger than current max quads')
-      return
-    }
-
-    // Store the current data and state
+    // Store current data
     const oldVertexData = this.vertexData
     const currentVertexCount = this.currentVertex
 
     // Update capacities
     this.maxQuads = newMaxQuads
-    this.vertexCapacity = this.maxQuads * 4 // 4 vertices per quad
-    this.indexCapacity = this.maxQuads * 6 // 6 indices per quad (2 triangles)
+    this.vertexCapacity = this.maxQuads * Mesh.VERTICES_PER_QUAD
+    this.indexCapacity = this.maxQuads * Mesh.INDICES_PER_QUAD
 
-    // Create new CPU-side arrays with increased capacity
-    this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex
+    // Create new arrays
+    this.vertexData = new Float32Array(this.vertexCapacity * Mesh.FLOATS_PER_VERTEX)
     this.indexData = new Uint32Array(this.indexCapacity)
 
-    // Copy existing vertex data to the new array
-    this.vertexData.set(oldVertexData.subarray(0, currentVertexCount * 8))
+    // Copy existing data
+    this.vertexData.set(oldVertexData.subarray(0, currentVertexCount * Mesh.FLOATS_PER_VERTEX))
 
-    // Rebuild index data (includes the new pattern for additional quads)
+    // Rebuild index pattern
     this.setupIndexPattern()
 
-    // If we already have WebGL buffers, we need to recreate them
-    if (this.vertexBuffer && this.indexBuffer && this.gl) {
-      // Delete old buffers
+    // Recreate buffers
+    if (this.vertexBuffer && this.indexBuffer) {
       this.gl.deleteBuffer(this.vertexBuffer)
       this.gl.deleteBuffer(this.indexBuffer)
-
-      // Create new buffers with increased capacity
       this.createBuffers()
 
-      // Write the existing vertex data to the new vertex buffer
+      // Upload existing data
       if (currentVertexCount > 0) {
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
-        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, currentVertexCount * 8))
+        this.gl.bufferSubData(
+          this.gl.ARRAY_BUFFER,
+          0,
+          this.vertexData.subarray(0, currentVertexCount * Mesh.FLOATS_PER_VERTEX)
+        )
       }
     }
   }
 
-  /** Clear the mesh for a new frame. */
+  /**
+   * Clear the mesh for a new frame.
+   *
+   * Resets the vertex and quad counters without deallocating memory.
+   * Should be called at the start of each frame before adding new quads.
+   */
   clear() {
-    // Reset counters instead of recreating arrays
     this.currentQuad = 0
     this.currentVertex = 0
-
-    // Reset scissor settings
-    this.scissorEnabled = false
-    this.scissorRect = [0, 0, 0, 0]
   }
 
-  /** Draws a pre-transformed textured rectangle. */
-  drawRectWithTransform(
+  /**
+   * Add a quad to the mesh with pre-transformed vertices.
+   *
+   * The vertices should already have transformations applied. This method
+   * just stores them in the vertex buffer with texture coordinates and color.
+   * Automatically resizes the mesh if it runs out of space.
+   *
+   * @param topLeft - Top-left vertex position
+   * @param bottomLeft - Bottom-left vertex position
+   * @param topRight - Top-right vertex position
+   * @param bottomRight - Bottom-right vertex position
+   * @param u0 - Left texture coordinate (0-1)
+   * @param v0 - Top texture coordinate (0-1)
+   * @param u1 - Right texture coordinate (0-1)
+   * @param v1 - Bottom texture coordinate (0-1)
+   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0-1
+   *
+   * @example
+   * mesh.addQuad(
+   *   new Vec2f(0, 0),      // top-left
+   *   new Vec2f(0, 32),     // bottom-left
+   *   new Vec2f(32, 0),     // top-right
+   *   new Vec2f(32, 32),    // bottom-right
+   *   0, 0, 1, 1,           // full texture
+   *   [1, 1, 1, 1]          // white (no tint)
+   * )
+   */
+  addQuad(
     topLeft: Vec2f,
     bottomLeft: Vec2f,
     topRight: Vec2f,
@@ -137,28 +230,26 @@ export class Mesh {
     v0: number,
     u1: number,
     v1: number,
-    color: number[] = [1, 1, 1, 1]
+    color: [number, number, number, number] = [1, 1, 1, 1]
   ) {
-    // Check if we need to resize before adding more vertices
+    // Check if we need to resize
     if (this.currentQuad >= this.maxQuads) {
-      this.resizeMaxQuads(this.maxQuads * 2)
+      this.resize(this.maxQuads * 2)
     }
 
-    // Calculate base offset for this quad in the vertex data array
-    const baseVertex = this.currentVertex
-    const baseOffset = baseVertex * 8 // Each vertex has 8 floats
+    const baseOffset = this.currentVertex * Mesh.FLOATS_PER_VERTEX
 
     // Define the vertex attributes for each corner
     const corners = [
-      { pos: topLeft, uv: [u0, v0] }, // Top-left
-      { pos: bottomLeft, uv: [u0, v1] }, // Bottom-left
-      { pos: topRight, uv: [u1, v0] }, // Top-right
-      { pos: bottomRight, uv: [u1, v1] }, // Bottom-right
+      { pos: topLeft, uv: [u0, v0] },
+      { pos: bottomLeft, uv: [u0, v1] },
+      { pos: topRight, uv: [u1, v0] },
+      { pos: bottomRight, uv: [u1, v1] },
     ]
 
-    // Loop through each corner and set its vertex data
-    for (let i = 0; i < 4; i++) {
-      const offset = baseOffset + i * 8
+    // Set vertex data
+    for (let i = 0; i < Mesh.VERTICES_PER_QUAD; i++) {
+      const offset = baseOffset + i * Mesh.FLOATS_PER_VERTEX
       const corner = corners[i]
 
       // Position
@@ -169,46 +260,90 @@ export class Mesh {
       this.vertexData[offset + 2] = corner.uv[0]
       this.vertexData[offset + 3] = corner.uv[1]
 
-      // Color (same for all vertices)
+      // Color
       this.vertexData[offset + 4] = color[0]
       this.vertexData[offset + 5] = color[1]
       this.vertexData[offset + 6] = color[2]
       this.vertexData[offset + 7] = color[3]
     }
 
-    // Update counters
-    this.currentVertex += 4
+    this.currentVertex += Mesh.VERTICES_PER_QUAD
     this.currentQuad += 1
   }
 
-  /** Get the number of quads in the mesh. */
-  getQuadCount(): number {
-    return this.currentQuad
+  /**
+   * Upload vertex data from CPU to GPU.
+   *
+   * Copies the vertex data to the GPU vertex buffer. Should be called
+   * after all quads have been added and before rendering.
+   */
+  uploadToGPU() {
+    if (!this.vertexBuffer || this.currentVertex === 0) return
+
+    const vertexDataCount = this.currentVertex * Mesh.FLOATS_PER_VERTEX
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
+    this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, vertexDataCount))
   }
 
-  /** Get the vertex data. */
-  getVertexData(): Float32Array {
-    return this.vertexData
+  /**
+   * Bind mesh buffers and set up vertex attributes.
+   *
+   * Prepares the mesh for rendering by binding buffers and configuring
+   * vertex attribute pointers. Must be called before gl.drawElements().
+   *
+   * @param positionLoc - Shader attribute location for position
+   * @param texcoordLoc - Shader attribute location for texture coordinates
+   * @param colorLoc - Shader attribute location for color
+   */
+  bind(positionLoc: number, texcoordLoc: number, colorLoc: number) {
+    if (!this.vertexBuffer || !this.indexBuffer) return
+
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
+
+    this.gl.enableVertexAttribArray(positionLoc)
+    this.gl.vertexAttribPointer(positionLoc, 2, this.gl.FLOAT, false, Mesh.BYTES_PER_VERTEX, Mesh.OFFSET_POSITION)
+
+    this.gl.enableVertexAttribArray(texcoordLoc)
+    this.gl.vertexAttribPointer(texcoordLoc, 2, this.gl.FLOAT, false, Mesh.BYTES_PER_VERTEX, Mesh.OFFSET_TEXCOORD)
+
+    this.gl.enableVertexAttribArray(colorLoc)
+    this.gl.vertexAttribPointer(colorLoc, 4, this.gl.FLOAT, false, Mesh.BYTES_PER_VERTEX, Mesh.OFFSET_COLOR)
+
+    this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
   }
 
-  /** Get the current vertex count. */
-  getCurrentVertexCount(): number {
-    return this.currentVertex
+  /**
+   * Get the number of indices to draw.
+   *
+   * @returns Number of indices (6 per quad)
+   */
+  getIndexCount(): number {
+    return this.currentQuad * Mesh.INDICES_PER_QUAD
   }
 
-  /** Get the vertex buffer. */
-  getVertexBuffer(): WebGLBuffer | null {
-    return this.vertexBuffer
+  /**
+   * Check if the mesh has any content to render.
+   *
+   * @returns True if there are quads to draw
+   */
+  hasContent(): boolean {
+    return this.currentQuad > 0
   }
 
-  /** Get the index buffer. */
-  getIndexBuffer(): WebGLBuffer | null {
-    return this.indexBuffer
-  }
-
-  /** Reset the counters. */
-  resetCounters() {
-    this.currentQuad = 0
-    this.currentVertex = 0
+  /**
+   * Destroy GPU resources.
+   *
+   * Deletes vertex and index buffers. Should be called when the mesh
+   * is no longer needed to free GPU memory.
+   */
+  destroy() {
+    if (this.vertexBuffer) {
+      this.gl.deleteBuffer(this.vertexBuffer)
+      this.vertexBuffer = null
+    }
+    if (this.indexBuffer) {
+      this.gl.deleteBuffer(this.indexBuffer)
+      this.indexBuffer = null
+    }
   }
 }

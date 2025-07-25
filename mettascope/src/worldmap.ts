@@ -1,14 +1,14 @@
-import { Vec2f } from './vector_math.js'
-import { Grid } from './grid.js'
 import * as Common from './common.js'
-import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr, sendAction } from './replay.js'
-import { PanelInfo } from './panels.js'
-import { onFrame, updateSelection } from './main.js'
-import { parseHtmlColor, find } from './htmlutils.js'
-import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
-import { search, searchMatch } from './search.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
+import { Grid } from './grid.js'
+import { HoverPanel, updateHoverPanel, updateReadout } from './hoverpanels.js'
+import { parseHtmlColor } from './htmlutils.js'
+import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
+import { PanelInfo } from './panels.js'
+import { getAttr, sendAction } from './replay.js'
+import { search, searchMatch } from './search.js'
+import { Vec2f } from './vector_math.js'
 
 /**
  * Clamps the map panel's pan position so that the world map always remains at
@@ -437,7 +437,7 @@ function drawTrajectory() {
       if (cx0 !== cx1 || cy0 !== cy1) {
         const a = 1 - Math.abs(i - state.step) / 200
         if (a > 0) {
-          let color = [0, 0, 0, a]
+          let color: [number, number, number, number] = [0, 0, 0, a]
           let image = ''
           if (state.step >= i) {
             // The past trajectory is black.
@@ -606,7 +606,7 @@ function drawVisibility() {
       }
     }
 
-    var color = [0, 0, 0, 0.25]
+    var color: [number, number, number, number] = [0, 0, 0, 0.25]
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }

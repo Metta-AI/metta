@@ -1,8 +1,8 @@
-import { Vec2f } from './vector_math.js'
 import { Context3d } from './context3d.js'
-import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
-import { PanelInfo } from './panels.js'
 import { HoverPanel } from './hoverpanels.js'
+import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
+import { PanelInfo } from './panels.js'
+import { Vec2f } from './vector_math.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
@@ -166,7 +166,7 @@ export const html = {
 }
 
 /** Generates a color from an agent ID. */
-export function colorFromId(agentId: number) {
+export function colorFromId(agentId: number): [number, number, number, number] {
   let n = agentId + Math.PI + Math.E + Math.SQRT2
   return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }
