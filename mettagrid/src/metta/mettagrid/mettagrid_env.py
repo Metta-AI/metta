@@ -15,7 +15,6 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.common.util.instantiate import instantiate
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
@@ -113,31 +112,28 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
         task = self._task
+        task_cfg = task.env_cfg()
         level = self._level
 
         if level is None:
-            map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True)
-                level = map_builder.build()
+                level = task_cfg.game.map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
+        assert task_cfg.game.num_agents == level_agents, (
+            f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task.env_cfg().game, resolve=True)
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
-        game_config_dict = cast(Dict[str, Any], game_config_dict)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if isinstance(game_config_dict, dict) and self._is_training and self._resets == 0:
+        if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 
@@ -222,7 +218,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
             # if self._task.env_cfg().game.diversity_bonus.enabled:
             #     self.rewards *= calculate_diversity_bonus(
             #         self._c_env.get_episode_rewards(),
-            #         self._c_env.get_agent_groups(),
             #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
             #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
             #     )

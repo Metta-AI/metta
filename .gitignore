@@ -79,4 +79,4 @@ gpu_names_cache.json
 sweep_id
 
 # Notebooks
-notebooks/.ipynb_checkpoints
+experiments/notebooks/.ipynb_checkpoints
