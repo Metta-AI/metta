@@ -1,5 +1,5 @@
 """
-Tests for the codeflow CLI functionality.
+Tests for the codeclip CLI functionality.
 """
 
 import os
@@ -10,11 +10,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
-from codeflow.cli import cli
+from codeclip.cli import cli
 
 
-class TestCodeflowCLI(unittest.TestCase):
-    """Test cases for the codeflow CLI."""
+class TestCodeclipCLI(unittest.TestCase):
+    """Test cases for the codeclip CLI."""
 
     def setUp(self):
         self.runner = CliRunner()
@@ -80,12 +80,12 @@ class TestCodeflowCLI(unittest.TestCase):
         self.assertIn("project1/main.py", result.output)
 
     def test_default_current_directory(self):
-        """Test that no arguments defaults to current directory."""
+        """Test processing current directory with explicit '.'."""
         # Create files in current directory
         Path("test.py").write_text("print('test')\n")
         Path("README.md").write_text("# Test\n")
 
-        result = self.runner.invoke(cli, [])
+        result = self.runner.invoke(cli, ["."])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test.py", result.output)
         self.assertIn("README.md", result.output)
@@ -110,7 +110,7 @@ class TestCodeflowCLI(unittest.TestCase):
         Path("test.py").write_text("print('test')\n")
 
         # Test with raw format
-        result = self.runner.invoke(cli, ["-r"])
+        result = self.runner.invoke(cli, [".", "-r"])
         self.assertEqual(result.exit_code, 0)
 
         # Should not have XML tags
@@ -122,7 +122,7 @@ class TestCodeflowCLI(unittest.TestCase):
         """Test XML output format (default)."""
         Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(cli, [])
+        result = self.runner.invoke(cli, ["."])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML tags (new format)
@@ -159,7 +159,7 @@ class TestCodeflowCLI(unittest.TestCase):
         mock_process.communicate = MagicMock()
         mock_popen.return_value = mock_process
 
-        result = self.runner.invoke(cli, ["-p"])
+        result = self.runner.invoke(cli, [".", "-p"])
         self.assertEqual(result.exit_code, 0)
 
         # Check that pbcopy was called

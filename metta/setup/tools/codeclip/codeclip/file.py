@@ -105,6 +105,7 @@ def _should_ignore(
 ) -> bool:
     rel_path = os.path.relpath(str(path), root_dir)
     basename = path.name
+    
 
     # Common dependency/build directories to always ignore
     ignored_dirs = {
@@ -193,7 +194,13 @@ def _should_ignore(
                         return True
             else:
                 # Rule with a slash but not anchored; apply fnmatch against the entire relative path.
-                if fnmatch.fnmatch(rel_path, rule):
+                # Special handling for directory rules ending with /
+                if rule.endswith("/"):
+                    dir_pattern = rule.rstrip("/")
+                    # Match the directory itself or any path within it
+                    if rel_path == dir_pattern or rel_path.startswith(dir_pattern + "/"):
+                        return True
+                elif fnmatch.fnmatch(rel_path, rule):
                     return True
         else:
             # For rules without a slash:
@@ -257,6 +264,7 @@ def _should_ignore_file_type(path: Path) -> bool:
         ".pkl",
         ".pickle",
         ".joblib",
+        ".npy",
         # Database files
         ".db",
         ".sqlite",
@@ -392,14 +400,21 @@ def _collect_files(
 
     elif path_obj.is_dir():
         for root, dirs, files in os.walk(path_obj):
+            # Filter hidden directories
             dirs[:] = [d for d in dirs if not d.startswith(".")]
+            
+            # Filter directories based on gitignore BEFORE os.walk descends into them
+            filtered_dirs = []
+            for d in dirs:
+                dir_path = Path(os.path.join(root, d))
+                if not _should_ignore(dir_path, gitignore_rules, root_dir, extensions):
+                    filtered_dirs.append(d)
+            dirs[:] = filtered_dirs
+            
+            # Filter hidden files
             files = [f for f in files if not f.startswith(".")]
-
-            dirs[:] = [
-                d
-                for d in dirs
-                if not _should_ignore(Path(os.path.join(root, d)), gitignore_rules, root_dir, extensions)
-            ]
+            
+            # Filter files based on gitignore and extensions
             files = [
                 f
                 for f in files

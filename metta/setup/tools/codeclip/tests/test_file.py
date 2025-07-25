@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codeflow.file import (
+from codeclip.file import (
     _find_git_root,
     _find_gitignore,
     _find_parent_readmes,
@@ -49,7 +49,7 @@ class TestGitignoreHandling(unittest.TestCase):
             "cython_debug": {
                 "debug.log": "",
             },
-            ".codeflowignore": (
+            ".codeclipignore": (
                 "*.pyc\n__pycache__/\n/wandb/\ntrain_dir/\nreplays/\n*.egg-info\n"
                 "/build/\n/build_debug/\n.DS_Store\n.task\noutputs/\n*.so\n"
                 "cython_debug\nstats.profile\n/dist/\nplayer/dist/\nplayer/node_modules\n"
@@ -73,7 +73,7 @@ class TestGitignoreHandling(unittest.TestCase):
 
     def test_read_gitignore(self):
         """Test reading gitignore patterns from file."""
-        gitignore_path = self.base_path / ".codeflowignore"
+        gitignore_path = self.base_path / ".codeclipignore"
         rules = _read_gitignore(str(gitignore_path))
 
         # Check that patterns were read correctly
@@ -85,7 +85,7 @@ class TestGitignoreHandling(unittest.TestCase):
 
     def test_should_ignore_patterns(self):
         """Test the ignore logic for various file patterns."""
-        gitignore_rules = _read_gitignore(str(self.base_path / ".codeflowignore"))
+        gitignore_rules = _read_gitignore(str(self.base_path / ".codeclipignore"))
 
         # Binary files should be ignored due to extension
         self.assertTrue(_should_ignore(self.base_path / "test.pyc", gitignore_rules, self.base_path))
@@ -159,6 +159,21 @@ class TestGitignoreHandling(unittest.TestCase):
         self.assertEqual(
             rules_incorrect, [], "Passing directory path to _read_gitignore returns empty list - this is the bug!"
         )
+
+    def test_gitignore_directory_with_trailing_slash(self):
+        """Test that gitignore directory rules with trailing slashes work correctly."""
+        gitignore_rules = _read_gitignore(str(self.base_path / ".codeclipignore"))
+        
+        # train_dir/ rule should ignore the directory itself
+        self.assertTrue(_should_ignore(self.base_path / "train_dir", gitignore_rules, self.base_path))
+        
+        # train_dir/ rule should also ignore all files within the directory
+        self.assertTrue(_should_ignore(self.base_path / "train_dir" / "model.pt", gitignore_rules, self.base_path))
+        self.assertTrue(_should_ignore(self.base_path / "train_dir" / "subdir" / "file.txt", gitignore_rules, self.base_path))
+        
+        # Similar directory should not be ignored
+        self.assertFalse(_should_ignore(self.base_path / "train_dir_backup", gitignore_rules, self.base_path))
+        self.assertFalse(_should_ignore(self.base_path / "my_train_dir", gitignore_rules, self.base_path))
 
 
 class TestGitRootAndReadmeHandling(unittest.TestCase):

@@ -90,7 +90,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
         "components": {
             "system": {"enabled": True},
             "core": {"enabled": True},
-            "codeflow": {"enabled": True},
+            "codeclip": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-fe": {"enabled": True},
