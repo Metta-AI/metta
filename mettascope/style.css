@@ -155,3 +155,153 @@ html {
 input::placeholder {
   opacity: 0.25;
 }
+
+/* moderately sized tablet or phone screens */
+@media (max-width: 900px) {
+  #footer {
+    height: auto;
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #footer .left {
+    position: relative;
+    left: 8px;
+    top: 0;
+    transform: none;
+    width: calc(100% - 16px);
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 3px;
+    z-index: 10;
+  }
+
+  #footer .center {
+    position: relative;
+    left: 8px;
+    top: 0;
+    transform: none;
+    width: calc(100% - 16px);
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 3px;
+    z-index: 10;
+  }
+
+  #footer .right {
+    position: relative;
+    right: auto;
+    left: 8px;
+    top: 0;
+    transform: none;
+    width: calc(100% - 16px);
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 3px;
+    overflow: visible;
+    z-index: 10;
+  }
+
+  /* Make all footer buttons smaller on mobile */
+  #footer .hover-icon {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  /* Smaller speed controls */
+  .center #speed2.hover-icon,
+  .center #speed3.hover-icon,
+  .center #speed4.hover-icon,
+  .center #speed5.hover-icon {
+    width: 14px !important;
+  }
+
+  /* Adjust timeline panel to account for taller footer */
+  #timeline-panel {
+    bottom: auto;
+    top: auto;
+    height: 48px;
+  }
+
+  /* Adjust other panels */
+  #trace-panel {
+    bottom: auto;
+    top: auto;
+    height: 48px;
+  }
+
+  #worldmap-panel {
+    bottom: auto;
+    top: 64px;
+  }
+
+  #info-panel {
+    bottom: auto;
+    top: auto;
+    width: 100%;
+    height: 200px;
+    right: 0;
+  }
+
+  #action-buttons {
+    bottom: auto;
+    top: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    height: auto;
+  }
+
+  /* Make search input responsive */
+  #header input#search-input {
+    width: 150px !important;
+  }
+
+  #header #search-icon {
+    right: 215px !important;
+  }
+}
+
+/* very small phone sized screens */
+@media (max-width: 480px) {
+  /* Even smaller buttons for very small screens */
+  #footer .hover-icon {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .center #speed2.hover-icon,
+  .center #speed3.hover-icon,
+  .center #speed4.hover-icon,
+  .center #speed5.hover-icon {
+    width: 12px !important;
+  }
+
+  /* More compact spacing */
+  #footer .left,
+  #footer .center,
+  #footer .right {
+    gap: 2px;
+    margin-bottom: 6px;
+  }
+
+  #footer {
+    padding: 6px 0;
+  }
+
+  /* Even smaller search input for very small screens */
+  #header input#search-input {
+    width: 70px !important;
+  }
+
+  #header #search-icon {
+    right: 135px !important;
+  }
+
+  /* Hide placeholder text on very small screens, it gets cut off */
+  #header input#search-input::placeholder {
+    opacity: 0 !important;
+  }
+}

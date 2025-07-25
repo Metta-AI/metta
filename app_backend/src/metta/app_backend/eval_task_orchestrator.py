@@ -26,14 +26,15 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
 )
 from metta.common.util.collections import group_by
-from metta.common.util.script_decorators import setup_mettagrid_logger
+from metta.common.util.logging_helpers import init_logging
 
 
 class EvalTaskOrchestrator:
     def __init__(
         self,
         backend_url: str,
-        docker_image: str = "metta-local:latest",
+        machine_token: str,
+        docker_image: str = "metta-policy-evaluator-local:latest",
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 600.0,
         container_manager: AbstractContainerManager | None = None,
@@ -43,7 +44,8 @@ class EvalTaskOrchestrator:
         self._docker_image = docker_image
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
-        self._logger = logger or setup_mettagrid_logger("eval_worker_orchestrator")
+        self._machine_token = machine_token
+        self._logger = logger or logging.getLogger(__name__)
         self._task_client = EvalTaskClient(backend_url)
         self._container_manager = container_manager or create_container_manager()
 
@@ -125,7 +127,10 @@ class EvalTaskOrchestrator:
                             break
             else:
                 new_worker = self._container_manager.start_worker_container(
-                    git_hash=task.git_hash, backend_url=self._backend_url, docker_image=self._docker_image
+                    git_hash=task.git_hash,
+                    backend_url=self._backend_url,
+                    docker_image=self._docker_image,
+                    machine_token=self._machine_token,
                 )
                 alive_workers_by_name[new_worker.container_name] = new_worker
                 if await self._attempt_claim_task(task, new_worker):
@@ -168,16 +173,20 @@ class EvalTaskOrchestrator:
 
 
 async def main() -> None:
-    logger = setup_mettagrid_logger("eval_worker_orchestrator")
+    init_logging()
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
+    logger = logging.getLogger(__name__)
+
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
-    docker_image = os.environ.get("DOCKER_IMAGE", "metta-local:latest")
+    docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "600"))
+    machine_token = os.environ["MACHINE_TOKEN"]
 
     orchestrator = EvalTaskOrchestrator(
         backend_url=backend_url,
+        machine_token=machine_token,
         docker_image=docker_image,
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,

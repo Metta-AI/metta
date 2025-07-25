@@ -33,7 +33,7 @@ class RandomSceneFromDir(Scene[RandomSceneFromDirParams]):
                 scene=RandomScene.factory({"candidates": candidates}),
                 where="full",
             ),
-            *self.children,
+            *self.children_actions,
         ]
 
     def render(self):

@@ -3,7 +3,7 @@ import textwrap
 from pathlib import Path
 from typing import TypeVar
 
-from metta.common.util.colorama import Fore, blue, bold, colorize, cyan, green, red, yellow
+from metta.common.util.text_styles import Fore, blue, bold, colorize, cyan, green, red, yellow
 
 T = TypeVar("T")
 

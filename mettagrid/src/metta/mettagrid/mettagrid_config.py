@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field
 
@@ -178,7 +178,6 @@ class PyConverterConfig(BaseModelWithForbidExtra):
 class PyTerminationConfig(BaseModelWithForbidExtra):
     """Python termination configuration."""
 
-    num_altars: Optional[bool] = Field(default=None)
     max_reward: Optional[int] = Field(default=None)
     end_of_episode_boost: Optional[float] = Field(default=None)
 
@@ -200,8 +199,19 @@ class PyGameConfig(BaseModelWithForbidExtra):
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
+    recipe_details_obs: bool = Field(default=False)
     objects: dict[str, PyConverterConfig | PyWallConfig]
     termination: PyTerminationConfig = Field(default_factory=PyTerminationConfig)
+    # these are not used in the C++ code, but we allow them to be set for other uses.
+    # E.g., templates can use params as a place where values are expected to be written,
+    # and other parts of the template can read from there.
+    params: Optional[Any] = None
+    map_builder: Optional[Any] = None
+
+    # Movement metrics configuration
+    track_movement_metrics: bool = Field(
+        default=False, description="Enable movement metrics tracking (sequential rotations)"
+    )
 
 
 class PyPolicyGameConfig(PyGameConfig):

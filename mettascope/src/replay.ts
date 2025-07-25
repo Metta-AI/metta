@@ -6,18 +6,10 @@ import { updateAgentTable } from './agentpanel.js'
 
 /** Gets an attribute from a grid object, respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
-  if (atStep == -1) {
-    // When the step is not passed in, use the global step.
-    atStep = state.step
-  }
-  if (obj[attr] === undefined) {
-    return defaultValue
-  } else if (obj[attr] instanceof Array) {
-    return obj[attr][atStep]
-  } else {
-    // This must be a constant that does not change over time.
-    return obj[attr]
-  }
+  const prop = obj[attr]
+  if (prop === undefined) return defaultValue
+  if (!Array.isArray(prop)) return prop // This must be a constant that does not change over time.
+  return prop[atStep === -1 ? state.step : atStep] // When the step is not passed in, use the global step.
 }
 
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
@@ -243,8 +235,6 @@ function fixReplay() {
     // Force a resize to update the minimap panel.
     onResize()
   }
-
-  console.info('replay: ', state.replay)
 }
 
 /** Loads a replay from a JSON object. */
@@ -339,7 +329,9 @@ export function loadReplayStep(replayStep: any) {
 
 /** Get object config. */
 export function getObjectConfig(object: any) {
-  let typeName = state.replay.object_types[object.type]
+  let typeId = getAttr(object, 'type')
+  let typeName = state.replay.object_types[typeId]
+
   if (state.replay.config == null) {
     return null
   }
@@ -351,15 +343,12 @@ export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl)
   state.ws.onmessage = (event) => {
     const data = JSON.parse(event.data)
-    console.info('Received message: ', data.type)
     if (data.type === 'replay') {
       loadReplayJson(wsUrl, data.replay)
       Common.closeModal()
       html.actionButtons.classList.remove('hidden')
     } else if (data.type === 'replay_step') {
       loadReplayStep(data.replay_step)
-    } else if (data.type === 'message') {
-      console.info('Received message: ', data.message)
     } else if (data.type === 'memory_copied') {
       navigator.clipboard.writeText(JSON.stringify(data.memory))
     }
