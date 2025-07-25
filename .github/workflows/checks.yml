@@ -166,12 +166,20 @@ jobs:
       matrix:
         include:
           # Individual packages
-          - name: "app_backend"
-            package: "app_backend"
           - name: "agent"
             package: "agent"
           - name: "common"
             package: "common"
+
+          # app_backend with sharding
+          - name: "app_backend-shard-0"
+            package: "app_backend"
+            shard_id: 0
+            num_shards: 2
+          - name: "app_backend-shard-1"
+            package: "app_backend"
+            shard_id: 1
+            num_shards: 2
 
           # Mettagrid with sharding
           - name: "mettagrid-shard-0"
@@ -187,19 +195,28 @@ jobs:
           - name: "core-shard-0"
             package: "core"
             shard_id: 0
-            num_shards: 4
+            num_shards: 6
           - name: "core-shard-1"
             package: "core"
             shard_id: 1
-            num_shards: 4
+            num_shards: 6
           - name: "core-shard-2"
             package: "core"
             shard_id: 2
-            num_shards: 4
+            num_shards: 6
           - name: "core-shard-3"
             package: "core"
             shard_id: 3
-            num_shards: 4
+            num_shards: 6
+          - name: "core-shard-4"
+            package: "core"
+            shard_id: 4
+            num_shards: 6
+          - name: "core-shard-5"
+            package: "core"
+            shard_id: 5
+            num_shards: 6
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
