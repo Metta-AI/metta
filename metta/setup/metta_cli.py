@@ -215,6 +215,17 @@ class MettaCLI:
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
 
+    def cmd_clip(self, args) -> None:
+        """Run the codeclip tool with provided arguments."""
+        try:
+            # Simply pass through to codeclip
+            cmd = ["codeclip"] + (args.args if args.args else ["--help"])
+            subprocess.run(cmd, check=False)
+        except FileNotFoundError:
+            error("codeclip is not installed.")
+            error("Run: metta install codeclip")
+            sys.exit(1)
+
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
@@ -610,6 +621,10 @@ Examples:
         enter_parser = kind_subparsers.add_parser("enter", help="Enter a pod with an interactive shell")
         enter_parser.add_argument("pod_name", help="Name of the pod to enter")
 
+        # Add clip command
+        clip_parser = subparsers.add_parser("clip", help="copy subsets of codebase for LLM contexts", add_help=False)
+        clip_parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments to pass to the clip tool")
+
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)
 
@@ -624,7 +639,7 @@ Examples:
         ):
             # These commands handle their own args
             pass
-        elif args.command not in ["test", "test-changed", "tool"]:
+        elif args.command not in ["clip", "test", "test-changed", "tool"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -671,6 +686,8 @@ Examples:
             self.cmd_shell()
         elif args.command == "report-env-details":
             self.cmd_report_env_details()
+        elif args.command == "clip":
+            self.cmd_clip(args)
         elif args.command == "local":
             self.cmd_local(args, unknown_args)
         else:
