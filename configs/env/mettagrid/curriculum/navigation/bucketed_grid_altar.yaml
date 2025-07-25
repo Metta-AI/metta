@@ -1,0 +1,35 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/training/grid_multiroom
+
+buckets:
+  # Vary the room size
+  game.map_builder.room.width:
+    values: [50, 60, 70]
+
+  game.map_builder.room.height:
+    values: [50, 60, 70]
+
+  # Vary the number of altars (grid size)
+  game.map_builder.room.root.params.grid_rows:
+    values: [3, 4, 5, 6]  # 3x3 to 6x6 grids
+
+  game.map_builder.room.root.params.grid_cols:
+    values: [3, 4, 5, 6]  # 3x3 to 6x6 grids
+
+  # Vary spacing between grid points
+  game.map_builder.room.root.params.min_spacing:
+    values: [3, 4, 5, 6]
+
+  # Vary margin from edges
+  game.map_builder.room.root.params.margin:
+    values: [4, 6, 8]
+
+  # Vary max steps based on complexity
+  game.max_steps:
+    values: [600, 800, 1000, 1200]
+
+env_overrides:
+  sampling: 1
+  game:
+    num_agents: 4
