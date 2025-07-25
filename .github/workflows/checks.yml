@@ -176,22 +176,22 @@ jobs:
             package: "common"
 
           # Core split by test type
-          - name: "core-maps"
+          - name: "core-map"
             package: "core"
-            test_pattern: "tests/maps/**"
+            test_pattern: "tests/map/**"
           - name: "core-rl"
             package: "core"
             test_pattern: "tests/rl/**"
           - name: "core-sim-eval"
             package: "core"
-            test_pattern: "tests/sims/** tests/eval/**"
+            test_pattern: "tests/sim/** tests/eval/**"
           - name: "core-sweep"
             package: "core"
-            test_pattern: "tests/sweep/** tests/protein/**"
+            test_pattern: "tests/sweep/**
           - name: "core-other"
             package: "core"
             test_pattern: "tests/test_*.py"
-            exclude_pattern: "tests/maps/** tests/rl/** tests/sims/** tests/eval/** tests/sweep/** tests/protein/**"
+            exclude_pattern: "tests/map/** tests/rl/** tests/sim/** tests/eval/** tests/sweep/**
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
