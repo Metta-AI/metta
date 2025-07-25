@@ -6,7 +6,6 @@ from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.room.random import Random
 from metta.mettagrid.util.hydra import get_cfg
 
 
@@ -25,13 +24,20 @@ def test_wandb_movement_metrics():
     cfg.game.episode_truncates = True
     cfg.game.track_movement_metrics = True  # Enable movement metrics
 
-    # Create a simple level with one agent
-    level_builder = Random(width=5, height=5, objects=OmegaConf.create({}), agents=1, border_width=1)
-    level = level_builder.build()
+    cfg.game.map_builder = OmegaConf.create(
+        {
+            "_target_": "metta.mettagrid.room.random.Random",
+            "width": 5,
+            "height": 5,
+            "objects": {},
+            "agents": 1,
+            "border_width": 1,
+        }
+    )
 
     # Create curriculum and environment
     curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None, level=level)
+    env = MettaGridEnv(curriculum, render_mode=None)
 
     obs, _ = env.reset()
 

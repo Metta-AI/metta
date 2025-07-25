@@ -2,7 +2,8 @@ import * as Common from './common.js'
 import { ctx, setFollowSelection, state, ui } from './common.js'
 import { glyphAssociations } from './glyphtable.js'
 import { Grid } from './grid.js'
-import { HoverPanel, updateHoverPanel, updateReadout } from './hoverpanels.js'
+import { HoverBubble, updateHoverBubble } from './hoverbubbles.js'
+import { updateReadout } from './hoverpanels.js'
 import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
@@ -796,23 +797,23 @@ function drawAttackMode() {
 }
 
 /** Draw the info line from the object to the info panel. */
-function drawInfoLine(panel: HoverPanel) {
-  const x = getAttr(panel.object, 'c')
-  const y = getAttr(panel.object, 'r')
+function drawInfoLine(bubble: HoverBubble) {
+  const x = getAttr(bubble.object, 'c')
+  const y = getAttr(bubble.object, 'r')
   ctx.drawSprite('info.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
-  // Compute the panel position in the world map coordinates.
-  const panelBounds = panel.div.getBoundingClientRect()
-  const panelScreenPos = new Vec2f(panelBounds.left + 20, panelBounds.top + 20)
-  const panelWorldPos = ui.mapPanel.transformOuter(panelScreenPos)
+  // Compute the bubble position in the world map coordinates.
+  const bubbleBounds = bubble.div.getBoundingClientRect()
+  const bubbleScreenPos = new Vec2f(bubbleBounds.left + 20, bubbleBounds.top + 20)
+  const bubbleWorldPos = ui.mapPanel.transformOuter(bubbleScreenPos)
 
-  // Draw a line from the object to the panel.
+  // Draw a line from the object to the bubble.
   ctx.drawSpriteLine(
     'dash.png',
     x * Common.TILE_SIZE,
     y * Common.TILE_SIZE,
-    panelWorldPos.x(),
-    panelWorldPos.y(),
+    bubbleWorldPos.x(),
+    bubbleWorldPos.y(),
     60,
     [1, 1, 1, 1],
     2
@@ -876,7 +877,7 @@ export function drawMap(panel: PanelInfo) {
         ui.hoverTimer = setTimeout(() => {
           if (ui.mouseTargets.includes('#worldmap-panel')) {
             ui.delayedHoverObject = ui.hoverObject
-            updateHoverPanel(ui.delayedHoverObject)
+            updateHoverBubble(ui.delayedHoverObject)
           }
         }, Common.INFO_PANEL_POP_TIME)
       }
@@ -957,12 +958,12 @@ export function drawMap(panel: PanelInfo) {
     drawAttackMode()
   }
 
-  updateHoverPanel(ui.delayedHoverObject)
+  updateHoverBubble(ui.delayedHoverObject)
   updateReadout()
 
-  for (const panel of ui.hoverPanels) {
-    panel.update()
-    drawInfoLine(panel)
+  for (const bubble of ui.hoverBubbles) {
+    bubble.update()
+    drawInfoLine(bubble)
   }
 
   ctx.restore()

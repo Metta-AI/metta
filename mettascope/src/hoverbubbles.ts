@@ -1,14 +1,14 @@
-// Info panels are used to display information about the current state of objects.
+// Info bubbles are used to display information about the current state of objects.
 
 // Lower-level hover rules:
-// * You need to hover over an object for one second for the info panel to show.
-// * You can hover off the object, and the panel will stay visible for one second.
-// * If you hover over the panel, it will stay visible as long as the mouse is over it.
-// * If you drag the panel, it will detach and stay on the screen.
+// * You need to hover over an object for one second for the info bubble to show.
+// * You can hover off the object, and the bubble will stay visible for one second.
+// * If you hover over the bubble, it will stay visible as long as the mouse is over it.
+// * If you drag the bubble, it will detach and stay on the screen.
 //   - It will only be closed by clicking on the X.
 //   - It will lose its hover stem on the bottom when it's in detached mode.
 
-// Hover panels show:
+// Hover bubbles show:
 // * The properties of the object (like position, which is hidden).
 // * The inventory of the object.
 // * The recipe of the object.
@@ -20,8 +20,8 @@ import { getAttr, getObjectConfig } from './replay.js'
 import * as Common from './common.js'
 import { Vec2f } from './vector_math.js'
 
-/** An info panel. */
-export class HoverPanel {
+/** An info bubble. */
+export class HoverBubble {
   public object: any
   public div: HTMLElement
 
@@ -36,81 +36,81 @@ export class HoverPanel {
 }
 
 onEvent('click', '.hover-panel .close', (target: HTMLElement, e: Event) => {
-  let panel = target.parentElement as HTMLElement
-  panel.remove()
-  ui.hoverPanels = ui.hoverPanels.filter((p) => p.div !== panel)
+  let bubble = target.parentElement as HTMLElement
+  bubble.remove()
+  ui.hoverBubbles = ui.hoverBubbles.filter((p) => p.div !== bubble)
 })
 
-let hoverPanelTemplate = find('.hover-panel') as HTMLElement
-let paramTemplate = findIn(hoverPanelTemplate, '.param')
-let itemTemplate = findIn(hoverPanelTemplate, '.inventory .item')
-let recipeArrow = findIn(hoverPanelTemplate, '.recipe .arrow')
-hoverPanelTemplate.remove()
+let hoverBubbleTemplate = find('.hover-panel') as HTMLElement
+let paramTemplate = findIn(hoverBubbleTemplate, '.param')
+let itemTemplate = findIn(hoverBubbleTemplate, '.inventory .item')
+let recipeArrow = findIn(hoverBubbleTemplate, '.recipe .arrow')
+hoverBubbleTemplate.remove()
 
-let hoverPanel = hoverPanelTemplate.cloneNode(true) as HTMLElement
-document.body.appendChild(hoverPanel)
-findIn(hoverPanel, '.actions').classList.add('hidden')
-hoverPanel.classList.add('hidden')
+let hoverBubble = hoverBubbleTemplate.cloneNode(true) as HTMLElement
+document.body.appendChild(hoverBubble)
+findIn(hoverBubble, '.actions').classList.add('hidden')
+hoverBubble.classList.add('hidden')
 
-hoverPanel.addEventListener('pointerdown', (e: PointerEvent) => {
-  // Create a new info panel.
-  let panel = new HoverPanel(ui.delayedHoverObject)
-  panel.div = hoverPanelTemplate.cloneNode(true) as HTMLElement
-  panel.div.classList.add('draggable')
-  let tip = findIn(panel.div, '.tip')
+hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
+  // Create a new info bubble.
+  let bubble = new HoverBubble(ui.delayedHoverObject)
+  bubble.div = hoverBubbleTemplate.cloneNode(true) as HTMLElement
+  bubble.div.classList.add('draggable')
+  let tip = findIn(bubble.div, '.tip')
   tip.remove()
-  document.body.appendChild(panel.div)
-  updateDom(panel.div, panel.object)
-  panel.div.style.top = hoverPanel.style.top
-  panel.div.style.left = hoverPanel.style.left
+  document.body.appendChild(bubble.div)
+  updateDom(bubble.div, bubble.object)
+  bubble.div.style.top = hoverBubble.style.top
+  bubble.div.style.left = hoverBubble.style.left
 
   // Show the actions buttons (memory, etc.) if the object is an agent
   // and if the websocket is connected.
-  let actions = findIn(panel.div, '.actions')
-  if (state.ws != null && panel.object.hasOwnProperty('agent_id')) {
+  let actions = findIn(bubble.div, '.actions')
+  if (state.ws != null && bubble.object.hasOwnProperty('agent_id')) {
     actions.classList.remove('hidden')
   } else {
     actions.classList.add('hidden')
   }
 
-  ui.dragHtml = panel.div
-  // Compute mouse position relative to the panel.
-  let rect = panel.div.getBoundingClientRect()
+  ui.dragHtml = bubble.div
+  // Compute mouse position relative to the bubble.
+  let rect = bubble.div.getBoundingClientRect()
   ui.dragOffset = new Vec2f(e.clientX - rect.left, e.clientY - rect.top)
-  ui.dragging = 'info-panel'
-  ui.hoverPanels.push(panel)
+  ui.dragging = 'info-bubble'
+  ui.hoverBubbles.push(bubble)
 
-  // Hide the old hover panel.
-  // The new info panel should be identical to the old hover panel,
+  // Hide the old hover bubble.
+  // The new info bubble should be identical to the old hover bubble,
   // so that the user sees no difference.
-  hoverPanel.classList.add('hidden')
+  hoverBubble.classList.add('hidden')
   ui.hoverObject = null
   ui.delayedHoverObject = null
   e.stopPropagation()
 })
 
-/** Updates the hover panel's visibility, position, and DOM tree. */
-export function updateHoverPanel(object: any) {
+/** Updates the hover bubble's visibility, position, and DOM tree. */
+export function updateHoverBubble(object: any) {
   if (object !== null && object !== undefined) {
     // Is there a popup open for this object?
     // Then don't show a new one.
-    for (let panel of ui.hoverPanels) {
-      if (panel.object === object) {
+    for (let bubble of ui.hoverBubbles) {
+      if (bubble.object === object) {
         return
       }
     }
 
     let typeName = state.replay.object_types[getAttr(object, 'type')]
     if (typeName == 'wall') {
-      // Don't show hover panel for walls.
-      hoverPanel.classList.add('hidden')
+      // Don't show hover bubble for walls.
+      hoverBubble.classList.add('hidden')
       return
     }
 
-    updateDom(hoverPanel, object)
-    hoverPanel.classList.remove('hidden')
+    updateDom(hoverBubble, object)
+    hoverBubble.classList.remove('hidden')
 
-    let panelRect = hoverPanel.getBoundingClientRect()
+    let bubbleRect = hoverBubble.getBoundingClientRect()
 
     let x = getAttr(object, 'c') * Common.TILE_SIZE
     let y = getAttr(object, 'r') * Common.TILE_SIZE
@@ -118,29 +118,29 @@ export function updateHoverPanel(object: any) {
     let uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
 
     // Put it in the center above the object.
-    hoverPanel.style.left = uiPoint.x() - panelRect.width / 2 + 'px'
-    hoverPanel.style.top = uiPoint.y() - panelRect.height + 'px'
+    hoverBubble.style.left = uiPoint.x() - bubbleRect.width / 2 + 'px'
+    hoverBubble.style.top = uiPoint.y() - bubbleRect.height + 'px'
   } else {
-    hoverPanel.classList.add('hidden')
+    hoverBubble.classList.add('hidden')
   }
-  findIn(hoverPanel, '.close').classList.add('hidden')
+  findIn(hoverBubble, '.close').classList.add('hidden')
 }
 
-/** Hides the hover panel. */
-export function hideHoverPanel() {
+/** Hides the hover bubble. */
+export function hideHoverBubble() {
   ui.delayedHoverObject = null
-  hoverPanel.classList.add('hidden')
+  hoverBubble.classList.add('hidden')
 }
 
-/** Updates the DOM tree of the info panel. */
-function updateDom(htmlPanel: HTMLElement, object: any) {
+/** Updates the DOM tree of the info bubble. */
+function updateDom(htmlBubble: HTMLElement, object: any) {
   // Update the readout.
-  htmlPanel.setAttribute('data-object-id', getAttr(object, 'id'))
-  htmlPanel.setAttribute('data-agent-id', getAttr(object, 'agent_id'))
+  htmlBubble.setAttribute('data-object-id', getAttr(object, 'id'))
+  htmlBubble.setAttribute('data-agent-id', getAttr(object, 'agent_id'))
 
-  let params = findIn(htmlPanel, '.params')
+  let params = findIn(htmlBubble, '.params')
   removeChildren(params)
-  let inventory = findIn(htmlPanel, '.inventory')
+  let inventory = findIn(htmlBubble, '.inventory')
   removeChildren(inventory)
   for (const key in object) {
     let value = getAttr(object, key)
@@ -171,9 +171,9 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   }
 
   // Populate the recipe area if the object config has input_ or output_ resources.
-  let recipe = findIn(htmlPanel, '.recipe')
+  let recipe = findIn(htmlBubble, '.recipe')
   removeChildren(recipe)
-  let recipeArea = findIn(htmlPanel, '.recipe-area')
+  let recipeArea = findIn(htmlBubble, '.recipe-area')
   let objectConfig = getObjectConfig(object)
   let displayedResources = 0
   if (objectConfig != null) {

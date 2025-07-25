@@ -9,6 +9,10 @@ from testcontainers.postgres import PostgresContainer
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
 from metta.app_backend.stats_client import StatsClient
+from metta.common.tests.fixtures import docker_client_fixture
+
+# Register the docker_client fixture
+docker_client = docker_client_fixture()
 
 
 @pytest.fixture(scope="session", autouse=True)

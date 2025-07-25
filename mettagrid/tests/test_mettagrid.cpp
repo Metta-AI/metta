@@ -379,7 +379,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 0,                        // initial_resource_count
-                                0);                       // color
+                                0,                        // color
+                                false);                   // recipe_details_obs
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);
@@ -429,7 +430,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 1,                        // initial_items
-                                0);                       // color
+                                0,                        // color
+                                false);                   // recipe_details_obs
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);

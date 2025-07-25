@@ -1,12 +1,12 @@
 import { Context3d } from './context3d.js'
-import { HoverPanel } from './hoverpanels.js'
+import { HoverBubble } from './hoverbubbles.js'
 import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
-;(window as any).ctx = ctx
+  ; (window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -84,10 +84,11 @@ export const ui = {
   agentPanel: new PanelInfo('#agent-panel'),
   timelinePanel: new PanelInfo('#timeline-panel'),
 
-  hoverPanels: [] as HoverPanel[],
+  hoverBubbles: [] as HoverBubble[],
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,
+  hideHoverTimer: null as any,
 }
 
 export const state = {
@@ -123,8 +124,8 @@ export const state = {
   isOneToOneAction: false,
 }
 
-// Expose state for easier testing
-;(window as any).state = state
+  // Expose state for easier testing
+  ; (window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,

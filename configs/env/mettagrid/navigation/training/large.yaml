@@ -1,10 +1,13 @@
-defaults:
-  - /env/mettagrid/navigation/training/defaults@
-  - _self_
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_defaults
 
-sampling: 1
-
-game:
-  map_builder:
-    room:
-      dir: ${choose:varied_terrain/balanced_large,varied_terrain/maze_medium,varied_terrain/sparse_medium,varied_terrain/dense_medium,varied_terrain/cylinder-world_medium}
+buckets:
+  game.map_builder.room.dir:
+    values:
+      - varied_terrain/balanced_large
+      - varied_terrain/maze_large
+      - varied_terrain/sparse_large
+      - varied_terrain/dense_large
+      - varied_terrain/cylinder-world_large
+  game.map_builder.room.objects.altar:
+    range: [3, 50]
