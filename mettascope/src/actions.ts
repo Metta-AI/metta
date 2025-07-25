@@ -67,7 +67,7 @@ export function processActions(event: KeyboardEvent) {
   if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject
     const orientation = getAttr(agent, 'agent:orientation')
-    // Support WASD, arrow keys, and numpad (2,4,6,8) for movement/rotation.
+    // Support WASD, arrow keys, and all numpad keys for movement/rotation.
     const key = event.key
     const code = event.code
 
@@ -123,6 +123,32 @@ export function processActions(event: KeyboardEvent) {
       // Get the output.
       sendAction('get_items', 0)
     }
+    // Diagonal movement with numpad (4-action approach for true diagonal in one press)
+    if (event.code == 'Numpad7') { // Up-Left
+      sendAction('rotate', 0)  // Rotate up
+      sendAction('move', 0)    // Move up
+      sendAction('rotate', 2)  // Rotate left
+      sendAction('move', 0)    // Move left
+    }
+    if (event.code == 'Numpad9') { // Up-Right
+      sendAction('rotate', 0)  // Rotate up
+      sendAction('move', 0)    // Move up
+      sendAction('rotate', 3)  // Rotate right
+      sendAction('move', 0)    // Move right
+    }
+    if (event.code == 'Numpad1') { // Down-Left
+      sendAction('rotate', 1)  // Rotate down
+      sendAction('move', 0)    // Move down
+      sendAction('rotate', 2)  // Rotate left
+      sendAction('move', 0)    // Move left
+    }
+    if (event.code == 'Numpad3') { // Down-Right
+      sendAction('rotate', 1)  // Rotate down
+      sendAction('move', 0)    // Move down
+      sendAction('rotate', 3)  // Rotate right
+      sendAction('move', 0)    // Move right
+    }
+
     if (event.key == 'x' || event.code == 'Numpad5') {
       // No-op / wait.
       sendAction('noop', 0)
