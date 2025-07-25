@@ -12,8 +12,11 @@ def register_module(cls: Type["SetupModule"]) -> Type["SetupModule"]:
 
 
 def get_all_modules(config) -> list["SetupModule"]:
-    # Import here to avoid circular imports
-    return [cls(config) for cls in _REGISTRY]
+    all_modules = [cls(config) for cls in _REGISTRY]
+    # Sort by name for consistent ordering
+    all_modules.sort(key=lambda m: m.name)
+
+    return all_modules
 
 
 def get_applicable_modules(config) -> list["SetupModule"]:

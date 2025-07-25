@@ -72,8 +72,6 @@ class MettaCLI:
         info("\nCustomize components:")
         # Get all registered components
         all_modules = get_all_modules(self.config)
-        # Sort by name for consistent ordering
-        all_modules.sort(key=lambda m: m.name)
 
         for module in all_modules:
             current_enabled = self.config.is_component_enabled(module.name)
