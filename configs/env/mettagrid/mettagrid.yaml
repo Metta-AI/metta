@@ -66,3 +66,4 @@ game:
   termination:
     num_altars: null #if true, terminate when  overall reward reaches the number of altars on the map
     max_reward: null #if set, terminate when overall reward = max_reward
+    end_of_episode_boost: 1.0 #if set, boost reward at end of episode

@@ -244,6 +244,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._check_reward_termination():
             logger.info("Reward-based termination triggered")
             self.terminals.fill(True)
+            self.rewards *= self._task.env_cfg().game.termination.end_of_episode_boost
         if self.terminals.all() or self.truncations.all():
             # TODO: re-enable diversity bonus
             # if self._task.env_cfg().game.diversity_bonus.enabled:
