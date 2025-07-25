@@ -51,6 +51,20 @@ wheels = [
 ]
 
 [[package]]
+name = "anywidget"
+version = "0.9.18"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ipywidgets" },
+    { name = "psygnal" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ed/69/20423d6abd2a57d767d20a9dcf3f816bd4cbbe4813ac7c7158ba16e44c3f/anywidget-0.9.18.tar.gz", hash = "sha256:262cf459b517a7d044d6fbc84b953e9c83f026790b2dd3ce90f21a7f8eded00f", size = 9808509, upload-time = "2025-03-23T20:01:22.358Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/f0/09a30ca0551af20c7cefa7464b7ccb6f5407a550b83c4dcb15c410814849/anywidget-0.9.18-py3-none-any.whl", hash = "sha256:944b82ef1dd17b8ff0fb6d1f199f613caf9111338e6e2857da478f6e73770cb8", size = 220671, upload-time = "2025-03-23T20:01:21.057Z" },
+]
+
+[[package]]
 name = "appnope"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -180,6 +194,7 @@ dependencies = [
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/cc/5ebce7eeba468c0bf5092c94684039e8484ca00329e62f0627662c930959/boto3-1.39.13.tar.gz", hash = "sha256:ace50ccfc4caba235b020e7d36f0191aa399771cb6fe6e34b4359b671aab1a4b", size = 111862, upload-time = "2025-07-24T19:18:27.416Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/08/bf/a6a73de65e3347305fc0aed129c63897e047042f55152414295a930700d6/boto3-1.39.13-py3-none-any.whl", hash = "sha256:8e62c5724dc06a1934fde155a2eb48cb851cc17ad0b5142da9eb9e46fe0355d3", size = 139899, upload-time = "2025-07-24T19:18:25.388Z" },
 ]
@@ -1209,6 +1224,7 @@ name = "metta"
 version = "0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "anywidget" },
     { name = "boto3" },
     { name = "colorama" },
     { name = "cpplint" },
@@ -1256,6 +1272,7 @@ dependencies = [
     { name = "torch" },
     { name = "torchrl" },
     { name = "tqdm" },
+    { name = "traitlets" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "wandb" },
     { name = "wandb-core" },
@@ -1278,6 +1295,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anywidget", specifier = ">=0.9.18" },
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cpplint", specifier = ">=2.0.2" },
@@ -1325,6 +1343,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.7.1" },
     { name = "torchrl", specifier = ">=0.8.1" },
     { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "traitlets", specifier = ">=5.14.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
     { name = "wandb", specifier = ">=0.19.11" },
     { name = "wandb-core", specifier = ">=0.17.0b11" },
@@ -2151,6 +2170,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/cf/13/1e7850bb2c69a63267c3dbf37387d3f71a00fd0e2fa55c5db14d64ba1af4/psycopg_pool-3.2.6.tar.gz", hash = "sha256:0f92a7817719517212fbfe2fd58b8c35c1850cdd2a80d36b581ba2085d9148e5", size = 29770, upload-time = "2025-02-26T12:03:47.129Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/fd/4feb52a55c1a4bd748f2acaed1903ab54a723c47f6d0242780f4d97104d4/psycopg_pool-3.2.6-py3-none-any.whl", hash = "sha256:5887318a9f6af906d041a0b1dc1c60f8f0dda8340c2572b74e10907b51ed5da7", size = 38252, upload-time = "2025-02-26T12:03:45.073Z" },
+]
+
+[[package]]
+name = "psygnal"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/c7/ee9108e587dbbc87fddcc9b971975b3371930a0059d3696d5733469e8989/psygnal-0.14.0.tar.gz", hash = "sha256:bdd219217d240611af31621a6701505256e245abb6e0dc86d7e4443c3f7d6d41", size = 121999, upload-time = "2025-07-01T19:57:39.479Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/4f/7878f6f877f3f20248665e4f932815b1785d6be7f95106298ff8af906018/psygnal-0.14.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:f2bed92247fb7db3113b9aaeb5335fe95b479a08fd8837218d2f3ae699e8d7a3", size = 505298, upload-time = "2025-07-01T19:57:09.73Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/88/16de03be01459c73f10712122aaa21d1b192a8cee56d8cf36b565298b244/psygnal-0.14.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:fd017d55c805a979d122a8ff89e8b83793f835e15dd12ee6c52f700cb5c83210", size = 473629, upload-time = "2025-07-01T19:57:11.4Z" },
+    { url = "https://files.pythonhosted.org/packages/78/a1/04a64e6e1cacd2a7e46ab668bce6bc4f47534a1b6bdfcdc1ae02fb62c58c/psygnal-0.14.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e2eb0991ec544de6f2ab24f2c84eb979e730c1897c4fa90b86d7f2e195ae41f6", size = 837407, upload-time = "2025-07-01T19:57:12.924Z" },
+    { url = "https://files.pythonhosted.org/packages/07/27/d80e6e9001c426d2b494250432b254b100ece828cf5c3e9114446866a3da/psygnal-0.14.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:f486e8c383266930011cd53068343ae57222fef1062b3c598203027eea6e2e3d", size = 827844, upload-time = "2025-07-01T19:57:14.785Z" },
+    { url = "https://files.pythonhosted.org/packages/61/0e/2e4a5c430b4f3741be770c2dca5788f64a89fe164ab90d6dda58e55513b9/psygnal-0.14.0-cp311-cp311-win_amd64.whl", hash = "sha256:dada160b89c666592c3b91715904f0a609cd5ad6bde0360317747e674173e4f3", size = 412080, upload-time = "2025-07-01T19:57:16.075Z" },
+    { url = "https://files.pythonhosted.org/packages/32/54/73887f18105faf343b8d3c51952e5d4bc478806d848f0171aac942b6394e/psygnal-0.14.0-py3-none-any.whl", hash = "sha256:2f9011348b923283f13c8b2bca5ffcd6f6c6b5d06954d7e6953a8bbcf62ff4b6", size = 88997, upload-time = "2025-07-01T19:57:38.464Z" },
 ]
 
 [[package]]
