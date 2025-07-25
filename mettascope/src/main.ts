@@ -586,10 +586,32 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   }
   // ',' and '.' control the playback speed.
   if (event.key == ',') {
-    state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
+    // Find current speed index
+    let currentIndex = 1
+    for (let i = Common.SPEEDS.length - 1; i >= 0; i--) {
+      if (state.playbackSpeed >= Common.SPEEDS[i]) {
+        currentIndex = i
+        break
+      }
+    }
+    // Move to previous (slower) speed
+    if (currentIndex > 0) {
+      setPlaybackSpeed(Common.SPEEDS[currentIndex - 1])
+    }
   }
   if (event.key == '.') {
-    state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000)
+    // Find current speed index
+    let currentIndex = 1
+    for (let i = 0; i < Common.SPEEDS.length; i++) {
+      if (state.playbackSpeed <= Common.SPEEDS[i]) {
+        currentIndex = i
+        break
+      }
+    }
+    // Move to next (faster) speed
+    if (currentIndex < Common.SPEEDS.length - 1) {
+      setPlaybackSpeed(Common.SPEEDS[currentIndex + 1])
+    }
   }
   // The space bar presses the play button.
   if (event.key == ' ') {
