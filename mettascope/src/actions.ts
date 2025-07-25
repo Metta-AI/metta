@@ -67,7 +67,10 @@ export function processActions(event: KeyboardEvent) {
   if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject
     const orientation = getAttr(agent, 'agent:orientation')
-    if (event.key == 'w') {
+    // Support both WASD and arrow keys for movement/rotation.
+    const key = event.key
+
+    if (key == 'w' || key == 'ArrowUp') {
       if (orientation != 0) {
         // Rotate up.
         sendAction('rotate', 0)
@@ -76,7 +79,7 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move', 0)
       }
     }
-    if (event.key == 'a') {
+    if (key == 'a' || key == 'ArrowLeft') {
       if (orientation != 2) {
         // Rotate left.
         sendAction('rotate', 2)
@@ -85,7 +88,7 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move', 0)
       }
     }
-    if (event.key == 's') {
+    if (key == 's' || key == 'ArrowDown') {
       if (orientation != 1) {
         // Rotate down.
         sendAction('rotate', 1)
@@ -94,7 +97,7 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move', 0)
       }
     }
-    if (event.key == 'd') {
+    if (key == 'd' || key == 'ArrowRight') {
       if (orientation != 3) {
         // Rotate right.
         sendAction('rotate', 3)
