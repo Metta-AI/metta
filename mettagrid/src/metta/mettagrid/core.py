@@ -15,9 +15,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from gymnasium import spaces
 
-# import sys
-# print("\n".join(sys.path))
-# breakpoint()
 from metta.mettagrid.mettagrid_c import GameConfig as GameConfig_cpp
 from metta.mettagrid.mettagrid_c import MettaGrid
 
