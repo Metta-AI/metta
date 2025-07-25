@@ -1,0 +1,16 @@
+{
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --port 5174"
+  },
+  "devDependencies": {
+    "@anywidget/vite": "^0.2.1",
+    "vite": "^6.0.6"
+  },
+  "dependencies": {
+    "plotly.js": "^3.0.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}
