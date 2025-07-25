@@ -163,14 +163,16 @@ class TestGitignoreHandling(unittest.TestCase):
     def test_gitignore_directory_with_trailing_slash(self):
         """Test that gitignore directory rules with trailing slashes work correctly."""
         gitignore_rules = _read_gitignore(str(self.base_path / ".codeclipignore"))
-        
+
         # train_dir/ rule should ignore the directory itself
         self.assertTrue(_should_ignore(self.base_path / "train_dir", gitignore_rules, self.base_path))
-        
+
         # train_dir/ rule should also ignore all files within the directory
         self.assertTrue(_should_ignore(self.base_path / "train_dir" / "model.pt", gitignore_rules, self.base_path))
-        self.assertTrue(_should_ignore(self.base_path / "train_dir" / "subdir" / "file.txt", gitignore_rules, self.base_path))
-        
+        self.assertTrue(
+            _should_ignore(self.base_path / "train_dir" / "subdir" / "file.txt", gitignore_rules, self.base_path)
+        )
+
         # Similar directory should not be ignored
         self.assertFalse(_should_ignore(self.base_path / "train_dir_backup", gitignore_rules, self.base_path))
         self.assertFalse(_should_ignore(self.base_path / "my_train_dir", gitignore_rules, self.base_path))

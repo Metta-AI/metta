@@ -105,7 +105,6 @@ def _should_ignore(
 ) -> bool:
     rel_path = os.path.relpath(str(path), root_dir)
     basename = path.name
-    
 
     # Common dependency/build directories to always ignore
     ignored_dirs = {
@@ -402,7 +401,7 @@ def _collect_files(
         for root, dirs, files in os.walk(path_obj):
             # Filter hidden directories
             dirs[:] = [d for d in dirs if not d.startswith(".")]
-            
+
             # Filter directories based on gitignore BEFORE os.walk descends into them
             filtered_dirs = []
             for d in dirs:
@@ -410,10 +409,10 @@ def _collect_files(
                 if not _should_ignore(dir_path, gitignore_rules, root_dir, extensions):
                     filtered_dirs.append(d)
             dirs[:] = filtered_dirs
-            
+
             # Filter hidden files
             files = [f for f in files if not f.startswith(".")]
-            
+
             # Filter files based on gitignore and extensions
             files = [
                 f
