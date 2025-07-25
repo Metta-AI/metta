@@ -31,9 +31,10 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -89,11 +90,11 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig,
-        wandb_run: WandbRun | None,
-        policy_store: PolicyStore,
-        sim_suite_config: SimulationSuiteConfig,
-        stats_client: StatsClient | None,
-        **kwargs: Any,
+        curriculum_stats_provider: Curriculum | None,
+        wandb_run: WandbRun | None = None,
+        policy_store: PolicyStore | None = None,
+        sim_suite_config: SimulationSuiteConfig | None = None,
+        stats_client: StatsClient | None = None,
     ):
         logger.info(f"run_dir = {cfg.run_dir}")
         checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
@@ -105,6 +106,8 @@ class MettaTrainer:
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
 
+        # self.hyperparameter_scheduler = HyperparameterScheduler(
+        # trainer_cfg, self, trainer_cfg.total_timesteps, logging)
         # self.hyperparameter_scheduler = HyperparameterScheduler(
         # trainer_cfg, self, trainer_cfg.total_timesteps, logging)
 
@@ -150,10 +153,13 @@ class MettaTrainer:
                 auto_start=True,  # Start monitoring immediately
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
+            self._curriculum_stats_provider = curriculum_stats_provider
 
-        curriculum_config = trainer_cfg.curriculum_or_env
-        env_overrides = DictConfig(trainer_cfg.env_overrides)
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        # This is mostly needed on the master, but we need it for making vecenv
+        self._tasks_completed = 0
+        self._curriculum = CurriculumClient(
+            f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}"
+        )
 
         # Add training task to the suite
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
@@ -603,6 +609,7 @@ class MettaTrainer:
             # end loop over epochs
 
         # self.hyperparameter_scheduler.step(self.agent_step)
+        # self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance using helper function
         self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
@@ -892,9 +899,12 @@ class MettaTrainer:
             self.grad_stats.clear()
             return
 
+        curriculum_stats = self._curriculum_stats_provider.stats()
+
         # Process training stats using shared function
         processed_stats = process_training_stats(
             raw_stats=self.stats,
+            curriculum_stats=curriculum_stats,
             losses=self.losses,
             experience=self.experience,
             trainer_config=self.trainer_cfg,
@@ -931,7 +941,7 @@ class MettaTrainer:
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
 
-        # Add hyperparameter values
+        curriculum_stats = self._curriculum_stats_provider.stats()
 
         system_stats = {}  # self._system_monitor.stats()
         memory_stats = {}  # self._memory_monitor.stats()
@@ -939,6 +949,7 @@ class MettaTrainer:
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
+            curriculum_stats=curriculum_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self.grad_stats,
@@ -964,22 +975,25 @@ class MettaTrainer:
         self.grad_stats.clear()
 
     def close(self):
+        self.timer.stop()
+        # TorchProfiler doesn't have a close method
         self.vecenv.close()
+        # Stop the curriculum client's background thread
+        self._curriculum.stop()
         if self._master:
             self._memory_monitor.clear()
             self._system_monitor.stop()
 
     @property
     def hyperparameters(self):
-        return {}
-        # return {
-        #     "learning_rate": self.optimizer.param_groups[0]["lr"],
-        #     "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
-        #     "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
-        #     "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
-        #     "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
-        #     "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
-        # }
+        return {
+            # "learning_rate": self.optimizer.param_groups[0]["lr"],
+            # "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+            # "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+            # "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+            # "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+            # "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        }
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
@@ -1061,27 +1075,27 @@ class MettaTrainer:
             async_factor=trainer_cfg.async_factor,
         )
 
-        logger.info(
+        self._log_master(
             f"target_batch_size: {self.target_batch_size} = "
             f"min ({trainer_cfg.forward_pass_minibatch_target_size} // {num_agents} , {trainer_cfg.num_workers})"
         )
 
-        logger.info(
+        self._log_master(
             f"forward_pass_batch_size: {self.batch_size} = "
             f"({self.target_batch_size} // {trainer_cfg.num_workers}) * {trainer_cfg.num_workers}"
         )
 
-        logger.info(f"num_envs: {num_envs}")
+        self._log_master(f"num_envs: {num_envs}")
 
         if num_envs < 1:
-            logger.error(
+            self._log_master(
                 f"num_envs = batch_size ({self.batch_size}) * async_factor ({trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
         self.vecenv = make_vecenv(
-            self._curriculum,
             self.cfg.vectorization,
+            curriculum_server_url=f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}",
             num_envs=num_envs,
             batch_size=self.batch_size,
             num_workers=trainer_cfg.num_workers,
