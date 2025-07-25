@@ -1,13 +1,14 @@
 import json
 import logging
 import time
-from typing import Any, List, Optional
+from typing import Any, List
 
 import wandb
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
+from metta.common.wandb.wandb_context import WandbContext
 
 logger = logging.getLogger("sweep")
 
@@ -66,120 +67,143 @@ def _fetch_sweep_from_api(project: str, entity: str, name: str) -> str | None:
 
 
 def create_wandb_sweep(
-    sweep_name: str, wandb_entity: str, wandb_project: str, sweep_config: Optional[DictConfig | ListConfig] = None
+    wandb_entity: str,
+    wandb_project: str,
+    wandb_sweep_name: str,
 ) -> str:
     """
     Create a new wandb sweep with parameters from Protein sweep configuration.
 
     Args:
-        sweep_name (str): The name of the sweep.
         wandb_entity (str): The wandb entity (username or team name).
         wandb_project (str): The wandb project name.
-        sweep_config (Optional): The sweep configuration containing parameters.
-                                If None, uses dummy parameter for backward compatibility.
+        wandb_sweep_name (str): The name of the sweep.
 
     Returns:
         str: The ID of the created sweep.
     """
-    # Extract metric and goal information from sweep config
-    metric_name = sweep_config.metric if sweep_config and hasattr(sweep_config, "metric") else "score"
-    metric_goal = sweep_config.goal if sweep_config and hasattr(sweep_config, "goal") else "maximize"
-    method = sweep_config.method if sweep_config and hasattr(sweep_config, "method") else "bayes"
+    wandb_parameters = {"dummy_param": {"values": [1]}}
 
-    # Use the same parameter conversion approach as MettaProtein
-    wandb_parameters = {"dummy_param": {"values": [1]}}  # Fallback
-
-    logger.info(f"Creating WandB sweep '{sweep_name}' with {len(wandb_parameters)} parameters")
+    logger.info(f"Creating WandB sweep '{wandb_sweep_name}'")
 
     sweep_id = wandb.sweep(
         sweep={
-            "name": sweep_name,
-            "method": method,
-            "metric": {"name": metric_name, "goal": metric_goal},
-            "parameters": wandb_parameters,
+            "name": wandb_sweep_name,
+            "method": "random",  # Dummy method
+            "parameters": wandb_parameters,  # Dummy parameters
         },
         project=wandb_project,
         entity=wandb_entity,
     )
+    logger.info(f"Created WandB sweep '{wandb_sweep_name}' with ID: {sweep_id}")
     return sweep_id
 
 
-def _convert_protein_to_wandb_params(parameters_dict: Any) -> dict[str, Any]:
-    """Convert Protein parameter dict to WandB parameter format for visualization.
-
-    This is a simple conversion that flattens nested parameters and converts
-    Protein distribution specs to basic WandB min/max or values format.
+def create_wandb_run_for_sweep(
+    wandb_sweep_id: str,
+    wandb_entity: str,
+    wandb_project: str,
+    sweep_name: str,
+    run_name: str,
+    protein_suggestion: dict[str, Any],
+    cfg: DictConfig,
+) -> None:
     """
-    wandb_params: dict[str, Any] = {}
-
-    def _flatten_and_convert(obj: Any, prefix: str = "") -> Any:
-        """Recursively flatten and convert parameter definitions."""
-        if isinstance(obj, dict):
-            # Check if this looks like a parameter definition
-            if "min" in obj and "max" in obj:
-                # Convert to WandB range format
-                return {"min": float(obj["min"]), "max": float(obj["max"])}
-            elif "values" in obj:
-                # Convert to WandB discrete format
-                return {"values": obj["values"]}
-            else:
-                # Recurse into nested structure
-                for key, value in obj.items():
-                    param_path = f"{prefix}.{key}" if prefix else key
-                    result = _flatten_and_convert(value, param_path)
-                    if result is not None:
-                        wandb_params[param_path] = result
-        return None
-
-    _flatten_and_convert(parameters_dict)
-
-    # Ensure at least one parameter for WandB
-    if not wandb_params:
-        wandb_params = {"dummy_param": {"values": [1]}}
-
-    return wandb_params
-
-
-def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
+    Create a new wandb run for a sweep.
     """
-    Get sweep ID from name with retry logic for network issues.
+
+    # This function is passed to agent so we can immediately
+    # modify the run's name, tags, and save the protein suggestion.
+    def init_run():
+        with WandbContext(cfg.wandb, cfg) as wandb_run:
+            if wandb_run is None:
+                logger.error("Failed to initialize WandB run - WandB may be disabled or connection failed")
+                return
+
+            wandb_run.name = run_name
+
+            if not wandb_run.tags:
+                wandb_run.tags = ()
+            wandb_run.tags += (f"sweep_id:{wandb_sweep_id}", f"sweep_name:{sweep_name}")
+
+            wandb_run.summary.update(
+                {
+                    "protein_suggestion": protein_suggestion,
+                }
+            )
+
+            OmegaConf.save(
+                {
+                    "run": run_name,  # Your custom name
+                    "wandb_run_id": wandb_run.id,  # The agent-generated ID
+                },
+                cfg.dist_cfg_path,
+            )
+
+    # WandB agent MUST be used to associate the new run with the sweep.
+    wandb.agent(
+        wandb_sweep_id,
+        entity=wandb_entity,
+        project=wandb_project,
+        function=init_run,
+        count=1,
+    )
+
+
+# 2 - Protein Integration Utilities.
+def fetch_protein_observations_from_wandb(
+    wandb_entity: str,
+    wandb_project: str,
+    wandb_sweep_id: str,
+    max_observations: int = 100,
+) -> list[dict[str, Any]]:
+    """
+    Fetch latest protein observations from WandB sweep runs.
 
     Args:
-        project: WandB project name
-        entity: WandB entity name
-        name: Sweep name to search for
+        entity: The WandB entity name.
+        project: The WandB project name.
+        wandb_sweep_id: The WandB sweep ID.
+        max_observations: The maximum number of observations to fetch.
 
     Returns:
-        Sweep ID if found, None otherwise
+        List of observation dictionaries with format:
+        {
+            "suggestion": dict,      # The hyperparameters used
+            "objective": float,      # The objective value achieved
+            "cost": float,          # The cost (e.g., runtime in seconds)
+            "is_failure": bool,     # Whether the run failed
+
+        }
     """
-    try:
-        return _fetch_sweep_from_api(project, entity, name)
-    except Exception as e:
-        logger.error(f"Failed to fetch sweeps after all retry attempts. Assuming no existing sweep. Error: {e}")
-        # Return None to allow sweep creation to proceed
-        return None
-
-
-def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
-    """Get all runs from a sweep sorted by score."""
     api = wandb.Api()
-    sweep = api.sweep(f"{entity}/{project}/{sweep_id}")
 
-    # Get all runs and filter for successful ones
-    runs = []
-    for run in sweep.runs:
-        if run.summary.get("protein.state") == "success":
-            score = run.summary.get("score", run.summary.get("protein.objective", 0))
-            if score is not None and score > 0:  # Filter out failed runs
-                runs.append(run)
+    wandb_path = f"{wandb_entity}/{wandb_project}"
+    logger.info(f"Fetching protein observations from WandB for sweep ID: {wandb_sweep_id}")
+    logger.info(f"WandB path: {wandb_path}")
+    # Use the API's native filtering and ordering
+    # Order by created_at descending (newest first) and limit results
+    runs = api.runs(
+        path=wandb_path,
+        filters={
+            "sweep": wandb_sweep_id,
+            "state": {"$in": ["finished", "failed"]},  # Only get completed runs
+            "summary_metrics.protein_observation": {"$exists": True},  # Only runs with observations
+        },
+        order="-created_at",  # Descending order (newest first)
+        per_page=max_observations,  # Limit the number of results
+    )
 
-    # Sort by score (descending for reward metric)
-    runs.sort(key=lambda r: r.summary.get("score", r.summary.get("protein.objective", 0)), reverse=True)
-    return runs
+    # Iterate through runs (already filtered and limited)
+    return [deep_clean(run.summary.get("protein_observation")) for run in runs]  # type: ignore
 
 
 def record_protein_observation_to_wandb(
-    wandb_run: Any, suggestion: dict[str, Any], objective: float, cost: float, is_failure: bool
+    wandb_run: Any,
+    suggestion: dict[str, Any],
+    objective: float,
+    cost: float,
+    is_failure: bool,
 ) -> None:
     """
     Record an observation to WandB.
@@ -203,49 +227,7 @@ def record_protein_observation_to_wandb(
     )
 
 
-def fetch_protein_observations_from_wandb(
-    entity: str, project: str, wandb_sweep_id: str, max_observations: int = 100
-) -> list[dict[str, Any]]:
-    """
-    Fetch latest protein observations from WandB sweep runs.
-
-    Args:
-        entity: The WandB entity name.
-        project: The WandB project name.
-        wandb_sweep_id: The WandB sweep ID.
-        max_observations: The maximum number of observations to fetch.
-
-    Returns:
-        List of observation dictionaries with format:
-        {
-            "suggestion": dict,      # The hyperparameters used
-            "objective": float,      # The objective value achieved
-            "cost": float,          # The cost (e.g., runtime in seconds)
-            "is_failure": bool,     # Whether the run failed
-
-        }
-    """
-    api = wandb.Api()
-
-    wandb_path = f"{entity}/{project}"
-
-    # Use the API's native filtering and ordering
-    # Order by created_at descending (newest first) and limit results
-    runs = api.runs(
-        path=wandb_path,
-        filters={
-            "sweep": wandb_sweep_id,
-            "state": {"$in": ["finished", "failed"]},  # Only get completed runs
-            "summary_metrics.protein_observation": {"$exists": True},  # Only runs with observations
-        },
-        order="-created_at",  # Descending order (newest first)
-        per_page=max_observations,  # Limit the number of results
-    )
-
-    # Iterate through runs (already filtered and limited)
-    return [deep_clean(run.summary.get("protein_observation")) for run in runs]  # type: ignore
-
-
+# 3 - Data Utilities.
 def deep_clean(obj):
     """Recursively convert any object to JSON-serializable Python types."""
     if isinstance(obj, dict):
@@ -263,3 +245,44 @@ def deep_clean(obj):
         # Then verify it's serializable
         json.dumps(cleaned)
         return cleaned
+
+
+# 4 - Sweep Analysis Utilities.
+# TODO: Move out of here.
+def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
+    """Get all runs from a sweep sorted by score."""
+    api = wandb.Api()
+    sweep = api.sweep(f"{entity}/{project}/{sweep_id}")
+
+    # Get all runs and filter for successful ones
+    runs = []
+    for run in sweep.runs:
+        if run.summary.get("protein.state") == "success":
+            score = run.summary.get("score", run.summary.get("protein.objective", 0))
+            if score is not None and score > 0:  # Filter out failed runs
+                runs.append(run)
+
+    # Sort by score (descending for reward metric)
+    runs.sort(key=lambda r: r.summary.get("score", r.summary.get("protein.objective", 0)), reverse=True)
+    return runs
+
+
+# TODO: Move out of here.
+def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
+    """
+    Get sweep ID from name with retry logic for network issues.
+
+    Args:
+        project: WandB project name
+        entity: WandB entity name
+        name: Sweep name to search for
+
+    Returns:
+        Sweep ID if found, None otherwise
+    """
+    try:
+        return _fetch_sweep_from_api(project, entity, name)
+    except Exception as e:
+        logger.error(f"Failed to fetch sweeps after all retry attempts. Assuming no existing sweep. Error: {e}")
+        # Return None to allow sweep creation to proceed
+        return None
