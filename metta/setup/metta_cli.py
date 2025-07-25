@@ -215,6 +215,17 @@ class MettaCLI:
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
 
+    def cmd_code(self, args) -> None:
+        """Run the codeflow tool with provided arguments."""
+        try:
+            # Simply pass through to codeflow
+            cmd = ["codeflow"] + (args.args if args.args else ["--help"])
+            subprocess.run(cmd, check=False)
+        except FileNotFoundError:
+            error("Codeflow is not installed.")
+            error("Run: metta install codeflow")
+            sys.exit(1)
+
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
@@ -610,6 +621,10 @@ Examples:
         enter_parser = kind_subparsers.add_parser("enter", help="Enter a pod with an interactive shell")
         enter_parser.add_argument("pod_name", help="Name of the pod to enter")
 
+        # Add code command
+        code_parser = subparsers.add_parser("code", help="copy subsets of code for LLM contexts", add_help=False)
+        code_parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments to pass to the code tool")
+
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)
 
@@ -624,7 +639,7 @@ Examples:
         ):
             # These commands handle their own args
             pass
-        elif args.command not in ["test", "test-changed", "tool"]:
+        elif args.command not in ["code", "test", "test-changed", "tool"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -671,6 +686,8 @@ Examples:
             self.cmd_shell()
         elif args.command == "report-env-details":
             self.cmd_report_env_details()
+        elif args.command == "code":
+            self.cmd_code(args)
         elif args.command == "local":
             self.cmd_local(args, unknown_args)
         else:

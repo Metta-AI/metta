@@ -176,19 +176,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
       if (converter_config) {
         // Create a new ConverterConfig with the recipe offsets from the observation encoder
-        ConverterConfig config_with_offsets(
-            converter_config->type_id,
-            converter_config->type_name,
-            converter_config->input_resources,
-            converter_config->output_resources,
-            converter_config->max_output,
-            converter_config->conversion_ticks,
-            converter_config->cooldown,
-            converter_config->initial_resource_count,
-            converter_config->color,
-            converter_config->recipe_details_obs,
-            _obs_encoder->get_input_recipe_offset(),
-            _obs_encoder->get_output_recipe_offset());
+        ConverterConfig config_with_offsets(*converter_config);
+        config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
+        config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
         Converter* converter = new Converter(r, c, config_with_offsets);
         _grid->add_object(converter);
@@ -282,8 +272,6 @@ void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
 }
-
-
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
