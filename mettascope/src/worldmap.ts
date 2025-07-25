@@ -522,12 +522,12 @@ function drawThoughtBubbles() {
     if (keyAction != null && keyActionStep != null) {
       const x = (getAttr(state.selectedGridObject, 'c') + 0.5) * Common.TILE_SIZE
       const y = (getAttr(state.selectedGridObject, 'r') - 0.5) * Common.TILE_SIZE
-      if (actionHasTarget && actionStep !== state.step) {
+      if (actionHasTarget && keyActionStep !== state.step) {
         // Draw an arrow on a circle around the target, pointing at it.
         const [targetGridX, targetGridY] = applyOrientationOffset(
-          getAttr(state.selectedGridObject, 'c', actionStep),
-          getAttr(state.selectedGridObject, 'r', actionStep),
-          getAttr(state.selectedGridObject, 'agent:orientation', actionStep)
+          getAttr(state.selectedGridObject, 'c', keyActionStep),
+          getAttr(state.selectedGridObject, 'r', keyActionStep),
+          getAttr(state.selectedGridObject, 'agent:orientation', keyActionStep)
         )
         const targetX = (targetGridX + 0.5) * Common.TILE_SIZE
         const targetY = (targetGridY - 0.5) * Common.TILE_SIZE
