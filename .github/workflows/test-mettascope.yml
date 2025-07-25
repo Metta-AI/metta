@@ -41,13 +41,21 @@ jobs:
           echo "Installation complete"
           echo "::endgroup::"
 
+      - name: Check formatting
+        run: |
+          npx @biomejs/biome format --write .
+          if ! git diff --exit-code; then
+            echo "Code is not formatted. Please run 'biome format --write .'"
+            git diff --name-only
+            exit 1
+          fi
+
       - name: Run training
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
           uv run --no-sync tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
           echo "::endgroup::"
-
 
       - name: Generate replay
         run: |
