@@ -4,20 +4,36 @@ import subprocess
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import info, success, warning
+from metta.setup.utils import info, warning
 
 
 @register_module
-class PnpmSetup(SetupModule):
+class NodejsSetup(SetupModule):
     @property
     def description(self) -> str:
-        return "JS dependencies installed via pnpm"
+        return "Node.js infrastructure - pnpm and turborepo"
 
     def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("pnpm")
+        return self.config.is_component_enabled("nodejs")
+
+    def _script_exists(self, script: str) -> bool:
+        try:
+            self.run_command(["which", script], capture_output=True)
+            return True
+        except subprocess.CalledProcessError:
+            return False
 
     def check_installed(self) -> bool:
-        return (self.repo_root / "node_modules").exists()
+        if not (self.repo_root / "node_modules").exists():
+            return False
+
+        if not self._check_pnpm():
+            return False
+
+        if not self._script_exists("turbo"):
+            return False
+
+        return True
 
     def _check_pnpm(self) -> bool:
         """Check if pnpm is working."""
@@ -70,7 +86,9 @@ class PnpmSetup(SetupModule):
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
+        info("Installing turbo...")
+        self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
+
+        info("Installing dependencies...")
         # pnpm install with frozen lockfile to avoid prompts
         self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False)
-
-        success("JS dependencies installed")
