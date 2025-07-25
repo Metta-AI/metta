@@ -164,7 +164,6 @@ class TerrainFromNumpy(Room):
 
         # randomize the rest of the objects
         valid_positions = valid_positions.copy()[num_agents:]
-        random.shuffle(valid_positions)
         valid_positions_set = set(valid_positions)
 
         for obj_name, count in self._objects.items():
