@@ -82,8 +82,10 @@ class GridworksSetup(SetupModule):
 
         # Run pnpm install
         env = os.environ.copy()
-        env["NODE_NO_WARNINGS"] = "1"
+        env["NODE_OPTIONS"] = "--no-deprecation"
 
-        self.run_command(["pnpm", "install", "--frozen-lockfile"], cwd=gridworks_dir, capture_output=False, env=env)
+        self.run_command(
+            ["pnpm", "install", "--frozen-lockfile", "--silent"], cwd=gridworks_dir, capture_output=False, env=env
+        )
 
         success("Gridworks frontend installed")
