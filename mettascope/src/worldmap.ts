@@ -5,8 +5,8 @@ import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbl
 import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
-import type { PanelInfo } from './panels.js'
-import { getAttr, sendAction } from './replay.js'
+import { PanelInfo } from './panels.js'
+import { getAttr, getObjectConfig, sendAction } from './replay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
 
@@ -229,7 +229,22 @@ function drawObject(gridObject: any) {
 
     // Draw the item layer.
     if (hasInventory(gridObject)) {
-      ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      // Only render the overlay if the inventory contains output resources
+      let objectConfig = getObjectConfig(gridObject)
+      let outputItemExists = false
+
+      if (objectConfig && objectConfig.output_resources) {
+        // Check if any output resources are in the inventory
+        for (let resource in objectConfig.output_resources) {
+          if (getAttr(gridObject, 'inv:' + resource) > 0) {
+            outputItemExists = true
+            break
+          }
+        }
+      }
+      if (outputItemExists) {
+        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      }
     }
   }
 }

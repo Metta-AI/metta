@@ -38,3 +38,7 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 
 * Short, present-tense commit messages
 * Run lint/format before pushing
+
+## Programming Guidelines
+
+- when working with `gridObject`s, do not access properties directly. you must use `getAttr()` from replay.ts
