@@ -600,8 +600,8 @@ function drawGlyphBubbles() {
       const centerX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
       const centerY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
 
-      const bubbleX = centerX - Common.TILE_SIZE * 0.6;
-      const bubbleY = centerY - Common.TILE_SIZE / 2;
+      const bubbleX = centerX - Common.TILE_SIZE * 0.6
+      const bubbleY = centerY - Common.TILE_SIZE / 2
 
       const glyphString = glyphAssociations[glyphId] || ''
 
@@ -621,7 +621,7 @@ function drawGlyphBubbles() {
           bubbleX + Common.TILE_SIZE * 0.02 - textWidth / 2,
           bubbleY - Common.TILE_SIZE * 0.05 - textHeight / 2,
           textWidth,
-          textHeight
+          textHeight,
         ]
         ctx.drawText(
           glyphString,
@@ -632,13 +632,10 @@ function drawGlyphBubbles() {
           'middle', // center vertically
           -10 // spacing
         )
-
       }
     }
-
   }
 }
-
 
 /** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {

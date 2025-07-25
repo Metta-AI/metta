@@ -124,29 +124,33 @@ export function processActions(event: KeyboardEvent) {
       sendAction('get_items', 0)
     }
     // Diagonal movement with numpad (4-action approach for true diagonal in one press)
-    if (event.code == 'Numpad7') { // Up-Left
-      sendAction('rotate', 0)  // Rotate up
-      sendAction('move', 0)    // Move up
-      sendAction('rotate', 2)  // Rotate left
-      sendAction('move', 0)    // Move left
+    if (event.code == 'Numpad7') {
+      // Up-Left
+      sendAction('rotate', 0) // Rotate up
+      sendAction('move', 0) // Move up
+      sendAction('rotate', 2) // Rotate left
+      sendAction('move', 0) // Move left
     }
-    if (event.code == 'Numpad9') { // Up-Right
-      sendAction('rotate', 0)  // Rotate up
-      sendAction('move', 0)    // Move up
-      sendAction('rotate', 3)  // Rotate right
-      sendAction('move', 0)    // Move right
+    if (event.code == 'Numpad9') {
+      // Up-Right
+      sendAction('rotate', 0) // Rotate up
+      sendAction('move', 0) // Move up
+      sendAction('rotate', 3) // Rotate right
+      sendAction('move', 0) // Move right
     }
-    if (event.code == 'Numpad1') { // Down-Left
-      sendAction('rotate', 1)  // Rotate down
-      sendAction('move', 0)    // Move down
-      sendAction('rotate', 2)  // Rotate left
-      sendAction('move', 0)    // Move left
+    if (event.code == 'Numpad1') {
+      // Down-Left
+      sendAction('rotate', 1) // Rotate down
+      sendAction('move', 0) // Move down
+      sendAction('rotate', 2) // Rotate left
+      sendAction('move', 0) // Move left
     }
-    if (event.code == 'Numpad3') { // Down-Right
-      sendAction('rotate', 1)  // Rotate down
-      sendAction('move', 0)    // Move down
-      sendAction('rotate', 3)  // Rotate right
-      sendAction('move', 0)    // Move right
+    if (event.code == 'Numpad3') {
+      // Down-Right
+      sendAction('rotate', 1) // Rotate down
+      sendAction('move', 0) // Move down
+      sendAction('rotate', 3) // Rotate right
+      sendAction('move', 0) // Move right
     }
 
     if (event.key == 'x' || event.code == 'Numpad5') {

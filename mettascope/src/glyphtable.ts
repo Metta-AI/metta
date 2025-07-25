@@ -454,11 +454,10 @@ function injectGlyphEditorModal() {
   const closeButton = document.querySelector('#glyph-editor-modal .close-button')
   if (closeButton) {
     closeButton.addEventListener('click', () => {
-      ; (document.querySelector('#glyph-toggle') as HTMLButtonElement)?.click()
+      ;(document.querySelector('#glyph-toggle') as HTMLButtonElement)?.click()
     })
   }
 }
-
 
 const GLYPH_EDITOR_STYLES = `
 /* Core Layout */

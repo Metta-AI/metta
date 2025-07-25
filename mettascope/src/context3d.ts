@@ -53,7 +53,7 @@ class Mesh {
   private gl: WebGLRenderingContext
   private vertexBuffer: WebGLBuffer | null = null
   private indexBuffer: WebGLBuffer | null = null
-  public texture: WebGLTexture | null = null;
+  public texture: WebGLTexture | null = null
 
   // Buffer management
   private maxQuads: number
@@ -759,14 +759,14 @@ export class Context3d {
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y)          // Move origin to sprite center
-      this.rotate(rotation)         // Apply rotation
-      this.scale(scaleX, scaleY)    // Apply scaling
+      this.translate(x, y) // Move origin to sprite center
+      this.rotate(rotation) // Apply rotation
+      this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
-        -sw / 2 - m,  // Left edge: center minus half width minus margin
-        -sh / 2 - m,  // Top edge: center minus half height minus margin
-        sw + 2 * m,   // Total width including margins on both sides
-        sh + 2 * m,   // Total height including margins on both sides
+        -sw / 2 - m, // Left edge: center minus half width minus margin
+        -sh / 2 - m, // Top edge: center minus half height minus margin
+        sw + 2 * m, // Total width including margins on both sides
+        sh + 2 * m, // Total height including margins on both sides
         u0,
         v0,
         u1,
@@ -777,10 +777,10 @@ export class Context3d {
     } else {
       // Fast path: no transformations needed, draw directly
       this.drawRect(
-        x - sw / 2 - m,  // Left edge position
-        y - sh / 2 - m,  // Top edge position
-        sw + 2 * m,      // Total width including margins
-        sh + 2 * m,      // Total height including margins
+        x - sw / 2 - m, // Left edge position
+        y - sh / 2 - m, // Top edge position
+        sw + 2 * m, // Total width including margins
+        sh + 2 * m, // Total height including margins
         u0,
         v0,
         u1,
@@ -824,18 +824,18 @@ export class Context3d {
   }
 
   /**
- * Draws text within the specified bounding box.
- *
- * @param text - Text to draw (supports emoji codes like :happy:)
- * @param bbox - Target bounding box [x, y, width, height] in screen coordinates
- * @param color - RGBA color multiplier [r, g, b, a] where each component is 0-1
- * @param mode - Drawing mode:
- *   - 'scale': Scales text as large as possible while maintaining aspect ratio
- *   - 'stretch': Stretches text to fill entire bbox (may distort)
- * @param align - Horizontal alignment: 'left', 'center', or 'right'
- * @param valign - Vertical alignment: 'top', 'middle', or 'bottom'
- * @param spacing - Additional spacing between characters (in pixels at scale 1)
- */
+   * Draws text within the specified bounding box.
+   *
+   * @param text - Text to draw (supports emoji codes like :happy:)
+   * @param bbox - Target bounding box [x, y, width, height] in screen coordinates
+   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0-1
+   * @param mode - Drawing mode:
+   *   - 'scale': Scales text as large as possible while maintaining aspect ratio
+   *   - 'stretch': Stretches text to fill entire bbox (may distort)
+   * @param align - Horizontal alignment: 'left', 'center', or 'right'
+   * @param valign - Vertical alignment: 'top', 'middle', or 'bottom'
+   * @param spacing - Additional spacing between characters (in pixels at scale 1)
+   */
   drawText(
     text: string,
     bbox: [number, number, number, number],
@@ -845,9 +845,9 @@ export class Context3d {
     valign: 'top' | 'middle' | 'bottom' = 'top',
     spacing = 0
   ) {
-    if (!this.ready) throw new Error("Context not ready")
+    if (!this.ready) throw new Error('Context not ready')
     if (!this.fontAtlasData || !this.fontAtlasTexture) {
-      console.error("Font atlas not loaded")
+      console.error('Font atlas not loaded')
       return
     }
 
@@ -869,7 +869,7 @@ export class Context3d {
 
     // Build regex pattern from actual emoji codes in the font atlas
     const emojiCodePattern = Object.keys(emojiCodes)
-      .map(code => code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .map((code) => code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       .join('|')
     const emojiPattern = emojiCodePattern ? new RegExp(`^(${emojiCodePattern})`) : null
 
@@ -930,7 +930,7 @@ export class Context3d {
     let textHeight = baseCharHeight
 
     // Build character info array while calculating width
-    const charInfos: Array<{ char: string, info: any, width: number }> = []
+    const charInfos: Array<{ char: string; info: any; width: number }> = []
 
     for (const char of textChars) {
       const charInfo = getCharInfo(char)
@@ -999,17 +999,7 @@ export class Context3d {
       const isEmoji = emojiValues.has(char) || emojiCodes.hasOwnProperty(char)
       const drawColor = isEmoji ? [1, 1, 1, 1] : color
 
-      this.drawRect(
-        cursorX,
-        cursorY,
-        sw * scaleX,
-        sh * scaleY,
-        u0,
-        v0,
-        u1,
-        v1,
-        drawColor
-      )
+      this.drawRect(cursorX, cursorY, sw * scaleX, sh * scaleY, u0, v0, u1, v1, drawColor)
 
       cursorX += width * scaleX + spacing * scaleX
     }
@@ -1056,9 +1046,8 @@ export class Context3d {
 
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
-
       // Bind texture
-      const texture = mesh.texture || this.mainAtlasTexture;
+      const texture = mesh.texture || this.mainAtlasTexture
       this.gl.activeTexture(this.gl.TEXTURE0)
       this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
       this.gl.uniform1i(this.samplerLocation, 0)
