@@ -26,8 +26,8 @@ class GithubAsanaMapping:
                             break
                     if field.get("gid") == asana_email_field_id:
                         asana_email = field.get("text_value")
-                        if asana_email and asana_email.strip() == "mh.next@gmail.com, mhollander@stem.ai":
-                            asana_email = "mh.next@gmail.com"
+                        if asana_email and "," in asana_email:
+                            asana_email = asana_email.split(",")[0].strip()
                     if gh_login and asana_email:
                         mapping[gh_login] = asana_email
                         break
