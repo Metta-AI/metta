@@ -99,6 +99,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": "metta-research"},
             "skypilot": {"enabled": True, "expected_connection": "skypilot-api.softmax-research.net"},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
+            "devtools": {"enabled": True},
         }
     },
 }
