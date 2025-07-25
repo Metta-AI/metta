@@ -131,6 +131,12 @@
       border-radius: 3px;
       font-family: 'Courier New', monospace;
     }
+
+    .atlas-info {
+      color: #4CAF50;
+      font-weight: bold;
+      margin-top: 0.5em;
+    }
   </style>
 </head>
 
@@ -140,14 +146,19 @@
 
     <div class="section">
       <h2>Font Atlas Generator</h2>
-      <canvas id="fontCanvas"></canvas>
       <div class="controls">
-        <button id="generateBtn">Regenerate Atlas</button>
+        <label>
+          Atlas Scale:
+          <input type="number" id="atlasScaleInput" value="1" min="1" max="20" step="1">
+        </label>
+        <button id="generateBtn">Generate Atlas</button>
         <button id="savePngBtn">Save font.png</button>
         <button id="saveJsonBtn">Save font.json</button>
       </div>
+      <canvas id="fontCanvas"></canvas>
       <div class="info">
-        Atlas contains all ASCII characters and emoji symbols. Each character occupies a 24×36 pixel cell.
+        <div id="atlasContents"><!-- Atlas contents will be populated by JavaScript --></div>
+        <div class="atlas-info" id="atlasInfo"><!-- Atlas dimensions will be populated by JavaScript --></div>
       </div>
     </div>
 
@@ -172,10 +183,8 @@
         <button id="renderBtn">Render Text</button>
       </div>
       <canvas id="renderCanvas"></canvas>
-      <div class="info">
-        Available emoji codes: <code>:left:</code> <code>:up:</code> <code>:right:</code> <code>:down:</code>
-        <code>:happy:</code> <code>:sad:</code> <code>:angry:</code> <code>:alien:</code>
-        <code>:sparkles:</code> <code>:skull:</code> <code>:love:</code>
+      <div class="info" id="emojiCodesInfo">
+        <!-- Emoji codes will be populated by JavaScript -->
       </div>
     </div>
   </div>
@@ -217,12 +226,17 @@
       ":love:": "💖"
     };
 
-    // Font atlas configuration
-    const FONT = '24px "Courier New", monospace';
-    const EMOJI_FONT = '24px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif';
-    const CELL_WIDTH = 24;
-    const CELL_HEIGHT = 36;
+    // Base font atlas configuration
+    const BASE_CELL_WIDTH = 24;
+    const BASE_CELL_HEIGHT = 36;
+    const BASE_FONT_SIZE = 24;
     const COLUMNS = 16;
+
+    // Dynamic configuration based on scale
+    let currentAtlasScale = 1;
+    let CELL_WIDTH = BASE_CELL_WIDTH;
+    let CELL_HEIGHT = BASE_CELL_HEIGHT;
+    let FONT_SIZE = BASE_FONT_SIZE;
 
     // Get all unique characters
     const ALL_CHARS = Object.values(CHAR_MAP);
@@ -238,8 +252,51 @@
     let atlasData = {};
     let fontAtlasImage = null;
 
+    // Update atlas info display
+    function updateAtlasInfo() {
+      const atlasInfo = document.getElementById('atlasInfo');
+      const atlasContents = document.getElementById('atlasContents');
+
+      // Count ASCII and emoji characters
+      let asciiCount = 0;
+      let emojiCount = 0;
+
+      ALL_CHARS.forEach(char => {
+        if (char.match(/[👈👆👉👇😀😢😡👽✨💀💖]/)) {
+          emojiCount++;
+        } else {
+          asciiCount++;
+        }
+      });
+
+      // Update contents description
+      atlasContents.textContent = `Atlas contains ${asciiCount} ASCII characters and ${emojiCount} emoji symbols (${ALL_CHARS.length} total).`;
+
+      // Update dimensions info
+      atlasInfo.textContent = `Each character occupies a ${CELL_WIDTH}×${CELL_HEIGHT} pixel cell. Atlas size: ${COLUMNS * CELL_WIDTH}×${ROWS * CELL_HEIGHT}px`;
+    }
+
+    // Populate emoji codes info
+    function populateEmojiCodesInfo() {
+      const emojiCodesInfo = document.getElementById('emojiCodesInfo');
+      const codes = Object.keys(EMOJI_CODES).map(code => `<code>${code}</code>`).join(' ');
+      emojiCodesInfo.innerHTML = `Available emoji codes: ${codes}`;
+    }
+
     // Generate font atlas
     function generateFontAtlas() {
+      // Get the current scale value
+      currentAtlasScale = parseInt(document.getElementById('atlasScaleInput').value);
+
+      // Update dimensions based on scale
+      CELL_WIDTH = BASE_CELL_WIDTH * currentAtlasScale;
+      CELL_HEIGHT = BASE_CELL_HEIGHT * currentAtlasScale;
+      FONT_SIZE = BASE_FONT_SIZE * currentAtlasScale;
+
+      // Update the info display
+      updateAtlasInfo();
+
+      // Set canvas dimensions
       fontCanvas.width = COLUMNS * CELL_WIDTH;
       fontCanvas.height = ROWS * CELL_HEIGHT;
 
@@ -257,11 +314,11 @@
         const x = col * CELL_WIDTH;
         const y = row * CELL_HEIGHT;
 
-        // Use appropriate font for emojis
-        if (char.match(/[←↑→↓😀😢😡👽✨💀💖]/)) {
-          fontCtx.font = EMOJI_FONT;
+        // Use appropriate font for emojis with scaled size
+        if (char.match(/[👈👆👉👇😀😢😡👽✨💀💖]/)) {
+          fontCtx.font = `${FONT_SIZE}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif`;
         } else {
-          fontCtx.font = FONT;
+          fontCtx.font = `${FONT_SIZE}px "Courier New", monospace`;
         }
 
         fontCtx.fillText(char, x + CELL_WIDTH / 2, y + CELL_HEIGHT / 2);
@@ -274,6 +331,15 @@
           height: CELL_HEIGHT
         };
       }
+
+      // Add scale information to atlas data
+      atlasData.metadata = {
+        scale: currentAtlasScale,
+        cellWidth: CELL_WIDTH,
+        cellHeight: CELL_HEIGHT,
+        baseCellWidth: BASE_CELL_WIDTH,
+        baseCellHeight: BASE_CELL_HEIGHT
+      };
 
       // Create image from canvas for rendering
       fontCanvas.toBlob(blob => {
@@ -400,10 +466,16 @@
     // Event listeners
     document.getElementById('generateBtn').addEventListener('click', generateFontAtlas);
 
+    // Auto-regenerate atlas when scale changes
+    document.getElementById('atlasScaleInput').addEventListener('change', generateFontAtlas);
+
     document.getElementById('savePngBtn').addEventListener('click', () => {
+      const scale = document.getElementById('atlasScaleInput').value;
+      const filename = scale === '1' ? 'font.png' : `font_${scale}x.png`;
+
       fontCanvas.toBlob(blob => {
         const link = document.createElement('a');
-        link.download = 'font.png';
+        link.download = filename;
         link.href = URL.createObjectURL(blob);
         link.click();
         URL.revokeObjectURL(link.href);
@@ -413,17 +485,23 @@
     document.getElementById('saveJsonBtn').addEventListener('click', () => {
       const jsonData = {
         metadata: {
+          scale: currentAtlasScale,
           cellWidth: CELL_WIDTH,
           cellHeight: CELL_HEIGHT,
+          baseCellWidth: BASE_CELL_WIDTH,
+          baseCellHeight: BASE_CELL_HEIGHT,
           columns: COLUMNS,
           rows: ROWS,
+          fontSize: FONT_SIZE,
           emojiCodes: EMOJI_CODES
         },
-        ...atlasData,
+        characters: atlasData
       };
 
       const json = JSON.stringify(jsonData, null, 2);
-      downloadFile('font.json', 'application/json', json);
+      const scale = document.getElementById('atlasScaleInput').value;
+      const filename = scale === '1' ? 'font.json' : `font_${scale}x.json`;
+      downloadFile(filename, 'application/json', json);
     });
 
     document.getElementById('renderBtn').addEventListener('click', renderText);
@@ -446,6 +524,8 @@
     });
 
     // Initialize
+    populateEmojiCodesInfo();
+    updateAtlasInfo(); // Initial update before generating
     generateFontAtlas();
 
     // Initial render after a short delay to ensure atlas is ready
