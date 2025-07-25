@@ -4,8 +4,14 @@ env_cfg_template_path: /env/mettagrid/arena/advanced_easy
 
 buckets:
   game.agent.rewards.inventory.ore_red:
-    values: [0, 0.5, 1]
+    - 0
+    - 0.5
+    - 1
   game.agent.rewards.inventory.battery_red:
-    values: [0, 0.5, 1]
+    - 0
+    - 0.5
+    - 1
   game.agent.rewards.inventory.heart:
-    values: [0, 0.5, 1]
+    - 0
+    - 0.5
+    - 1

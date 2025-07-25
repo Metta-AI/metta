@@ -21,7 +21,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
         env_cfg_template_path: str,
-        buckets: Dict[str, Dict[str, Any]],
+        buckets: Dict[str, Any],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
     ):
@@ -59,29 +59,31 @@ def get_id(parameters, values):
     return curriculum_id
 
 
-def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Dict[str, Any]:
+def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str, Any]:
     """
     buckets: specified in the config, values or ranges for each parameter
     returns: unpacked configurations for each parameter given the number of bins
     """
     buckets_unpacked = {}
     for parameter, bucket_spec in buckets.items():
-        if "values" in bucket_spec:
-            buckets_unpacked[parameter] = bucket_spec["values"]
-        elif "choice" in bucket_spec:
-            buckets_unpacked[parameter] = {"choice": bucket_spec["choice"]}
-        elif "range" in bucket_spec:
-            lo, hi = bucket_spec["range"]
-            n = int(bucket_spec.get("bins", default_bins))
-            step = (hi - lo) / n
-            want_int = isinstance(lo, int) and isinstance(hi, int)
+        # if its a dictionary, the parameter is a range
+        if isinstance(bucket_spec, dict):
+            if "range" in bucket_spec:
+                # Handle range specification
+                lo, hi = bucket_spec["range"]
+                n = int(bucket_spec.get("bins", default_bins))
+                step = (hi - lo) / n
+                want_int = isinstance(lo, int) and isinstance(hi, int)
 
-            binned_ranges = []
-            for i in range(n):
-                lo_i, hi_i = lo + i * step, lo + (i + 1) * step
-                binned_ranges.append({"range": (lo_i, hi_i), "want_int": want_int})
+                binned_ranges = []
+                for i in range(n):
+                    lo_i, hi_i = lo + i * step, lo + (i + 1) * step
+                    binned_ranges.append({"range": (lo_i, hi_i), "want_int": want_int})
 
-            buckets_unpacked[parameter] = binned_ranges
+                buckets_unpacked[parameter] = binned_ranges
+            else:
+                raise ValueError(f"Unknown bucket specification format for {parameter}: {bucket_spec}")
         else:
-            raise ValueError(f"Invalid bucket spec: {bucket_spec}")
+            # Handle direct list or list of lists
+            buckets_unpacked[parameter] = bucket_spec
     return buckets_unpacked

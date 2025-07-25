@@ -140,8 +140,8 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
         "metta.mettagrid.curriculum.bucketed.config_from_path", lambda path, env_overrides=None: env_cfg
     )
     buckets = {
-        "game.map.width": {"values": [5, 10]},
-        "game.map.height": {"values": [5, 10]},
+        "game.map.width": [5, 10],
+        "game.map.height": [5, 10],
     }
     curr = BucketedCurriculum("dummy", buckets=buckets)
 
@@ -155,7 +155,7 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
 
 def test_expand_buckets_values_and_range():
     buckets = {
-        "param1": {"values": [1, 2, 3]},
+        "param1": [1, 2, 3],
         "param2": {"range": (0, 10), "bins": 2},
     }
     expanded = _expand_buckets(buckets)
@@ -170,9 +170,9 @@ def test_expand_buckets_values_and_range():
 
 def test_expand_buckets_choice():
     buckets = {
-        "param1": {"choice": ["red", "blue", "green"]},
-        "param2": {"choice": [1, 2, 3, 4]},
-        "param3": {"choice": [True, False]},
+        "param1": ["red", "blue", "green"],
+        "param2": [1, 2, 3, 4],
+        "param3": [True, False],
     }
     expanded = _expand_buckets(buckets)
     # All choice parameters should be direct lists
@@ -183,9 +183,9 @@ def test_expand_buckets_choice():
 
 def test_expand_buckets_mixed_types():
     buckets = {
-        "param1": {"values": [1, 2, 3]},
+        "param1": [1, 2, 3],
         "param2": {"range": (0, 10), "bins": 2},
-        "param3": {"choice": ["a", "b", "c"]},
+        "param3": ["a", "b", "c"],
     }
     expanded = _expand_buckets(buckets)
     # Test all three types together

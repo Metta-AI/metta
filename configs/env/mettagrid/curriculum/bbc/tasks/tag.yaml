@@ -16,5 +16,5 @@ env_overrides:
     agent: { rewards: { heart: 1 } }
 
 buckets:
-  game.objects.lasery.initial_resource_count: { values: [0, 1] }
-  game.objects.armory.initial_resource_count: { values: [0, 1] }
+  game.objects.lasery.initial_resource_count: [0, 1]
+  game.objects.armory.initial_resource_count: [0, 1]
