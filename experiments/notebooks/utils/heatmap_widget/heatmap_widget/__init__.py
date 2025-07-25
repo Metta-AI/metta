@@ -133,6 +133,52 @@ class HeatmapWidget(anywidget.AnyWidget):
         print(f"📊 Data set with {len(policy_names)} policies and {len(eval_names)} evaluations")
         print(f"📈 Selected metric: {selected_metric}")
 
+    def set_multi_metric_data(
+        self,
+        cells: Dict[str, Dict[str, Dict[str, Any]]],
+        eval_names: List[str],
+        policy_names: List[str],
+        metrics: List[str],
+        selected_metric: str | None = None,
+    ):
+        """Set heatmap data with multiple metrics per cell.
+
+        Args:
+            cells: Nested dict of {policy_name: {eval_name: {metrics: {metric_name: value}, replayUrl, evalName}}}
+            eval_names: List of evaluation names
+            policy_names: List of policy names
+            metrics: List of available metric names
+            selected_metric: Name of the selected metric (defaults to first metric)
+        """
+        if not selected_metric and metrics:
+            selected_metric = metrics[0]
+        elif selected_metric and selected_metric not in metrics:
+            raise ValueError(f"Selected metric '{selected_metric}' not found in available metrics: {metrics}")
+
+        # Calculate policy averages for the selected metric
+        policy_average_scores = {}
+        for policy_name in policy_names:
+            total = 0
+            count = 0
+            for eval_name in eval_names:
+                cell = cells.get(policy_name, {}).get(eval_name, {})
+                if cell and "metrics" in cell and selected_metric in cell["metrics"]:
+                    total += cell["metrics"][selected_metric]
+                    count += 1
+            policy_average_scores[policy_name] = total / count if count > 0 else 0
+
+        self.heatmap_data = {
+            "cells": cells,
+            "evalNames": eval_names,
+            "policyNames": policy_names,
+            "policyAverageScores": policy_average_scores,
+            "availableMetrics": metrics,
+        }
+        self.selected_metric = selected_metric or ""
+        print(f"📊 Multi-metric data set with {len(policy_names)} policies and {len(eval_names)} evaluations")
+        print(f"📈 Available metrics: {', '.join(metrics)}")
+        print(f"📈 Selected metric: {selected_metric}")
+
     def update_metric(self, metric: str):
         """Update the selected metric.
 
@@ -144,7 +190,6 @@ class HeatmapWidget(anywidget.AnyWidget):
         """
         if metric != self.selected_metric:
             self.selected_metric = metric
-            print(f"📈 Metric updated to: {metric}")
         else:
             print(f"📈 Metric already set to: {metric}")
 
@@ -239,6 +284,120 @@ def create_demo_heatmap() -> HeatmapWidget:
     widget.on_metric_changed(on_metric_changed)
 
     print("✅ Demo heatmap widget created with sample data!")
+    return widget
+
+
+def create_multi_metric_demo() -> HeatmapWidget:
+    """Create a demo heatmap widget with multiple metrics per cell.
+
+    This demonstrates how selectedMetric actually changes the displayed values.
+
+    Returns:
+        HeatmapWidget instance with multi-metric demo data
+    """
+    print("🎯 Creating multi-metric demo heatmap widget...")
+    widget = HeatmapWidget()
+
+    # Sample data with multiple metrics per cell
+    demo_cells = {
+        "policy_alpha_v1": {
+            "navigation/maze1": {
+                "metrics": {"reward": 85.2, "episode_length": 120.5, "success_rate": 0.92, "completion_time": 45.3},
+                "replayUrl": "sample_replay_1.json",
+                "evalName": "navigation/maze1",
+            },
+            "navigation/maze2": {
+                "metrics": {"reward": 78.9, "episode_length": 135.2, "success_rate": 0.85, "completion_time": 52.1},
+                "replayUrl": "sample_replay_2.json",
+                "evalName": "navigation/maze2",
+            },
+            "combat/arena1": {
+                "metrics": {"reward": 92.1, "episode_length": 98.7, "success_rate": 0.98, "completion_time": 38.9},
+                "replayUrl": "sample_replay_3.json",
+                "evalName": "combat/arena1",
+            },
+            "combat/arena2": {
+                "metrics": {"reward": 88.7, "episode_length": 110.3, "success_rate": 0.94, "completion_time": 42.6},
+                "replayUrl": "sample_replay_4.json",
+                "evalName": "combat/arena2",
+            },
+        },
+        "policy_beta_v2": {
+            "navigation/maze1": {
+                "metrics": {"reward": 79.8, "episode_length": 142.1, "success_rate": 0.88, "completion_time": 49.7},
+                "replayUrl": "sample_replay_5.json",
+                "evalName": "navigation/maze1",
+            },
+            "navigation/maze2": {
+                "metrics": {"reward": 83.4, "episode_length": 128.9, "success_rate": 0.91, "completion_time": 47.2},
+                "replayUrl": "sample_replay_6.json",
+                "evalName": "navigation/maze2",
+            },
+            "combat/arena1": {
+                "metrics": {"reward": 87.3, "episode_length": 105.6, "success_rate": 0.96, "completion_time": 41.4},
+                "replayUrl": "sample_replay_7.json",
+                "evalName": "combat/arena1",
+            },
+            "combat/arena2": {
+                "metrics": {"reward": 91.2, "episode_length": 102.4, "success_rate": 0.97, "completion_time": 40.1},
+                "replayUrl": "sample_replay_8.json",
+                "evalName": "combat/arena2",
+            },
+        },
+        "policy_gamma_v1": {
+            "navigation/maze1": {
+                "metrics": {"reward": 82.1, "episode_length": 130.7, "success_rate": 0.89, "completion_time": 48.5},
+                "replayUrl": "sample_replay_9.json",
+                "evalName": "navigation/maze1",
+            },
+            "navigation/maze2": {
+                "metrics": {"reward": 76.5, "episode_length": 145.3, "success_rate": 0.83, "completion_time": 54.8},
+                "replayUrl": "sample_replay_10.json",
+                "evalName": "navigation/maze2",
+            },
+            "combat/arena1": {
+                "metrics": {"reward": 89.8, "episode_length": 108.2, "success_rate": 0.95, "completion_time": 43.1},
+                "replayUrl": "sample_replay_11.json",
+                "evalName": "combat/arena1",
+            },
+            "combat/arena2": {
+                "metrics": {"reward": 85.9, "episode_length": 115.6, "success_rate": 0.93, "completion_time": 44.7},
+                "replayUrl": "sample_replay_12.json",
+                "evalName": "combat/arena2",
+            },
+        },
+    }
+
+    demo_eval_names = ["navigation/maze1", "navigation/maze2", "combat/arena1", "combat/arena2"]
+    demo_policy_names = list(demo_cells.keys())
+    available_metrics = ["reward", "episode_length", "success_rate", "completion_time"]
+
+    widget.set_multi_metric_data(
+        cells=demo_cells,
+        eval_names=demo_eval_names,
+        policy_names=demo_policy_names,
+        metrics=available_metrics,
+        selected_metric="reward",
+    )
+
+    # Add some demo callbacks
+    def on_cell_selected(cell_info):
+        print(f"📍 Cell selected: {cell_info['policyUri']} on {cell_info['evalName']}")
+
+    def on_replay_opened(replay_info):
+        print(
+            f"🎬 Replay opened: {replay_info['replayUrl']} for {replay_info['policyUri']} on {replay_info['evalName']}"
+        )
+
+    def on_metric_changed(metric_name):
+        print(f"📊 Metric changed to: {metric_name}")
+
+    widget.on_cell_selected(on_cell_selected)
+    widget.on_replay_opened(on_replay_opened)
+    widget.on_metric_changed(on_metric_changed)
+
+    print("✅ Multi-metric demo heatmap widget created!")
+    print("📈 Try widget.update_metric('episode_length') to see values change!")
     return widget
 
 
