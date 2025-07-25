@@ -580,27 +580,22 @@ class MettaCLI:
             sys.exit(e.returncode)
     
     def cmd_notebook(self, args) -> None:
-        """Create an experiment notebook."""
-        # Build command for the recipe
-        if args.recipe == "arena":
-            cmd = [sys.executable, str(self.repo_root / "experiments" / "recipes" / "arena_experiment.py")]
+        """Create an experiment notebook using arena recipe."""
+        # Build command for arena recipe
+        cmd = [sys.executable, str(self.repo_root / "experiments" / "recipes" / "arena_experiment.py")]
+        
+        # Pass all arguments through to arena_experiment.py
+        if args.name:
             cmd.append(args.name)
-            
-            if args.no_launch:
-                cmd.append("--no-launch")
-            if args.job_ids:
-                cmd.extend(["--job-ids"] + args.job_ids)
-            if not args.no_open:
-                cmd.append("--open")
-                
-            try:
-                subprocess.run(cmd, cwd=self.repo_root, check=True)
-            except subprocess.CalledProcessError as e:
-                sys.exit(e.returncode)
-        else:
-            error(f"Unknown recipe: {args.recipe}")
-            info("Available recipes: arena")
-            sys.exit(1)
+        
+        # Pass through all unknown args
+        unknown_args = getattr(args, '_unknown_args', [])
+        cmd.extend(unknown_args)
+        
+        try:
+            subprocess.run(cmd, cwd=self.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            sys.exit(e.returncode)
 
     def cmd_status(self, args) -> None:
         from metta.setup.registry import get_all_modules
@@ -818,12 +813,22 @@ Examples:
         # Determine which commands support unknown args
         pass_unknown_cmds = {cmd for cmd, cfg in COMMAND_REGISTRY.items() if cfg.pass_unknown_args}
 
+<<<<<<< HEAD
         # Use parse_known_args for commands that accept unknown args
         if len(sys.argv) > 1 and sys.argv[1] in pass_unknown_cmds:
             args, unknown_args = parser.parse_known_args()
         else:
             args = parser.parse_args()
             unknown_args = []
+=======
+        # Tool command
+        tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
+        tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
+        
+        # Notebook command - always uses arena recipe
+        notebook_parser = subparsers.add_parser("notebook", help="Create experiment notebook (uses arena recipe)")
+        notebook_parser.add_argument("name", nargs="?", help="Name for the notebook")
+>>>>>>> 6fed597b1 (cp)
 
         # Handle no command
         if not args.command:
@@ -854,6 +859,7 @@ Examples:
                         sys.exit(1)
 
         # Dispatch to command handler
+<<<<<<< HEAD
         if args.command in COMMAND_REGISTRY:
             cmd_config = COMMAND_REGISTRY[args.command]
 
@@ -875,6 +881,39 @@ Examples:
             else:
                 print(f"Error: Command {args.command} has no handler or subprocess_cmd", file=sys.stderr)
                 sys.exit(1)
+=======
+        if args.command == "configure":
+            self.cmd_configure(args)
+        elif args.command == "run":
+            self.cmd_run(args)
+        elif args.command == "install":
+            self.cmd_install(args)
+        elif args.command == "status":
+            self.cmd_status(args)
+        elif args.command == "clean":
+            self.cmd_clean(args, verbose=True)
+        elif args.command == "symlink-setup":
+            self.cmd_symlink_setup(args)
+        elif args.command == "test":
+            self.cmd_pytest(unknown_args)
+        elif args.command == "test-changed":
+            self.cmd_pytest(unknown_args + ["--testmon"])
+        elif args.command == "tool":
+            self.cmd_tool(args.tool_name, unknown_args)
+        elif args.command == "notebook":
+            args._unknown_args = unknown_args  # Store unknown args to pass through
+            self.cmd_notebook(args)
+        elif args.command == "lint":
+            self.cmd_lint(args)
+        elif args.command == "shell":
+            self.cmd_shell()
+        elif args.command == "report-env-details":
+            self.cmd_report_env_details()
+        elif args.command == "clip":
+            self.cmd_clip(args)
+        elif args.command == "local":
+            self.cmd_local(args, unknown_args)
+>>>>>>> 6fed597b1 (cp)
         else:
             parser.print_help()
 

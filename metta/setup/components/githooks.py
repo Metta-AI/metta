@@ -165,7 +165,7 @@ class GitHooksSetup(SetupModule):
         if hook_mode == CommitHookMode.NONE:
             sys.exit(0)
 
-        # Get staged Python files
+        # Get staged files
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
             cwd=self.repo_root,
@@ -173,26 +173,46 @@ class GitHooksSetup(SetupModule):
             text=True,
             check=True,
         )
-        files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
+        all_files = result.stdout.strip().split("\n") if result.stdout.strip() else []
+        python_files = [f for f in all_files if f.endswith(".py")]
+        notebook_files = [f for f in all_files if f.endswith(".ipynb") and "/log/" in f]
 
-        if not files:
-            # No Python files to lint
+        if not python_files and not notebook_files:
+            # No files to process
             sys.exit(0)
 
-        # Run linting
-        lint_cmd = ["metta", "lint", "--staged"]
+        # Process Python files
+        if python_files:
+            lint_cmd = ["metta", "lint", "--staged"]
 
-        if hook_mode == CommitHookMode.FIX:
-            lint_cmd.append("--fix")
-
-        try:
-            subprocess.run(lint_cmd, cwd=self.repo_root, check=True)
-
-            # If in fix mode, stage the fixed files
             if hook_mode == CommitHookMode.FIX:
-                subprocess.run(["git", "add"] + files, cwd=self.repo_root, check=True)
-        except subprocess.CalledProcessError as e:
-            if hook_mode == CommitHookMode.CHECK:
-                error("Linting failed. Please fix the issues before committing.")
-                error("Consider running `metta lint --fix` to fix some issues automatically.")
-            sys.exit(e.returncode)
+                lint_cmd.append("--fix")
+
+            try:
+                subprocess.run(lint_cmd, cwd=self.repo_root, check=True)
+
+                # If in fix mode, stage the fixed files
+                if hook_mode == CommitHookMode.FIX:
+                    subprocess.run(["git", "add"] + python_files, cwd=self.repo_root, check=True)
+            except subprocess.CalledProcessError as e:
+                if hook_mode == CommitHookMode.CHECK:
+                    error("Linting failed. Please fix the issues before committing.")
+                    error("Consider running `metta lint --fix` to fix some issues automatically.")
+                sys.exit(e.returncode)
+
+        # Strip notebook outputs from log directory
+        if notebook_files:
+            info(f"Stripping outputs from {len(notebook_files)} notebook(s) in log/...")
+            for notebook in notebook_files:
+                try:
+                    # Strip outputs using nbstripout
+                    subprocess.run(["nbstripout", notebook], cwd=self.repo_root, check=True)
+                    # Stage the stripped notebook
+                    subprocess.run(["git", "add", notebook], cwd=self.repo_root, check=True)
+                    info(f"  ✓ Stripped: {notebook}")
+                except subprocess.CalledProcessError:
+                    error(f"Failed to strip outputs from {notebook}")
+                    sys.exit(1)
+                except FileNotFoundError:
+                    error("nbstripout not found. Please install it: pip install nbstripout")
+                    sys.exit(1)

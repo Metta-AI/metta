@@ -50,15 +50,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Node dependencies
-        run: |
-          cd mettascope
-          echo "::group::Node dependency installation"
-          echo "Current directory: $(pwd)"
-          echo "Node version: $(node --version)"
-          echo "NPM version: $(npm --version)"
-          npm ci
-          echo "::endgroup::"
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Node.js dependencies
+        run: pnpm install
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
@@ -167,7 +168,7 @@ jobs:
           ls -la tests/*.test.ts || echo "No test files found!"
 
           # Run tests with more verbose output
-          npm run test -- --reporter=list || TEST_FAILED=1
+          pnpm run test -- --reporter=list || TEST_FAILED=1
 
           # Kill the backend
           echo "Stopping backend server..."
@@ -191,4 +192,4 @@ jobs:
             mettascope/tests/test-results/
             mettascope_backend.log
           retention-days: 30
-          if-no-files-found: ignore  # Don't fail if test-results/ doesn't exist
+          if-no-files-found: ignore # Don't fail if test-results/ doesn't exist

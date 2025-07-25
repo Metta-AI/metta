@@ -60,6 +60,7 @@ dependencies = [
   "raylib>=5.5.0.0",
   "bidict>=0.23.1",
   "nbconvert>=7.16.0",
+  "nbstripout>=0.7.0",
 ]
 name = "metta"
 version = "0.1"

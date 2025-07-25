@@ -4,34 +4,20 @@ A framework for reproducible experiments and research notebooks with Metta.
 
 ## Quick Start
 
-### Research Notebooks (Empty Template)
+### Create and Launch Experiments
 
 ```bash
-# Create an empty research notebook
-./experiments/new_notebook.py my_research
+# Create and launch arena experiment
+./experiments/recipes/arena_experiment.py
 
-# With a description and custom sections
-./experiments/new_notebook.py optimizer_study --description "Comparing optimizers" --sections setup,state,metrics,log
-```
+# Create notebook without launching (load existing jobs)
+./experiments/recipes/arena_experiment.py --no-launch --job-ids 2979 2980 --open
 
-### Experiment Notebooks (Pre-configured with Runs)
+# Launch with custom configuration
+./experiments/recipes/arena_experiment.py my_arena --gpus 4 --skip-git-check --wandb-tags research ablation
 
-```bash
-# Create and launch from arena recipe
-./experiments/new_notebook.py arena_test --recipe arena
-
-# Create from recipe without launching
-./experiments/new_notebook.py arena_analysis --recipe arena --no-launch
-
-# Create with custom config
-./experiments/new_notebook.py custom_exp --curriculum env/mettagrid/curriculum/test --gpus 2 --tags research,ablation
-```
-
-### Run Existing Experiments
-
-```bash
-# Run arena experiment directly
-python experiments/recipes/arena_experiment.py
+# Create notebook with custom sections
+./experiments/recipes/arena_experiment.py analysis --sections monitor,analysis,replays --open
 ```
 
 ## Structure
@@ -40,7 +26,6 @@ python experiments/recipes/arena_experiment.py
 experiments/
 ├── experiment.py          # Base Experiment class
 ├── launch.py             # Core training launch functionality
-├── new_notebook.py       # Unified notebook creation script
 ├── types.py              # TrainingJob and TrainingJobConfig
 ├── wandb_utils.py        # WandB data fetching utilities
 ├── monitoring.py         # Sky job monitoring utilities
@@ -58,47 +43,42 @@ experiments/
 
 ## Creating New Experiments
 
-### Method 1: Using new_notebook.py (Recommended for Quick Iteration)
+Each experiment is a standalone script in `experiments/recipes/`. To create a new experiment:
 
-```bash
-# Research notebook - empty template for exploration
-./experiments/new_notebook.py my_research
+1. Copy an existing recipe (e.g., `arena_experiment.py`)
+2. Define your experiment-specific config class
+3. Implement the launch and analysis methods
+4. Add command-line arguments for your config fields
 
-# With pre-launched training runs
-./experiments/new_notebook.py my_experiment --curriculum env/mettagrid/curriculum/test --gpus 4
-```
-
-### Method 2: Creating an Experiment Class (Recommended for Reproducibility)
-
-Create a new file in `experiments/recipes/`:
+Example structure:
 
 ```python
 from experiments.experiment import Experiment
-from experiments.types import TrainingJob, TrainingJobConfig
+from experiments.types import TrainingJob, TrainingJobConfig, BaseExperimentConfig
+from pydantic import Field
+from typing import Optional, List
 
+class MyExperimentConfig(BaseExperimentConfig):
+    """Configuration for my experiment."""
+    # Launch parameters
+    curriculum: str = Field("env/mettagrid/my_curriculum", description="Curriculum path")
+    gpus: int = Field(4, description="Number of GPUs")
+    learning_rate: float = Field(0.001, description="Learning rate")
+    
 class MyExperiment(Experiment):
+    def __init__(self, name: str, config: MyExperimentConfig):
+        super().__init__(name)
+        self.config = config
+        
     def launch_training_runs(self) -> List[TrainingJob]:
-        # Create config
         config = TrainingJobConfig(
-            curriculum="env/mettagrid/my_curriculum",
-            gpus=4,
-            nodes=1,
-            wandb_tags=["my_experiment"],
-            additional_args=[
-                "trainer.optimizer.learning_rate=0.001",
-                "trainer.optimizer.type=adam"
-            ]
+            curriculum=self.config.curriculum,
+            gpus=self.config.gpus,
+            additional_args=[f"trainer.optimizer.learning_rate={self.config.learning_rate}"]
         )
         
-        # Launch using config
-        job = self.launch_training_run_from_config("my_run_name", config)
+        job = self.launch_training_run_from_config("my_run", config)
         return [job] if job else []
-
-    def get_analysis_config(self):
-        return {
-            "metrics_to_plot": ["overview/reward"],
-            "eval_suites": ["navigation"],
-        }
 ```
 
 ## Notebook Sections
@@ -108,10 +88,8 @@ Available sections (use `--sections` to customize):
 - **state**: Run tracking and management
 - **launch**: Training launch examples
 - **monitor**: Status monitoring
-- **metrics**: Metric fetching and analysis
-- **visualize**: Plotting and visualizations
+- **analysis**: Analysis and visualizations (SPS plot)
 - **replays**: MettaScope replay viewer
-- **log**: Experiment documentation
 - **scratch**: Quick experiments
 
 ## Key Utilities
