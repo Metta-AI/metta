@@ -8,6 +8,7 @@ on:
 
 jobs:
   test:
+    name: "Lint, Install, and Test"
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/metta-ai/metta/mettascope-ci:latest

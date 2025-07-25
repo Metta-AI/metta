@@ -1,12 +1,13 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "root": false,
+  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
   "extends": ["../biome.jsonc"],
   // MettaScope uses all the workspace defaults
   "formatter": {
-    "ignore": ["./index.css", "./index.html"]
+    "includes": ["**", "!index.css", "!index.html"]
   },
   "linter": {
-    "ignore": ["./index.css", "./index.html"],
+    "includes": ["**", "!index.css", "!index.html"],
     "rules": {
       "suspicious": {
         "noExplicitAny": "off",
