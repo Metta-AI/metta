@@ -33,6 +33,9 @@
 
 namespace py = pybind11;
 
+// Static member definition for ActionHandler
+std::map<size_t, std::string> ActionHandler::_global_last_actions;
+
 MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int seed)
     : obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -40,7 +43,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens),
-      _global_obs_config(cfg.global_obs) {
+      _global_obs_config(cfg.global_obs),
+      _track_movement_metrics(cfg.track_movement_metrics) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -85,9 +89,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
       if (!attack_config) {
@@ -172,19 +176,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
       if (converter_config) {
         // Create a new ConverterConfig with the recipe offsets from the observation encoder
-        ConverterConfig config_with_offsets(
-            converter_config->type_id,
-            converter_config->type_name,
-            converter_config->input_resources,
-            converter_config->output_resources,
-            converter_config->max_output,
-            converter_config->conversion_ticks,
-            converter_config->cooldown,
-            converter_config->initial_resource_count,
-            converter_config->color,
-            converter_config->recipe_details_obs,
-            _obs_encoder->get_input_recipe_offset(),
-            _obs_encoder->get_output_recipe_offset());
+        ConverterConfig config_with_offsets(*converter_config);
+        config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
+        config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
         Converter* converter = new Converter(r, c, config_with_offsets);
         _grid->add_object(converter);
@@ -278,8 +272,6 @@ void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
 }
-
-
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
@@ -494,6 +486,12 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
+  // Clear action tracking from previous episodes
+  ActionHandler::clear_all_tracking();
+  for (auto& handler : _action_handlers) {
+    handler->clear_tracking();
+  }
+
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
@@ -521,6 +519,7 @@ py::tuple MettaGrid::reset() {
   std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
             static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
             static_cast<ActionType>(0));
+
   _compute_observations(zero_actions);
 
   return py::make_tuple(_observations, py::dict());
@@ -629,10 +628,12 @@ py::dict MettaGrid::grid_objects() {
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
-    obj_dict["type_name"] = obj->type_name;
-    obj_dict["r"] = obj->location.r;
-    obj_dict["c"] = obj->location.c;
-    obj_dict["layer"] = obj->location.layer;
+    obj_dict["location"] = py::make_tuple(obj->location.r, obj->location.c, obj->location.layer);
+    obj_dict["is_swappable"] = obj->swappable();
+
+    obj_dict["r"] = obj->location.r;          // To remove
+    obj_dict["c"] = obj->location.c;          // To remove
+    obj_dict["layer"] = obj->location.layer;  // To remove
 
     // Inject observation features
     auto features = obj->obs_features();
@@ -643,15 +644,47 @@ py::dict MettaGrid::grid_objects() {
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
-      obj_dict["group_name"] = agent->group_name;
-      obj_dict["frozen"] = agent->frozen;
+      obj_dict["group_id"] = agent->group;
+      obj_dict["is_frozen"] = !!agent->frozen;
+      obj_dict["freeze_remaining"] = agent->frozen;
+      obj_dict["freeze_duration"] = agent->freeze_duration;
+      obj_dict["color"] = agent->color;
 
       py::dict inventory_dict;
-      for (const auto& [item, quantity] : agent->inventory) {
-        inventory_dict[py::int_(item)] = quantity;
+      for (const auto& [resource, quantity] : agent->inventory) {
+        inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
+      py::dict resource_limits_dict;
+      for (const auto& [resource, quantity] : agent->resource_limits) {
+        resource_limits_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["resource_limits"] = resource_limits_dict;
       obj_dict["agent_id"] = agent->agent_id;
+    }
+
+    if (auto* converter = dynamic_cast<Converter*>(obj)) {
+      py::dict inventory_dict;
+      for (const auto& [resource, quantity] : converter->inventory) {
+        inventory_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+      obj_dict["is_converting"] = converter->converting;
+      obj_dict["is_cooling_down"] = converter->cooling_down;
+      obj_dict["conversion_remaining"] = converter->conversion_ticks;
+      obj_dict["cooldown_remaining"] = converter->cooldown;
+      obj_dict["output_limit"] = converter->max_output;
+      obj_dict["color"] = converter->color;
+      py::dict input_resources_dict;
+      for (const auto& [resource, quantity] : converter->input_resources) {
+        input_resources_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["input_resources"] = input_resources_dict;
+      py::dict output_resources_dict;
+      for (const auto& [resource, quantity] : converter->output_resources) {
+        output_resources_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["output_resources"] = output_resources_dict;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -788,15 +821,6 @@ py::list MettaGrid::inventory_item_names_py() {
   return py::cast(inventory_item_names);
 }
 
-py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
-  py::array_t<unsigned int> groups(static_cast<ssize_t>(_agents.size()));
-  auto groups_view = groups.mutable_unchecked<1>();
-  for (size_t i = 0; i < _agents.size(); i++) {
-    groups_view(i) = _agents[i]->group;
-  }
-  return groups;
-}
-
 // StatsTracker implementation that needs complete MettaGrid definition
 unsigned int StatsTracker::get_current_step() const {
   if (!_env) return 0;
@@ -864,7 +888,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
-      .def("get_agent_groups", &MettaGrid::get_agent_groups)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 
   // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.
@@ -1004,6 +1027,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool,
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -1015,6 +1039,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"),
+           py::arg("track_movement_metrics"),
            py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
@@ -1024,6 +1049,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
+      .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
