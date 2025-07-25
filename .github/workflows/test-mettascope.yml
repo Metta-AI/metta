@@ -26,9 +26,10 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Node.js dependencies
-        run: pnpm install
+        run: pnpm install --filter mettascope
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
@@ -46,8 +47,7 @@ jobs:
       - name: Check format and lint
         run: |
           cd mettascope
-          npx biome --version
-          npm run check
+          pnpm run check
 
       - name: Run training
         run: |
