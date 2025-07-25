@@ -106,8 +106,8 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
         );
     }
 
-    const policyCount = Object.keys(heatmapData.cells).length;
-    const evalCount = heatmapData.evalNames ? heatmapData.evalNames.length : 0;
+    // const policyCount = Object.keys(heatmapData.cells).length;
+    // const evalCount = heatmapData.evalNames ? heatmapData.evalNames.length : 0;
 
     return (
         <div style={{
