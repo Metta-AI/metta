@@ -1,0 +1,21 @@
+inventory:
+  ore_red: 0.17088483842567775  # where: from target config env.ore_reward
+  ore_red_max: 1
+
+  ore_blue: 0.17088483842567775  # where: same as ore_red for consistency
+  ore_blue_max: 1
+
+  ore_green: 0.17088483842567775  # where: same as ore_red for consistency
+  ore_green_max: 1
+
+  battery_red: 0.9882859711234822  # where: from target config env.battery_reward
+  battery_red_max: 1
+
+  battery_blue: 0.9882859711234822  # where: same as battery_red for consistency
+  battery_blue_max: 1
+
+  battery_green: 0.9882859711234822  # where: same as battery_red for consistency
+  battery_green_max: 1
+
+  heart: 1.0  # where: from target config env.heart_reward
+  heart_max: null
