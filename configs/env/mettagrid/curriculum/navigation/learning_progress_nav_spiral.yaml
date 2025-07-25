@@ -9,7 +9,7 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
   /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
-
+  /env/mettagrid/navigation/training/sparse_bucketed: 1
   # Spiral navigation pattern
   /env/mettagrid/navigation/training/spiral_altar_multiroom: 1
 
