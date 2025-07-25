@@ -8,12 +8,13 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_balanced: 1
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
 
-  # Bucketed grid curriculum (creates multiple grid variations)
-  /env/mettagrid/curriculum/navigation/resampling_grid_standard: 1
+  # Grid navigation pattern
+  /env/mettagrid/navigation/training/grid_multiroom: 1
 
-  # Bucketed spiral curriculum (creates multiple spiral variations)
-  /env/mettagrid/curriculum/navigation/bucketed_spiral_altar: 1
+  # Spiral navigation pattern
+  /env/mettagrid/navigation/training/spiral_altar_multiroom: 1
 
 # Focus on subset of tasks at once for efficient learning
 num_active_tasks: 4

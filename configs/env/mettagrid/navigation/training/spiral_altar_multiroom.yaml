@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@  # Skip the training defaults to avoid conflicts
+  - /env/mettagrid/navigation/evals/defaults@  # Use navigation-specific defaults instead of general mettagrid
   - _self_
 
 sampling: 1
