@@ -856,27 +856,31 @@ export function drawMap(panel: PanelInfo) {
     const boxTop = rect.y + marginY
     const boxBottom = rect.y + rect.height - marginY
 
-    // Re-center camera only when the object leaves this box.
+    // Move camera in discrete steps when the object leaves the bounding box.
     if (screenX < boxLeft || screenX > boxRight || screenY < boxTop || screenY > boxBottom) {
-      // Calculate how much to shift the camera to give the agent room in the direction they're moving.
+      // Calculate how much to move the camera in discrete steps.
       const boxWidth = rect.width - 2 * marginX
       const boxHeight = rect.height - 2 * marginY
 
-      // Start with centering on the agent,
-      // then move the camera so agent ends up about 1/3 from the edge they crossed.
-      let targetX = -objX
-      let targetY = -objY
+      // Move camera by 2/3 of the visible area in the direction the agent crossed.
+      const stepX = (boxWidth * 2 / 3) / panel.zoomLevel
+      const stepY = (boxHeight * 2 / 3) / panel.zoomLevel
 
+      // Start with current camera position.
+      let targetX = panel.panPos.x()
+      let targetY = panel.panPos.y()
+
+      // Move horizontally if needed (prioritize horizontal movement).
       if (screenX < boxLeft) {
-        targetX += boxWidth / 3 / panel.zoomLevel
+        targetX += stepX
       } else if (screenX > boxRight) {
-        targetX -= boxWidth / 3 / panel.zoomLevel
+        targetX -= stepX
       }
-
-      if (screenY < boxTop) {
-        targetY += boxHeight / 3 / panel.zoomLevel
+      // Move vertically only if not moving horizontally.
+      else if (screenY < boxTop) {
+        targetY += stepY
       } else if (screenY > boxBottom) {
-        targetY -= boxHeight / 3 / panel.zoomLevel
+        targetY -= stepY
       }
 
       panel.panPos = new Vec2f(targetX, targetY)
