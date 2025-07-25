@@ -79,7 +79,7 @@ def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str,
     buckets_unpacked = {}
     for parameter, bucket_spec in buckets.items():
         # if its a dictionary, the parameter is a range
-        if isinstance(bucket_spec, dict):
+        if "range" in bucket_spec:
             lo, hi = bucket_spec["range"]
             n = int(bucket_spec.get("bins", default_bins))
             step = (hi - lo) / n
@@ -93,5 +93,4 @@ def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str,
             buckets_unpacked[parameter] = binned_ranges
         else:
             buckets_unpacked[parameter] = bucket_spec
-    print(f"Buckets unpacked: {buckets_unpacked}")
     return buckets_unpacked
