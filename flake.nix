@@ -52,7 +52,8 @@
 
           # Build frontend
           pushd mettascope
-          npm install
+          corepack enable
+          pnpm install
           tsc
           python tools/gen_atlas.py
           echo "Frontend built"
