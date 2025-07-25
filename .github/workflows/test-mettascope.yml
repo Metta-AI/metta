@@ -44,7 +44,7 @@ jobs:
 
       - name: Check format and lint
         run: |
-          npx @biomejs/biome ci .
+          npm run check
 
       - name: Run training
         run: |
