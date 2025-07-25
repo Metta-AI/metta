@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Sprite Font System</title>
+  <style>
+    body {
+      background: #1a1a1a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 2em;
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2 {
+      margin-top: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 1.5em;
+      margin-bottom: 2em;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    canvas {
+      border: 2px solid #444;
+      display: block;
+      margin: 1em 0;
+      background: #000;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+
+    #fontCanvas {
+      max-width: 100%;
+      height: auto;
+    }
+
+    #renderCanvas {
+      background: #111;
+    }
+
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 0.75em 1.5em;
+      font-size: 1em;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 0.5em;
+      margin-bottom: 0.5em;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    textarea,
+    input {
+      width: 100%;
+      padding: 0.75em;
+      font-size: 1em;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      color: white;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-family: 'Courier New', monospace;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1em;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 1em 0;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+    }
+
+    input[type="number"] {
+      width: 80px;
+    }
+
+    input[type="color"] {
+      width: 50px;
+      height: 35px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .info {
+      background: #333;
+      padding: 1em;
+      border-radius: 4px;
+      margin: 1em 0;
+      font-size: 0.9em;
+      color: #aaa;
+    }
+
+    code {
+      background: #444;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🎮 Sprite Font System</h1>
+
+    <div class="section">
+      <h2>Font Atlas Generator</h2>
+      <canvas id="fontCanvas"></canvas>
+      <div class="controls">
+        <button id="generateBtn">Regenerate Atlas</button>
+        <button id="savePngBtn">Save font.png</button>
+        <button id="saveJsonBtn">Save font.json</button>
+      </div>
+      <div class="info">
+        Atlas contains all ASCII characters and emoji symbols. Each character occupies a 24×36 pixel cell.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Text Renderer</h2>
+      <textarea id="textInput"
+        placeholder="Type your text here... Use :emoji: codes like :love: :happy: :skull:">Hello! I :love: sprite fonts! :sparkles:</textarea>
+      <div class="controls">
+        <label>
+          Scale:
+          <input type="number" id="scaleInput" value="1.5" min="1" max="10" step="0.5">
+        </label>
+        <label>
+          Color:
+          <input type="color" id="colorInput" value="#ffffff">
+        </label>
+        <button id="resetColorBtn" style="background: #666;">Reset Color</button>
+        <label>
+          Spacing:
+          <input type="number" id="spacingInput" value="-10" min="-10" max="20">
+        </label>
+        <button id="renderBtn">Render Text</button>
+      </div>
+      <canvas id="renderCanvas"></canvas>
+      <div class="info">
+        Available emoji codes: <code>:left:</code> <code>:up:</code> <code>:right:</code> <code>:down:</code>
+        <code>:happy:</code> <code>:sad:</code> <code>:angry:</code> <code>:alien:</code>
+        <code>:sparkles:</code> <code>:skull:</code> <code>:love:</code>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Character mapping including emojis
+    const CHAR_MAP = {
+      // Standard ASCII characters
+      " ": " ", "!": "!", '"': '"', "#": "#", "$": "$", "%": "%", "&": "&", "'": "'",
+      "(": "(", ")": ")", "*": "*", "+": "+", ",": ",", "-": "-", ".": ".", "/": "/",
+      "0": "0", "1": "1", "2": "2", "3": "3", "4": "4", "5": "5", "6": "6", "7": "7",
+      "8": "8", "9": "9", ":": ":", ";": ";", "<": "<", "=": "=", ">": ">", "?": "?",
+      "@": "@", "A": "A", "B": "B", "C": "C", "D": "D", "E": "E", "F": "F", "G": "G",
+      "H": "H", "I": "I", "J": "J", "K": "K", "L": "L", "M": "M", "N": "N", "O": "O",
+      "P": "P", "Q": "Q", "R": "R", "S": "S", "T": "T", "U": "U", "V": "V", "W": "W",
+      "X": "X", "Y": "Y", "Z": "Z", "[": "[", "\\": "\\", "]": "]", "^": "^", "_": "_",
+      "`": "`", "a": "a", "b": "b", "c": "c", "d": "d", "e": "e", "f": "f", "g": "g",
+      "h": "h", "i": "i", "j": "j", "k": "k", "l": "l", "m": "m", "n": "n", "o": "o",
+      "p": "p", "q": "q", "r": "r", "s": "s", "t": "t", "u": "u", "v": "v", "w": "w",
+      "x": "x", "y": "y", "z": "z", "{": "{", "|": "|", "}": "}", "~": "~",
+      // Emoji mappings
+      "👈": "👈", "👆": "👆", "👉": "👉", "👇": "👇",
+      "😀": "😀", "😢": "😢", "😡": "😡", "👽": "👽",
+      "✨": "✨", "💀": "💀", "💖": "💖"
+    };
+
+    // Emoji code mappings
+    const EMOJI_CODES = {
+      ":left:": "👈",
+      ":up:": "👆",
+      ":right:": "👉",
+      ":down:": "👇",
+      ":happy:": "😀",
+      ":sad:": "😢",
+      ":angry:": "😡",
+      ":alien:": "👽",
+      ":sparkles:": "✨",
+      ":skull:": "💀",
+      ":love:": "💖"
+    };
+
+    // Font atlas configuration
+    const FONT = '24px "Courier New", monospace';
+    const EMOJI_FONT = '24px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif';
+    const CELL_WIDTH = 24;
+    const CELL_HEIGHT = 36;
+    const COLUMNS = 16;
+
+    // Get all unique characters
+    const ALL_CHARS = Object.values(CHAR_MAP);
+    const ROWS = Math.ceil(ALL_CHARS.length / COLUMNS);
+
+    // Initialize canvases
+    const fontCanvas = document.getElementById('fontCanvas');
+    const fontCtx = fontCanvas.getContext('2d');
+    const renderCanvas = document.getElementById('renderCanvas');
+    const renderCtx = renderCanvas.getContext('2d');
+
+    // Atlas data storage
+    let atlasData = {};
+    let fontAtlasImage = null;
+
+    // Generate font atlas
+    function generateFontAtlas() {
+      fontCanvas.width = COLUMNS * CELL_WIDTH;
+      fontCanvas.height = ROWS * CELL_HEIGHT;
+
+      fontCtx.clearRect(0, 0, fontCanvas.width, fontCanvas.height);
+      fontCtx.textAlign = 'center';
+      fontCtx.textBaseline = 'middle';
+      fontCtx.fillStyle = 'white';
+
+      atlasData = {};
+
+      for (let i = 0; i < ALL_CHARS.length; i++) {
+        const char = ALL_CHARS[i];
+        const col = i % COLUMNS;
+        const row = Math.floor(i / COLUMNS);
+        const x = col * CELL_WIDTH;
+        const y = row * CELL_HEIGHT;
+
+        // Use appropriate font for emojis
+        if (char.match(/[←↑→↓😀😢😡👽✨💀💖]/)) {
+          fontCtx.font = EMOJI_FONT;
+        } else {
+          fontCtx.font = FONT;
+        }
+
+        fontCtx.fillText(char, x + CELL_WIDTH / 2, y + CELL_HEIGHT / 2);
+
+        // Store atlas coordinates
+        atlasData[char] = {
+          x: x,
+          y: y,
+          width: CELL_WIDTH,
+          height: CELL_HEIGHT
+        };
+      }
+
+      // Create image from canvas for rendering
+      fontCanvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        fontAtlasImage = new Image();
+        fontAtlasImage.onload = () => {
+          URL.revokeObjectURL(url);
+        };
+        fontAtlasImage.src = url;
+      });
+    }
+
+    // Process text with emoji codes
+    function processText(text) {
+      let processed = text;
+
+      // Replace emoji codes with actual emojis
+      for (const [code, emoji] of Object.entries(EMOJI_CODES)) {
+        processed = processed.replace(new RegExp(code, 'g'), emoji);
+      }
+
+      return processed;
+    }
+
+    // Render text using sprite font
+    function renderText() {
+      if (!fontAtlasImage) {
+        alert('Font atlas not ready. Please wait a moment and try again.');
+        return;
+      }
+
+      const text = document.getElementById('textInput').value;
+      const scale = parseFloat(document.getElementById('scaleInput').value);
+      const color = document.getElementById('colorInput').value;
+      const spacing = parseInt(document.getElementById('spacingInput').value);
+
+      const processedText = processText(text);
+
+      // Calculate canvas size
+      const charWidth = CELL_WIDTH * scale;
+      const charHeight = CELL_HEIGHT * scale;
+      const totalWidth = processedText.length * (charWidth + spacing) - spacing + 20;
+      const totalHeight = charHeight + 20;
+
+      renderCanvas.width = totalWidth;
+      renderCanvas.height = totalHeight;
+
+      // Clear canvas with transparency
+      renderCtx.clearRect(0, 0, totalWidth, totalHeight);
+
+      // Optional: Add background
+      renderCtx.fillStyle = '#111';
+      renderCtx.fillRect(0, 0, totalWidth, totalHeight);
+
+      // Create temporary canvas for color tinting
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = renderCanvas.width;
+      tempCanvas.height = renderCanvas.height;
+
+      // Render each character to temp canvas
+      let xPos = 10;
+      for (const char of processedText) {
+        if (atlasData[char]) {
+          const coords = atlasData[char];
+
+          // Draw character from atlas
+          tempCtx.drawImage(
+            fontAtlasImage,
+            coords.x, coords.y, coords.width, coords.height,
+            xPos, 10, charWidth, charHeight
+          );
+        }
+
+        xPos += charWidth + spacing;
+      }
+
+      // Apply color tinting if needed
+      if (color !== '#ffffff') {
+        // Get the image data
+        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const data = imageData.data;
+
+        // Parse the color
+        const r = parseInt(color.substr(1, 2), 16);
+        const g = parseInt(color.substr(3, 2), 16);
+        const b = parseInt(color.substr(5, 2), 16);
+
+        // Apply color to non-transparent pixels
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 0) { // If pixel has alpha
+            // Check if this is likely a colored emoji (has non-grayscale values)
+            const isGrayscale = data[i] === data[i + 1] && data[i + 1] === data[i + 2];
+
+            if (isGrayscale) {
+              // Apply color tint only to grayscale pixels (regular text)
+              data[i] = r;     // Red
+              data[i + 1] = g; // Green
+              data[i + 2] = b; // Blue
+              // Keep original alpha
+            }
+            // Colored pixels (emojis) remain unchanged
+          }
+        }
+
+        tempCtx.putImageData(imageData, 0, 0);
+      }
+
+      // Draw the tinted result to the main canvas
+      renderCtx.drawImage(tempCanvas, 0, 0);
+    }
+
+    // Download functions
+    function downloadFile(filename, mime, data) {
+      const blob = new Blob([data], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Event listeners
+    document.getElementById('generateBtn').addEventListener('click', generateFontAtlas);
+
+    document.getElementById('savePngBtn').addEventListener('click', () => {
+      fontCanvas.toBlob(blob => {
+        const link = document.createElement('a');
+        link.download = 'font.png';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }, 'image/png');
+    });
+
+    document.getElementById('saveJsonBtn').addEventListener('click', () => {
+      const jsonData = {
+        metadata: {
+          cellWidth: CELL_WIDTH,
+          cellHeight: CELL_HEIGHT,
+          columns: COLUMNS,
+          rows: ROWS,
+          emojiCodes: EMOJI_CODES
+        },
+        ...atlasData,
+      };
+
+      const json = JSON.stringify(jsonData, null, 2);
+      downloadFile('font.json', 'application/json', json);
+    });
+
+    document.getElementById('renderBtn').addEventListener('click', renderText);
+
+    // Auto-render on input change
+    document.getElementById('textInput').addEventListener('input', () => {
+      if (fontAtlasImage) {
+        renderText();
+      }
+    });
+
+    document.getElementById('scaleInput').addEventListener('input', renderText);
+    document.getElementById('colorInput').addEventListener('input', renderText);
+    document.getElementById('spacingInput').addEventListener('input', renderText);
+
+    // Reset color button
+    document.getElementById('resetColorBtn').addEventListener('click', () => {
+      document.getElementById('colorInput').value = '#ffffff';
+      renderText();
+    });
+
+    // Initialize
+    generateFontAtlas();
+
+    // Initial render after a short delay to ensure atlas is ready
+    setTimeout(() => {
+      renderText();
+    }, 100);
+  </script>
+</body>
+
+</html>
