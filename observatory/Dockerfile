@@ -23,7 +23,7 @@ WORKDIR /metta
 COPY . .
 
 # /metta/out will contain only the relevant files
-RUN turbo prune metta-eval --docker
+RUN turbo prune @softmax/observatory --docker
 
 # =============================== Build from pruned source ================================
 FROM base AS builder
