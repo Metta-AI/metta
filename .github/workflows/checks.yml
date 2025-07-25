@@ -190,7 +190,7 @@ jobs:
             test_pattern: "tests/eval/**"
           - name: "core-sweep"
             package: "core"
-            test_pattern: "tests/sweep/**
+            test_pattern: "tests/sweep/**"
           - name: "core-other"
             package: "core"
             test_pattern: "tests/test_*.py"
