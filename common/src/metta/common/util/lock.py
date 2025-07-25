@@ -35,9 +35,6 @@ def run_once(fn: Callable[[], T], destroy_on_finish: bool = True) -> T:
 
     Args:
         fn: Function to run only on rank 0
-        destroy_on_finish: Whether to destroy the process group after execution.
-                          Set to False when using external distributed frameworks
-                          like SkyPilot that manage the process group lifecycle.
     """
     group_initialized = _init_process_group()
     if dist.is_initialized():
