@@ -541,7 +541,6 @@ function drawThoughtBubbles() {
         const tY = targetY - Math.cos(angle) * r + Common.TILE_SIZE / 2
         ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
       }
-
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
       if (state.step == keyActionStep) {
