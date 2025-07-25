@@ -1,0 +1,12 @@
+packages:
+  - gridworks
+  - library
+  - mettascope
+  - observatory
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - '@tailwindcss/oxide'
+  - es5-ext
+  - esbuild
+  - sharp
+  - unrs-resolver
