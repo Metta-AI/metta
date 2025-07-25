@@ -45,7 +45,7 @@ class Shot {
 /** Current active shot. */
 var shot: Shot | null = null
 
-export function initDemoMode() { }
+export function initDemoMode() {}
 
 export function startDemoMode() {
   state.demoMode = true
