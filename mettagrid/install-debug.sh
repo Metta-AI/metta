@@ -14,8 +14,8 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         echo "  xcode-select --install"
         exit 1
     fi
-    echo "Note: On macOS, you'll need to use LLDB instead of GDB."
-    echo "Make sure to change 'MIMode' from 'gdb' to 'lldb' in your launch.json"
+    echo "✓ LLDB found (macOS debugger)"
+    echo "Note: Make sure to use 'lldb' instead of 'gdb' in your launch.json"
 else
     # Linux
     if ! command -v gdb &> /dev/null; then
@@ -25,28 +25,42 @@ else
         echo "  Arch: sudo pacman -S gdb"
         exit 1
     fi
+    echo "✓ GDB found (Linux debugger)"
 fi
 
 # Change to mettagrid directory
 cd "$(dirname "$0")"
 
 # Clean previous builds
-rm -rf build build-debug _skbuild dist
+echo "Cleaning previous builds..."
+rm -rf build build-debug build-debug-gdb _skbuild dist
 
-# Set debug environment
-export SKBUILD_CMAKE_ARGS="--preset debug -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG='-g3 -ggdb -O0 -fno-omit-frame-pointer -fno-inline'"
+# Use the debug-gdb preset for maximum debugging capability
+echo "Configuring with debug-gdb preset..."
+export SKBUILD_CMAKE_ARGS="--preset debug-gdb"
 
 # Build with debug configuration
+echo "Building with debug symbols..."
 pip install -e . -v --config-settings=cmake.build-type="Debug" \
                     --config-settings=install.strip=false
 
-# Create symlink for compile_commands.json
+# Create symlink for compile_commands.json (helps with IDE support)
+echo "Setting up IDE support..."
 if [ -d "_skbuild" ]; then
     COMPILE_COMMANDS=$(find _skbuild -name "compile_commands.json" | head -1)
     if [ -n "$COMPILE_COMMANDS" ]; then
         ln -sf "$COMPILE_COMMANDS" compile_commands.json
+        echo "✓ Created compile_commands.json symlink"
     fi
 fi
 
-echo "Debug build complete!"
-echo "To debug: Use 'C++ Debug: Train Metta' (or similar) in VS Code"
+echo ""
+echo "🎉 Debug build complete!"
+echo ""
+echo "Next steps:"
+echo "1. Open VS Code/Cursor"
+echo "2. Set breakpoints in .hpp/.cpp files"
+echo "3. Use 'C++ Debug: Train Metta' from the debug dropdown"
+echo "4. Press F5 to start debugging"
+echo ""
+echo "Tip: Breakpoints work best on executable lines (not declarations or comments)"
