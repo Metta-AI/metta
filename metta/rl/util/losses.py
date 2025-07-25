@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 
 class Loss:
+    """
+    Control flow:
+    - just one Loss class is used for all losses
+    - Loss gets trainer state in addition to the rest
+    - losses are all called
+    - all losses have a function to determine if they are active based on trainer state
+    - losses can instantiate their own hyper scheduler
+    losses are added in Loss and returned
+    """
+
     def __init__(self, policy: DistributedMettaAgent, trainer_cfg: Any, device: torch.device, losses: Losses):
         self.policy = policy
         self.trainer_cfg = trainer_cfg
@@ -27,24 +37,26 @@ class Loss:
         raise NotImplementedError("get_experience_spec not implemented for base class")
 
     def find_components_recursively(self, leaf: str, target: str) -> list[str]:
-        """Recursively walk the MettaAgent and find the component names between a single leaf and a single target component.
-        It includes the leaf but not the target in the list.
+        """Recursively walk the MettaAgent and find the component names between a single leaf and a single target
+        component. It includes the leaf but not the target in the list.
         Run this function for each leaf and target pair if necessary."""
-        keys = []
-        self._check_component_name(leaf, target, keys)
-        return keys
 
-    def _check_component_name(self, node: str, target: str, keys: list[str]) -> None:
-        sources = getattr(self.policy.components[node], "_sources", None)
-        if sources is None:
-            return
-        for source in sources:
-            if source["name"] != target:
-                keys.append(source["name"])
-                self._check_component_name(source["name"], target, keys)
-            else:
-                keys.append(target)
+        def _check_component_name(node: str, target: str, keys: list[str]) -> None:
+            sources = getattr(self.policy.components[node], "_sources", None)
+            if sources is None:
                 return
+            for source in sources:
+                if source["name"] != target:
+                    keys.append(source["name"])
+                    _check_component_name(source["name"], target, keys)
+                else:
+                    keys.append(target)
+                    return
+
+        keys = []
+        _check_component_name(leaf, target, keys)
+
+        return keys
 
 
 class PPO(Loss):

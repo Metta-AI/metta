@@ -560,7 +560,7 @@ class MettaTrainer:
                     kickstarter=self.kickstarter,
                     agent_step=self.agent_step,
                 )
-                
+
                 loss += contrastive_loss + detached_value_loss
                 self.optimizer.zero_grad()
                 loss.backward()
