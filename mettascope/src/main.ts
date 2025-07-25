@@ -755,7 +755,6 @@ export function setIsPlaying(isPlaying: boolean) {
 /** Sets the playback speed and updates the speed buttons. */
 function setPlaybackSpeed(speed: number) {
   state.playbackSpeed = speed
-  localStorage.setItem('playbackSpeed', state.playbackSpeed.toString())
   // Update the speed buttons to show the current speed.
   for (let i = 0; i < html.speedButtons.length; i++) {
     toggleOpacity(html.speedButtons[i], Common.SPEEDS[i] <= speed)
@@ -848,12 +847,6 @@ toggleOpacity(html.fullScreenToggle, state.fullScreen)
 // Speed buttons
 for (let i = 0; i < html.speedButtons.length; i++) {
   html.speedButtons[i].addEventListener('click', () => setPlaybackSpeed(Common.SPEEDS[i]))
-}
-
-// Load playback speed from localStorage
-if (localStorage.hasOwnProperty('playbackSpeed')) {
-  const savedSpeed = parseFloat(localStorage.getItem('playbackSpeed') || '0.1')
-  setPlaybackSpeed(savedSpeed)
 }
 
 onEvent('click', '#resources-toggle', () => {
@@ -1024,11 +1017,6 @@ window.addEventListener('load', async () => {
   ui.dpr = ctx.dpr
 
   await parseUrlParams()
-
-  // Set default playback speed only if not already loaded from localStorage
-  if (!localStorage.hasOwnProperty('playbackSpeed')) {
-    setPlaybackSpeed(0.1)
-  }
 
   requestFrame()
 })
