@@ -17,7 +17,6 @@ import json
 import logging
 import sys
 import uuid
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List
@@ -31,6 +30,8 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
+from metta.common.wandb.wandb_context import WandbConfigOn
+from metta.common.wandb.wandb_runs import find_training_jobs, get_artifacts_for_runs, register_with_stats_server
 from metta.eval.eval_service import evaluate_policy
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
@@ -46,6 +47,7 @@ class SimJob(Config):
     policy_uris: List[str]
     selector_type: str = "top"
     stats_db_uri: str
+    register_missing_policies: bool = False
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
     git_hash: str | None = None  # Git hash for remote mode
@@ -68,13 +70,35 @@ def _determine_run_name(policy_uri: str) -> str:
 
 
 def _create_remote_eval_tasks(
-    policy_records_by_uri: defaultdict[str, list[PolicyRecord]],
+    policy_records_by_uri: dict[str, list[PolicyRecord]],
     sim_job: SimJob,
     stats_client: StatsClient,
     logger: logging.Logger,
+    wandb_cfg: WandbConfigOn,
 ) -> None:
+    stats_client.validate_authenticated()
     all_policy_records = [pr for prs in policy_records_by_uri.values() for pr in prs]
     policy_ids_by_name = stats_client.get_policy_ids([pr.run_name for pr in all_policy_records]).policy_ids
+    logger.info(f"Found {len(policy_ids_by_name)} policies in stats database")
+    missing_policy_records = [pr for pr in all_policy_records if not policy_ids_by_name.get(pr.run_name)]
+    if missing_policy_records:
+        if not sim_job.register_missing_policies:
+            logger.warning(f"Policy {missing_policy_records} not found in stats database")
+        else:
+            logger.info(f"Attempting to register {len(missing_policy_records)} policies in stats database...")
+
+            runs = find_training_jobs(
+                entity=wandb_cfg.entity,
+                project=wandb_cfg.project,
+                run_names=[pr.run_name for pr in missing_policy_records],
+            )
+            run_infos = get_artifacts_for_runs(runs)
+            register_with_stats_server(run_infos, stats_client)
+            policy_ids_by_name.update(
+                stats_client.get_policy_ids([pr.run_name for pr in missing_policy_records]).policy_ids
+            )
+
+    logger.info(f"Creating {len(missing_policy_records)} evaluation tasks")
     for policy_name, policy_id in policy_ids_by_name.items():
         request = TaskCreateRequest(
             policy_id=policy_id,
@@ -105,27 +129,29 @@ def main(cfg: DictConfig) -> None:
     if stats_client is not None:
         stats_client.validate_authenticated()
 
-    policy_records_by_uri: defaultdict[str, list[PolicyRecord]] = defaultdict(list)
+    policy_records_by_uri: dict[str, list[PolicyRecord]] = {}
     for policy_uri in sim_job.policy_uris:
         # TODO: institutionalize this better?
         metric = sim_job.simulation_suite.name + "_score"  # TODO: make this configurable
-        policy_records_by_uri[policy_uri].extend(
-            policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
+        policy_records_by_uri[policy_uri] = policy_store.policy_records(
+            policy_uri, sim_job.selector_type, n=1, metric=metric
         )
 
     # Check if we're in remote mode
     if cfg.remote:
         if not stats_client:
             raise ValueError("Not configured to use stats server. Please provide a stats_server_uri")
+        if not cfg.wandb.enabled:
+            raise ValueError("Wandb is not enabled. Please provide a wandb_api_key")
         logger.info("Running in remote mode - creating evaluation tasks")
-        _create_remote_eval_tasks(policy_records_by_uri, sim_job, stats_client, logger)
+        _create_remote_eval_tasks(policy_records_by_uri, sim_job, stats_client, logger, cfg.wandb)
     else:
         _run_local_simulations(cfg, policy_records_by_uri, sim_job, stats_client, policy_store, logger)
 
 
 def _run_local_simulations(
     cfg: DictConfig,
-    policy_records_by_uri: defaultdict[str, list[PolicyRecord]],
+    policy_records_by_uri: dict[str, list[PolicyRecord]],
     sim_job: SimJob,
     stats_client: StatsClient | None,
     policy_store: PolicyStore,
