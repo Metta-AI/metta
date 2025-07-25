@@ -9,16 +9,3 @@ buckets:
 
   game.objects.altar.input_resources.ore_red: { values: [0, 1, 2] }
   game.objects.altar.input_resources.battery_red: { values: [0, 1, 2] }
-
-  # game.objects.lasery.input_resources.ore_red: { values: [0, 1, 2] }
-  # game.objects.lasery.input_resources.battery_red: { values: [0, 1, 2] }
-
-  # game.objects.armory.input_resources.ore_red: { values: [0, 1, 2] }
-  # game.objects.armory.input_resources.battery_red: { values: [0, 1, 2] }
-
-  # game.map_builder.width: { values: [5, 10, 25] }
-  # game.map_builder.height: { values: [5, 10, 25] }
-
-  # game.agent.rewards.inventory.ore_red: { values: [0, 1] }
-  # game.agent.rewards.inventory.laser: { values: [0, 1] }
-  # game.agent.rewards.inventory.armor: { values: [0, 1] }
