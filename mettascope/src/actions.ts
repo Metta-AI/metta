@@ -116,7 +116,7 @@ export function processActions(event: KeyboardEvent) {
     }
     if (event.key == 'e') {
       // Get the output.
-      sendAction('get_items', 0)
+      sendAction('get_output', 0)
     }
     if (event.key == 'x') {
       // No-op.

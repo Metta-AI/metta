@@ -35,6 +35,7 @@ class GridObject;
 struct GridObjectConfig;
 struct ConverterConfig;
 struct WallConfig;
+struct BoxConfig;
 struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
@@ -165,6 +166,7 @@ private:
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
+  BoxConfig _create_box_config(const py::dict& box_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 };
 

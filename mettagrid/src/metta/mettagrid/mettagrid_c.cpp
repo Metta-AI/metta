@@ -7,6 +7,7 @@
 #include <cmath>
 #include <numeric>
 #include <random>
+#include <fstream>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -25,6 +26,7 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/production_handler.hpp"
+#include "objects/box.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
@@ -75,16 +77,48 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   _action_success.resize(num_agents);
 
+  // Find blue battery item index once
+  int blue_battery_item = -1;
+  for (size_t i = 0; i < inventory_item_names.size(); ++i) {
+    if (inventory_item_names[i] == "battery_blue") {
+      blue_battery_item = static_cast<int>(i);
+      // while (true) {
+      //   // This loop will run forever
+      // }
+      break;
+    }
+  }
+  std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
+  dbg << "[DEBUG] cfg.actions size: " << cfg.actions.size() << std::endl;
+  for (const auto& [action_name, action_config] : cfg.actions) {
+    dbg << "[DEBUG] action: " << action_name << std::endl;
+    if (action_config) {
+      dbg << "         config ptr: valid" << std::endl;
+      dbg << "         type: " << typeid(*action_config).name() << std::endl;
+    } else {
+      dbg << "         config ptr: nullptr" << std::endl;
+    }
+  }
+
   for (const auto& [action_name, action_config] : cfg.actions) {
     std::string action_name_str = action_name;
 
     if (action_name_str == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+      std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
+      dbg << "[DEBUG] we do have put_items" << std::endl;
+      TypeId box_type_id = cfg.objects.at("box").get()->type_id;
+      const std::string& box_type_name = "box"; //cfg.objects.at("box").get()->type_name;
+
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config, box_type_id, box_type_name, blue_battery_item));
     } else if (action_name_str == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
+      std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
+      dbg << "[DEBUG] we do have get_items" << std::endl;
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config, blue_battery_item));
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
+      std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
+      dbg << "[DEBUG] we do have move" << std::endl;
       _action_handlers.push_back(std::make_unique<Move>(*action_config));
       _move_handler_idx = _action_handlers.size() - 1;
     } else if (action_name_str == "rotate") {
@@ -628,12 +662,22 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
 
 py::dict MettaGrid::grid_objects() {
   py::dict objects;
-
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
-    if (!obj) continue;
 
     py::dict obj_dict;
+    if (!obj) {
+      obj_dict["id"] = obj_id;
+      obj_dict["type"] = -1;
+      obj_dict["type_name"] = "empty";
+      obj_dict["r"] = 0;
+      obj_dict["c"] = 0;
+      obj_dict["layer"] = 0;
+      obj_dict["inventory"] = py::dict();
+      obj_dict["agent_id"] = -1;
+      objects[py::int_(obj_id)] = obj_dict;
+      continue;
+    }
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
     obj_dict["type_name"] = obj->type_name;
@@ -882,6 +926,11 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("swappable", &WallConfig::swappable);
+
+  py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
+      .def(py::init<TypeId, const std::string&>(), py::arg("type_id"), py::arg("type_name") = "box")
+      .def_readwrite("type_id", &BoxConfig::type_id)
+      .def_readwrite("type_name", &BoxConfig::type_name);
 
   // ##MettagridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

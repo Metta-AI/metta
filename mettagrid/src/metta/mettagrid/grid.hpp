@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <set>
 
 #include "grid_object.hpp"
 #include "objects/constants.hpp"
@@ -18,6 +19,7 @@ public:
   const GridCoord height;
   const GridCoord width;
   vector<std::unique_ptr<GridObject>> objects;
+  std::set<size_t> null_object_indices; // Indices in objects vector that are nullptr
 
 private:
   GridType grid;
@@ -51,30 +53,33 @@ public:
   }
 
   inline bool add_object(GridObject* obj) {
-    // check if location within bounds
-    if (!is_valid_location(obj->location)) {
-      return false;
+    // If there are any null slots, reuse the lowest one
+    if (!null_object_indices.empty()) {
+      size_t idx = *null_object_indices.begin();
+      null_object_indices.erase(null_object_indices.begin());
+      obj->id = static_cast<GridObjectId>(idx);
+      objects[idx].reset(obj);
+      grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
+      return true;
     }
-    // check if location has object already
-    if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
-      return false;
-    }
-    // give object an id, add to object vector, and add to grid
-    obj->id = static_cast<GridObjectId>(this->objects.size());
-    this->objects.push_back(std::unique_ptr<GridObject>(obj));
-    this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
+    // Otherwise, append to the end
+    obj->id = static_cast<GridObjectId>(objects.size());
+    objects.push_back(std::unique_ptr<GridObject>(obj));
+    grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
     return true;
   }
 
   // Removes an object from the grid and gives ownership of the object to the caller.
   // Since the caller is now the owner, this can make the raw pointer invalid, if the
   // returned unique_ptr is destroyed.
-  inline unique_ptr<GridObject> remove_object(GridObject* obj) {
-    this->grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
-    auto obj_ptr = this->objects[obj->id].release();
-    this->objects[obj->id] = nullptr;
+  inline std::unique_ptr<GridObject> remove_object(GridObject* obj) {
+    grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
+    auto obj_ptr = objects[obj->id].release();
+    objects[obj->id] = nullptr;
+    null_object_indices.insert(obj->id);
     return std::unique_ptr<GridObject>(obj_ptr);
   }
+
 
   inline bool move_object(GridObjectId id, const GridLocation& loc) {
     if (!is_valid_location(loc)) {

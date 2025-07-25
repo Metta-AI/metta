@@ -8,11 +8,17 @@
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
+#include "objects/box.hpp"
 #include "types.hpp"
 
 class PutRecipeItems : public ActionHandler {
 public:
-  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
+  int blue_battery_item_;
+  TypeId box_type_id_;
+  const std::string& box_type_name_;
+  explicit PutRecipeItems(const ActionConfig& cfg, TypeId box_type_id, const std::string& box_type_name, int blue_battery_item)
+      : ActionHandler(cfg, "put_recipe_items"), blue_battery_item_(blue_battery_item),
+      box_type_id_(box_type_id), box_type_name_(box_type_name) {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -22,11 +28,32 @@ protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::ObjectLayer;
-    // put_recipe_items only works on Converters, since only Converters have a recipe.
-    // Once we generalize this to `put`, we should be able to put to any HasInventory object, which
-    // should include agents.
+
+    // Default is putting to converter
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
     if (!converter) {
+      // If we are putting to a non-converter, the only option is we are trying to create a box
+      // Box creation: use 1 blue battery to create a box
+      // Only allow box creation if target location is empty
+      // if (_grid->is_empty(target_loc.r, target_loc.c) && blue_battery_item_ >= 0) {
+      //   if (actor->inventory.count(blue_battery_item_) && actor->inventory[blue_battery_item_] > 0) {
+      //     actor->update_inventory(blue_battery_item_, -1);
+      //     Box* box = new Box(target_loc.r, target_loc.c, /*type_id=*/100, "box", actor->id, actor->agent_id, blue_battery_item_);
+      //     _grid->add_object(box);
+      //     actor->stats.add("box.created", 1.0f);
+      //     return true;
+      //   }
+      // }
+      if (_grid->is_empty(target_loc.r, target_loc.c) && blue_battery_item_ >= 0) {
+        if (actor->inventory.count(blue_battery_item_) && actor->inventory[blue_battery_item_] > 0) {
+          actor->update_inventory(blue_battery_item_, -1);
+          Box* box = new Box(target_loc.r, target_loc.c, box_type_id_, box_type_name_, actor->id, actor->agent_id, blue_battery_item_);
+          _grid->add_object(box);
+          actor->stats.add("box.created", 1.0f);
+          return true;
+        }
+      }
+
       return false;
     }
 
