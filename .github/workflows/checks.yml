@@ -170,31 +170,36 @@ jobs:
             package: "app_backend"
           - name: "agent"
             package: "agent"
-          - name: "mettagrid"
-            package: "mettagrid"
           - name: "common"
             package: "common"
 
-          # Core split by test type
-          - name: "core-map"
+          # Mettagrid with sharding
+          - name: "mettagrid-shard-0"
+            package: "mettagrid"
+            shard_id: 0
+            num_shards: 2
+          - name: "mettagrid-shard-1"
+            package: "mettagrid"
+            shard_id: 1
+            num_shards: 2
+
+          # Core with sharding
+          - name: "core-shard-0"
             package: "core"
-            test_pattern: "tests/map/**"
-          - name: "core-rl"
+            shard_id: 0
+            num_shards: 4
+          - name: "core-shard-1"
             package: "core"
-            test_pattern: "tests/rl/**"
-          - name: "core-sim"
+            shard_id: 1
+            num_shards: 4
+          - name: "core-shard-2"
             package: "core"
-            test_pattern: "tests/sim/**"
-          - name: "core-eval"
+            shard_id: 2
+            num_shards: 4
+          - name: "core-shard-3"
             package: "core"
-            test_pattern: "tests/eval/**"
-          - name: "core-sweep"
-            package: "core"
-            test_pattern: "tests/sweep/**"
-          - name: "core-other"
-            package: "core"
-            test_pattern: "tests/test_*.py"
-            exclude_pattern: "tests/map/** tests/rl/** tests/sim/** tests/eval/** tests/sweep/**"
+            shard_id: 3
+            num_shards: 4
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -208,27 +213,26 @@ jobs:
         run: |
           PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
 
+          # Handle sharding for larger packages
+          if [ -n "${{ matrix.shard_id }}" ] && [ -n "${{ matrix.num_shards }}" ]; then
+            echo "Running shard ${{ matrix.shard_id }} of ${{ matrix.num_shards }}"
+
+            # Set environment variables for the sharding plugin
+            export PYTEST_SHARD_ID=${{ matrix.shard_id }}
+            export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
+
+            # Use the sharding plugin from common package
+            PYTEST_ARGS="$PYTEST_ARGS -p no:cacheprovider -p tests.sharding.pytest_shard"
+          fi
+
           if [ "${{ matrix.package }}" == "core" ]; then
-            # Handle core package with test patterns
-            if [ -n "${{ matrix.test_pattern }}" ]; then
-              # Add test pattern(s) to pytest args
-              PYTEST_ARGS="$PYTEST_ARGS ${{ matrix.test_pattern }}"
-            fi
-
-            if [ -n "${{ matrix.exclude_pattern }}" ]; then
-              # Add exclusion patterns
-              for pattern in ${{ matrix.exclude_pattern }}; do
-                PYTEST_ARGS="$PYTEST_ARGS --ignore=$pattern"
-              done
-            fi
-
-            # Also ignore non-core packages
+            # For core package, ignore other packages
             SUBPACKAGES=(app_backend agent mettagrid common)
             for pkg in "${SUBPACKAGES[@]}"; do
               PYTEST_ARGS="$PYTEST_ARGS --ignore=$pkg"
             done
           else
-            # Subpackage tests
+            # Navigate to package directory
             cd ${{ matrix.package }}
           fi
 
