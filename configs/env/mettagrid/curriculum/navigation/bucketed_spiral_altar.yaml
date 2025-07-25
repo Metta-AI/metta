@@ -1,0 +1,37 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/training/spiral_altar_base
+
+buckets:
+  # Vary the map size
+  game.map_builder.width:
+    values: [80, 100, 120]
+
+  game.map_builder.height:
+    values: [80, 100, 120]
+
+  # Vary the number of altars
+  game.map_builder.root.params.objects.altar:
+    range: [4, 12]
+    bins: 5
+
+  # Vary spacing between altars
+  game.map_builder.root.params.spacing:
+    values: [12, 15, 18, 21]
+
+  # Vary the spiral tightness
+  game.map_builder.root.params.radius_increment:
+    values: [2.0, 2.5, 3.0]
+
+  # Vary randomization
+  game.map_builder.root.params.randomize_position:
+    values: [0, 2, 4]
+
+  # Vary max steps based on complexity
+  game.max_steps:
+    values: [400, 600, 800, 1000]
+
+env_overrides:
+  sampling: 1
+  game:
+    num_agents: 1

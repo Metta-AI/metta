@@ -1,0 +1,53 @@
+defaults:
+  - /env/mettagrid/mettagrid@  # Skip the training defaults to avoid conflicts
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+  max_steps: 1000
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
+    get_items:
+      enabled: true
+
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 6
+    room:
+      _target_: metta.map.mapgen.MapGen
+      width: ${sampling:50, 70, 60}
+      height: ${sampling:50, 70, 60}
+      border_width: 4
+      root:
+        type: metta.map.scenes.grid_altars.GridAltars
+        params:
+          objects:
+            altar: ${sampling:9, 64, 25}  # 9-64 altars (3x3 to 8x8 grid)
+          agents: 1
+          grid_rows: ${sampling:3, 8, 5}  # 3-8 rows
+          grid_cols: ${sampling:3, 8, 5}  # 3-8 columns
+          margin: ${sampling:4, 8, 6}
+          min_spacing: ${sampling:3, 5, 4}
+          randomize_position: 0  # Perfect grid
+          place_agent_center: true
+
+  objects:
+    altar:
+      cooldown: 1000
+      initial_resource_count: 1
