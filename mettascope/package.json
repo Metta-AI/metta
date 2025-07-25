@@ -1,5 +1,5 @@
 {
-  "name": "metta-scope",
+  "name": "@softmax/mettascope",
   "version": "1.0.0",
   "description": "MettaScope - a tool for visualizing and analyzing Metta AI's environments",
   "scripts": {

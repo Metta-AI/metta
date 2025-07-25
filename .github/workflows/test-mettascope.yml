@@ -29,7 +29,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Node.js dependencies
-        run: pnpm install --filter mettascope
+        run: pnpm install --filter @softmax/mettascope
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
