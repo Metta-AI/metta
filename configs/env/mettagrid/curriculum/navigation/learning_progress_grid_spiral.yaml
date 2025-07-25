@@ -1,0 +1,14 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  # Grid navigation pattern
+  /env/mettagrid/navigation/training/grid_multiroom: 1
+
+  # Spiral navigation pattern
+  /env/mettagrid/navigation/training/spiral_altar_multiroom: 1
+
+# Focus on both tasks
+num_active_tasks: 2
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.25

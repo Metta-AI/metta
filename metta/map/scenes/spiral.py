@@ -43,13 +43,6 @@ class Spiral(Scene[SpiralParams]):
         else:
             raise ValueError(f"Invalid agents: {params.agents}")
 
-        # Debug output
-        print(f"[Spiral Debug] Grid shape: {self.grid.shape}")
-        print(f"[Spiral Debug] Width: {width}, Height: {height}")
-        print(f"[Spiral Debug] Center: ({cx}, {cy})")
-        print(f"[Spiral Debug] Agents to place: {agents}")
-        print(f"[Spiral Debug] Objects to place: {symbols}")
-
         # Determine placement order - agents first if placing at center
         if params.place_at_center and agents:
             all_symbols = agents + symbols
@@ -109,16 +102,3 @@ class Spiral(Scene[SpiralParams]):
                 # Only place if the cell is empty
                 if self.grid[y, x] == "empty":
                     self.grid[y, x] = symbol
-                    print(f"[Spiral Debug] Placed '{symbol}' at ({x}, {y})")
-                else:
-                    print(
-                        f"[Spiral Debug] Failed to place '{symbol}' at ({x}, {y}) - cell contains '{self.grid[y, x]}'"
-                    )
-
-        # Debug: Count agents in grid
-        agent_count = 0
-        for row in self.grid:
-            for cell in row:
-                if str(cell).startswith("agent"):
-                    agent_count += 1
-        print(f"[Spiral Debug] Total agents in grid after placement: {agent_count}")
