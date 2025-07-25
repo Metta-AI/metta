@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Heatmap } from '../../../../../observatory/src/Heatmap';
+import { Heatmap } from './Heatmap';
 
 interface HeatmapWidgetProps {
     model: {
