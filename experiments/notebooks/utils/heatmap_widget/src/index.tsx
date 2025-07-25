@@ -3,7 +3,13 @@ import { createRoot } from 'react-dom/client';
 import { Heatmap } from '../../../../../observatory/src/Heatmap';
 
 interface HeatmapWidgetProps {
-    model: any;
+    model: {
+        get: (key: string) => any;
+        on: (event: string, callback: (...args: any[]) => void) => void;
+        off: (event: string, callback: (...args: any[]) => void) => void;
+        set: (key: string, value: any) => void;
+        save_changes: () => void;
+    };
 }
 
 function HeatmapWidget({ model }: HeatmapWidgetProps) {
