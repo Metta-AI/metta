@@ -19,7 +19,6 @@ coverage.xml
 htmlcov/
 cython_debug/
 .venv/
-uv.lock
 
 # CMake FetchContent cache
 .deps/
