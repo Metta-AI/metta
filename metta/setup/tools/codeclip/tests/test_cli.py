@@ -198,11 +198,11 @@ class TestCodeclipCLI(unittest.TestCase):
 
         # Check that pbcopy was NOT called
         mock_popen.assert_not_called()
-        
+
         # Should see "Would copy" summary in stderr
         self.assertIn("Would copy", result.output)
         self.assertIn("tokens", result.output)
-        
+
         # Should NOT have file content in output
         self.assertNotIn("print('test')", result.output)
 
@@ -216,10 +216,10 @@ class TestCodeclipCLI(unittest.TestCase):
 
         # Should NOT have file content in stdout
         self.assertNotIn("print('test')", result.output)
-        
+
         # Should see "Would copy" summary since dry run
         self.assertIn("Would copy", result.output)
-        
+
         # pbcopy should not be called
         mock_popen.assert_not_called()
 

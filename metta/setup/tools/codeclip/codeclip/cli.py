@@ -42,10 +42,18 @@ def copy_to_clipboard(content: str) -> None:
 @click.option("-r", "--raw", is_flag=True, help="Output in raw format instead of XML")
 @click.option("-e", "--extension", multiple=True, help="File extensions to include (e.g. -e .py -e .js)")
 @click.option("-p", "--profile", is_flag=True, help="Show detailed token distribution analysis to stderr")
-@click.option("-f", "--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution")
+@click.option(
+    "-f", "--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution"
+)
 @click.option("-d", "--dry", is_flag=True, help="Dry run - no output to stdout or clipboard")
 def cli(
-    paths: Tuple[str, ...], stdout: bool, raw: bool, extension: Tuple[str, ...], profile: bool, flamegraph: bool, dry: bool
+    paths: Tuple[str, ...],
+    stdout: bool,
+    raw: bool,
+    extension: Tuple[str, ...],
+    profile: bool,
+    flamegraph: bool,
+    dry: bool,
 ) -> None:
     """
     Provide codebase context to LLMs with smart defaults.
