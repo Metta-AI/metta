@@ -6,11 +6,24 @@ import { PanelInfo } from './panels.js'
 import { updateStep, updateSelection } from './main.js'
 import { parseHtmlColor } from './htmlutils.js'
 
+// Cache tracking.
+let lastCachedState = {
+  step: -1,
+  selection: null as any,
+  zoomLevel: -1,
+  panPos: null as Vec2f | null,
+}
+
 /** Draws the trace panel. */
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
+
+  let shouldRegenerate = false
+
+  // The trace mesh should be cached and only updated when needed.
+  ctx.setCacheable(true)
 
   // Handle mouse events for the trace panel.
   if (ui.mouseTargets.includes('#trace-panel')) {
@@ -61,9 +74,33 @@ export function drawTrace(panel: PanelInfo) {
     const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2
     const y = getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
     panel.panPos = new Vec2f(-x, -y)
+    shouldRegenerate = true
+  }
+
+  // if any state has changed, we need to regenerate the trace mesh.
+  if (
+    state.step !== lastCachedState.step ||
+    state.selectedGridObject !== lastCachedState.selection ||
+    panel.zoomLevel !== lastCachedState.zoomLevel ||
+    lastCachedState.panPos === null ||
+    panel.panPos.x() !== lastCachedState.panPos.x() ||
+    panel.panPos.y() !== lastCachedState.panPos.y()
+  ) {
+    shouldRegenerate = true
+    lastCachedState.step = state.step
+    lastCachedState.selection = state.selectedGridObject
+    lastCachedState.zoomLevel = panel.zoomLevel
+    lastCachedState.panPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
+  }
+
+  // Clear and regenerate ALL content only when needed
+  if (!shouldRegenerate) {
+    return
   }
 
   ctx.save()
+  ctx.clearMesh()
+
   const rect = panel.rectInner()
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 

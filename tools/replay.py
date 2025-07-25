@@ -8,6 +8,7 @@ from urllib.parse import quote
 from omegaconf import DictConfig, OmegaConf
 
 import mettascope.server as server
+from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.wandb.wandb_context import WandbContext
@@ -20,7 +21,7 @@ from metta.util.metta_script import metta_script
 class ReplayJob(Config):
     __init__ = Config.__init__
     sim: SingleEnvSimulationConfig
-    policy_uri: str
+    policy_uri: str | None
     selector_type: str
     replay_dir: str
     stats_dir: str
@@ -35,7 +36,11 @@ def main(cfg: DictConfig):
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
-        policy_record = policy_store.policy_record(replay_job.policy_uri)
+        if replay_job.policy_uri is not None:
+            policy_record = policy_store.policy_record(replay_job.policy_uri)
+        else:
+            policy_record = MockPolicyRecord(run_name="replay_run", uri=None)
+
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
