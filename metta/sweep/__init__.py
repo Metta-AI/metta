@@ -1,16 +1,23 @@
 """Protein optimization package for Metta."""
 
-# Export lifecycle functions
-from .lifecycle.sweep_eval import main as sweep_eval_main
-from .lifecycle.sweep_prepare_run import setup_next_run
-from .lifecycle.sweep_setup import create_sweep
+# Export core functions
 from .protein import Protein
 from .protein_metta import MettaProtein
+from .protein_utils import apply_protein_suggestion, generate_protein_suggestion
+from .wandb_utils import (
+    create_wandb_run_for_sweep,
+    create_wandb_sweep,
+    fetch_protein_observations_from_wandb,
+    record_protein_observation_to_wandb,
+)
 
 __all__ = [
     "Protein",
     "MettaProtein",
-    "sweep_eval_main",
-    "setup_next_run",
-    "create_sweep",
+    "apply_protein_suggestion",
+    "generate_protein_suggestion",
+    "create_wandb_run_for_sweep",
+    "create_wandb_sweep",
+    "fetch_protein_observations_from_wandb",
+    "record_protein_observation_to_wandb",
 ]
