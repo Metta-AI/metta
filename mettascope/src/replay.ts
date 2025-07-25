@@ -329,7 +329,9 @@ export function loadReplayStep(replayStep: any) {
 
 /** Get object config. */
 export function getObjectConfig(object: any) {
-  let typeName = state.replay.object_types[object.type]
+  let typeId = getAttr(object, 'type')
+  let typeName = state.replay.object_types[typeId]
+
   if (state.replay.config == null) {
     return null
   }
