@@ -2,11 +2,11 @@ import * as Common from './common.js'
 import { ctx, setFollowSelection, state, ui } from './common.js'
 import { glyphAssociations } from './glyphtable.js'
 import { Grid } from './grid.js'
-import { HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
+import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
 import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
-import { PanelInfo } from './panels.js'
+import type { PanelInfo } from './panels.js'
 import { getAttr, getObjectConfig, sendAction } from './replay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
@@ -585,13 +585,19 @@ function drawGlyphBubbles() {
 
     for (let actionStep = state.step; actionStep >= 0; actionStep--) {
       const action = getAttr(state.selectedGridObject, 'action', actionStep)
-      if (!action || action[0] == null || action[1] == null) continue
+      if (!action || action[0] == null || action[1] == null) {
+        continue
+      }
 
       const actionName = state.replay.action_names[action[0]]
-      if (actionName !== 'change_glyph') continue
+      if (actionName !== 'change_glyph') {
+        continue
+      }
 
       const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
-      if (!actionSuccess) continue
+      if (!actionSuccess) {
+        continue
+      }
 
       glyphId = action[1]
       glyphActionStep = actionStep

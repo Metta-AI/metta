@@ -293,8 +293,8 @@ class Mesh {
 export class Context3d {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
-  public ready: boolean = false
-  public dpr: number = 1
+  public ready = false
+  public dpr = 1
 
   public mainAtlasData: AtlasData | null = null
   public fontAtlasData: AtlasData | null = null
@@ -305,7 +305,7 @@ export class Context3d {
   private mainTextureSize: Vec2f = new Vec2f(0, 0)
   private fontAtlasTexture: WebGLTexture | null = null
   private fontTextureSize: Vec2f = new Vec2f(0, 0)
-  private atlasMargin: number = 4
+  private atlasMargin = 4
 
   // Shader locations
   private positionLocation = -1
@@ -854,7 +854,9 @@ export class Context3d {
     valign: 'top' | 'middle' | 'bottom' = 'top',
     spacing = 0
   ) {
-    if (!this.ready) throw new Error('Context not ready')
+    if (!this.ready) {
+      throw new Error('Context not ready')
+    }
     if (!this.fontAtlasData || !this.fontAtlasTexture) {
       console.error('Font atlas not loaded')
       return
@@ -884,7 +886,9 @@ export class Context3d {
 
     // Helper function to get character info with emoji code support
     const getCharInfo = (char: string) => {
-      if (!fontData) return null
+      if (!fontData) {
+        return null
+      }
 
       // Check if it's an emoji code like :happy:
       if (emojiCodes[char]) {
@@ -936,7 +940,7 @@ export class Context3d {
 
     // Calculate actual text dimensions using real character widths
     let textWidth = 0
-    let textHeight = baseCharHeight
+    const textHeight = baseCharHeight
 
     // Build character info array while calculating width
     const charInfos: Array<{ char: string; info: any; width: number }> = []
