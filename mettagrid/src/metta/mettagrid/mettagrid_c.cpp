@@ -671,8 +671,8 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["inventory"] = inventory_dict;
       obj_dict["is_converting"] = converter->converting;
       obj_dict["is_cooling_down"] = converter->cooling_down;
-      obj_dict["conversion_duration"] = converter->conversion_ticks;
-      obj_dict["cooldown_duration"] = converter->cooldown;
+      obj_dict["conversion_remaining"] = converter->conversion_ticks;
+      obj_dict["cooldown_remaining"] = converter->cooldown;
       obj_dict["output_limit"] = converter->max_output;
       obj_dict["color"] = converter->color;
       py::dict input_resources_dict;
