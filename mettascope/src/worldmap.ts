@@ -2,7 +2,7 @@ import { Vec2f } from './vector_math.js'
 import { Grid } from './grid.js'
 import * as Common from './common.js'
 import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr, sendAction } from './replay.js'
+import { getAttr, sendAction, getObjectConfig } from './replay.js'
 import { PanelInfo } from './panels.js'
 import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
@@ -234,7 +234,22 @@ function drawObject(gridObject: any) {
 
     // Draw the item layer.
     if (hasInventory(gridObject)) {
-      ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      // Only render the overlay if the inventory contains output resources
+      let objectConfig = getObjectConfig(gridObject)
+      let outputItemExists = false
+
+      if (objectConfig && objectConfig.output_resources) {
+        // Check if any output resources are in the inventory
+        for (let resource in objectConfig.output_resources) {
+          if (getAttr(gridObject, 'inv:' + resource) > 0) {
+            outputItemExists = true
+            break
+          }
+        }
+      }
+      if (outputItemExists) {
+        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      }
     }
   }
 }
