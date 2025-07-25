@@ -222,7 +222,7 @@ jobs:
             export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
 
             # Use the sharding plugin from common package
-            PYTEST_ARGS="$PYTEST_ARGS -p no:cacheprovider -p tests.sharding.pytest_shard"
+            PYTEST_ARGS="$PYTEST_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
           fi
 
           if [ "${{ matrix.package }}" == "core" ]; then
