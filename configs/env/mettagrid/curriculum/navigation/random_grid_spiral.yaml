@@ -2,7 +2,7 @@ _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
   # Grid navigation pattern
-/env/mettagrid/navigation/training/grid_multiroom: 0.5
+  /env/mettagrid/navigation/training/grid_multiroom: 0.5
 
   # Spiral navigation pattern
   /env/mettagrid/navigation/training/spiral_altar_multiroom: 0.5
