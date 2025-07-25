@@ -182,6 +182,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
             converter_config->input_resources,
             converter_config->output_resources,
             converter_config->max_output,
+            converter_config->max_conversions,
             converter_config->conversion_ticks,
             converter_config->cooldown,
             converter_config->initial_resource_count,
@@ -963,6 +964,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     short,
+                    short,
                     unsigned short,
                     unsigned short,
                     unsigned char,
@@ -973,6 +975,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("input_resources"),
            py::arg("output_resources"),
            py::arg("max_output"),
+           py::arg("max_conversions"),
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
@@ -983,6 +986,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
       .def_readwrite("output_resources", &ConverterConfig::output_resources)
       .def_readwrite("max_output", &ConverterConfig::max_output)
+      .def_readwrite("max_conversions", &ConverterConfig::max_conversions)
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
