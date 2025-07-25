@@ -1,7 +1,7 @@
 import * as Common from './common.js'
 import { ctx, state, ui } from './common.js'
 import { parseHtmlColor } from './htmlutils.js'
-import { PanelInfo } from './panels.js'
+import type { PanelInfo } from './panels.js'
 import { getAttr } from './replay.js'
 import { Vec2f } from './vector_math.js'
 
@@ -26,7 +26,7 @@ export function renderMinimapObjects(offset: Vec2f) {
     const y = getAttr(gridObject, 'r')
     const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
-    var color = parseHtmlColor('#FFFFFF')
+    let color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
     } else if (typeName === 'agent') {

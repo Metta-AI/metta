@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -25,11 +24,8 @@ class AWSSetup(SetupModule):
         return any(self.config.is_component_enabled(dep) for dep in ["aws", "skypilot"])
 
     def check_installed(self) -> bool:
-        aws_config = Path.home() / ".aws" / "config"
-        if not aws_config.exists():
-            return False
-
-        return True
+        result = self.run_command(["aws", "--version"], check=False)
+        return result.returncode == 0
 
     def install(self) -> None:
         if self.config.user_type.is_softmax:
@@ -44,8 +40,6 @@ class AWSSetup(SetupModule):
             info("Please configure your AWS credentials using `aws configure` or `aws configure sso`")
 
     def check_connected_as(self) -> str | None:
-        if not self.check_installed():
-            return None
         try:
             result = self.run_command(["aws", "sts", "get-caller-identity"], check=False)
         except FileNotFoundError:

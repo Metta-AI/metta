@@ -25,7 +25,7 @@ def create_simulation(cfg):
             policy_record = policy_store.policy_record(cfg.replay_job.policy_uri)
         else:
             # Set the policy_uri to None to run play without a policy.
-            policy_record = MockPolicyRecord(policy_store=None, run_name="replay_run", uri=None)
+            policy_record = MockPolicyRecord(run_name="replay_run", uri=None)
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]

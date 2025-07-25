@@ -11,8 +11,8 @@ if [[ $(basename "$PWD") != "mettascope" ]]; then
 fi
 
 # Install dependencies
-npm install --force
-npm run build
+pnpm install
+pnpm run build
 
 # Generate atlas
 ./tools/gen_atlas.py

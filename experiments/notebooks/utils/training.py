@@ -34,7 +34,9 @@ def launch_training(
     wandb_tags: list[str] | None = None,
 ) -> dict:
     if curriculum and curriculum not in load_available_environments():
-        raise ValueError(f"Curriculum {curriculum} not found. Available environments: {load_available_environments()}")
+        raise ValueError(
+            f"Curriculum {curriculum} not found. Available environments: {load_available_environments()}"
+        )
 
     cmd_args = remove_none_values(
         {

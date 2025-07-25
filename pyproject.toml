@@ -121,6 +121,3 @@ metta-app-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
-
-[tool.ruff]
-exclude = ["*.ipynb"]

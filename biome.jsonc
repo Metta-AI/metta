@@ -1,7 +1,16 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
   "files": {
-    "ignore": ["node_modules", "dist", "build", "*.min.js", "**/node_modules", "**/dist", "**/build"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/*.min.js",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build"
+    ]
   },
   "formatter": {
     "lineWidth": 120, // Wider for modern screens and JSX
@@ -24,7 +33,7 @@
         "useConsistentArrayType": {
           "level": "warn",
           "options": {
-            "syntax": "generic" // Array<T> instead of T[]
+            "syntax": "generic" // T[] instead of T[]
           }
         },
         "useForOf": "warn",
