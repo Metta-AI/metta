@@ -120,7 +120,7 @@ class ContrastiveConfig(BaseModelWithForbidExtra):
     gamma: float = Field(default=0.99, ge=0, le=1.0)
     temperature: float = Field(default=0.05, ge=0)
     num_negatives: int = Field(default=10, gt=0)
-    logsumexp_coef: float = Field(default=0.0, ge=0)
+    logsumexp_coef: float = Field(default=0.01, ge=0)
 
 
 class TorchProfilerConfig(BaseModelWithForbidExtra):
