@@ -1,0 +1,24 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  # Traditional navigation tasks (existing training configs)
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  # Use the bucketed sparse curriculum
+  /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
+
+  # Grid tasks
+  /env/mettagrid/navigation/training/grid_multiroom: 1
+
+  # Spiral tasks
+  /env/mettagrid/navigation/training/spiral_altar_multiroom: 1
+
+# Focus on subset of tasks at once for efficient learning
+num_active_tasks: 5  # Focus on 5 out of 9 tasks at a time
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.25  # 25% random exploration of all tasks
