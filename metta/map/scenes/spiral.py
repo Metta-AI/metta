@@ -43,6 +43,13 @@ class Spiral(Scene[SpiralParams]):
         else:
             raise ValueError(f"Invalid agents: {params.agents}")
 
+        # Debug output
+        print(f"[Spiral Debug] Grid shape: {self.grid.shape}")
+        print(f"[Spiral Debug] Width: {width}, Height: {height}")
+        print(f"[Spiral Debug] Center: ({cx}, {cy})")
+        print(f"[Spiral Debug] Agents to place: {agents}")
+        print(f"[Spiral Debug] Objects to place: {symbols}")
+
         # Determine placement order - agents first if placing at center
         if params.place_at_center and agents:
             all_symbols = agents + symbols
@@ -60,12 +67,13 @@ class Spiral(Scene[SpiralParams]):
         # Place first item at center if requested
         if params.place_at_center and all_symbols:
             positions.append((cx, cy))
-            all_symbols = all_symbols[1:]
+            # Don't remove the first symbol - we still need to place it!
+            # all_symbols = all_symbols[1:]
             angle += params.angle_increment
 
         # Generate remaining positions along spiral
         last_x, last_y = cx, cy
-        while len(positions) < len(all_symbols) + 1:  # +1 for the center position already added
+        while len(positions) < len(all_symbols):  # Remove the +1 since we're not skipping the first symbol
             # Calculate next position on spiral
             x = int(cx + radius * np.cos(angle))
             y = int(cy + radius * np.sin(angle))
@@ -101,3 +109,16 @@ class Spiral(Scene[SpiralParams]):
                 # Only place if the cell is empty
                 if self.grid[y, x] == "empty":
                     self.grid[y, x] = symbol
+                    print(f"[Spiral Debug] Placed '{symbol}' at ({x}, {y})")
+                else:
+                    print(
+                        f"[Spiral Debug] Failed to place '{symbol}' at ({x}, {y}) - cell contains '{self.grid[y, x]}'"
+                    )
+
+        # Debug: Count agents in grid
+        agent_count = 0
+        for row in self.grid:
+            for cell in row:
+                if str(cell).startswith("agent"):
+                    agent_count += 1
+        print(f"[Spiral Debug] Total agents in grid after placement: {agent_count}")

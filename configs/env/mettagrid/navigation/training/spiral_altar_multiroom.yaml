@@ -18,24 +18,22 @@ game:
       enabled: false
 
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    _target_: metta.map.mapgen.MapGen
+    width: 100
+    height: 100
     border_width: 6
-    room:
-      _target_: metta.map.mapgen.MapGen
-      width: 100
-      height: 100
-      border_width: 1
+    instances: 4  # Create 4 instances for 4 agents
+    instance_border_width: 6
 
-      root:
-        type: metta.map.scenes.spiral.Spiral
-        params:
-          objects:
-            altar: 8
-          agents: 1
-          spacing: 15
-          start_radius: 0
-          radius_increment: 2.5
-          angle_increment: 0.3
-          randomize_position: 2
-          place_at_center: true
+    root:
+      type: metta.map.scenes.spiral.Spiral
+      params:
+        objects:
+          altar: 8
+        agents: 1
+        spacing: 15
+        start_radius: 0
+        radius_increment: 2.5
+        angle_increment: 0.3
+        randomize_position: 2
+        place_at_center: true
