@@ -488,8 +488,6 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
       // Remove focus from the search input
       searchInput.blur()
       // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
-
-
     } else if (ui.hoverBubbles.length > 0) {
       // Close the most recently opened hover bubble (last in array)
       const lastBubble = ui.hoverBubbles[ui.hoverBubbles.length - 1]
@@ -542,28 +540,36 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     }
 
     // Numpad directional controls (classic 8-directional layout)
-    if (event.code == 'Numpad8') { // Up
+    if (event.code == 'Numpad8') {
+      // Up
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
     }
-    if (event.code == 'Numpad2') { // Down
+    if (event.code == 'Numpad2') {
+      // Down
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
     }
-    if (event.code == 'Numpad4') { // Left
+    if (event.code == 'Numpad4') {
+      // Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
     }
-    if (event.code == 'Numpad6') { // Right
+    if (event.code == 'Numpad6') {
+      // Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
     }
-    if (event.code == 'Numpad7') { // Up-Left
+    if (event.code == 'Numpad7') {
+      // Up-Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, panSpeed * 0.707))
     }
-    if (event.code == 'Numpad9') { // Up-Right
+    if (event.code == 'Numpad9') {
+      // Up-Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, panSpeed * 0.707))
     }
-    if (event.code == 'Numpad1') { // Down-Left
+    if (event.code == 'Numpad1') {
+      // Down-Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, -panSpeed * 0.707))
     }
-    if (event.code == 'Numpad3') { // Down-Right
+    if (event.code == 'Numpad3') {
+      // Down-Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, -panSpeed * 0.707))
     }
   }
