@@ -199,48 +199,75 @@ class MettaAgent(nn.Module):
         self.active_features = features
         self.device = device
 
-        # Create quick lookup mappings
+        # Fast look-ups
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
         self.feature_normalizations = {
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
 
-        # Store original feature mapping on first initialization
+        # First-time initialisation → just record mapping
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
             logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
-        else:
-            # Create remapping for subsequent initializations
-            self._create_feature_remapping(features, is_training)
+            self.feature_id_remap = {}
+            return
 
-    def _create_feature_remapping(self, features: dict[str, dict], is_training: bool):
-        """Create a remapping dictionary to translate new feature IDs to original ones."""
-        UNKNOWN_FEATURE_ID = 255
-        self.feature_id_remap = {}
-        unknown_features = []
-
-        for name, props in features.items():
-            new_id = props["id"]
-            if name in self.original_feature_mapping:
-                # Remap known features to their original IDs
-                original_id = self.original_feature_mapping[name]
-                if new_id != original_id:
-                    self.feature_id_remap[new_id] = original_id
-            elif not is_training:
-                # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                unknown_features.append(name)
-            else:
-                # In training mode, learn new features
-                self.original_feature_mapping[name] = new_id
+        # Subsequent calls – build remap using generic helper
+        self.feature_id_remap, unknown = self._prepare_mapping(
+            current_items=features,
+            original_map=self.original_feature_mapping,
+            allow_new=is_training,
+            unknown_id=255 if not is_training else None,
+        )
 
         if self.feature_id_remap:
-            logger.info(
-                f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
-            )
-            self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+            logger.info(f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown)} unknown")
+            self._apply_feature_remapping(features, 255)
 
-    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
+    # ------------------------------------------------------------------
+    # Generic helper shared by both feature and action initialisation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _prepare_mapping(
+        *,
+        current_items: dict[str, dict],
+        original_map: dict[str, int],
+        allow_new: bool,
+        unknown_id: int | None = None,
+    ) -> tuple[dict[int, int], list[str]]:
+        """Create a dict mapping *new* ids → *old* ids.
+
+        Args:
+            current_items: Mapping ``name → {'id': int}`` from the environment.
+            original_map: Persistent ``name → id`` that was saved with the policy.
+            allow_new: If True, unseen names are appended to *original_map* (training).
+            unknown_id: If set, unseen names are remapped to this sentinel instead of error.
+
+        Returns:
+            (remap_dict, unknown_names)
+        """
+        remap: dict[int, int] = {}
+        unknown_names: list[str] = []
+
+        for name, props in current_items.items():
+            new_id = props["id"]
+            if name in original_map:
+                old_id = original_map[name]
+                if new_id != old_id:
+                    remap[new_id] = old_id
+            else:
+                if allow_new:
+                    original_map[name] = new_id
+                else:
+                    if unknown_id is None:
+                        raise ValueError(f"Unknown identifier '{name}' with id {new_id} not in saved mapping")
+                    remap[new_id] = unknown_id
+                    unknown_names.append(name)
+
+        return remap, unknown_names
+
+    def _create_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to observation component and update normalizations."""
         # Update observation component if it supports remapping
         if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):

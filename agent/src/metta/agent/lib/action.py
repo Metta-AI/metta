@@ -60,6 +60,35 @@ class ActionEmbedding(nn_layer_library.Embedding):
         )
         self.num_actions = len(self.active_indices)
 
+        # Ensure the underlying embedding table is large enough to cover all indices.
+        # The largest index defines how many embeddings are needed (since indices start at 1).
+        max_idx = int(max(self._reserved_action_embeds.values(), default=0))
+
+        # Grow the embedding table if necessary. This avoids device-side asserts that occur when
+        # indices exceed the current num_embeddings during the forward pass.
+        if max_idx >= self._net.num_embeddings:
+            new_num_embeddings = max_idx + 1  # +1 because indices are 0-based internally
+            embedding_dim = self._net.embedding_dim
+
+            # Create a larger embedding layer and copy existing weights.
+            new_embed = torch.nn.Embedding(new_num_embeddings, embedding_dim, device=self._net.weight.device)
+
+            # Initialize new weights with the same orthogonal strategy and scaling used originally.
+            torch.nn.init.orthogonal_(new_embed.weight)
+            with torch.no_grad():
+                max_abs_value = torch.max(torch.abs(new_embed.weight))
+                new_embed.weight.mul_(0.1 / max_abs_value)
+
+                # Copy over existing weights to preserve learned representations.
+                new_embed.weight[: self._net.num_embeddings].copy_(self._net.weight.data)
+
+            # Replace the old embedding layer.
+            self._net = new_embed
+
+            # Keep _nn_params in sync so any downstream serialization reflects the new size.
+            if isinstance(self._nn_params, dict):
+                self._nn_params["num_embeddings"] = new_num_embeddings
+
     def _forward(self, td: TensorDict):
         B_TT = td["_BxTT_"]
         td["_num_actions_"] = self.num_actions
