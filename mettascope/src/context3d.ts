@@ -395,7 +395,7 @@ export class Context3d {
     scale: number | [number, number] = 1,
     rotation = 0
   ) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
 
@@ -407,16 +407,6 @@ export class Context3d {
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
-    const m = this.atlasMargin
-
-    // Calculate UV coordinates for the sprite in the texture atlas.
-    // The margin (m) is added to prevent texture bleeding at sprite edges.
-    const u0 = (sx - m) / this.textureSize.x()
-    const v0 = (sy - m) / this.textureSize.y()
-    const u1 = (sx + sw + m) / this.textureSize.x()
-    const v1 = (sy + sh + m) / this.textureSize.y()
-
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
 
@@ -427,28 +417,28 @@ export class Context3d {
       this.rotate(rotation)         // Apply rotation
       this.scale(scaleX, scaleY)    // Apply scaling
       this.drawRect(
-        -sw / 2 - m,  // Left edge: center minus half width minus margin
-        -sh / 2 - m,  // Top edge: center minus half height minus margin
-        sw + 2 * m,   // Total width including margins on both sides
-        sh + 2 * m,   // Total height including margins on both sides
-        u0,
-        v0,
-        u1,
-        v1,
+        -bounds.width / 2,
+        -bounds.height / 2,
+        bounds.width,
+        bounds.height,
+        bounds.u0,
+        bounds.v0,
+        bounds.u1,
+        bounds.v1,
         color
       )
       this.restore()
     } else {
-      // Fast path: no transformations needed, draw directly
+      // Fast path: no transformations needed, draw centered
       this.drawRect(
-        x - sw / 2 - m,  // Left edge position
-        y - sh / 2 - m,  // Top edge position
-        sw + 2 * m,      // Total width including margins
-        sh + 2 * m,      // Total height including margins
-        u0,
-        v0,
-        u1,
-        v1,
+        x - bounds.width / 2,
+        y - bounds.height / 2,
+        bounds.width,
+        bounds.height,
+        bounds.u0,
+        bounds.v0,
+        bounds.u1,
+        bounds.v1,
         color
       )
     }
