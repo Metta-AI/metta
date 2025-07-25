@@ -180,6 +180,7 @@ class PyTerminationConfig(BaseModelWithForbidExtra):
 
     num_altars: Optional[bool] = Field(default=None)
     max_reward: Optional[int] = Field(default=None)
+    end_of_episode_boost: Optional[float] = Field(default=None)
 
 
 class PyGameConfig(BaseModelWithForbidExtra):
@@ -200,7 +201,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
-    # termination: PyTerminationConfig = Field(default_factory=PyTerminationConfig)
+    termination: PyTerminationConfig = Field(default_factory=PyTerminationConfig)
 
 
 class PyPolicyGameConfig(PyGameConfig):
