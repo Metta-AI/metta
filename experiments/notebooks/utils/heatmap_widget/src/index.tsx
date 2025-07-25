@@ -97,6 +97,7 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
         const transformedPolicyAverages: any = {};
 
         // Transform cells to use selected metric value
+        console.log("heatmapData.cells", heatmapData.cells);
         Object.keys(heatmapData.cells).forEach(policyName => {
             transformedCells[policyName] = {};
             const policy = heatmapData.cells[policyName];
