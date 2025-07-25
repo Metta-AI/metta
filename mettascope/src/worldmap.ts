@@ -518,29 +518,14 @@ function drawThoughtBubbles() {
       if (actionName == 'noop' || actionName == 'rotate' || actionName == 'move') {
         continue
       }
-      keyAction = action
-      keyActionStep = actionStep
-      actionHasTarget = !(actionName == 'attack' || actionName == 'attack_nearest')
-      break
+      if (actionSuccess) {
+        keyAction = action
+        keyActionStep = actionStep
+        break
+      }
     }
 
-    if (keyAction != null) {
-      const x = (getAttr(state.selectedGridObject, 'c') + 0.5) * Common.TILE_SIZE
-      const y = (getAttr(state.selectedGridObject, 'r') - 0.5) * Common.TILE_SIZE
-      if (actionHasTarget && actionStep !== state.step) {
-        // Draw an arrow on a circle around the target, pointing at it.
-        const [targetGridX, targetGridY] = applyOrientationOffset(
-          getAttr(state.selectedGridObject, 'c', actionStep),
-          getAttr(state.selectedGridObject, 'r', actionStep),
-          getAttr(state.selectedGridObject, 'agent:orientation', actionStep));
-        const targetX = (targetGridX + 0.5) * Common.TILE_SIZE
-        const targetY = (targetGridY - 0.5) * Common.TILE_SIZE
-        const angle = Math.atan2(targetX - x, targetY - y)
-        const r = Common.TILE_SIZE / 3
-        const tX = targetX - Math.sin(angle) * r - Common.TILE_SIZE / 2
-        const tY = targetY - Math.cos(angle) * r + Common.TILE_SIZE / 2
-        ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
-      }
+    if (keyAction != null && keyActionStep != null) {
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
       if (state.step == keyActionStep) {
@@ -558,8 +543,8 @@ function drawThoughtBubbles() {
 
       // Draw the resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1)
-        const nextResources = getAttr(state.selectedGridObject, key, actionStep)
+        const prevResources = getAttr(state.selectedGridObject, key, keyActionStep - 1)
+        const nextResources = getAttr(state.selectedGridObject, key, keyActionStep)
         const gained = nextResources - prevResources
         var resourceX = x
         var resourceY = y
