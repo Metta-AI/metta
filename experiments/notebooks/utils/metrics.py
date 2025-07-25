@@ -5,7 +5,9 @@ import wandb
 from wandb.apis.public.runs import Run
 
 
-def get_run(run_name: str, entity: str = "metta-research", project: str = "metta") -> Run | None:
+def get_run(
+    run_name: str, entity: str = "metta-research", project: str = "metta"
+) -> Run | None:
     try:
         api = wandb.Api()
     except Exception as e:
@@ -46,7 +48,9 @@ def find_training_jobs(
             filters["created_at"] = {"$lte": created_before}
     if wandb_tags:
         filters["tags"] = {"$in": wandb_tags}
-    runs = islice(wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit)
+    runs = islice(
+        wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit
+    )
 
     return [run.name for run in runs]
 
@@ -59,7 +63,9 @@ def fetch_metrics(run_names: list[str], samples: int = 1000) -> dict[str, pd.Dat
         if run is None:
             continue
 
-        print(f"Fetching metrics for {run_name}: {run.state}, {run.created_at}\n{run.url}...")
+        print(
+            f"Fetching metrics for {run_name}: {run.state}, {run.created_at}\n{run.url}..."
+        )
 
         try:
             metrics_df: pd.DataFrame = run.history(samples=samples, pandas=True)  # type: ignore
