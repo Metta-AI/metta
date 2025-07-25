@@ -5,11 +5,9 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "lint": "biome lint .",
+    "lint": "biome check --write .",
     "format": "biome format --write .",
-    "check": "biome check .",
-    "check:fix": "biome check --write .",
-    "ci": "biome ci .",
+    "check": "biome ci .",
     "test": "playwright test tests/*.test.ts"
   },
   "devDependencies": {
