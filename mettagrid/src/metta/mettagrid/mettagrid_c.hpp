@@ -61,6 +61,7 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  bool track_movement_metrics;
   bool recipe_details_obs = false;
 };
 
@@ -148,6 +149,9 @@ private:
 
   std::mt19937 _rng;
   unsigned int _seed;
+
+  // Movement tracking
+  bool _track_movement_metrics;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
