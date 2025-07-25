@@ -1,9 +1,9 @@
-import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
-import { ui, state, ctx } from './common.js'
-import { getAttr } from './replay.js'
-import { PanelInfo } from './panels.js'
+import { ctx, state, ui } from './common.js'
 import { parseHtmlColor } from './htmlutils.js'
+import type { PanelInfo } from './panels.js'
+import { getAttr } from './replay.js'
+import { Vec2f } from './vector_math.js'
 
 /** Core minimap rendering logic that can be shared between minimap and macromap rendering. */
 export function renderMinimapObjects(offset: Vec2f) {

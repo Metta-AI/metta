@@ -1,23 +1,23 @@
-import { Vec2f, Mat3f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui } from './common.js'
 import { find } from './htmlutils.js'
+import { Mat3f, Vec2f } from './vector_math.js'
 
 export class Rect {
-  public x: number = 0
-  public y: number = 0
-  public width: number = 0
-  public height: number = 0
+  public x = 0
+  public y = 0
+  public width = 0
+  public height = 0
 }
 
 /** A main UI panel. */
 export class PanelInfo {
-  public x: number = 0
-  public y: number = 0
-  public width: number = 0
-  public height: number = 0
-  public name: string = ''
-  public isPanning: boolean = false
+  public x = 0
+  public y = 0
+  public width = 0
+  public height = 0
+  public name = ''
+  public isPanning = false
   public panPos: Vec2f = new Vec2f(0, 0)
   public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL
   public div: HTMLElement

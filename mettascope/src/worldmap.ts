@@ -1,14 +1,14 @@
-import { Vec2f } from './vector_math.js'
-import { Grid } from './grid.js'
 import * as Common from './common.js'
-import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr, sendAction } from './replay.js'
-import { PanelInfo } from './panels.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
+import { Grid } from './grid.js'
+import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
+import { find, parseHtmlColor } from './htmlutils.js'
 import { onFrame, updateSelection } from './main.js'
-import { parseHtmlColor, find } from './htmlutils.js'
-import { updateHoverBubble, updateReadout, HoverBubble } from './hoverbubbles.js'
-import { search, searchMatch } from './search.js'
 import { renderMinimapObjects } from './minimap.js'
+import type { PanelInfo } from './panels.js'
+import { getAttr, sendAction } from './replay.js'
+import { search, searchMatch } from './search.js'
+import { Vec2f } from './vector_math.js'
 
 /**
  * Clamps the map panel's pan position so that the world map always remains at
@@ -63,7 +63,7 @@ function clampMapPan(panel: PanelInfo) {
 
 /** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
-  let n = agentId + Math.PI + Math.E + Math.SQRT2
+  const n = agentId + Math.PI + Math.E + Math.SQRT2
   return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }
 
@@ -352,7 +352,7 @@ function drawInventory(useSearch = false) {
       }
     }
     // Draw the actual inventory icons.
-    let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
+    const advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key)
       if (num !== null && num !== undefined && num > 0) {
@@ -395,7 +395,7 @@ function drawRewards() {
     if (gridObject['total_reward'] !== undefined) {
       const totalReward = getAttr(gridObject, 'total_reward')
       let rewardX = 0
-      let advanceX = Math.min(32, Common.TILE_SIZE / totalReward)
+      const advanceX = Math.min(32, Common.TILE_SIZE / totalReward)
       for (let i = 0; i < totalReward; i++) {
         ctx.save()
         ctx.translate(
@@ -874,8 +874,8 @@ export function drawMap(panel: PanelInfo) {
     // Draw matching objects on top of the overlay.
     for (const gridObject of state.replay.grid_objects) {
       const typeName = state.replay.object_types[getAttr(gridObject, 'type')]
-      let x = getAttr(gridObject, 'c')
-      let y = getAttr(gridObject, 'r')
+      const x = getAttr(gridObject, 'c')
+      const y = getAttr(gridObject, 'r')
       if (searchMatch(typeName)) {
         // Draw halo behind the object.
         ctx.drawSprite('effects/halo.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1.5, 0)

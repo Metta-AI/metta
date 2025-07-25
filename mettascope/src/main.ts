@@ -1,26 +1,26 @@
-import { Vec2f, Mat3f } from './vector_math.js'
-import * as Common from './common.js'
-import { ui, state, html, ctx, setFollowSelection } from './common.js'
-import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
-import { focusFullMap, drawMap } from './worldmap.js'
-import { drawTrace } from './traces.js'
-import { drawMiniMap } from './minimap.js'
-import { processActions, initActionButtons, startGamepadPolling } from './actions.js'
+import { initActionButtons, processActions, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
+import * as Common from './common.js'
+import { ctx, html, setFollowSelection, state, ui } from './common.js'
+import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
+import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
 import {
+  find,
+  hideDropdown,
+  hideMenu,
+  initHighDpiMode,
   localStorageSetNumber,
   onEvent,
-  initHighDpiMode,
-  find,
   toggleOpacity,
-  hideMenu,
-  hideDropdown,
 } from './htmlutils.js'
-import { updateReadout, hideHoverBubble } from './hoverbubbles.js'
+import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
-import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
+import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
+import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
+import { drawTrace } from './traces.js'
+import { Mat3f, Vec2f } from './vector_math.js'
+import { drawMap, focusFullMap } from './worldmap.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
@@ -64,7 +64,7 @@ export function onResize() {
     ui.mapPanel.x = 0
     ui.mapPanel.y = Common.HEADER_HEIGHT
     ui.mapPanel.width = screenWidth
-    let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
+    const maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
     ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight)
 
     // Minimap goes in the bottom left corner of the mapPanel.
@@ -149,7 +149,7 @@ function hideUi() {
 
 /** Handles pointer down events. */
 onEvent('pointerdown', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as PointerEvent
+  const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.lastMousePos = ui.mousePos
   ui.mouseDownPos = ui.mousePos
@@ -196,7 +196,7 @@ onEvent('pointerup', 'body', () => {
 
 /** Handles pointer move events. */
 onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as PointerEvent
+  const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   var target = event.target as HTMLElement
   while (target.id === '' && target.parentElement != null) {
@@ -273,10 +273,10 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
 
 /** Handles dragging draggable elements. */
 onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
-  let event = e as PointerEvent
+  const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.dragHtml = target
-  let rect = target.getBoundingClientRect()
+  const rect = target.getBoundingClientRect()
   ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top)
   ui.dragging = 'draggable'
   requestFrame()
@@ -284,7 +284,7 @@ onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
 
 /** Handles scroll events. */
 onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as WheelEvent
+  const event = e as WheelEvent
   ui.scrollDelta = event.deltaY
   // Prevent scaling the web page
   event.preventDefault()
@@ -292,7 +292,7 @@ onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles the pointer moving outside the window. */
-document.addEventListener('pointerout', function (e) {
+document.addEventListener('pointerout', (e) => {
   if (!e.relatedTarget) {
     hideHoverBubble()
     requestFrame()
@@ -300,14 +300,14 @@ document.addEventListener('pointerout', function (e) {
 })
 
 /** Handles the window losing focus. */
-document.addEventListener('blur', function (e) {
+document.addEventListener('blur', (e) => {
   hideHoverBubble()
   requestFrame()
 })
 
 /** Handles touch start events for pinch-to-zoom. */
 onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as TouchEvent
+  const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
   if (ui.touches.length === 2) {
@@ -341,7 +341,7 @@ onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
 
 /** Handles touch move events for pinch-to-zoom. */
 onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as TouchEvent
+  const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
   if (ui.isPinching && ui.touches.length === 2) {
@@ -354,7 +354,7 @@ onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
 
 /** Handles touch end events for pinch-to-zoom. */
 onEvent('touchend', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as TouchEvent
+  const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
   if (ui.touches.length < 2) {
@@ -454,7 +454,7 @@ export function updateSelection(object: any, setFollow = false) {
 
 /** Handles key down events. */
 onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as KeyboardEvent
+  const event = e as KeyboardEvent
 
   // Prevent keyboard events if we are focused on a text field, except for the Escape key
   if (
@@ -529,28 +529,36 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     }
 
     // Numpad directional controls (classic 8-directional layout)
-    if (event.code == 'Numpad8') { // Up
+    if (event.code == 'Numpad8') {
+      // Up
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
     }
-    if (event.code == 'Numpad2') { // Down
+    if (event.code == 'Numpad2') {
+      // Down
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
     }
-    if (event.code == 'Numpad4') { // Left
+    if (event.code == 'Numpad4') {
+      // Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
     }
-    if (event.code == 'Numpad6') { // Right
+    if (event.code == 'Numpad6') {
+      // Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
     }
-    if (event.code == 'Numpad7') { // Up-Left
+    if (event.code == 'Numpad7') {
+      // Up-Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, panSpeed * 0.707))
     }
-    if (event.code == 'Numpad9') { // Up-Right
+    if (event.code == 'Numpad9') {
+      // Up-Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, panSpeed * 0.707))
     }
-    if (event.code == 'Numpad1') { // Down-Left
+    if (event.code == 'Numpad1') {
+      // Down-Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, -panSpeed * 0.707))
     }
-    if (event.code == 'Numpad3') { // Down-Right
+    if (event.code == 'Numpad3') {
+      // Down-Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, -panSpeed * 0.707))
     }
   }
@@ -731,7 +739,7 @@ async function parseUrlParams() {
   if (state.replay !== null) {
     // Set the current step.
     if (urlParams.get('step') !== null) {
-      const initialStep = parseInt(urlParams.get('step') || '0')
+      const initialStep = Number.parseInt(urlParams.get('step') || '0')
       console.info('Step via query parameter:', initialStep)
       updateStep(initialStep, false)
     }
@@ -744,7 +752,7 @@ async function parseUrlParams() {
 
     // Set the selected object.
     if (urlParams.get('selectedObjectId') !== null) {
-      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || '-1') - 1
+      const selectedObjectId = Number.parseInt(urlParams.get('selectedObjectId') || '-1') - 1
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
         updateSelection(state.replay.grid_objects[selectedObjectId], true)
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
@@ -758,12 +766,12 @@ async function parseUrlParams() {
 
   // Set the map pan and zoom.
   if (urlParams.get('mapPanX') !== null && urlParams.get('mapPanY') !== null) {
-    const mapPanX = parseInt(urlParams.get('mapPanX') || '0')
-    const mapPanY = parseInt(urlParams.get('mapPanY') || '0')
+    const mapPanX = Number.parseInt(urlParams.get('mapPanX') || '0')
+    const mapPanY = Number.parseInt(urlParams.get('mapPanY') || '0')
     ui.mapPanel.panPos = new Vec2f(mapPanX, mapPanY)
   }
   if (urlParams.get('mapZoom') !== null) {
-    ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || '1')
+    ui.mapPanel.zoomLevel = Number.parseFloat(urlParams.get('mapZoom') || '1')
   }
 
   if (urlParams.get('demo') !== null) {
@@ -807,7 +815,7 @@ function setPlaybackSpeed(speed: number) {
 onResize()
 
 // Disable pinch-to-zoom.
-let meta = document.createElement('meta')
+const meta = document.createElement('meta')
 meta.name = 'viewport'
 meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
 document.head.appendChild(meta)

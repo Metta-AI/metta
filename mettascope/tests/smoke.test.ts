@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test'
+import { type Page, expect, test } from '@playwright/test'
 
 const host = 'http://localhost:8000'
 

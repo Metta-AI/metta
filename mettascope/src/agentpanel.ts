@@ -1,19 +1,19 @@
+import { html, setFollowSelection, state } from './common.js'
 import {
   find,
-  finds,
-  removeChildren,
   findAttr,
-  onEvent,
-  showMenu,
-  hideMenu,
-  showDropdown,
+  finds,
   hideDropdown,
-  localStorageSetObject,
+  hideMenu,
   localStorageGetObject,
+  localStorageSetObject,
+  onEvent,
+  removeChildren,
+  showDropdown,
+  showMenu,
 } from './htmlutils.js'
-import { state, setFollowSelection, html } from './common.js'
-import { getAttr, propertyName, propertyIcon } from './replay.js'
 import { updateSelection } from './main.js'
+import { getAttr, propertyIcon, propertyName } from './replay.js'
 
 enum SortDirection {
   None = 0,
@@ -31,7 +31,7 @@ class ColumnDefinition {
     field: string,
     isFinal: boolean,
     sortDirection: SortDirection = SortDirection.None,
-    isStepColumn: boolean = false
+    isStepColumn = false
   ) {
     this.field = field
     this.isFinal = isFinal
@@ -84,22 +84,22 @@ var typeaheadValue = ''
 
 /** Swaps the element 1 position to the right. */
 function swapRight(list: any[], element: any) {
-  let index = list.indexOf(element)
+  const index = list.indexOf(element)
   if (index == -1) {
     return
   }
-  let tmp = list[index]
+  const tmp = list[index]
   list[index] = list[index + 1]
   list[index + 1] = tmp
 }
 
 /** Swaps the element 1 position to the left. */
 function swapLeft(list: any[], element: any) {
-  let index = list.indexOf(element)
+  const index = list.indexOf(element)
   if (index == -1) {
     return
   }
-  let tmp = list[index]
+  const tmp = list[index]
   list[index] = list[index - 1]
   list[index - 1] = tmp
 }
@@ -112,7 +112,7 @@ function saveAgentTable() {
 /** Initialize the agent table. */
 export function initAgentTable() {
   // Load the columns from local storage.
-  let plainColumns = localStorageGetObject('agentPanelColumns', columns)
+  const plainColumns = localStorageGetObject('agentPanelColumns', columns)
   columns = plainColumns.map((column) => new ColumnDefinition(column.field, column.isFinal, column.sortDirection))
 
   // Hide the column menu and new column dropdown.
@@ -130,15 +130,15 @@ function getFieldInfo(target: HTMLElement): {
   columnField: string
   columnIsFinal: boolean
 } {
-  let columnField = findAttr(target, 'data-column-field')
-  let columnIsFinal = findAttr(target, 'data-column-is-final') == 'true'
+  const columnField = findAttr(target, 'data-column-field')
+  const columnIsFinal = findAttr(target, 'data-column-is-final') == 'true'
   return { columnField, columnIsFinal }
 }
 
 /** Clicking on the column menu button should show the column menu. */
 onEvent('click', '#agent-panel .header-cell .dropdown', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
-  let columnMenu = find('#column-menu')
+  const { columnField, columnIsFinal } = getFieldInfo(target)
+  const columnMenu = find('#column-menu')
   columnMenu.setAttribute('data-column-field', columnField)
   columnMenu.setAttribute('data-column-is-final', columnIsFinal.toString())
   showMenu(target, columnMenu)
@@ -161,20 +161,20 @@ function toggleSortDirection(columnField: string, columnIsFinal: boolean) {
 
 /** Clicking on the sort up button should sort the column in ascending order. */
 onEvent('click', '#column-menu .sort-up', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
+  const { columnField, columnIsFinal } = getFieldInfo(target)
   toggleSortDirection(columnField, columnIsFinal)
 })
 
 /** Clicking on the sort down button should sort the column in descending order. */
 onEvent('click', '#column-menu .sort-down', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
+  const { columnField, columnIsFinal } = getFieldInfo(target)
   toggleSortDirection(columnField, columnIsFinal)
 })
 
 /** Clicking on the move left button should move the column to the left. */
 onEvent('click', '#column-menu .move-left', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
-  let column = columns.find((column) => column.field == columnField && column.isFinal == columnIsFinal)
+  const { columnField, columnIsFinal } = getFieldInfo(target)
+  const column = columns.find((column) => column.field == columnField && column.isFinal == columnIsFinal)
   if (column != null) {
     swapLeft(columns, column)
     updateAgentTable()
@@ -185,8 +185,8 @@ onEvent('click', '#column-menu .move-left', (target: HTMLElement, e: Event) => {
 
 /** Clicking on the move right button should move the column to the right. */
 onEvent('click', '#column-menu .move-right', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
-  let column = columns.find((column) => column.field == columnField && column.isFinal == columnIsFinal)
+  const { columnField, columnIsFinal } = getFieldInfo(target)
+  const column = columns.find((column) => column.field == columnField && column.isFinal == columnIsFinal)
   if (column != null) {
     swapRight(columns, column)
     updateAgentTable()
@@ -197,7 +197,7 @@ onEvent('click', '#column-menu .move-right', (target: HTMLElement, e: Event) => 
 
 /** Clicking on the hide column button should remove the column from the columns array. */
 onEvent('click', '#column-menu .hide-column', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
+  const { columnField, columnIsFinal } = getFieldInfo(target)
   columns = columns.filter((column) => !(column.field == columnField && column.isFinal == columnIsFinal))
   updateAgentTable()
   saveAgentTable()
@@ -206,9 +206,9 @@ onEvent('click', '#column-menu .hide-column', (target: HTMLElement, e: Event) =>
 
 /** Clicking on the table directly should set is as main sort column or cycle the sort direction. */
 onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
+  const { columnField, columnIsFinal } = getFieldInfo(target)
   if (columnField != '') {
-    for (let column of columns) {
+    for (const column of columns) {
       if (column.field == columnField && column.isFinal == columnIsFinal) {
         if (mainSort == column) {
           if (column.sortDirection == SortDirection.None) {
@@ -232,10 +232,10 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
 
 /** Clicking on a data cell should select the agent. */
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
-  let agentId = findAttr(target, 'data-agent-id')
+  const agentId = findAttr(target, 'data-agent-id')
   if (agentId != '') {
     for (let i = 0; i < state.replay.grid_objects.length; i++) {
-      let gridObject = state.replay.grid_objects[i]
+      const gridObject = state.replay.grid_objects[i]
       if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') == agentId) {
         updateSelection(gridObject, true)
         break
@@ -249,7 +249,7 @@ onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
  * allow you to type-ahead to select or search for the column.
  */
 onEvent('click', '#new-column-input', (target: HTMLElement, e: Event) => {
-  let newColumnDropdown = find('#new-column-dropdown')
+  const newColumnDropdown = find('#new-column-dropdown')
   updateAvailableColumns()
   showDropdown(target, newColumnDropdown)
 })
@@ -311,14 +311,14 @@ export function updateAvailableColumns() {
   var noMatchFound = find('#new-column-dropdown .no-match-found')
 
   // All agent keys:
-  let agentKeys = new Set<string>()
-  for (let agent of state.replay.agents) {
-    for (let key in agent) {
+  const agentKeys = new Set<string>()
+  for (const agent of state.replay.agents) {
+    for (const key in agent) {
       agentKeys.add(key)
     }
   }
   // All inventory keys:
-  for (let key of agentKeys) {
+  for (const key of agentKeys) {
     if (key != 'agent' && key != 'c' && key != 'r' && key != 'reward') {
       // If there is a typeahead value, only show columns that match the typeahead value.
       if (typeaheadValue != '' && !key.toLowerCase().includes(typeaheadValue.toLowerCase())) {
@@ -336,15 +336,15 @@ export function updateAvailableColumns() {
 
   removeChildren(columnOptions)
 
-  for (let column of availableColumns) {
-    let option = columnOptionTemplate.cloneNode(true) as HTMLElement
+  for (const column of availableColumns) {
+    const option = columnOptionTemplate.cloneNode(true) as HTMLElement
     option.querySelector('.name')!.textContent = column.generateName()
     option.querySelector('.icon')!.setAttribute('src', column.generateIcon())
     option.setAttribute('title', column.generateTooltip())
     option.setAttribute('data-column-field', column.field)
     var stepColumnExists = false
     var finalColumnExists = false
-    for (let c of columns) {
+    for (const c of columns) {
       if (c.field == column.field && c.isFinal == false) {
         stepColumnExists = true
       } else if (c.field == column.field && c.isFinal == true) {
@@ -372,8 +372,8 @@ export function updateAgentTable() {
 
   removeChildren(agentTable)
 
-  let list = state.replay.agents.slice()
-  let agents = list.sort((a: any, b: any) => {
+  const list = state.replay.agents.slice()
+  const agents = list.sort((a: any, b: any) => {
     var aValue, bValue: number
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
@@ -393,16 +393,16 @@ export function updateAgentTable() {
   })
 
   // Create the columns.
-  for (let columnDef of columns) {
-    let column = columnTemplate.cloneNode(true) as HTMLElement
+  for (const columnDef of columns) {
+    const column = columnTemplate.cloneNode(true) as HTMLElement
     column.setAttribute('data-column-field', columnDef.field)
     column.setAttribute('data-column-is-final', columnDef.isFinal.toString())
-    let headerCell = headerCellTemplate.cloneNode(true) as HTMLElement
-    let name = headerCell.querySelectorAll('.name')[0]
+    const headerCell = headerCellTemplate.cloneNode(true) as HTMLElement
+    const name = headerCell.querySelectorAll('.name')[0]
     name.textContent = columnDef.generateName()
-    let icon = headerCell.querySelectorAll('.icon')[0]
+    const icon = headerCell.querySelectorAll('.icon')[0]
     icon.setAttribute('src', columnDef.generateIcon())
-    let sortIcon = headerCell.querySelector('.sort-icon') as HTMLElement
+    const sortIcon = headerCell.querySelector('.sort-icon') as HTMLElement
     if (columnDef.sortDirection == SortDirection.Descending) {
       sortIcon.setAttribute('src', 'data/ui/sort-down.png')
     } else if (columnDef.sortDirection == SortDirection.Ascending) {
@@ -415,9 +415,9 @@ export function updateAgentTable() {
 
     // Create the data cells.
     for (let i = 0; i < agents.length; i++) {
-      let agent = agents[i]
+      const agent = agents[i]
       if (agent != null) {
-        let dataCell = dataCellTemplate.cloneNode(true) as HTMLElement
+        const dataCell = dataCellTemplate.cloneNode(true) as HTMLElement
 
         var value: number
         if (columnDef.isFinal) {
@@ -434,7 +434,7 @@ export function updateAgentTable() {
         }
 
         dataCell.children[0].textContent = valueStr
-        let agentId = getAttr(agent, 'agent_id')
+        const agentId = getAttr(agent, 'agent_id')
         dataCell.setAttribute('data-agent-id', agentId.toString())
         if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject, 'agent_id')) {
           dataCell.classList.add('selected')
@@ -445,13 +445,13 @@ export function updateAgentTable() {
     table.appendChild(column)
   }
 
-  let newColumn = newColumnTemplate.cloneNode(true) as HTMLElement
-  let headerCell = newColumnHeaderCell.cloneNode(true) as HTMLElement
+  const newColumn = newColumnTemplate.cloneNode(true) as HTMLElement
+  const headerCell = newColumnHeaderCell.cloneNode(true) as HTMLElement
   newColumn.appendChild(headerCell)
   for (let i = 0; i < agents.length; i++) {
-    let dataCell = newColumnDataCell.cloneNode(true) as HTMLElement
-    let agent = agents[i]
-    let agentId = getAttr(agent, 'agent_id')
+    const dataCell = newColumnDataCell.cloneNode(true) as HTMLElement
+    const agent = agents[i]
+    const agentId = getAttr(agent, 'agent_id')
     dataCell.setAttribute('data-agent-id', agentId.toString())
     if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject, 'agent_id')) {
       dataCell.classList.add('selected')

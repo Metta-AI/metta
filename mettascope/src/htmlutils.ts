@@ -1,9 +1,9 @@
 /** Parses a hex color string into a float array. */
 export function parseHtmlColor(color: string): [number, number, number, number] {
   return [
-    parseInt(color.slice(1, 3), 16) / 255,
-    parseInt(color.slice(3, 5), 16) / 255,
-    parseInt(color.slice(5, 7), 16) / 255,
+    Number.parseInt(color.slice(1, 3), 16) / 255,
+    Number.parseInt(color.slice(3, 5), 16) / 255,
+    Number.parseInt(color.slice(5, 7), 16) / 255,
     1.0,
   ]
 }
@@ -73,7 +73,7 @@ type Handler = {
 var globalHandlers: Map<string, Handler[]> = new Map()
 
 export function onEvent(event: string, selector: string, callback: (target: HTMLElement, event: Event) => void) {
-  let handler: Handler = {
+  const handler: Handler = {
     selector: selector,
     event: event,
     callback: callback,
@@ -86,11 +86,11 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
         if (event == 'click') {
           hideMenu()
         }
-        let handlers = globalHandlers.get(event)
+        const handlers = globalHandlers.get(event)
         if (handlers) {
           var target = e.target as HTMLElement
           while (target != null) {
-            for (let handler of handlers) {
+            for (const handler of handlers) {
               // target.matches may be null if the mouse leaves the browser window
               if (target.matches && target.matches(handler.selector)) {
                 handler.callback(target, e)
@@ -126,7 +126,7 @@ export function showMenu(target: HTMLElement, menu: HTMLElement) {
   openMenuTarget = target
   openMenu = menu
   openMenuTarget.classList.add('selected')
-  let rect = openMenuTarget.getBoundingClientRect()
+  const rect = openMenuTarget.getBoundingClientRect()
   openMenu.style.left = rect.left + 'px'
   openMenu.style.top = rect.bottom + 2 + 'px'
   openMenu.classList.remove('hidden')
@@ -162,7 +162,7 @@ export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   hideDropdown()
   openDropdown = dropdown
   openDropdownTarget = target
-  let rect = openDropdownTarget.getBoundingClientRect()
+  const rect = openDropdownTarget.getBoundingClientRect()
   openDropdown.style.left = rect.left + 'px'
   openDropdown.style.top = rect.bottom + 2 + 'px'
   openDropdown.classList.remove('hidden')
@@ -184,11 +184,11 @@ export function hideDropdown() {
 
 /** Gets a number from local storage with a default value. */
 export function localStorageGetNumber(key: string, defaultValue: number): number {
-  let value = localStorage.getItem(key)
+  const value = localStorage.getItem(key)
   if (value == null) {
     return defaultValue
   }
-  return parseFloat(value)
+  return Number.parseFloat(value)
 }
 
 /** Sets a number in local storage. */
@@ -198,7 +198,7 @@ export function localStorageSetNumber(key: string, value: number) {
 
 /** Gets a whole data structure from local storage. */
 export function localStorageGetObject<T>(key: string, defaultValue: T): T {
-  let value = localStorage.getItem(key)
+  const value = localStorage.getItem(key)
   if (value == null) {
     return defaultValue
   }
@@ -240,7 +240,7 @@ export function initHighDpiMode() {
           if (node instanceof HTMLImageElement) {
             swapToHighDpiImage(node)
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            let e = node as HTMLElement
+            const e = node as HTMLElement
             e.querySelectorAll('img').forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
           }
         }

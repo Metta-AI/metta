@@ -60,16 +60,16 @@ class Mesh {
   private indexCapacity: number
   private vertexData: Float32Array
   private indexData: Uint32Array
-  private currentQuad: number = 0
-  private currentVertex: number = 0
+  private currentQuad = 0
+  private currentVertex = 0
 
   // Scissor properties
-  public scissorEnabled: boolean = false
+  public scissorEnabled = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
   // Caching properties
-  public cacheable: boolean = false
-  public isDirty: boolean = true
+  public cacheable = false
+  public isDirty = true
 
   constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
     this.name = name
@@ -290,27 +290,27 @@ class Mesh {
 export class Context3d {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
-  public ready: boolean = false
-  public dpr: number = 1
+  public ready = false
+  public dpr = 1
   public atlasData: AtlasData | null = null
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
   private atlasTexture: WebGLTexture | null = null
   private textureSize: Vec2f = new Vec2f(0, 0)
-  private atlasMargin: number = 4
+  private atlasMargin = 4
 
   // Shader locations
-  private positionLocation: number = -1
-  private texcoordLocation: number = -1
-  private colorLocation: number = -1
+  private positionLocation = -1
+  private texcoordLocation = -1
+  private colorLocation = -1
   private canvasSizeLocation: WebGLUniformLocation | null = null
   private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
   private currentMesh: Mesh | null = null
-  private currentMeshName: string = ''
+  private currentMeshName = ''
 
   // Transformation state
   private currentTransform: Mat3f
@@ -739,14 +739,14 @@ export class Context3d {
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y)          // Move origin to sprite center
-      this.rotate(rotation)         // Apply rotation
-      this.scale(scaleX, scaleY)    // Apply scaling
+      this.translate(x, y) // Move origin to sprite center
+      this.rotate(rotation) // Apply rotation
+      this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
-        -sw / 2 - m,  // Left edge: center minus half width minus margin
-        -sh / 2 - m,  // Top edge: center minus half height minus margin
-        sw + 2 * m,   // Total width including margins on both sides
-        sh + 2 * m,   // Total height including margins on both sides
+        -sw / 2 - m, // Left edge: center minus half width minus margin
+        -sh / 2 - m, // Top edge: center minus half height minus margin
+        sw + 2 * m, // Total width including margins on both sides
+        sh + 2 * m, // Total height including margins on both sides
         u0,
         v0,
         u1,
@@ -757,10 +757,10 @@ export class Context3d {
     } else {
       // Fast path: no transformations needed, draw directly
       this.drawRect(
-        x - sw / 2 - m,  // Left edge position
-        y - sh / 2 - m,  // Top edge position
-        sw + 2 * m,      // Total width including margins
-        sh + 2 * m,      // Total height including margins
+        x - sw / 2 - m, // Left edge position
+        y - sh / 2 - m, // Top edge position
+        sw + 2 * m, // Total width including margins
+        sh + 2 * m, // Total height including margins
         u0,
         v0,
         u1,
@@ -921,8 +921,8 @@ export class Context3d {
     y1: number,
     spacing: number,
     color: number[],
-    skipStart: number = 0,
-    skipEnd: number = 0
+    skipStart = 0,
+    skipEnd = 0
   ) {
     // Compute the angle of the line.
     const angle = Math.atan2(y1 - y0, x1 - x0)

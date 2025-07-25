@@ -1,13 +1,13 @@
-import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
-import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr } from './replay.js'
-import { PanelInfo } from './panels.js'
-import { updateStep, updateSelection } from './main.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
 import { parseHtmlColor } from './htmlutils.js'
+import { updateSelection, updateStep } from './main.js'
+import type { PanelInfo } from './panels.js'
+import { getAttr } from './replay.js'
+import { Vec2f } from './vector_math.js'
 
 // Cache tracking.
-let lastCachedState = {
+const lastCachedState = {
   step: -1,
   selection: null as any,
   zoomLevel: -1,

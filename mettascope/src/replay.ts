@@ -1,8 +1,8 @@
-import * as Common from './common.js'
-import { ui, state, html, ctx } from './common.js'
-import { focusFullMap } from './worldmap.js'
-import { onResize, updateStep, requestFrame } from './main.js'
 import { updateAgentTable } from './agentpanel.js'
+import * as Common from './common.js'
+import { ctx, html, state, ui } from './common.js'
+import { onResize, requestFrame, updateStep } from './main.js'
+import { focusFullMap } from './worldmap.js'
 
 /** Gets an attribute from a grid object, respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -60,7 +60,7 @@ export async function fetchReplay(replayUrl: string) {
     const contentType = response.headers.get('Content-Type')
     console.info('Content-Type: ', contentType)
     if (contentType === 'application/json') {
-      let replayData = await response.text()
+      const replayData = await response.text()
       loadReplayText(replayUrl, replayData)
     } else if (contentType === 'application/x-compress' || contentType === 'application/octet-stream') {
       // This is compressed JSON.
@@ -141,7 +141,7 @@ function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.action_images = []
   for (const actionName of state.replay.action_names) {
-    let path = 'trace/' + actionName + '.png'
+    const path = 'trace/' + actionName + '.png'
     if (ctx.hasImage(path)) {
       state.replay.action_images.push(path)
     } else {
@@ -219,12 +219,12 @@ function fixReplay() {
   }
 
   // The map size is not to be trusted. Recompute the map size just in case.
-  let oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]]
+  const oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]]
   state.replay.map_size[0] = 1
   state.replay.map_size[1] = 1
   for (const gridObject of state.replay.grid_objects) {
-    let x = getAttr(gridObject, 'c') + 1
-    let y = getAttr(gridObject, 'r') + 1
+    const x = getAttr(gridObject, 'c') + 1
+    const y = getAttr(gridObject, 'r') + 1
     state.replay.map_size[0] = Math.max(state.replay.map_size[0], x)
     state.replay.map_size[1] = Math.max(state.replay.map_size[1], y)
   }
@@ -329,7 +329,7 @@ export function loadReplayStep(replayStep: any) {
 
 /** Get object config. */
 export function getObjectConfig(object: any) {
-  let typeName = state.replay.object_types[object.type]
+  const typeName = state.replay.object_types[object.type]
   if (state.replay.config == null) {
     return null
   }
@@ -406,7 +406,7 @@ export function propertyName(key: string) {
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
   if (state.replay.object_types.includes(key)) {
-    let idx = state.replay.object_types.indexOf(key)
+    const idx = state.replay.object_types.indexOf(key)
     return 'data/atlas/' + state.replay.object_images[idx][0]
   } else if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
     return 'data/atlas/resources/' + key.replace('inv:', '').replace('agent:', '') + '.png'

@@ -14,10 +14,10 @@
 // * The recipe of the object.
 // * The memory menu button.
 
-import { find, findIn, onEvent, removeChildren, findAttr } from './htmlutils.js'
 import { state, ui } from './common.js'
-import { getAttr, getObjectConfig } from './replay.js'
 import * as Common from './common.js'
+import { find, findAttr, findIn, onEvent, removeChildren } from './htmlutils.js'
+import { getAttr, getObjectConfig } from './replay.js'
 import { Vec2f } from './vector_math.js'
 
 /** An info bubble. */
@@ -36,28 +36,28 @@ export class HoverBubble {
 }
 
 onEvent('click', '.hover-panel .close', (target: HTMLElement, e: Event) => {
-  let bubble = target.parentElement as HTMLElement
+  const bubble = target.parentElement as HTMLElement
   bubble.remove()
   ui.hoverBubbles = ui.hoverBubbles.filter((p) => p.div !== bubble)
 })
 
-let hoverBubbleTemplate = find('.hover-panel') as HTMLElement
-let paramTemplate = findIn(hoverBubbleTemplate, '.param')
-let itemTemplate = findIn(hoverBubbleTemplate, '.inventory .item')
-let recipeArrow = findIn(hoverBubbleTemplate, '.recipe .arrow')
+const hoverBubbleTemplate = find('.hover-panel') as HTMLElement
+const paramTemplate = findIn(hoverBubbleTemplate, '.param')
+const itemTemplate = findIn(hoverBubbleTemplate, '.inventory .item')
+const recipeArrow = findIn(hoverBubbleTemplate, '.recipe .arrow')
 hoverBubbleTemplate.remove()
 
-let hoverBubble = hoverBubbleTemplate.cloneNode(true) as HTMLElement
+const hoverBubble = hoverBubbleTemplate.cloneNode(true) as HTMLElement
 document.body.appendChild(hoverBubble)
 findIn(hoverBubble, '.actions').classList.add('hidden')
 hoverBubble.classList.add('hidden')
 
 hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
   // Create a new info bubble.
-  let bubble = new HoverBubble(ui.delayedHoverObject)
+  const bubble = new HoverBubble(ui.delayedHoverObject)
   bubble.div = hoverBubbleTemplate.cloneNode(true) as HTMLElement
   bubble.div.classList.add('draggable')
-  let tip = findIn(bubble.div, '.tip')
+  const tip = findIn(bubble.div, '.tip')
   tip.remove()
   document.body.appendChild(bubble.div)
   updateDom(bubble.div, bubble.object)
@@ -66,7 +66,7 @@ hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
 
   // Show the actions buttons (memory, etc.) if the object is an agent
   // and if the websocket is connected.
-  let actions = findIn(bubble.div, '.actions')
+  const actions = findIn(bubble.div, '.actions')
   if (state.ws != null && bubble.object.hasOwnProperty('agent_id')) {
     actions.classList.remove('hidden')
   } else {
@@ -75,7 +75,7 @@ hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
 
   ui.dragHtml = bubble.div
   // Compute mouse position relative to the bubble.
-  let rect = bubble.div.getBoundingClientRect()
+  const rect = bubble.div.getBoundingClientRect()
   ui.dragOffset = new Vec2f(e.clientX - rect.left, e.clientY - rect.top)
   ui.dragging = 'info-bubble'
   ui.hoverBubbles.push(bubble)
@@ -94,13 +94,13 @@ export function updateHoverBubble(object: any) {
   if (object !== null && object !== undefined) {
     // Is there a popup open for this object?
     // Then don't show a new one.
-    for (let bubble of ui.hoverBubbles) {
+    for (const bubble of ui.hoverBubbles) {
       if (bubble.object === object) {
         return
       }
     }
 
-    let typeName = state.replay.object_types[getAttr(object, 'type')]
+    const typeName = state.replay.object_types[getAttr(object, 'type')]
     if (typeName == 'wall') {
       // Don't show hover bubble for walls.
       hoverBubble.classList.add('hidden')
@@ -110,12 +110,12 @@ export function updateHoverBubble(object: any) {
     updateDom(hoverBubble, object)
     hoverBubble.classList.remove('hidden')
 
-    let bubbleRect = hoverBubble.getBoundingClientRect()
+    const bubbleRect = hoverBubble.getBoundingClientRect()
 
-    let x = getAttr(object, 'c') * Common.TILE_SIZE
-    let y = getAttr(object, 'r') * Common.TILE_SIZE
+    const x = getAttr(object, 'c') * Common.TILE_SIZE
+    const y = getAttr(object, 'r') * Common.TILE_SIZE
 
-    let uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
+    const uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
 
     // Put it in the center above the object.
     hoverBubble.style.left = uiPoint.x() - bubbleRect.width / 2 + 'px'
@@ -138,16 +138,16 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
   htmlBubble.setAttribute('data-object-id', getAttr(object, 'id'))
   htmlBubble.setAttribute('data-agent-id', getAttr(object, 'agent_id'))
 
-  let params = findIn(htmlBubble, '.params')
+  const params = findIn(htmlBubble, '.params')
   removeChildren(params)
-  let inventory = findIn(htmlBubble, '.inventory')
+  const inventory = findIn(htmlBubble, '.inventory')
   removeChildren(inventory)
   for (const key in object) {
     let value = getAttr(object, key)
     if ((key.startsWith('inv:') || key.startsWith('agent:inv:')) && value > 0) {
-      let item = itemTemplate.cloneNode(true) as HTMLElement
+      const item = itemTemplate.cloneNode(true) as HTMLElement
       item.querySelector('.amount')!.textContent = value
-      let resource = key.replace('inv:', '').replace('agent:', '')
+      const resource = key.replace('inv:', '').replace('agent:', '')
       item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
       inventory.appendChild(item)
     } else {
@@ -163,7 +163,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
       } else {
         continue
       }
-      let param = paramTemplate.cloneNode(true) as HTMLElement
+      const param = paramTemplate.cloneNode(true) as HTMLElement
       param.querySelector('.name')!.textContent = key
       param.querySelector('.value')!.textContent = value
       params.appendChild(param)
@@ -171,10 +171,10 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
   }
 
   // Populate the recipe area if the object config has input_ or output_ resources.
-  let recipe = findIn(htmlBubble, '.recipe')
+  const recipe = findIn(htmlBubble, '.recipe')
   removeChildren(recipe)
-  let recipeArea = findIn(htmlBubble, '.recipe-area')
-  let objectConfig = getObjectConfig(object)
+  const recipeArea = findIn(htmlBubble, '.recipe-area')
+  const objectConfig = getObjectConfig(object)
   let displayedResources = 0
   if (objectConfig != null) {
     recipeArea.classList.remove('hidden')
@@ -183,8 +183,8 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
     // otherwise use input_{resource} and output_{resource}.
     if (objectConfig.hasOwnProperty('input_resources') || objectConfig.hasOwnProperty('output_resources')) {
       // input_resources is a object like {heart: 1, blueprint: 1}
-      for (let resource in objectConfig.input_resources) {
-        let item = itemTemplate.cloneNode(true) as HTMLElement
+      for (const resource in objectConfig.input_resources) {
+        const item = itemTemplate.cloneNode(true) as HTMLElement
         item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
         item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
         recipe.appendChild(item)
@@ -194,8 +194,8 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
       recipe.appendChild(recipeArrow.cloneNode(true))
       // Add the output.
       if (objectConfig.hasOwnProperty('output_resources')) {
-        for (let resource in objectConfig.output_resources) {
-          let item = itemTemplate.cloneNode(true) as HTMLElement
+        for (const resource in objectConfig.output_resources) {
+          const item = itemTemplate.cloneNode(true) as HTMLElement
           item.querySelector('.amount')!.textContent = objectConfig.output_resources[resource]
           item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
           recipe.appendChild(item)
@@ -204,11 +204,11 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
       }
     } else {
       // Configs have input_{resource} and output_{resource}.
-      for (let key in objectConfig) {
+      for (const key in objectConfig) {
         if (key.startsWith('input_')) {
-          let resource = key.replace('input_', '')
-          let amount = objectConfig[key]
-          let item = itemTemplate.cloneNode(true) as HTMLElement
+          const resource = key.replace('input_', '')
+          const amount = objectConfig[key]
+          const item = itemTemplate.cloneNode(true) as HTMLElement
           item.querySelector('.amount')!.textContent = amount
           item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
           recipe.appendChild(item)
@@ -218,11 +218,11 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
       // Add the arrow.
       recipe.appendChild(recipeArrow.cloneNode(true))
       // Add the output.
-      for (let key in objectConfig) {
+      for (const key in objectConfig) {
         if (key.startsWith('output_')) {
-          let resource = key.replace('output_', '')
-          let amount = objectConfig[key]
-          let item = itemTemplate.cloneNode(true) as HTMLElement
+          const resource = key.replace('output_', '')
+          const amount = objectConfig[key]
+          const item = itemTemplate.cloneNode(true) as HTMLElement
           item.querySelector('.amount')!.textContent = amount
           item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
           recipe.appendChild(item)
@@ -246,7 +246,7 @@ export function updateReadout() {
   readout += 'Num agents: ' + state.replay.num_agents + '\n'
   readout += 'Max steps: ' + state.replay.max_steps + '\n'
 
-  let objectTypeCounts = new Map<string, number>()
+  const objectTypeCounts = new Map<string, number>()
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
@@ -255,7 +255,7 @@ export function updateReadout() {
   for (const [key, value] of objectTypeCounts.entries()) {
     readout += key + ' count: ' + value + '\n'
   }
-  let info = find('#info-panel .info')
+  const info = find('#info-panel .info')
   if (info !== null) {
     info.innerHTML = readout
   }
