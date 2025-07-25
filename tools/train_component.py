@@ -96,6 +96,11 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     # Get is_master
     is_master = int(os.environ.get("RANK", 0)) == 0
 
+    # Get stats client
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client is not None:
+        stats_client.validate_authenticated()
+
     # Create trainer with component architecture
     trainer = Trainer(
         trainer_config=cfg.trainer,
@@ -107,18 +112,13 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
         device=device,
         wandb_config=cfg.wandb if is_master else None,
         global_config=cfg if is_master else None,
+        stats_client=stats_client,
     )
 
-    # Note: Stats client functionality would need to be integrated into the Trainer
-    # For now, we'll skip it as it's not part of the core training loop
-    stats_client: StatsClient | None = get_stats_client(cfg, logger)
-    if stats_client is not None:
-        stats_client.validate_authenticated()
-        logger.warning("Stats client not yet integrated with component-based trainer")
-
     try:
-        # Set up trainer components
-        trainer.setup(vectorization=cfg.vectorization)
+        # Set up trainer components with seed from config
+        seed = cfg.get("seed", None)
+        trainer.setup(vectorization=cfg.vectorization, seed=seed)
 
         # Run training
         trainer.train()

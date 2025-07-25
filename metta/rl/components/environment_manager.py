@@ -3,11 +3,12 @@
 import logging
 from typing import Any, Optional
 
+import numpy as np
 import torch
 
-from metta.interface.environment import Environment
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.util.batch_utils import calculate_batch_sizes
+from metta.rl.vecenv import make_vecenv
 
 logger = logging.getLogger(__name__)
 
@@ -41,29 +42,35 @@ class EnvironmentManager:
         curriculum_path: Optional[str] = None,
         vectorization: str = "multiprocessing",
         is_training: bool = True,
-    ) -> Environment:
+        seed: Optional[int] = None,
+        rank: int = 0,
+    ) -> Any:
         """Create and configure the environment.
 
         Args:
             curriculum_path: Optional override for curriculum path
             vectorization: Vectorization mode ("serial", "multiprocessing", etc.)
             is_training: Whether this is for training (affects batch size calculation)
+            seed: Optional seed for environment reset
+            rank: Process rank for distributed training
 
         Returns:
-            Configured Environment instance
+            Configured vecenv instance
         """
         # Use provided curriculum or default from config
         curriculum = curriculum_path or self.trainer_config.curriculum
 
+        # Import here to avoid circular dependency
+        from omegaconf import DictConfig
+
+        from metta.mettagrid.curriculum.util import curriculum_from_config_path
+
+        # Create curriculum object
+        curr_obj = curriculum_from_config_path(curriculum, DictConfig(self.trainer_config.env_overrides))
+
         # For training, we need to calculate batch sizes first
         # We need to know num_agents, so let's peek at the curriculum
         if is_training:
-            # Import here to avoid circular dependency
-            from omegaconf import DictConfig
-
-            from metta.mettagrid.curriculum.util import curriculum_from_config_path
-
-            curr_obj = curriculum_from_config_path(curriculum, DictConfig({}))
             self._num_agents = curr_obj.get_task().env_cfg().game.num_agents
 
             # Calculate batch sizes
@@ -81,26 +88,26 @@ class EnvironmentManager:
             self._batch_size = 1024
             self._num_envs = 256
 
-        # Create environment
-        self._env = Environment(
-            curriculum_path=curriculum,
-            num_agents=self._num_agents,
-            width=32,  # Could be made configurable
-            height=32,  # Could be made configurable
-            device=str(self.device),
+        # Create vecenv using make_vecenv like the original
+        self._env = make_vecenv(
+            curr_obj,
+            vectorization,
             num_envs=self._num_envs,
-            num_workers=self.num_workers,
             batch_size=self._batch_size,
-            async_factor=self.trainer_config.async_factor,
+            num_workers=self.num_workers,
             zero_copy=self.trainer_config.zero_copy,
             is_training=is_training,
-            vectorization=vectorization,
         )
+
+        # Reset with seed like the original
+        if seed is None:
+            seed = np.random.randint(0, 1000000)
+        self._env.async_reset(seed + rank)
 
         return self._env
 
     @property
-    def env(self) -> Environment:
+    def env(self) -> Any:
         """Get the current environment, creating if needed."""
         if self._env is None:
             self.create_environment()
@@ -109,7 +116,7 @@ class EnvironmentManager:
     @property
     def driver_env(self) -> Any:
         """Get the underlying driver environment (MettaGridEnv)."""
-        return self.env.driver_env
+        return self.env.driver_env  # type: ignore[attr-defined]
 
     @property
     def num_agents(self) -> int:

@@ -10,6 +10,7 @@ import torch.distributed
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -61,6 +62,7 @@ class Trainer:
         device: Optional[torch.device] = None,
         wandb_config: Optional[DictConfig] = None,
         global_config: Optional[DictConfig] = None,
+        stats_client: Optional[StatsClient] = None,
     ):
         """Initialize trainer with all components.
 
@@ -74,6 +76,7 @@ class Trainer:
             device: Optional device override
             wandb_config: Optional wandb configuration
             global_config: Optional global configuration
+            stats_client: Optional stats client for tracking
         """
         self.trainer_config = trainer_config
         self.run_dir = run_dir
@@ -81,6 +84,7 @@ class Trainer:
         self.checkpoint_dir = checkpoint_dir
         self.replay_dir = replay_dir
         self.stats_dir = stats_dir
+        self.stats_client = stats_client
 
         # Set up device and distributed
         if device is None:
@@ -143,6 +147,7 @@ class Trainer:
         self.initial_policy_uri = None
         self.initial_generation = 0
         self.current_policy_generation = 0
+        self.wandb_policy_name = None
 
     def _create_policy_store_config(
         self,
@@ -175,16 +180,21 @@ class Trainer:
 
         return config
 
-    def setup(self, vectorization: str = "multiprocessing") -> None:
+    def setup(self, vectorization: str = "multiprocessing", seed: Optional[int] = None) -> None:
         """Set up all components for training.
 
         Args:
             vectorization: Vectorization mode for environment
+            seed: Optional seed for environment
         """
         self.timer.start()
 
         # Create environment
-        env = self.env_manager.create_environment(vectorization=vectorization)
+        env = self.env_manager.create_environment(
+            vectorization=vectorization,
+            seed=seed,
+            rank=self.rank,
+        )
         metta_grid_env = self.env_manager.driver_env
 
         # Create or load agent
@@ -205,11 +215,20 @@ class Trainer:
         self.initial_generation = policy_record.metadata.get("generation", 0) if policy_record else 0
         self.current_policy_generation = self.initial_generation + 1 if policy_record else 0
 
+        # Restore timer state if checkpoint exists
+        if checkpoint and checkpoint.stopwatch_state is not None:
+            self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
+
         # Get LSTM config
         hidden_size, num_lstm_layers = get_lstm_config(self.agent)
 
         # Validate policy matches environment
         validate_policy_environment_match(self.agent, metta_grid_env)
+
+        # Compile policy if configured
+        if self.trainer_config.compile:
+            logger.info("Compiling policy")
+            self.agent = torch.compile(self.agent, mode=self.trainer_config.compile_mode)
 
         # Create optimizer
         self.optimizer = self.optimizer_manager.create_optimizer(self.agent)
@@ -287,6 +306,7 @@ class Trainer:
             self.is_master,
             self.system_monitor,
             self.memory_monitor,
+            self.stats_client,
         )
         self.evaluation_manager = EvaluationManager(
             self.trainer_config,
@@ -294,6 +314,8 @@ class Trainer:
             self.device,
             self.stats_dir,
             self.is_master,
+            self.stats_client,
+            self.stats_manager.stats_tracker,
         )
 
         # Create torch profiler
@@ -303,6 +325,9 @@ class Trainer:
             self.wandb_run,
             self.run_dir,
         )
+
+        # Initialize stats tracking
+        self.stats_manager.initialize_stats_tracking(self.wandb_run)
 
     def train_epoch(self) -> Tuple[float, int]:
         """Run one training epoch (rollout + training).
@@ -495,7 +520,9 @@ class Trainer:
                 and should_run(self.epoch, self.trainer_config.checkpoint.wandb_checkpoint_interval, True)
             ):
                 try:
-                    self.policy_store.add_to_wandb_run(self.wandb_run.id, self.latest_saved_policy_record)
+                    self.wandb_policy_name = self.policy_store.add_to_wandb_run(
+                        self.wandb_run.id, self.latest_saved_policy_record
+                    )
                     logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
                 except Exception as e:
                     logger.warning(f"Failed to upload policy to wandb: {e}")
@@ -512,6 +539,8 @@ class Trainer:
                     self.epoch,
                     self.env_manager.get_curriculum(),
                     self.wandb_run,
+                    self.wandb_policy_name,
+                    self.agent_step,
                 )
                 self.stats_manager.update_eval_scores(eval_scores)
 
@@ -529,6 +558,11 @@ class Trainer:
         logger.info(f"Total training time: {total_elapsed:.1f}s")
         logger.info(f"Final epoch: {self.epoch}, Total steps: {self.agent_step}")
 
+        # Log timing summary
+        timing_summary = self.timer.get_all_summaries()
+        for name, summary in timing_summary.items():
+            logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
+
         # Final evaluation if needed
         if self.evaluation_manager.final_evaluation_needed(self.epoch) and self.latest_saved_policy_record:
             eval_scores = self.evaluation_manager.evaluate_policy(
@@ -536,11 +570,21 @@ class Trainer:
                 self.epoch,
                 self.env_manager.get_curriculum(),
                 self.wandb_run,
+                self.wandb_policy_name,
+                self.agent_step,
             )
             self.stats_manager.update_eval_scores(eval_scores)
 
         # Save final checkpoint
         self.checkpoint()
+
+        # Force upload final policy to wandb
+        if self.wandb_run and self.latest_saved_policy_record and self.is_master:
+            try:
+                self.policy_store.add_to_wandb_run(self.wandb_run.id, self.latest_saved_policy_record, force=True)
+                logger.info("Uploaded final policy to wandb")
+            except Exception as e:
+                logger.warning(f"Failed to upload final policy to wandb: {e}")
 
         if torch.distributed.is_initialized():
             torch.distributed.barrier()

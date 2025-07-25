@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
+from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.system_monitor import SystemMonitor
@@ -34,6 +35,7 @@ class StatsManager:
         is_master: bool = True,
         system_monitor: Optional[SystemMonitor] = None,
         memory_monitor: Optional[MemoryMonitor] = None,
+        stats_client: Optional[StatsClient] = None,
     ):
         """Initialize stats manager.
 
@@ -43,18 +45,47 @@ class StatsManager:
             is_master: Whether this is the master process
             system_monitor: Optional system monitor for resource tracking
             memory_monitor: Optional memory monitor for memory tracking
+            stats_client: Optional stats client for tracking training runs
         """
         self.trainer_config = trainer_config
         self.timer = timer
         self.is_master = is_master
         self.system_monitor = system_monitor
         self.memory_monitor = memory_monitor
+        self.stats_client = stats_client
 
         # Initialize stats tracker
         self.stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
 
         # Evaluation scores
         self.eval_scores = EvalRewardSummary()
+
+    def initialize_stats_tracking(self, wandb_run: Optional[Any] = None) -> None:
+        """Initialize stats tracking for training run.
+
+        Args:
+            wandb_run: Optional wandb run for extracting metadata
+        """
+        if self.stats_client is None:
+            return
+
+        if wandb_run is not None:
+            name = wandb_run.name if wandb_run.name is not None else "unknown"
+            url = wandb_run.url
+            tags = list(wandb_run.tags) if wandb_run.tags is not None else None
+            description = wandb_run.notes
+        else:
+            name = "unknown"
+            url = None
+            tags = None
+            description = None
+
+        try:
+            self.stats_tracker.stats_run_id = self.stats_client.create_training_run(
+                name=name, attributes={}, url=url, description=description, tags=tags
+            ).id
+        except Exception as e:
+            logger.warning(f"Failed to create training run: {e}")
 
     def process_rollout_stats(self, raw_infos: List[Any]) -> None:
         """Process statistics from rollout phase.

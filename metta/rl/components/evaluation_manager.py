@@ -8,6 +8,7 @@ import torch
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.evaluation import create_evaluation_config_suite
@@ -30,6 +31,8 @@ class EvaluationManager:
         device: torch.device,
         stats_dir: str,
         is_master: bool = True,
+        stats_client: Optional[StatsClient] = None,
+        stats_tracker: Optional[Any] = None,
     ):
         """Initialize evaluation manager.
 
@@ -39,12 +42,16 @@ class EvaluationManager:
             device: Device to run computations on
             stats_dir: Directory for storing evaluation statistics
             is_master: Whether this is the master process
+            stats_client: Optional stats client for tracking
+            stats_tracker: Optional stats tracker for epoch management
         """
         self.trainer_config = trainer_config
         self.policy_store = policy_store
         self.device = device
         self.stats_dir = stats_dir
         self.is_master = is_master
+        self.stats_client = stats_client
+        self.stats_tracker = stats_tracker
 
         # Create evaluation configuration
         self.evaluation_config = create_evaluation_config_suite()
@@ -75,6 +82,8 @@ class EvaluationManager:
         epoch: int,
         curriculum: Optional[Any] = None,
         wandb_run: Optional[Any] = None,
+        wandb_policy_name: Optional[str] = None,
+        agent_step: int = 0,
     ) -> EvalRewardSummary:
         """Evaluate a policy and return scores.
 
@@ -83,6 +92,8 @@ class EvaluationManager:
             epoch: Current training epoch
             curriculum: Optional curriculum object for adding training task
             wandb_run: Optional wandb run for logging
+            wandb_policy_name: Optional wandb policy name
+            agent_step: Current training step
 
         Returns:
             EvalRewardSummary with evaluation scores
@@ -91,6 +102,20 @@ class EvaluationManager:
             return EvalRewardSummary()
 
         logger.info(f"Evaluating policy at epoch {epoch}")
+
+        # Create stats epoch if needed
+        stats_epoch_id = None
+        if (
+            self.stats_client is not None
+            and self.stats_tracker is not None
+            and self.stats_tracker.stats_run_id is not None
+        ):
+            stats_epoch_id = self.stats_client.create_epoch(
+                run_id=self.stats_tracker.stats_run_id,
+                start_training_epoch=self.stats_tracker.stats_epoch_start,
+                end_training_epoch=epoch,
+                attributes={},
+            ).id
 
         # Create extended evaluation config with training task
         extended_eval_config = SimulationSuiteConfig(
@@ -117,9 +142,9 @@ class EvaluationManager:
             device=self.device,
             vectorization="serial",
             stats_dir=self.stats_dir,
-            stats_client=None,
-            stats_epoch_id=None,
-            wandb_policy_name=None,
+            stats_client=self.stats_client,
+            stats_epoch_id=stats_epoch_id,
+            wandb_policy_name=wandb_policy_name,
         )
 
         results = sim_suite.simulate()
@@ -162,11 +187,15 @@ class EvaluationManager:
         # Track that we evaluated at this epoch
         self.last_evaluation_epoch = epoch
 
+        # Update epoch tracking if stats tracker available
+        if self.stats_tracker is not None:
+            self.stats_tracker.update_epoch_tracking(epoch + 1)
+
         # Upload replay HTML if available
         if wandb_run and hasattr(results, "replay_urls") and results.replay_urls:
             upload_replay_html(
                 replay_urls=results.replay_urls,
-                agent_step=0,  # Will be provided by caller
+                agent_step=agent_step,
                 epoch=epoch,
                 wandb_run=wandb_run,
             )
