@@ -177,10 +177,8 @@ def fetch_protein_observations_from_wandb(
         }
     """
     api = wandb.Api()
-
     wandb_path = f"{wandb_entity}/{wandb_project}"
-    logger.info(f"Fetching protein observations from WandB for sweep ID: {wandb_sweep_id}")
-    logger.info(f"WandB path: {wandb_path}")
+
     # Use the API's native filtering and ordering
     # Order by created_at descending (newest first) and limit results
     runs = api.runs(
