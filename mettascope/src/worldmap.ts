@@ -2,8 +2,8 @@ import * as Common from './common.js'
 import { ctx, setFollowSelection, state, ui } from './common.js'
 import { Grid } from './grid.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
-import { find, parseHtmlColor } from './htmlutils.js'
-import { onFrame, updateSelection } from './main.js'
+import { parseHtmlColor } from './htmlutils.js'
+import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
 import type { PanelInfo } from './panels.js'
 import { getAttr, sendAction } from './replay.js'
@@ -677,9 +677,10 @@ function attackGrid(orientation: number, idx: number) {
   function div(a: number, b: number) {
     return Math.floor(a / b)
   }
+
   const i = idx - 1
-  let dx
-  let dy
+  let dx: number
+  let dy: number
   if (orientation === 0) {
     dx = mod(i, 3) - 1
     dy = -div(i, 3) - 1

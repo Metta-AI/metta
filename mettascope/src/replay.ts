@@ -20,23 +20,23 @@ export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): 
 async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   const decompressionStream = new DecompressionStream('deflate')
   const decompressedStream = stream.pipeThrough(decompressionStream)
-
   const reader = decompressedStream.getReader()
   const chunks: Array<Uint8Array> = []
-  let result
-  while (!(result = await reader.read()).done) {
+  let result: ReadableStreamReadResult<Uint8Array>
+
+  result = await reader.read()
+  while (!result.done) {
     chunks.push(result.value)
+    result = await reader.read()
   }
 
   const totalLength = chunks.reduce((acc, val) => acc + val.length, 0)
   const flattenedChunks = new Uint8Array(totalLength)
-
   let offset = 0
   for (const chunk of chunks) {
     flattenedChunks.set(chunk, offset)
     offset += chunk.length
   }
-
   const decoder = new TextDecoder()
   return decoder.decode(flattenedChunks)
 }
@@ -126,7 +126,7 @@ function removeSuffix(str: string, suffix: string) {
 }
 
 // Loads the replay text.
-async function loadReplayText(url: string, replayData: string) {
+function loadReplayText(url: string, replayData: string) {
   loadReplayJson(url, JSON.parse(replayData))
 }
 
@@ -166,8 +166,8 @@ function fixReplay() {
   // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
   // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
-  for (let i = 0; i < state.replay.object_types.length; i++) {
-    let typeName = state.replay.object_types[i]
+  state.replay.object_types.forEach((originalTypeName: string) => {
+    let typeName = originalTypeName
     // Remove known color suffixes.
     for (const color of Common.COLORS) {
       if (typeName.endsWith(`_${color[0]}`)) {
@@ -186,7 +186,7 @@ function fixReplay() {
       imageColor = 'objects/unknown.color.png'
     }
     state.replay.object_images.push([image, imageItem, imageColor])
-  }
+  })
 
   // Create a resource inventory mapping for faster access.
   // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
@@ -216,7 +216,7 @@ function fixReplay() {
           }
         }
       }
-      image = `resources/${type}.png`
+      const image = `resources/${type}.png`
       state.replay.resource_inventory.set(key, [image, color])
     }
   }
@@ -241,7 +241,7 @@ function fixReplay() {
 }
 
 /** Loads a replay from a JSON object. */
-async function loadReplayJson(url: string, replayData: any) {
+function loadReplayJson(url: string, replayData: any) {
   state.replay = replayData
 
   // Go through each grid object and expand its key sequence.

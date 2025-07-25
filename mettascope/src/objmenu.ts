@@ -7,8 +7,8 @@
  * so it works across tabs and can be saved to a file or sent across devices.
  */
 
-import { state, ui } from './common.js'
-import { find, findAttr, findIn, onEvent, showMenu } from './htmlutils.js'
+import { state } from './common.js'
+import { find, findAttr, onEvent, showMenu } from './htmlutils.js'
 
 const objectMenu = find('#object-menu')
 
@@ -69,7 +69,7 @@ onEvent('click', '#object-menu .set-memory-to-random', (target: HTMLElement, e: 
 })
 
 /** In the object menu, copies the memory. */
-onEvent('click', '#object-menu .copy-memory', async (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .copy-memory', (target: HTMLElement, e: Event) => {
   if (state.ws == null) {
     return
   }

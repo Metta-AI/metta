@@ -1,9 +1,8 @@
-import { html, setFollowSelection, state } from './common.js'
+import { state } from './common.js'
 import {
   find,
   findAttr,
   finds,
-  hideDropdown,
   hideMenu,
   localStorageGetObject,
   localStorageSetObject,
@@ -146,14 +145,14 @@ onEvent('click', '#agent-panel .header-cell .dropdown', (target: HTMLElement, e:
 
 /** Toggle the sort direction of the column. */
 function toggleSortDirection(columnField: string, columnIsFinal: boolean) {
-  for (let i = 0; i < columns.length; i++) {
-    if (columns[i].field === columnField && columns[i].isFinal === columnIsFinal) {
-      columns[i].sortDirection = SortDirection.Ascending
-      mainSort = columns[i]
+  columns.forEach((column) => {
+    if (column.field === columnField && column.isFinal === columnIsFinal) {
+      column.sortDirection = SortDirection.Ascending
+      mainSort = column
     } else {
-      columns[i].sortDirection = SortDirection.None
+      column.sortDirection = SortDirection.None
     }
-  }
+  })
   updateAgentTable()
   saveAgentTable()
   hideMenu()
@@ -234,13 +233,12 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
   const agentId = findAttr(target, 'data-agent-id')
   if (agentId !== '') {
-    for (let i = 0; i < state.replay.grid_objects.length; i++) {
-      const gridObject = state.replay.grid_objects[i]
+    state.replay.grid_objects.forEach((gridObject: any) => {
       if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') === agentId) {
         updateSelection(gridObject, true)
-        break
+        // Note: can't use break with forEach
       }
-    }
+    })
   }
 })
 
@@ -374,7 +372,7 @@ export function updateAgentTable() {
 
   const list = state.replay.agents.slice()
   const agents = list.sort((a: any, b: any) => {
-    let aValue
+    let aValue: number
     let bValue: number
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
@@ -414,8 +412,7 @@ export function updateAgentTable() {
     column.appendChild(headerCell)
 
     // Create the data cells.
-    for (let i = 0; i < agents.length; i++) {
-      const agent = agents[i]
+    agents.forEach((agent: any) => {
       if (agent != null) {
         const dataCell = dataCellTemplate.cloneNode(true) as HTMLElement
 
@@ -441,23 +438,23 @@ export function updateAgentTable() {
         }
         column.appendChild(dataCell)
       }
-    }
+    })
+
     table.appendChild(column)
   }
 
   const newColumn = newColumnTemplate.cloneNode(true) as HTMLElement
   const headerCell = newColumnHeaderCell.cloneNode(true) as HTMLElement
   newColumn.appendChild(headerCell)
-  for (let i = 0; i < agents.length; i++) {
+  agents.forEach((agent: any) => {
     const dataCell = newColumnDataCell.cloneNode(true) as HTMLElement
-    const agent = agents[i]
     const agentId = getAttr(agent, 'agent_id')
     dataCell.setAttribute('data-agent-id', agentId.toString())
     if (state.selectedGridObject != null && agentId === getAttr(state.selectedGridObject, 'agent_id')) {
       dataCell.classList.add('selected')
     }
     newColumn.appendChild(dataCell)
-  }
+  })
   table.appendChild(newColumn)
 
   // Restore the typeahead value.

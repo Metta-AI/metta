@@ -76,7 +76,7 @@ html {
   white-space: pre-wrap;
   overflow: auto;
   color: white;
-  font-family: "IBM Plex Mono";
+  font-family: "IBM Plex Mono", monospace;
   font-size: 12px;
 }
 

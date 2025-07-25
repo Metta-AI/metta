@@ -15,11 +15,11 @@ import {
 } from './htmlutils.js'
 import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
+import { fetchReplay, initWebSocket, readFile } from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
 import { drawTrace } from './traces.js'
-import { Mat3f, Vec2f } from './vector_math.js'
+import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
@@ -195,7 +195,7 @@ onEvent('pointerup', 'body', () => {
 })
 
 /** Handles pointer move events. */
-onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
+onEvent('pointermove', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   let target = event.target as HTMLElement

@@ -41,14 +41,9 @@ jobs:
           echo "Installation complete"
           echo "::endgroup::"
 
-      - name: Check formatting
+      - name: Check format and lint
         run: |
-          npx @biomejs/biome format --write .
-          if ! git diff --exit-code; then
-            echo "Code is not formatted. Please run 'biome format --write .'"
-            git diff --name-only
-            exit 1
-          fi
+          npx @biomejs/biome ci .
 
       - name: Run training
         run: |
