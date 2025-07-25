@@ -577,11 +577,11 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
 
   // '<' and '>' for zoom out/in on keyboard
   if (event.key == '<') {
-    const zoomSpeed = 0.05
+    const zoomSpeed = 0.06
     ui.mapPanel.zoomLevel = Math.max(ui.mapPanel.zoomLevel - zoomSpeed, Common.MIN_ZOOM_LEVEL)
   }
   if (event.key == '>') {
-    const zoomSpeed = 0.05
+    const zoomSpeed = 0.06
     ui.mapPanel.zoomLevel = Math.min(ui.mapPanel.zoomLevel + zoomSpeed, Common.MAX_ZOOM_LEVEL)
   }
   // '<' and '>' control the playback speed.
