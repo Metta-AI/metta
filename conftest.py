@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from metta.common.tests.fixtures import docker_client_fixture
+
 print(f"\n===== applying conftest from {Path(__file__)} =====")
 
 # Add dependencies to sys.path if not already present
@@ -46,3 +48,7 @@ def pytest_runtest_makereport(item, call):
                 print("--- STDERR ---")
                 print(report.capstderr)
             print(f"===== END VERBOSE OUTPUT FOR: {item.name} =====\n")
+
+
+# Register the docker_client fixture
+docker_client = docker_client_fixture()
