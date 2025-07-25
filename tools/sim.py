@@ -150,7 +150,7 @@ def _run_local_simulations(
     policy_store: PolicyStore,
     logger: logging.Logger,
 ) -> None:
-    if cfg.git_hash:
+    if sim_job.git_hash:
         raise ValueError("git_hash is not supported in local mode")
     all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
     device = torch.device(cfg.device)
