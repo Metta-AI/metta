@@ -247,14 +247,30 @@ jobs:
           # Use the matrix name for codecov flags
           SUBPACKAGES="${{ matrix.name }}" .github/scripts/upload_codecov.py
 
+  mettagrid-cpp-build:
+    name: "MettaGrid C++ Build & Coverage"
+    needs: [setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_test == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "testing"
+
       - name: Build MettaGrid C++ (with coverage)
-        if: matrix.package == 'mettagrid'
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py --with-coverage
 
       - name: Check MettaGrid build warnings
-        if: matrix.package == 'mettagrid' && always()
+        if: always()
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
@@ -274,7 +290,7 @@ jobs:
           fi
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
