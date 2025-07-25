@@ -37,6 +37,7 @@ cpplint_output*
 mettascope/dist
 
 **/node_modules
+**/.next
 /observatory/.vite/
 
 wandb
