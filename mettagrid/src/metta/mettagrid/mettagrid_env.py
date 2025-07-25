@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import math
 import os
 import time
 import uuid
@@ -24,38 +23,6 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
-
-# Try to import raylib components - will be None if not available
-try:
-    from raylib import (
-        FLAG_MSAA_4X_HINT,
-        PI,
-        WHITE,
-        BeginDrawing,
-        ClearBackground,
-        DrawTexturePro,
-        EndDrawing,
-        InitWindow,
-        LoadTexture,
-        SetConfigFlags,
-        SetTargetFPS,
-    )
-
-    RAYLIB_AVAILABLE = True
-except ImportError:
-    RAYLIB_AVAILABLE = False
-    # Set to None so we can check later
-    FLAG_MSAA_4X_HINT = None
-    PI = None
-    WHITE = None
-    BeginDrawing = None
-    ClearBackground = None
-    DrawTexturePro = None
-    EndDrawing = None
-    InitWindow = None
-    LoadTexture = None
-    SetConfigFlags = None
-    SetTargetFPS = None
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -126,16 +93,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         self._is_training = is_training
 
-        # Detect CI/Docker environment once at initialization
-        self._is_ci_environment = bool(
-            os.environ.get("CI")
-            or os.environ.get("GITHUB_ACTIONS")
-            or os.path.exists("/.dockerenv")  # Common Docker indicator
-        )
-
-        # Check raylib availability once at initialization
-        self._raylib_available = RAYLIB_AVAILABLE and not self._is_ci_environment
-
         self._initialize_c_env()
         super().__init__(buf)
 
@@ -148,6 +105,22 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
+            elif self._render_mode == "raylib":
+                # Only initialize raylib renderer if not in CI/Docker environment
+                is_ci_environment = bool(
+                    os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.path.exists("/.dockerenv")
+                )
+                if not is_ci_environment:
+                    try:
+                        from metta.mettagrid.renderer.raylib import RaylibRenderer
+
+                        self._renderer = RaylibRenderer(self.object_type_names, self.map_width, self.map_height)
+                    except ImportError:
+                        logger.warning("Raylib renderer requested but raylib not available")
+                        self._renderer = None
+                else:
+                    logger.info("Raylib renderer disabled in CI/Docker environment")
+                    self._renderer = None
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -443,62 +416,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
-        # Fast path for text-based renderers
+        # Use the configured renderer if available
         if self._renderer is not None and hasattr(self._renderer, "render"):
             return self._renderer.render(self._steps, self.grid_objects)
 
-        # Skip if raylib not available (checked once at init)
-        if not self._raylib_available:
-            return None
-
-        # Raylib rendering path
-        # Initialize raylib on first use
-        if self._renderer is None:
-            self._renderer = True
-            SetConfigFlags(FLAG_MSAA_4X_HINT)
-            InitWindow(16 * self.map_width, 16 * self.map_height, b"Mettagrid")
-            self.texture = LoadTexture(b"resources/shared/puffers.png")
-            SetTargetFPS(60)
-
-            self.tiles = {}
-            for id, name in enumerate(self.object_type_names):
-                name = f"/puffertank/metta/mettascope/data/atlas/objects/{name}.png"
-                self.tiles[id] = LoadTexture(name.encode("utf-8"))
-
-        BeginDrawing()
-        background = [207, 169, 112, 255]
-        ClearBackground(background)
-        sz = 16
-
-        for obj in self.grid_objects.values():
-            type = obj["type"]
-            tex = self.tiles[type]
-
-            tint = WHITE
-            if self.object_type_names[type] == "agent":
-                id = obj["id"]
-                tint = [
-                    int(255 * ((id * PI) % 1.0)),
-                    int(255 * ((id * math.e) % 1.0)),
-                    int(255 * ((id * 2.0**0.5) % 1.0)),
-                    255,
-                ]
-
-            y = obj["r"]
-            x = obj["c"]
-            size = sz * (256.0 / 200.0)
-            DrawTexturePro(
-                tex,
-                [0, 0, tex.width, tex.height],
-                [x * sz, y * sz, size, size],
-                [0, 0],
-                0,
-                tint,
-            )
-
-        # DrawTexture(self.texture, 128, 128, WHITE)
-        # DrawText(b'Hello World!', 190, 200, 20, LIGHTGRAY)
-        EndDrawing()
+        return None
 
     @property
     @override
