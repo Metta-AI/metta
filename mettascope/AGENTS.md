@@ -41,4 +41,11 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 
 ## Programming Guidelines
 
+- common.ts is imported by most parts of mettascope and contains all the state.
+- Most constants should live in ./mettascope/src/common.ts
+- Do not use 'magic numbers' in code, instead name them as constants in common.ts
+
+- ./mettascope/src/vector_math.ts has Vec2f and Mat3f. use them!
+- Do not pass X and Y arguments separately. pass them as a Vec2f.
+- all code comments should be full sentences and include a period at the end.
 - when working with `gridObject`s, do not access properties directly. you must use `getAttr()` from replay.ts

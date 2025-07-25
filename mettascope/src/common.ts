@@ -20,6 +20,7 @@ export const PANEL_BOTTOM_MARGIN = 60
 export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0]
+export const CAMERA_FOLLOW_MARGIN = 0.25 // How close can the agent get to the edge of the screen before the camera moves.
 
 // Map constants
 export const TILE_SIZE = 200

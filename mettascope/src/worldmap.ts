@@ -837,9 +837,66 @@ export function drawMap(panel: PanelInfo) {
 
   // If we're following a selection, center the map on it.
   if (state.followSelection && state.selectedGridObject !== null) {
-    const x = getAttr(state.selectedGridObject, 'c')
-    const y = getAttr(state.selectedGridObject, 'r')
-    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
+    const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
+    const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
+    panel.panPos = new Vec2f(-objX, -objY)
+  }
+  // If we have a selected object (but not following), keep it within a bounding box.
+  else if (!state.followSelection && state.selectedGridObject !== null) {
+    const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
+    const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
+
+    // Check if the agent has moved from the previous step.
+    const prevStep = Math.max(0, state.step - 1)
+    const prevX = getAttr(state.selectedGridObject, 'c', prevStep) * Common.TILE_SIZE
+    const prevY = getAttr(state.selectedGridObject, 'r', prevStep) * Common.TILE_SIZE
+    const hasMoved = objX !== prevX || objY !== prevY
+
+    // Only apply camera follow if the agent has actually moved.
+    if (hasMoved) {
+      // Calculate the screen-space position of the selected object.
+      const rect = panel.rectInner()
+      const screenX = rect.x + rect.width / 2 + (objX + panel.panPos.x()) * panel.zoomLevel
+      const screenY = rect.y + rect.height / 2 + (objY + panel.panPos.y()) * panel.zoomLevel
+
+      // Define an inner bounding box (25% margin on every side).
+      const marginX = rect.width * Common.CAMERA_FOLLOW_MARGIN
+      const marginY = rect.height * Common.CAMERA_FOLLOW_MARGIN
+      const boxLeft = rect.x + marginX
+      const boxRight = rect.x + rect.width - marginX
+      const boxTop = rect.y + marginY
+      const boxBottom = rect.y + rect.height - marginY
+
+      // Move camera in discrete steps when the object leaves the bounding box.
+      if (screenX < boxLeft || screenX > boxRight || screenY < boxTop || screenY > boxBottom) {
+        // Calculate how much to move the camera in discrete steps.
+        const boxWidth = rect.width - 2 * marginX
+        const boxHeight = rect.height - 2 * marginY
+
+        // Move camera by 2/3 of the visible area in the direction the agent crossed.
+        const stepX = (boxWidth * 2 / 3) / panel.zoomLevel
+        const stepY = (boxHeight * 2 / 3) / panel.zoomLevel
+
+        // Start with current camera position.
+        let targetX = panel.panPos.x()
+        let targetY = panel.panPos.y()
+
+        // Move horizontally if needed (prioritize horizontal movement).
+        if (screenX < boxLeft) {
+          targetX += stepX
+        } else if (screenX > boxRight) {
+          targetX -= stepX
+        }
+        // Move vertically only if not moving horizontally.
+        else if (screenY < boxTop) {
+          targetY += stepY
+        } else if (screenY > boxBottom) {
+          targetY -= stepY
+        }
+
+        panel.panPos = new Vec2f(targetX, targetY)
+      }
+    }
   }
 
   // Ensure that at least a portion of the map remains visible.

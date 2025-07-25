@@ -7,7 +7,7 @@
  * - Shows overall view.
  */
 
-import { requestFrame, setIsPlaying } from './main.js'
+import { requestFrame, setIsPlaying, updateSelection } from './main.js'
 import { focusFullMap, focusMap } from './worldmap.js'
 import { ui, state } from './common.js'
 import { getAttr } from './replay.js'
@@ -79,8 +79,7 @@ export function doDemoMode() {
     if (Math.random() < 0.1) {
       // Create a shot that just shows the overall view.
       shot = new Shot(ShotType.SHOW_OVERALL_VIEW, 0, 3, 0)
-      state.selectedGridObject = null
-      state.followSelection = false
+      updateSelection(null, false) // Deselect agent
       focusFullMap(ui.mapPanel)
       shot.zooming = choose([-0.2, 0.2]) * ui.mapPanel.zoomLevel
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.2
