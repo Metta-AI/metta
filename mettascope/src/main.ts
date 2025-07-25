@@ -4,7 +4,7 @@ import * as Common from './common.js'
 import { ctx, html, setFollowSelection, state, ui } from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
 import { hideGlyphEditorPanel, initGlyphTable, showGlyphEditorPanel } from './glyphtable.js'
-import { hideHoverBubble } from './hoverbubbles.js'
+import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
 import {
   find,
   hideDropdown,
