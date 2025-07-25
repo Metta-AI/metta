@@ -28,6 +28,6 @@ class ObservatoryFeSetup(SetupModule):
             warning("Observatory directory not found")
             return
 
-        self.run_command(["npm", "install"], cwd=observatory_dir)
+        self.run_command(["pnpm", "install"], cwd=observatory_dir)
 
         success("Observatory frontend installed")
