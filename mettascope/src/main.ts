@@ -522,10 +522,32 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   }
   // '<' and '>' control the playback speed.
   if (event.key == ',') {
-    state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
+    // Find current speed index
+    let currentIndex = 1
+    for (let i = Common.SPEEDS.length - 1; i >= 0; i--) {
+      if (state.playbackSpeed >= Common.SPEEDS[i]) {
+        currentIndex = i
+        break
+      }
+    }
+    // Move to previous (slower) speed
+    if (currentIndex > 0) {
+      setPlaybackSpeed(Common.SPEEDS[currentIndex - 1])
+    }
   }
   if (event.key == '.') {
-    state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000)
+    // Find current speed index
+    let currentIndex = 1
+    for (let i = 0; i < Common.SPEEDS.length; i++) {
+      if (state.playbackSpeed <= Common.SPEEDS[i]) {
+        currentIndex = i
+        break
+      }
+    }
+    // Move to next (faster) speed
+    if (currentIndex < Common.SPEEDS.length - 1) {
+      setPlaybackSpeed(Common.SPEEDS[currentIndex + 1])
+    }
   }
   // The space bar presses the play button.
   if (event.key == ' ') {
@@ -733,6 +755,7 @@ export function setIsPlaying(isPlaying: boolean) {
 /** Sets the playback speed and updates the speed buttons. */
 function setPlaybackSpeed(speed: number) {
   state.playbackSpeed = speed
+  localStorage.setItem('playbackSpeed', state.playbackSpeed.toString())
   // Update the speed buttons to show the current speed.
   for (let i = 0; i < html.speedButtons.length; i++) {
     toggleOpacity(html.speedButtons[i], Common.SPEEDS[i] <= speed)
@@ -825,6 +848,12 @@ toggleOpacity(html.fullScreenToggle, state.fullScreen)
 // Speed buttons
 for (let i = 0; i < html.speedButtons.length; i++) {
   html.speedButtons[i].addEventListener('click', () => setPlaybackSpeed(Common.SPEEDS[i]))
+}
+
+// Load playback speed from localStorage
+if (localStorage.hasOwnProperty('playbackSpeed')) {
+  const savedSpeed = parseFloat(localStorage.getItem('playbackSpeed') || '0.1')
+  setPlaybackSpeed(savedSpeed)
 }
 
 onEvent('click', '#resources-toggle', () => {
@@ -995,7 +1024,11 @@ window.addEventListener('load', async () => {
   ui.dpr = ctx.dpr
 
   await parseUrlParams()
-  setPlaybackSpeed(0.1)
+
+  // Set default playback speed only if not already loaded from localStorage
+  if (!localStorage.hasOwnProperty('playbackSpeed')) {
+    setPlaybackSpeed(0.1)
+  }
 
   requestFrame()
 })
