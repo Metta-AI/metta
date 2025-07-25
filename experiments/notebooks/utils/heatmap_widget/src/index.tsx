@@ -89,6 +89,58 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
         }
     };
 
+    // Transform data to use selected metric
+    const transformedData = React.useMemo(() => {
+        if (!heatmapData || !selectedMetric) return heatmapData;
+
+        const transformedCells: any = {};
+        const transformedPolicyAverages: any = {};
+
+        // Transform cells to use selected metric value
+        Object.keys(heatmapData.cells).forEach(policyName => {
+            transformedCells[policyName] = {};
+            const policy = heatmapData.cells[policyName];
+
+            Object.keys(policy).forEach(evalName => {
+                const cell = policy[evalName];
+                let value = 0;
+
+                // Check if cell has metrics object or single value
+                if (cell.metrics && typeof cell.metrics === 'object') {
+                    value = cell.metrics[selectedMetric] ?? 0;
+                } else {
+                    // Fallback to single value (backwards compatibility)
+                    value = cell.value ?? 0;
+                }
+
+                transformedCells[policyName][evalName] = {
+                    ...cell,
+                    value: value
+                };
+            });
+
+            // Calculate policy average for selected metric
+            const evalNames = Object.keys(policy);
+            const total = evalNames.reduce((sum, evalName) => {
+                const cell = policy[evalName];
+                let value = 0;
+                if (cell.metrics && typeof cell.metrics === 'object') {
+                    value = cell.metrics[selectedMetric] ?? 0;
+                } else {
+                    value = cell.value ?? 0;
+                }
+                return sum + value;
+            }, 0);
+            transformedPolicyAverages[policyName] = evalNames.length > 0 ? total / evalNames.length : 0;
+        });
+
+        return {
+            ...heatmapData,
+            cells: transformedCells,
+            policyAverageScores: transformedPolicyAverages
+        };
+    }, [heatmapData, selectedMetric]);
+
     if (!heatmapData || !heatmapData.cells || Object.keys(heatmapData.cells).length === 0) {
         return (
             <div style={{
@@ -119,7 +171,7 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
             fontFamily: 'Arial, sans-serif'
         }}>
             <Heatmap
-                data={heatmapData}
+                data={transformedData}
                 selectedMetric={selectedMetric}
                 setSelectedCell={setSelectedCell}
                 openReplayUrl={openReplayUrl}
