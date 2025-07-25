@@ -83,7 +83,7 @@ cache-keys = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.mettagrid"]
+include = ["metta.mettagrid", "metta.mettagrid.*"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
