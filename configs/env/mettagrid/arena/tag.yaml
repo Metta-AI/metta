@@ -11,28 +11,28 @@ defaults:
   - _self_
 
 game:
-  num_agents: 512  # where: increased from 24 to match high-agent-count configuration
+  num_agents: 64  # where: set to 64 to match basic config
   map_builder:
     _target_: metta.map.mapgen.MapGen
 
-    width: 64  # where: increased from 25 to accommodate more agents
-    height: 64  # where: increased from 25 to accommodate more agents
-    instances: 16  # where: increased from 4 to maintain 32 agents per instance (512/16=32)
+    width: 64  # where: 64x64 map size
+    height: 64  # where: 64x64 map size
+    instances: 4  # where: maintaining 16 agents per instance (64/4=16)
     instance_border_width: 0
 
     root:
       type: metta.map.scenes.random.Random
       params:
-        agents: 32  # where: increased from 6 to match 32 agents per instance
+        agents: 16  # where: 16 agents per instance
         objects:
-          mine_red: 50  # where: scaled from 10 (5x increase for 32 agents vs original 6)
-          generator_red: 25  # where: scaled from 5 (5x increase)
-          altar: 10  # where: scaled from 2 (5x increase)
-          lasery: 10  # where: scaled from 2 (5x increase)
-          armory: 10  # where: scaled from 2 (5x increase)
+          mine_red: 20  # where: scaled proportionally for 16 agents
+          generator_red: 10  # where: scaled proportionally
+          altar: 4  # where: scaled proportionally
+          lasery: 4  # where: scaled proportionally
+          armory: 4  # where: scaled proportionally
 
-          block: 100  # where: scaled from 20 (5x increase)
-          wall: 100  # where: scaled from 20 (5x increase)
+          block: 40  # where: scaled proportionally
+          wall: 40  # where: scaled proportionally
 
   objects:
     altar:

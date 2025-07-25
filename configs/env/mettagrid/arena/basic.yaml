@@ -7,27 +7,30 @@ defaults:
       - basic
       - mines
       - generators
+  - /env/mettagrid/game/agent/rewards/custom@game.agent.rewards
   - _self_
 
 game:
-  num_agents: 512  # where: increased from 24 to match high-agent-count configuration
+  num_agents: 64  # where: set to 64 as specified in target config
+  agent:
+    default_resource_limit: 10  # where: from target config game.agent.default_resource_limit
   map_builder:
     _target_: metta.map.mapgen.MapGen
 
-    width: 64  # where: increased from 25 to accommodate 32 agents per instance
-    height: 64  # where: increased from 25 to accommodate 32 agents per instance
-    instances: ${div:${..num_agents},32}  # where: changed divisor from 6 to 32 for fewer, larger instances
+    width: 64  # where: 64x64 as specified
+    height: 64  # where: 64x64 as specified
+    instances: 1  # where: single room as specified (num_rooms: 1)
     border_width: 6
     instance_border_width: 0
 
     root:
       type: metta.map.scenes.random.Random
       params:
-        agents: 32  # where: increased from 6 to match 32 agents per instance
+        agents: 64  # where: all 64 agents in single room
         objects:
-          mine_red: 50  # where: scaled from 10 (5x increase for 32 agents vs original 6)
-          generator_red: 25  # where: scaled from 5 (5x increase)
-          altar: 25  # where: scaled from 5 (5x increase)
+          mine_red: 128  # where: from target config objects.mine_red
+          generator_red: 64  # where: from target config objects.generator_red
+          altar: 32  # where: from target config objects.altar
 
-          block: 100  # where: scaled from 20 (5x increase)
-          wall: 100  # where: scaled from 20 (5x increase)
+          block: 0  # where: no blocks specified in target config
+          wall: 0  # where: no walls specified in target config

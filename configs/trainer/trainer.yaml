@@ -1,5 +1,5 @@
 _target_: metta.rl.trainer.MettaTrainer
-num_workers: null  # determined by train.py if not specified
+num_workers: 16  # where: from target config vec.num_workers
 
 curriculum: ???
 env_overrides: {}
@@ -22,14 +22,14 @@ simulation:
 
 grad_mean_variance_interval: 0 # 0 to disable
 
-total_timesteps: 10_000_000_000
+total_timesteps: 300_000_000  # where: from target config train.total_timesteps
 
 optimizer:
   type: adam
-  beta1: 0.9
-  beta2: 0.999
-  eps: 1e-12
-  learning_rate: 0.000457
+  beta1: 0.8923106632311335  # where: from target config adam_beta1
+  beta2: 0.9632470625784862  # where: from target config adam_beta2
+  eps: 1.3537431449843922e-7  # where: from target config adam_eps
+  learning_rate: 0.018470110879570414  # where: from target config learning_rate
   weight_decay: 0
 
 lr_scheduler:
@@ -40,15 +40,15 @@ lr_scheduler:
 
 ppo:
   # Core PPO hyperparameters
-  clip_coef: 0.1
-  ent_coef: 0.0021
-  gae_lambda: 0.916
-  gamma: 0.977
+  clip_coef: 0.14919147162017737  # where: from target config clip_coef
+  ent_coef: 0.016700174334611493  # where: from target config ent_coef
+  gae_lambda: 0.8443676864928215  # where: from target config gae_lambda
+  gamma: 0.997950174315581  # where: from target config gamma
 
   # Training parameters
-  max_grad_norm: 0.5
-  vf_clip_coef: 0.1
-  vf_coef: 0.44
+  max_grad_norm: 2.572849891206465  # where: from target config max_grad_norm
+  vf_clip_coef: 0.1569624916309049  # where: from target config vf_clip_coef
+  vf_coef: 3.2211333828684454  # where: from target config vf_coef
   l2_reg_loss_coef: 0
   l2_init_loss_coef: 0
   norm_adv: true
@@ -57,13 +57,13 @@ ppo:
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
-  prio_alpha: 0.0 # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
-  prio_beta0: 0.6 # Initial importance sampling correction
+  prio_alpha: 0.7918451491719373  # where: from target config prio_alpha
+  prio_beta0: 0.5852686803034238  # where: from target config prio_beta0
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:
-  vtrace_rho_clip: 1.0 # Default: on-policy (no off-policy correction)
-  vtrace_c_clip: 1.0 # Default: on-policy bootstrapping
+  vtrace_rho_clip: 2.296343917695581  # where: from target config vtrace_rho_clip
+  vtrace_c_clip: 2.134490283650365  # where: from target config vtrace_c_clip
 
 zero_copy: true
 require_contiguous_env_ids: false
@@ -81,31 +81,26 @@ profiler:
   interval_epochs: 10000
   profile_dir: s3://softmax-public/torch_traces/${run}
 
-forward_pass_minibatch_target_size: 2048  # where: halved from 4096 to get 8 envs with 512 agents each
+forward_pass_minibatch_target_size: 4096  # where: back to 4096 for 64 envs with 64 agents each
 async_factor: 2
 scale_batches_by_world_size: false
 
 # Hyperparameter scheduler configuration
 hyperparameter_scheduler:
   learning_rate_schedule:
-    _target_: metta.rl.hyperparameter_scheduler.CosineSchedule
-    min_value: 0.00003
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule  # where: keep learning rate constant as per target config
     initial_value: ${...optimizer.learning_rate}
 
   ppo_clip_schedule:
-    _target_: metta.rl.hyperparameter_scheduler.LogarithmicSchedule
-    min_value: 0.05
-    decay_rate: 0.1
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule  # where: keep clip coef constant as per target config
     initial_value: ${...ppo.clip_coef}
 
   ppo_ent_coef_schedule:
-    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
-    min_value: 0.0
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule  # where: keep ent coef constant as per target config
     initial_value: ${...ppo.ent_coef}
 
   ppo_vf_clip_schedule:
-    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
-    min_value: 0.05
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule  # where: keep vf clip constant as per target config
     initial_value: ${...ppo.vf_clip_coef}
 
   ppo_l2_reg_loss_schedule:
