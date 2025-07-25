@@ -8,7 +8,8 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_balanced: 1
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
-  # Removed sparse task which has mandatory width/height fields
+  # Use the bucketed sparse curriculum instead of the raw config
+  /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
 
   # Grid tasks - using our new training config
   /env/mettagrid/navigation/training/grid_multiroom: 1
