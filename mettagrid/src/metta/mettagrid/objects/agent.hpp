@@ -75,8 +75,10 @@ public:
   RewardType current_resource_reward;
   RewardType current_stat_reward;
   RewardType* reward;
+  int* how_long_blue_battery_held;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+
+    Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
@@ -95,13 +97,18 @@ public:
         stats(),  // default constructor
         current_resource_reward(0),
         current_stat_reward(0),
-        reward(nullptr) {
-    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
+        reward(nullptr),
+        how_long_blue_battery_held(new int(0)) {
+      GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
+    }
+
+  ~Agent() {
+    delete how_long_blue_battery_held;
   }
 
   void init(RewardType* reward_ptr) {
-    this->reward = reward_ptr;
-  }
+      this->reward = reward_ptr;
+    }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
     // Get the initial amount (0 if item doesn't exist)

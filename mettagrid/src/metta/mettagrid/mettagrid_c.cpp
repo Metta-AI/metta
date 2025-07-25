@@ -78,25 +78,15 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   _action_success.resize(num_agents);
 
   // Find blue battery item index once
-  int blue_battery_item = -1;
+
+  unsigned char _blue_battery_item = -1;
   for (size_t i = 0; i < inventory_item_names.size(); ++i) {
     if (inventory_item_names[i] == "battery_blue") {
-      blue_battery_item = static_cast<int>(i);
+      _blue_battery_item = static_cast<unsigned char>(i);
       // while (true) {
       //   // This loop will run forever
       // }
       break;
-    }
-  }
-  std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
-  dbg << "[DEBUG] cfg.actions size: " << cfg.actions.size() << std::endl;
-  for (const auto& [action_name, action_config] : cfg.actions) {
-    dbg << "[DEBUG] action: " << action_name << std::endl;
-    if (action_config) {
-      dbg << "         config ptr: valid" << std::endl;
-      dbg << "         type: " << typeid(*action_config).name() << std::endl;
-    } else {
-      dbg << "         config ptr: nullptr" << std::endl;
     }
   }
 
@@ -104,21 +94,15 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     std::string action_name_str = action_name;
 
     if (action_name_str == "put_items") {
-      std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
-      dbg << "[DEBUG] we do have put_items" << std::endl;
       TypeId box_type_id = cfg.objects.at("box").get()->type_id;
       const std::string& box_type_name = "box"; //cfg.objects.at("box").get()->type_name;
 
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config, box_type_id, box_type_name, blue_battery_item));
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config, box_type_id, box_type_name, _blue_battery_item));
     } else if (action_name_str == "get_items") {
-      std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
-      dbg << "[DEBUG] we do have get_items" << std::endl;
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config, blue_battery_item));
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config, _blue_battery_item));
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      std::ofstream dbg("/tmp/mettagrid_grid_objects_debug.log", std::ios_base::app);
-      dbg << "[DEBUG] we do have move" << std::endl;
       _action_handlers.push_back(std::make_unique<Move>(*action_config));
       _move_handler_idx = _action_handlers.size() - 1;
     } else if (action_name_str == "rotate") {
@@ -501,6 +485,21 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   // Process deferred moves
   _action_handlers[_move_handler_idx]->process_deferred_moves();
+
+  // IMPLEMENT BATTERY HOLDING COUNTER AS WELL AS MAKING SURE PENALTY FOR HOLDING IS UP
+  // Go through all agents and increment how_long_blue_battery_held for those holding a blue_battery
+  for (auto& agent : _agents) {
+    // Check if agent holds at least one blue_battery using the blue_battery_item index
+    if (_blue_battery_item != static_cast<unsigned char>(-1)) {
+      auto it = agent->inventory.find(_blue_battery_item);
+      if (it != agent->inventory.end() && it->second > 0 && agent->how_long_blue_battery_held) {
+        (*agent->how_long_blue_battery_held)++;
+      }
+    }
+    if (agent->how_long_blue_battery_held && *agent->how_long_blue_battery_held >= 20 && agent->reward) {
+      *agent->reward -= 10.0f;
+    }
+  }
 
   // Compute observations for next step
   _compute_observations(actions);

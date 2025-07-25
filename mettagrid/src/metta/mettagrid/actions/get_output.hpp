@@ -52,10 +52,10 @@ protected:
       if (box) {
         debug_log << "  Found box at target. box->creator_agent_id=" << int(box->creator_agent_id)
                   << ", actor->agent_id=" << int(actor->agent_id) << "\n";
-        // if (actor->agent_id == box->creator_agent_id) {
-        //   // Creator cannot open their own box
-        //   return false;
-        // }
+        if (actor->agent_id == box->creator_agent_id) {
+          // Creator cannot open their own box
+          return false;
+        }
         // Direct lookup using creator_agent_object_id
         Agent* creator = dynamic_cast<Agent*>(_grid->object(box->creator_agent_object_id));
         debug_log << "  Creator agent object id: " << int(box->creator_agent_object_id)
@@ -68,6 +68,12 @@ protected:
         debug_log << "  Returning blue battery to creator.\n";
         // Return blue battery to creator
         creator->update_inventory(blue_battery_item_, 1);
+        debug_log << "  Creator reward before: " << (creator->reward ? *creator->reward : 0.0f) << "\n";
+        debug_log << "  Actor reward before: " << (actor->reward ? *actor->reward : 0.0f) << "\n";
+        if (creator->reward) *creator->reward -= 1.0f;
+        if (actor->reward) *actor->reward += 1.0f;
+        debug_log << "  Creator reward after: " << (creator->reward ? *creator->reward : 0.0f) << "\n";
+        debug_log << "  Actor reward after: " << (actor->reward ? *actor->reward : 0.0f) << "\n";
         // debug_log << "  Removing box from grid.\n";
         // // Remove box from grid
         _grid->remove_object(box);
