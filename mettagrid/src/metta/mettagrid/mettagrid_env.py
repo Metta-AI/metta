@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import logging
 import math
+import os
 import time
 import uuid
 from typing import Any, Dict, Optional, cast
@@ -23,6 +24,38 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+
+# Try to import raylib components - will be None if not available
+try:
+    from raylib import (
+        FLAG_MSAA_4X_HINT,
+        PI,
+        WHITE,
+        BeginDrawing,
+        ClearBackground,
+        DrawTexturePro,
+        EndDrawing,
+        InitWindow,
+        LoadTexture,
+        SetConfigFlags,
+        SetTargetFPS,
+    )
+
+    RAYLIB_AVAILABLE = True
+except ImportError:
+    RAYLIB_AVAILABLE = False
+    # Set to None so we can check later
+    FLAG_MSAA_4X_HINT = None
+    PI = None
+    WHITE = None
+    BeginDrawing = None
+    ClearBackground = None
+    DrawTexturePro = None
+    EndDrawing = None
+    InitWindow = None
+    LoadTexture = None
+    SetConfigFlags = None
+    SetTargetFPS = None
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -92,6 +125,16 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._should_reset = False
 
         self._is_training = is_training
+
+        # Detect CI/Docker environment once at initialization
+        self._is_ci_environment = bool(
+            os.environ.get("CI")
+            or os.environ.get("GITHUB_ACTIONS")
+            or os.path.exists("/.dockerenv")  # Common Docker indicator
+        )
+
+        # Check raylib availability once at initialization
+        self._raylib_available = RAYLIB_AVAILABLE and not self._is_ci_environment
 
         self._initialize_c_env()
         super().__init__(buf)
@@ -400,38 +443,16 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
-        # Check if we have a text-based renderer already set up
+        # Fast path for text-based renderers
         if self._renderer is not None and hasattr(self._renderer, "render"):
-            # Use the text-based renderer (NethackRenderer or MiniscopeRenderer)
             return self._renderer.render(self._steps, self.grid_objects)
 
-        # Check if we're in CI/testing environment
-        import os
-
-        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
-            # In CI, skip raylib rendering
+        # Skip if raylib not available (checked once at init)
+        if not self._raylib_available:
             return None
 
-        # Otherwise, use raylib rendering
-        # Lazy import raylib to avoid hard dependency
-        try:
-            from raylib import (
-                FLAG_MSAA_4X_HINT,
-                PI,
-                WHITE,
-                BeginDrawing,
-                ClearBackground,
-                DrawTexturePro,
-                EndDrawing,
-                InitWindow,
-                LoadTexture,
-                SetConfigFlags,
-                SetTargetFPS,
-            )
-        except ImportError:
-            raise ImportError("Raylib is required for rendering") from None
-
-        # self._c_env.render()
+        # Raylib rendering path
+        # Initialize raylib on first use
         if self._renderer is None:
             self._renderer = True
             SetConfigFlags(FLAG_MSAA_4X_HINT)

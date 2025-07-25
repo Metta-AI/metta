@@ -41,6 +41,8 @@ runs:
           "testing")
             uv sync --no-default-groups
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+            # Uninstall raylib if it was installed to avoid import issues in CI
+            uv pip uninstall raylib -y 2>/dev/null || true
             ;;
 
           "linting")
