@@ -511,6 +511,60 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     updateSelection(null)
     setFollowSelection(false)
   }
+  // WASD, numpad, and arrow keys for RTS style camera movement (when no unit is focused)
+  if (!state.selectedGridObject && !state.followSelection) {
+    const panSpeed = 150 / ui.mapPanel.zoomLevel // Adjust speed based on zoom level
+
+    if (event.key == 'w' || event.key == 'W' || event.key == 'ArrowUp') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
+    }
+    if (event.key == 'a' || event.key == 'A' || event.key == 'ArrowLeft') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
+    }
+    if (event.key == 's' || event.key == 'S' || event.key == 'ArrowDown') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
+    }
+    if (event.key == 'd' || event.key == 'D' || event.key == 'ArrowRight') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
+    }
+
+    // Numpad directional controls (classic 8-directional layout)
+    if (event.code == 'Numpad8') { // Up
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
+    }
+    if (event.code == 'Numpad2') { // Down
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
+    }
+    if (event.code == 'Numpad4') { // Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
+    }
+    if (event.code == 'Numpad6') { // Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
+    }
+    if (event.code == 'Numpad7') { // Up-Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, panSpeed * 0.707))
+    }
+    if (event.code == 'Numpad9') { // Up-Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, panSpeed * 0.707))
+    }
+    if (event.code == 'Numpad1') { // Down-Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, -panSpeed * 0.707))
+    }
+    if (event.code == 'Numpad3') { // Down-Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, -panSpeed * 0.707))
+    }
+  }
+
+  // Numpad 5 - advance simulation one frame
+  if (event.code == 'Numpad5') {
+    setIsPlaying(false)
+    if (state.ws !== null) {
+      state.ws.send(JSON.stringify({ type: 'advance' }))
+    } else {
+      updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    }
+  }
+
   // '[' and ']' scrub forward and backward.
   if (event.key == '[') {
     setIsPlaying(false)
@@ -519,6 +573,16 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   if (event.key == ']') {
     setIsPlaying(false)
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  }
+
+  // '<' and '>' for zoom out/in on keyboard
+  if (event.key == '<') {
+    const zoomSpeed = 0.05
+    ui.mapPanel.zoomLevel = Math.max(ui.mapPanel.zoomLevel - zoomSpeed, Common.MIN_ZOOM_LEVEL)
+  }
+  if (event.key == '>') {
+    const zoomSpeed = 0.05
+    ui.mapPanel.zoomLevel = Math.min(ui.mapPanel.zoomLevel + zoomSpeed, Common.MAX_ZOOM_LEVEL)
   }
   // '<' and '>' control the playback speed.
   if (event.key == ',') {
