@@ -96,7 +96,7 @@ def _create_remote_eval_tasks(
 
     # TODO: mappings like this should determined somewhere else
     frontend_base_url = {
-        "https://observatory.softtmax-research.com": "https://api.softtmax-research.com",
+        "https://api.observatory.softmax-research.net": "https://observatory.softmax-research.net",
         "http://localhost:8000": "http://localhost:5173",
     }.get(str(stats_client.http_client.base_url))
     if frontend_base_url:

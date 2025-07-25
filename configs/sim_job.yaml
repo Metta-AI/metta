@@ -18,6 +18,7 @@ sim_job:
   replay_dir: ${run_dir}/replays/evals
   git_hash: null
   env_overrides: {}
+  selector_type: top
 
 eval_task_id: null
 

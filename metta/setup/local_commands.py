@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import subprocess
 import sys
@@ -11,7 +12,6 @@ from omegaconf import DictConfig
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import get_repo_root
 from metta.common.util.stats_client_cfg import get_stats_client_direct
-from metta.common.wandb.wandb_context import WandbConfigOn
 from metta.common.wandb.wandb_runs import find_training_runs
 from metta.setup.tools.local.kind import Kind
 from metta.setup.utils import error, info
@@ -62,10 +62,6 @@ class LocalCommands:
 
         args = parser.parse_args(unknown_args)
 
-        # Validate that stats-db-uri is provided when post-policies is used
-        if args.post_policies and not args.stats_db_uri:
-            parser.error("--stats-db-uri is required when using --post-policies")
-
         # Get entity from args or W&B default
         api = wandb.Api()
         if args.entity:
@@ -101,30 +97,29 @@ class LocalCommands:
         policy_store = PolicyStore(
             DictConfig(
                 dict(
-                    wandb=WandbConfigOn(
+                    wandb=dict(
+                        enabled=True,
                         project=project,
                         entity=entity,
-                        group=project,
-                        name="",
-                        run_id="",
-                        data_dir="",
-                        job_type="load-policies",
-                        tags=[],
-                        notes="",
-                    )
+                    ),
+                    device="cpu",
                 )
             ),
             wandb_run=None,
         )
         policy_records = []
         for run in runs:
+            uri = f"wandb://run/{run.name}"
             # n and metric are ignored
-            policy_records.extend(policy_store.policy_records(run.id, selector_type="all", n=1, metric="top"))
+            policy_records.extend(policy_store.policy_records(uri, selector_type="all", n=1, metric="top"))
         policy_ids = get_or_create_policy_ids(
             stats_client,
             [(pr.run_name, pr.uri) for pr in policy_records],
         )
-        logger.info(f"Ensured {len(policy_ids)} policy IDs")
+        json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
+        print(f"Ensured {len(policy_ids)} policy IDs: {json_repr}")
+        sys.stdout.flush()
+        sys.stderr.flush()
 
     def kind(self, args) -> None:
         """Handle Kind cluster management for Kubernetes testing."""
