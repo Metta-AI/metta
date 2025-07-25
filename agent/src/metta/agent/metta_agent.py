@@ -9,15 +9,16 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.registry import ActionRegistry, FeatureRegistry
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.common.util.instantiate import instantiate
+from metta.common.util.component_factory import instantiate
 
 if TYPE_CHECKING:
     from metta.mettagrid.mettagrid_env import MettaGridEnv
 
-logger = logging.getLogger("metta_agent")
+logger = logging.getLogger(__name__)
 
 
 def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
@@ -64,11 +65,68 @@ class DistributedMettaAgent(DistributedDataParallel):
         features: dict[str, dict],
         action_names: list[str],
         action_max_params: list[int],
-        device: torch.device,
+        device,
         is_training: bool = True,
-    ) -> None:
-        # is_training parameter is deprecated and ignored - mode is auto-detected
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
+    ):
+        """
+        Initialize the policy to the current environment's features and actions.
+        This should be called exactly once per time the policy is "brought out of storage".
+
+        Args:
+            features: Dictionary mapping feature names to their properties:
+                {
+                    feature_name: {
+                        "id": byte,  # The feature_id to use during this run
+                        "type": "scalar" | "categorical",
+                        "normalization": float (optional, only for scalar features)
+                    }
+                }
+            action_names: List of action names
+            action_max_params: List of maximum parameters for each action
+            device: Device to place tensors on
+            is_training: Deprecated. Training mode is now automatically detected.
+        """
+        self.device = device
+
+        # Initialize features using registry
+        remap_tensor, norm_tensor = self.feature_registry.initialize_with_features(features, device)
+
+        # Apply feature remapping to observation component if it exists
+        if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
+            self.components["_obs_"].update_feature_remapping(remap_tensor)
+
+        # Update normalization factors for components
+        for _comp_name, component in self.components.items():
+            if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
+                component.register_buffer("_norm_factors", norm_tensor)
+
+        # Initialize actions using registry
+        self.action_names = action_names
+        self.action_max_params = action_max_params
+
+        # Get active action indices
+        active_indices = self.action_registry.initialize_with_actions(action_names, action_max_params, device)
+
+        # Update action embeddings component
+        if "_action_embeds_" in self.components:
+            action_embeds = self.components["_action_embeds_"]
+            action_embeds.active_indices = active_indices
+            action_embeds.num_actions = len(active_indices)
+
+            # Ensure embedding layer is large enough
+            action_embeds._net = self.action_registry.ensure_embedding_size(action_embeds._net)
+
+        # Precompute cumulative sums for action conversion
+        self.cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
+        )
+
+        # Create action index tensor
+        action_index = []
+        for action_type_idx, max_param in enumerate(action_max_params):
+            for j in range(max_param + 1):
+                action_index.append([action_type_idx, j])
+        self.action_index_tensor = torch.tensor(action_index, device=device, dtype=torch.int32)
 
 
 class MettaAgent(nn.Module):
@@ -145,6 +203,10 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
+        # Initialize registries for features and actions
+        self.feature_registry = FeatureRegistry()
+        self.action_registry = ActionRegistry()
+
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
@@ -190,164 +252,47 @@ class MettaAgent(nn.Module):
             device: Device to place tensors on
             is_training: Deprecated. Training mode is now automatically detected.
         """
-        # Use PyTorch's built-in training mode detection
-        self._initialize_observations(features, device, self.training)
-        self.activate_actions(action_names, action_max_params, device)
-
-    def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
-        """Initialize observation features by storing the feature mapping."""
-        self.active_features = features
         self.device = device
 
-        # Fast look-ups
-        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
-        self.feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
-        }
+        # Initialize features using registry
+        remap_tensor, norm_tensor = self.feature_registry.initialize_with_features(features, device)
 
-        # First-time initialisation → just record mapping
-        if not hasattr(self, "original_feature_mapping"):
-            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
-            self.feature_id_remap = {}
-            return
-
-        # Subsequent calls – build remap using generic helper
-        self.feature_id_remap, unknown = self._prepare_mapping(
-            current_items=features,
-            original_map=self.original_feature_mapping,
-            allow_new=is_training,
-            unknown_id=255 if not is_training else None,
-        )
-
-        if self.feature_id_remap:
-            logger.info(f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown)} unknown")
-            self._apply_feature_remapping(features, 255)
-
-    # ------------------------------------------------------------------
-    # Generic helper shared by both feature and action initialisation
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _prepare_mapping(
-        *,
-        current_items: dict[str, dict],
-        original_map: dict[str, int],
-        allow_new: bool,
-        unknown_id: int | None = None,
-    ) -> tuple[dict[int, int], list[str]]:
-        """Create a dict mapping *new* ids → *old* ids.
-
-        Args:
-            current_items: Mapping ``name → {'id': int}`` from the environment.
-            original_map: Persistent ``name → id`` that was saved with the policy.
-            allow_new: If True, unseen names are appended to *original_map* (training).
-            unknown_id: If set, unseen names are remapped to this sentinel instead of error.
-
-        Returns:
-            (remap_dict, unknown_names)
-        """
-        remap: dict[int, int] = {}
-        unknown_names: list[str] = []
-
-        for name, props in current_items.items():
-            new_id = props["id"]
-            if name in original_map:
-                old_id = original_map[name]
-                if new_id != old_id:
-                    remap[new_id] = old_id
-            else:
-                if allow_new:
-                    original_map[name] = new_id
-                else:
-                    if unknown_id is None:
-                        raise ValueError(f"Unknown identifier '{name}' with id {new_id} not in saved mapping")
-                    remap[new_id] = unknown_id
-                    unknown_names.append(name)
-
-        return remap, unknown_names
-
-    def _create_feature_remapping(self, features: dict[str, dict], unknown_id: int):
-        """Apply feature remapping to observation component and update normalizations."""
-        # Update observation component if it supports remapping
+        # Apply feature remapping to observation component if it exists
         if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
-            # Build complete remapping tensor
-            remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
-
-            # Apply explicit remappings
-            for new_id, original_id in self.feature_id_remap.items():
-                remap_tensor[new_id] = original_id
-
-            # Map unused feature IDs to UNKNOWN
-            current_feature_ids = {props["id"] for props in features.values()}
-            for feature_id in range(256):
-                if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
-                    remap_tensor[feature_id] = unknown_id
-
             self.components["_obs_"].update_feature_remapping(remap_tensor)
 
-        # Update normalization factors
-        self._update_normalization_factors(features)
-
-    def _update_normalization_factors(self, features: dict[str, dict]):
-        """Update normalization factors for components after feature remapping."""
-        # Update ObsAttrValNorm components if they exist
-        for comp_name, component in self.components.items():
+        # Update normalization factors for components
+        for _comp_name, component in self.components.items():
             if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
-                logger.info(f"Updating feature normalizations for {comp_name}")
-
-                # Create normalization tensor with remapped IDs
-                norm_tensor = torch.ones(256, dtype=torch.float32)
-                for name, props in features.items():
-                    if name in self.original_feature_mapping and "normalization" in props:
-                        original_id = self.original_feature_mapping[name]
-                        norm_tensor[original_id] = props["normalization"]
-
                 component.register_buffer("_norm_factors", norm_tensor)
 
-    def get_original_feature_mapping(self) -> dict[str, int] | None:
-        """Get the original feature mapping for saving in metadata."""
-        return getattr(self, "original_feature_mapping", None)
-
-    def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
-        """Restore the original feature mapping from metadata.
-
-        This should be called after loading a model from checkpoint but before
-        calling initialize_to_environment.
-        """
-        # Make a copy to avoid shared state between agents
-        self.original_feature_mapping = mapping.copy()
-        logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Run this at the beginning of training."""
-        assert isinstance(action_max_params, list), "action_max_params must be a list"
-
-        self.device = device
-        self.action_max_params = action_max_params
+        # Initialize actions using registry
         self.action_names = action_names
+        self.action_max_params = action_max_params
 
-        self.active_actions = list(zip(action_names, action_max_params, strict=False))
+        # Get active action indices
+        active_indices = self.action_registry.initialize_with_actions(action_names, action_max_params, device)
 
-        # Precompute cumulative sums for faster conversion
+        # Update action embeddings component
+        if "_action_embeds_" in self.components:
+            action_embeds = self.components["_action_embeds_"]
+            action_embeds.active_indices = active_indices
+            action_embeds.num_actions = len(active_indices)
+
+            # Ensure embedding layer is large enough
+            action_embeds._net = self.action_registry.ensure_embedding_size(action_embeds._net)
+
+        # Precompute cumulative sums for action conversion
         self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=self.device, dtype=torch.long), dim=0
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
 
-        full_action_names = []
-        for action_name, max_param in self.active_actions:
-            for i in range(max_param + 1):
-                full_action_names.append(f"{action_name}_{i}")
-        self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
-
-        # Create action_index tensor
+        # Create action index tensor
         action_index = []
         for action_type_idx, max_param in enumerate(action_max_params):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
-
-        self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
-        logger.info(f"Agent actions initialized with: {self.active_actions}")
+        self.action_index_tensor = torch.tensor(action_index, device=device, dtype=torch.int32)
 
     @property
     def lstm(self):
