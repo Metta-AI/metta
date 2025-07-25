@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "orchestrator.fullname" . }}
+  labels:
+    {{- include "orchestrator.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "orchestrator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "orchestrator.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["uv", "run", "python", "-m", "metta.app_backend.eval_task_orchestrator"]
+        env:
+        - name: BACKEND_URL
+          value: {{ .Values.env.BACKEND_URL | quote }}
+        - name: CONTAINER_RUNTIME
+          value: {{ .Values.env.CONTAINER_RUNTIME | quote }}
+        - name: POLL_INTERVAL
+          value: {{ .Values.env.POLL_INTERVAL | quote }}
+        - name: WORKER_IDLE_TIMEOUT
+          value: {{ .Values.env.WORKER_IDLE_TIMEOUT | quote }}
+        - name: DOCKER_IMAGE
+          value: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: WANDB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.wandb }}
+              key: api-key
+        - name: MACHINE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.machineToken }}
+              key: token
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+

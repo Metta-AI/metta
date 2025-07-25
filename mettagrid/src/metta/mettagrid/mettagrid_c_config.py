@@ -104,6 +104,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
                 color=object_config.color,
+                recipe_details_obs=game_config.recipe_details_obs,
             )
             objects_cpp_params[object_type] = cpp_converter_config
         elif isinstance(object_config, PyWallConfig):
@@ -119,6 +120,10 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]
     del game_cpp_params["groups"]
+    if "params" in game_cpp_params:
+        del game_cpp_params["params"]
+    if "map_builder" in game_cpp_params:
+        del game_cpp_params["map_builder"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -134,6 +139,19 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     for action_name, action_config in game_cpp_params["actions"].items():
         if not action_config["enabled"]:
             continue
+
+        # Check if any consumed resources are not in inventory_item_names
+        missing_consumed = []
+        for resource in action_config["consumed_resources"].keys():
+            if resource not in resource_name_to_id:
+                missing_consumed.append(resource)
+
+        if missing_consumed:
+            raise ValueError(
+                f"Action '{action_name}' has consumed_resources {missing_consumed} that are not in "
+                f"inventory_item_names. These resources will be ignored, making the action free! "
+                f"Either add these resources to inventory_item_names or disable the action."
+            )
 
         action_cpp_params = {
             "consumed_resources": {
@@ -163,7 +181,9 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
-    # Note: global_observations configuration is handled through the global_obs parameter
+
+    # Add recipe_details_obs flag
+    game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
 
     return CppGameConfig(**game_cpp_params)
 

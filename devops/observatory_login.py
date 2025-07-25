@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 
+import argparse
 import asyncio
 import os
 import sys
@@ -139,7 +140,7 @@ class CLIAuthenticator:
             print("Failed to open browser automatically")
             print(f"Please manually visit: {url}")
 
-    def _save_token(self, token: str) -> None:
+    def save_token(self, token: str) -> None:
         """Save the token to a YAML file with secure permissions"""
         try:
             # Read existing tokens
@@ -236,7 +237,7 @@ class CLIAuthenticator:
                 raise Exception("No token received")
 
             # Save token
-            self._save_token(self.token)
+            self.save_token(self.token)
 
             return True
 
@@ -286,9 +287,7 @@ def migrate_legacy_token(authenticator: CLIAuthenticator) -> None:
 
 def main():
     """Main CLI entry point"""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="CLI OAuth2 Authentication")
+    parser = argparse.ArgumentParser(description="Authenticate with Observatory")
     parser.add_argument(
         "auth_server_url",
         help="OAuth2-proxy protected route URL (e.g., https://observatory.softmax-research.net/api or http://localhost:8000)",

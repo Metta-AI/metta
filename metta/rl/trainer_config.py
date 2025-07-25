@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 
@@ -188,6 +189,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
     #   (default assumes multiprocessing)
     async_factor: int = Field(default=2, gt=0)
 
+    # scheduler registry
+    hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
+
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
 
@@ -301,7 +305,7 @@ def create_trainer_config(
         config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
+        config_dict["simulation"]["replay_dir"] = f"{cfg.run_dir}/replays/"
 
     if "profile_dir" not in config_dict.setdefault("profiler", {}):
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"

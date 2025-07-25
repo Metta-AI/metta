@@ -13,6 +13,16 @@ game:
     last_reward: true
     resource_rewards: false # This feature wasn't present when older policies were trained
 
+  # Disable unneeded actions from nav evals
+  actions:
+    put_items:
+      enabled: false
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
   agent:
     rewards:
       inventory:
@@ -21,11 +31,6 @@ game:
   objects:
     altar:
       initial_resource_count: 1
-
-  # Disable attack action since laser is not in the inventory
-  actions:
-    attack:
-      enabled: false
 
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii

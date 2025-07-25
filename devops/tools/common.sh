@@ -11,21 +11,22 @@ check_cmd() {
   return $?
 }
 
-# Get the absolute path of the script's directory
-get_script_dir() {
-  echo "$(cd "$(dirname "$0")" && pwd)"
+
+_find_project_root() {
+  # When sourced from install.sh, SCRIPT_DIR is already the project root
+  if [ -n "${REPO_ROOT:-}" ]; then
+    echo "$REPO_ROOT"
+  else
+    # Fallback for other scripts - use the directory of the calling script
+    echo "$(cd "$(dirname "$0")/../.." && pwd)"
+  fi
 }
 
-# Get the project root directory (assumes this file is in devops/tools/)
-get_project_root() {
-  local script_dir="$(get_script_dir)"
-  echo "$(cd "$script_dir/../.." && pwd)"
-}
+PROJECT_ROOT="$(_find_project_root)"
 
 # Setup UV project environment
 setup_uv_project_env() {
-  local project_root="$(get_project_root)"
-  export UV_PROJECT_ENVIRONMENT="$(cd "${project_root}/.venv" && pwd)"
+  export UV_PROJECT_ENVIRONMENT="$(cd "${PROJECT_ROOT}/.venv" && pwd)"
 }
 
 # Setup UV environment paths
@@ -47,7 +48,8 @@ setup_uv_paths() {
   [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
   # Force shell to rescan PATH (helps in some environments)
-  hash -r 2> /dev/null || true
+  # hash -r is bash-specific, use command -v to verify uv is findable instead
+  command -v uv > /dev/null 2>&1 || true
 }
 
 # Ensure uv is in PATH, installed, and uv project environment associated with this repo

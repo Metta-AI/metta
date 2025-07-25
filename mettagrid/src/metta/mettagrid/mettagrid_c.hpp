@@ -61,6 +61,8 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  bool track_movement_metrics;
+  bool recipe_details_obs = false;
 };
 
 class METTAGRID_API MettaGrid {
@@ -103,7 +105,6 @@ public:
   py::list max_action_args();
   py::list object_type_names_py();
   py::list inventory_item_names_py();
-  py::array_t<unsigned int> get_agent_groups() const;
 
   uint64_t initial_grid_hash;
 
@@ -147,6 +148,9 @@ private:
 
   std::mt19937 _rng;
   unsigned int _seed;
+
+  // Movement tracking
+  bool _track_movement_metrics;
 
   void init_action_handlers();
   void add_agent(Agent* agent);

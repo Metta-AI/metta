@@ -44,13 +44,6 @@ public:
   inline GridLocation() : r(0), c(0), layer(0) {}
 };
 
-enum Orientation {
-  Up = 0,
-  Down = 1,
-  Left = 2,
-  Right = 3
-};
-
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;

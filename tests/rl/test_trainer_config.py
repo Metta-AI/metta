@@ -1,6 +1,5 @@
 import math
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from hydra import compose, initialize_config_dir
@@ -77,6 +76,32 @@ valid_trainer_config = {
         "kickstart_steps": 1_000_000_000,
         "additional_teachers": None,
     },
+    "hyperparameter_scheduler": {
+        "learning_rate_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.001,
+        },
+        "ppo_clip_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.1,
+        },
+        "ppo_ent_coef_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.01,
+        },
+        "ppo_vf_clip_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0.1,
+        },
+        "ppo_l2_reg_loss_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0,
+        },
+        "ppo_l2_init_loss_schedule": {
+            "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+            "initial_value": 0,
+        },
+    },
     "initial_policy": {
         "uri": None,
         "type": "top",
@@ -92,21 +117,6 @@ valid_trainer_config = {
         "evaluate_interval": 300,
     },
 }
-
-
-@patch("metta.common.util.script_decorators.setup_mettagrid_environment", return_value=None)
-@patch("metta.common.util.script_decorators.torch.cuda.is_available", return_value=True)
-@patch("metta.common.util.script_decorators.is_multiprocessing_available", return_value=True)
-def process_cfg_like_metta_script_main(cfg: DictConfig, *_mocks) -> DictConfig:
-    from metta.common.util.script_decorators import metta_script
-
-    # Use the metta_script decorator, which validates/modifies the config
-    # Mock out setup_mettagrid_environment; not necessary for testing trainer config parsing
-    @metta_script
-    def _process_config(cfg: DictConfig) -> DictConfig:
-        return cfg
-
-    return _process_config(cfg)
 
 
 def make_cfg(trainer_cfg: dict) -> DictConfig:
@@ -132,11 +142,11 @@ class TestTypedConfigs:
 
         # Test that runtime paths are set correctly
         assert trainer_config.checkpoint.checkpoint_dir == "/tmp/test_run/checkpoints"
-        assert trainer_config.simulation.replay_dir == "s3://softmax-public/replays/test_run"
+        assert trainer_config.simulation.replay_dir == "/tmp/test_run/replays/"
 
     def test_config_field_validation(self):
         # invalid field
-        with pytest.raises(ValidationError) as err:
+        with pytest.raises(ValidationError, match="learning_rate") as err:
             _ = OptimizerConfig.model_validate({**valid_optimizer_config, "learning_rate": -1.0})
         assert "learning_rate" in str(err)
 
@@ -198,6 +208,7 @@ class TestTypedConfigs:
                 "kickstart_steps": 1_000_000_000,
                 "additional_teachers": [],
             },
+            "hyperparameter_scheduler": {},
         }
 
         validated_config = create_trainer_config(make_cfg(test_config_dict))
@@ -296,7 +307,7 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
             overrides=default_overrides + (overrides or []),
         )
 
-        return process_cfg_like_metta_script_main(cfg)
+        return cfg
 
 
 class TestRealTypedConfigs:

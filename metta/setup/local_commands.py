@@ -1,67 +1,127 @@
-import shutil
+import argparse
 import subprocess
 import sys
 from pathlib import Path
 
-from metta.setup.utils import error, info, success
+import wandb
+
+from metta.common.util.fs import get_repo_root
+from metta.setup.tools.local.kind import Kind
+from metta.setup.tools.local.load_policies import get_recent_runs, post_policies_to_stats, print_runs_with_artifacts
+from metta.setup.utils import error, info
 
 
 class LocalCommands:
-    def __init__(self, repo_root: Path):
-        self.repo_root = repo_root
+    def __init__(self):
+        self.repo_root = get_repo_root()
+        self._kind_manager = Kind()
+
+    def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
+        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
+        if build_args:
+            cmd.extend(build_args)
+        cmd.append(str(self.repo_root))
+        subprocess.run(cmd, check=True)
 
     def build_app_backend_img(self) -> None:
-        """Build local development Docker image."""
-        docker_dir = self.repo_root / "app_backend"
-        dockerfile_path = docker_dir / "Dockerfile"
-        subprocess.run(
-            ["docker", "build", "-t", "metta-app-backend:latest", "-f", str(dockerfile_path), str(self.repo_root)],
-            check=True,
+        self._build_img("metta-app-backend:latest", self.repo_root / "app_backend" / "Dockerfile")
+
+    def build_policy_evaluator_img(
+        self, tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
+    ) -> None:
+        self._build_img(
+            tag,
+            self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
+            build_args or [],
         )
 
-    def build_docker_img(self, args) -> None:
-        """Build local development Docker image."""
-        docker_dir = self.repo_root / "devops" / "docker"
-        dockerfile_path = docker_dir / "Dockerfile.local"
+    def load_policies(self, unknown_args) -> None:
+        """Load W&B artifacts as policies into stats database."""
+        # Create parser for load-policies specific arguments
+        parser = argparse.ArgumentParser(
+            prog="metta local load-policies", description="Load W&B artifacts as policies into stats database"
+        )
+        parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
+        parser.add_argument("--project", help="W&B project name (default: 'metta')")
+        parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
+        parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
+        parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
+        parser.add_argument(
+            "--post-policies", action="store_true", help="Post model artifacts as policies to stats database"
+        )
+        parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
+        parser.add_argument("--debug", action="store_true", help="Show debug information")
 
-        if not dockerfile_path.exists():
-            error(f"Dockerfile not found at {dockerfile_path}")
-            sys.exit(1)
+        # Handle help manually since metta intercepts -h
+        if "--help" in unknown_args or "-h" in unknown_args:
+            parser.print_help()
+            sys.exit(0)
 
-        info("Building local development Docker image...")
-        info("Note: This will copy the entire repo and run install.sh during build.")
-        info("This may take several minutes...")
-        info("")
+        args = parser.parse_args(unknown_args)
 
-        # Track if we copied .metta
-        copied_metta = False
-        metta_home_dir = Path.home() / ".metta"
-        metta_repo_dir = self.repo_root / ".metta"
+        # Validate that stats-db-uri is provided when post-policies is used
+        if args.post_policies and not args.stats_db_uri:
+            parser.error("--stats-db-uri is required when using --post-policies")
+
+        # Get entity from args or W&B default
+        api = wandb.Api()
+        if args.entity:
+            entity = args.entity
+        else:
+            entity = api.default_entity
+            if not entity:
+                error("No W&B entity found. Please login with 'wandb login'")
+                sys.exit(1)
+
+        # Use provided project or default to 'metta'
+        project = args.project if args.project else "metta"
+
+        info(f"Using entity: {entity}, project: {project}")
 
         try:
-            # Copy .metta directory if it exists
-            if metta_home_dir.exists():
-                info("Found ~/.metta directory - copying to build context")
-                shutil.copytree(metta_home_dir, metta_repo_dir, dirs_exist_ok=True)
-                copied_metta = True
+            runs = get_recent_runs(
+                entity=entity,
+                project=project,
+                days_back=args.days_back,
+                limit=args.limit,
+                run_name=args.run_name,
+                debug=args.debug,
+            )
 
-            tag = "metta-local:latest"
-            # Build the image with repo root as the build context
-            cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path), str(self.repo_root)]
+            # Always print human-readable output
+            print_runs_with_artifacts(runs, args.run_name)
 
-            result = subprocess.run(cmd, cwd=self.repo_root)
+            # Post policies if requested
+            if args.post_policies:
+                post_policies_to_stats(runs, args.stats_db_uri)
 
-            if result.returncode == 0:
-                info("")
-                info("Note: The container has a full copy of the repo at build time.")
-                info("Local changes won't be reflected unless you rebuild or attach.")
-                success(f"Build complete! Image available as {tag}")
+        except Exception as e:
+            error(f"Error: {e}")
+            sys.exit(1)
+
+    def kind(self, args) -> None:
+        """Handle Kind cluster management for Kubernetes testing."""
+        action = args.action
+
+        if action == "build":
+            self._kind_manager.build()
+        elif action == "up":
+            self._kind_manager.up()
+        elif action == "down":
+            self._kind_manager.down()
+        elif action == "clean":
+            self._kind_manager.clean()
+        elif action == "get-pods":
+            self._kind_manager.get_pods()
+        elif action == "logs":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.logs(args.pod_name)
             else:
-                error("Build failed!")
-                sys.exit(result.returncode)
-
-        finally:
-            # Clean up .metta directory if we copied it
-            if copied_metta and metta_repo_dir.exists():
-                info("Cleaning up .metta directory from build context")
-                shutil.rmtree(metta_repo_dir)
+                error("Pod name is required for logs command")
+                sys.exit(1)
+        elif action == "enter":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.enter(args.pod_name)
+            else:
+                error("Pod name is required for enter command")
+                sys.exit(1)
