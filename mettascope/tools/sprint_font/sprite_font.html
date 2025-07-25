@@ -42,9 +42,47 @@
       image-rendering: crisp-edges;
     }
 
+    #fontCanvasContainer {
+      position: relative;
+      width: 100%;
+      max-width: 1200px;
+      height: 600px;
+      overflow: auto;
+      border: 2px solid #444;
+      background: #000;
+      margin: 1em 0;
+      cursor: grab;
+    }
+
+    #fontCanvasContainer:active {
+      cursor: grabbing;
+    }
+
+    #fontCanvasContainer::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    #fontCanvasContainer::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+
+    #fontCanvasContainer::-webkit-scrollbar-thumb {
+      background: #444;
+      border-radius: 6px;
+    }
+
+    #fontCanvasContainer::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
     #fontCanvas {
-      max-width: 100%;
-      height: auto;
+      display: block;
+      border: none;
+      margin: 0;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
     }
 
     #renderCanvas {
@@ -155,7 +193,9 @@
         <button id="savePngBtn">Save font.png</button>
         <button id="saveJsonBtn">Save font.json</button>
       </div>
-      <canvas id="fontCanvas"></canvas>
+      <div id="fontCanvasContainer">
+        <canvas id="fontCanvas"></canvas>
+      </div>
       <div class="info">
         <div id="atlasContents"><!-- Atlas contents will be populated by JavaScript --></div>
         <div class="atlas-info" id="atlasInfo"><!-- Atlas dimensions will be populated by JavaScript --></div>
@@ -169,7 +209,7 @@
       <div class="controls">
         <label>
           Scale:
-          <input type="number" id="scaleInput" value="1.5" min="1" max="10" step="0.5">
+          <input type="number" id="scaleInput" value="0.5" min="0.1" max="10.0" step="0.1">
         </label>
         <label>
           Color:
@@ -245,12 +285,44 @@
     // Initialize canvases
     const fontCanvas = document.getElementById('fontCanvas');
     const fontCtx = fontCanvas.getContext('2d');
+    const fontCanvasContainer = document.getElementById('fontCanvasContainer');
     const renderCanvas = document.getElementById('renderCanvas');
     const renderCtx = renderCanvas.getContext('2d');
 
     // Atlas data storage
     let atlasData = {};
     let fontAtlasImage = null;
+
+    // Dragging functionality
+    let isDragging = false;
+    let startX, startY, scrollLeft, scrollTop;
+
+    fontCanvasContainer.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.pageX - fontCanvasContainer.offsetLeft;
+      startY = e.pageY - fontCanvasContainer.offsetTop;
+      scrollLeft = fontCanvasContainer.scrollLeft;
+      scrollTop = fontCanvasContainer.scrollTop;
+    });
+
+    fontCanvasContainer.addEventListener('mouseleave', () => {
+      isDragging = false;
+    });
+
+    fontCanvasContainer.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    fontCanvasContainer.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const x = e.pageX - fontCanvasContainer.offsetLeft;
+      const y = e.pageY - fontCanvasContainer.offsetTop;
+      const walkX = (x - startX) * 1.5;
+      const walkY = (y - startY) * 1.5;
+      fontCanvasContainer.scrollLeft = scrollLeft - walkX;
+      fontCanvasContainer.scrollTop = scrollTop - walkY;
+    });
 
     // Update atlas info display
     function updateAtlasInfo() {
@@ -296,7 +368,7 @@
       // Update the info display
       updateAtlasInfo();
 
-      // Set canvas dimensions
+      // Set canvas dimensions based on actual scale
       fontCanvas.width = COLUMNS * CELL_WIDTH;
       fontCanvas.height = ROWS * CELL_HEIGHT;
 
