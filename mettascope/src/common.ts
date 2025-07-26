@@ -167,7 +167,7 @@ export const html = {
 }
 
 /** Generates a color from an agent ID. */
-export function colorFromId(agentId: number) {
+export function colorFromId(agentId: number): [number, number, number, number] {
   const n = agentId + Math.PI + Math.E + Math.SQRT2
   return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }
