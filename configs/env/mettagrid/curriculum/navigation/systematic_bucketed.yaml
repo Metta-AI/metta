@@ -1,0 +1,55 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/systematic_exploration/training/defaults
+
+buckets:
+  game.map_builder.room.dir:
+    values:
+      [
+        "terrains/bounce_turn/large",
+        "terrains/bounce_turn/medium",
+        "terrains/bounce_turn/small",
+        "terrains/direction_based/large",
+        "terrains/direction_based/medium",
+        "terrains/direction_based/small",
+        "terrains/direction_based_sparse/large",
+        "terrains/direction_based_sparse/medium",
+        "terrains/direction_based_sparse/small",
+        "terrains/fixed_sweep/large",
+        "terrains/fixed_sweep/medium",
+        "terrains/fixed_sweep/small",
+        "terrains/random_walk/large",
+        "terrains/random_walk/medium",
+        "terrains/random_walk/small",
+        "terrains/wallfollow_terrain/large",
+        "terrains/wallfollow_terrain/medium",
+        "terrains/wallfollow_terrain/small",
+        "terrains/wallfollow_sparse/large",
+        "terrains/wallfollow_sparse/medium",
+        "terrains/wallfollow_sparse/small",
+        "terrains/boxes/large",
+        "terrains/boxes/medium",
+        "terrains/boxes/small",
+        "terrain_maps_nohearts",
+        "varied_terrain/balanced_large",
+        "varied_terrain/balanced_medium",
+        "varied_terrain/balanced_small",
+        "varied_terrain/sparse_large",
+        "varied_terrain/sparse_medium",
+        "varied_terrain/sparse_small",
+        "varied_terrain/dense_large",
+        "varied_terrain/dense_medium",
+        "varied_terrain/dense_small",
+        "varied_terrain/maze_large",
+        "varied_terrain/maze_medium",
+        "varied_terrain/maze_small",
+        "varied_terrain/cylinder-world_large",
+        "varied_terrain/cylinder-world_medium",
+        "varied_terrain/cylinder-world_small",
+      ]
+  game.map_builder.room.objects.altar:
+    range: [2, 16]
+    bins: 3
+
+env_overrides:
+  sampling: 0
