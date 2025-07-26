@@ -16,13 +16,12 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
@@ -38,8 +37,8 @@ from metta.util.metta_script import metta_script
 class SimJob(Config):
     __init__ = Config.__init__
     simulation_suite: SimulationSuiteConfig
-    policy_uris: List[str]
-    selector_type: str = "top"
+    policy_uris: list[str]
+    selector_type: PolicySelectorType = "top"
     stats_db_uri: str
     register_missing_policies: bool = False
     stats_dir: str  # The (local) directory where stats should be stored
