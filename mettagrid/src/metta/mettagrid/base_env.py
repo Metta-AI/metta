@@ -2,7 +2,7 @@
 MettaGridEnv - Base Python environment class.
 
 This class provides the common functionality for all framework-specific adapters:
-- Creates new MettaGridCore instances on reset
+- Creates new MettaGrid instances on reset (using C++ directly)
 - Manages curriculum, stats, and replay writing
 - Provides common interface for all adapters
 """
@@ -22,23 +22,30 @@ from omegaconf import OmegaConf
 from pydantic import validate_call
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
+from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 
+# Data types for buffers
+dtype_observations = np.dtype(np.uint8)
+dtype_terminals = np.dtype(bool)
+dtype_truncations = np.dtype(bool)
+dtype_rewards = np.dtype(np.float32)
+dtype_actions = np.dtype(np.int32)
+
 logger = logging.getLogger("MettaGridEnv")
 
 
-class MettaGridEnv(ABC):
+class MettaGridEnv:
     """
     Base environment class for MettaGrid.
 
     This class provides common functionality for all framework-specific adapters:
-    - Creates new MettaGridCore instances on reset
+    - Creates new MettaGrid instances on reset (using C++ directly)
     - Manages curriculum, stats, and replay writing
     - Provides common interface for all adapters
     """
@@ -86,11 +93,17 @@ class MettaGridEnv(ABC):
         self._is_training = is_training
 
         # Core environment instance - created on reset
-        self._core_env: Optional[MettaGridCore] = None
+        self._core_env: Optional[MettaGrid] = None
 
         # Environment metadata
         self.labels: List[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
+
+        # Buffers for environment data (allocated on reset)
+        self._observations: Optional[np.ndarray] = None
+        self._terminals: Optional[np.ndarray] = None
+        self._truncations: Optional[np.ndarray] = None
+        self._rewards: Optional[np.ndarray] = None
 
         # Initialize renderer if needed
         if self._render_mode is not None:
@@ -113,15 +126,15 @@ class MettaGridEnv(ABC):
         return str(uuid.uuid4())
 
     @with_instance_timer("_create_core_env")
-    def _create_core_env(self, seed: Optional[int] = None) -> MettaGridCore:
+    def _create_core_env(self, seed: Optional[int] = None) -> MettaGrid:
         """
-        Create a new MettaGridCore instance.
+        Create a new MettaGrid instance.
 
         Args:
             seed: Random seed for environment
 
         Returns:
-            New MettaGridCore instance
+            New MettaGrid instance
         """
         task = self._task
         task_cfg = task.env_cfg()
@@ -162,7 +175,7 @@ class MettaGridEnv(ABC):
 
         # Create core environment
         current_seed = seed if seed is not None else self._current_seed
-        core_env = MettaGridCore(c_cfg, level.grid.tolist(), current_seed)
+        core_env = MettaGrid(c_cfg, level.grid.tolist(), current_seed)
 
         # Initialize renderer if needed
         if self._render_mode is not None and self._renderer is None:
@@ -210,15 +223,44 @@ class MettaGridEnv(ABC):
         self.timer.start("thread_idle")
         return obs, {}
 
-    @abstractmethod
+    def _allocate_buffers(self) -> None:
+        """Allocate buffers based on environment dimensions."""
+        if self._core_env is None:
+            raise RuntimeError("Core environment not initialized")
+
+        num_agents = self._core_env.num_agents
+        obs_space = self._core_env.observation_space
+
+        # Allocate buffers
+        self._observations = np.zeros((num_agents,) + obs_space.shape, dtype=dtype_observations)
+        self._terminals = np.zeros(num_agents, dtype=dtype_terminals)
+        self._truncations = np.zeros(num_agents, dtype=dtype_truncations)
+        self._rewards = np.zeros(num_agents, dtype=dtype_rewards)
+
     def _get_initial_observations(self) -> np.ndarray:
         """
         Get initial observations after reset.
 
-        This method must be implemented by subclasses to handle
-        buffer allocation and setup specific to their framework.
+        Allocates buffers and sets them in the core environment,
+        then returns the initial observations.
         """
-        pass
+        if self._core_env is None:
+            raise RuntimeError("Core environment not initialized")
+
+        # Allocate buffers
+        self._allocate_buffers()
+
+        # Set buffers in core environment
+        assert self._observations is not None
+        assert self._terminals is not None
+        assert self._truncations is not None
+        assert self._rewards is not None
+
+        self._core_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
+
+        # Get initial observations (MettaGrid populates the observation buffer)
+        obs, _ = self._core_env.reset()
+        return obs
 
     def step_base(self, actions: np.ndarray) -> Dict[str, Any]:
         """
@@ -243,17 +285,14 @@ class MettaGridEnv(ABC):
         # Record step for replay
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                rewards = self._core_env._reward_buffer
-                if rewards is not None:
-                    self._replay_writer.log_step(self._episode_id, actions, rewards)
+                if self._rewards is not None:
+                    self._replay_writer.log_step(self._episode_id, actions, self._rewards)
 
         # Check for episode completion
         infos = {}
-        terminals = self._core_env._terminal_buffer
-        truncations = self._core_env._truncation_buffer
 
-        if terminals is not None and truncations is not None:
-            if terminals.all() or truncations.all():
+        if self._terminals is not None and self._truncations is not None:
+            if self._terminals.all() or self._truncations.all():
                 self._process_episode_completion(infos)
                 self._should_reset = True
 
@@ -439,7 +478,7 @@ class MettaGridEnv(ABC):
         return self._render_mode
 
     @property
-    def core_env(self) -> Optional[MettaGridCore]:
+    def core_env(self) -> Optional[MettaGrid]:
         """Get core environment instance."""
         return self._core_env
 

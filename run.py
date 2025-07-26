@@ -35,7 +35,7 @@ from metta.interface.training import (
     save_checkpoint,
 )
 from metta.mettagrid import mettagrid_c  # noqa: F401
-from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.mettagrid import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses

@@ -24,6 +24,8 @@ dtype_terminals = np.dtype(bool)
 dtype_truncations = np.dtype(bool)
 dtype_rewards = np.dtype(np.float32)
 dtype_actions = np.dtype(np.int32)
+dtype_masks = np.dtype(bool)
+dtype_success = np.dtype(bool)
 
 
 class MettaGridPufferEnv(MettaGridEnv, PufferEnv):

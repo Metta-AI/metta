@@ -10,7 +10,7 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import (
+from metta.mettagrid import (
     MettaGridEnv,
     dtype_actions,
     dtype_observations,
