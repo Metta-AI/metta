@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
@@ -23,7 +23,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
         *,
         env_cfg_template: DictConfig | None = None,
         env_cfg_template_path: str | None = None,
-        buckets: Dict[str, Dict[str, Any]],
+        buckets: Dict[str, Any],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
     ):
@@ -71,18 +71,15 @@ def get_id(parameters, values):
     return curriculum_id
 
 
-def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Tuple[List[str], List[List[Any]]]:
+def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str, Any]:
     """
     buckets: specified in the config, values or ranges for each parameter
     returns: unpacked configurations for each parameter given the number of bins
     """
     buckets_unpacked = {}
     for parameter, bucket_spec in buckets.items():
-        if "values" in bucket_spec:
-            buckets_unpacked[parameter] = bucket_spec["values"]
-        elif "choice" in bucket_spec:
-            buckets_unpacked[parameter] = bucket_spec["choice"]
-        elif "range" in bucket_spec:
+        # if its a dictionary, the parameter is a range
+        if "range" in bucket_spec:
             lo, hi = bucket_spec["range"]
             n = int(bucket_spec.get("bins", default_bins))
             step = (hi - lo) / n
@@ -95,5 +92,5 @@ def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -
 
             buckets_unpacked[parameter] = binned_ranges
         else:
-            raise ValueError(f"Invalid bucket spec: {bucket_spec}")
+            buckets_unpacked[parameter] = bucket_spec
     return buckets_unpacked
