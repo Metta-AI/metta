@@ -82,12 +82,6 @@ class SimulationConfig(BaseModelWithForbidExtra):
         return self
 
 
-class LossConfig(BaseModelWithForbidExtra):
-    ppo: PPOConfig = Field(default_factory=PPOConfig)
-    contrastive: ContrastiveConfig = Field(default_factory=ContrastiveConfig)
-    value_detached: ValueDetachedConfig = Field(default_factory=ValueDetachedConfig)
-
-
 class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
@@ -144,7 +138,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
 
     # Loss configuration - list of loss types to use
-    losses: list[str] = Field(default=["ppo", "contrastive", "value_detached"])
+    losses: list[str] = Field(default=["PPO", "Contrastive", "ValueDetached"])
 
     # PPO configuration
     ppo: PPOConfig = Field(default_factory=PPOConfig)

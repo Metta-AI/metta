@@ -83,13 +83,6 @@ class Loss:
 
         return keys
 
-    def compute_advantage(
-        self, minibatch: TensorDict, train_td: TensorDict, indices: Tensor, prio_weights: Tensor
-    ) -> Tensor:
-        """Compute advantages for a minibatch."""
-
-        return adv
-
 
 class PPO:
     def __init__(self, manager: "Loss"):
