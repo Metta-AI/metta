@@ -103,7 +103,7 @@ class EvalTaskWorker:
 
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self._versioned_path)
 
         if result.returncode != 0:
             raise RuntimeError(f"sim.py failed with exit code {result.returncode}:\n{result.stderr}")

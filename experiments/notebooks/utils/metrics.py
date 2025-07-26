@@ -1,5 +1,3 @@
-from itertools import islice
-
 import pandas as pd
 import wandb
 from wandb.apis.public.runs import Run
@@ -20,39 +18,6 @@ def get_run(
     except Exception as e:
         print(f"Error getting run {run_name}: {str(e)}")
         return None
-
-
-def find_training_jobs(
-    wandb_tags: list[str] | None = None,
-    author: str | None = None,
-    state: str | None = None,
-    created_after: str | None = None,
-    created_before: str | None = None,
-    entity: str = "metta-research",
-    project: str = "metta",
-    order_by: str = "-created_at",
-    limit: int = 50,
-) -> list[str]:
-    filters = {}
-    if state:
-        filters["state"] = state
-    if author:
-        filters["username"] = author
-    if created_after:
-        filters["created_at"] = {"$gte": created_after}
-
-    if created_before:
-        if "created_at" in filters:
-            filters["created_at"]["$lte"] = created_before
-        else:
-            filters["created_at"] = {"$lte": created_before}
-    if wandb_tags:
-        filters["tags"] = {"$in": wandb_tags}
-    runs = islice(
-        wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit
-    )
-
-    return [run.name for run in runs]
 
 
 def fetch_metrics(run_names: list[str], samples: int = 1000) -> dict[str, pd.DataFrame]:
