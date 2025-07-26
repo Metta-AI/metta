@@ -1,21 +1,22 @@
 #!/usr/bin/env -S uv run
+"""Training script using component-based architecture."""
 
 import logging
 import multiprocessing
 import os
 from logging import Logger
+from pathlib import Path
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
-from metta.rl.trainer import train as functional_train
+from metta.rl.components import Trainer
 from metta.rl.util.distributed import setup_device_and_distributed
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
@@ -59,8 +60,6 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     cfg = load_train_job_config_with_overrides(cfg)
 
     # Validation must be done after merging
-    # otherwise trainer's default num_workers: null will be override the values
-    # set by _calculate_default_num_workers, and the validation will fail
     if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
     cfg = validate_train_job_config(cfg)
@@ -70,7 +69,9 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
-    train_job = TrainJob(cfg.train_job)
+
+    TrainJob(cfg.train_job)
+
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -79,19 +80,52 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
+    # Extract directories from config
+    run_dir = Path(cfg.run_dir)
+    checkpoint_dir = run_dir / "checkpoints"
+    replay_dir = run_dir / "replays"
+    stats_dir = run_dir / "stats"
+
+    # Ensure directories exist
+    for dir_path in [checkpoint_dir, replay_dir, stats_dir]:
+        dir_path.mkdir(parents=True, exist_ok=True)
+
+    # Get device from config
+    device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
+
+    # Get is_master
+    is_master = int(os.environ.get("RANK", 0)) == 0
+
+    # Get stats client
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client is not None:
         stats_client.validate_authenticated()
 
-    # Use the functional train interface directly
-    functional_train(
-        cfg=cfg,
-        wandb_run=wandb_run,
-        policy_store=policy_store,
-        sim_suite_config=train_job.evals,
+    # Create trainer with component architecture
+    trainer = Trainer(
+        trainer_config=cfg.trainer,
+        run_dir=str(run_dir),
+        run_name=cfg.run,
+        checkpoint_dir=str(checkpoint_dir),
+        replay_dir=str(replay_dir),
+        stats_dir=str(stats_dir),
+        device=device,
+        wandb_config=cfg.wandb if is_master else None,
+        global_config=cfg if is_master else None,
         stats_client=stats_client,
     )
+
+    try:
+        # Set up trainer components with seed from config
+        seed = cfg.get("seed", None)
+        trainer.setup(vectorization=cfg.vectorization, seed=seed)
+
+        # Run training
+        trainer.train()
+
+    finally:
+        # Clean up
+        trainer.cleanup()
 
 
 @record

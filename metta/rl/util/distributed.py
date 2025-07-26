@@ -72,3 +72,10 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
     is_master, world_size, rank = setup_distributed_vars()
 
     return device, is_master, world_size, rank
+
+
+def cleanup_distributed() -> None:
+    """Destroy the torch distributed process group if initialized."""
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+        logger.info("Destroyed distributed process group")

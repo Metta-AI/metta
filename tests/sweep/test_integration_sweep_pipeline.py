@@ -139,10 +139,6 @@ class TestSweepPipelineIntegration:
                         "eps": 1e-8,
                         "weight_decay": 0.0,
                     },
-                    "lr_scheduler": {
-                        "schedule_type": "constant",
-                        "warmup_steps": 0,
-                    },
                     "env": "/env/mettagrid/simple",
                     "env_overrides": {},
                     "initial_policy": {},
