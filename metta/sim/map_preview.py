@@ -8,8 +8,8 @@ from typing import Optional
 import wandb
 from wandb.sdk import wandb_run
 
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid import MettaGridEnv
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)

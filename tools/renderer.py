@@ -9,7 +9,6 @@ from typing import Any, List, Protocol, Tuple
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid import (
     MettaGridEnv,
     dtype_actions,
@@ -18,6 +17,7 @@ from metta.mettagrid import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.mettagrid.util.hydra import get_cfg
 from metta.util.metta_script import metta_script
