@@ -447,7 +447,7 @@ function drawTrajectory() {
       if (cx0 !== cx1 || cy0 !== cy1) {
         const a = 1 - Math.abs(i - state.step) / 200
         if (a > 0) {
-          let color = [0, 0, 0, a]
+          let color: [number, number, number, number] = [0, 0, 0, a]
           let image = ''
           if (state.step >= i) {
             // The past trajectory is black.
@@ -611,7 +611,7 @@ function drawVisibility() {
       }
     }
 
-    let color = [0, 0, 0, 0.25]
+    let color: [number, number, number, number] = [0, 0, 0, 0.25]
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }
