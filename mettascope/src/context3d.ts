@@ -157,8 +157,8 @@ export class Context3d {
       return
     }
 
-    // Otherwise, create a new mesh
-    const newMesh = new Mesh(this.gl)
+    // Otherwise, create a new mesh with the name and gl context
+    const newMesh = new Mesh(name, this.gl)
     this.meshes.set(name, newMesh)
     this.currentMesh = newMesh
     this.currentMeshName = name
@@ -191,6 +191,24 @@ export class Context3d {
   }
 
   /**
+   * Set whether the current mesh should be cached between frames.
+   *
+   * @param cacheable - If true, mesh content persists between frames
+   */
+  setCacheable(cacheable: boolean) {
+    this.ensureMeshSelected()
+    this.currentMesh!.setCacheable(cacheable)
+  }
+
+  /**
+   * Clear the current mesh even if it's cacheable.
+   */
+  clearMesh() {
+    this.ensureMeshSelected()
+    this.currentMesh!.forceClear()
+  }
+
+  /**
    * Helper method to ensure a mesh is selected before drawing.
    *
    * @private
@@ -201,19 +219,6 @@ export class Context3d {
       throw new Error('No mesh selected. Call useMesh() before drawing.')
     }
   }
-
-  /** Set whether the current mesh should be cached between frames. */
-  setCacheable(cacheable: boolean) {
-    this.ensureMeshSelected()
-    this.currentMesh!.cacheable = cacheable
-  }
-
-  /** Clear the current mesh even if it's cacheable. */
-  clearMesh() {
-    this.ensureMeshSelected()
-    this.currentMesh?.clear()
-  }
-
 
   /**
    * Save the current transformation matrix.
@@ -795,7 +800,7 @@ export class Context3d {
 
     // Reset all mesh counters after rendering
     for (const mesh of this.meshes.values()) {
-      mesh.clear()
+      mesh.resetCounters()
     }
   }
 
