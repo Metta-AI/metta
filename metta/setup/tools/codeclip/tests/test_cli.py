@@ -55,8 +55,8 @@ class TestCodeclipCLI(unittest.TestCase):
         """Test that multiple directory inputs are handled correctly."""
         self._create_test_structure()
 
-        # Test with multiple directories
-        result = self.runner.invoke(cli, ["project1", "project2"])
+        # Test with multiple directories (using -s for stdout output)
+        result = self.runner.invoke(cli, ["project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Check that files from both directories are included
@@ -74,8 +74,8 @@ class TestCodeclipCLI(unittest.TestCase):
         subdir.mkdir()
         os.chdir(subdir)
 
-        # Test with relative path
-        result = self.runner.invoke(cli, ["../project1"])
+        # Test with relative path (using -s for stdout output)
+        result = self.runner.invoke(cli, ["../project1", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("project1/main.py", result.output)
 
@@ -85,7 +85,7 @@ class TestCodeclipCLI(unittest.TestCase):
         Path("test.py").write_text("print('test')\n")
         Path("README.md").write_text("# Test\n")
 
-        result = self.runner.invoke(cli, ["."])
+        result = self.runner.invoke(cli, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test.py", result.output)
         self.assertIn("README.md", result.output)
@@ -95,7 +95,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Test filtering for Python files only
-        result = self.runner.invoke(cli, ["-e", "py", "project1", "project2"])
+        result = self.runner.invoke(cli, ["-e", "py", "project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include .py files
@@ -109,8 +109,8 @@ class TestCodeclipCLI(unittest.TestCase):
         """Test raw output format."""
         Path("test.py").write_text("print('test')\n")
 
-        # Test with raw format
-        result = self.runner.invoke(cli, [".", "-r"])
+        # Test with raw format (using -s for stdout output)
+        result = self.runner.invoke(cli, [".", "-r", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should not have XML tags
@@ -122,7 +122,7 @@ class TestCodeclipCLI(unittest.TestCase):
         """Test XML output format (default)."""
         Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(cli, ["."])
+        result = self.runner.invoke(cli, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML tags (new format)
@@ -141,7 +141,7 @@ class TestCodeclipCLI(unittest.TestCase):
         subdir.mkdir()
         (subdir / "code.py").write_text("print('code')\n")
 
-        result = self.runner.invoke(cli, ["subdir"])
+        result = self.runner.invoke(cli, ["subdir", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include both the subdirectory file and parent README
@@ -150,8 +150,8 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertIn("Parent README", result.output)
 
     @patch("subprocess.Popen")
-    def test_pbcopy_integration(self, mock_popen):
-        """Test clipboard integration on macOS."""
+    def test_clipboard_default(self, mock_popen):
+        """Test clipboard integration on macOS (default behavior)."""
         Path("test.py").write_text("print('test')\n")
 
         # Mock the process and communicate method
@@ -159,12 +159,69 @@ class TestCodeclipCLI(unittest.TestCase):
         mock_process.communicate = MagicMock()
         mock_popen.return_value = mock_process
 
-        result = self.runner.invoke(cli, [".", "-p"])
+        # Clipboard is now the default behavior (no flags needed)
+        result = self.runner.invoke(cli, ["."])
         self.assertEqual(result.exit_code, 0)
 
         # Check that pbcopy was called
         mock_popen.assert_called_once_with(["pbcopy"], stdin=subprocess.PIPE)
         mock_process.communicate.assert_called_once()
+
+        # Should see summary in stderr
+        self.assertIn("Copied", result.output)
+        self.assertIn("tokens", result.output)
+
+    def test_stdout_flag(self):
+        """Test that -s flag outputs to stdout."""
+        Path("test.py").write_text("print('test')\n")
+
+        result = self.runner.invoke(cli, [".", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should have file content in stdout
+        self.assertIn("print('test')", result.output)
+        # Should NOT have summary since -s was used
+        self.assertNotIn("Copied", result.output)
+
+    @patch("subprocess.Popen")
+    def test_dry_run_flag(self, mock_popen):
+        """Test that --dry flag prevents output and clipboard copy."""
+        Path("test.py").write_text("print('test')\n")
+
+        # Mock the process
+        mock_process = MagicMock()
+        mock_process.communicate = MagicMock()
+        mock_popen.return_value = mock_process
+
+        result = self.runner.invoke(cli, [".", "--dry"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Check that pbcopy was NOT called
+        mock_popen.assert_not_called()
+
+        # Should see "Would copy" summary in stderr
+        self.assertIn("Would copy", result.output)
+        self.assertIn("tokens", result.output)
+
+        # Should NOT have file content in output
+        self.assertNotIn("print('test')", result.output)
+
+    @patch("subprocess.Popen")
+    def test_dry_run_with_stdout_flag(self, mock_popen):
+        """Test that --dry with -s still prevents output."""
+        Path("test.py").write_text("print('test')\n")
+
+        result = self.runner.invoke(cli, [".", "-s", "--dry"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT have file content in stdout
+        self.assertNotIn("print('test')", result.output)
+
+        # Should see "Would copy" summary since dry run
+        self.assertIn("Would copy", result.output)
+
+        # pbcopy should not be called
+        mock_popen.assert_not_called()
 
 
 if __name__ == "__main__":
