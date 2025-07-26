@@ -276,7 +276,8 @@ timer.start()
 lr_scheduler = None
 if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler.enabled:
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
+        optimizer.optimizer,
+        T_max=trainer_config.total_timesteps // trainer_config.batch_size,
     )
 
 # Memory and System Monitoring (master only)
