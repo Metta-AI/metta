@@ -75,7 +75,8 @@ protected:
                        create_test_resource_reward_max(),  // resource_reward_max
                        {},                                 // stat_rewards
                        {},                                 // stat_reward_max
-                       0.0f);                              // group_reward_pct
+                       0.0f,                               // group_reward_pct
+                       0);                                 // glyph
   }
 };
 

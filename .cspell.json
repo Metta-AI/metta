@@ -106,6 +106,7 @@
     "initializedcheck",
     "iomanip",
     "iosfwd",
+    "ising",
     "isinstance",
     "jmespath",
     "keepalive",
@@ -247,8 +248,9 @@
   ],
   "ignoreWords": [],
   "ignorePaths": [
-    "node_modules",
-    "venv",
-    ".git"
+    "node_modules/**",
+    "venv/**",
+    ".git/**",
+    "*.map"
   ]
 }

@@ -1,0 +1,81 @@
+# the agent can not be overridden here so I am putting it in my user file for now
+
+defaults:
+  - _self_
+
+sampling: 0
+
+game:
+  num_agents: ??
+  obs_width: 11
+  obs_height: 11
+  num_observation_tokens: 200
+  max_steps: 100
+
+  # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
+  # inventory they didn't intend (e.g., "ore" instead of "ore_red").
+  inventory_item_names:
+    - heart
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    change_glyph:
+      enabled: true
+      number_of_glyphs: 4
+
+  agent:
+    rewards:
+      heart: 1
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+
+    border_width: 1
+    instances: 1
+    instance_border_width: 1
+
+    root:
+      type: metta.map.scenes.ascii.Ascii
+      params:
+        uri: ?? # must be overridden
+
+  objects:
+    altar:
+      type_id: 8
+      output_resources:
+        heart: 1
+      cooldown: 255
+      max_output: 50
+      conversion_ticks: 1
+      initial_resource_count: 1
+      #TODO: does -1 mean "forever" here?
+
+    wall:
+      type_id: 1
+      swappable: false
+
+
+  groups:
+    # team 1 is meant to learn to communicate and collect hearts
+    team_1:
+      id: 1
+      sprite: 1
+      group_reward_pct: 1.0
+      props: {glyph: 0}
+
+    # team 2 is the signal agent and is locked in
+    team_2:
+      id: 2
+      sprite: 4
+      group_reward_pct: 0.0
+      props:
+        glyph: ?? # must be overridden

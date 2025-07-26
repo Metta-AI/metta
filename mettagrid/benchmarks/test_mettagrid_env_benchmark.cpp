@@ -67,7 +67,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                                                              std::map<InventoryItem, RewardType>(),
                                                              std::map<std::string, RewardType>(),
                                                              std::map<std::string, RewardType>(),
-                                                             0.0f);
+                                                             0.0f,
+                                                             0);
   objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
                                                              "agent",
                                                              1,
@@ -79,7 +80,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                                                              std::map<InventoryItem, RewardType>(),
                                                              std::map<std::string, RewardType>(),
                                                              std::map<std::string, RewardType>(),
-                                                             0.0f);
+                                                             0.0f,
+                                                             0);
 
   // Create default global observation config
   GlobalObsConfig global_obs_config;
@@ -239,9 +241,7 @@ int main(int argc, char** argv) {
 
   // Register benchmarks after Python is initialized
   // Use Threads(1) to ensure single-threaded execution for Python GIL safety
-  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)
-      ->Unit(benchmark::kMillisecond)
-      ->Threads(1);
+  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)->Unit(benchmark::kMillisecond)->Threads(1);
 
   // Run benchmarks
   ::benchmark::RunSpecifiedBenchmarks();

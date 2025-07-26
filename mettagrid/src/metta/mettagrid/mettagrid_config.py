@@ -90,6 +90,7 @@ class PyAgentConfig(BaseModelWithForbidExtra):
     freeze_duration: Optional[int] = Field(default=0, ge=-1)
     rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
     action_failure_penalty: Optional[float] = Field(default=0, ge=0)
+    glyph: Optional[int] = Field(default=0, ge=0, le=255)
 
 
 class PyGroupConfig(BaseModelWithForbidExtra):
@@ -106,7 +107,7 @@ class PyGroupConfig(BaseModelWithForbidExtra):
 class PyActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
-    enabled: bool
+    enabled: bool = Field(default=False)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: Optional[dict[str, int]] = Field(default=None)
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
@@ -128,18 +129,18 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     """
     Actions configuration.
 
-    Omitted actions are disabled by default.
+    Actions will use disabled configuration if not explicitly provided.
     """
 
-    noop: Optional[PyActionConfig] = None
-    move: Optional[PyActionConfig] = None
-    rotate: Optional[PyActionConfig] = None
-    put_items: Optional[PyActionConfig] = None
-    get_items: Optional[PyActionConfig] = None
-    attack: Optional[PyAttackActionConfig] = None
-    swap: Optional[PyActionConfig] = None
-    change_color: Optional[PyActionConfig] = None
-    change_glyph: Optional[PyChangeGlyphActionConfig] = None
+    noop: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    move: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    rotate: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    put_items: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    get_items: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    attack: PyAttackActionConfig = Field(default_factory=lambda: PyAttackActionConfig(enabled=False))
+    swap: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    change_color: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    change_glyph: PyChangeGlyphActionConfig = Field(default_factory=lambda: PyChangeGlyphActionConfig(enabled=False))
 
 
 class PyGlobalObsConfig(BaseModelWithForbidExtra):
@@ -209,3 +210,4 @@ class PyGameConfig(BaseModelWithForbidExtra):
 class PyPolicyGameConfig(PyGameConfig):
     obs_width: Literal[11]
     obs_height: Literal[11]
+    num_observation_tokens: Literal[200]

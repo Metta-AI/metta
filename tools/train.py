@@ -83,6 +83,8 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     if stats_client is not None:
         stats_client.validate_authenticated()
 
+    logger.info("config:\n%s", OmegaConf.to_yaml(cfg))
+
     # Instantiate the trainer directly with the typed config
     trainer = hydra.utils.instantiate(
         cfg.trainer,
