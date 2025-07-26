@@ -1,4 +1,4 @@
-name: "Update PR Description"
+name: "Sync PR Description (Asana to GH)"
 description: "Updates a GitHub pull request description with a link to an Asana task."
 
 inputs:
@@ -24,7 +24,7 @@ runs:
         version: "0.7.3"
         enable-cache: true
 
-    - run: uv run ${{ github.action_path }}/main.py
+    - run: uv run ${{ github.action_path }}/pr_description_asana_to_gh.py
       shell: bash
       env:
         INPUT_REPO: ${{ inputs.repo }}
