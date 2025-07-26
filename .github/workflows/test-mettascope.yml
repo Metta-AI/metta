@@ -7,12 +7,37 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  check-container:
+    name: "Check Container Availability"
+    runs-on: ubuntu-latest
+    outputs:
+      container-tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - name: Check for PR-specific container
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_TAG="pr-${{ github.event.pull_request.number }}"
+
+            # Check if the PR-specific container exists
+            if docker manifest inspect ghcr.io/metta-ai/metta/mettascope-ci:${PR_TAG} >/dev/null 2>&1; then
+              echo "Found PR-specific container: ${PR_TAG}"
+              echo "tag=${PR_TAG}" >> $GITHUB_OUTPUT
+            else
+              echo "PR-specific container not found, falling back to latest"
+              echo "tag=latest" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Not a PR event, using latest"
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
   test:
     name: "Lint, Install, and Test"
     runs-on: ubuntu-latest
-
+    needs: check-container
     container:
-      image: ghcr.io/metta-ai/metta/mettascope-ci:${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || 'latest' }}
+      image: ghcr.io/metta-ai/metta/mettascope-ci:${{ needs.check-container.outputs.container-tag }}
       options: --shm-size=2gb
       env:
         UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
@@ -20,7 +45,7 @@ jobs:
     steps:
       - name: Show image used
         run: |
-          echo "Using image: ghcr.io/metta-ai/metta/mettascope-ci:${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || 'latest' }}"
+          echo "Using image: ghcr.io/metta-ai/metta/mettascope-ci:${{ needs.check-container.outputs.container-tag }}"
 
       - name: Checkout repository
         uses: actions/checkout@v4
