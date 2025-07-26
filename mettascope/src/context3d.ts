@@ -504,18 +504,17 @@ export class Context3d {
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
 
-    // biome-ignore format: keep comments aligned
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y)       // Move origin to sprite center
-      this.rotate(rotation)      // Apply rotation
+      this.translate(x, y) // Move origin to sprite center
+      this.rotate(rotation) // Apply rotation
       this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
         -sw / 2 - m, // Left edge: center minus half width minus margin
         -sh / 2 - m, // Top edge: center minus half height minus margin
-        sw + 2 * m,  // Total width including margins on both sides
-        sh + 2 * m,  // Total height including margins on both sides
+        sw + 2 * m, // Total width including margins on both sides
+        sh + 2 * m, // Total height including margins on both sides
         u0,
         v0,
         u1,
@@ -528,8 +527,8 @@ export class Context3d {
       this.drawRect(
         x - sw / 2 - m, // Left edge position
         y - sh / 2 - m, // Top edge position
-        sw + 2 * m,     // Total width including margins
-        sh + 2 * m,     // Total height including margins
+        sw + 2 * m, // Total width including margins
+        sh + 2 * m, // Total height including margins
         u0,
         v0,
         u1,
