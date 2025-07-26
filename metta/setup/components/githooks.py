@@ -43,7 +43,7 @@ class GitHooksSetup(SetupModule):
         return "Git hooks"
 
     def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("githooks")
+        return self.config.is_component_enabled("githooks") and not self._is_in_worktree()
 
     def _is_in_worktree(self) -> bool:
         try:
@@ -103,9 +103,8 @@ class GitHooksSetup(SetupModule):
         """Install git hooks by symlinking from devops/git-hooks to .git/hooks"""
         # Check if we're in a worktree
         if self._is_in_worktree():
-            error("Cannot install git hooks from a worktree.")
-            error("Please run this command from the main repository checkout.")
-            sys.exit(1)
+            info("Cannot install git hooks from a worktree. Skipping...")
+            return
 
         info("Installing git hooks...")
 
