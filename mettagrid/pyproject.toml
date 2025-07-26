@@ -34,6 +34,7 @@ dependencies = [
     "pydantic>=2.11.5",
     "pufferlib",
     "pyyaml>=6.0.2",
+    "raylib>=5.5.0.0",
     "rich>=13.9.4",
     "scipy>=1.15.3",
     "tabulate>=0.9.0",

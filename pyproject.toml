@@ -55,6 +55,7 @@ dependencies = [
   "jupyterlab>=4.4.4",
   "widgetsnbextension>=4.0.14",
   "tiktoken>=0.9.0",
+  "raylib>=5.5.0.0"
 ]
 name = "metta"
 version = "0.1"

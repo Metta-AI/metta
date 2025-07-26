@@ -230,7 +230,7 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
     """
     # Determine render mode
     render_mode: str = cfg.renderer_job.get("renderer_type", "human")
-    if render_mode not in ["human", "nethack", "miniscope"]:
+    if render_mode not in ["human", "nethack", "miniscope", "raylib"]:
         print(f"⚠️  Unknown renderer type '{render_mode}', using 'human' (nethack)")
         render_mode = "human"
 

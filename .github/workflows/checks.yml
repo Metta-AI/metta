@@ -468,6 +468,25 @@ jobs:
           path: "*.json"
           retention-days: 7
 
+  smoke-tests-summary:
+    name: "Smoke Tests"
+    needs: [smoke-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          echo "Smoke test job results: ${{ toJSON(needs) }}"
+          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
+            echo "One or more smoke test jobs failed"
+            exit 1
+          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
+            echo "One or more smoke test jobs were cancelled"
+            exit 1
+          else
+            echo "All smoke test jobs completed successfully"
+          fi
+
   python-benchmark:
     name: "Python Benchmarks"
     needs: [setup-checks]
