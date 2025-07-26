@@ -32,7 +32,7 @@ if [ -z "$NUM_GPUS" ]; then
 fi
 
 NUM_NODES=${NUM_NODES:-1}
-MASTER_ADDR=${MASTER_ADDR:-localhost}
+MASTER_ADDR=${MASTER_ADDR:-127.0.0.1}
 MASTER_PORT=${MASTER_PORT:-12345}
 NODE_INDEX=${NODE_INDEX:-0}
 
@@ -56,6 +56,7 @@ PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --node-rank=$NODE_INDEX \
   tools/train.py \
   trainer.num_workers=null \
+  wandb.enabled=true \
   $args
 EXIT_CODE=$?
 set -e

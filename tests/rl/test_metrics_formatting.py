@@ -42,6 +42,7 @@ class TestMetricsFormattingMain:
 
         result = build_wandb_stats(
             processed_stats,
+            {},  # curriculum stats
             timing_info,
             weight_stats,
             grad_stats,
@@ -52,6 +53,7 @@ class TestMetricsFormattingMain:
             evals,
             agent_step=10000,
             epoch=100,
+            world_size=1,
         )
 
         # Check overview metrics

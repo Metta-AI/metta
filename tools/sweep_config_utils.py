@@ -45,7 +45,7 @@ def merge_train_job_config_overrides(
     return merged_cfg
 
 
-def validate_train_job_config(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+def validate_train_job_config(cfg: DictConfig) -> DictConfig:
     """Validate a train job config.
 
     Args:
@@ -61,7 +61,7 @@ def validate_train_job_config(cfg: DictConfig | ListConfig) -> DictConfig | List
     return cfg
 
 
-def load_train_job_config_with_overrides(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+def load_train_job_config_with_overrides(cfg: DictConfig) -> DictConfig:
     """
     Load a train job config with overrides.
     Overrides are expected to be in the run_dir as `train_config_overrides.yaml`.

@@ -135,8 +135,8 @@ class Simulation:
 
         env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
-            curriculum,
             vectorization,
+            curriculum=curriculum,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
             replay_writer=self._replay_writer,

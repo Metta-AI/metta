@@ -3,7 +3,6 @@ import os
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 from uuid import UUID
 
 import numpy as np
