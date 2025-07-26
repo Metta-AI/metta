@@ -38,9 +38,11 @@ def main(cfg: DictConfig) -> int:
     logger.debug(f"Original command-line args: {ORIGINAL_ARGS}")
 
     # Setup the sweep - only rank 0 does this, others wait
+    # IMPORTANT: use_distributed=False to avoid process group conflicts with training
     try:
         wandb_sweep_id = run_once(
             lambda: setup_sweep(cfg, logger),
+            use_distributed=False,  # Don't initialize process group in sweep orchestration
         )
     except Exception as e:
         logger.error(f"Sweep setup failed: {e}", exc_info=True)
@@ -80,17 +82,16 @@ def main(cfg: DictConfig) -> int:
 
 
 def run_single_rollout(cfg: DictConfig) -> int:
-    """Run a single rollout."""
+    """Run a single rollout iteration."""
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
 
-    # Master node only
-    preparation_result = run_once(lambda: prepare_sweep_run(cfg, logger))
-
-    if preparation_result is None:
-        logger.error("Failed to prepare sweep rollout")
-        raise RuntimeError("Sweep preparation failed")
-
-    run_name, downstream_cfg, protein_suggestion = preparation_result
+    # Prepare the run (only rank 0 should do this)
+    # IMPORTANT: use_distributed=False to avoid process group conflicts
+    run_name, downstream_cfg, protein_suggestion = run_once(
+        lambda: prepare_sweep_run(cfg, logger),
+        use_distributed=False,  # Don't initialize process group
+    )
+    logger.info(f"Prepared run: {run_name}")
 
     # All ranks participate in training
     # The train.sh script handles distributed coordination
@@ -98,13 +99,17 @@ def run_single_rollout(cfg: DictConfig) -> int:
         run_name=run_name,
         dist_cfg_path=downstream_cfg.dist_cfg_path,
         data_dir=downstream_cfg.data_dir,
-        run_dir=downstream_cfg.run_dir,
+        run_dir=f"{cfg.runs_dir}/{run_name}",
         original_args=ORIGINAL_ARGS,
     )
     logger.info("Training completed...")
 
-    # Master node only
-    eval_results = run_once(lambda: evaluate_rollout(downstream_cfg, protein_suggestion, logger))
+    # Evaluate the rollout (only rank 0 should do this)
+    # IMPORTANT: use_distributed=False to avoid process group conflicts
+    eval_results = run_once(
+        lambda: evaluate_rollout(downstream_cfg, protein_suggestion, logger),
+        use_distributed=False,  # Don't initialize process group
+    )
 
     if eval_results is None:
         logger.error("Evaluation failed")
