@@ -9,6 +9,9 @@ RUN brew install cmake ninja
 # Install kubectl for EKS/Kind testing
 RUN brew install kubectl
 
+# Install AWS CLI
+RUN brew install awscli
+
 WORKDIR /workspace
 
 # Copy the entire repo
