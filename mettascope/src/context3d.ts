@@ -60,16 +60,16 @@ class Mesh {
   private indexCapacity: number
   private vertexData: Float32Array
   private indexData: Uint32Array
-  private currentQuad: number = 0
-  private currentVertex: number = 0
+  private currentQuad = 0
+  private currentVertex = 0
 
   // Scissor properties
-  public scissorEnabled: boolean = false
+  public scissorEnabled = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
   // Caching properties
-  public cacheable: boolean = false
-  public isDirty: boolean = true
+  public cacheable = false
+  public isDirty = true
 
   constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
     this.name = name
@@ -107,7 +107,9 @@ class Mesh {
 
   /** Create WebGL buffers. */
   createBuffers() {
-    if (!this.gl) return
+    if (!this.gl) {
+      return
+    }
 
     // Create vertex buffer
     this.vertexBuffer = this.gl.createBuffer()
@@ -290,27 +292,27 @@ class Mesh {
 export class Context3d {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
-  public ready: boolean = false
-  public dpr: number = 1
+  public ready = false
+  public dpr = 1
   public atlasData: AtlasData | null = null
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
   private atlasTexture: WebGLTexture | null = null
   private textureSize: Vec2f = new Vec2f(0, 0)
-  private atlasMargin: number = 4
+  private atlasMargin = 4
 
   // Shader locations
-  private positionLocation: number = -1
-  private texcoordLocation: number = -1
-  private colorLocation: number = -1
+  private positionLocation = -1
+  private texcoordLocation = -1
+  private colorLocation = -1
   private canvasSizeLocation: WebGLUniformLocation | null = null
   private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
   private currentMesh: Mesh | null = null
-  private currentMeshName: string = ''
+  public currentMeshName = ''
 
   // Transformation state
   private currentTransform: Mat3f
@@ -378,7 +380,7 @@ export class Context3d {
   /** Clear the current mesh even if it's cacheable. */
   clearMesh() {
     this.ensureMeshSelected()
-    this.currentMesh!.forceClear()
+    this.currentMesh?.forceClear()
   }
 
   /** Helper method to ensure a mesh is selected before drawing. */
@@ -555,7 +557,9 @@ export class Context3d {
   /** Create and compile a shader. */
   private createShader(type: number, source: string): WebGLShader | null {
     const shader = this.gl.createShader(type)
-    if (!shader) return null
+    if (!shader) {
+      return null
+    }
 
     this.gl.shaderSource(shader, source)
     this.gl.compileShader(shader)
@@ -572,7 +576,9 @@ export class Context3d {
   /** Create and link a shader program. */
   private createProgram(vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
     const program = this.gl.createProgram()
-    if (!program) return null
+    if (!program) {
+      return null
+    }
 
     this.gl.attachShader(program, vertexShader)
     this.gl.attachShader(program, fragmentShader)
@@ -589,7 +595,9 @@ export class Context3d {
 
   /** Clears all meshes for a new frame. */
   clear() {
-    if (!this.ready) return
+    if (!this.ready) {
+      return
+    }
 
     // Clear all meshes in the map
     for (const mesh of this.meshes.values()) {
@@ -635,7 +643,7 @@ export class Context3d {
     const bottomRight = this.currentTransform.transform(untransformedBottomRight)
 
     // Send pre-transformed vertices to the mesh
-    this.currentMesh!.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
+    this.currentMesh?.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
   }
 
   /** Check if the image is in the atlas. */
@@ -736,17 +744,18 @@ export class Context3d {
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
 
+    // biome-ignore format: keep comments aligned
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y)          // Move origin to sprite center
-      this.rotate(rotation)         // Apply rotation
-      this.scale(scaleX, scaleY)    // Apply scaling
+      this.translate(x, y)       // Move origin to sprite center
+      this.rotate(rotation)      // Apply rotation
+      this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
-        -sw / 2 - m,  // Left edge: center minus half width minus margin
-        -sh / 2 - m,  // Top edge: center minus half height minus margin
-        sw + 2 * m,   // Total width including margins on both sides
-        sh + 2 * m,   // Total height including margins on both sides
+        -sw / 2 - m, // Left edge: center minus half width minus margin
+        -sh / 2 - m, // Top edge: center minus half height minus margin
+        sw + 2 * m,  // Total width including margins on both sides
+        sh + 2 * m,  // Total height including margins on both sides
         u0,
         v0,
         u1,
@@ -757,10 +766,10 @@ export class Context3d {
     } else {
       // Fast path: no transformations needed, draw directly
       this.drawRect(
-        x - sw / 2 - m,  // Left edge position
-        y - sh / 2 - m,  // Top edge position
-        sw + 2 * m,      // Total width including margins
-        sh + 2 * m,      // Total height including margins
+        x - sw / 2 - m, // Left edge position
+        y - sh / 2 - m, // Top edge position
+        sw + 2 * m,     // Total width including margins
+        sh + 2 * m,     // Total height including margins
         u0,
         v0,
         u1,
@@ -845,12 +854,16 @@ export class Context3d {
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
       const quadCount = mesh.getQuadCount()
-      if (quadCount === 0) continue
+      if (quadCount === 0) {
+        continue
+      }
 
       const vertexBuffer = mesh.getVertexBuffer()
       const indexBuffer = mesh.getIndexBuffer()
 
-      if (!vertexBuffer || !indexBuffer) continue
+      if (!vertexBuffer || !indexBuffer) {
+        continue
+      }
 
       // Calculate data sizes
       const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
@@ -921,8 +934,8 @@ export class Context3d {
     y1: number,
     spacing: number,
     color: number[],
-    skipStart: number = 0,
-    skipEnd: number = 0
+    skipStart = 0,
+    skipEnd = 0
   ) {
     // Compute the angle of the line.
     const angle = Math.atan2(y1 - y0, x1 - x0)
