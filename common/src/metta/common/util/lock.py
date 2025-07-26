@@ -9,6 +9,7 @@ T = TypeVar("T")
 
 
 def _init_process_group() -> bool:
+    """Initialize process group if not already initialized and multi-node setup detected."""
     world_size = int(os.environ.get("WORLD_SIZE", os.environ.get("NUM_NODES", "1")))
     if world_size <= 1:
         return False
@@ -25,7 +26,7 @@ def _init_process_group() -> bool:
     return True
 
 
-def run_once(fn: Callable[[], T], destroy_on_finish: bool = True) -> T:
+def run_once(fn: Callable[[], T], use_distributed: bool = True) -> T:
     """Run ``fn`` only on rank 0 and broadcast the result.
 
     If ``torch.distributed`` is not initialized, this function will attempt to
@@ -35,8 +36,12 @@ def run_once(fn: Callable[[], T], destroy_on_finish: bool = True) -> T:
 
     Args:
         fn: Function to run only on rank 0
+        use_distributed: Whether to use distributed coordination. Set to False
+            for orchestration tasks that launch distributed subprocesses.
     """
-    group_initialized = _init_process_group()
+    if use_distributed:
+        _init_process_group()
+
     if dist.is_initialized():
         rank = dist.get_rank()
     else:
@@ -49,7 +54,7 @@ def run_once(fn: Callable[[], T], destroy_on_finish: bool = True) -> T:
         dist.broadcast_object_list(result_list, src=0)
         result = result_list[0]
 
-    if group_initialized and destroy_on_finish:
+    if use_distributed:
         dist.destroy_process_group()
 
     assert result is not None  # This should always be true after broadcast
