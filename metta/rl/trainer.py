@@ -31,17 +31,14 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
-from metta.rl.util.advantage import compute_advantage
 from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
-    calculate_prioritized_sampling_params,
 )
-from metta.rl.util.losses import PPO, Contrastive, ValueDetached
+from metta.rl.util.losses import Loss
 from metta.rl.util.optimization import (
     calculate_explained_variance,
     compute_gradient_stats,
@@ -254,12 +251,13 @@ class MettaTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(
-            trainer_cfg.kickstart,
-            self.device,
-            policy_store,
-            metta_grid_env,
-        )
+        # av delete
+        # self.kickstarter = Kickstarter(
+        #     trainer_cfg.kickstart,
+        #     self.device,
+        #     policy_store,
+        #     metta_grid_env,
+        # )
 
         if torch.distributed.is_initialized():
             self.policy.flatten_parameters()  # av check
@@ -268,13 +266,10 @@ class MettaTrainer:
             # Ensure all ranks have initialized DDP before proceeding
             torch.distributed.barrier()
 
-        self.ppo_loss = PPO(self.policy, None, self.trainer_cfg, self.device, self.losses)
-        self.contrastive_loss = Contrastive(self.policy, None, self.trainer_cfg, self.device, self.losses)
-        self.detached_value_loss = ValueDetached(self.policy, None, self.trainer_cfg, self.device, self.losses)
+        self.loss = Loss(self.trainer_cfg, self.device, self.losses)
         self._make_experience_buffer()
-        self.ppo_loss.experience = self.experience
-        self.contrastive_loss.experience = self.experience
-        self.detached_value_loss.experience = self.experience
+        self.loss.update_policy(self.policy)
+        self.loss.update_experience(self.experience)
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
@@ -486,81 +481,59 @@ class MettaTrainer:
         experience.buffer.meta["train"] = True
         trainer_cfg = self.trainer_cfg
 
-        self.losses.zero()
-
-        prio_cfg = trainer_cfg.prioritized_experience_replay
-        vtrace_cfg = trainer_cfg.vtrace
+        # prio_cfg = trainer_cfg.prioritized_experience_replay # av move these to ppo
+        # vtrace_cfg = trainer_cfg.vtrace
 
         # Reset importance sampling ratios
         experience.reset_importance_sampling_ratios()
 
         # Prioritized sampling parameters
-        anneal_beta = calculate_prioritized_sampling_params(
-            epoch=self.epoch,
-            total_timesteps=trainer_cfg.total_timesteps,
-            batch_size=trainer_cfg.batch_size,
-            prio_alpha=prio_cfg.prio_alpha,
-            prio_beta0=prio_cfg.prio_beta0,
-        )
+        # anneal_beta = calculate_prioritized_sampling_params(
+        #     epoch=self.epoch,
+        #     total_timesteps=trainer_cfg.total_timesteps,
+        #     batch_size=trainer_cfg.batch_size,
+        #     prio_alpha=prio_cfg.prio_alpha,
+        #     prio_beta0=prio_cfg.prio_beta0,
+        # )
 
-        # Compute advantages using puff_advantage
-        advantages = torch.zeros_like(experience.buffer["values"])
+        # # Compute advantages using puff_advantage
+        # advantages = torch.zeros_like(experience.buffer["values"])
 
-        # Initial importance sampling ratio is all ones
-        initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
+        # # Initial importance sampling ratio is all ones
+        # initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
-        advantages = compute_advantage(
-            experience.buffer["values"],
-            experience.buffer["rewards"],
-            experience.buffer["dones"],
-            initial_importance_sampling_ratio,
-            advantages,
-            trainer_cfg.ppo.gamma,
-            trainer_cfg.ppo.gae_lambda,
-            vtrace_cfg.vtrace_rho_clip,
-            vtrace_cfg.vtrace_c_clip,
-            self.device,
-        )
+        # advantages = compute_advantage(
+        #     experience.buffer["values"],
+        #     experience.buffer["rewards"],
+        #     experience.buffer["dones"],
+        #     initial_importance_sampling_ratio,
+        #     advantages,
+        #     trainer_cfg.ppo.gamma,
+        #     trainer_cfg.ppo.gae_lambda,
+        #     vtrace_cfg.vtrace_rho_clip,
+        #     vtrace_cfg.vtrace_c_clip,
+        #     self.device,
+        # )
 
         # Optimizing the policy and value network
         minibatch_idx = 0
 
-        for _epoch in range(trainer_cfg.update_epochs):
-            for _ in range(experience.num_minibatches):
-                minibatch, indices, prio_weights = experience.sample_minibatch(
-                    advantages=advantages,
-                    prio_alpha=prio_cfg.prio_alpha,
-                    prio_beta=anneal_beta,
-                )
-                policy_spec = self.policy.get_experience_spec()
-                train_td = minibatch.select(*policy_spec.keys(include_nested=True))  # select what policy wants
-                train_td = self.policy(train_td, action=minibatch["actions"])
+        self.losses.zero()
+        self.loss.update_experience(experience)
+        self.loss.epoch = self.epoch
+        self.loss.agent_step = self.agent_step
 
-                # Use the helper function to process minibatch update
-                loss = self.ppo_loss(
-                    minibatch=minibatch,
-                    train_td=train_td,
-                    indices=indices,
-                    prio_weights=prio_weights,
-                    kickstarter=self.kickstarter,
-                    agent_step=self.agent_step,
-                )
-                contrastive_loss = self.contrastive_loss(
-                    minibatch=minibatch,
-                    train_td=train_td,
-                    indices=indices,
-                    prio_weights=prio_weights,
-                    kickstarter=self.kickstarter,
-                    agent_step=self.agent_step,
-                )
-                detached_value_loss = self.detached_value_loss(
-                    minibatch=minibatch,
-                    train_td=train_td,
-                    indices=indices,
-                    prio_weights=prio_weights,
-                    kickstarter=self.kickstarter,
-                    agent_step=self.agent_step,
-                )
+        for _epoch in range(trainer_cfg.update_epochs):
+            for mb_idx in range(experience.num_minibatches):
+                self.loss.mb_idx = mb_idx
+                # minibatch, indices, prio_weights = experience.sample_minibatch(
+                #     advantages=advantages,
+                #     prio_alpha=prio_cfg.prio_alpha,
+                #     prio_beta=anneal_beta,
+                # )
+
+                # train_td = minibatch.select(*policy_spec.keys(include_nested=True))  # select what policy wants
+                # train_td = self.policy(train_td, action=minibatch["actions"])
 
                 loss += contrastive_loss + detached_value_loss
                 self.optimizer.zero_grad()
@@ -622,8 +595,9 @@ class MettaTrainer:
             return
 
         extra_args = {}
-        if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
-            extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
+        # av how to move this data from losses to here?
+        # if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
+        #     extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
 
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
@@ -848,8 +822,6 @@ class MettaTrainer:
             raw_stats=self.stats,
             losses=self.losses,
             experience=self.experience,
-            trainer_config=self.trainer_cfg,
-            kickstarter=self.kickstarter,
         )
 
         # Update self.stats with mean values for consistency
@@ -963,8 +935,8 @@ class MettaTrainer:
 
         # Get the experience buffer specification from the policy
         policy_experience_spec = self.policy.get_experience_spec()
-        ppo_experience_spec = self.ppo.get_experience_spec()
-        experience_spec = policy_experience_spec.merge(ppo_experience_spec)
+        loss_experience_spec = self.loss.get_experience_spec()
+        experience_spec = policy_experience_spec.merge(loss_experience_spec)
 
         # Create experience buffer
         self.experience = Experience(

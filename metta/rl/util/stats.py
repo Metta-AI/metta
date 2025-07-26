@@ -51,8 +51,6 @@ def process_training_stats(
     raw_stats: Dict[str, Any],
     losses: Any,
     experience: Any,
-    trainer_config: Any,
-    kickstarter: Any,
 ) -> Dict[str, Any]:
     """Process training statistics into a clean format.
 
@@ -82,15 +80,6 @@ def process_training_stats(
     # Get loss and experience statistics
     losses_stats = losses.stats() if hasattr(losses, "stats") else {}
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}
-
-    # Remove unused losses
-    if trainer_config.ppo.l2_reg_loss_coef == 0:
-        losses_stats.pop("l2_reg_loss", None)
-    if trainer_config.ppo.l2_init_loss_coef == 0:
-        losses_stats.pop("l2_init_loss", None)
-    if kickstarter is None or not kickstarter.enabled:
-        losses_stats.pop("ks_action_loss", None)
-        losses_stats.pop("ks_value_loss", None)
 
     # Calculate environment statistics
     environment_stats = {
@@ -285,8 +274,6 @@ def process_stats(
         raw_stats=stats,
         losses=losses,
         experience=experience,
-        trainer_config=trainer_cfg,
-        kickstarter=kickstarter,
     )
 
     # Compute timing stats

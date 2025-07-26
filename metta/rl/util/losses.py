@@ -2,17 +2,18 @@
 
 import logging
 import sys
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import Tensor
 
-from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
 from metta.rl.util.advantage import compute_advantage, normalize_advantage_distributed
+from metta.rl.util.batch_utils import calculate_prioritized_sampling_params
 
 logger = logging.getLogger(__name__)
 
@@ -29,24 +30,32 @@ class Loss:
 
     def __init__(
         self,
-        policy: DistributedMettaAgent,
         trainer_cfg: Any,
         device: torch.device,
         losses: Losses,
-        experience: Optional[Experience] = None,
     ):
-        self.policy = policy
         self.trainer_cfg = trainer_cfg
         self.device = device
         self.loss_tracker = losses
-        self.experience = experience
         self.losses_to_use = trainer_cfg.losses
+        self.epoch = 0  # this is different from the update epoch in the trainer loop!
+        self.mb_idx = 0
+        self.agent_step = 0
 
         for loss_name in self.losses_to_use:
             loss_class = getattr(sys.modules[__name__], loss_name, None)
             if loss_class:
                 instance = loss_class(self)
                 setattr(self, loss_name.lower(), instance)
+
+    def update_policy(self, policy: MettaAgent | DistributedMettaAgent):
+        """Facilitate using different policies in the same trainer loop."""
+        self.policy = policy
+        self.policy_spec = policy.get_experience_spec()
+
+    def update_experience(self, experience: Experience):
+        """Facilitate using different experiences in the same trainer loop."""
+        self.experience = experience
 
     def get_experience_spec(self) -> TensorDict:
         """Aggregates experience specs from all active loss components."""
@@ -83,6 +92,13 @@ class Loss:
 
         return keys
 
+    def __call__(self, update_epochs: int, mb_idx: int, train_td: TensorDict, indices: Tensor, prio_weights: Tensor):
+        self.update_epochs = update_epochs  # this is not the global epoch count! That's self.epoch.
+        self.mb_idx = mb_idx
+        self.train_td = train_td
+        self.indices = indices
+        self.prio_weights = prio_weights
+
 
 class PPO:
     def __init__(self, manager: "Loss"):
@@ -91,7 +107,6 @@ class PPO:
     def get_experience_spec(self) -> TensorDict:
         return TensorDict(
             {
-                "env_obs": torch.zeros(*self.manager.policy.agent_attributes["obs_shape"], dtype=torch.uint8),
                 "rewards": torch.zeros((), dtype=torch.float32),
                 "dones": torch.zeros((), dtype=torch.float32),
                 "truncateds": torch.zeros((), dtype=torch.float32),
@@ -104,19 +119,52 @@ class PPO:
 
     def __call__(
         self,
-        minibatch: TensorDict,
-        train_td: TensorDict,
-        indices: Tensor,
-        prio_weights: Tensor,
-        kickstarter: Any,
-        agent_step: int,
     ) -> Tensor:
         """Process a single minibatch update and return the total loss."""
         # The policy's training forward pass returns a TD with required tensors for loss calculation.
-        new_logprobs = train_td["action_log_prob"].reshape(minibatch["logprobs"].shape)
-        entropy = train_td["entropy"]
-        newvalue = train_td["value"]
-        full_logprobs = train_td["log_probs"]
+
+        if self.manager.mb_idx == 0:
+            self.anneal_beta = calculate_prioritized_sampling_params(
+                epoch=self.manager.epoch,
+                total_timesteps=self.manager.trainer_cfg.total_timesteps,
+                batch_size=self.manager.trainer_cfg.batch_size,
+                prio_alpha=self.manager.trainer_cfg.prioritized_experience_replay.prio_alpha,
+                prio_beta0=self.manager.trainer_cfg.prioritized_experience_replay.prio_beta0,
+            )
+            self.prio_weights = self.anneal_beta["weights"]
+            self.prio_beta = self.anneal_beta["beta"]
+
+            advantages = torch.zeros_like(self.manager.experience.buffer["values"])
+            initial_importance_sampling_ratio = torch.ones_like(self.manager.experience.buffer["values"])
+            advantages = compute_advantage(
+                self.manager.experience.buffer["values"],
+                self.manager.experience.buffer["rewards"],
+                self.manager.experience.buffer["dones"],
+                initial_importance_sampling_ratio,
+                advantages,
+                self.manager.trainer_cfg.ppo.gamma,
+                self.manager.trainer_cfg.ppo.gae_lambda,
+                self.manager.trainer_cfg.vtrace.vtrace_rho_clip,
+                self.manager.trainer_cfg.vtrace.vtrace_c_clip,
+                self.manager.device,
+            )
+
+        minibatch, indices, prio_weights = self.manager.experience.sample_minibatch(
+            advantages=advantages,
+            prio_alpha=self.manager.trainer_cfg.prioritized_experience_replay.prio_alpha,
+            prio_beta=self.prio_beta,
+        )
+
+        # select what policy wants from the minibatch and pass it in the forward
+        self.manager.train_td = minibatch.select(*self.manager.policy_spec.keys(include_nested=True))
+        self.manager.train_td.meta["indices"] = indices  # add indices since we buffer envs
+        self.manager.train_td = self.manager.policy(self.manager.train_td, action=minibatch["actions"])
+        # design choice: save the policies td to the manager level so other losses can use the same output if they like.
+        # if not then they can sample their own from experience and run the policy forward again or just other leafs.
+
+        new_logprobs = self.manager.train_td["action_log_prob"].reshape(minibatch["logprobs"].shape)
+        entropy = self.manager.train_td["entropy"]
+        newvalue = self.manager.train_td["value"]
 
         logratio = new_logprobs - minibatch["logprobs"]
         importance_sampling_ratio = logratio.exp()
@@ -149,30 +197,20 @@ class PPO:
             adv,
         )
 
-        # Kickstarter losses
-        ks_action_loss, ks_value_loss = kickstarter.loss(
-            agent_step,
-            full_logprobs,
-            newvalue,
-            minibatch["env_obs"],
-            teacher_lstm_state=[],
-        )
-
-        # L2 init loss
-        l2_init_loss = torch.tensor(0.0, device=self.manager.device, dtype=torch.float32)
-        if self.manager.trainer_cfg.ppo.l2_init_loss_coef > 0:
-            l2_init_loss = self.manager.trainer_cfg.ppo.l2_init_loss_coef * self.manager.policy.l2_init_loss().to(
-                self.manager.device
-            )
+        # # Kickstarter losses
+        # ks_action_loss, ks_value_loss = kickstarter.loss(
+        #     agent_step,
+        #     full_logprobs,
+        #     newvalue,
+        #     minibatch["env_obs"],
+        #     teacher_lstm_state=[],
+        # )
 
         # Total loss
         loss = (
             pg_loss
             - self.manager.trainer_cfg.ppo.ent_coef * entropy_loss
             + v_loss * self.manager.trainer_cfg.ppo.vf_coef
-            + l2_init_loss
-            + ks_action_loss
-            + ks_value_loss
         )
 
         # Update values and ratio in experience buffer
@@ -189,11 +227,6 @@ class PPO:
         self.manager.loss_tracker.entropy_sum += entropy_loss.item()
         self.manager.loss_tracker.approx_kl_sum += approx_kl.item()
         self.manager.loss_tracker.clipfrac_sum += clipfrac.item()
-        self.manager.loss_tracker.l2_init_loss_sum += (
-            l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-        )
-        self.manager.loss_tracker.ks_action_loss_sum += ks_action_loss.item()
-        self.manager.loss_tracker.ks_value_loss_sum += ks_value_loss.item()
         self.manager.loss_tracker.importance_sum += importance_sampling_ratio.mean().item()
         self.manager.loss_tracker.minibatches_processed += 1
         self.manager.loss_tracker.current_logprobs_sum += new_logprobs.mean().item()
@@ -254,15 +287,8 @@ class Contrastive:
 
     def __call__(
         self,
-        minibatch: TensorDict,
-        train_td: TensorDict,
-        indices: Tensor,
-        prio_weights: Tensor,
-        kickstarter: Any,
-        agent_step: int,
     ) -> Tensor:
-        if not self.manager.experience:
-            raise ValueError("Contrastive loss requires an experience buffer.")
+        # feature: this loss can grab what it wants from the entire experience buffer
         neg_example = self.manager.experience.buffer["obs"][indices - 1]
         td = self.manager.experience.buffer[indices]["obs"]
 
@@ -305,10 +331,11 @@ class ValueDetached:
         self.manager = manager
         self.detached_component = "_core_"
         self.intermediate_components = self.manager.find_components_recursively(self.detached_component, "pred_output")
+        self.experience = Experience()
 
     def get_experience_spec(self) -> TensorDict:
         return TensorDict(
-            {"values": torch.zeros((), dtype=torch.float32)},
+            {"values": torch.zeros((), dtype=torch.float32)},  # don't worry, Experience will catch that this is a dup
             batch_size=[],
         )
 
@@ -318,7 +345,10 @@ class ValueDetached:
         train_td: TensorDict,
         indices: Tensor,
     ) -> Tensor:
-        # delete the intermediate components from the train_td
+        # feature: this loss can run every n epochs if it likes
+        if self.manager.epoch % self.manager.trainer_cfg.contrastive.update_every_n_epochs != 0:
+            return torch.tensor(0.0, device=self.manager.device, dtype=torch.float32)
+        # deletes the intermediate components from the train_td
         for component in self.intermediate_components:
             del train_td[component]
 

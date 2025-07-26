@@ -159,7 +159,8 @@ class MettaAgent(nn.Module):
         # The experience buffer will expand and move them to the correct device.
         return TensorDict(
             {
-                "dropout_mask": torch.zeros(self.components["c_dropout_mask"].output_size, dtype=torch.float32),
+                "env_obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
+                # "dropout_mask": torch.zeros(self.components["c_dropout_mask"].output_size, dtype=torch.float32),
             },
             batch_size=[],
         )
