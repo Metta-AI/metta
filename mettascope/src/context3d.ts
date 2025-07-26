@@ -89,16 +89,16 @@ export class Context3d {
   private shaderProgram: WebGLProgram | null = null
 
   // Shader locations
-  private positionLocation: number = -1
-  private texcoordLocation: number = -1
-  private colorLocation: number = -1
+  private positionLocation = -1
+  private texcoordLocation = -1
+  private colorLocation = -1
   private canvasSizeLocation: WebGLUniformLocation | null = null
   private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
   private currentMesh: Mesh | null = null
-  private currentMeshName: string = ''
+  public currentMeshName = ''
 
   // Transformation state
   private currentTransform: Mat3f
@@ -375,7 +375,9 @@ export class Context3d {
    */
   private createShader(type: number, source: string): WebGLShader | null {
     const shader = this.gl.createShader(type)
-    if (!shader) return null
+    if (!shader) {
+      return null
+    }
 
     this.gl.shaderSource(shader, source)
     this.gl.compileShader(shader)
@@ -399,7 +401,9 @@ export class Context3d {
    */
   private createProgram(vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
     const program = this.gl.createProgram()
-    if (!program) return null
+    if (!program) {
+      return null
+    }
 
     this.gl.attachShader(program, vertexShader)
     this.gl.attachShader(program, fragmentShader)
@@ -421,7 +425,9 @@ export class Context3d {
    * Should be called at the start of each frame.
    */
   clear() {
-    if (!this.ready) return
+    if (!this.ready) {
+      return
+    }
 
     // Clear all meshes in the map
     for (const mesh of this.meshes.values()) {
@@ -583,6 +589,7 @@ export class Context3d {
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
 
+    // biome-ignore format: keep comments aligned
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()

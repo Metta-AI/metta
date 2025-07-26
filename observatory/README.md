@@ -15,12 +15,12 @@ metta install observatory-fe
 
 1. If you need to manually install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 
 2. Start the development server:
    ```bash
-   npm run dev
+   pnpm run dev
    ```
 
 3. Open your browser to the URL shown in the terminal (typically http://localhost:5173)
@@ -29,5 +29,5 @@ metta install observatory-fe
 
 1. Build the app:
    ```bash
-   npm run build
+   pnpm run build
    ```

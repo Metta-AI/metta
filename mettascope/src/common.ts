@@ -1,12 +1,12 @@
 import { Context3d } from './context3d.js'
-import { HoverPanel } from './hoverpanels.js'
+import type { HoverBubble } from './hoverbubbles.js'
 import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
-;(window as any).ctx = ctx
+  ; (window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -37,11 +37,11 @@ export const TRACE_WIDTH = 54
 export const INFO_PANEL_POP_TIME = 300 // ms
 
 // Colors for resources
-export const COLORS: [string, [number, number, number, number]][] = [
+export const COLORS = new Map([
   ['red', parseHtmlColor('#E4433A')],
   ['green', parseHtmlColor('#66BB6A')],
   ['blue', parseHtmlColor('#3498DB')],
-]
+] as const)
 
 export const ui = {
   // Mouse events
@@ -84,10 +84,11 @@ export const ui = {
   agentPanel: new PanelInfo('#agent-panel'),
   timelinePanel: new PanelInfo('#timeline-panel'),
 
-  hoverPanels: [] as HoverPanel[],
+  hoverBubbles: [] as HoverBubble[],
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,
+  hideHoverTimer: null as any,
 }
 
 export const state = {
@@ -122,8 +123,8 @@ export const state = {
   isOneToOneAction: false,
 }
 
-// Expose state for easier testing
-;(window as any).state = state
+  // Expose state for easier testing
+  ; (window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,
@@ -166,8 +167,8 @@ export const html = {
 }
 
 /** Generates a color from an agent ID. */
-export function colorFromId(agentId: number): [number, number, number, number] {
-  let n = agentId + Math.PI + Math.E + Math.SQRT2
+export function colorFromId(agentId: number) {
+  const n = agentId + Math.PI + Math.E + Math.SQRT2
   return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }
 
@@ -204,7 +205,7 @@ export function closeModal() {
 /** Functions to show and hide toast notifications. */
 export function showToast(message: string, duration = 3000) {
   // Set the message
-  let msg = html.toast.querySelector('.message')
+  const msg = html.toast.querySelector('.message')
   if (msg != null) {
     msg.textContent = message
   }

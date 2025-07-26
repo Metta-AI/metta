@@ -10,7 +10,7 @@
     extra-substituters = [
       "https://nixpkgs-python.cachix.org"
     ];
-    trusted-public-keys = [
+    extra-trusted-public-keys = [
       "nixpkgs-python.cachix.org-1:hxjI7pFxTyuTHn2NkvWCrAUcNZLNS3ZAvfYNuYifcEU="
     ];
   };
@@ -52,7 +52,8 @@
 
           # Build frontend
           pushd mettascope
-          npm install
+          corepack enable
+          pnpm install
           tsc
           python tools/gen_atlas.py
           echo "Frontend built"

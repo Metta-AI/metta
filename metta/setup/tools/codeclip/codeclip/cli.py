@@ -10,6 +10,7 @@ import platform
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 from typing import Tuple
 
 import click
@@ -23,7 +24,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     stream=sys.stderr,
 )
-logger = logging.getLogger("codeflow.cli")
+logger = logging.getLogger("codeclip.cli")
 
 
 def copy_to_clipboard(content: str) -> None:
@@ -106,6 +107,61 @@ def cli(
 
     if pbcopy:
         copy_to_clipboard(output_content)
+        # Get detailed token breakdown
+        _, profile_data = profile_code_context(path_list, raw, extension)
+
+        # Handle case where no files were found
+        if not profile_data:
+            click.echo("No files found to copy", err=True)
+            return
+
+        total_tokens = profile_data["total_tokens"]
+        total_files = profile_data["total_files"]
+
+        # Build summary message
+        summary_parts = [f"Copied ~{total_tokens:,} tokens from {total_files} files"]
+
+        # Get top-level breakdown
+        node_cache = profile_data["node_cache"]
+
+        # If single path provided, show subdirectories/files
+        if len(path_list) == 1:
+            # Find the root node
+            root_path = Path(path_list[0]).resolve()
+
+            # Collect immediate children (both files and directories)
+            children = []
+            for path_str, node in node_cache.items():
+                path = Path(path_str)
+                try:
+                    # Check if this is a direct child of root
+                    relative = path.relative_to(root_path)
+                    # Only include if it's a direct child (only one part in relative path)
+                    if len(relative.parts) == 1:
+                        children.append((path.name, node.total_tokens))
+                except ValueError:
+                    # Skip if paths aren't related
+                    continue
+
+            # Sort by tokens and take top 3
+            children.sort(key=lambda x: x[1], reverse=True)
+            if children:
+                summary_parts.append("  Top items:")
+                for name, tokens in children[:3]:
+                    pct = (tokens / total_tokens * 100) if total_tokens else 0
+                    summary_parts.append(f"    {name}: ~{tokens:,} tokens ({pct:.0f}%)")
+
+        # If multiple paths, show breakdown by input path
+        else:
+            summary_parts.append("  By path:")
+            for path_str in path_list:
+                path = Path(path_str).resolve()
+                node = node_cache.get(str(path))
+                if node:
+                    pct = (node.total_tokens / total_tokens * 100) if total_tokens else 0
+                    summary_parts.append(f"    {path.name}: ~{node.total_tokens:,} tokens ({pct:.0f}%)")
+
+        click.echo("\n".join(summary_parts), err=True)
     else:
         click.echo(output_content)
 

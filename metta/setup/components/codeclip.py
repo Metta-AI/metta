@@ -7,7 +7,7 @@ from metta.setup.utils import info, success, warning
 
 
 @register_module
-class CodeflowSetup(SetupModule):
+class CodeclipSetup(SetupModule):
     install_once = True  # Only install once, not every time
 
     @property
@@ -19,30 +19,30 @@ class CodeflowSetup(SetupModule):
         return self.config.user_type in [UserType.SOFTMAX, UserType.EXTERNAL, UserType.CLOUD]
 
     def check_installed(self) -> bool:
-        """Check if codeflow is installed."""
+        """Check if codeclip is installed."""
         try:
             result = subprocess.run(["uv", "tool", "list"], capture_output=True, text=True, check=True)
-            return "codeflow" in result.stdout
+            return "codeclip" in result.stdout
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
     def install(self) -> None:
-        """Install codeflow as an editable uv tool."""
-        codeflow_dir = self.repo_root / "metta" / "setup" / "tools" / "codeflow"
+        """Install codeclip as an editable uv tool."""
+        codeclip_dir = self.repo_root / "metta" / "setup" / "tools" / "codeclip"
 
-        if not codeflow_dir.exists():
-            warning(f"Codeflow directory not found at {codeflow_dir}")
+        if not codeclip_dir.exists():
+            warning(f"Codeclip directory not found at {codeclip_dir}")
             return
 
-        info("Installing codeflow tool...")
+        info("Installing codeclip tool...")
 
         # Install as editable package using uv
         try:
             # Use --force to update if already installed
-            self.run_command(["uv", "tool", "install", "--force", "-e", str(codeflow_dir)])
-            success("Codeflow tool installed successfully!")
-            info("You can now use 'metta code' or 'codeflow' commands")
+            self.run_command(["uv", "tool", "install", "--force", "-e", str(codeclip_dir)])
+            success("Codeclip tool installed successfully!")
+            info("You can now use 'metta clip' or 'codeclip' commands")
         except subprocess.CalledProcessError as e:
-            warning(f"Failed to install codeflow: {e}")
+            warning(f"Failed to install codeclip: {e}")
             warning("You can manually install it with:")
-            warning(f"  cd {codeflow_dir} && uv tool install --force -e .")
+            warning(f"  cd {codeclip_dir} && uv tool install --force -e .")

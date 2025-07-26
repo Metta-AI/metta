@@ -38,6 +38,7 @@ node_modules/
 .vite/
 dist/
 *.tsbuildinfo
+.turbo/
 
 # Project-specific build outputs
 /mettagrid/dist/

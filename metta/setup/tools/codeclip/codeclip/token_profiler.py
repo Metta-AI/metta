@@ -49,6 +49,8 @@ class TokenProfiler:
         self.total_tokens = 0
         # Store paths for common prefix calculation
         self.file_paths: List[str] = []
+        # Track individual file tokens
+        self.file_tokens: Dict[str, int] = {}
 
     def count_tokens(self, content: str) -> int:
         """Count tokens in content using configured encoding."""
@@ -77,12 +79,19 @@ class TokenProfiler:
         """Process single file and update relevant counts."""
         token_count = self.count_tokens(content)
 
+        # Track individual file tokens
+        self.file_tokens[str(filepath)] = token_count
+
         # Update directory hierarchy
         node = self.get_or_create_node(filepath.parent)
         current = node
         while current:
             current.total_tokens += token_count
             current = current.parent
+
+        # Also create a node for the file itself
+        file_node = self.get_or_create_node(filepath)
+        file_node.total_tokens = token_count
 
         # Update file type stats
         ext = filepath.suffix.lower()
@@ -115,8 +124,16 @@ class TokenProfiler:
             display_path = path[prefix_len:] if prefix_len > 0 else path
 
             # Calculate indent based on path depth
+            # For files, we need to count the full path including the file itself
+            # For directories, we don't include the directory name in the count
+            is_file = path in self.file_tokens
             parts = [p for p in display_path.split(os.sep) if p]
-            indent = "  " * max(0, len(parts) - 1)
+            if is_file:
+                # Files should be indented one level more than their parent directory
+                indent = "  " * len(parts)
+            else:
+                # Directories are indented based on their depth
+                indent = "  " * max(0, len(parts) - 1)
 
             # Use the last part of the path as the name
             name = path_obj.name or display_path
@@ -231,8 +248,10 @@ def profile_code_context(
         "node_cache": profiler.node_cache,
         "type_counts": profiler.type_counts,
         "total_tokens": profiler.total_tokens,
+        "total_files": total_files,
         "common_prefix": common_prefix,
         "file_paths": profiler.file_paths,
+        "file_tokens": profiler.file_tokens,
     }
     return report, profile_data
 

@@ -3,13 +3,4 @@
 # This file is private property of Andre von Houck.
 # DO NOT MODIFY.
 
-run: andre_local_2025_06_18_a
-policy_uri: wandb://run/daveey.fixattack.cr.4x4.0
-replay_job:
-  sim:
-    env: /env/mettagrid/arena/combat_easy
-    env_overrides:
-      game:
-        objects:
-          lasery:
-            initial_resource_count: 20
+run: andre_local_2025_07_24_a

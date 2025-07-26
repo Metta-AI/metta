@@ -1,8 +1,24 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
   "extends": ["../biome.jsonc"],
   // MettaScope uses all the workspace defaults
   "formatter": {
-    "ignore": ["./index.css", "./index.html"]
+    "includes": ["**", "!index.css", "!index.html"]
+  },
+  "linter": {
+    "includes": ["**", "!index.css", "!index.html"],
+    "rules": {
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noPrototypeBuiltins": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useConsistentArrayType": { "level": "error", "options": { "syntax": "shorthand" } }
+      },
+      "complexity": {
+        "noForEach": "off"
+      }
+    }
   }
 }

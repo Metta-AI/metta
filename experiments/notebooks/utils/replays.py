@@ -5,7 +5,9 @@ from IPython.display import IFrame, display
 from experiments.notebooks.utils.metrics import get_run
 
 
-def show_replay(run_name: str, step: str | int = "last", width: int = 1000, height: int = 600) -> None:
+def show_replay(
+    run_name: str, step: str | int = "last", width: int = 1000, height: int = 600
+) -> None:
     run = get_run(run_name)
     if run is None:
         return
@@ -26,7 +28,9 @@ def show_replay(run_name: str, step: str | int = "last", width: int = 1000, heig
         target_step = int(step)
         selected = min(replay_urls, key=lambda r: abs(r["step"] - target_step))
         if selected["step"] != target_step:
-            print(f"Note: Requested step {target_step}, showing closest available step {selected['step']}")
+            print(
+                f"Note: Requested step {target_step}, showing closest available step {selected['step']}"
+            )
 
     print(f"Loading MettaScope viewer for {run_name} at step {selected['step']:,}...")
     print(f"\nDirect link: {selected['url']}")
@@ -46,7 +50,11 @@ def fetch_replay_urls_for_run(run) -> list[dict]:
     replay_urls = []
 
     # Filter for replay HTML files
-    replay_files = [f for f in files if "media/html/replays/link_" in f.name and f.name.endswith(".html")]
+    replay_files = [
+        f
+        for f in files
+        if "media/html/replays/link_" in f.name and f.name.endswith(".html")
+    ]
 
     if not replay_files:
         return []
@@ -72,7 +80,14 @@ def fetch_replay_urls_for_run(run) -> list[dict]:
                 href = match.group(1)
                 if href:
                     step = get_step_from_filename(file)
-                    replay_urls.append({"step": step, "url": href, "filename": file.name, "label": f"Step {step:,}"})
+                    replay_urls.append(
+                        {
+                            "step": step,
+                            "url": href,
+                            "filename": file.name,
+                            "label": f"Step {step:,}",
+                        }
+                    )
         except Exception:
             pass
 

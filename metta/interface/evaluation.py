@@ -31,7 +31,7 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
 
     # Small terrain evaluation
     simulations["navigation/terrain_small"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy_defaults",
         "num_episodes": 5,
         "max_time_s": 30,
         "env_overrides": {
@@ -42,7 +42,7 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
 
     # Medium terrain evaluation
     simulations["navigation/terrain_medium"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy_defaults",
         "num_episodes": 5,
         "max_time_s": 30,
         "env_overrides": {
@@ -53,7 +53,7 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
 
     # Large terrain evaluation
     simulations["navigation/terrain_large"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy_defaults",
         "num_episodes": 5,
         "max_time_s": 30,
         "env_overrides": {
