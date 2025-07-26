@@ -100,14 +100,19 @@ def main():
                     # Export for other scripts to use via environment
                     os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
 
-                    # Log the latency metrics
-                    wandb.log(
-                        {
-                            "skypilot/queue_latency_s": latency_sec,
-                            "skypilot/task_id": task_id,
-                        },
-                        step=0,
+                    # Create a table with task info
+                    task_table = wandb.Table(
+                        columns=["task_id", "latency_s", "submission_time", "start_time"],
+                        data=[
+                            [
+                                task_id,
+                                latency_sec,
+                                _submission_ts(task_id).isoformat() if _submission_ts(task_id) else "N/A",
+                                script_start_time,
+                            ]
+                        ],
                     )
+                    wandb.log({"skypilot/task_info": task_table}, step=0)
 
                     # Also add to summary for easy access
                     run.summary["skypilot/queue_latency_s"] = latency_sec
@@ -115,6 +120,13 @@ def main():
                     run.summary["skypilot/latency_calculated"] = True
                 else:
                     print(f"SkyPilot queue latency: N/A (task_id: {task_id})")
+
+                    # Still create a table even if latency couldn't be calculated
+                    task_table = wandb.Table(
+                        columns=["task_id", "latency_s", "error"], data=[[task_id, None, "Could not parse task ID"]]
+                    )
+                    wandb.log({"skypilot/task_info": task_table}, step=0)
+
                     run.summary["skypilot/latency_calculated"] = False
                     run.summary["skypilot/task_id"] = task_id
                     run.summary["skypilot/latency_error"] = "Could not parse task ID"
