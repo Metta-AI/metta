@@ -134,6 +134,7 @@
 			"fstream": "cpp",
 			"future": "cpp",
 			"__config": "cpp"
-		}
+		},
+		"vim.textwidth": 120
 	}
 }

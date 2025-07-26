@@ -76,6 +76,38 @@ def accumulate_rollout_stats(
                     stats[k] = [stats[k], v]  # fallback: bundle as list
 
 
+def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter movement metrics to only keep core values, removing derived stats."""
+    filtered = {}
+
+    # Core movement metrics we want to keep (without any suffix)
+    # These will have the env_ prefix when passed to this function
+    core_metrics = {
+        "env_agent/movement.direction.up",
+        "env_agent/movement.direction.down",
+        "env_agent/movement.direction.left",
+        "env_agent/movement.direction.right",
+        "env_agent/movement.sequential_rotations",
+        "env_agent/movement.rotation.to_up",
+        "env_agent/movement.rotation.to_down",
+        "env_agent/movement.rotation.to_left",
+        "env_agent/movement.rotation.to_right",
+    }
+
+    for key, value in stats.items():
+        # Check if this is a core metric (exact match)
+        if key in core_metrics:
+            filtered[key] = value
+        # Skip any movement metric with derived stats suffixes
+        elif key.startswith("env_agent/movement"):
+            continue
+        # Keep all non-movement metrics
+        else:
+            filtered[key] = value
+
+    return filtered
+
+
 def process_training_stats(
     raw_stats: Dict[str, Any],
     losses: Any,
@@ -125,6 +157,9 @@ def process_training_stats(
     environment_stats = {
         f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items() if "/" in k
     }
+
+    # Filter movement metrics to only keep core values
+    environment_stats = filter_movement_metrics(environment_stats)
 
     # Calculate overview statistics
     overview = {}

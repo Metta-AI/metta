@@ -29,7 +29,8 @@ from .optimization import (
 # Policy management
 from .policy_management import (
     cleanup_old_policies,
-    load_or_initialize_policy,
+    ensure_initial_policy,
+    maybe_load_checkpoint,
     save_policy_with_metadata,
     validate_policy_environment_match,
     wrap_agent_distributed,
@@ -75,7 +76,8 @@ __all__ = [
     "maybe_update_l2_weights",
     # Policy management
     "cleanup_old_policies",
-    "load_or_initialize_policy",
+    "ensure_initial_policy",
+    "maybe_load_checkpoint",
     "save_policy_with_metadata",
     "validate_policy_environment_match",
     "wrap_agent_distributed",

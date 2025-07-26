@@ -34,6 +34,7 @@ from metta.rl.util.optimization import (
     maybe_update_l2_weights,
 )
 from metta.rl.util.policy_management import (
+    maybe_load_checkpoint,
     validate_policy_environment_match,
 )
 from metta.rl.util.rollout import get_lstm_config
@@ -135,11 +136,16 @@ def create_training_components(
         run_name=cfg.run,
     )
 
-    # Load checkpoint and policy
-    checkpoint, policy_record, agent_step, epoch = checkpoint_manager.load_checkpoint(
+    # Load checkpoint and policy with distributed coordination
+    checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
         run_dir=cfg.run_dir,
+        policy_store=policy_store,
+        trainer_cfg=trainer_cfg,
         metta_grid_env=metta_grid_env,
         cfg=cfg,
+        device=device,
+        is_master=is_master,
+        rank=rank,
     )
 
     # Restore timer state if checkpoint exists

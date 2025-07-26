@@ -54,6 +54,27 @@ def px(value: Any) -> str:
     return f"{rounded:.2f}px"
 
 
+def sanitize_class_name(name: str) -> str:
+    """
+    Sanitize a class name to be valid CSS.
+
+    Args:
+        name: Raw class name from Figma
+
+    Returns:
+        str: Valid CSS class name
+    """
+    # Replace invalid characters with hyphens
+    sanitized = name.replace("/", "-").replace(" ", "-").replace("_", "-")
+    # Remove multiple consecutive hyphens
+    while "--" in sanitized:
+        sanitized = sanitized.replace("--", "-")
+    # Remove leading/trailing hyphens
+    sanitized = sanitized.strip("-")
+    # Convert to lowercase for consistency
+    return sanitized.lower()
+
+
 def parse_name(name: str) -> tuple[str, str, list[str], str]:
     """Parse figma name into tag, id or class"""
     tags = ["input", "img", "textarea", "button", "a", "canvas", "iframe"]
@@ -66,7 +87,8 @@ def parse_name(name: str) -> tuple[str, str, list[str], str]:
         elif part.startswith("#"):
             id = part[1:]
         else:
-            clss.append(part.lower().replace(" ", "_"))
+            # Use the sanitize function instead of just replacing spaces
+            clss.append(sanitize_class_name(part))
     selector = ""
     if tag and tag not in ["div", "span"]:
         selector = tag
