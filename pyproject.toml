@@ -55,6 +55,7 @@ dependencies = [
   "jupyterlab>=4.4.4",
   "widgetsnbextension>=4.0.14",
   "raylib>=5.5.0.0",
+  "tiktoken>=0.9.0"
 ]
 name = "metta"
 version = "0.1"
@@ -121,6 +122,3 @@ metta-app-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
-
-[tool.ruff]
-exclude = ["*.ipynb"]

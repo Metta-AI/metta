@@ -257,7 +257,7 @@ def test_swap_frozen_agent_preserves_layers():
 
     # Verify agent 1 is frozen
     objects = env.grid_objects()
-    agent1_frozen = objects[agent1["id"]].get("frozen", 0)
+    agent1_frozen = objects[agent1["id"]].get("freeze_remaining", 0)
     print(f"  Agent 1 frozen for {agent1_frozen - 1} more steps")
     assert agent1_frozen > 0
 
@@ -278,7 +278,7 @@ def test_swap_frozen_agent_preserves_layers():
 
     # Verify agent 1 is still frozen
     objects = env.grid_objects()
-    agent1_frozen = objects[agent1["id"]].get("frozen", 0)
+    agent1_frozen = objects[agent1["id"]].get("freeze_remaining", 0)
     print(f"  Agent 1 frozen for {agent1_frozen - 1} more steps")
     assert agent1_frozen > 0
 

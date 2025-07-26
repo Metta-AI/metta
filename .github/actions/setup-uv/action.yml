@@ -1,12 +1,8 @@
 name: "Setup uv"
 description: "Set up uv and activate the environment"
 inputs:
-  include-dev:
-    description: "Whether to include dev dependencies"
-    required: false
-    default: "true"
   install-mode:
-    description: "Installation mode: 'full' (default), 'testing', or 'linting'"
+    description: "Installation mode: 'full' (default), 'testing', 'minimal', or 'linting'"
     required: false
     default: "full"
 
@@ -18,12 +14,16 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
-        cache-local-path: "~/.cache/uv"
-        prune-cache: false
-        cache-suffix: "${{ inputs.install-mode }}-${{ inputs.include-dev }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
+        cache-local-path: "${{ github.workspace }}/.uv-cache"
+        prune-cache: true
+        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
+      env:
+        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
 
     - name: Create virtual environment with uv
       shell: bash
+      env:
+        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
       run: |
         uv venv
 
@@ -33,6 +33,10 @@ runs:
 
         # Handle different installation modes
         case "${{ inputs.install-mode }}" in
+
+          "minimal")
+            # don't install any packages
+            ;;
 
           "testing")
             uv sync --no-default-groups
@@ -44,11 +48,7 @@ runs:
             ;;
 
           "full"|*)
-            if [ "${{ inputs.include-dev }}" = "true" ]; then
-              uv sync
-            else
-              uv sync --no-default-groups
-            fi
+            uv sync
             ;;
 
         esac

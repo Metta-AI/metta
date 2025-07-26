@@ -1,22 +1,21 @@
 {
-  "name": "metta-scope",
+  "name": "@softmax/mettascope",
   "version": "1.0.0",
   "description": "MettaScope - a tool for visualizing and analyzing Metta AI's environments",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "lint": "biome lint .",
+    "lint": "biome check --write .",
     "format": "biome format --write .",
-    "check": "biome check .",
-    "check:fix": "biome check --write .",
-    "ci": "biome ci .",
+    "check": "biome ci .",
+    "playwright:install": "playwright install --with-deps",
     "test": "playwright test tests/*.test.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@playwright/test": "^1.53.2",
-    "@webgpu/types": "^0.1.38",
-    "playwright": "^1.53.2",
-    "typescript": "^5.2.2"
+    "@biomejs/biome": "2.1.2",
+    "@playwright/test": "1.54.1",
+    "@webgpu/types": "0.1.38",
+    "playwright": "1.54.1",
+    "typescript": "5.2.2"
   }
 }
