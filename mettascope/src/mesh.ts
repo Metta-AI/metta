@@ -12,6 +12,7 @@ import { Vec2f } from './vector_math.js'
  * - Batches all quads sharing the same texture
  * - Supports per-quad color tinting
  * - Optional scissor rectangle for clipping
+ * - Caching support for static content that doesn't change between frames
  *
  * The mesh uses an indexed triangle list with 4 vertices per quad and
  * 6 indices (2 triangles). Vertex format: position (2), texcoord (2), color (4).
@@ -40,6 +41,7 @@ export class Mesh {
   private static readonly VERTICES_PER_QUAD = 4
   private static readonly INDICES_PER_QUAD = 6
 
+  private name: string
   private gl: WebGLRenderingContext
   private vertexBuffer: WebGLBuffer | null = null
   private indexBuffer: WebGLBuffer | null = null
@@ -58,16 +60,18 @@ export class Mesh {
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
   // Caching properties
-  public cacheable = false
-  public isDirty = true
+  public cacheable: boolean = false
+  public isDirty: boolean = true
 
   /**
    * Create a new mesh.
    *
+   * @param name - Debug name for the mesh
    * @param gl - The WebGL rendering context
    * @param maxQuads - Initial capacity in quads (default: 8192)
    */
-  constructor(gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
+  constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
+    this.name = name
     this.gl = gl
     this.maxQuads = maxQuads
 
@@ -148,7 +152,12 @@ export class Mesh {
    * @private
    */
   private resize(newMaxQuads: number) {
-    if (newMaxQuads <= this.maxQuads) return
+    console.info('Resizing max', this.name, 'quads from', this.maxQuads, 'to', newMaxQuads)
+
+    if (newMaxQuads <= this.maxQuads) {
+      console.warn('New max quads must be larger than current max quads')
+      return
+    }
 
     // Store current data
     const oldVertexData = this.vertexData
@@ -192,10 +201,73 @@ export class Mesh {
    *
    * Resets the vertex and quad counters without deallocating memory.
    * Should be called at the start of each frame before adding new quads.
+   *
+   * If the mesh is cacheable, clearing is skipped to preserve static content.
    */
   clear() {
+    if (this.cacheable) {
+      return // Skip clearing cached meshes
+    }
+
     this.currentQuad = 0
     this.currentVertex = 0
+    this.isDirty = true
+
+    // Reset scissor settings
+    this.scissorEnabled = false
+    this.scissorRect = [0, 0, 0, 0]
+  }
+
+  /**
+   * Force clear the mesh even if it's cacheable.
+   *
+   * This is useful when you need to rebuild cached content or when
+   * switching between different cached states.
+   */
+  forceClear() {
+    this.currentQuad = 0
+    this.currentVertex = 0
+    this.isDirty = true
+    this.scissorEnabled = false
+    this.scissorRect = [0, 0, 0, 0]
+  }
+
+  /**
+   * Reset the counters after rendering.
+   *
+   * Called after the mesh has been rendered to prepare for the next frame.
+   * For cacheable meshes, counters are preserved to avoid rebuilding static content.
+   */
+  resetCounters() {
+    if (this.cacheable) {
+      return // Don't reset counters for cacheable meshes
+    }
+
+    this.currentQuad = 0
+    this.currentVertex = 0
+    this.isDirty = true
+  }
+
+  /**
+   * Set whether this mesh should be cached between frames.
+   *
+   * Cacheable meshes preserve their content between frames, which is useful
+   * for static elements like UI backgrounds, tilemaps, or decorative elements
+   * that don't change frequently.
+   *
+   * @param cacheable - If true, mesh content persists between frames
+   */
+  setCacheable(cacheable: boolean) {
+    this.cacheable = cacheable
+  }
+
+  /**
+   * Check if the mesh is cacheable.
+   *
+   * @returns True if the mesh preserves content between frames
+   */
+  isCacheable(): boolean {
+    return this.cacheable
   }
 
   /**
@@ -273,6 +345,7 @@ export class Mesh {
 
     this.currentVertex += Mesh.VERTICES_PER_QUAD
     this.currentQuad += 1
+    this.isDirty = true
   }
 
   /**
@@ -280,13 +353,19 @@ export class Mesh {
    *
    * Copies the vertex data to the GPU vertex buffer. Should be called
    * after all quads have been added and before rendering.
+   *
+   * Only uploads if the mesh is dirty to avoid unnecessary GPU transfers.
    */
   uploadToGPU() {
     if (!this.vertexBuffer || this.currentVertex === 0) return
 
-    const vertexDataCount = this.currentVertex * Mesh.FLOATS_PER_VERTEX
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
-    this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, vertexDataCount))
+    // Only upload if dirty to avoid unnecessary GPU transfers
+    if (this.isDirty) {
+      const vertexDataCount = this.currentVertex * Mesh.FLOATS_PER_VERTEX
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
+      this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, vertexDataCount))
+      this.isDirty = false
+    }
   }
 
   /**
@@ -326,12 +405,75 @@ export class Mesh {
   }
 
   /**
+   * Get the number of quads in the mesh.
+   *
+   * @returns Number of quads currently stored
+   */
+  getQuadCount(): number {
+    return this.currentQuad
+  }
+
+  /**
+   * Get the current vertex count.
+   *
+   * @returns Number of vertices currently stored
+   */
+  getCurrentVertexCount(): number {
+    return this.currentVertex
+  }
+
+  /**
+   * Get the vertex data array.
+   *
+   * @returns The vertex data Float32Array
+   */
+  getVertexData(): Float32Array {
+    return this.vertexData
+  }
+
+  /**
+   * Get the vertex buffer.
+   *
+   * @returns The WebGL vertex buffer
+   */
+  getVertexBuffer(): WebGLBuffer | null {
+    return this.vertexBuffer
+  }
+
+  /**
+   * Get the index buffer.
+   *
+   * @returns The WebGL index buffer
+   */
+  getIndexBuffer(): WebGLBuffer | null {
+    return this.indexBuffer
+  }
+
+  /**
    * Check if the mesh has any content to render.
    *
    * @returns True if there are quads to draw
    */
   hasContent(): boolean {
     return this.currentQuad > 0
+  }
+
+  /**
+   * Check if the mesh data is dirty and needs to be uploaded to GPU.
+   *
+   * @returns True if the mesh needs to be uploaded to GPU
+   */
+  isDirtyFlag(): boolean {
+    return this.isDirty
+  }
+
+  /**
+   * Get the mesh name for debugging.
+   *
+   * @returns The mesh name
+   */
+  getName(): string {
+    return this.name
   }
 
   /**
