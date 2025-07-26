@@ -7,7 +7,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0; do
   ./devops/skypilot/launch.py train \
-    run=$USER.navigation.ffa_DEFAULT_0.999_MASSIVE_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_DEFAULT_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/navigation/random \
     --gpus=1 \
     --nodes=1 \

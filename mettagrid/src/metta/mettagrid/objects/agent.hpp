@@ -97,7 +97,7 @@ public:
         stats(),  // default constructor
         current_resource_reward(0),
         current_stat_reward(0),
-        reward(nullptr),
+        reward(new RewardType(0)),
         how_long_blue_battery_held(new int(0)) {
       GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
     }
