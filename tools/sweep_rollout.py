@@ -14,6 +14,7 @@ import sys
 import time
 
 import hydra
+import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.lock import run_once
@@ -37,10 +38,11 @@ def main(cfg: DictConfig) -> int:
     logger.debug(f"Original command-line args: {ORIGINAL_ARGS}")
 
     # Setup the sweep - only rank 0 does this, others wait
+    # IMPORTANT: use_distributed=False to avoid process group conflicts with training
     try:
         wandb_sweep_id = run_once(
             lambda: setup_sweep(cfg, logger),
-            destroy_on_finish=False,
+            use_distributed=False,  # Don't initialize process group in sweep orchestration
         )
     except Exception as e:
         logger.error(f"Sweep setup failed: {e}", exc_info=True)
@@ -60,6 +62,14 @@ def main(cfg: DictConfig) -> int:
             err_occurred = True
             logger.info(f"Waiting {cfg.rollout_retry_delay} seconds before retry...")
             time.sleep(cfg.rollout_retry_delay)
+
+        # Minimal cleanup between runs to prevent port conflicts
+        if dist.is_initialized():
+            logger.debug("Cleaning up distributed process group between runs...")
+            dist.destroy_process_group()
+            # Small delay to ensure port is released
+            time.sleep(1.0)
+
         if err_occurred:
             num_consecutive_failures += 1
             if num_consecutive_failures > cfg.max_consecutive_failures:
@@ -72,17 +82,16 @@ def main(cfg: DictConfig) -> int:
 
 
 def run_single_rollout(cfg: DictConfig) -> int:
-    """Run a single rollout."""
+    """Run a single rollout iteration."""
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
 
-    # Master node only
-    preparation_result = run_once(lambda: prepare_sweep_run(cfg, logger), destroy_on_finish=False)
-
-    if preparation_result is None:
-        logger.error("Failed to prepare sweep rollout")
-        raise RuntimeError("Sweep preparation failed")
-
-    run_name, downstream_cfg, protein_suggestion = preparation_result
+    # Prepare the run (only rank 0 should do this)
+    # IMPORTANT: use_distributed=False to avoid process group conflicts
+    run_name, downstream_cfg, protein_suggestion = run_once(
+        lambda: prepare_sweep_run(cfg, logger),
+        use_distributed=False,  # Don't initialize process group
+    )
+    logger.info(f"Prepared run: {run_name}")
 
     # All ranks participate in training
     # The train.sh script handles distributed coordination
@@ -90,13 +99,16 @@ def run_single_rollout(cfg: DictConfig) -> int:
         run_name=run_name,
         dist_cfg_path=downstream_cfg.dist_cfg_path,
         data_dir=downstream_cfg.data_dir,
+        run_dir=f"{cfg.runs_dir}/{run_name}",
         original_args=ORIGINAL_ARGS,
     )
     logger.info("Training completed...")
 
-    # Master node only
+    # Evaluate the rollout (only rank 0 should do this)
+    # IMPORTANT: use_distributed=False to avoid process group conflicts
     eval_results = run_once(
-        lambda: evaluate_rollout(downstream_cfg, protein_suggestion, logger), destroy_on_finish=False
+        lambda: evaluate_rollout(downstream_cfg, protein_suggestion, logger),
+        use_distributed=False,  # Don't initialize process group
     )
 
     if eval_results is None:
@@ -111,6 +123,7 @@ def train_for_run(
     run_name: str,
     dist_cfg_path: str,
     data_dir: str,
+    run_dir: str,
     original_args: list[str] | None = None,
     logger: logging.Logger | None = None,
 ) -> subprocess.CompletedProcess:
@@ -122,12 +135,13 @@ def train_for_run(
         f"run={run_name}",
         f"dist_cfg_path={dist_cfg_path}",
         f"data_dir={data_dir}",
+        f"run_dir={run_dir}",
     ]
 
     # Pass through relevant arguments from the original command line
     # Filter out arguments that we're already setting explicitly
     if original_args:
-        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir="]
+        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir=", "run_dir="]
         for arg in original_args:
             # Skip arguments we're already setting
             if any(arg.startswith(prefix) for prefix in skip_prefixes):
