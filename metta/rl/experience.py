@@ -53,6 +53,15 @@ class Experience:
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
+
+        # Guard against configurations that lead to zero segments, which causes device-side asserts
+        # in downstream tensor operations (e.g., modulo by zero on CUDA tensors).
+        if self.segments == 0:
+            raise ValueError(
+                "trainer.batch_size must be at least as large as trainer.bptt_horizon to create valid segments. "
+                f"Got batch_size={batch_size}, bptt_horizon={bptt_horizon}."
+            )
+
         if total_agents > self.segments:
             mini_batch_size = total_agents * bptt_horizon
             raise ValueError(

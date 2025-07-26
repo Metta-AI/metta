@@ -225,6 +225,13 @@ class PolicyStore:
         # Save to a temporary file first to ensure atomic writes
         temp_path = path + ".tmp"
 
+        # Store registry data in metadata before saving
+        policy = pr.policy
+        if hasattr(policy, "feature_registry"):
+            pr.metadata["feature_registry"] = policy.feature_registry.to_dict()
+        if hasattr(policy, "action_registry"):
+            pr.metadata["action_registry"] = policy.action_registry.to_dict()
+
         # Temporarily remove the policy store reference to avoid pickling issues
         pr._policy_store = None
         try:
@@ -445,6 +452,24 @@ class PolicyStore:
 
             if metadata_only:
                 pr._cached_policy = None
+            else:
+                # Restore registries if they exist in metadata
+                if pr._cached_policy is not None:
+                    if "feature_registry" in pr.metadata:
+                        from metta.agent.registry import FeatureRegistry
+
+                        pr._cached_policy.feature_registry = FeatureRegistry.from_dict(
+                            pr.metadata["feature_registry"], "features"
+                        )
+                        logger.info("Restored feature registry from metadata")
+
+                    if "action_registry" in pr.metadata:
+                        from metta.agent.registry import ActionRegistry
+
+                        pr._cached_policy.action_registry = ActionRegistry.from_dict(
+                            pr.metadata["action_registry"], "actions"
+                        )
+                        logger.info("Restored action registry from metadata")
 
             return pr
 
