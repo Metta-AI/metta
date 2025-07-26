@@ -7,8 +7,6 @@ defaults:
 run: null # Auto-generated if not provided
 policy_uri: ???
 
-remote: false
-
 sim_job:
   policy_uris:
     - ${policy_uri}
@@ -16,9 +14,6 @@ sim_job:
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: ${run_dir}/replays/evals
-  git_hash: null
-  env_overrides: {}
-  selector_type: top
 
 eval_task_id: null
 
