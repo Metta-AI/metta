@@ -445,6 +445,7 @@ class MettaTrainer:
 
             # Prepare the input TensorDict for the policy
             td = buffer_step[training_env_id].clone()
+            td.meta["training_env_id"] = training_env_id
             td["env_obs"] = o
 
             # Run policy inference

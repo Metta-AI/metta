@@ -70,7 +70,8 @@ class LSTM(LayerBase):
     @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
         hidden = td[self._sources[0]["name"]]
-        state = self._memory
+        training_env_id = td.meta["training_env_id"]
+        state = self._memory[training_env_id]
 
         B = td.batch_size.numel()  # this should capture it all without using numel()
         if td.meta["train"]:
@@ -82,7 +83,7 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
-        self._memory = (state[0].detach(), state[1].detach())
+        self._memory[training_env_id] = (state[0].detach(), state[1].detach())
 
         td[self._name] = hidden
 
