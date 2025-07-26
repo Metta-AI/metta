@@ -105,12 +105,14 @@ def prepare_sweep_run(cfg: DictConfig, logger: logging.Logger) -> tuple[str, Dic
     # is the run_dir, which is different from  the sweep's original data_dir.
     downstream_cfg = OmegaConf.create(OmegaConf.to_container(cfg))
     assert isinstance(downstream_cfg, DictConfig)
-    downstream_cfg.data_dir = f"{cfg.data_dir}/sweep/{cfg.sweep_name}/runs"
-    downstream_cfg.dist_cfg_path = f"{cfg.runs_dir}/{run_name}/dist_cfg.yaml"
     downstream_cfg.run = run_name
+    downstream_cfg.data_dir = f"{cfg.runs_dir}"
+    downstream_cfg.run_dir = f"{cfg.runs_dir}/{run_name}"
+    downstream_cfg.dist_cfg_path = f"{downstream_cfg.run_dir}/dist_cfg.yaml"
+    downstream_cfg.wandb.data_dir = f"{downstream_cfg.run_dir}"  # Important
 
     # Prepare the run directory
-    os.makedirs(f"{cfg.runs_dir}/{run_name}", exist_ok=True)
+    os.makedirs(f"{downstream_cfg.run_dir}", exist_ok=True)
 
     # Create a new run in WandB
     # side-effect: writes dist_cfg.yaml to the run directory
@@ -133,7 +135,7 @@ def prepare_sweep_run(cfg: DictConfig, logger: logging.Logger) -> tuple[str, Dic
         {
             **sweep_job_cfg,
             "run": run_name,
-            "run_dir": downstream_cfg.data_dir,
+            "run_dir": downstream_cfg.run_dir,
             "sweep_name": cfg.sweep_name,
             "wandb": {
                 "group": cfg.sweep_name,
@@ -141,7 +143,7 @@ def prepare_sweep_run(cfg: DictConfig, logger: logging.Logger) -> tuple[str, Dic
             },
         }
     )
-    trainer_cfg_override_path = os.path.join(downstream_cfg.data_dir, "train_config_overrides.yaml")
+    trainer_cfg_override_path = os.path.join(downstream_cfg.run_dir, "train_config_overrides.yaml")
     OmegaConf.save(train_cfg_overrides, trainer_cfg_override_path)
     logger.info(f"Wrote trainer overrides to {trainer_cfg_override_path}")
 
@@ -193,7 +195,7 @@ def evaluate_rollout(
         # Save results for all ranks to read
         OmegaConf.save(
             {"eval_metric": suggestion_score, "total_time": suggestion_cost},
-            f"{downstream_cfg.data_dir}/sweep_eval_results.yaml",
+            f"{downstream_cfg.run_dir}/sweep_eval_results.yaml",
         )
 
     return eval_results

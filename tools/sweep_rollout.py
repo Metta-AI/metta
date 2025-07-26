@@ -98,6 +98,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
         run_name=run_name,
         dist_cfg_path=downstream_cfg.dist_cfg_path,
         data_dir=downstream_cfg.data_dir,
+        run_dir=downstream_cfg.run_dir,
         original_args=ORIGINAL_ARGS,
     )
     logger.info("Training completed...")
@@ -117,6 +118,7 @@ def train_for_run(
     run_name: str,
     dist_cfg_path: str,
     data_dir: str,
+    run_dir: str,
     original_args: list[str] | None = None,
     logger: logging.Logger | None = None,
 ) -> subprocess.CompletedProcess:
@@ -128,12 +130,13 @@ def train_for_run(
         f"run={run_name}",
         f"dist_cfg_path={dist_cfg_path}",
         f"data_dir={data_dir}",
+        f"run_dir={run_dir}",
     ]
 
     # Pass through relevant arguments from the original command line
     # Filter out arguments that we're already setting explicitly
     if original_args:
-        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir="]
+        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir=", "run_dir="]
         for arg in original_args:
             # Skip arguments we're already setting
             if any(arg.startswith(prefix) for prefix in skip_prefixes):

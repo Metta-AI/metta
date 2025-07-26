@@ -10,7 +10,7 @@ defaults:
 cmd: sweep
 sweep_name: ???  # Will be set via command line override
 sweep_id: ???  # Will be set via command line override
-max_consecutive_failures: 0
+max_consecutive_failures: 10
 rollout_retry_delay: 5
 max_observations_to_load: 250
 
