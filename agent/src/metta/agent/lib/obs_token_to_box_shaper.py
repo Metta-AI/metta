@@ -22,7 +22,12 @@ class ObsTokenToBoxShaper(LayerBase):
         # observation.
         self.out_width = obs_width
         self.out_height = obs_height
-        self.num_layers = max(feature_normalizations.keys()) + 1
+        # The feature_normalizations dict has integer keys representing feature indices
+        # We need to ensure we have enough layers to accommodate all possible feature indices
+        # The max key in feature_normalizations represents the highest feature index
+        max_feature_index = max(feature_normalizations.keys())
+        # We need max_feature_index + 1 layers to accommodate indices 0 to max_feature_index
+        self.num_layers = max_feature_index + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
     def _forward(self, td: TensorDict):
@@ -57,12 +62,26 @@ class ObsTokenToBoxShaper(LayerBase):
         batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
         valid_tokens = coords_byte != 0xFF
-        box_obs[
-            batch_indices[valid_tokens],
-            atr_indices[valid_tokens],
-            x_coord_indices[valid_tokens],
-            y_coord_indices[valid_tokens],
-        ] = atr_values[valid_tokens]
+
+        # Clip attribute indices to the valid range to avoid breaking pre-trained CNN layers
+        if valid_tokens.any():
+            # Clip atr_indices to the valid range [0, num_layers-1]
+            atr_indices_clipped = torch.clamp(atr_indices, 0, self.num_layers - 1)
+
+            # Only process tokens that have valid indices after clipping
+            valid_indices = atr_indices_clipped < self.num_layers
+            final_valid_tokens = valid_tokens & valid_indices
+
+            # Use the clipped indices for indexing
+            box_obs[
+                batch_indices[final_valid_tokens],
+                atr_indices_clipped[final_valid_tokens],
+                x_coord_indices[final_valid_tokens],
+                y_coord_indices[final_valid_tokens],
+            ] = atr_values[final_valid_tokens]
+        else:
+            # No valid tokens, just return the zero tensor
+            pass
 
         td["_TT_"] = TT
         td["_batch_size_"] = B

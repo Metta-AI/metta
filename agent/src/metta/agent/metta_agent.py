@@ -242,22 +242,23 @@ class MettaAgent(nn.Module):
 
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to observation component and update normalizations."""
-        # Update observation component if it supports remapping
-        if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
-            # Build complete remapping tensor
-            remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+        # Build complete remapping tensor
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
-            # Apply explicit remappings
-            for new_id, original_id in self.feature_id_remap.items():
-                remap_tensor[new_id] = original_id
+        # Apply explicit remappings
+        for new_id, original_id in self.feature_id_remap.items():
+            remap_tensor[new_id] = original_id
 
-            # Map unused feature IDs to UNKNOWN
-            current_feature_ids = {props["id"] for props in features.values()}
-            for feature_id in range(256):
-                if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
-                    remap_tensor[feature_id] = unknown_id
+        # Map unused feature IDs to UNKNOWN
+        current_feature_ids = {props["id"] for props in features.values()}
+        for feature_id in range(256):
+            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
+                remap_tensor[feature_id] = unknown_id
 
-            self.components["_obs_"].update_feature_remapping(remap_tensor)
+        # Update observation components that support remapping
+        for _, component in self.components.items():
+            if hasattr(component, "update_feature_remapping"):
+                component.update_feature_remapping(remap_tensor)
 
         # Update normalization factors
         self._update_normalization_factors(features)
