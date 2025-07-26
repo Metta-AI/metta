@@ -4,7 +4,6 @@ import os
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -34,7 +33,6 @@ from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -90,7 +88,7 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig,
-        curriculum_stats_provider: Curriculum | None,
+        curriculum: Curriculum | None,
         wandb_run: WandbRun | None = None,
         policy_store: PolicyStore | None = None,
         sim_suite_config: SimulationSuiteConfig | None = None,
@@ -105,11 +103,7 @@ class MettaTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
-
-        # self.hyperparameter_scheduler = HyperparameterScheduler(
-        # trainer_cfg, self, trainer_cfg.total_timesteps, logging)
-        # self.hyperparameter_scheduler = HyperparameterScheduler(
-        # trainer_cfg, self, trainer_cfg.total_timesteps, logging)
+        self._curriculum = curriculum
 
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
@@ -153,13 +147,9 @@ class MettaTrainer:
                 auto_start=True,  # Start monitoring immediately
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
-            self._curriculum_stats_provider = curriculum_stats_provider
 
         # This is mostly needed on the master, but we need it for making vecenv
         self._tasks_completed = 0
-        self._curriculum = CurriculumClient(
-            f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}"
-        )
 
         # Add training task to the suite
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
@@ -608,9 +598,6 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        # self.hyperparameter_scheduler.step(self.agent_step)
-        # self.hyperparameter_scheduler.step(self.agent_step)
-
         # Calculate explained variance using helper function
         self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
@@ -899,7 +886,7 @@ class MettaTrainer:
             self.grad_stats.clear()
             return
 
-        curriculum_stats = self._curriculum_stats_provider.stats()
+        curriculum_stats = self._curriculum.stats()
 
         # Process training stats using shared function
         processed_stats = process_training_stats(
@@ -941,7 +928,7 @@ class MettaTrainer:
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
 
-        curriculum_stats = self._curriculum_stats_provider.stats()
+        curriculum_stats = self._curriculum.stats()
 
         system_stats = {}  # self._system_monitor.stats()
         memory_stats = {}  # self._memory_monitor.stats()
@@ -978,8 +965,6 @@ class MettaTrainer:
         self.timer.stop()
         # TorchProfiler doesn't have a close method
         self.vecenv.close()
-        # Stop the curriculum client's background thread
-        self._curriculum.stop()
         if self._master:
             self._memory_monitor.clear()
             self._system_monitor.stop()
@@ -1094,8 +1079,8 @@ class MettaTrainer:
             )
 
         self.vecenv = make_vecenv(
+            self._curriculum,
             self.cfg.vectorization,
-            curriculum_server_url=f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}",
             num_envs=num_envs,
             batch_size=self.batch_size,
             num_workers=trainer_cfg.num_workers,

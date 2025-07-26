@@ -31,6 +31,14 @@ class Curriculum:
         """Return curriculum statistics for logging purposes (default: empty)."""
         return {}
 
+    def stats(self) -> dict:
+        """Return curriculum statistics for logging purposes."""
+        return {
+            "completed_tasks": self.completed_tasks(),
+            "completion_rates": self.get_completion_rates(),
+            "task_probs": self.get_task_probs(),
+        }
+
 
 class Task:
     def __init__(self, id: str, curriculum: "Curriculum", env_cfg: DictConfig):

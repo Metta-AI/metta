@@ -201,9 +201,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
-    env: str | None = None  # Environment config path
     # Default curriculum: Simple environment for initial experiments
-    curriculum: str | None = "/env/mettagrid/curriculum/simple"
+    curriculum: str = "/env/mettagrid/curriculum/arena/basic_easy_shaped"
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
