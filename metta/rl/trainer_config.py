@@ -137,6 +137,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Total timesteps: Type 2 arbitrary default
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
 
+    # Loss configuration - list of loss types to use
+    losses: list[str] = Field(default=["PPO", "Contrastive", "ValueDetached"])
+
     # PPO configuration
     ppo: PPOConfig = Field(default_factory=PPOConfig)
 

@@ -32,6 +32,28 @@ class LSTM(LayerBase):
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
+        self._memory = None
+        # self.memory = TensorDict(
+        #     {
+        #         "lstm_h": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
+        #         "lstm_c": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
+        #     },
+        #     batch_size=[],
+        # )
+
+    def get_memory(self):
+        return self._memory
+
+    def set_memory(self, memory):
+        self._memory = memory
+
+    def reset_memory(self):
+        self._memory = None
+
+    def setup(self, source_components):
+        """Setup the layer and create the network."""
+        super().setup(source_components)
+        self._net = self._make_net()
 
     def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
@@ -41,37 +63,19 @@ class LSTM(LayerBase):
             if "bias" in name:
                 nn.init.constant_(param, 1)  # Joseph originally had this as 0
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0)  # torch's default is uniform
+                nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
         return net
 
     @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
-        x = td["x"]
         hidden = td[self._sources[0]["name"]]
-        state = td["state"]
+        training_env_id = td.meta["training_env_id"]
+        state = self._memory[training_env_id]
 
-        if state is not None:
-            split_size = self.num_layers
-            state = (state[:split_size], state[split_size:])
-
-        x_shape, space_shape = x.shape, self._obs_shape
-        x_n, space_n = len(x_shape), len(space_shape)
-        if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError("Invalid input tensor shape", x.shape)
-
-        if x_n == space_n + 1:
-            B, TT = x_shape[0], 1
-        elif x_n == space_n + 2:
-            B, TT = x_shape[:2]
-        else:
-            raise ValueError("Invalid input tensor shape", x.shape)
-
-        if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
-        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
-            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
-        )
+        B = td.batch_size.numel()  # this should capture it all without using numel()
+        if td.meta["train"]:
+            TT = td["env_obs"].shape[1]
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
@@ -79,11 +83,8 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
-        if state is not None:
-            state = tuple(s.detach() for s in state)
-            state = torch.cat(state, dim=0)
+        self._memory[training_env_id] = (state[0].detach(), state[1].detach())
 
         td[self._name] = hidden
-        td["state"] = state
 
         return td

@@ -31,17 +31,14 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
-from metta.rl.util.advantage import compute_advantage
 from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
-    calculate_prioritized_sampling_params,
 )
-from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.losses import Loss
 from metta.rl.util.optimization import (
     calculate_explained_variance,
     compute_gradient_stats,
@@ -50,11 +47,7 @@ from metta.rl.util.policy_management import (
     cleanup_old_policies,
     validate_policy_environment_match,
 )
-from metta.rl.util.rollout import (
-    get_lstm_config,
-    get_observation,
-    run_policy_inference,
-)
+from metta.rl.util.rollout import get_observation
 from metta.rl.util.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
@@ -258,20 +251,25 @@ class MettaTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(
-            trainer_cfg.kickstart,
-            self.device,
-            policy_store,
-            metta_grid_env,
-        )
+        # av delete
+        # self.kickstarter = Kickstarter(
+        #     trainer_cfg.kickstart,
+        #     self.device,
+        #     policy_store,
+        #     metta_grid_env,
+        # )
 
         if torch.distributed.is_initialized():
+            self.policy.flatten_parameters()  # av check
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             self.policy = DistributedMettaAgent(self.policy, self.device)
             # Ensure all ranks have initialized DDP before proceeding
             torch.distributed.barrier()
 
+        self.loss = Loss(self.trainer_cfg, self.device, self.losses)
         self._make_experience_buffer()
+        self.loss.update_policy(self.policy)
+        self.loss.update_experience(self.experience)
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
@@ -351,11 +349,14 @@ class MettaTrainer:
 
         logger.info(f"Training on {self.device}")
         wandb_policy_name: str | None = None
+
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
             with self.torch_profiler:
+                self.policy.reset_memory()
                 self._rollout()
+                self.policy.reset_memory()
                 self._train()
 
             self.torch_profiler.on_epoch_end(self.epoch)
@@ -419,6 +420,11 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
+        # The policy is responsible for creating a zero state if one is not available.
+        buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+        buffer_step.meta["roll_out"] = True
+        buffer_step.meta["train"] = False
+
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
             if trainer_cfg.require_contiguous_env_ids:
@@ -429,31 +435,33 @@ class MettaTrainer:
 
             # Perform single rollout step
             # Receive environment data
-            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
+            o, r, d, t, info, training_env_id, _, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps * self._world_size
 
-            # Run policy inference
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                self.policy, o, experience, training_env_id.start, self.device
-            )
+            # Prepare the input TensorDict for the policy
+            td = buffer_step[training_env_id].clone()
+            td.meta["training_env_id"] = training_env_id
+            td["env_obs"] = o
 
-            # Store experience
+            # Run policy inference
+            with torch.no_grad():
+                td = self.policy(td)
+            if str(self.device).startswith("cuda"):
+                torch.cuda.synchronize()
+
+            # Update buffer with data from the env that the policy doesn't get.
+            td["rewards"] = r
+            td["dones"] = d.float()
+            td["truncateds"] = t.float()
+
             experience.store(
-                obs=o,
-                actions=actions,
-                logprobs=selected_action_log_probs,
-                rewards=r,
-                dones=d,
-                truncations=t,
-                values=values,
+                data_td=td,
                 env_id=training_env_id,
-                mask=mask,
-                lstm_state=lstm_state_to_store,
             )
 
             # Send actions back to environment
             with self.timer("_rollout.env"):
-                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+                self.vecenv.send(td["actions"].cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:
@@ -469,70 +477,65 @@ class MettaTrainer:
     def _train(self):
         """Perform training phase."""
         experience = self.experience
+        experience.buffer.meta["roll_out"] = False
+        experience.buffer.meta["train"] = True
         trainer_cfg = self.trainer_cfg
 
-        self.losses.zero()
-
-        prio_cfg = trainer_cfg.prioritized_experience_replay
-        vtrace_cfg = trainer_cfg.vtrace
+        # prio_cfg = trainer_cfg.prioritized_experience_replay # av move these to ppo
+        # vtrace_cfg = trainer_cfg.vtrace
 
         # Reset importance sampling ratios
         experience.reset_importance_sampling_ratios()
 
         # Prioritized sampling parameters
-        anneal_beta = calculate_prioritized_sampling_params(
-            epoch=self.epoch,
-            total_timesteps=trainer_cfg.total_timesteps,
-            batch_size=trainer_cfg.batch_size,
-            prio_alpha=prio_cfg.prio_alpha,
-            prio_beta0=prio_cfg.prio_beta0,
-        )
+        # anneal_beta = calculate_prioritized_sampling_params(
+        #     epoch=self.epoch,
+        #     total_timesteps=trainer_cfg.total_timesteps,
+        #     batch_size=trainer_cfg.batch_size,
+        #     prio_alpha=prio_cfg.prio_alpha,
+        #     prio_beta0=prio_cfg.prio_beta0,
+        # )
 
-        # Compute advantages using puff_advantage
-        advantages = torch.zeros(experience.values.shape, device=self.device)
+        # # Compute advantages using puff_advantage
+        # advantages = torch.zeros_like(experience.buffer["values"])
 
-        # Initial importance sampling ratio is all ones
-        initial_importance_sampling_ratio = torch.ones_like(experience.values)
+        # # Initial importance sampling ratio is all ones
+        # initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
-        advantages = compute_advantage(
-            experience.values,
-            experience.rewards,
-            experience.dones,
-            initial_importance_sampling_ratio,
-            advantages,
-            trainer_cfg.ppo.gamma,
-            trainer_cfg.ppo.gae_lambda,
-            vtrace_cfg.vtrace_rho_clip,
-            vtrace_cfg.vtrace_c_clip,
-            self.device,
-        )
+        # advantages = compute_advantage(
+        #     experience.buffer["values"],
+        #     experience.buffer["rewards"],
+        #     experience.buffer["dones"],
+        #     initial_importance_sampling_ratio,
+        #     advantages,
+        #     trainer_cfg.ppo.gamma,
+        #     trainer_cfg.ppo.gae_lambda,
+        #     vtrace_cfg.vtrace_rho_clip,
+        #     vtrace_cfg.vtrace_c_clip,
+        #     self.device,
+        # )
 
         # Optimizing the policy and value network
-        _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
         minibatch_idx = 0
 
-        for _epoch in range(trainer_cfg.update_epochs):
-            for _ in range(experience.num_minibatches):
-                minibatch = experience.sample_minibatch(
-                    advantages=advantages,
-                    prio_alpha=prio_cfg.prio_alpha,
-                    prio_beta=anneal_beta,
-                    minibatch_idx=minibatch_idx,
-                    total_minibatches=_total_minibatches,
-                )
+        self.losses.zero()
+        self.loss.update_experience(experience)
+        self.loss.epoch = self.epoch
+        self.loss.agent_step = self.agent_step
 
-                # Use the helper function to process minibatch update
-                loss = process_minibatch_update(
-                    policy=self.policy,
-                    experience=experience,
-                    minibatch=minibatch,
-                    advantages=advantages,
-                    trainer_cfg=trainer_cfg,
-                    kickstarter=self.kickstarter,
-                    agent_step=self.agent_step,
-                    losses=self.losses,
-                    device=self.device,
-                )
+        for _epoch in range(trainer_cfg.update_epochs):
+            for mb_idx in range(experience.num_minibatches):
+                self.loss.mb_idx = mb_idx
+                # minibatch, indices, prio_weights = experience.sample_minibatch(
+                #     advantages=advantages,
+                #     prio_alpha=prio_cfg.prio_alpha,
+                #     prio_beta=anneal_beta,
+                # )
+
+                # train_td = minibatch.select(*policy_spec.keys(include_nested=True))  # select what policy wants
+                # train_td = self.policy(train_td, action=minibatch["actions"])
+
+                loss += contrastive_loss + detached_value_loss
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
@@ -560,7 +563,7 @@ class MettaTrainer:
         # self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance using helper function
-        self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+        self.losses.explained_variance = calculate_explained_variance(experience.buffer["values"], advantages)
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
         """Check if a periodic task should run based on interval and force flag."""
@@ -592,8 +595,9 @@ class MettaTrainer:
             return
 
         extra_args = {}
-        if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
-            extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
+        # av how to move this data from losses to here?
+        # if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
+        #     extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
 
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
@@ -699,11 +703,6 @@ class MettaTrainer:
         result = self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
         return result
-
-    def _maybe_update_l2_weights(self, force=False):
-        """Update L2 init weights if on update interval"""
-        if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
-            self.policy.update_l2_init_weight_copy()
 
     def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
@@ -823,8 +822,6 @@ class MettaTrainer:
             raw_stats=self.stats,
             losses=self.losses,
             experience=self.experience,
-            trainer_config=self.trainer_cfg,
-            kickstarter=self.kickstarter,
         )
 
         # Update self.stats with mean values for consistency
@@ -934,15 +931,15 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
 
         # Get environment info
-        obs_space = vecenv.single_observation_space
-        atn_space = vecenv.single_action_space
         total_agents = vecenv.num_agents
 
         # Calculate minibatch parameters
         max_minibatch_size = trainer_cfg.minibatch_size
 
-        # Get LSTM parameters using helper function
-        hidden_size, num_lstm_layers = get_lstm_config(self.policy)
+        # Get the experience buffer specification from the policy
+        policy_experience_spec = self.policy.get_experience_spec()
+        loss_experience_spec = self.loss.get_experience_spec()
+        experience_spec = policy_experience_spec.merge(loss_experience_spec)
 
         # Create experience buffer
         self.experience = Experience(
@@ -951,13 +948,9 @@ class MettaTrainer:
             bptt_horizon=trainer_cfg.bptt_horizon,
             minibatch_size=self._minibatch_size,
             max_minibatch_size=max_minibatch_size,
-            obs_space=obs_space,
-            atn_space=atn_space,
+            experience_spec=experience_spec,
             device=self.device,
-            hidden_size=hidden_size,
             cpu_offload=trainer_cfg.cpu_offload,
-            num_lstm_layers=num_lstm_layers,
-            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
     def _make_vecenv(self):
