@@ -140,11 +140,11 @@ jobs:
 
       - name: Run Ruff linter
         run: |
-          ruff format --check --exclude "*.ipynb" .
+          uv run ruff format --check .
 
       - name: Run Ruff formatting
         run: |
-          ruff check --exit-non-zero-on-fix --exclude "*.ipynb" .
+          uv run ruff check --exit-non-zero-on-fix .
 
       - name: Install C++ linter
         run: |
@@ -154,7 +154,7 @@ jobs:
         run: ./mettagrid/tests/cpplint.sh
 
   test-matrix:
-    name: "Unit Tests - ${{ matrix.package }}"
+    name: "Unit Tests - ${{ matrix.name }}"
     needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -164,7 +164,59 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [core, app_backend, agent, mettagrid, common]
+        include:
+          # Individual packages
+          - name: "agent"
+            package: "agent"
+          - name: "common"
+            package: "common"
+
+          # app_backend with sharding
+          - name: "app_backend-shard-0"
+            package: "app_backend"
+            shard_id: 0
+            num_shards: 2
+          - name: "app_backend-shard-1"
+            package: "app_backend"
+            shard_id: 1
+            num_shards: 2
+
+          # Mettagrid with sharding
+          - name: "mettagrid-shard-0"
+            package: "mettagrid"
+            shard_id: 0
+            num_shards: 2
+          - name: "mettagrid-shard-1"
+            package: "mettagrid"
+            shard_id: 1
+            num_shards: 2
+
+          # Core with sharding
+          - name: "core-shard-0"
+            package: "core"
+            shard_id: 0
+            num_shards: 6
+          - name: "core-shard-1"
+            package: "core"
+            shard_id: 1
+            num_shards: 6
+          - name: "core-shard-2"
+            package: "core"
+            shard_id: 2
+            num_shards: 6
+          - name: "core-shard-3"
+            package: "core"
+            shard_id: 3
+            num_shards: 6
+          - name: "core-shard-4"
+            package: "core"
+            shard_id: 4
+            num_shards: 6
+          - name: "core-shard-5"
+            package: "core"
+            shard_id: 5
+            num_shards: 6
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -177,18 +229,30 @@ jobs:
       - name: Run tests
         run: |
           PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
+
+          # Handle sharding for larger packages
+          if [ -n "${{ matrix.shard_id }}" ] && [ -n "${{ matrix.num_shards }}" ]; then
+            echo "Running shard ${{ matrix.shard_id }} of ${{ matrix.num_shards }}"
+
+            # Set environment variables for the sharding plugin
+            export PYTEST_SHARD_ID=${{ matrix.shard_id }}
+            export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
+
+            # Use the sharding plugin from common package
+            PYTEST_ARGS="$PYTEST_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
+          fi
+
           if [ "${{ matrix.package }}" == "core" ]; then
-            # Define packages to ignore (keep synced with non-core items in matrix)
+            # For core package, ignore other packages
             SUBPACKAGES=(app_backend agent mettagrid common)
-            IGNORE_ARGS=""
             for pkg in "${SUBPACKAGES[@]}"; do
-              IGNORE_ARGS="$IGNORE_ARGS --ignore=$pkg"
+              PYTEST_ARGS="$PYTEST_ARGS --ignore=$pkg"
             done
-            PYTEST_ARGS="$PYTEST_ARGS $IGNORE_ARGS"
           else
-            # Subpackage tests
+            # Navigate to package directory
             cd ${{ matrix.package }}
           fi
+
           pytest $PYTEST_ARGS
 
       - name: Upload python test coverage to Codecov
@@ -197,50 +261,8 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
           chmod +x .github/scripts/upload_codecov.py
-          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
-
-      - name: Build MettaGrid C++
-        if: matrix.package == 'mettagrid'
-        id: mettagrid_build_check
-        run: |
-          .github/scripts/check_mettagrid_build.py
-
-      - name: Check MettaGrid build warnings
-        if: matrix.package == 'mettagrid' && always()
-        run: |
-          errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
-          warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
-          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
-
-          echo "Build Summary: $errors errors, $warnings warnings"
-          echo "Maximum allowed warnings: $max_warnings"
-
-          if [ "$errors" -gt 0 ]; then
-            echo "❌ MettaGrid has build errors!"
-            exit 1
-          elif [ "$warnings" -gt "$max_warnings" ]; then
-            echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
-            exit 1
-          else
-            echo "✅ MettaGrid build quality check passed"
-          fi
-
-      - name: Run MettaGrid C++ coverage
-        if: matrix.package == 'mettagrid' && steps.mettagrid_build_check.outputs.build_success == 'true'
-        run: |
-          cd mettagrid
-          make coverage
-
-      - name: Upload MettaGrid C++ coverage to Codecov
-        if: matrix.package == 'mettagrid' && needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./mettagrid/build-coverage/coverage.info
-          flags: mettagrid_cpp
-          name: mettagrid-cpp-coverage
-          fail_ci_if_error: false
-          verbose: true
+          # Use the matrix name for codecov flags
+          SUBPACKAGES="${{ matrix.name }}" .github/scripts/upload_codecov.py
 
   tests-summary:
     name: "Tests"
@@ -261,6 +283,65 @@ jobs:
             echo "All test jobs completed successfully"
           fi
 
+  mettagrid-cpp-build:
+    name: "MettaGrid C++ Build & Coverage"
+    needs: [setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_test == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "testing"
+
+      - name: Build MettaGrid C++ (with coverage)
+        id: mettagrid_build_check
+        run: |
+          .github/scripts/check_mettagrid_build.py --with-coverage
+
+      - name: Debug - Print full build output
+        if: always()
+        run: |
+          echo "Full build output:"
+          echo "${{ steps.mettagrid_build_check.outputs.full_output }}"
+
+      - name: Check MettaGrid build warnings
+        if: always()
+        run: |
+          errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
+          warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
+          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
+
+          echo "Build Summary: $errors errors, $warnings warnings"
+          echo "Maximum allowed warnings: $max_warnings"
+
+          if [ "$errors" -gt 0 ]; then
+            echo "❌ MettaGrid has build errors!"
+            exit 1
+          elif [ "$warnings" -gt "$max_warnings" ]; then
+            echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
+            exit 1
+          else
+            echo "✅ MettaGrid build quality check passed"
+          fi
+
+      - name: Upload MettaGrid C++ coverage to Codecov
+        if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./mettagrid/build-coverage/coverage.info
+          flags: mettagrid_cpp
+          name: mettagrid-cpp-coverage
+          fail_ci_if_error: false
+          verbose: true
+
   smoke-test:
     name: "Smoke Tests"
     if: |
@@ -268,6 +349,10 @@ jobs:
     needs: [setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      matrix:
+        test_type: [train, replay, evals]
+      fail-fast: false
     env:
       CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
     steps:
@@ -277,7 +362,9 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
+      # Training
       - name: Training smoke test
+        if: matrix.test_type == 'train'
         id: train
         env:
           WANDB_API_KEY: set_but_not_used
@@ -289,13 +376,21 @@ jobs:
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
+        if: matrix.test_type == 'train'
         uses: ./.github/actions/save-benchmarks
         with:
           name: train_smoke_test
           metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_peak_mb }}}'
           filename: smoke_test_train_benchmark_results.json
 
+      # Replay
+      - name: Run super fast training
+        if: matrix.test_type == 'replay'
+        run: |
+          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +hardware=github wandb=off
+
       - name: Replay smoke test
+        if: matrix.test_type == 'replay'
         id: replay
         env:
           WANDB_API_KEY: set_but_not_used
@@ -305,15 +400,17 @@ jobs:
           uv run .github/scripts/replay_smoke_test.py
 
       - name: Save replay benchmark
+        if: matrix.test_type == 'replay'
         uses: ./.github/actions/save-benchmarks
         with:
           name: replay_smoke_test
           metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_peak_mb }}}'
           filename: smoke_test_replay_benchmark_results.json
 
+      # Eval
       - name: Check evals smoke test policy availability
+        if: matrix.test_type == 'evals' && needs.setup-checks.outputs.is_external != 'true'
         id: check_evals_policy
-        if: needs.setup-checks.outputs.is_external != 'true'
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
@@ -322,8 +419,8 @@ jobs:
           uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
       - name: Run evals smoke test
+        if: matrix.test_type == 'evals' && steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
         id: eval_smoke_test
-        if: steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
@@ -335,24 +432,60 @@ jobs:
           uv run .github/scripts/eval_smoke_test.py
 
       - name: Save evals benchmark
-        if: steps.eval_smoke_test.conclusion == 'success'
+        if: matrix.test_type == 'evals' && steps.eval_smoke_test.conclusion == 'success'
         uses: ./.github/actions/save-benchmarks
         with:
           name: evals_smoke_test
           metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_peak_mb }}}'
           filename: smoke_test_evals_benchmark_results.json
 
-      - name: Upload all benchmark files
+      - name: Upload benchmark file
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-test-benchmark-results
+          name: smoke-test-benchmark-${{ matrix.test_type }}
           path: |
-            smoke_test_train_benchmark_results.json
-            smoke_test_replay_benchmark_results.json
-            smoke_test_evals_benchmark_results.json
+            smoke_test_*_benchmark_results.json
           retention-days: 1
           if-no-files-found: warn
+
+  collect-smoke-test-results:
+    name: "Collect Smoke Test Results"
+    if: always()
+    needs: [smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: smoke-test-benchmark-*
+          merge-multiple: true
+
+      - name: Upload combined results
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-benchmark-results-combined
+          path: "*.json"
+          retention-days: 7
+
+  smoke-tests-summary:
+    name: "Smoke Tests"
+    needs: [smoke-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          echo "Smoke test job results: ${{ toJSON(needs) }}"
+          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
+            echo "One or more smoke test jobs failed"
+            exit 1
+          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
+            echo "One or more smoke test jobs were cancelled"
+            exit 1
+          else
+            echo "All smoke test jobs completed successfully"
+          fi
 
   python-benchmark:
     name: "Python Benchmarks"
