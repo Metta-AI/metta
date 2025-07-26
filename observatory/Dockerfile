@@ -33,6 +33,8 @@ COPY --from=pruned-source /metta/out/json/ .
 RUN pnpm install --frozen-lockfile
 
 COPY --from=pruned-source /metta/out/full/ .
+# turbo's pruned sources don't include .env files
+COPY observatory ./observatory
 
 WORKDIR /metta/observatory
 

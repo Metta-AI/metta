@@ -39,6 +39,7 @@ mettascope/dist
 **/node_modules
 **/.next
 /observatory/.vite/
+/observatory/dist/
 
 wandb
 
