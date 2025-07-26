@@ -175,6 +175,14 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     color: int = Field(default=0, ge=0, le=255)
 
 
+class PyTerminationConfig(BaseModelWithForbidExtra):
+    """Python termination configuration."""
+
+    max_reward: Optional[int] = Field(default=None)
+    end_of_episode_boost: Optional[float] = Field(default=None)
+    condition: Optional[float] = Field(default=None)
+
+
 class PyGameConfig(BaseModelWithForbidExtra):
     """Python game configuration."""
 
@@ -194,6 +202,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    termination: PyTerminationConfig = Field(default_factory=PyTerminationConfig)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
