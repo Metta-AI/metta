@@ -53,6 +53,7 @@ class Mesh {
   private gl: WebGLRenderingContext
   private vertexBuffer: WebGLBuffer | null = null
   private indexBuffer: WebGLBuffer | null = null
+  public texture: WebGLTexture | null = null
 
   // Buffer management
   private maxQuads: number
@@ -294,12 +295,16 @@ export class Context3d {
   public gl: WebGLRenderingContext
   public ready = false
   public dpr = 1
-  public atlasData: AtlasData | null = null
+
+  public mainAtlasData: AtlasData | null = null
+  public fontAtlasData: AtlasData | null = null
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
-  private atlasTexture: WebGLTexture | null = null
-  private textureSize: Vec2f = new Vec2f(0, 0)
+  private mainAtlasTexture: WebGLTexture | null = null
+  private mainTextureSize: Vec2f = new Vec2f(0, 0)
+  private fontAtlasTexture: WebGLTexture | null = null
+  private fontTextureSize: Vec2f = new Vec2f(0, 0)
   private atlasMargin = 4
 
   // Shader locations
@@ -442,24 +447,39 @@ export class Context3d {
   }
 
   /** Initialize the context. */
-  async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
+  async init(atlasJsonUrl: string, atlasImageUrl: string, fontJsonUrl: string, fontImageUrl: string): Promise<boolean> {
     this.dpr = 1.0
     if (window.devicePixelRatio > 1.0) {
       this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
     }
 
-    // Load Atlas and Texture.
-    const [atlasData, source] = await Promise.all([
+    // Load main atlas
+    const [mainAtlasData, mainAtlasImage] = await Promise.all([
       this.loadAtlasJson(atlasJsonUrl),
       this.loadAtlasImage(atlasImageUrl),
     ])
 
-    if (!atlasData || !source) {
-      this.fail('Failed to load atlas or texture')
+    if (!mainAtlasData || !mainAtlasImage) {
+      this.fail('Failed to load main atlas or texture')
       return false
     }
-    this.atlasData = atlasData
-    this.textureSize = new Vec2f(source.width, source.height)
+
+    this.mainAtlasData = mainAtlasData
+    this.mainTextureSize = new Vec2f(mainAtlasImage.width, mainAtlasImage.height)
+
+    // Load font atlas
+    const [fontAtlasData, fontAtlasImage] = await Promise.all([
+      this.loadAtlasJson(fontJsonUrl),
+      this.loadAtlasImage(fontImageUrl),
+    ])
+
+    if (!fontAtlasData || !fontAtlasImage) {
+      this.fail('Failed to load font atlas or texture')
+      return false
+    }
+
+    this.fontAtlasData = fontAtlasData
+    this.fontTextureSize = new Vec2f(fontAtlasImage.width, fontAtlasImage.height)
 
     // Create and compile shaders
     const vertexShader = this.createShader(this.gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE)
@@ -477,34 +497,34 @@ export class Context3d {
       return false
     }
 
-    // Get attribute and uniform locations
+    // Get shader locations
     this.positionLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_position')
     this.texcoordLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_texcoord')
     this.colorLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_color')
     this.canvasSizeLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_canvasSize')
     this.samplerLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_sampler')
 
-    // Create texture
-    this.atlasTexture = this.gl.createTexture()
-    if (!this.atlasTexture) {
-      this.fail('Failed to create texture')
-      return false
-    }
-
-    // Upload texture data
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
-    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, source)
-
-    // Generate mipmaps
+    // Upload main texture
+    this.mainAtlasTexture = this.gl.createTexture()
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.mainAtlasTexture)
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, mainAtlasImage)
     this.gl.generateMipmap(this.gl.TEXTURE_2D)
-
-    // Set texture parameters
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT)
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT)
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR)
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR)
 
-    // Enable blending for premultiplied alpha
+    // Upload font texture
+    this.fontAtlasTexture = this.gl.createTexture()
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.fontAtlasTexture)
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, fontAtlasImage)
+    this.gl.generateMipmap(this.gl.TEXTURE_2D)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST) // crisp font
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST)
+
+    // Enable blending
     this.gl.enable(this.gl.BLEND)
     this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA)
 
@@ -648,7 +668,7 @@ export class Context3d {
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return this.atlasData?.[imageName] !== undefined
+    return this.mainAtlasData?.[imageName] !== undefined
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
@@ -659,20 +679,20 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    if (!this.mainAtlasData?.[imageName]) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = this.mainAtlasData[imageName]
     const m = this.atlasMargin
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
     // Add the margin to allow texture filtering to handle edge anti-aliasing.
-    const u0 = (sx - m) / this.textureSize.x()
-    const v0 = (sy - m) / this.textureSize.y()
-    const u1 = (sx + sw + m) / this.textureSize.x()
-    const v1 = (sy + sh + m) / this.textureSize.y()
+    const u0 = (sx - m) / this.mainTextureSize.x()
+    const v0 = (sy - m) / this.mainTextureSize.y()
+    const u1 = (sx + sw + m) / this.mainTextureSize.x()
+    const v1 = (sy + sh + m) / this.mainTextureSize.y()
 
     // Draw the rectangle with the image's texture coordinates.
     // Adjust both UVs and vertex positions by the margin.
@@ -726,20 +746,20 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    if (!this.mainAtlasData?.[imageName]) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = this.mainAtlasData[imageName]
     const m = this.atlasMargin
 
     // Calculate UV coordinates for the sprite in the texture atlas.
     // The margin (m) is added to prevent texture bleeding at sprite edges.
-    const u0 = (sx - m) / this.textureSize.x()
-    const v0 = (sy - m) / this.textureSize.y()
-    const u1 = (sx + sw + m) / this.textureSize.x()
-    const v1 = (sy + sh + m) / this.textureSize.y()
+    const u0 = (sx - m) / this.mainTextureSize.x()
+    const v0 = (sy - m) / this.mainTextureSize.y()
+    const u1 = (sx + sw + m) / this.mainTextureSize.x()
+    const v1 = (sy + sh + m) / this.mainTextureSize.y()
 
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
@@ -788,14 +808,14 @@ export class Context3d {
     this.ensureMeshSelected()
 
     const imageName = 'white.png'
-    if (!this.atlasData?.[imageName]) {
+    if (!this.mainAtlasData?.[imageName]) {
       throw new Error(`Image "${imageName}" not found in atlas`)
     }
 
     // Get the middle of the white texture.
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
-    const uvx = (sx + sw / 2) / this.textureSize.x()
-    const uvy = (sy + sh / 2) / this.textureSize.y()
+    const [sx, sy, sw, sh] = this.mainAtlasData[imageName]
+    const uvx = (sx + sw / 2) / this.mainTextureSize.x()
+    const uvy = (sy + sh / 2) / this.mainTextureSize.y()
     this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
   }
 
@@ -810,6 +830,197 @@ export class Context3d {
     this.drawSolidRect(x, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
     // Right border.
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
+  }
+
+  /**
+   * Draws text within the specified bounding box.
+   *
+   * @param text - Text to draw (supports emoji codes like :happy:)
+   * @param bbox - Target bounding box [x, y, width, height] in screen coordinates
+   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0-1
+   * @param mode - Drawing mode:
+   *   - 'scale': Scales text as large as possible while maintaining aspect ratio
+   *   - 'stretch': Stretches text to fill entire bbox (may distort)
+   * @param align - Horizontal alignment: 'left', 'center', or 'right'
+   * @param valign - Vertical alignment: 'top', 'middle', or 'bottom'
+   * @param spacing - Additional spacing between characters (in pixels at scale 1)
+   */
+  drawText(
+    text: string,
+    bbox: [number, number, number, number],
+    color: number[] = [1, 1, 1, 1],
+    mode: 'scale' | 'stretch' = 'scale',
+    align: 'left' | 'center' | 'right' = 'left',
+    valign: 'top' | 'middle' | 'bottom' = 'top',
+    spacing = 0
+  ) {
+    if (!this.ready) {
+      throw new Error('Context not ready')
+    }
+    if (!this.fontAtlasData || !this.fontAtlasTexture) {
+      console.error('Font atlas not loaded')
+      return
+    }
+
+    // Save the current mesh by name
+    const previousMeshName = this.currentMeshName
+
+    // Switch to font mesh or create it if needed
+    this.useMesh('font')
+
+    // Set the font texture on the font mesh
+    this.currentMesh!.texture = this.fontAtlasTexture
+
+    // Cast fontAtlasData to any to access our custom structure
+    const fontData = this.fontAtlasData as any
+
+    // Get emoji codes from font data
+    const emojiCodes = fontData.emojiCodes || {}
+    const emojiValues = new Set(Object.values(emojiCodes))
+
+    // Build regex pattern from actual emoji codes in the font atlas
+    const emojiCodePattern = Object.keys(emojiCodes)
+      .map((code) => code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')
+    const emojiPattern = emojiCodePattern ? new RegExp(`^(${emojiCodePattern})`) : null
+
+    // Helper function to get character info with emoji code support
+    const getCharInfo = (char: string) => {
+      if (!fontData) {
+        return null
+      }
+
+      // Check if it's an emoji code like :happy:
+      if (emojiCodes[char]) {
+        const emojiChar = emojiCodes[char]
+        if (emojiChar && fontData.characters) {
+          return fontData.characters[emojiChar]
+        }
+      }
+      return fontData.characters?.[char]
+    }
+
+    // Parse text to handle multi-character emoji codes
+    const parseText = (text: string): string[] => {
+      const chars: string[] = []
+      let remaining = text
+
+      while (remaining.length > 0) {
+        let matched = false
+
+        // Try to match emoji codes first
+        if (emojiPattern) {
+          const match = remaining.match(emojiPattern)
+          if (match && match.index === 0) {
+            chars.push(match[0])
+            remaining = remaining.substring(match[0].length)
+            matched = true
+          }
+        }
+
+        // If no emoji code matched, take the next character
+        if (!matched) {
+          chars.push(remaining[0])
+          remaining = remaining.substring(1)
+        }
+      }
+
+      return chars
+    }
+
+    // Extract bbox dimensions
+    const [bx, by, bw, bh] = bbox
+
+    // Parse the text into characters/emoji codes
+    const textChars = parseText(text)
+
+    // Get base font metrics from metadata
+    const baseCharHeight = fontData.metadata?.cellHeight || 36
+    const baseCharWidth = fontData.metadata?.cellWidth || 24
+
+    // Calculate actual text dimensions using real character widths
+    let textWidth = 0
+    const textHeight = baseCharHeight
+
+    // Build character info array while calculating width
+    const charInfos: Array<{ char: string; info: any; width: number }> = []
+
+    for (const char of textChars) {
+      const charInfo = getCharInfo(char)
+      if (!charInfo) {
+        console.warn(`Character not found in font atlas: ${char}`)
+        continue
+      }
+
+      const charWidth = charInfo.width || baseCharWidth
+      charInfos.push({ char, info: charInfo, width: charWidth })
+      textWidth += charWidth
+    }
+
+    // Add spacing between characters
+    if (charInfos.length > 1) {
+      textWidth += (charInfos.length - 1) * spacing
+    }
+
+    // Calculate scale based on mode
+    let scaleX = 1
+    let scaleY = 1
+
+    if (mode === 'scale') {
+      // Scale as large as possible while maintaining aspect ratio
+      const widthScale = bw / textWidth
+      const heightScale = bh / textHeight
+      scaleX = scaleY = Math.min(widthScale, heightScale)
+    } else if (mode === 'stretch') {
+      // Stretch to fill entire bbox (may distort)
+      scaleX = bw / textWidth
+      scaleY = bh / textHeight
+    }
+
+    // Calculate actual rendered dimensions
+    const scaledWidth = textWidth * scaleX
+    const scaledHeight = textHeight * scaleY
+
+    // Calculate starting position based on alignment
+    let cursorX = bx
+    if (align === 'center') {
+      cursorX = bx + (bw - scaledWidth) / 2
+    } else if (align === 'right') {
+      cursorX = bx + bw - scaledWidth
+    }
+
+    let cursorY = by
+    if (valign === 'middle') {
+      cursorY = by + (bh - scaledHeight) / 2
+    } else if (valign === 'bottom') {
+      cursorY = by + bh - scaledHeight
+    }
+
+    // Draw each character
+    for (const { char, info, width } of charInfos) {
+      const sx = info.x
+      const sy = info.y
+      const sw = info.width || baseCharWidth
+      const sh = info.height || baseCharHeight
+
+      const u0 = sx / this.fontTextureSize.x()
+      const v0 = sy / this.fontTextureSize.y()
+      const u1 = (sx + sw) / this.fontTextureSize.x()
+      const v1 = (sy + sh) / this.fontTextureSize.y()
+
+      // Check if this is an emoji
+      const isEmoji = emojiValues.has(char) || emojiCodes.hasOwnProperty(char)
+      const drawColor = isEmoji ? [1, 1, 1, 1] : color
+
+      this.drawRect(cursorX, cursorY, sw * scaleX, sh * scaleY, u0, v0, u1, v1, drawColor)
+
+      cursorX += width * scaleX + spacing * scaleX
+    }
+
+    // Restore previous mesh
+    if (previousMeshName) {
+      this.useMesh(previousMeshName)
+    }
   }
 
   /** Flushes all non-empty meshes to the screen. */
@@ -846,13 +1057,14 @@ export class Context3d {
     // Set canvas size uniform
     this.gl.uniform2f(this.canvasSizeLocation, screenWidth, screenHeight)
 
-    // Bind texture
-    this.gl.activeTexture(this.gl.TEXTURE0)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
-    this.gl.uniform1i(this.samplerLocation, 0)
-
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
+      // Bind texture
+      const texture = mesh.texture || this.mainAtlasTexture
+      this.gl.activeTexture(this.gl.TEXTURE0)
+      this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
+      this.gl.uniform1i(this.samplerLocation, 0)
+
       const quadCount = mesh.getQuadCount()
       if (quadCount === 0) {
         continue

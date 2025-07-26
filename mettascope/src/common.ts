@@ -117,6 +117,7 @@ export const state = {
   showActionButtons: false,
   showAgentPanel: false,
   showAttackMode: false,
+  showGlyphEditor: false,
 
   // Playing over a WebSocket
   ws: null as WebSocket | null,
@@ -142,6 +143,7 @@ export const html = {
   demoModeToggle: find('#demo-mode-toggle'),
   fullScreenToggle: find('#full-screen-toggle'),
   tracesToggle: find('#traces-toggle'),
+  glyphToggle: find('#glyph-toggle'),
 
   actionButtons: find('#action-buttons'),
 

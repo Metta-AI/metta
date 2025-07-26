@@ -3,6 +3,7 @@ import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import * as Common from './common.js'
 import { ctx, html, setFollowSelection, state, ui } from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
+import { hideGlyphEditorPanel, initGlyphTable, showGlyphEditorPanel } from './glyphtable.js'
 import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
 import {
   find,
@@ -285,10 +286,16 @@ onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
 /** Handles scroll events. */
 onEvent('wheel', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as WheelEvent
-  ui.scrollDelta = event.deltaY
-  // Prevent scaling the web page
-  event.preventDefault()
-  requestFrame()
+
+  // Allow natural scrolling inside scrollable containers
+  const path = event.composedPath() as HTMLElement[]
+  const allowScroll = path.some((el) => el instanceof HTMLElement && el.closest('.glyph-table-container'))
+
+  if (!allowScroll) {
+    ui.scrollDelta = event.deltaY
+    event.preventDefault()
+    requestFrame()
+  }
 })
 
 /** Handles the pointer moving outside the window. */
@@ -489,6 +496,10 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     } else if (ui.delayedHoverObject !== null) {
       // Close the main hover bubble if it's showing
       hideHoverBubble()
+    } else if (state.showGlyphEditor) {
+      state.showGlyphEditor = false
+      localStorage.setItem('showGlyphEditor', state.showGlyphEditor.toString())
+      toggleOpacity(html.glyphToggle, state.showGlyphEditor)
     } else if (state.showAgentPanel) {
       state.showAgentPanel = false
       localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
@@ -1005,6 +1016,24 @@ if (localStorage.hasOwnProperty('showTraces')) {
 }
 toggleOpacity(html.tracesToggle, state.showTraces)
 
+onEvent('click', '#glyph-toggle', () => {
+  state.showGlyphEditor = !state.showGlyphEditor
+
+  localStorage.setItem('showGlyphEditor', state.showGlyphEditor.toString())
+  toggleOpacity(html.glyphToggle, state.showGlyphEditor)
+
+  if (state.showGlyphEditor) {
+    showGlyphEditorPanel()
+  } else {
+    hideGlyphEditorPanel()
+  }
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showGlyphEditor')) {
+  state.showGlyphEditor = localStorage.getItem('showGlyphEditor') === 'true'
+}
+toggleOpacity(html.glyphToggle, state.showGlyphEditor)
+
 onEvent('click', '#info-panel .close', () => {
   state.showInfo = false
   localStorage.setItem('showInfo', state.showInfo.toString())
@@ -1048,6 +1077,7 @@ initObjectMenu()
 initTimeline()
 initDemoMode()
 initializeTooltips()
+initGlyphTable()
 startGamepadPolling()
 
 window.addEventListener('load', async () => {
@@ -1055,7 +1085,10 @@ window.addEventListener('load', async () => {
   const atlasImageUrl = 'dist/atlas.png'
   const atlasJsonUrl = 'dist/atlas.json'
 
-  const success = await ctx.init(atlasJsonUrl, atlasImageUrl)
+  const fontImageUrl = 'dist/font.png'
+  const fontJsonUrl = 'dist/font.json'
+
+  const success = await ctx.init(atlasJsonUrl, atlasImageUrl, fontJsonUrl, fontImageUrl)
   if (!success) {
     Common.showModal('error', 'Initialization failed', 'Please check the console for more information.')
     return
