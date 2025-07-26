@@ -1,0 +1,13 @@
+# @package _global_
+defaults:
+  - override /env: mettagrid/mettagrid
+
+game:
+  agent:
+    rewards:
+      ore.red: 0.17
+      ore.blue: 0.17
+      ore.green: 0.17
+      battery.red: 0.98
+      battery.blue: 0.98
+      battery.green: 0.98

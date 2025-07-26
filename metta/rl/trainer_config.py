@@ -11,13 +11,13 @@ from metta.rl.kickstarter_config import KickstartConfig
 class OptimizerConfig(BaseModelWithForbidExtra):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
+    learning_rate: float = Field(default=0.0023113, gt=0, le=1.0)  # 10% toward sweep: 0.000457 -> 0.019
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
-    beta1: float = Field(default=0.9, ge=0, le=1.0)
+    beta1: float = Field(default=0.899, ge=0, le=1.0)  # 10% toward sweep: 0.9 -> 0.89
     # Beta2: Standard Adam default from Kingma & Ba (2014)
-    beta2: float = Field(default=0.999, ge=0, le=1.0)
+    beta2: float = Field(default=0.9951, ge=0, le=1.0)  # 10% toward sweep: 0.999 -> 0.96
     # Epsilon: Type 2 default chosen arbitrarily
-    eps: float = Field(default=1e-12, gt=0)
+    eps: float = Field(default=1.4e-8, gt=0)  # 10% toward sweep: 1e-12 -> 1.4e-7
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
 
@@ -35,16 +35,16 @@ class LRSchedulerConfig(BaseModelWithForbidExtra):
 
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
     # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
-    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
+    prio_alpha: float = Field(default=0.079, ge=0, le=1.0)  # 10% toward sweep: 0.0 -> 0.79
     # Beta0=0.6: From Schaul et al. (2016) "Prioritized Experience Replay" paper
-    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+    prio_beta0: float = Field(default=0.599, ge=0, le=1.0)  # 10% toward sweep: 0.6 -> 0.59
 
 
 class VTraceConfig(BaseModelWithForbidExtra):
     # V-trace rho clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
-    vtrace_rho_clip: float = Field(default=1.0, gt=0)
+    vtrace_rho_clip: float = Field(default=1.13, gt=0)  # 10% toward sweep: 1.0 -> 2.3
     # V-trace c clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
-    vtrace_c_clip: float = Field(default=1.0, gt=0)
+    vtrace_c_clip: float = Field(default=1.11, gt=0)  # 10% toward sweep: 1.0 -> 2.1
 
 
 class InitialPolicyConfig(BaseModelWithForbidExtra):
@@ -85,22 +85,21 @@ class SimulationConfig(BaseModelWithForbidExtra):
 class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
-    clip_coef: float = Field(default=0.1, gt=0, le=1.0)
+    clip_coef: float = Field(default=0.105, gt=0, le=1.0)  # 10% toward sweep: 0.1 -> 0.15
     # Entropy coefficient: Type 2 default chosen from sweep
-    ent_coef: float = Field(default=0.0021, ge=0)
+    ent_coef: float = Field(default=0.00359, ge=0)  # 10% toward sweep: 0.0021 -> 0.017
     # GAE lambda: Type 2 default chosen from sweep, deviates from typical 0.95, bias/variance tradeoff
-    gae_lambda: float = Field(default=0.916, ge=0, le=1.0)
-    # Gamma: Type 2 default chosen from sweep, deviates from typical 0.99, suggests shorter
-    # effective horizon for multi-agent
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.9084, ge=0, le=1.0)  # 10% toward sweep: 0.916 -> 0.84
+    # Gamma: Type 2 default chosen from sweep, suggests shorter effective horizon for multi-agent
+    gamma: float = Field(default=0.9783, ge=0, le=1.0)  # 10% toward sweep: 0.977 -> 0.99
 
     # Training parameters
     # Gradient clipping: 0.5 is standard PPO default to prevent instability
-    max_grad_norm: float = Field(default=0.5, gt=0)
+    max_grad_norm: float = Field(default=0.71, gt=0)  # 10% toward sweep: 0.5 -> 2.6
     # Value function clipping: Matches policy clip for consistency
-    vf_clip_coef: float = Field(default=0.1, ge=0)
+    vf_clip_coef: float = Field(default=0.106, ge=0)  # 10% toward sweep: 0.1 -> 0.16
     # Value coefficient: Type 2 default chosen from sweep, balances policy vs value loss
-    vf_coef: float = Field(default=0.44, ge=0)
+    vf_coef: float = Field(default=0.716, ge=0)  # 10% toward sweep: 0.44 -> 3.2
     # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
@@ -135,7 +134,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
-    total_timesteps: int = Field(default=50_000_000_000, gt=0)
+    total_timesteps: int = Field(default=14_000_000_000, gt=0)  # 10% toward sweep: 10B -> 50B
 
     # PPO configuration
     ppo: PPOConfig = Field(default_factory=PPOConfig)
