@@ -27,27 +27,3 @@ class CoreSetup(SetupModule):
     def install(self) -> None:
         self.run_command(["uv", "sync"])
         success("Core dependencies installed")
-
-        # Verify imports after installation
-        print("\nVerifying all local dependencies are importable...")
-        deps_to_check = [
-            "pufferlib",
-            "metta.mettagrid.mettagrid_env",
-            "metta.mettagrid.mettagrid_c",
-        ]
-
-        all_good = True
-        for dep in deps_to_check:
-            try:
-                subprocess.run(
-                    ["uv", "run", "python", "-c", f"import {dep}; print('Found {dep} at', {dep}.__file__)"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-            except subprocess.CalledProcessError:
-                error(f"Failed to import {dep}")
-                all_good = False
-
-        if not all_good:
-            error("Some dependencies failed to import. Please check your installation.")

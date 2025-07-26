@@ -201,6 +201,11 @@ class PyGameConfig(BaseModelWithForbidExtra):
     params: Optional[Any] = None
     map_builder: Optional[Any] = None
 
+    # Movement metrics configuration
+    track_movement_metrics: bool = Field(
+        default=False, description="Enable movement metrics tracking (sequential rotations)"
+    )
+
 
 class PyPolicyGameConfig(PyGameConfig):
     obs_width: Literal[11]

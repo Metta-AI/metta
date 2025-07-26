@@ -1,11 +1,12 @@
 import logging
 import time
-from pathlib import Path
 
 import pytest
 import requests
 from testcontainers.core.container import DockerContainer
 from testcontainers.postgres import PostgresContainer
+
+from metta.common.util.fs import get_repo_root
 
 
 class TestDockerIntegration:
@@ -51,17 +52,16 @@ class TestDockerIntegration:
                     self.logger.error(f"Failed to stop PostgreSQL container: {e}")
 
     @pytest.fixture(scope="class")
-    def app_backend_container(self, postgres_container: PostgresContainer):
+    def app_backend_container(self, postgres_container: PostgresContainer, docker_client):
         """Build and start the app_backend Docker container."""
         try:
             import docker
 
-            # Get the project root directory (assumes we're in tests/app/)
-            project_root = Path(__file__).parent.parent.parent
+            project_root = get_repo_root()
+            client = docker_client
 
             # Build the Docker image first
             self.logger.info("Building Docker image for app_backend")
-            client = docker.from_env()
             image, build_logs = client.images.build(
                 path=str(project_root), dockerfile="app_backend/Dockerfile", tag="test-app-backend:latest", rm=True
             )
@@ -230,12 +230,6 @@ class TestDockerIntegration:
         # Should succeed (200) or fail due to missing database tables (500)
         # but not fail due to authentication (401)
         assert response.status_code != 401
-
-    def test_kubectl_available(self, app_backend_container):
-        """Test that kubectl is available in the container."""
-        container, _, __ = app_backend_container
-        exit_code, output = container.exec("kubectl version --client")
-        assert exit_code == 0, f"kubectl command failed with exit code {exit_code}. Output: {output}"
 
 
 if __name__ == "__main__":

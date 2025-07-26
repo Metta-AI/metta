@@ -1,0 +1,31 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template:
+  game:
+    num_agents: 4
+    num_observation_tokens: 100
+
+    inventory_item_names:
+      - thing_1
+      - thing_2
+
+    map_builder:
+      _target_: metta.map.mapgen.MapGen
+      width: 30 # This will be overridden by buckets
+      height: 30 # This will be overridden by buckets
+      border_width: 2
+
+      root:
+        type: metta.map.scenes.maze.Maze
+        params:
+          algorithm: kruskal
+          room_size: 2 # This will be overridden by buckets
+          wall_size: 1
+
+buckets:
+  game.map_builder.width:
+    values: [20, 40, 60]
+  game.map_builder.height:
+    values: [20, 40, 60]
+  game.map_builder.root.params.room_size:
+    values: [1, 3, 5]

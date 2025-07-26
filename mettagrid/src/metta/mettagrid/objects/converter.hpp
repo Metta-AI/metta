@@ -26,9 +26,7 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
-                  bool recipe_details_obs = false,
-                  ObservationType input_recipe_offset = 0,
-                  ObservationType output_recipe_offset = 0)
+                  bool recipe_details_obs)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -38,8 +36,10 @@ struct ConverterConfig : public GridObjectConfig {
         initial_resource_count(initial_resource_count),
         color(color),
         recipe_details_obs(recipe_details_obs),
-        input_recipe_offset(input_recipe_offset),
-        output_recipe_offset(output_recipe_offset) {}
+        // These are always 0 when this is created, since we want a single constructor, and these
+        // shouldn't be provided by Python.
+        input_recipe_offset(0),
+        output_recipe_offset(0) {}
 
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;

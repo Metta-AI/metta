@@ -1,0 +1,35 @@
+FROM homebrew/brew:latest
+
+# Set non-interactive frontend
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Minimal system deps
+RUN brew install cmake ninja
+
+# Install kubectl for EKS/Kind testing
+RUN brew install kubectl
+
+WORKDIR /workspace
+
+# Copy the entire repo
+COPY --chown=linuxbrew:linuxbrew . /workspace/metta
+
+WORKDIR /workspace/metta
+
+# Clean up git config for anonymous access
+RUN git remote remove origin && \
+    git remote add origin https://github.com/Metta-AI/metta.git && \
+    git fetch
+
+# This is where uv is installed by default
+# TODO: update `install.sh` to accept a custom path we expect uv to be at.
+ENV PATH="/home/linuxbrew/.local/bin:${PATH}"
+
+RUN bash install.sh --profile=softmax-docker
+
+# Pre-build all packages to avoid OOM during container startup
+RUN uv sync --all-extras --frozen && \
+    uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
+    uv run python -c "import metta.app_backend.eval_task_worker"
+
+CMD ["/bin/bash"]

@@ -1,23 +1,23 @@
-import { Vec2f, Mat3f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui } from './common.js'
 import { find } from './htmlutils.js'
+import { Mat3f, Vec2f } from './vector_math.js'
 
 export class Rect {
-  public x: number = 0
-  public y: number = 0
-  public width: number = 0
-  public height: number = 0
+  public x = 0
+  public y = 0
+  public width = 0
+  public height = 0
 }
 
 /** A main UI panel. */
 export class PanelInfo {
-  public x: number = 0
-  public y: number = 0
-  public width: number = 0
-  public height: number = 0
-  public name: string = ''
-  public isPanning: boolean = false
+  public x = 0
+  public y = 0
+  public width = 0
+  public height = 0
+  public name = ''
+  public isPanning = false
   public panPos: Vec2f = new Vec2f(0, 0)
   public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL
   public div: HTMLElement
@@ -70,14 +70,14 @@ export class PanelInfo {
 
   /** Updates the pan and zoom level based on the mouse position and scroll delta. */
   updatePanAndZoom(): boolean {
-    if (!ui.mouseTargets.includes(this.name) || ui.dragging != '') {
+    if (!ui.mouseTargets.includes(this.name) || ui.dragging !== '') {
       return false
     }
 
-    // apply zoom at a focal point
+    // apply zoom at a focal point.
     const applyZoom = (focalPoint: Vec2f, zoomDelta: number) => {
       const oldPoint = this.transformOuter(focalPoint)
-      this.zoomLevel = this.zoomLevel + zoomDelta / Common.SCROLL_ZOOM_FACTOR
+      this.zoomLevel = this.zoomLevel * (1 - Common.ZOOM_SENSITIVITY) ** zoomDelta
       this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
       const newPoint = this.transformOuter(focalPoint)
       if (oldPoint != null && newPoint != null) {
@@ -148,9 +148,9 @@ export class PanelInfo {
 
   /** Updates the div's position and size. */
   updateDiv() {
-    this.div.style.top = this.y + 'px'
-    this.div.style.left = this.x + 'px'
-    this.div.style.width = this.width + 'px'
-    this.div.style.height = this.height + 'px'
+    this.div.style.top = `${this.y}px`
+    this.div.style.left = `${this.x}px`
+    this.div.style.width = `${this.width}px`
+    this.div.style.height = `${this.height}px`
   }
 }

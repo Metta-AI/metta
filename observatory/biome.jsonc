@@ -1,8 +1,9 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "root": false,
+  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
   "extends": ["../biome.jsonc"],
   "files": {
-    "ignore": ["public"] // Additional ignore for Vite public assets
+    "includes": ["**", "!**/public"] // Additional ignore for Vite public assets
   },
   "linter": {
     "rules": {
@@ -19,7 +20,7 @@
   "overrides": [
     {
       // Vite config files might use different conventions
-      "include": ["vite.config.ts", "vite.config.js"],
+      "includes": ["**/vite.config.ts", "**/vite.config.js"],
       "linter": {
         "rules": {
           "style": {
