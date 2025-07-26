@@ -1,4 +1,4 @@
-import { Vec2f } from './vector_math.js'
+import type { Vec2f } from './vector_math.js'
 
 /**
  * Mesh class for efficient batched rendering of textured quads.
@@ -52,16 +52,16 @@ export class Mesh {
   private indexCapacity: number
   private vertexData: Float32Array
   private indexData: Uint32Array
-  private currentQuad: number = 0
-  private currentVertex: number = 0
+  private currentQuad = 0
+  private currentVertex = 0
 
   // Scissor properties
-  public scissorEnabled: boolean = false
+  public scissorEnabled = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
   // Caching properties
-  public cacheable: boolean = false
-  public isDirty: boolean = true
+  public cacheable = false
+  public isDirty = true
 
   /**
    * Create a new mesh.
@@ -357,7 +357,9 @@ export class Mesh {
    * Only uploads if the mesh is dirty to avoid unnecessary GPU transfers.
    */
   uploadToGPU() {
-    if (!this.vertexBuffer || this.currentVertex === 0) return
+    if (!this.vertexBuffer || this.currentVertex === 0) {
+      return
+    }
 
     // Only upload if dirty to avoid unnecessary GPU transfers
     if (this.isDirty) {
@@ -379,7 +381,9 @@ export class Mesh {
    * @param colorLoc - Shader attribute location for color
    */
   bind(positionLoc: number, texcoordLoc: number, colorLoc: number) {
-    if (!this.vertexBuffer || !this.indexBuffer) return
+    if (!this.vertexBuffer || !this.indexBuffer) {
+      return
+    }
 
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
 

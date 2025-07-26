@@ -1,4 +1,4 @@
-import { Atlas, getSpriteBounds, getWhiteUV, hasSprite, loadAtlas } from './atlas.js'
+import { type Atlas, getSpriteBounds, getWhiteUV, hasSprite, loadAtlas } from './atlas.js'
 import { Mesh } from './mesh.js'
 import { Mat3f, Vec2f } from './vector_math.js'
 
@@ -79,8 +79,8 @@ export function clamp(value: number, min: number, max: number): number {
 export class Context3d {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
-  public ready: boolean = false
-  public dpr: number = 1
+  public ready = false
+  public dpr = 1
 
   // Atlas
   private atlas: Atlas | null = null
@@ -767,7 +767,9 @@ export class Context3d {
 
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
-      if (!mesh.hasContent()) continue
+      if (!mesh.hasContent()) {
+        continue
+      }
 
       // Upload vertex data to GPU
       mesh.uploadToGPU()
@@ -835,8 +837,8 @@ export class Context3d {
     y1: number,
     spacing: number,
     color: [number, number, number, number],
-    skipStart: number = 0,
-    skipEnd: number = 0
+    skipStart = 0,
+    skipEnd = 0
   ) {
     // Compute the angle of the line
     const angle = Math.atan2(y1 - y0, x1 - x0)
