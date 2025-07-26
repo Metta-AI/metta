@@ -11,7 +11,7 @@ from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.collections import group_by, remove_none_values
 from metta.common.util.stats_client_cfg import get_stats_client_direct
@@ -28,8 +28,8 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    policy_select_type: str = "all"
-    policy_select_metric: str = "all_score"
+    policy_select_type: PolicySelectorType = "all"
+    policy_select_metric: str = "score"
     policy_select_num: int = 1
 
     wandb_project: str = Field(default="")
@@ -135,28 +135,34 @@ async def main() -> None:
         "--policy",
         action="append",
         dest="policies",
-        help="Policy string. Can be specified multiple times for multiple policies.",
+        help="""Policy string. Can be specified multiple times for multiple policies.
+        Supported formats:
+        - wandb://run/<run_name>[:<version>]
+        - wandb://sweep/<sweep_name>[:<version>]
+        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]""",
+        required=True,
     )
 
     parser.add_argument(
         "--policy-select-type",
         type=str,
         default="all",
-        help="Policy selection type. Can be 'all' or 'top'.",
+        choices=PolicySelectorType.__args__,
+        help="Policy selection type.",
     )
 
     parser.add_argument(
         "--policy-select-num",
         type=int,
         default=1,
-        help="Number of policies to select. If policy-select-type is 'all', this is ignored.",
+        help="Number of policies to select. Used only if policy-select-type is 'top'.",
     )
 
     parser.add_argument(
         "--policy-select-metric",
         type=str,
-        default="all_score",
-        help="Policy selection metric. Can be 'all_score' or 'score'. If policy-select-type is 'all', this is ignored.",
+        default="score",
+        help="Policy selection metric. Used only if policy-select-type is 'top'.",
     )
 
     parser.add_argument(
