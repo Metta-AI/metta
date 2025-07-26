@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -271,6 +270,6 @@ class StatsClient:
         episode_id_uuid = uuid.UUID(response_data["id"])
         return ClientEpisodeResponse(id=episode_id_uuid)
 
-    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+    async def create_task(self, request: TaskCreateRequest) -> TaskResponse:
         client = EvalTaskClient(backend_url=str(self.http_client.base_url), machine_token=self.machine_token)
-        return asyncio.run(client.create_task(request))
+        return await client.create_task(request)
