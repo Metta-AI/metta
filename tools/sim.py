@@ -16,7 +16,7 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List
+from typing import List
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -44,8 +44,6 @@ class SimJob(Config):
     register_missing_policies: bool = False
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
-    git_hash: str | None = None  # Git hash for remote mode
-    env_overrides: dict[str, Any] = {}  # Environment overrides for remote mode
 
 
 def _determine_run_name(policy_uri: str) -> str:
@@ -92,17 +90,6 @@ def main(cfg: DictConfig) -> None:
         for policy_uri in sim_job.policy_uris
     }
 
-    _run_local_simulations(cfg, policy_records_by_uri, sim_job, stats_client, policy_store, logger)
-
-
-def _run_local_simulations(
-    cfg: DictConfig,
-    policy_records_by_uri: dict[str, list[PolicyRecord]],
-    sim_job: SimJob,
-    stats_client: StatsClient | None,
-    policy_store: PolicyStore,
-    logger: logging.Logger,
-) -> None:
     all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
     device = torch.device(cfg.device)
 
