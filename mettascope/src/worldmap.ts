@@ -611,7 +611,7 @@ function drawVisibility() {
       }
     }
 
-    let color = [0, 0, 0, 0.25]
+    let color: [number, number, number, number] = [0, 0, 0, 0.25]
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }

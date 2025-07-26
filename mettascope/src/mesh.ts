@@ -57,6 +57,10 @@ export class Mesh {
   public scissorEnabled: boolean = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
+  // Caching properties
+  public cacheable = false
+  public isDirty = true
+
   /**
    * Create a new mesh.
    *

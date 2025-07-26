@@ -202,6 +202,19 @@ export class Context3d {
     }
   }
 
+  /** Set whether the current mesh should be cached between frames. */
+  setCacheable(cacheable: boolean) {
+    this.ensureMeshSelected()
+    this.currentMesh!.cacheable = cacheable
+  }
+
+  /** Clear the current mesh even if it's cacheable. */
+  clearMesh() {
+    this.ensureMeshSelected()
+    this.currentMesh?.clear()
+  }
+
+
   /**
    * Save the current transformation matrix.
    *
