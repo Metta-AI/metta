@@ -25,7 +25,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0; do
   python3 tools/train.py \
-    run=$USER.navigation.ffa_DEFAULT_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_TESTIN_DEFAULT_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/navigation/random \
     +USER=greg \
     ++trainer.ppo.gamma=0.999 \
@@ -34,9 +34,9 @@ for seed in 0; do
     ++trainer.env_overrides.game.num_agents=$((num_agents_per_room * num_rooms)) \
     ++trainer.env_overrides.game.map_builder.room.agents=${num_agents_per_room} \
     ++trainer.env_overrides.game.map_builder.num_rooms=${num_rooms} \
-    ++trainer.env_overrides.checkpoint.checkpoint_interval=5 \
-    ++trainer.env_overrides.checkpoint.wandb_checkpoint_interval=5 \
-    ++trainer.env_overrides.simulation.evaluate_interval=10 \
+    ++trainer.checkpoint.checkpoint_interval=50 \
+    ++trainer.checkpoint.wandb_checkpoint_interval=50 \
+    ++trainer.simulation.evaluate_interval=50 \
     seed=${seed} \
     sim=navigation \
     "$@"

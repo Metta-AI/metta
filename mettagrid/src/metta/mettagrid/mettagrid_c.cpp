@@ -94,8 +94,12 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     std::string action_name_str = action_name;
 
     if (action_name_str == "put_items") {
-      TypeId box_type_id = cfg.objects.at("box").get()->type_id;
-      const std::string& box_type_name = "box"; //cfg.objects.at("box").get()->type_name;
+      // Use default box type_id if not defined in configuration
+      TypeId box_type_id = 3; // Default box type_id
+      if (cfg.objects.contains("box")) {
+        box_type_id = cfg.objects.at("box").get()->type_id;
+      }
+      const std::string& box_type_name = "box";
 
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config, box_type_id, box_type_name, _blue_battery_item));
     } else if (action_name_str == "get_items") {
