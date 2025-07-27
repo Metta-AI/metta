@@ -81,7 +81,7 @@ async def _create_remote_eval_tasks(
     }
     all_policy_records = {pr.run_name: pr for prs in policy_records_by_uri.values() for pr in prs}
     policy_ids = get_or_create_policy_ids(
-        stats_client, [(pr.run_name, pr.uri) for pr in all_policy_records.values() if pr.uri is not None]
+        stats_client, [(pr.run_name, pr.uri, None) for pr in all_policy_records.values() if pr.uri is not None]
     )
     if not policy_ids:
         warning("No policies found")
