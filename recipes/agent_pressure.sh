@@ -19,6 +19,9 @@ for seed in 0; do
     ++trainer.env_overrides.game.num_agents=$((num_agents_per_room * num_rooms)) \
     ++trainer.env_overrides.game.map_builder.room.agents=${num_agents_per_room} \
     ++trainer.env_overrides.game.map_builder.num_rooms=${num_rooms} \
+    ++trainer.env_overrides.checkpoint.checkpoint_interval=5 \
+    ++trainer.env_overrides.checkpoint.wandb_checkpoint_interval=5 \
+    ++trainer.env_overrides.simulation.evaluate_interval=10 \
     seed=${seed} \
     sim=navigation \
     "$@"
