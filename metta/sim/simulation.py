@@ -34,7 +34,7 @@ from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.sim.utils import get_or_create_policy_ids
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +76,7 @@ class Simulation:
         self._wandb_policy_name: str | None = None
         self._wandb_uri: str | None = None
         if wandb_policy_name is not None:
-            # wandb_policy_name is a qualified name like 'entity/project/artifact:version'
-            # we store the uris as 'wandb://project/artifact:version', so need to strip 'entity'
-            arr = wandb_policy_name.split("/")
-            self._wandb_policy_name = arr[2]
-            self._wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
+            self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
 
         # ---------------- env config ----------------------------------- #
         logger.info(f"config.env {config.env}")
@@ -401,9 +397,9 @@ class Simulation:
         if self._stats_client is not None:
             policy_name = self._get_policy_name()
             policy_uri = self._get_policy_uri()
-            policy_details: list[tuple[str, str]] = [(policy_name, policy_uri)]
+            policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
             if self._npc_pr is not None:
-                policy_details.append((self._npc_pr.run_name, self._npc_pr.uri))
+                policy_details.append((self._npc_pr.run_name, self._npc_pr.uri, None))
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 

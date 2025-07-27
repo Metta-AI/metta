@@ -114,7 +114,7 @@ class LocalCommands:
             policy_records.extend(policy_store.policy_records(uri, selector_type="all", n=1, metric="top"))
         policy_ids = get_or_create_policy_ids(
             stats_client,
-            [(pr.run_name, pr.uri) for pr in policy_records],
+            [(pr.run_name, pr.uri, None) for pr in policy_records],
         )
         json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
         print(f"Ensured {len(policy_ids)} policy IDs: {json_repr}")
