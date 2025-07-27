@@ -6,7 +6,11 @@ from omegaconf import OmegaConf
 from metta.common.util.fs import get_repo_root
 from metta.common.util.resolvers import register_resolvers
 
-register_resolvers()
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_resolvers():
+    """Register custom OmegaConf resolvers once for the entire test session."""
+    register_resolvers()
 
 
 def get_all_sim_configs() -> list[str]:
@@ -14,14 +18,14 @@ def get_all_sim_configs() -> list[str]:
     sim_config_dir = config_dir / "sim"
 
     sim_configs = []
-    for file in sim_config_dir.glob("*.yaml"):
-        if file.name not in [
+    for f in sim_config_dir.glob("*.yaml"):
+        if f.name not in [
             "sim_suite.yaml",  # Base class for simulation suites, not a concrete config
             "sim.yaml",  # Default values for individual simulations, not a suite
             "defaults.yaml",  # Hydra defaults file, not a simulation config
             "sim_single.yaml",  # Special config for running single environments, not a suite
         ]:
-            sim_configs.append(file.stem)
+            sim_configs.append(f.stem)
 
     return sorted(sim_configs)
 
