@@ -37,6 +37,7 @@ class EvalTaskOrchestrator:
         docker_image: str = "metta-policy-evaluator-local:latest",
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 600.0,
+        max_workers_per_git_hash: int = 5,
         container_manager: AbstractContainerManager | None = None,
         logger: logging.Logger | None = None,
     ):
@@ -44,6 +45,7 @@ class EvalTaskOrchestrator:
         self._docker_image = docker_image
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
+        self._max_workers_per_git_hash = max_workers_per_git_hash
         self._machine_token = machine_token
         self._logger = logger or logging.getLogger(__name__)
         self._task_client = EvalTaskClient(backend_url)
@@ -112,20 +114,15 @@ class EvalTaskOrchestrator:
                     )
                 )
                 continue
-            if existing_workers := alive_workers_by_git_hash[task.git_hash]:
-                available_existing_workers = [
-                    w for w in existing_workers if not len(worker_assignments[w.container_name])
-                ]
-                if not available_existing_workers:
-                    self._logger.info(
-                        f"Workers for git hash {task.git_hash} are all busy, skipping assigning {task.id}"
-                    )
-                else:
-                    for assign_worker in available_existing_workers:
-                        if await self._attempt_claim_task(task, assign_worker):
-                            worker_assignments[assign_worker.container_name].append(task)
-                            break
-            else:
+            # (a) Ensure we have available workers for this git hash
+            existing_workers = alive_workers_by_git_hash[task.git_hash]
+            available_workers = [w for w in existing_workers if not len(worker_assignments[w.container_name])]
+
+            # If no available workers, try to spawn a new one
+            if not available_workers and len(existing_workers) < self._max_workers_per_git_hash:
+                self._logger.info(
+                    f"All {len(existing_workers)} workers for git hash {task.git_hash} are busy, spawning new worker"
+                )
                 new_worker = self._container_manager.start_worker_container(
                     git_hash=task.git_hash,
                     backend_url=self._backend_url,
@@ -133,8 +130,23 @@ class EvalTaskOrchestrator:
                     machine_token=self._machine_token,
                 )
                 alive_workers_by_name[new_worker.container_name] = new_worker
-                if await self._attempt_claim_task(task, new_worker):
-                    worker_assignments[new_worker.container_name].append(task)
+                alive_workers_by_git_hash[task.git_hash].append(new_worker)
+                available_workers = [new_worker]
+
+            # (b) If still no available workers, we're at capacity
+            if not available_workers:
+                self._logger.info(
+                    f"Workers for git hash {task.git_hash} are all busy "
+                    f"({len(existing_workers)}/{self._max_workers_per_git_hash} max), "
+                    f"skipping assigning {task.id}"
+                )
+                continue
+
+            # (c) Assign task to first available worker
+            for worker in available_workers:
+                if await self._attempt_claim_task(task, worker):
+                    worker_assignments[worker.container_name].append(task)
+                    break
 
         # Clean up idle workers
         alive_unassigned_workers = [
@@ -159,6 +171,7 @@ class EvalTaskOrchestrator:
     async def run(self) -> None:
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
+        self._logger.info(f"Max workers per git hash: {self._max_workers_per_git_hash}")
 
         while True:
             start_time = datetime.now(timezone.utc)
@@ -182,6 +195,7 @@ async def main() -> None:
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "600"))
+    max_workers_per_git_hash = int(os.environ.get("MAX_WORKERS_PER_GIT_HASH", "5"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
     orchestrator = EvalTaskOrchestrator(
@@ -190,6 +204,7 @@ async def main() -> None:
         docker_image=docker_image,
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,
+        max_workers_per_git_hash=max_workers_per_git_hash,
         logger=logger,
     )
 
