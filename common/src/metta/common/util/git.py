@@ -6,6 +6,9 @@ class GitError(Exception):
     """Custom exception for git-related errors."""
 
 
+METTA_API_REPO_URL = "https://github.com/Metta-AI/metta.git"
+
+
 def run_git(*args: str) -> str:
     """Run a git command and return its output."""
     try:
