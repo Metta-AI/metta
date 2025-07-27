@@ -137,6 +137,8 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/thecube
   navsequence/walkaround:
     env: env/mettagrid/navigation_sequence/evals/walkaround
+  memory/access_cross:
+    env: env/mettagrid/memory/evals/access_cross
   memory/easy:
     env: env/mettagrid/memory/evals/easy
   memory/medium:
@@ -183,8 +185,6 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
-  systematic_exploration_memory/access_cross:
-    env: env/mettagrid/systematic_exploration_memory/evals/access_cross
   systematic_exploration_memory/boxout:
     env: env/mettagrid/systematic_exploration_memory/evals/boxout
   systematic_exploration_memory/choose_wisely:
