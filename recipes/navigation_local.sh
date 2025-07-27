@@ -27,9 +27,6 @@ for seed in 0; do
   python3 tools/train.py \
     run=$USER.navigation.ffa_DEFAULT_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/navigation/random \
-    --gpus=1 \
-    --nodes=1 \
-    --no-spot \
     +USER=greg \
     ++trainer.ppo.gamma=0.999 \
     ++trainer.minibatch_size=16384 \
