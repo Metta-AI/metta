@@ -15,7 +15,12 @@ def get_all_sim_configs() -> list[str]:
 
     sim_configs = []
     for file in sim_config_dir.glob("*.yaml"):
-        if file.name not in ["sim_suite.yaml", "sim.yaml", "defaults.yaml", "sim_single.yaml"]:
+        if file.name not in [
+            "sim_suite.yaml",  # Base class for simulation suites, not a concrete config
+            "sim.yaml",  # Default values for individual simulations, not a suite
+            "defaults.yaml",  # Hydra defaults file, not a simulation config
+            "sim_single.yaml",  # Special config for running single environments, not a suite
+        ]:
             sim_configs.append(file.stem)
 
     return sorted(sim_configs)
