@@ -1,0 +1,4 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
