@@ -1,4 +1,5 @@
 import json
+import logging
 import subprocess
 
 
@@ -109,3 +110,70 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
             return (int(pr["number"]), pr["title"])
 
     return None
+
+
+def get_remote_url() -> str | None:
+    """Get the URL of the origin remote repository."""
+    try:
+        return run_git("remote", "get-url", "origin")
+    except GitError:
+        return None
+
+
+def is_metta_ai_repo() -> bool:
+    """Check if the origin remote is set to metta-ai/metta repository."""
+    remote_url = get_remote_url()
+    if not remote_url:
+        return False
+    return remote_url in ("git@github.com:Metta-AI/metta.git", "https://github.com/Metta-AI/metta.git")
+
+
+def get_git_hash_for_remote_task(
+    skip_git_check: bool = False,
+    skip_cmd: str = "skipping git check",
+    logger: logging.Logger | None = None,
+) -> str | None:
+    """
+    Get git hash for remote task execution.
+
+    Returns:
+        - None if no local git repo or no origin synced to metta-ai/metta
+        - Git hash if commit is synced with remote and no dirty changes
+        - Raises GitError if dirty changes exist and skip_git_check is False
+
+    Args:
+        skip_git_check: If True, skip the dirty changes check
+        skip_cmd: The command to show in error messages for skipping the check
+    """
+    try:
+        current_commit = get_current_commit()
+    except (GitError, ValueError):
+        if logger:
+            logger.warning("Not in a git repository, using git_hash=None")
+        return None
+
+    if not is_metta_ai_repo():
+        if logger:
+            logger.warning("Origin not set to metta-ai/metta, using git_hash=None")
+        return None
+
+    if has_unstaged_changes():
+        if not skip_git_check:
+            raise GitError(
+                f"You have uncommitted changes that won't be reflected in the remote task.\n"
+                f"You can push your changes or specify to skip this check with {skip_cmd}"
+            )
+        elif logger:
+            logger.info("Proceeding with uncommitted changes")
+
+    if not is_commit_pushed(current_commit):
+        short_commit = current_commit[:8]
+        if not skip_git_check:
+            raise GitError(
+                f"Commit {short_commit} hasn't been pushed.\n"
+                f"You can push your changes or specify to skip this check with {skip_cmd}"
+            )
+        elif logger:
+            logger.warning(f"Proceeding with unpushed commit {short_commit} due to {skip_cmd}")
+
+    return current_commit

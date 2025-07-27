@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import traceback
@@ -18,6 +19,7 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
@@ -63,6 +65,7 @@ from metta.rl.util.stats import (
 )
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -401,11 +404,11 @@ class MettaTrainer:
         # Force final saves
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
-        self._maybe_upload_policy_record_to_wandb(force=True)
+        wandb_policy_name = self._maybe_upload_policy_record_to_wandb(force=True)
 
         if self._stats_epoch_start < self.epoch:
             # If we have not just evaluated the latest policy, evaluate it
-            self._maybe_evaluate_policy(force=True)
+            self._maybe_evaluate_policy(wandb_policy_name, force=True)
 
     def _on_train_step(self):
         pass
@@ -705,7 +708,7 @@ class MettaTrainer:
         if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
             self.policy.update_l2_init_weight_copy()
 
-    def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
+    def _maybe_evaluate_policy(self, wandb_policy_name: str | None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
         if self._should_run(self.trainer_cfg.simulation.evaluate_interval, force):
             try:
@@ -717,7 +720,7 @@ class MettaTrainer:
             self._stats_epoch_start = self.epoch + 1
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
-    def _evaluate_policy(self, wandb_policy_name: str | None = None):
+    def _evaluate_policy(self, wandb_policy_name: str | None) -> None:
         if self._stats_run_id is not None and self._stats_client is not None:
             self._stats_epoch_id = self._stats_client.create_epoch(
                 run_id=self._stats_run_id,
@@ -725,6 +728,39 @@ class MettaTrainer:
                 end_training_epoch=self.epoch,
                 attributes={},
             ).id
+
+        if (
+            self.trainer_cfg.simulation.evaluate_remote
+            and self.wandb_run
+            and self._stats_client
+            and self.latest_saved_policy_record
+            and wandb_policy_name  # ensures it was uploaded to wandb
+        ):
+            # Need to upload policy artifact to wandb first and make sure our name
+            # reflects that in the version
+            if ":" not in wandb_policy_name:
+                logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
+            else:
+                internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
+                stats_server_policy_id = get_or_create_policy_ids(
+                    self._stats_client,
+                    [(internal_wandb_policy_name, wandb_uri, self.wandb_run.notes)],
+                    self._stats_epoch_id,
+                ).get(internal_wandb_policy_name)
+                if not stats_server_policy_id:
+                    logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
+                else:
+                    task = asyncio.run(
+                        self._stats_client.create_task(
+                            TaskCreateRequest(
+                                policy_id=stats_server_policy_id,
+                                git_hash=self.trainer_cfg.simulation.git_hash,
+                                sim_suite=self._sim_suite_config.name,
+                            )
+                        )
+                    )
+                    logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
+                    # TODO: need policy evaluator to generate replays and push stats to wandb
 
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
         evaluation_results = evaluate_policy(
