@@ -21,6 +21,7 @@ from typing import List
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
@@ -40,6 +41,7 @@ class SimJob(Config):
     policy_uris: List[str]
     selector_type: str = "top"
     stats_db_uri: str
+    register_missing_policies: bool = False
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
 
@@ -73,23 +75,29 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
     sim_job = SimJob(cfg.sim_job)
 
-    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
-
     policy_store = PolicyStore(cfg, None)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
-    if stats_client is not None:
+    if stats_client:
         stats_client.validate_authenticated()
 
+    policy_records_by_uri: dict[str, list[PolicyRecord]] = {
+        policy_uri: policy_store.policy_records(
+            uri_or_config=policy_uri,
+            selector_type=sim_job.selector_type,
+            n=1,
+            metric=sim_job.simulation_suite.name + "_score",
+        )
+        for policy_uri in sim_job.policy_uris
+    }
+
+    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
     device = torch.device(cfg.device)
 
     # Get eval_task_id from config if provided
     eval_task_id = None
     if cfg.get("eval_task_id"):
         eval_task_id = uuid.UUID(cfg.eval_task_id)
-    for policy_uri in sim_job.policy_uris:
-        # TODO: institutionalize this better?
-        metric = sim_job.simulation_suite.name + "_score"
-        policy_prs = policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
+    for policy_uri, policy_prs in policy_records_by_uri.items():
         results = {"policy_uri": policy_uri, "checkpoints": []}
         for pr in policy_prs:
             policy_results = evaluate_policy(
