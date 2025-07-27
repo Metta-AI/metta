@@ -1,6 +1,9 @@
 import json
 import logging
 import subprocess
+import tempfile
+from pathlib import Path
+from typing import List
 
 import httpx
 
@@ -24,17 +27,6 @@ def run_git(*args: str) -> str:
         raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
     except FileNotFoundError as e:
         raise GitError("Git is not installed!") from e
-
-
-def run_gh(*args: str) -> str:
-    """Run a GitHub CLI command and return its output."""
-    try:
-        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
-    except FileNotFoundError as e:
-        raise GitError("GitHub CLI (gh) is not installed!") from e
 
 
 def get_current_branch() -> str:
@@ -194,3 +186,62 @@ async def get_latest_commit(branch: str = "main") -> str:
         response.raise_for_status()
         commit_data = response.json()
         return commit_data["sha"]
+
+
+def get_file_list(repo_path: Path | None = None, ref: str = "HEAD") -> list[str]:
+    """Get list of all files in repository."""
+    try:
+        if repo_path:
+            # First check if ref exists
+            run_git_in_dir(repo_path, "rev-parse", "--verify", ref)
+            # If ref exists, list files
+            output = run_git_in_dir(repo_path, "ls-tree", "-r", "--name-only", ref)
+        else:
+            # First check if ref exists
+            run_git("rev-parse", "--verify", ref)
+            # If ref exists, list files
+            output = run_git("ls-tree", "-r", "--name-only", ref)
+        return output.split("\n") if output else []
+    except GitError as e:
+        # If ref doesn't exist (empty repo), return empty list
+        if "Not a valid object name" in str(e) or "bad revision" in str(e) or "Needed a single revision" in str(e):
+            return []
+        raise
+
+
+def get_commit_count(repo_path: Path | None = None) -> int:
+    """Get total number of commits."""
+    try:
+        if repo_path:
+            # First check if HEAD exists
+            run_git_in_dir(repo_path, "rev-parse", "--verify", "HEAD")
+            # If HEAD exists, count commits
+            result = run_git_in_dir(repo_path, "rev-list", "--count", "HEAD")
+        else:
+            # First check if HEAD exists
+            run_git("rev-parse", "--verify", "HEAD")
+            # If HEAD exists, count commits
+            result = run_git("rev-list", "--count", "HEAD")
+        return int(result)
+    except GitError as e:
+        # If HEAD doesn't exist (empty repo), return 0
+        if "Not a valid object name" in str(e) or "bad revision" in str(e) or "Needed a single revision" in str(e):
+            return 0
+        raise
+
+
+def add_remote(name: str, url: str, repo_path: Path | None = None):
+    """Add a remote repository."""
+    # Try to remove first in case it exists
+    try:
+        if repo_path:
+            run_git_in_dir(repo_path, "remote", "remove", name)
+        else:
+            run_git("remote", "remove", name)
+    except GitError:
+        pass  # Ignore if it doesn't exist
+
+    if repo_path:
+        run_git_in_dir(repo_path, "remote", "add", name, url)
+    else:
+        run_git("remote", "add", name, url)
