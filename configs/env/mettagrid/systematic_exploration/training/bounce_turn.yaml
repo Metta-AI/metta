@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    room:
+      dir: ${choose:terrains/bounce_turn/large,terrains/bounce_turn/medium,terrains/bounce_turn/small}

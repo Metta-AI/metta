@@ -1,0 +1,33 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/eval/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.bounce_turn.BounceTurnTerrain
+
+    width: 40
+    height: 40
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # --- concave pockets ---
+    pocket_count:  [20, 40]
+    pocket_size:   [6, 12]
+
+    # --- Venus‑fly‑traps ---
+    trap_count:    [20, 40]
+    trap_depth:    [10, 20]
+    trap_width:    [5, 11]
+
+    occupancy_threshold: 0.60      # stop adding obstacles once 60 % occupied
+
+    objects:
+      altar: 15
+
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: 1

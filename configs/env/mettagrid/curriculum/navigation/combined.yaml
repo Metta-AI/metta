@@ -1,0 +1,9 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/navigation/prioritize_regressed: 1
+  /env/mettagrid/curriculum/navigation/systematic_exploration: 1
+
+env_overrides:
+  game:
+    num_agents: 8

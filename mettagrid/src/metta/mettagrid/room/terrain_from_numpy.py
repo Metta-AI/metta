@@ -139,6 +139,7 @@ class TerrainFromNumpy(Room):
 
         # remove agents to then repopulate
         level[level == "agent.agent"] = "empty"
+        level[level == "altar"] = "empty"
 
         # 3. Prepare agent labels
         if isinstance(self._agents, int):

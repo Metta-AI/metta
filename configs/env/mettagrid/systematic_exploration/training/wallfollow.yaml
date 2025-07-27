@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    room:
+      dir: ${choose:terrains/wallfollow_terrain/large,terrains/wallfollow_terrain/medium,terrains/wallfollow_terrain/small}
