@@ -25,5 +25,5 @@ env_overrides:
             armory: 3
 
 buckets:
-  game.objects.lasery.initial_resource_count: { values: [0, 1, 20] }
-  game.objects.armory.initial_resource_count: { values: [0, 1, 20] }
+  game.objects.lasery.initial_resource_count: [0, 1]
+  game.objects.armory.initial_resource_count: [0, 1]
