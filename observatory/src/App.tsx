@@ -94,16 +94,16 @@ function App() {
         const currentUser = userInfo.user_email
 
         setState({ type: 'repo', repo, currentUser })
-      } catch (err: any) {
+      } catch (err) {
         setState({
           type: 'error',
-          error: `Failed to connect to server: ${err.message}. Make sure the server is running at ${serverUrl}`,
+          error: `Failed to connect to server: ${err instanceof Error ? err.message : String(err)}. Make sure the server is running at ${serverUrl}`,
         })
       }
     }
 
     initializeRepo()
-  }, [navigate])
+  }, [])
 
   const handleDashboardPageChange = () => {
     navigate('/dashboard')

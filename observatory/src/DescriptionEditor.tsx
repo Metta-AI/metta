@@ -33,8 +33,8 @@ export function DescriptionEditor({
       await onDescriptionChange(editValue)
       setEditing(false)
       setEditValue('')
-    } catch (err: any) {
-      onError(`Failed to update description: ${err.message}`)
+    } catch (err) {
+      onError(`Failed to update description: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -65,10 +65,10 @@ export function DescriptionEditor({
           disabled={disabled}
         />
         <div className={styles.editDescriptionActions}>
-          <button onClick={handleSave} disabled={disabled} className={styles.saveBtn}>
+          <button type="button" onClick={handleSave} disabled={disabled} className={styles.saveBtn}>
             Save
           </button>
-          <button onClick={handleCancel} disabled={disabled} className={styles.cancelBtn}>
+          <button type="button" onClick={handleCancel} disabled={disabled} className={styles.cancelBtn}>
             Cancel
           </button>
         </div>
@@ -83,7 +83,7 @@ export function DescriptionEditor({
         {description || (compact ? '—' : 'No description provided')}
       </span>
       {canEdit && (
-        <button onClick={handleStartEditing} className={styles.editDescriptionBtn} disabled={disabled}>
+        <button type="button" onClick={handleStartEditing} className={styles.editDescriptionBtn} disabled={disabled}>
           Edit
         </button>
       )}

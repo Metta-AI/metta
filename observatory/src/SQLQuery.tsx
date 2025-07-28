@@ -427,7 +427,7 @@ export function SQLQuery({ repo }: Props) {
   useEffect(() => {
     loadTables()
     loadQueryHistory()
-  }, [repo])
+  }, [])
 
   useEffect(() => {
     if (selectedTable) {
@@ -435,7 +435,7 @@ export function SQLQuery({ repo }: Props) {
     } else {
       setTableSchema(null)
     }
-  }, [selectedTable, repo])
+  }, [selectedTable])
 
   async function loadTables() {
     try {
@@ -603,6 +603,14 @@ export function SQLQuery({ repo }: Props) {
                   key={table.table_name}
                   className={`table-item ${selectedTable === table.table_name ? 'selected' : ''}`}
                   onClick={() => handleTableClick(table.table_name)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleTableClick(table.table_name)
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                 >
                   <div className="table-name">{table.table_name}</div>
                   <div className="table-info">
@@ -617,7 +625,7 @@ export function SQLQuery({ repo }: Props) {
             <div className="query-history-section">
               <h3>
                 Query History
-                <button className="btn clear-history-btn" onClick={clearHistory}>
+                <button type="button" className="btn clear-history-btn" onClick={clearHistory}>
                   Clear
                 </button>
               </h3>
@@ -629,7 +637,20 @@ export function SQLQuery({ repo }: Props) {
                   const isToday = new Date().toDateString() === date.toDateString()
 
                   return (
-                    <li key={index} className="history-item" onClick={() => setQuery(item.query)} title={item.query}>
+                    <li 
+                      key={index} 
+                      className="history-item" 
+                      onClick={() => setQuery(item.query)} 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setQuery(item.query)
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      title={item.query}
+                    >
                       <div className="history-query">{item.query}</div>
                       <div className="history-meta">
                         <span>{isToday ? timeStr : dateStr}</span>
@@ -725,6 +746,14 @@ export function SQLQuery({ repo }: Props) {
                         <th
                           key={col}
                           onClick={() => handleSort(col)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              handleSort(col)
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
                           className={
                             sortConfig?.column === col
                               ? sortConfig.direction === 'asc'

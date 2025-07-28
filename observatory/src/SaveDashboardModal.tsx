@@ -234,8 +234,8 @@ export function SaveDashboardModal({
         onClose()
         setSaveStatus(null)
       }, 1500)
-    } catch (err: any) {
-      setSaveStatus({ type: 'error', message: err.message || `Failed to ${isUpdate ? 'update' : 'save'} dashboard` })
+    } catch (err) {
+      setSaveStatus({ type: 'error', message: (err instanceof Error ? err.message : String(err)) || `Failed to ${isUpdate ? 'update' : 'save'} dashboard` })
     } finally {
       setIsSaving(false)
     }
@@ -255,20 +255,21 @@ export function SaveDashboardModal({
   return (
     <>
       <style>{MODAL_CSS}</style>
-      <div className="modal-overlay" onClick={handleClose}>
-        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-overlay" onClick={handleClose} onKeyDown={() => {}} role="button" tabIndex={0}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()} onKeyDown={() => {}} role="button" tabIndex={-1}>
           <div className="modal-header">
             <h2 className="modal-title">{isUpdate ? 'Update Dashboard' : 'Save Dashboard'}</h2>
-            <button className="modal-close" onClick={handleClose} disabled={isSaving}>
+            <button type="button" className="modal-close" onClick={handleClose} disabled={isSaving}>
               ×
             </button>
           </div>
 
           <div className="form-group">
-            <label className="form-label">
+            <label htmlFor="dashboard-name" className="form-label">
               Dashboard Name <span className="required">*</span>
             </label>
             <input
+              id="dashboard-name"
               type="text"
               className="form-input"
               value={name}
@@ -279,8 +280,9 @@ export function SaveDashboardModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Description</label>
+            <label htmlFor="dashboard-description" className="form-label">Description</label>
             <textarea
+              id="dashboard-description"
               className="form-textarea"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -292,10 +294,10 @@ export function SaveDashboardModal({
           {saveStatus && <div className={`save-status ${saveStatus.type}`}>{saveStatus.message}</div>}
 
           <div className="modal-actions">
-            <button className="btn btn-secondary" onClick={handleClose} disabled={isSaving}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose} disabled={isSaving}>
               Cancel
             </button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={isSaving || !name.trim()}>
+            <button type="button" className="btn btn-primary" onClick={handleSave} disabled={isSaving || !name.trim()}>
               {isSaving ? 'Saving...' : isUpdate ? 'Update' : 'Save'}
             </button>
           </div>

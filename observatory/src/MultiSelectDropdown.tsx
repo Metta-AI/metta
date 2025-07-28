@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 interface MultiSelectOption {
   value: string
   label: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 interface MultiSelectDropdownProps {
@@ -200,7 +200,18 @@ export function MultiSelectDropdown({
       <style>{MULTI_SELECT_CSS}</style>
       <div className="multi-select-dropdown-container" style={{ width }}>
         <div className="multi-select-dropdown">
-          <div className={`multi-select-dropdown-trigger ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(!isOpen)}>
+          <div 
+            className={`multi-select-dropdown-trigger ${isOpen ? 'open' : ''}`} 
+            onClick={() => setIsOpen(!isOpen)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setIsOpen(!isOpen)
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
             {getDisplayText()}
             <span className={`multi-select-dropdown-arrow ${isOpen ? 'open' : ''}`}>▼</span>
           </div>
@@ -226,7 +237,7 @@ export function MultiSelectDropdown({
                       type="checkbox"
                       className="multi-select-checkbox"
                       checked={selectedValues.has(option.value)}
-                      onChange={() => toggleSelection(option.value)}
+                      readOnly
                     />
                     <span className="multi-select-label">{option.label}</span>
                     {option.metadata && (

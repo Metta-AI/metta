@@ -50,8 +50,8 @@ export function EvalTasks({ repo }: Props) {
     try {
       const tasks = await repo.getEvalTasks()
       setTasks(tasks)
-    } catch (err: any) {
-      console.error('Failed to refresh tasks:', err)
+    } catch (err) {
+      console.error('Failed to refresh tasks:', err instanceof Error ? err.message : err)
     }
   }
 
@@ -125,8 +125,8 @@ export function EvalTasks({ repo }: Props) {
 
       // Refresh tasks
       await loadTasks()
-    } catch (err: any) {
-      setError(`Failed to create task: ${err.message}`)
+    } catch (err) {
+      setError(`Failed to create task: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setLoading(false)
     }
