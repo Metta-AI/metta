@@ -93,6 +93,7 @@ include = ["metta.mettagrid", "metta.mettagrid.*"]
 "metta.mettagrid" = ["py.typed"]
 
 [tool.uv.sources]
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 metta-common = { workspace = true }
 
 [tool.coverage.run]
