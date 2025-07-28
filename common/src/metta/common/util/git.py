@@ -1,9 +1,7 @@
 import json
 import logging
 import subprocess
-import tempfile
 from pathlib import Path
-from typing import List
 
 import httpx
 
@@ -18,15 +16,38 @@ METTA_API_REPO = "Metta-AI/metta"
 METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
 
 
-def run_git(*args: str) -> str:
-    """Run a git command and return its output."""
+def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
+    """Run a git command with optional working directory and return its output."""
     try:
-        result = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            ["git", *args], capture_output=True, text=True, check=True, cwd=str(cwd) if cwd else None
+        )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
     except FileNotFoundError as e:
         raise GitError("Git is not installed!") from e
+
+
+def run_git(*args: str) -> str:
+    """Run a git command and return its output."""
+    return run_git_with_cwd(list(args))
+
+
+def run_git_in_dir(cwd: str | Path, *args: str) -> str:
+    """Run a git command in a specific directory and return its output."""
+    return run_git_with_cwd(list(args), cwd)
+
+
+def run_gh(*args: str) -> str:
+    """Run a GitHub CLI command and return its output."""
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("GitHub CLI (gh) is not installed!") from e
 
 
 def get_current_branch() -> str:

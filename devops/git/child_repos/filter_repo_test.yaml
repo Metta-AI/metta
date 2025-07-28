@@ -1,0 +1,6 @@
+# Configuration for filter_repo_test child repository
+paths:
+  - mettagrid/
+  - mettascope/
+
+remote: git@github.com:yourorg/filter_repo_test.git

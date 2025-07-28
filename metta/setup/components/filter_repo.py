@@ -12,6 +12,10 @@ class FilterRepoSetup(SetupModule):
     install_once = True
 
     @property
+    def name(self) -> str:
+        return "filter-repo"
+
+    @property
     def description(self) -> str:
         return "git-filter-repo tool for extracting repository subsets"
 
