@@ -274,10 +274,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     loadHeatmapData()
   }, [runId, selectedSuite, selectedMetric, repo])
 
-  const setSelectedCellIfNotLocked = (cell: {
-    policyUri: string
-    evalName: string
-  }) => {
+  const setSelectedCellIfNotLocked = (cell: { policyUri: string; evalName: string }) => {
     if (!isViewLocked) {
       setSelectedCell(cell)
     }
