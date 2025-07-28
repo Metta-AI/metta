@@ -1,16 +1,14 @@
 import os
 from typing import Any
 
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
 
 from metta.common.util.config import copy_omegaconf_config
 from metta.rl.trainer_config import create_trainer_config
 
 
-def save_train_job_override_config(
-    cfg: DictConfig | ListConfig, overrides: DictConfig | ListConfig | dict[str, Any]
-) -> str:
+def save_train_job_override_config(cfg: DictConfig, overrides: DictConfig | dict[str, Any]) -> str:
     """Save a train job config overrides file.
 
     Args:
@@ -25,9 +23,7 @@ def save_train_job_override_config(
     return save_path
 
 
-def merge_train_job_config_overrides(
-    base_cfg: DictConfig | ListConfig, overrides: DictConfig | ListConfig | dict[str, Any]
-) -> DictConfig | ListConfig:
+def merge_train_job_config_overrides(base_cfg: DictConfig, overrides: DictConfig | dict[str, Any]) -> DictConfig:
     """Merge two train job configs. Note: the overrides take precedence over the base config.
 
     Args:
@@ -40,12 +36,12 @@ def merge_train_job_config_overrides(
     cfg_copy = copy_omegaconf_config(base_cfg)
 
     OmegaConf.set_struct(cfg_copy, False)
-    merged_cfg: DictConfig | ListConfig = OmegaConf.merge(cfg_copy, overrides)
+    merged_cfg: DictConfig = OmegaConf.merge(cfg_copy, overrides)
     OmegaConf.set_struct(merged_cfg, True)
     return merged_cfg
 
 
-def validate_train_job_config(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+def validate_train_job_config(cfg: DictConfig) -> DictConfig:
     """Validate a train job config.
 
     Args:
@@ -61,7 +57,7 @@ def validate_train_job_config(cfg: DictConfig | ListConfig) -> DictConfig | List
     return cfg
 
 
-def load_train_job_config_with_overrides(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+def load_train_job_config_with_overrides(cfg: DictConfig) -> DictConfig:
     """
     Load a train job config with overrides.
     Overrides are expected to be in the run_dir as `train_config_overrides.yaml`.

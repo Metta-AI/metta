@@ -8,7 +8,7 @@ defaults:
 
 trainer:
   # env: /env/mettagrid/multienv_mettagrid
-  curriculum: /env/mettagrid/curriculum/bbc/bbc
+  curriculum: /env/mettagrid/curriculum/arena/random
 
   env_overrides:
     game:

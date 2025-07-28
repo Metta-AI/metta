@@ -33,6 +33,7 @@ from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -148,15 +149,16 @@ class MettaTrainer:
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
-        # This is mostly needed on the master, but we need it for making vecenv
-        self._tasks_completed = 0
+            # This is mostly needed on the master, but we need it for making vecenv
+            self._tasks_completed = 0
+            self._tasks_completed_epoch_start = 0
 
-        # Add training task to the suite
-        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
+            # Add training task to the suite
+            self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
+                env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+                num_episodes=1,
+                env_overrides=self._curriculum.get_task().env_cfg(),
+            )
 
         self._make_vecenv()
 
@@ -378,6 +380,10 @@ class MettaTrainer:
 
             self._log_status(steps_before)
 
+            if self._master:
+                # Update epoch start count for next epoch's task rate calculation
+                self._tasks_completed_epoch_start = self._tasks_completed
+
             # Interval periodic tasks
             self._maybe_save_policy()
             self._maybe_save_training_state()
@@ -448,6 +454,15 @@ class MettaTrainer:
             f"[dim]Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%[/dim]",
         )
 
+        # Add task tracking row
+        tasks_this_epoch = self._tasks_completed - self._tasks_completed_epoch_start
+        tasks_per_sec = tasks_this_epoch / total_time if total_time > 0 else 0
+        table.add_row(
+            "Tasks Completed",
+            f"{self._tasks_completed:,} total",
+            f"[dim]{tasks_per_sec:.1f} tasks/sec (last epoch: {tasks_this_epoch})[/dim]",
+        )
+
         # Log the table
         console.print(table)
 
@@ -502,6 +517,18 @@ class MettaTrainer:
 
         # Batch process info dictionaries after rollout
         accumulate_rollout_stats(raw_infos, self.stats)
+
+        # Count task completions by looking for task_reward keys
+        if self._master:
+            # Count unique task completions by checking for task_reward keys
+            for key in self.stats:
+                if key.startswith("task_reward/") and key.endswith("/rewards.mean"):
+                    # Each task_reward key indicates a completed task
+                    # The value is a list of rewards for each completion
+                    if isinstance(self.stats[key], list):
+                        self._tasks_completed += len(self.stats[key])
+                    else:
+                        self._tasks_completed += 1
 
         # TODO: Better way to enable multiple collects
         return self.stats, self.stats
@@ -1039,17 +1066,9 @@ class MettaTrainer:
         # Get a sample task to determine environment configuration
         # On master nodes, use the curriculum directly
         # On non-master nodes, we'll let the environments create their own clients
-        if self._curriculum is not None:
-            task = self._curriculum.get_task()
-            env_cfg = task.env_cfg()
-        else:
-            # For non-master nodes, we need to get a task from the server
-            # This is just for initial configuration
-            from metta.rl.curriculum import CurriculumClient
-
-            temp_client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
-            task = temp_client.get_task()
-            env_cfg = task.env_cfg()
+        temp_client = CurriculumClient()
+        task = temp_client.get_task()
+        env_cfg = task.env_cfg()
 
         # TODO: relax someday when we support other observation shapes
         try:

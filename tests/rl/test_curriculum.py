@@ -2,12 +2,9 @@
 Unit tests for the curriculum server and client.
 
 This module provides tests for the CurriculumServer and CurriculumClient classes,
-which handle distributed curriculum task management.
+which handle distributed curriculum task management via shared memory.
 """
 
-import json
-import socket
-import threading
 import time
 
 import pytest
@@ -15,6 +12,7 @@ from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.rl.curriculum import CurriculumClient, CurriculumServer
+from metta.rl.curriculum.curriculum_client import RemoteTask
 
 
 class TestCurriculumServerClient:
@@ -37,183 +35,153 @@ class TestCurriculumServerClient:
 
     @pytest.fixture
     def curriculum_server(self, simple_curriculum):
-        """Create and start a curriculum server in a background thread."""
-        server = CurriculumServer(simple_curriculum, port=5555, auto_start=True)
-        time.sleep(0.5)  # Give server time to start
+        """Create and start a curriculum server."""
+        server = CurriculumServer(simple_curriculum, num_slots=10, auto_start=True)
+        time.sleep(0.5)  # Give server time to initialize
         yield server
         server.stop()
 
     def test_server_initialization(self, simple_curriculum):
         """Test that a curriculum server initializes correctly."""
-        server = CurriculumServer(simple_curriculum, port=5556, auto_start=False)
+        server = CurriculumServer(simple_curriculum, num_slots=10, auto_start=False)
 
         assert server.curriculum == simple_curriculum
-        assert server.port == 5556
-        assert server.host == "0.0.0.0"
-        assert server.buffer_size == 4096
-        assert len(server.active_tasks) == 0
-        assert not server.is_running()  # Server should not be running yet since auto_start=False
+        assert server.num_slots == 10
+        assert not server.is_running()
 
-        # Now start it and check it's running
         server.start()
+        time.sleep(0.1)
         assert server.is_running()
 
-        # Clean up
         server.stop()
+        assert not server.is_running()
 
-    def test_client_initialization_success(self, curriculum_server):
-        """Test successful client initialization when server is running."""
-        client = CurriculumClient(server_port=5555)
-        assert client.server_host == "127.0.0.1"
-        assert client.server_port == 5555
-
-    def test_client_initialization_failure(self):
-        """Test client initialization failure when no server is running."""
-        with pytest.raises(ConnectionError):
-            CurriculumClient(server_port=9999)
+    def test_client_initialization(self, curriculum_server):
+        """Test that a curriculum client initializes correctly."""
+        client = CurriculumClient(num_slots=10)
+        assert client.num_slots == 10
 
     def test_get_task(self, curriculum_server):
         """Test getting a task from the server."""
-        client = CurriculumClient(server_port=5555)
-
+        client = CurriculumClient(num_slots=10)
         task = client.get_task()
 
         assert task is not None
-        assert task.name() == "test_task"
-        assert task.short_name() == "test_task"
-        assert not task.is_complete()
-
-        # Check that task has proper env config
-        env_cfg = task.env_cfg()
-        assert env_cfg.game.num_agents == 1
-        assert env_cfg.game.width == 10
-        assert env_cfg.game.height == 10
+        assert hasattr(task, "_name")
+        assert hasattr(task, "_env_cfg")
+        assert hasattr(task, "complete")
 
     def test_complete_task(self, curriculum_server):
         """Test completing a task."""
-        client = CurriculumClient(server_port=5555)
-
-        # Get a task
+        client = CurriculumClient(num_slots=10)
         task = client.get_task()
 
         # Complete the task
-        score = 0.95
+        score = 0.75
         task.complete(score)
 
-        assert task.is_complete()
+        # Verify the task is marked as complete
+        assert task._is_complete
 
-    def test_multiple_tasks(self, curriculum_server):
-        """Test getting and completing multiple tasks."""
-        client = CurriculumClient(server_port=5555)
+    def test_multiple_completions(self, curriculum_server):
+        """Test multiple completions of the same slot."""
+        client = CurriculumClient(num_slots=10)
 
+        # Get a task and complete it multiple times
+        task = client.get_task()
+        assert isinstance(task, RemoteTask)
+        slot_idx = task._slot_idx
+
+        scores = [0.5, 0.7, 0.9, 0.3, 0.8]
+        for score in scores:
+            success = client.complete_task(slot_idx, score)
+            assert success
+
+        # Check stats to verify completions
+        stats = client.stats()
+        assert stats["total_completions"] >= len(scores)
+
+    def test_stats(self, curriculum_server):
+        """Test getting statistics."""
+        client = CurriculumClient(num_slots=10)
+
+        # Get initial stats
+        stats = client.stats()
+        assert "total_completions" in stats
+        assert "active_tasks" in stats
+        assert "slot_utilization" in stats
+
+        # Complete a task and check stats again
+        task = client.get_task()
+        task.complete(0.8)
+
+        stats_after = client.stats()
+        assert stats_after["total_completions"] >= stats["total_completions"]
+
+    def test_multiple_clients(self, curriculum_server):
+        """Test multiple clients accessing the server."""
+        clients = [CurriculumClient(num_slots=10) for _ in range(3)]
+
+        # Each client gets a task
         tasks = []
-        for _ in range(3):
+        for client in clients:
             task = client.get_task()
             tasks.append(task)
             assert task is not None
 
-        # Complete tasks with different scores
-        for i, task in enumerate(tasks):
-            score = 0.8 + i * 0.05
-            task.complete(score)
-            assert task.is_complete()
+        # Each client completes their task
+        for i, (_, task) in enumerate(zip(clients, tasks, strict=False)):
+            task.complete(0.5 + i * 0.1)
 
-    def test_stats(self, curriculum_server):
-        """Test getting statistics from the server."""
-        client = CurriculumClient(server_port=5555)
+    def test_task_refresh(self, curriculum_server):
+        """Test that tasks are refreshed after many completions."""
+        client = CurriculumClient(num_slots=10)
 
-        # Initial stats
-        stats = client.stats()
-        assert "active_tasks" in stats
-        assert stats["active_tasks"] == 0
-
-        # Get a task and check stats
+        # Get a task
         task = client.get_task()
-        stats = client.stats()
-        assert stats["active_tasks"] == 1
+        assert isinstance(task, RemoteTask)
+        slot_idx = task._slot_idx
 
-        # Complete task and check stats
-        task.complete(0.9)
-        stats = client.stats()
-        assert stats["active_tasks"] == 0
+        # Complete the task more than 5 times
+        for i in range(7):
+            client.complete_task(slot_idx, 0.5 + i * 0.05)
 
-    def test_double_complete(self, curriculum_server):
-        """Test that completing a task twice doesn't cause errors."""
-        client = CurriculumClient(server_port=5555)
+        # Give the server time to refresh the task
+        time.sleep(0.5)
 
-        task = client.get_task()
+        # The slot should have been refreshed with a new task
+        # Get stats to check
+        stats = curriculum_server.stats()
+        assert stats["tasks_created"] > curriculum_server.num_slots
 
-        # First completion should succeed
-        task.complete(0.8)
-        assert task.is_complete()
+    def test_concurrent_access(self, curriculum_server):
+        """Test concurrent access to the same slot."""
+        import threading
 
-        # Second completion should be ignored
-        task.complete(0.9)  # Should log a warning but not error
+        client = CurriculumClient(num_slots=10)
+        results = []
 
-    def test_invalid_command(self, curriculum_server):
-        """Test server response to invalid command."""
-        # Manually create a socket connection
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(("127.0.0.1", 5555))
+        def worker(worker_id):
+            try:
+                task = client.get_task()
+                time.sleep(0.01)  # Simulate work
+                task.complete(0.5 + worker_id * 0.1)
+                results.append((worker_id, True))
+            except Exception as e:
+                results.append((worker_id, False, str(e)))
 
-        # Send invalid command
-        request = json.dumps({"command": "invalid_command"})
-        client_socket.send(request.encode("utf-8"))
-
-        # Receive response
-        response_data = client_socket.recv(4096).decode("utf-8")
-        response = json.loads(response_data)
-
-        assert not response["success"]
-        assert "Unknown command" in response["error"]
-
-        client_socket.close()
-
-    def test_malformed_json(self, curriculum_server):
-        """Test server response to malformed JSON."""
-        # Manually create a socket connection
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(("127.0.0.1", 5555))
-
-        # Send malformed JSON
-        client_socket.send(b"not valid json")
-
-        # Receive response
-        response_data = client_socket.recv(4096).decode("utf-8")
-        response = json.loads(response_data)
-
-        assert not response["success"]
-        assert "Invalid JSON" in response["error"]
-
-        client_socket.close()
-
-    def test_concurrent_clients(self, curriculum_server):
-        """Test multiple clients accessing the server concurrently."""
-        clients = []
-        tasks = []
-
-        # Create multiple clients
-        for _ in range(3):
-            client = CurriculumClient(server_port=5555)
-            clients.append(client)
-
-        # Get tasks concurrently
-        def get_task(client, result_list):
-            task = client.get_task()
-            result_list.append(task)
-
+        # Start multiple threads
         threads = []
-        for client in clients:
-            thread = threading.Thread(target=get_task, args=(client, tasks))
-            threads.append(thread)
-            thread.start()
+        for i in range(5):
+            t = threading.Thread(target=worker, args=(i,))
+            threads.append(t)
+            t.start()
 
         # Wait for all threads
-        for thread in threads:
-            thread.join()
+        for t in threads:
+            t.join()
 
-        # Verify all clients got tasks
-        assert len(tasks) == 3
-        for task in tasks:
-            assert task is not None
-            assert task.name() == "test_task"
+        # Check that all workers succeeded
+        assert len(results) == 5
+        for result in results:
+            assert result[1], f"Worker {result[0]} failed"

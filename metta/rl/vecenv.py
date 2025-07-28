@@ -31,7 +31,7 @@ def make_env_func(
         register_resolvers()
         init_logging(run_dir=run_dir)
 
-    curriculum_client = CurriculumClient(server_port=5555)
+    curriculum_client = CurriculumClient()
 
     # Create the environment instance
     env = MettaGridEnv(

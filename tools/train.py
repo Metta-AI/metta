@@ -116,6 +116,14 @@ def train(cfg: DictConfig, curriculum: Curriculum | None, wandb_run: WandbRun | 
 def main(cfg: DictConfig) -> int:
     record_heartbeat()
 
+    # Ensure multiprocessing uses 'spawn' method for better shared memory compatibility
+    # This is especially important on Linux where 'fork' is the default
+    try:
+        multiprocessing.set_start_method("spawn", force=True)
+    except RuntimeError:
+        # Already set, that's fine
+        pass
+
     local_master = os.environ.get("LOCAL_RANK", "0") == "0"
     global_master = os.environ.get("RANK", "0") == "0"
 
@@ -131,7 +139,8 @@ def main(cfg: DictConfig) -> int:
     if local_master:
         # Create curriculum and server on local master regardless of device
         curriculum = curriculum_from_config_path(cfg.trainer.curriculum, DictConfig(cfg.trainer.env_overrides))
-        curriculum_server = CurriculumServer(curriculum, port=5555)
+        curriculum_server = CurriculumServer(curriculum, num_slots=100)
+        logger.info("Curriculum server created and initializing...")
 
     if cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
