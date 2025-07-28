@@ -28,9 +28,9 @@ class SkypilotSetup(SetupModule):
 
     def _check_gh_auth(self) -> bool:
         try:
-            result = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True)
+            result = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, timeout=2)
             return result.returncode == 0
-        except FileNotFoundError:
+        except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
     @property
