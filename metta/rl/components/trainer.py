@@ -621,7 +621,7 @@ class Trainer:
                 sim_suite_config=self.evaluation_config,
                 curriculum=self.training_env.get_curriculum(),
                 stats_client=self.stats_client,
-                stats_tracker=self.stats_manager.stats_tracker,
+                stats_tracker=self.stats_tracker.stats_tracker,
                 agent_step=self.agent_step,
                 epoch=self.epoch,
                 device=self.device,

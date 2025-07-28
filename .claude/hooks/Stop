@@ -1,11 +1,33 @@
 #!/bin/bash
+# Hook that runs when Claude stops working (on user request or completion)
 
-# Run ruff format on all Python files
+echo "Running Stop hook - performing code quality checks..."
+
+# 1. Run ruff format on all Python files
 echo "Running ruff format..."
 uv run ruff format .
 
-# Run ruff check with fix and unsafe-fixes
+# 2. Run ruff check with fix
 echo "Running ruff check with fixes..."
-uv run ruff check --fix --unsafe-fixes .
+uv run ruff check --fix .
 
-echo "Ruff formatting and checking complete!"
+# 3. Run final ruff check to ensure no issues remain
+echo "Final ruff check..."
+if uv run ruff check metta/rl/ metta/interface/; then
+    echo "✓ Ruff checks passed"
+else
+    echo "✗ Ruff checks failed - please review"
+    # Don't exit on failure, just warn
+fi
+
+# 4. Quick training script test (optional - commented out for speed)
+# Uncomment if you want to verify training still works after changes
+# echo "Testing training script..."
+# export TEST_ID=$(date +%Y%m%d_%H%M%S)
+# if uv run ./tools/train.py run=test_$TEST_ID +hardware=macbook wandb=off trainer.num_workers=1 trainer.total_timesteps=100 trainer.checkpoint.checkpoint_interval=50 trainer.simulation.evaluate_interval=0 2>&1 | grep -q "Training complete!"; then
+#     echo "✓ Training script test passed"
+# else
+#     echo "✗ Training script test failed"
+# fi
+
+echo "Stop hook complete!"
