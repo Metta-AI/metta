@@ -1,0 +1,5 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_8: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_8: 1

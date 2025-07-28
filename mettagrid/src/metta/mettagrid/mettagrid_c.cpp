@@ -956,8 +956,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned char,
                     ObservationType,
                     bool,
-                    unsigned short,
                     bool,
+                    unsigned short,
                     ObservationType,
                     ObservationType>(),
            py::arg("type_id"),
@@ -969,9 +969,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
            py::arg("color") = 0,
+           py::arg("recipe_details_obs") = false,
            py::arg("cyclical") = false,
            py::arg("phase") = 0,
-           py::arg("recipe_details_obs") = false,
            py::arg("input_recipe_offset") = 0,
            py::arg("output_recipe_offset") = 0)
       .def_readwrite("type_id", &ConverterConfig::type_id)
