@@ -1,6 +1,8 @@
 defaults:
-  - spiral_altar_base
+  - ../../spiral_altar_base
   - _self_
+
+sampling: 1
 
 game:
   max_steps: 700

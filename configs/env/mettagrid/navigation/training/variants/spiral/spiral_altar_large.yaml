@@ -1,5 +1,5 @@
 defaults:
-  - spiral_altar_base
+  - ../../spiral_altar_base
   - _self_
 
 game:

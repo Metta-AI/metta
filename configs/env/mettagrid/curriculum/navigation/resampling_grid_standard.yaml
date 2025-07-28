@@ -4,10 +4,10 @@ env_cfg_template_path: /env/mettagrid/navigation/training/grid_multiroom
 
 buckets:
   # Create a few bins to force variation - this will create multiple task instances
-  game.map_builder.room.width:
+  game.map_builder.width:
     values: [55, 60, 65]  # 3 sizes
 
-  game.map_builder.room.height:
+  game.map_builder.height:
     values: [55, 60, 65]  # 3 sizes
 
   # Force different sampling "seeds" by varying a parameter that doesn't affect the core logic
