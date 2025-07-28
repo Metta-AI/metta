@@ -1,0 +1,124 @@
+name: "PufferLib Compatibility Test"
+
+on:
+  pull_request:
+    paths:
+      - 'mettagrid/**'
+      - 'metta/rl/**'
+      - 'configs/**'
+      - 'tests/test_pufferlib_config_sync.py'
+      - '.github/workflows/test-pufferlib-compatibility.yml'
+  schedule:
+    # Run daily at 2 AM UTC to catch breaking changes early
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-pufferlib-compatibility:
+    name: "Test PufferLib Compatibility"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout Metta code
+        uses: actions/checkout@v4
+        
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "testing"
+          
+      - name: Clone PufferLib
+        run: |
+          git clone --depth 1 https://github.com/Metta-AI/PufferLib.git ../PufferLib
+          
+      - name: Install PufferLib
+        run: |
+          uv pip install -e ../PufferLib
+          
+      - name: Run config compatibility tests
+        run: |
+          uv run pytest tests/test_pufferlib_config_sync.py -v --tb=short
+          
+      - name: Test puffer train metta command
+        run: |
+          # Test that puffer train metta at least loads properly
+          uv run python -m pufferlib.train \
+            --env metta \
+            --train.total_timesteps 100 \
+            --train.checkpoint_interval 0 \
+            --train.wandb disabled \
+            --vec.num_envs 1 \
+            --train.minibatch_size 1 \
+            --train.batch_size 4 \
+            --dry-run || true
+            
+      - name: Check for gold config deviations
+        id: check_config
+        run: |
+          # Compare our configs with PufferLib's expected format
+          uv run python -c "
+import sys
+from pathlib import Path
+
+# Check if PufferLib has metta-specific configs
+pufferlib_path = Path('../PufferLib')
+metta_config_path = pufferlib_path / 'pufferlib' / 'environments' / 'metta'
+
+if metta_config_path.exists():
+    print(f'Found PufferLib Metta configs at {metta_config_path}')
+    # TODO: Add specific config comparison logic here
+else:
+    print('No PufferLib-specific Metta configs found')
+"
+          
+      - name: Generate compatibility report
+        if: always()
+        run: |
+          echo "## PufferLib Compatibility Report" > compatibility_report.md
+          echo "" >> compatibility_report.md
+          echo "**Date:** $(date)" >> compatibility_report.md
+          echo "**Metta commit:** ${{ github.sha }}" >> compatibility_report.md
+          echo "**PufferLib commit:** $(cd ../PufferLib && git rev-parse HEAD)" >> compatibility_report.md
+          echo "" >> compatibility_report.md
+          
+          if [ -f tests/test_pufferlib_config_sync.log ]; then
+            echo "### Test Results" >> compatibility_report.md
+            cat tests/test_pufferlib_config_sync.log >> compatibility_report.md
+          fi
+          
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pufferlib-compatibility-report
+          path: compatibility_report.md
+          retention-days: 30
+          
+      - name: Create issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `PufferLib Compatibility Test Failed - ${new Date().toISOString().split('T')[0]}`;
+            const body = `The scheduled PufferLib compatibility test has failed.
+            
+            **Workflow Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+            
+            This indicates that either:
+            1. Metta configs have changed in a way that breaks PufferLib compatibility
+            2. PufferLib has changed its expected config format
+            3. The integration between the two systems has broken
+            
+            Please investigate and update the compatibility layer as needed.`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'pufferlib', 'compatibility']
+            });

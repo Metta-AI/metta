@@ -59,6 +59,7 @@ personal/
 test_data/
 **/*benchmark_results.json
 .testmondata*
+tests/pufferlib_compatibility_matrix.json
 
 # Logs and profiling
 *.log
