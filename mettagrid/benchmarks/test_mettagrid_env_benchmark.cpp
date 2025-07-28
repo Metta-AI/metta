@@ -268,10 +268,15 @@ BENCHMARK_F(MettaGridBenchmark, Step)(benchmark::State& state) {
     // matching the Python implementation
   }
 
-  // Report steps/second as custom counters
-  state.counters["env_rate"] = benchmark::Counter(static_cast<double>(state.iterations()), benchmark::Counter::kIsRate);
-  state.counters["agent_rate"] = benchmark::Counter(
-      static_cast<double>(state.iterations()) * static_cast<double>(num_agents), benchmark::Counter::kIsRate);
+  // Only set counters if iterations were actually performed
+  if (state.iterations() > 0) {
+    // Report steps/second as custom counters
+    // Use explicit string construction to avoid potential ASan issues with string literals
+    state.counters[std::string("env_rate")] =
+        benchmark::Counter(static_cast<double>(state.iterations()), benchmark::Counter::kIsRate);
+    state.counters[std::string("agent_rate")] = benchmark::Counter(
+        static_cast<double>(state.iterations()) * static_cast<double>(num_agents), benchmark::Counter::kIsRate);
+  }
 }
 
 // Custom main that properly initializes Python
