@@ -158,6 +158,108 @@ def compute_contrastive_loss(
 
     return contrastive_loss, metrics
 
+@torch.no_grad()
+def _future_deltas(
+    dones: Tensor,               # [segments, T] bool
+    gamma: float,                # geometric parameter
+) -> Tensor:                     # [segments, T] int64
+    """
+    Geometrically-distributed offsets, clipped so we never cross an episode boundary.
+    No Python loops; all on GPU.
+    """
+    seg_len = dones.size(1)
+    segs = dones.size(0)
+
+    # Sample raw geometric deltas 
+    u = torch.rand(segs, seg_len, device=dones.device)
+    deltas = torch.floor(torch.log1p(-u) / torch.log(torch.tensor(gamma, device=dones.device))).long()
+    deltas.clamp_(min=1, max=seg_len - 1)
+
+    # 2) Compute distance-to-done for every position
+    #    E.g. [F F T F] →   [2 1 0 0]   (2 steps until 'done')
+    # Reverse for a cumsum, then flip back.
+    dist_to_done = torch.cumsum(dones.flip(1), dim=1).flip(1)
+    # For timesteps *after* final done of a segment, dist_to_done will be > seg_len.
+    dist_to_done.clamp_(max=seg_len)
+
+    # 3) Clip deltas so we never step past a 'done'
+    deltas = torch.minimum(deltas, dist_to_done)
+
+    return deltas        # [segments, T]
+
+
+def compute_contrastive_loss_fast(
+    minibatch: Dict[str, Tensor],
+    lstm_hidden: Tensor,       # [Bseg, T, H]
+    all_lstm_hidden: Tensor,   # [S, T, H]  (huge replay window on-device)
+    trainer_cfg: Any,
+    device: torch.device,
+) -> Tuple[Tensor, Dict[str, float]]:
+    """Fully-vectorised InfoNCE + log-sum-exp regulariser."""
+
+    Bseg, T, H = lstm_hidden.shape
+    B = Bseg * T
+    K = trainer_cfg.contrastive.num_negatives
+    tau = trainer_cfg.contrastive.temperature
+    gamma = trainer_cfg.contrastive.gamma
+    logsumexp_coef = trainer_cfg.contrastive.logsumexp_coef
+
+    # --- Flatten views (no copies) ------------------------------------------
+    batch_flat = lstm_hidden.reshape(B, H)                 # current states
+    all_flat   = all_lstm_hidden.reshape(-1, H)            # replay window
+
+    # --- 1) Positive indices -----------------------------------------------
+    seg_idx   = minibatch["indices"].to(device)            # [Bseg]
+    base_ids  = seg_idx[:, None] * T + torch.arange(T, device=device)  # [Bseg, T]
+    delta     = _future_deltas(minibatch["dones"].to(device), gamma)   # [Bseg, T]
+    pos_ids   = (base_ids + delta).reshape(-1).clamp(max=all_flat.size(0)-1)
+
+    # --- 2) Negative indices (rejection-free) -------------------------------
+    # Draw K+2 ids then discard the first 2 (they *might* collide).
+    neg_ids = torch.randint(
+        0, all_flat.size(0),
+        (B, K + 2),
+        device=device
+    )
+    # Replace first two columns with current & positive ⇒ they are ignored later
+    neg_ids[:, 0] = base_ids.reshape(-1)
+    neg_ids[:, 1] = pos_ids
+    # Now shuffle so collisions are uniformly distributed across the row
+    neg_ids = neg_ids[:, torch.randperm(K + 2, device=device)]
+    neg_ids = neg_ids[:, :K]                              # [B, K]
+
+    # --- 3) Fetch states ----------------------------------------------------
+    pos_states  = all_flat[pos_ids]                       # [B, H]
+    neg_states  = all_flat[neg_ids]                       # [B, K, H]
+
+    # --- 4) Cosine similarities --------------------------------------------
+    q   = torch.nn.functional.normalize(batch_flat, dim=-1)
+    kp  = torch.nn.functional.normalize(pos_states,  dim=-1)
+    kn  = torch.nn.functional.normalize(neg_states,  dim=-1)
+
+    pos_sim = (q * kp).sum(-1, keepdim=True) / tau        # [B, 1]
+    neg_sim = (q[:, None, :] * kn).sum(-1)      / tau     # [B, K]
+
+    # --- 5) InfoNCE ---------------------------------------------------------
+    logits  = torch.cat((pos_sim, neg_sim), dim=1)        # [B, 1+K]
+    targets = torch.zeros(B, dtype=torch.long, device=device)
+    infonce = torch.nn.functional.cross_entropy(logits, targets)
+
+    # --- 6) Extra regulariser ----------------------------------------------
+    reg = logsumexp_coef * torch.logsumexp(neg_sim, dim=1).mean()
+
+    loss = infonce + reg
+
+    # --- 7) Metrics ---------------------------------------------------------
+    metrics = {
+        "contrastive_loss":        loss.item(),
+        "contrastive_infonce":     infonce.item(),
+        "contrastive_logsumexp":   reg.item(),
+        "contrastive_pos_sim":     pos_sim.mean().item(),
+        "contrastive_neg_sim":     neg_sim.mean().item(),
+    }
+    return loss, metrics
+
 
 def process_minibatch_update(
     policy: torch.nn.Module,
@@ -220,9 +322,8 @@ def process_minibatch_update(
         contrastive_metrics = {}
 
         if trainer_cfg.contrastive.enabled and hasattr(experience, "lstm_outputs"):
-            minibatch_lstm = experience.lstm_outputs[minibatch["indices"]]
-            contrastive_loss, contrastive_metrics = compute_contrastive_loss(
-                minibatch, minibatch_lstm, experience.lstm_outputs, trainer_cfg, device
+            contrastive_loss, contrastive_metrics = compute_contrastive_loss_fast(
+                minibatch, experience.lstm_outputs[minibatch["indices"]], experience.lstm_outputs, trainer_cfg, device
             )
 
         # Add to total loss:

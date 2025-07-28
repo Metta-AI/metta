@@ -120,7 +120,7 @@ trainer_config = TrainerConfig(
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
-        interval_epochs=1,  # Disabled by default
+        interval_epochs=1,  # Profile every epoch for debugging
         profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
     grad_mean_variance_interval=150,
