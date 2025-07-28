@@ -62,6 +62,8 @@ contrastive:
   temperature: 0.05
   num_negatives: 10
   logsumexp_coef: 0.01
+  var_reg_target: 1.0
+  var_reg_coef: 1.0
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:

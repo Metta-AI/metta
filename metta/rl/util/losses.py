@@ -170,7 +170,7 @@ def _future_deltas(
     seg_len = dones.size(1)
     segs = dones.size(0)
 
-    # Sample raw geometric deltas 
+    # Sample raw geometric deltas
     u = torch.rand(segs, seg_len, device=dones.device)
     deltas = torch.floor(torch.log1p(-u) / torch.log(torch.tensor(gamma, device=dones.device))).long()
     deltas.clamp_(min=1, max=seg_len - 1)
@@ -209,10 +209,10 @@ def compute_contrastive_loss_fast(
     all_flat   = all_lstm_hidden.reshape(-1, H)            # replay window
 
     # --- 1) Positive indices -----------------------------------------------
-    seg_idx   = minibatch["indices"].to(device)            # [Bseg]
-    base_ids  = seg_idx[:, None] * T + torch.arange(T, device=device)  # [Bseg, T]
+    seg_idx   = minibatch["indices"].to(device, dtype=torch.long)            # [Bseg]
+    base_ids  = seg_idx[:, None] * T + torch.arange(T, device=device, dtype=torch.long)  # [Bseg, T]
     delta     = _future_deltas(minibatch["dones"].to(device), gamma)   # [Bseg, T]
-    pos_ids   = (base_ids + delta).reshape(-1).clamp(max=all_flat.size(0)-1)
+    pos_ids   = (base_ids + delta).reshape(-1).clamp(max=all_flat.size(0)-1).to(device, dtype=torch.long)
 
     # --- 2) Negative indices (rejection-free) -------------------------------
     # Draw K+2 ids then discard the first 2 (they *might* collide).
@@ -245,10 +245,16 @@ def compute_contrastive_loss_fast(
     targets = torch.zeros(B, dtype=torch.long, device=device)
     infonce = torch.nn.functional.cross_entropy(logits, targets)
 
+    var_target = trainer_cfg.contrastive.var_reg_target
+    z = q.detach()                 # (B, H)  stop-grad to avoid wasting mem
+    std = torch.sqrt(z.var(dim=0, unbiased=False) + 1e-04)
+
+    var_loss = torch.mean(torch.relu(var_target - std))
+
     # --- 6) Extra regulariser ----------------------------------------------
     reg = logsumexp_coef * torch.logsumexp(neg_sim, dim=1).mean()
 
-    loss = infonce + reg
+    loss = infonce + reg + trainer_cfg.contrastive.var_reg_coef * var_loss
 
     # --- 7) Metrics ---------------------------------------------------------
     metrics = {
@@ -257,6 +263,8 @@ def compute_contrastive_loss_fast(
         "contrastive_logsumexp":   reg.item(),
         "contrastive_pos_sim":     pos_sim.mean().item(),
         "contrastive_neg_sim":     neg_sim.mean().item(),
+        "contrastive_var_loss":    var_loss.item(),
+        "contrastive_batch_std":   std.mean().item(),
     }
     return loss, metrics
 

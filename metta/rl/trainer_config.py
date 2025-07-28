@@ -121,6 +121,8 @@ class ContrastiveConfig(BaseModelWithForbidExtra):
     temperature: float = Field(default=0.05, ge=0)
     num_negatives: int = Field(default=10, gt=0)
     logsumexp_coef: float = Field(default=0.01, ge=0)
+    var_reg_target: float = Field(default=1.0, ge=0)
+    var_reg_coef: float = Field(default=1.0, ge=0)
 
 
 class TorchProfilerConfig(BaseModelWithForbidExtra):
