@@ -108,9 +108,6 @@ def convert_basic_markdown(text):
     # Inline code: `code` -> <code>code</code>
     text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
 
-    # Line breaks
-    text = text.replace("\n", "<br/>")
-
     return text
 
 
