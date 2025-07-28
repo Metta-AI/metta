@@ -167,8 +167,6 @@ metta install aws wandb              # Install specific components
    uv run ./tools/play.py run=play +hardware=macbook
    ```
 
-5. **Sweep Management**: `tools/sweep_setup.py`, `tools/sweep_prepare_run.py` - Hyperparameter sweep tools
-
 #### Visualization Tools
 
 **Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear feedback. Consider running them in separate terminals outside of Claude Code.
