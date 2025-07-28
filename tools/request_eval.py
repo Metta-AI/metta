@@ -127,7 +127,6 @@ async def _create_remote_eval_tasks(
         warning("No policies found")
         return
 
-    info(f"Creating {len(policy_ids)} evaluation tasks...")
     tasks = [
         stats_client.create_task(
             TaskCreateRequest(
@@ -139,6 +138,7 @@ async def _create_remote_eval_tasks(
         for policy_id in policy_ids.values()
         for eval_name in request.evals
     ]
+    info(f"Creating {len(tasks)} evaluation tasks for {len(policy_ids)} policies...")
 
     results: list[TaskResponse] = await asyncio.gather(*tasks)
     for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
