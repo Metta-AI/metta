@@ -7,18 +7,12 @@
  * It handles the transformation from the mock data structure to the new schema.
  */
 
-import * as dotenv from 'dotenv';
-
-// Load environment variables FIRST
-dotenv.config();
-dotenv.config({ path: '.env.local', override: true });
-
-// Then import db and schemas
-import { db } from "../src/lib/db";
-import { papersTable, userPaperInteractionsTable } from "../src/lib/db/schema/paper";
-import { usersTable } from "../src/lib/db/schema/auth";
+import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Initialize Prisma client
+const prisma = new PrismaClient();
 
 // Import the papers data from the metta-library-mock directory
 const papersDataPath = path.join(__dirname, '..', '..', '..', 'metta-library-mock', 'observatory', 'src', 'mockData', 'papers.ts');
@@ -187,14 +181,14 @@ async function importPapers() {
     }));
     
     // Check if the specific users we need already exist
-    const existingUserIds = await db.select({ id: usersTable.id }).from(usersTable);
+    const existingUserIds = await prisma.user.findMany({ select: { id: true } });
     const existingUserSet = new Set(existingUserIds.map(u => u.id));
     
     // Filter out users that already exist
     const newUsers = userRecords.filter(user => !existingUserSet.has(user.id));
     
     if (newUsers.length > 0) {
-      await db.insert(usersTable).values(newUsers);
+      await prisma.user.createMany({ data: newUsers });
       console.log(`✅ Created ${newUsers.length} new users`);
     } else {
       console.log('ℹ️  All required users already exist');
@@ -206,12 +200,12 @@ async function importPapers() {
     const transformedPapers = papers.map(transformPaper);
     
     // Check if papers already exist
-    const existingPapers = await db.select().from(papersTable).limit(1);
+    const existingPapers = await prisma.paper.findMany({ take: 1 });
     
     if (existingPapers.length === 0) {
       // Insert papers only if they don't exist
       console.log('📋 Inserting papers...');
-      await db.insert(papersTable).values(transformedPapers);
+      await prisma.paper.createMany({ data: transformedPapers });
       console.log('✅ Papers imported successfully');
     } else {
       console.log('ℹ️  Papers already exist, skipping insertion');
@@ -222,7 +216,7 @@ async function importPapers() {
     const allInteractions = papers.flatMap(createUserInteractions);
     
     if (allInteractions.length > 0) {
-      await db.insert(userPaperInteractionsTable).values(allInteractions);
+      await prisma.userPaperInteraction.createMany({ data: allInteractions });
       console.log(`✅ Created ${allInteractions.length} user interactions`);
     } else {
       console.log('ℹ️  No user interactions to create');
