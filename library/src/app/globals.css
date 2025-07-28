@@ -9,10 +9,48 @@ body {
   background-color: #eff6ff;
 }
 
+.bg-primary-100 {
+  background-color: #dbeafe;
+}
+
+.bg-primary-500 {
+  background-color: #3b82f6;
+}
+
+.bg-primary-600 {
+  background-color: #2563eb;
+}
+
+.text-primary-500 {
+  color: #3b82f6;
+}
+
+.text-primary-600 {
+  color: #2563eb;
+}
+
 .text-primary-700 {
   color: #1d4ed8;
 }
 
 .border-primary-200 {
   border-color: #bfdbfe;
+}
+
+.border-primary-500 {
+  border-color: #3b82f6;
+}
+
+/* Overlay animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fadeIn {
+  animation: fadeIn 0.2s ease-out;
 }
