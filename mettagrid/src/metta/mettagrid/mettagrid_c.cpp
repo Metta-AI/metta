@@ -42,15 +42,15 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       max_steps(cfg.max_steps),
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
-      _num_observation_tokens(cfg.num_observation_tokens),
       _global_obs_config(cfg.global_obs),
+      _num_observation_tokens(cfg.num_observation_tokens),
       _track_movement_metrics(cfg.track_movement_metrics) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
   // `map` is a list of lists of strings, which are the map cells.
 
-  unsigned int num_agents = cfg.num_agents;
+  unsigned int num_agents = static_cast<unsigned int>(cfg.num_agents);
 
   current_step = 0;
 
@@ -223,7 +223,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
     for (size_t i = 0; i < num_items; i++) {
       // Check if this item has a reward configured
-      if (agent->resource_rewards.count(i) && agent->resource_rewards[i] > 0) {
+      auto item = static_cast<InventoryItem>(i);
+      if (agent->resource_rewards.count(item) && agent->resource_rewards[item] > 0) {
         // Set bit at position (7 - i) to 1
         // Item 0 goes to bit 7, item 1 to bit 6, etc.
         packed |= (1 << (7 - i));
