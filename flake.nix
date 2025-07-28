@@ -33,6 +33,7 @@
           uv
           cmake
           stdenv.cc.cc.lib
+          pnpm
           nodejs_22
           typescript
         ];
