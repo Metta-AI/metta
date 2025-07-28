@@ -26,7 +26,11 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
-                  bool recipe_details_obs)
+                  bool recipe_details_obs,
+                  bool cyclical = false,
+                  unsigned short phase = 0,
+                  ObservationType input_recipe_offset = 0,
+                  ObservationType output_recipe_offset = 0)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -35,6 +39,8 @@ struct ConverterConfig : public GridObjectConfig {
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
+        cyclical(cyclical),
+        phase(phase),
         recipe_details_obs(recipe_details_obs),
         // These are always 0 when this is created, since we want a single constructor, and these
         // shouldn't be provided by Python.
@@ -48,6 +54,8 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
+  bool cyclical;
+  unsigned short phase;
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
@@ -106,7 +114,8 @@ private:
     // This one is us starting to convert.
     this->converting = true;
     stats.incr("conversions.started");
-    this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
+
+        this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
 public:
@@ -119,8 +128,12 @@ public:
   short max_output;
   unsigned short conversion_ticks;  // Time to produce output
   unsigned short cooldown;          // Time to wait after producing before starting again
+
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
+  bool cyclical;                    // Whether to auto-empty inventory after cooldown
+
+    unsigned short phase;                  // Initial delay before first conversion
   unsigned char color;
   bool recipe_details_obs;
   EventManager* event_manager;
@@ -139,6 +152,8 @@ public:
         event_manager(nullptr),
         converting(false),
         cooling_down(false),
+        cyclical(cfg.cyclical),
+        phase(cfg.phase),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
@@ -151,8 +166,19 @@ public:
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
-    this->maybe_start_converting();
+
+    // If there's a phase delay, schedule the initial start
+    if (this->phase > 0) {
+      // Schedule a "start phase" by scheduling a fake cooldown completion
+      this->cooling_down = true;  // Prevent immediate conversion
+      this->event_manager->schedule_event(EventType::CoolDown, this->phase, this->id, 0);
+    } else {
+      // No phase delay, start immediately
+      this->maybe_start_converting();
+    }
   }
+
+
 
   void finish_converting() {
     this->converting = false;
@@ -180,10 +206,38 @@ public:
   }
 
   void finish_cooldown() {
+    // Cyclical converters auto-empty on cooldown completion
+    if (this->cyclical) {
+      // For single-output converters (common case), optimize the clear
+      if (this->output_resources.size() == 1) {
+        auto output_item = this->output_resources.begin()->first;
+        auto it = this->inventory.find(output_item);
+        if (it != this->inventory.end()) {
+          this->inventory.erase(it);
+          stats.incr("inventory.auto_emptied");
+        }
+      } else {
+        // Multi-output case: clear all output items
+        bool emptied_something = false;
+        for (const auto& [item, _] : this->output_resources) {
+          auto it = this->inventory.find(item);
+          if (it != this->inventory.end()) {
+            this->inventory.erase(it);
+            emptied_something = true;
+          }
+        }
+        if (emptied_something) {
+          stats.incr("inventory.auto_emptied");
+        }
+      }
+    }
+
     this->cooling_down = false;
     stats.incr("cooldown.completed");
     this->maybe_start_converting();
   }
+
+
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
     InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);

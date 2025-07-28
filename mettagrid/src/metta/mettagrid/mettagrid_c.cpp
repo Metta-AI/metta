@@ -412,7 +412,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
-  // Increment timestep and process events
+    // Increment timestep and process events
   current_step++;
   _event_manager->process_events(current_step);
 
@@ -955,7 +955,11 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned short,
                     unsigned char,
                     ObservationType,
-                    bool>(),
+                    bool,
+                    unsigned short,
+                    bool,
+                    ObservationType,
+                    ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -965,7 +969,11 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
            py::arg("color") = 0,
-           py::arg("recipe_details_obs") = false)
+           py::arg("cyclical") = false,
+           py::arg("phase") = 0,
+           py::arg("recipe_details_obs") = false,
+           py::arg("input_recipe_offset") = 0,
+           py::arg("output_recipe_offset") = 0)
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
@@ -975,6 +983,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
       .def_readwrite("color", &ConverterConfig::color)
+      .def_readwrite("cyclical", &ConverterConfig::cyclical)
+      .def_readwrite("phase", &ConverterConfig::phase)
       .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")

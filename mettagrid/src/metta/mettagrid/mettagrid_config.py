@@ -173,6 +173,8 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)
     color: int = Field(default=0, ge=0, le=255)
+    phase: int = Field(default=0, ge=0)
+    cyclical: bool = Field(default=False)
 
 
 class PyGameConfig(BaseModelWithForbidExtra):

@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/navigation_sequence/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 500
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    uri: "configs/env/mettagrid/maps/navigation_sequence/knotty.map"
+    border_width: 1

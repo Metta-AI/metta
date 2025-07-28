@@ -21,7 +21,7 @@ from metta.sim.utils import get_or_create_policy_ids
 class LocalCommands:
     def __init__(self):
         self.repo_root = get_repo_root()
-        self._kind_manager = Kind()
+        self._kind_manager = Kind(self.repo_root)
 
     def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
         cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]

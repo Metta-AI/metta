@@ -1,0 +1,86 @@
+defaults:
+  - mettagrid
+  - game/objects:
+      - basic  # wall, agent
+  - _self_
+
+game:
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 200
+
+  # Simple single-agent setup
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_resource_limit: 10
+    rewards:
+      inventory:
+        heart: 1
+
+  # Define our converter types
+  objects:
+    # Regular converter (lowercase 'c')
+    regular_converter:
+      type_id: 5
+      input_resources: {}
+      output_resources:
+        heart: 1
+      conversion_ticks: 10
+      cooldown: 10
+      max_output: 1
+      initial_resource_count: 0
+      color: 14
+
+    # Cyclical converter (uppercase 'C')
+    cyclical_converter:
+      type_id: 100
+      input_resources: {}
+      output_resources:
+        heart: 1
+      conversion_ticks: 10  # 10 ticks to produce
+      cooldown: 20         # Available for 20 ticks before auto-empty
+      max_output: 1
+      initial_resource_count: 0
+      color: 13
+
+    # Simple map configuration
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 15
+    height: 15
+
+    root:
+      type: metta.map.scenes.random.Random
+      params:
+        agents: 1
+        objects:
+          wall: 10
+          regular_converter: 2
+          cyclical_converter: 2
+
+  actions:
+    noop:
+      enabled: false
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: false
+    get_items:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    change_glyph:
+      enabled: false
+      number_of_glyphs: 4
