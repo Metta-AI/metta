@@ -48,7 +48,6 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max))
 }
 
-
 /** Context3d class responsible for managing the WebGL context. */
 export class Context3d {
   public canvas: HTMLCanvasElement

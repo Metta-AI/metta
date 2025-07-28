@@ -1,5 +1,4 @@
-import { Vec2f } from './vector_math.js'
-
+import type { Vec2f } from './vector_math.js'
 
 /** Mesh class responsible for managing vertex data. */
 export class Mesh {
