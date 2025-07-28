@@ -83,7 +83,9 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
         github_timestamp: When the review was submitted
     """
     # Choose emoji based on review state
-    emoji = {"APPROVED": "✅", "CHANGES_REQUESTED": "❌", "COMMENTED": "💬"}.get(review_state, "📝")
+    #    emoji = {"APPROVED": "✅", "CHANGES_REQUESTED": "❌", "COMMENTED": "💬"}.get(review_state, "📝")
+    # i'm not sure the emoji adds anything here - removing it for now
+    emoji = ""
 
     # Format header with review ID
     header = f"<strong>Review from {github_user} (ID {review_id})</strong>: {emoji}{review_state.replace('_', ' ').title()}\n"
