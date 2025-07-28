@@ -52,7 +52,11 @@ class HeatmapWidget(anywidget.AnyWidget):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._callbacks = {"selected_cell": [], "replay_opened": [], "metric_changed": []}
+        self._callbacks = {
+            "selected_cell": [],
+            "replay_opened": [],
+            "metric_changed": [],
+        }
 
         # This print should work now!
         print("🚀 HeatmapWidget initialized successfully!")
@@ -127,7 +131,9 @@ class HeatmapWidget(anywidget.AnyWidget):
             "policyAverageScores": policy_average_scores,
         }
         self.selected_metric = selected_metric
-        print(f"📊 Data set with {len(policy_names)} policies and {len(eval_names)} evaluations")
+        print(
+            f"📊 Data set with {len(policy_names)} policies and {len(eval_names)} evaluations"
+        )
         print(f"📈 Selected metric: {selected_metric}")
 
     def set_multi_metric_data(
@@ -150,7 +156,9 @@ class HeatmapWidget(anywidget.AnyWidget):
         if not selected_metric and metrics:
             selected_metric = metrics[0]
         elif selected_metric and selected_metric not in metrics:
-            raise ValueError(f"Selected metric '{selected_metric}' not found in available metrics: {metrics}")
+            raise ValueError(
+                f"Selected metric '{selected_metric}' not found in available metrics: {metrics}"
+            )
 
         # Calculate policy averages for the selected metric
         policy_average_scores = {}
@@ -172,7 +180,9 @@ class HeatmapWidget(anywidget.AnyWidget):
             "availableMetrics": metrics,
         }
         self.selected_metric = selected_metric or ""
-        print(f"📊 Multi-metric data set with {len(policy_names)} policies and {len(eval_names)} evaluations")
+        print(
+            f"📊 Multi-metric data set with {len(policy_names)} policies and {len(eval_names)} evaluations"
+        )
         print(f"📈 Available metrics: {', '.join(metrics)}")
         print(f"📈 Selected metric: {selected_metric}")
 
@@ -229,26 +239,79 @@ def create_demo_heatmap() -> HeatmapWidget:
     # Sample data structure matching the observatory format
     demo_cells = {
         "policy_alpha_v1": {
-            "navigation/maze1": {"value": 85.2, "replayUrl": "sample_replay_1.json", "evalName": "navigation/maze1"},
-            "navigation/maze2": {"value": 78.9, "replayUrl": "sample_replay_2.json", "evalName": "navigation/maze2"},
-            "combat/arena1": {"value": 92.1, "replayUrl": "sample_replay_3.json", "evalName": "combat/arena1"},
-            "combat/arena2": {"value": 88.7, "replayUrl": "sample_replay_4.json", "evalName": "combat/arena2"},
+            "navigation/maze1": {
+                "value": 85.2,
+                "replayUrl": "sample_replay_1.json",
+                "evalName": "navigation/maze1",
+            },
+            "navigation/maze2": {
+                "value": 78.9,
+                "replayUrl": "sample_replay_2.json",
+                "evalName": "navigation/maze2",
+            },
+            "combat/arena1": {
+                "value": 92.1,
+                "replayUrl": "sample_replay_3.json",
+                "evalName": "combat/arena1",
+            },
+            "combat/arena2": {
+                "value": 88.7,
+                "replayUrl": "sample_replay_4.json",
+                "evalName": "combat/arena2",
+            },
         },
         "policy_beta_v2": {
-            "navigation/maze1": {"value": 79.8, "replayUrl": "sample_replay_5.json", "evalName": "navigation/maze1"},
-            "navigation/maze2": {"value": 83.4, "replayUrl": "sample_replay_6.json", "evalName": "navigation/maze2"},
-            "combat/arena1": {"value": 87.3, "replayUrl": "sample_replay_7.json", "evalName": "combat/arena1"},
-            "combat/arena2": {"value": 91.2, "replayUrl": "sample_replay_8.json", "evalName": "combat/arena2"},
+            "navigation/maze1": {
+                "value": 79.8,
+                "replayUrl": "sample_replay_5.json",
+                "evalName": "navigation/maze1",
+            },
+            "navigation/maze2": {
+                "value": 83.4,
+                "replayUrl": "sample_replay_6.json",
+                "evalName": "navigation/maze2",
+            },
+            "combat/arena1": {
+                "value": 87.3,
+                "replayUrl": "sample_replay_7.json",
+                "evalName": "combat/arena1",
+            },
+            "combat/arena2": {
+                "value": 91.2,
+                "replayUrl": "sample_replay_8.json",
+                "evalName": "combat/arena2",
+            },
         },
         "policy_gamma_v1": {
-            "navigation/maze1": {"value": 82.1, "replayUrl": "sample_replay_9.json", "evalName": "navigation/maze1"},
-            "navigation/maze2": {"value": 76.5, "replayUrl": "sample_replay_10.json", "evalName": "navigation/maze2"},
-            "combat/arena1": {"value": 89.8, "replayUrl": "sample_replay_11.json", "evalName": "combat/arena1"},
-            "combat/arena2": {"value": 85.9, "replayUrl": "sample_replay_12.json", "evalName": "combat/arena2"},
+            "navigation/maze1": {
+                "value": 82.1,
+                "replayUrl": "sample_replay_9.json",
+                "evalName": "navigation/maze1",
+            },
+            "navigation/maze2": {
+                "value": 76.5,
+                "replayUrl": "sample_replay_10.json",
+                "evalName": "navigation/maze2",
+            },
+            "combat/arena1": {
+                "value": 89.8,
+                "replayUrl": "sample_replay_11.json",
+                "evalName": "combat/arena1",
+            },
+            "combat/arena2": {
+                "value": 85.9,
+                "replayUrl": "sample_replay_12.json",
+                "evalName": "combat/arena2",
+            },
         },
     }
 
-    demo_eval_names = ["navigation/maze1", "navigation/maze2", "combat/arena1", "combat/arena2"]
+    demo_eval_names = [
+        "navigation/maze1",
+        "navigation/maze2",
+        "combat/arena1",
+        "combat/arena2",
+    ]
     demo_policy_names = list(demo_cells.keys())
     demo_policy_averages = {
         "policy_alpha_v1": 86.2,
@@ -299,73 +362,138 @@ def create_multi_metric_demo() -> HeatmapWidget:
     demo_cells = {
         "policy_alpha_v1": {
             "navigation/maze1": {
-                "metrics": {"reward": 85.2, "episode_length": 120.5, "success_rate": 0.92, "completion_time": 45.3},
+                "metrics": {
+                    "reward": 85.2,
+                    "episode_length": 120.5,
+                    "success_rate": 0.92,
+                    "completion_time": 45.3,
+                },
                 "replayUrl": "sample_replay_1.json",
                 "evalName": "navigation/maze1",
             },
             "navigation/maze2": {
-                "metrics": {"reward": 78.9, "episode_length": 135.2, "success_rate": 0.85, "completion_time": 52.1},
+                "metrics": {
+                    "reward": 78.9,
+                    "episode_length": 135.2,
+                    "success_rate": 0.85,
+                    "completion_time": 52.1,
+                },
                 "replayUrl": "sample_replay_2.json",
                 "evalName": "navigation/maze2",
             },
             "combat/arena1": {
-                "metrics": {"reward": 92.1, "episode_length": 98.7, "success_rate": 0.98, "completion_time": 38.9},
+                "metrics": {
+                    "reward": 92.1,
+                    "episode_length": 98.7,
+                    "success_rate": 0.98,
+                    "completion_time": 38.9,
+                },
                 "replayUrl": "sample_replay_3.json",
                 "evalName": "combat/arena1",
             },
             "combat/arena2": {
-                "metrics": {"reward": 88.7, "episode_length": 110.3, "success_rate": 0.94, "completion_time": 42.6},
+                "metrics": {
+                    "reward": 88.7,
+                    "episode_length": 110.3,
+                    "success_rate": 0.94,
+                    "completion_time": 42.6,
+                },
                 "replayUrl": "sample_replay_4.json",
                 "evalName": "combat/arena2",
             },
         },
         "policy_beta_v2": {
             "navigation/maze1": {
-                "metrics": {"reward": 79.8, "episode_length": 142.1, "success_rate": 0.88, "completion_time": 49.7},
+                "metrics": {
+                    "reward": 79.8,
+                    "episode_length": 142.1,
+                    "success_rate": 0.88,
+                    "completion_time": 49.7,
+                },
                 "replayUrl": "sample_replay_5.json",
                 "evalName": "navigation/maze1",
             },
             "navigation/maze2": {
-                "metrics": {"reward": 83.4, "episode_length": 128.9, "success_rate": 0.91, "completion_time": 47.2},
+                "metrics": {
+                    "reward": 83.4,
+                    "episode_length": 128.9,
+                    "success_rate": 0.91,
+                    "completion_time": 47.2,
+                },
                 "replayUrl": "sample_replay_6.json",
                 "evalName": "navigation/maze2",
             },
             "combat/arena1": {
-                "metrics": {"reward": 87.3, "episode_length": 105.6, "success_rate": 0.96, "completion_time": 41.4},
+                "metrics": {
+                    "reward": 87.3,
+                    "episode_length": 105.6,
+                    "success_rate": 0.96,
+                    "completion_time": 41.4,
+                },
                 "replayUrl": "sample_replay_7.json",
                 "evalName": "combat/arena1",
             },
             "combat/arena2": {
-                "metrics": {"reward": 91.2, "episode_length": 102.4, "success_rate": 0.97, "completion_time": 40.1},
+                "metrics": {
+                    "reward": 91.2,
+                    "episode_length": 102.4,
+                    "success_rate": 0.97,
+                    "completion_time": 40.1,
+                },
                 "replayUrl": "sample_replay_8.json",
                 "evalName": "combat/arena2",
             },
         },
         "policy_gamma_v1": {
             "navigation/maze1": {
-                "metrics": {"reward": 82.1, "episode_length": 130.7, "success_rate": 0.89, "completion_time": 48.5},
+                "metrics": {
+                    "reward": 82.1,
+                    "episode_length": 130.7,
+                    "success_rate": 0.89,
+                    "completion_time": 48.5,
+                },
                 "replayUrl": "sample_replay_9.json",
                 "evalName": "navigation/maze1",
             },
             "navigation/maze2": {
-                "metrics": {"reward": 76.5, "episode_length": 145.3, "success_rate": 0.83, "completion_time": 54.8},
+                "metrics": {
+                    "reward": 76.5,
+                    "episode_length": 145.3,
+                    "success_rate": 0.83,
+                    "completion_time": 54.8,
+                },
                 "replayUrl": "sample_replay_10.json",
                 "evalName": "navigation/maze2",
             },
             "combat/arena1": {
-                "metrics": {"reward": 89.8, "episode_length": 108.2, "success_rate": 0.95, "completion_time": 43.1},
+                "metrics": {
+                    "reward": 89.8,
+                    "episode_length": 108.2,
+                    "success_rate": 0.95,
+                    "completion_time": 43.1,
+                },
                 "replayUrl": "sample_replay_11.json",
                 "evalName": "combat/arena1",
             },
             "combat/arena2": {
-                "metrics": {"reward": 85.9, "episode_length": 115.6, "success_rate": 0.93, "completion_time": 44.7},
+                "metrics": {
+                    "reward": 85.9,
+                    "episode_length": 115.6,
+                    "success_rate": 0.93,
+                    "completion_time": 44.7,
+                },
                 "replayUrl": "sample_replay_12.json",
                 "evalName": "combat/arena2",
             },
         },
     }
 
-    demo_eval_names = ["navigation/maze1", "navigation/maze2", "combat/arena1", "combat/arena2"]
+    demo_eval_names = [
+        "navigation/maze1",
+        "navigation/maze2",
+        "combat/arena1",
+        "combat/arena2",
+    ]
     demo_policy_names = list(demo_cells.keys())
     available_metrics = ["reward", "episode_length", "success_rate", "completion_time"]
 
