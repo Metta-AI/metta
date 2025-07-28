@@ -16,6 +16,26 @@ from metta.rl.wandb import upload_replay_html
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 
+def should_evaluate(epoch: int, evaluate_interval: int, is_master: bool = True) -> bool:
+    """Check if evaluation should run at this epoch.
+
+    Args:
+        epoch: Current training epoch
+        evaluate_interval: How often to evaluate (0 means never)
+        is_master: Whether this is the master process
+
+    Returns:
+        True if evaluation should run
+    """
+    if not is_master:
+        return False
+
+    if evaluate_interval <= 0:
+        return False
+
+    return epoch % evaluate_interval == 0
+
+
 def evaluate_policy(
     policy_record: Any,
     sim_suite_config: SimulationSuiteConfig,

@@ -1,4 +1,4 @@
-"""Simplified environment manager that uses interface.Environment."""
+"""Training-specific environment wrapper that uses interface.Environment."""
 
 import logging
 from typing import Any, Optional
@@ -11,8 +11,8 @@ from metta.rl.trainer_config import TrainerConfig
 logger = logging.getLogger(__name__)
 
 
-class EnvironmentManager:
-    """Manages environment creation and configuration."""
+class TrainingEnvironment:
+    """Wraps environment creation with training-specific configuration and state management."""
 
     def __init__(
         self,
@@ -20,7 +20,7 @@ class EnvironmentManager:
         device: torch.device,
         num_workers: Optional[int] = None,
     ):
-        """Initialize environment manager.
+        """Initialize training environment wrapper.
 
         Args:
             trainer_config: Training configuration

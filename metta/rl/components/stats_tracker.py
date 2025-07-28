@@ -1,4 +1,4 @@
-"""Manages statistics collection and processing during training."""
+"""Tracks and processes statistics during training."""
 
 import logging
 from collections import defaultdict
@@ -15,7 +15,9 @@ from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.util.optimization import compute_gradient_stats
 from metta.rl.util.stats import (
-    StatsTracker,
+    StatsTracker as UtilStatsTracker,
+)
+from metta.rl.util.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
     process_training_stats,
@@ -25,8 +27,8 @@ from metta.rl.util.utils import should_run
 logger = logging.getLogger(__name__)
 
 
-class StatsManager:
-    """Manages collection, processing, and logging of training statistics."""
+class StatsTracker:
+    """Tracks and processes training statistics throughout the training process."""
 
     def __init__(
         self,
@@ -37,7 +39,7 @@ class StatsManager:
         memory_monitor: Optional[MemoryMonitor] = None,
         stats_client: Optional[StatsClient] = None,
     ):
-        """Initialize stats manager.
+        """Initialize stats tracker.
 
         Args:
             trainer_config: Training configuration
@@ -55,7 +57,7 @@ class StatsManager:
         self.stats_client = stats_client
 
         # Initialize stats tracker
-        self.stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
+        self.stats_tracker = UtilStatsTracker(rollout_stats=defaultdict(list))
 
         # Evaluation scores
         self.eval_scores = EvalRewardSummary()

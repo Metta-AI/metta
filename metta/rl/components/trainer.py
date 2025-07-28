@@ -37,12 +37,8 @@ from metta.rl.util.stats import compute_timing_stats
 from metta.rl.util.utils import check_abort, should_run
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_env_configs
 
-from .environment_manager_simple import EnvironmentManager
-from .evaluation_manager import EvaluationManager
-from .optimizer_manager import OptimizerManager
-from .rollout_manager import RolloutManager
-from .stats_manager import StatsManager
-from .training_manager import TrainingManager
+from .stats_tracker import StatsTracker
+from .training_environment import TrainingEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -131,8 +127,7 @@ class Trainer:
         self.policy_store = PolicyStore(DictConfig(policy_store_config), self.wandb_run)
 
         # Create component managers
-        self.env_manager = EnvironmentManager(trainer_config, self.device)
-        self.optimizer_manager = OptimizerManager(trainer_config.optimizer, self.device)
+        self.training_env = TrainingEnvironment(trainer_config, self.device)
 
         # Create timer
         self.timer = Stopwatch(logger)
@@ -143,10 +138,9 @@ class Trainer:
         self.experience = None
         self.kickstarter = None
         self.losses = None
-        self.rollout_manager = None
-        self.training_manager = None
-        self.stats_manager = None
-        self.evaluation_manager = None
+        self.stats_tracker = None
+        self.last_evaluation_epoch = -1
+        self.evaluation_config = None
         self.torch_profiler = None
         self.system_monitor = None
         self.memory_monitor = None
@@ -204,12 +198,12 @@ class Trainer:
         self.timer.start()
 
         # Create environment
-        env = self.env_manager.create_environment(
+        env = self.training_env.create_environment(
             vectorization=vectorization,
             seed=seed,
             rank=self.rank,
         )
-        metta_grid_env = self.env_manager.driver_env
+        metta_grid_env = self.training_env.driver_env
 
         # Create or load agent
         self.agent, policy_record, self.agent_step, self.epoch, checkpoint = create_or_load_agent(
@@ -245,8 +239,10 @@ class Trainer:
             self.agent = torch.compile(self.agent, mode=self.trainer_config.compile_mode)
 
         # Create optimizer
-        self.optimizer = self.optimizer_manager.create_optimizer(self.agent)
-        self.optimizer_manager.load_state_from_checkpoint(self.optimizer, checkpoint)
+        # Create optimizer using interface
+        from metta.interface.optimizer import create_optimizer
+
+        self.optimizer = create_optimizer(self.agent, self.trainer_config.optimizer, checkpoint)
 
         # Wrap agent for distributed training
         self.agent = wrap_agent_distributed(self.agent, self.device)
@@ -260,7 +256,7 @@ class Trainer:
             log_model_parameters(self.agent, self.wandb_run)
 
             # Upload environment configs
-            curr_obj = self.env_manager.get_curriculum()
+            curr_obj = self.training_env.get_curriculum()
             if curr_obj is not None and hasattr(curr_obj, "get_env_cfg_by_bucket"):
                 env_configs = curr_obj.get_env_cfg_by_bucket()
                 upload_env_configs(env_configs=env_configs, wandb_run=self.wandb_run)
@@ -272,8 +268,8 @@ class Trainer:
 
         # Create experience buffer
         self.experience = Experience(
-            total_agents=self.env_manager.num_agents,
-            batch_size=self.env_manager.batch_size,  # Use actual environment batch size
+            total_agents=self.training_env.num_agents,
+            batch_size=self.training_env.batch_size,  # Use actual environment batch size
             bptt_horizon=self.trainer_config.bptt_horizon,
             minibatch_size=self.trainer_config.minibatch_size,
             max_minibatch_size=self.trainer_config.minibatch_size,
@@ -312,9 +308,7 @@ class Trainer:
             )
 
         # Create component managers
-        self.rollout_manager = RolloutManager(env, self.device, self.timer)
-        self.training_manager = TrainingManager(self.trainer_config, self.device, self.kickstarter)
-        self.stats_manager = StatsManager(
+        self.stats_tracker = StatsTracker(
             self.trainer_config,
             self.timer,
             self.is_master,
@@ -322,15 +316,10 @@ class Trainer:
             self.memory_monitor,
             self.stats_client,
         )
-        self.evaluation_manager = EvaluationManager(
-            self.trainer_config,
-            self.policy_store,
-            self.device,
-            self.stats_dir,
-            self.is_master,
-            self.stats_client,
-            self.stats_manager.stats_tracker,
-        )
+        # Create evaluation config
+        from metta.interface.evaluation import create_evaluation_config_suite
+
+        self.evaluation_config = create_evaluation_config_suite()
 
         # Create torch profiler
         self.torch_profiler = TorchProfiler(
@@ -341,7 +330,7 @@ class Trainer:
         )
 
         # Initialize stats tracking
-        self.stats_manager.initialize_stats_tracking(self.wandb_run)
+        self.stats_tracker.initialize_stats_tracking(self.wandb_run)
 
     def train_epoch(self) -> Tuple[float, int]:
         """Run one training epoch (rollout + training).
@@ -353,16 +342,37 @@ class Trainer:
 
         # Rollout phase
         rollout_start = time.time()
-        raw_infos, self.agent_step = self.rollout_manager.collect_rollouts(self.agent, self.experience, self.agent_step)
+        # Use functional rollout interface
+        from metta.rl.rollout import rollout
+
+        num_steps, raw_infos = rollout(
+            vecenv=self.env,
+            policy=self.agent,
+            experience=self.experience,
+            device=self.device,
+            timer=self.timer,
+        )
+        self.agent_step += num_steps * self.world_size
         rollout_time = time.time() - rollout_start
 
         # Process rollout statistics
-        self.stats_manager.process_rollout_stats(raw_infos)
+        self.stats_tracker.process_rollout_stats(raw_infos)
 
         # Training phase
         train_start = time.time()
-        self.training_manager.train_on_experience(
-            self.agent, self.optimizer, self.experience, self.losses, self.epoch, self.agent_step
+        # Use functional training interface
+        from metta.rl.train import train_ppo
+
+        train_ppo(
+            policy=self.agent,
+            optimizer=self.optimizer,
+            experience=self.experience,
+            kickstarter=self.kickstarter,
+            losses=self.losses,
+            trainer_cfg=self.trainer_config,
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+            device=self.device,
         )
         train_time = time.time() - train_start
         self.epoch += 1
@@ -377,13 +387,13 @@ class Trainer:
 
         # Build and log stats
         if self.is_master:
-            current_lr = self.optimizer_manager.get_current_lr(self.optimizer)
+            current_lr = self.optimizer.current_lr
 
             # Compute weight stats
-            weight_stats = self.stats_manager.compute_weight_stats(self.agent, self.epoch)
+            weight_stats = self.stats_tracker.compute_weight_stats(self.agent, self.epoch)
 
             # Build complete stats
-            all_stats = self.stats_manager.build_training_stats(
+            all_stats = self.stats_tracker.build_training_stats(
                 losses=self.losses,
                 experience=self.experience,
                 kickstarter=self.kickstarter,
@@ -402,7 +412,7 @@ class Trainer:
                 self.wandb_run.log(all_stats, step=self.agent_step)
 
         # Clear stats
-        self.stats_manager.clear_stats()
+        self.stats_tracker.clear_stats()
         stats_time = time.time() - stats_start
 
         # Calculate performance
@@ -463,7 +473,7 @@ class Trainer:
             policy_store=self.policy_store,
             epoch=self.epoch,
             agent_step=self.agent_step,
-            evals=self.stats_manager.eval_scores,
+            evals=self.stats_tracker.eval_scores,
             timer=self.timer,
             initial_policy_record=temp_initial_policy_record,
             run_name=self.run_name,
@@ -517,7 +527,7 @@ class Trainer:
                 )
 
             # Compute gradient statistics
-            self.stats_manager.compute_gradient_stats(self.agent, self.epoch)
+            self.stats_tracker.compute_gradient_stats(self.agent, self.epoch)
 
             # Save checkpoint
             if should_run(self.epoch, self.trainer_config.checkpoint.checkpoint_interval, True):
@@ -547,23 +557,46 @@ class Trainer:
                     break
 
             # Evaluation
-            if self.evaluation_manager.should_evaluate(self.epoch) and self.latest_saved_policy_record:
-                eval_scores = self.evaluation_manager.evaluate_policy(
-                    self.latest_saved_policy_record,
-                    self.epoch,
-                    self.env_manager.get_curriculum(),
-                    self.wandb_run,
-                    self.wandb_policy_name,
-                    self.agent_step,
+            from metta.rl.evaluate import should_evaluate
+
+            if (
+                should_evaluate(self.epoch, self.trainer_config.simulation.evaluate_interval, self.is_master)
+                and self.latest_saved_policy_record
+            ):
+                from metta.rl.evaluate import evaluate_policy
+
+                eval_scores = evaluate_policy(
+                    policy_record=self.latest_saved_policy_record,
+                    sim_suite_config=self.evaluation_config,
+                    curriculum=self.training_env.get_curriculum(),
+                    stats_client=self.stats_client,
+                    stats_tracker=self.stats_tracker.stats_tracker,
+                    agent_step=self.agent_step,
+                    epoch=self.epoch,
+                    device=self.device,
+                    vectorization="serial",
+                    replay_dir=self.replay_dir,
+                    wandb_policy_name=self.wandb_policy_name,
+                    policy_store=self.policy_store,
+                    cfg=OmegaConf.create({"sweep": {"metric": "reward"}}),
+                    wandb_run=self.wandb_run,
+                    logger=logger,
                 )
-                self.stats_manager.update_eval_scores(eval_scores)
+                self.last_evaluation_epoch = self.epoch
+                self.stats_tracker.update_eval_scores(eval_scores)
 
                 # Generate replay
-                self.evaluation_manager.generate_replay(
-                    self.latest_saved_policy_record,
-                    self.epoch,
-                    self.env_manager.get_curriculum(),
-                    self.wandb_run,
+                from metta.rl.util.evaluation import generate_replay
+
+                generate_replay(
+                    policy_record=self.latest_saved_policy_record,
+                    policy_store=self.policy_store,
+                    curriculum=self.training_env.get_curriculum(),
+                    epoch=self.epoch,
+                    device=self.device,
+                    vectorization="serial",
+                    replay_dir=self.replay_dir,
+                    wandb_run=self.wandb_run,
                 )
 
         # Training complete
@@ -578,14 +611,27 @@ class Trainer:
             logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
         # Final evaluation if needed
-        if self.evaluation_manager.final_evaluation_needed(self.epoch) and self.latest_saved_policy_record:
-            eval_scores = self.evaluation_manager.evaluate_policy(
-                self.latest_saved_policy_record,
-                self.epoch,
-                self.env_manager.get_curriculum(),
-                self.wandb_run,
-                self.wandb_policy_name,
-                self.agent_step,
+        # Final evaluation if needed
+        final_eval_needed = self.is_master and self.last_evaluation_epoch < self.epoch
+        if final_eval_needed and self.latest_saved_policy_record:
+            from metta.rl.evaluate import evaluate_policy
+
+            eval_scores = evaluate_policy(
+                policy_record=self.latest_saved_policy_record,
+                sim_suite_config=self.evaluation_config,
+                curriculum=self.training_env.get_curriculum(),
+                stats_client=self.stats_client,
+                stats_tracker=self.stats_manager.stats_tracker,
+                agent_step=self.agent_step,
+                epoch=self.epoch,
+                device=self.device,
+                vectorization="serial",
+                replay_dir=self.replay_dir,
+                wandb_policy_name=self.wandb_policy_name,
+                policy_store=self.policy_store,
+                cfg=OmegaConf.create({"sweep": {"metric": "reward"}}),
+                wandb_run=self.wandb_run,
+                logger=logger,
             )
             self.stats_manager.update_eval_scores(eval_scores)
 
@@ -613,7 +659,7 @@ class Trainer:
                 self.memory_monitor.clear()
 
         # Close environment
-        self.env_manager.close()
+        self.training_env.close()
 
         logger.info(f"\nTraining run complete! Run saved to: {self.run_dir}")
 
