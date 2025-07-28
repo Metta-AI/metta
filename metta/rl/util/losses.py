@@ -204,35 +204,34 @@ def compute_contrastive_loss_fast(
     gamma = trainer_cfg.contrastive.gamma
     logsumexp_coef = trainer_cfg.contrastive.logsumexp_coef
 
-    # --- Flatten views (no copies) ------------------------------------------
+    # flatten views
     batch_flat = lstm_hidden.reshape(B, H)                 # current states
     all_flat   = all_lstm_hidden.reshape(-1, H)            # replay window
 
-    # --- 1) Positive indices -----------------------------------------------
+    # positive indices
     seg_idx   = minibatch["indices"].to(device, dtype=torch.long)            # [Bseg]
     base_ids  = seg_idx[:, None] * T + torch.arange(T, device=device, dtype=torch.long)  # [Bseg, T]
     delta     = _future_deltas(minibatch["dones"].to(device), gamma)   # [Bseg, T]
     pos_ids   = (base_ids + delta).reshape(-1).clamp(max=all_flat.size(0)-1).to(device, dtype=torch.long)
 
-    # --- 2) Negative indices (rejection-free) -------------------------------
-    # Draw K+2 ids then discard the first 2 (they *might* collide).
+    # negative indices
     neg_ids = torch.randint(
         0, all_flat.size(0),
         (B, K + 2),
         device=device
     )
-    # Replace first two columns with current & positive ⇒ they are ignored later
+    # replace first two columns with current and positive
     neg_ids[:, 0] = base_ids.reshape(-1)
     neg_ids[:, 1] = pos_ids
-    # Now shuffle so collisions are uniformly distributed across the row
+    # shuffle
     neg_ids = neg_ids[:, torch.randperm(K + 2, device=device)]
     neg_ids = neg_ids[:, :K]                              # [B, K]
 
-    # --- 3) Fetch states ----------------------------------------------------
+    # fetch states
     pos_states  = all_flat[pos_ids]                       # [B, H]
     neg_states  = all_flat[neg_ids]                       # [B, K, H]
 
-    # --- 4) Cosine similarities --------------------------------------------
+    # cosine similarities
     q   = torch.nn.functional.normalize(batch_flat, dim=-1)
     kp  = torch.nn.functional.normalize(pos_states,  dim=-1)
     kn  = torch.nn.functional.normalize(neg_states,  dim=-1)
@@ -240,7 +239,7 @@ def compute_contrastive_loss_fast(
     pos_sim = (q * kp).sum(-1, keepdim=True) / tau        # [B, 1]
     neg_sim = (q[:, None, :] * kn).sum(-1)      / tau     # [B, K]
 
-    # --- 5) InfoNCE ---------------------------------------------------------
+    # infonce
     logits  = torch.cat((pos_sim, neg_sim), dim=1)        # [B, 1+K]
     targets = torch.zeros(B, dtype=torch.long, device=device)
     infonce = torch.nn.functional.cross_entropy(logits, targets)
@@ -251,12 +250,12 @@ def compute_contrastive_loss_fast(
 
     var_loss = torch.mean(torch.relu(var_target - std))
 
-    # --- 6) Extra regulariser ----------------------------------------------
+    # extra regulariser
     reg = logsumexp_coef * torch.logsumexp(neg_sim, dim=1).mean()
 
     loss = infonce + reg + trainer_cfg.contrastive.var_reg_coef * var_loss
 
-    # --- 7) Metrics ---------------------------------------------------------
+    # metrics
     metrics = {
         "contrastive_loss":        loss.item(),
         "contrastive_infonce":     infonce.item(),
