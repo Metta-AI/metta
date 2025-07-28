@@ -49,7 +49,6 @@ def launch_task(task: sky.Task, dry_run=False):
 
 def check_git_state(commit_hash: str) -> str | None:
     """Check that the commit has been pushed and there are no staged changes."""
-
     error_lines = []
 
     if has_unstaged_changes():

@@ -9,6 +9,9 @@ from metta.setup.utils import info, success
 class SkypilotSetup(SetupModule):
     install_once = True
 
+    def dependencies(self) -> list[str]:
+        return ["aws"]
+
     @property
     def description(self) -> str:
         return "SkyPilot cloud compute orchestration"
