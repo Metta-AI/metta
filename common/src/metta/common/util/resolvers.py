@@ -223,16 +223,16 @@ def oc_date_format(format_string: str) -> str:
 def oc_sampling(*args: Numeric) -> Numeric:
     """
     Sample a value from a range or set of choices.
-    
+
     Usage:
     - ${sampling:min, max, default} - samples uniform between min and max, using default if sampling=0
     - For configuration validation, returns the middle/default value
-    
+
     Parameters:
     -----------
     args : Numeric
         Either (min, max, default) for range sampling, or multiple values for choice
-        
+
     Returns:
     --------
     Numeric
