@@ -70,9 +70,7 @@ export function EvalTasks({ repo }: Props) {
     setPolicyIdInput(value)
     if (value.trim()) {
       const recentPolicies = getRecentPolicies()
-      const filtered = recentPolicies.filter(
-        (policy) => policy.toLowerCase().includes(value.toLowerCase())
-      )
+      const filtered = recentPolicies.filter((policy) => policy.toLowerCase().includes(value.toLowerCase()))
       setFilteredPolicies(filtered.slice(0, 10)) // Limit to 10 suggestions
       setShowPolicySuggestions(filtered.length > 0)
     } else {
