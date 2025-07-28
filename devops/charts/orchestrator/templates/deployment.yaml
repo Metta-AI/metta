@@ -29,6 +29,8 @@ spec:
           value: {{ .Values.env.POLL_INTERVAL | quote }}
         - name: WORKER_IDLE_TIMEOUT
           value: {{ .Values.env.WORKER_IDLE_TIMEOUT | quote }}
+        - name: MAX_WORKERS_PER_GIT_HASH
+          value: {{ .Values.env.MAX_WORKERS_PER_GIT_HASH | quote }}
         - name: DOCKER_IMAGE
           value: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         - name: KUBERNETES_NAMESPACE

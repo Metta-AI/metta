@@ -14,6 +14,7 @@ env:
   CONTAINER_RUNTIME: "k8s"
   POLL_INTERVAL: "5"
   WORKER_IDLE_TIMEOUT: "1200"
+  MAX_WORKERS_PER_GIT_HASH: "30"
 
 secrets:
   wandb: "wandb-api-secret"
