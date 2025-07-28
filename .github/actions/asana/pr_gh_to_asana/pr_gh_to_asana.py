@@ -86,9 +86,7 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
     emoji = {"APPROVED": "✅", "CHANGES_REQUESTED": "❌", "COMMENTED": "💬"}.get(review_state, "📝")
 
     # Format header with review ID
-    header = (
-        f"<strong>Review from {github_user} (ID {review_id})</strong>: {emoji}{review_state.replace('_', ' ').title()}"
-    )
+    header = f"<strong>Review from {github_user} (ID {review_id})</strong>: {emoji}{review_state.replace('_', ' ').title()}\n"
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
     # formatted_body = review_body if review_body else "(No comment)"
