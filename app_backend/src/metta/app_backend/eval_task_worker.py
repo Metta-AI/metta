@@ -101,7 +101,11 @@ class EvalTaskWorker:
         # Install dependencies in the versioned checkout
         self._logger.info("Installing dependencies in versioned checkout...")
         self._run_cmd_from_versioned_checkout(
-            ["uv", "run", "metta", "install", "--profile=softmax-docker"],
+            ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
+            "Failed to configure dependencies",
+        )
+        self._run_cmd_from_versioned_checkout(
+            ["uv", "run", "metta", "install"],
             "Failed to install dependencies",
         )
 
