@@ -1,34 +1,17 @@
 # 🔧 Fixed API Client Implementation
 from typing import List, Optional
 
-import httpx
-
-from metta.common.util.stats_client_cfg import get_machine_token
+from metta.app_backend.eval_task_client import EvalTaskClient
+from metta.app_backend.routes.heatmap_routes import HeatmapData, PoliciesResponse
 
 from .HeatmapWidget import HeatmapWidget, create_heatmap_widget
 
 
-class MettaAPIClient:
+class MettaAPIClient(EvalTaskClient):
     """Fixed client that properly handles authentication and response parsing."""
 
     def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
-        self.headers = {"Content-Type": "application/json", "X-Auth-Token": get_machine_token(self.base_url)}
-
-    async def _make_request(self, method: str, endpoint: str, **kwargs):
-        """Make an HTTP request to the API."""
-        url = f"{self.base_url}{endpoint}"
-        print(f"🔍 Making {method} request to: {url}")
-        if "json" in kwargs:
-            print(f"📦 Payload: {kwargs['json']}")
-
-        async with httpx.AsyncClient() as client:
-            response = await client.request(method, url, headers=self.headers, timeout=30.0, **kwargs)
-            print(f"📨 Response status: {response.status_code}")
-            if response.status_code >= 400:
-                print(f"❌ Response body: {response.text}")
-            response.raise_for_status()
-            return response.json()
+        super().__init__(base_url)
 
     async def get_policies(self, search_text: Optional[str] = None, page_size: int = 50):
         """Get available policies and training runs."""
@@ -37,13 +20,16 @@ class MettaAPIClient:
             "search_text": search_text,  # Use None instead of empty string
             "pagination": {"page": 1, "page_size": page_size},
         }
-        return await self._make_request("POST", url, json=payload)
+        return await self._make_request(PoliciesResponse, "POST", url, json=payload)
 
     async def get_eval_names(self, training_run_ids: List[str], run_free_policy_ids):
         """Get evaluation names for selected policies."""
         url = "/heatmap/evals"
         payload = {"training_run_ids": training_run_ids, "run_free_policy_ids": run_free_policy_ids}
-        return await self._make_request("POST", url, json=payload)
+        headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
+        response = await self._http_client.request("POST", url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
 
     async def get_available_metrics(
         self, training_run_ids: List[str], run_free_policy_ids: List[str], eval_names: List[str]
@@ -55,7 +41,10 @@ class MettaAPIClient:
             "run_free_policy_ids": run_free_policy_ids,
             "eval_names": eval_names,
         }
-        return await self._make_request("POST", url, json=payload)
+        headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
+        response = await self._http_client.request("POST", url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
 
     async def generate_heatmap(
         self,
@@ -74,7 +63,7 @@ class MettaAPIClient:
             "metric": metric,
             "training_run_policy_selector": policy_selector,
         }
-        return await self._make_request("POST", url, json=payload)
+        return await self._make_request(HeatmapData, "POST", url, json=payload)
 
     async def get_all_training_runs(self, search_text: Optional[str] = None, page_size: int = 100):
         """Get all training run names."""
@@ -83,7 +72,7 @@ class MettaAPIClient:
             "search_text": search_text,  # Use None instead of empty string
             "pagination": {"page": 1, "page_size": page_size},
         }
-        return await self._make_request("POST", url, json=payload)
+        return await self._make_request(PoliciesResponse, "POST", url, json=payload)
 
 
 async def test_api_connection_fixed(api_base_url: str):
@@ -96,10 +85,10 @@ async def test_api_connection_fixed(api_base_url: str):
         print("\n📋 Testing /heatmap/policies endpoint...")
         policies_response = await client.get_policies(page_size=5)
         print(f"✅ Success! Got response: {type(policies_response)}")
-        if isinstance(policies_response, dict) and "policies" in policies_response:
-            print(f"📊 Found {len(policies_response['policies'])} policies")
-            if policies_response["policies"]:
-                print(f"🔍 Sample policy: {policies_response['policies'][0]}")
+        if hasattr(policies_response, "policies"):
+            print(f"📊 Found {len(policies_response.policies)} policies")
+            if policies_response.policies:
+                print(f"🔍 Sample policy: {policies_response.policies[0]}")
         else:
             print(f"⚠️  Unexpected response structure: {policies_response}")
         return True
@@ -141,9 +130,9 @@ async def fetch_real_heatmap_data(
 
     # Find training run IDs that match our training run names
     training_run_ids = []
-    for policy in policies_data["policies"]:
-        if policy["type"] == "training_run" and any(run_name in policy["name"] for run_name in training_run_names):
-            training_run_ids.append(policy["id"])
+    for policy in policies_data.policies:
+        if policy.type == "training_run" and any(run_name in policy.name for run_name in training_run_names):
+            training_run_ids.append(policy.id)
 
     if not training_run_ids:
         print(f"❌ No training runs found matching: {training_run_names}")
@@ -177,40 +166,47 @@ async def fetch_real_heatmap_data(
     keys = eval_names
     heatmap_data = await client.generate_heatmap(training_run_ids, [], keys, primary_metric, policy_selector)
 
-    if not heatmap_data["policyNames"]:
+    if not heatmap_data.policyNames:
         raise Exception("❌ No heatmap policyNames. No heatmap data generated")
 
     # Limit policies if requested
-    policy_names = heatmap_data["policyNames"]
+    policy_names = heatmap_data.policyNames
     if len(policy_names) > max_policies:
         # Sort by average score and take top N
-        avg_scores = heatmap_data["policyAverageScores"]
+        avg_scores = heatmap_data.policyAverageScores
         top_policies = sorted(avg_scores.keys(), key=lambda p: avg_scores[p], reverse=True)[:max_policies]
 
         # Filter the data
-        filtered_cells = {p: heatmap_data["cells"][p] for p in top_policies if p in heatmap_data["cells"]}
-        heatmap_data["policyNames"] = top_policies
-        heatmap_data["cells"] = filtered_cells
-        heatmap_data["policyAverageScores"] = {p: avg_scores[p] for p in top_policies if p in avg_scores}
+        filtered_cells = {p: heatmap_data.cells[p] for p in top_policies if p in heatmap_data.cells}
+        heatmap_data.policyNames = top_policies
+        heatmap_data.cells = filtered_cells
+        heatmap_data.policyAverageScores = {p: avg_scores[p] for p in top_policies if p in avg_scores}
 
     # Step 5: Convert to widget format
     cells = {}
-    for policy_name in heatmap_data["policyNames"]:
+    for policy_name in heatmap_data.policyNames:
         cells[policy_name] = {}
-        for eval_name in heatmap_data["evalNames"]:
-            cell = heatmap_data["cells"].get(policy_name, {}).get(eval_name, {})
-            cells[policy_name][eval_name] = {
-                "metrics": {primary_metric: cell.get("value", 0.0)},
-                "replayUrl": cell.get("replayUrl"),
-                "evalName": eval_name,
-            }
+        for eval_name in heatmap_data.evalNames:
+            cell = heatmap_data.cells.get(policy_name, {}).get(eval_name)
+            if cell:
+                cells[policy_name][eval_name] = {
+                    "metrics": {primary_metric: cell.value},
+                    "replayUrl": cell.replayUrl,
+                    "evalName": eval_name,
+                }
+            else:
+                cells[policy_name][eval_name] = {
+                    "metrics": {primary_metric: 0.0},
+                    "replayUrl": None,
+                    "evalName": eval_name,
+                }
 
     # Create widget
     widget = create_heatmap_widget()
     widget.set_multi_metric_data(
         cells=cells,
-        eval_names=heatmap_data["evalNames"],
-        policy_names=heatmap_data["policyNames"],
+        eval_names=heatmap_data.evalNames,
+        policy_names=heatmap_data.policyNames,
         metrics=[primary_metric],
         selected_metric=primary_metric,
     )
