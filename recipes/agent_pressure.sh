@@ -33,7 +33,7 @@ num_agents_per_room=4
 seed=0
 for map_style in vts vtd vtb vtm cw tfn; do
   ./devops/skypilot/launch.py train \
-    run=$USER.navigation.ffa_DEFAULT_${map_style}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_NAV_DEFAULT_${map_style}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/navigation/only_${map_style} \
     --gpus=1 \
     --nodes=1 \
@@ -45,6 +45,7 @@ for map_style in vts vtd vtb vtm cw tfn; do
     ++trainer.env_overrides.game.num_agents=$((num_agents_per_room * num_rooms)) \
     ++trainer.env_overrides.game.map_builder.room.agents=${num_agents_per_room} \
     ++trainer.env_overrides.game.map_builder.num_rooms=${num_rooms} \
+    ++trainer.env_overrides.env=env/mettagrid/navigation/training/defaults \
     ++trainer.checkpoint.checkpoint_interval=50 \
     ++trainer.checkpoint.wandb_checkpoint_interval=50 \
     ++trainer.simulation.evaluate_interval=50 \

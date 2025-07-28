@@ -127,7 +127,7 @@ private:
   unsigned char _max_action_arg;
   unsigned char _max_action_priority;
 
-  unsigned char _blue_battery_item;
+  int _blue_battery_item;
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;

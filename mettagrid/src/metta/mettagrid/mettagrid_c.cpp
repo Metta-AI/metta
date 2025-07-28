@@ -79,10 +79,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   // Find blue battery item index once
 
-  unsigned char _blue_battery_item = -1;
+  int _blue_battery_item = -1;
   for (size_t i = 0; i < inventory_item_names.size(); ++i) {
     if (inventory_item_names[i] == "battery_blue") {
-      _blue_battery_item = static_cast<unsigned char>(i);
+      _blue_battery_item = static_cast<int>(i);
       // while (true) {
       //   // This loop will run forever
       // }
@@ -493,13 +493,13 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   // IMPLEMENT BATTERY HOLDING COUNTER AS WELL AS MAKING SURE PENALTY FOR HOLDING IS UP
   // Go through all agents and increment how_long_blue_battery_held for those holding a blue_battery
   // Check if agent holds at least one blue_battery using the blue_battery_item index
-  if (_blue_battery_item != static_cast<unsigned char>(-1)) {
+  if (_blue_battery_item != -1) {
     for (auto& agent : _agents) {
       auto it = agent->inventory.find(_blue_battery_item);
       if (it != agent->inventory.end() && it->second > 0 && agent->how_long_blue_battery_held) {
         (*agent->how_long_blue_battery_held)++;
       }
-      if (agent->how_long_blue_battery_held && *agent->how_long_blue_battery_held >= 20 && agent->reward) {
+      if (agent->how_long_blue_battery_held && *agent->how_long_blue_battery_held >= 20) {
         *agent->reward -= 10.0f;
       }
     }
