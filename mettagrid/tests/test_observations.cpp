@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <set>
 #include <vector>
 
@@ -94,15 +95,30 @@ TEST_P(ObservationPatternParamTest, MatchesReferenceOffsets) {
   EXPECT_EQ(actual, expected);
 }
 
-INSTANTIATE_TEST_MACRO(PackedCoordinate,
-                       ObservationPatternParamTest,
-                       ::testing::Values(std::make_pair(3, 9),
-                                         std::make_pair(7, 3),
-                                         std::make_pair(5, 5),
-                                         std::make_pair(1, 1),
-                                         std::make_pair(1, 5),
-                                         std::make_pair(5, 1)),
-                       [](const ::testing::TestParamInfo<std::pair<int, int>>& info) -> std::string {
-                         return std::string("H") + std::to_string(info.param.first) + std::string("_W") +
-                                std::to_string(info.param.second);
-                       });
+// Compatibility macro for different GoogleTest versions
+// INSTANTIATE_TEST_SUITE_P was introduced in GoogleTest 1.10.0 (2019)
+// Prior versions used INSTANTIATE_TEST_CASE_P
+#ifdef INSTANTIATE_TEST_SUITE_P
+// Modern GoogleTest (1.10.0+)
+#define GTEST_INSTANTIATE_TEST_MACRO INSTANTIATE_TEST_SUITE_P
+#else
+// Older GoogleTest
+#ifdef INSTANTIATE_TEST_CASE_P
+#define GTEST_INSTANTIATE_TEST_MACRO INSTANTIATE_TEST_CASE_P
+#else
+#error "No suitable GoogleTest instantiation macro found"
+#endif
+#endif
+
+GTEST_INSTANTIATE_TEST_MACRO(PackedCoordinate,
+                             ObservationPatternParamTest,
+                             ::testing::Values(std::make_pair(3, 9),
+                                               std::make_pair(7, 3),
+                                               std::make_pair(5, 5),
+                                               std::make_pair(1, 1),
+                                               std::make_pair(1, 5),
+                                               std::make_pair(5, 1)),
+                             [](const ::testing::TestParamInfo<std::pair<int, int>>& info) -> std::string {
+                               return std::string("H") + std::to_string(info.param.first) + std::string("_W") +
+                                      std::to_string(info.param.second);
+                             });
