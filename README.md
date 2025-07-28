@@ -172,6 +172,13 @@ metta configure    # Reconfigure for a different profile
 The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/)
 for configuration management, which allows flexible parameter overrides and composition.
 
+#### Hydra Configuration Patterns
+
+- Use `+` prefix to add new config groups: `+hardware=macbook`
+- Use `++` prefix to force override: `++trainer.device=cpu`
+- Config composition order matters - later overrides take precedence
+
+Common patterns:
 - **Override parameters**: `param=value` sets configuration values directly
 - **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
 - **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
