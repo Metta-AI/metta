@@ -1,8 +1,3 @@
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wglobal-constructors"
-#endif
-
 #include <benchmark/benchmark.h>
 #include <pybind11/embed.h>
 #include <pybind11/numpy.h>

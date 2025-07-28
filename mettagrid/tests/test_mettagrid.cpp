@@ -1,8 +1,3 @@
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wglobal-constructors"
-#endif
-
 #include <gtest/gtest.h>
 
 #include "actions/attack.hpp"
