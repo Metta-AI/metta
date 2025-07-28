@@ -1,4 +1,5 @@
 # Environment and IDE
+.claude/tasks
 .envrc
 .env
 .env.*

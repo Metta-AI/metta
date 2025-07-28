@@ -423,8 +423,8 @@ def load_or_initialize_policy(
         default_policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
         logger.info(f"Rank {rank}: Waiting for master to create policy at {default_policy_path}")
 
-        # Synchronize with master before attempting to load
-        torch.distributed.barrier()
+        # NOTE: No barrier here - we let the file wait handle synchronization
+        # The master will hit the barrier after saving the policy
 
         def log_progress(elapsed: float, status: str) -> None:
             if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
@@ -445,6 +445,14 @@ def load_or_initialize_policy(
         policy = policy_record.policy
         initial_policy_record = policy_record
         latest_saved_policy_record = policy_record
+
+        logger.info(f"Rank {rank}: Successfully loaded policy from {default_policy_path}")
+
+        # Synchronize after loading to ensure all non-master ranks are ready
+        if torch.distributed.is_initialized():
+            logger.info(f"Rank {rank}: Entering barrier after policy load")
+            torch.distributed.barrier()
+            logger.info(f"Rank {rank}: Barrier complete after policy load")
 
     # Master rank or single GPU
     else:
@@ -496,8 +504,11 @@ def load_or_initialize_policy(
 
             # Synchronize with non-master ranks after saving
             if torch.distributed.is_initialized():
-                logger.info("Master rank: Policy saved, synchronizing with other ranks")
+                logger.info(
+                    f"Master rank {rank}: Policy saved to {saved_pr.uri}, entering barrier to sync with other ranks"
+                )
                 torch.distributed.barrier()
+                logger.info(f"Master rank {rank}: Barrier complete, all ranks synchronized")
 
     # Initialize policy to environment
     if hasattr(policy, "initialize_to_environment"):
