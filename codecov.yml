@@ -105,7 +105,6 @@ ignore:
   - "**/*.dylib" # macOS dynamic libraries
   - "**/*.dll" # Windows dynamic libraries
 
-
 # GitHub integration settings
 github_checks:
   annotations: false # hide coverage annotations in PR files view

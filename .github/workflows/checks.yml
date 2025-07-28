@@ -319,9 +319,10 @@ jobs:
           runtime_issues=${{ steps.mettagrid_build_check.outputs.runtime_issues }}
           max_warnings=50
 
-          # Default runtime_issues to 0 if not set
-          if [ -z "$runtime_issues" ]; then
-            runtime_issues=0
+          # Fail if any of the values are not set
+          if [ -z "$errors" ] || [ -z "$warnings" ] || [ -z "$runtime_issues" ]; then
+            echo "❌ Missing value for errors, warnings, or runtime issues!"
+            exit 1
           fi
 
           echo "Build Summary: $errors errors, $warnings warnings, $runtime_issues runtime issues"
