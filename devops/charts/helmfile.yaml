@@ -1,108 +1,115 @@
 repositories:
-- name: external-dns
-  url: https://kubernetes-sigs.github.io/external-dns/
-- name: cert-manager
-  url: https://charts.jetstack.io
-- name: ingress-nginx
-  url: https://kubernetes.github.io/ingress-nginx
-- name: metrics-server
-  url: https://kubernetes-sigs.github.io/metrics-server/
+  - name: external-dns
+    url: https://kubernetes-sigs.github.io/external-dns/
+  - name: cert-manager
+    url: https://charts.jetstack.io
+  - name: ingress-nginx
+    url: https://kubernetes.github.io/ingress-nginx
+  - name: metrics-server
+    url: https://kubernetes-sigs.github.io/metrics-server/
 
 releases:
-########## Core infrastructure ##########
-- name: external-dns
-  chart: external-dns/external-dns
-  version: 1.17.0
-  namespace: external-dns
-  values:
-  - env:
-      - name: AWS_DEFAULT_REGION
-        value: us-east-1
-    serviceAccount:
-      annotations:
-        # created by terraform
-        eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/external-dns
+  ########## Core infrastructure ##########
+  - name: external-dns
+    chart: external-dns/external-dns
+    version: 1.17.0
+    namespace: external-dns
+    values:
+      - env:
+          - name: AWS_DEFAULT_REGION
+            value: us-east-1
+        serviceAccount:
+          annotations:
+            # created by terraform
+            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/external-dns
 
-- name: cert-manager
-  chart: ./cert-manager
-  version: v1.18.1
-  namespace: cert-manager
-  values:
-  - installCRDs: true
+  - name: cert-manager
+    chart: ./cert-manager
+    version: v1.18.1
+    namespace: cert-manager
+    values:
+      - installCRDs: true
 
-- name: ingress-nginx
-  chart: ingress-nginx/ingress-nginx
-  version: 4.11.3
-  namespace: ingress-nginx
-  values:
-  # The initial version of these values is borrowed from skypilot chart.
-  # Comments below come from skypilot chart too. (Probably could be simplified since we're committed to AWS.)
-  # Since we use ingress-nginx for more than just skypilot, we install it separately.
-  - controller:
-      service:
-        type: LoadBalancer
-        # Default annotations for the ingress controller service. We want an L4 loadbalancer by default for maximum compatibility,
-        # especially for websocket SSH tunneling. Different cloud providers may require different annotations.
-        # Annotations with no side effects are aggregated below to simplify the usage.
-        annotations:
-          # For AWS service reconciled by cloud-controller-manager, use NLB by default.
-          # If you are using AWS Load Balancer Controller, refer to the following doc to configure annotations:
-          # https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/service/annotations/
-          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-          # For GKE, use backend service-based external passthrough Network Load Balancer as per best practices.
-          # Ref: https://cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer#load_balancer_types
-          cloud.google.com/l4-rbs: "enabled"
-          # For Azure, override the healthz check protocol to TCP probe to avoid HTTP auth issues.
-          service.beta.kubernetes.io/port_443_health-probe_protocol: "TCP"
-          service.beta.kubernetes.io/port_80_health-probe_protocol: "TCP"
-          service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-      config:
-        # necessary for observatory, we strip headers in observatory-api ingress
-        allow-snippet-annotations: true
-        http-snippet: |
-          map $http_upgrade $connection_upgrade {
-              default upgrade;
-              ''      close;
-          }
+  - name: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
+    version: 4.11.3
+    namespace: ingress-nginx
+    values:
+      # The initial version of these values is borrowed from skypilot chart.
+      # Comments below come from skypilot chart too. (Probably could be simplified since we're committed to AWS.)
+      # Since we use ingress-nginx for more than just skypilot, we install it separately.
+      - controller:
+          service:
+            type: LoadBalancer
+            # Default annotations for the ingress controller service. We want an L4 loadbalancer by default for maximum compatibility,
+            # especially for websocket SSH tunneling. Different cloud providers may require different annotations.
+            # Annotations with no side effects are aggregated below to simplify the usage.
+            annotations:
+              # For AWS service reconciled by cloud-controller-manager, use NLB by default.
+              # If you are using AWS Load Balancer Controller, refer to the following doc to configure annotations:
+              # https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/service/annotations/
+              service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+              # For GKE, use backend service-based external passthrough Network Load Balancer as per best practices.
+              # Ref: https://cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer#load_balancer_types
+              cloud.google.com/l4-rbs: "enabled"
+              # For Azure, override the healthz check protocol to TCP probe to avoid HTTP auth issues.
+              service.beta.kubernetes.io/port_443_health-probe_protocol: "TCP"
+              service.beta.kubernetes.io/port_80_health-probe_protocol: "TCP"
+              service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+          config:
+            # necessary for observatory, we strip headers in observatory-api ingress
+            allow-snippet-annotations: true
+            http-snippet: |
+              map $http_upgrade $connection_upgrade {
+                  default upgrade;
+                  ''      close;
+              }
 
-- name: metrics-server
-  chart: metrics-server/metrics-server
-  version: 3.12.2
-  namespace: metrics-server
+  - name: metrics-server
+    chart: metrics-server/metrics-server
+    version: 3.12.2
+    namespace: metrics-server
 
-########## Skypilot ##########
-- name: skypilot
-  chart: ./skypilot
-  version: 0.0.6
-  namespace: skypilot
-  values:
-  - apiService:
-      config: |
-        jobs:
-          bucket: s3://skypilot-jobs/
-    awsCredentials:
-      enabled: true
-    ingress:
-      # created by terraform
-      authSecret: skypilot-basic-auth
-      certManager:
-        clusterIssuer: letsencrypt
-        enabled: true
-      host: skypilot-api.softmax-research.net
-    ingress-nginx:
-      enabled: false
-    lambdaAiCredentials:
-      enabled: true
-      # created by terraform
-      lambdaAiSecretName: lambda-ai-credentials
-    storage:
-      size: 50Gi
+  ########## Skypilot ##########
+  - name: skypilot
+    chart: ./skypilot
+    version: 0.0.8
+    namespace: skypilot
+    values:
+      - apiService:
+          config: |
+            jobs:
+              bucket: s3://skypilot-jobs/
+        awsCredentials:
+          enabled: true
+        ingress:
+          certManager:
+            clusterIssuer: letsencrypt
+            enabled: true
+          host: skypilot-api.softmax-research.net
+          oauth2-proxy:
+            enabled: true
+            oidc-issuer-url: https://accounts.google.com
+            use-https: true
+            email-domain: stem.ai,softmax.com
+            # This secret must be created manually.
+            # (it's not possible to automate it because it's not possible to terraform oauth clients in GCP)
+            client-details-from-secret: skypilot-oauth2-proxy-details
+        # managed as a separate chart, see above
+        ingress-nginx:
+          enabled: false
+        lambdaCredentials:
+          enabled: true
+          # created by terraform
+          lambdaSecretName: lambda-ai-credentials
+        storage:
+          size: 50Gi
 
-- name: orchestrator
-  chart: ./orchestrator
-  version: 0.1.0
-  namespace: observatory
-  hooks:
-  - events: ["presync"]
-    command: "kubectl"
-    args: ["create", "namespace", "orchestrator", "--dry-run=client"]
+  - name: orchestrator
+    chart: ./orchestrator
+    version: 0.1.0
+    namespace: observatory
+    hooks:
+      - events: ["presync"]
+        command: "kubectl"
+        args: ["create", "namespace", "orchestrator", "--dry-run=client"]
