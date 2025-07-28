@@ -123,38 +123,6 @@ Metta AI is a reinforcement learning project focusing on the emergence of cooper
   - `metta.agent.policy_store.PolicyStore` - Manages policy checkpoints
   - `metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
 
-#### Environment System
-- Gridworld environments with agents, resources, and interaction rules
-- Procedural world generation with customizable configurations
-- Various environment types with different dynamics and challenges
-- Support for different kinship schemes and mate selection mechanisms
-- Key components:
-  - `mettagrid/` - C++ core implementation for performance
-  - `metta.map.mapgen` - Procedural map generation
-  - `metta.map.scene` - Scene configuration and loading
-
-#### Training Infrastructure
-- Distributed reinforcement learning with multi-GPU support
-- Integration with Weights & Biases for experiment tracking
-- Scalable architecture for training large-scale multi-agent systems
-- Support for curriculum learning and knowledge distillation
-- Key components:
-  - `metta.rl.trainer.Trainer` - Main training loop
-  - `metta.rl.vecenv` - Vectorized environment wrapper
-  - `metta.rl.kickstarter` - Policy initialization strategies
-
-#### Evaluation System
-- Comprehensive suite of intelligence evaluations
-- Navigation tasks, maze solving, in-context learning
-- Cooperation and competition metrics
-- Support for tracking and comparing multiple policies
-- Key components:
-  - `metta.sim.simulation.Simulation` - Core simulation engine
-  - `metta.sim.simulation_suite` - Evaluation task suites
-  - `metta.eval.eval_stats_db` - SQLite-based stats storage
-
----
-
 ## Development Guide
 
 ### Environment Setup
