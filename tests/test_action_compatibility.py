@@ -1,9 +1,13 @@
 """Test cases demonstrating action compatibility breaking changes."""
 
 import numpy as np
+import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+
+# Path to documentation for action compatibility issues
+ACTION_COMPATIBILITY_DOC = "docs/action_compatibility.md"
 
 
 def create_basic_config():
@@ -69,6 +73,18 @@ def create_simple_map():
     return game_map
 
 
+@pytest.fixture
+def basic_config():
+    """Fixture for basic configuration."""
+    return create_basic_config()
+
+
+@pytest.fixture
+def simple_map():
+    """Fixture for simple map."""
+    return create_simple_map()
+
+
 def test_action_index_changes():
     """Test that action order is fixed regardless of config order.
 
@@ -114,7 +130,9 @@ def test_action_index_changes():
     success2 = env2.action_success()[0]
 
     # Both should have the same result
-    assert success1 == success2
+    assert success1 == success2, (
+        f"Action index mismatch detected! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
     print(f"Action index 0 in both envs executes 'move': success={success1}")
 
 
@@ -137,10 +155,14 @@ def test_max_arg_reduction():
     backward_action = np.array([[move_idx, 1]], dtype=np.int32)
 
     env.step(forward_action)
-    assert env.action_success()[0] or env.action_success()[1] != "invalid_arg", "Action failed due to invalid argument"
+    assert env.action_success()[0] or env.action_success()[1] != "invalid_arg", (
+        f"Action failed due to invalid argument. See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
 
     env.step(backward_action)
-    assert env.action_success()[0] or env.action_success()[1] != "invalid_arg", "Action failed due to invalid argument"
+    assert env.action_success()[0] or env.action_success()[1] != "invalid_arg", (
+        f"Action failed due to invalid argument. See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
 
     # If we could modify max_arg at runtime (which we can't in current implementation),
     # the backward action would become invalid
@@ -163,7 +185,9 @@ def test_resource_requirement_changes():
     # Agent starts with no resources, so move should fail
     env1.step(move_action)
     success_without_resources = env1.action_success()[0]
-    assert not success_without_resources
+    assert not success_without_resources, (
+        f"Resource requirement change not detected! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
 
     # Create config where move requires no resources
     config2 = create_basic_config()
@@ -198,8 +222,12 @@ def test_inventory_item_reordering():
     env1 = MettaGrid(from_mettagrid_config(config1), create_simple_map(), 42)  # Changed seed=42 to 42
     env2 = MettaGrid(from_mettagrid_config(config2), create_simple_map(), 42)  # Changed seed=42 to 42
 
-    assert env1.inventory_item_names() == ["ore", "wood"]
-    assert env2.inventory_item_names() == ["wood", "ore"]
+    assert env1.inventory_item_names() == ["ore", "wood"], (
+        f"Inventory item order changed! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
+    assert env2.inventory_item_names() == ["wood", "ore"], (
+        f"Inventory item order changed! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
 
 
 def test_action_validation_stats():
@@ -241,7 +269,9 @@ def test_action_space_dimensions():
     max_arg_plus_one = action_space.nvec[1]
 
     # Should match our configuration
-    assert num_actions == len(env.action_names())
+    assert num_actions == len(env.action_names()), (
+        f"Action space dimension mismatch! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
 
     print(f"Action space shape: {action_space.nvec}")
     print(f"Num actions: {num_actions}, Max arg: {max_arg_plus_one - 1}")
@@ -262,21 +292,14 @@ def test_special_attack_action():
     action_names = env.action_names()
 
     # Attack should be present in the action list
-    assert "attack" in action_names
+    assert "attack" in action_names, (
+        f"Attack action not found! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
 
     # Check the order - attack should come first before the basic actions
     expected_actions = ["attack", "move", "noop", "rotate"]
-    assert action_names == expected_actions
+    assert action_names == expected_actions, (
+        f"Action order mismatch with attack! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
+    )
 
     print(f"Action names with attack: {action_names}")
-
-
-if __name__ == "__main__":
-    # Run tests to demonstrate breaking changes
-    test_action_index_changes()
-    test_max_arg_reduction()
-    test_resource_requirement_changes()
-    test_inventory_item_reordering()
-    test_action_validation_stats()
-    test_action_space_dimensions()
-    test_special_attack_action()
