@@ -89,7 +89,7 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
       {/* Authors */}
       {paper.authors && paper.authors.length > 0 && (
         <div className="text-sm text-gray-700 mb-3">
-          <span className="font-medium">Authors:</span> {paper.authors.join(', ')}
+          <span className="font-medium">Authors:</span> {paper.authors.map(author => author.name).join(', ')}
         </div>
       )}
 

@@ -8,7 +8,7 @@ export interface Paper {
   id: string;
   title: string;
   abstract: string | null;
-  authors: string[] | null;
+  authors?: { id: string; name: string; orcid?: string | null; institution?: string | null }[];
   institutions: string[] | null;
   tags: string[] | null;
   link: string | null;
@@ -66,8 +66,23 @@ export async function loadPapersWithUserContext(): Promise<{
     const session = await auth();
     const currentUserId = session?.user?.id;
 
-    // Fetch all papers
-    const papers = await prisma.paper.findMany();
+    // Fetch all papers with their authors
+    const papers = await prisma.paper.findMany({
+      include: {
+        paperAuthors: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                orcid: true,
+                institution: true
+              }
+            }
+          }
+        }
+      }
+    });
     
     // Fetch all users
     const users = await prisma.user.findMany();
@@ -89,11 +104,17 @@ export async function loadPapersWithUserContext(): Promise<{
       currentUserInteractionsMap.set(interaction.paperId, interaction);
     });
 
-    // Add current user context to papers
+    // Add current user context to papers and transform author data
     const papersWithContext: PaperWithUserContext[] = papers.map(paper => {
       const userInteraction = currentUserInteractionsMap.get(paper.id);
       return {
         ...paper,
+        authors: paper.paperAuthors.map(pa => ({
+          id: pa.author.id,
+          name: pa.author.name,
+          orcid: pa.author.orcid,
+          institution: pa.author.institution
+        })),
         isStarredByCurrentUser: userInteraction?.starred || false,
         isQueuedByCurrentUser: userInteraction?.queued || false,
       };
@@ -122,8 +143,23 @@ export async function loadPapers(): Promise<{
   interactions: UserInteraction[];
 }> {
   try {
-    // Fetch all papers
-    const papers = await prisma.paper.findMany();
+    // Fetch all papers with their authors
+    const papers = await prisma.paper.findMany({
+      include: {
+        paperAuthors: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                orcid: true,
+                institution: true
+              }
+            }
+          }
+        }
+      }
+    });
     
     // Fetch all users
     const users = await prisma.user.findMany();
@@ -131,8 +167,19 @@ export async function loadPapers(): Promise<{
     // Fetch all user interactions
     const interactions = await prisma.userPaperInteraction.findMany();
     
+    // Transform papers to include author data
+    const papersWithAuthors = papers.map(paper => ({
+      ...paper,
+      authors: paper.paperAuthors.map(pa => ({
+        id: pa.author.id,
+        name: pa.author.name,
+        orcid: pa.author.orcid,
+        institution: pa.author.institution
+      }))
+    }));
+    
     return {
-      papers,
+      papers: papersWithAuthors,
       users,
       interactions
     };
@@ -152,16 +199,42 @@ export async function loadPapersForUser(userId: string): Promise<{
   userInteractions: UserInteraction[];
 }> {
   try {
-    // Fetch all papers
-    const papers = await prisma.paper.findMany();
+    // Fetch all papers with their authors
+    const papers = await prisma.paper.findMany({
+      include: {
+        paperAuthors: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                orcid: true,
+                institution: true
+              }
+            }
+          }
+        }
+      }
+    });
     
     // Fetch user interactions for the specific user
     const userInteractions = await prisma.userPaperInteraction.findMany({
       where: { userId },
     });
     
+    // Transform papers to include author data
+    const papersWithAuthors = papers.map(paper => ({
+      ...paper,
+      authors: paper.paperAuthors.map(pa => ({
+        id: pa.author.id,
+        name: pa.author.name,
+        orcid: pa.author.orcid,
+        institution: pa.author.institution
+      }))
+    }));
+    
     return {
-      papers,
+      papers: papersWithAuthors,
       userInteractions
     };
   } catch (error) {

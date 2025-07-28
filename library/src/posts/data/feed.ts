@@ -19,7 +19,7 @@ export type FeedPostDTO = {
     id: string;
     title: string;
     abstract: string | null;
-    authors: string[] | null;
+    authors?: { id: string; name: string; orcid?: string | null; institution?: string | null }[];
     institutions: string[] | null;
     tags: string[] | null;
     link: string | null;
@@ -56,7 +56,12 @@ export function toFeedPostDTO(dbModel: any, usersMap: Map<string, any>, papersMa
       id: paper.id,
       title: paper.title,
       abstract: paper.abstract,
-      authors: paper.authors,
+      authors: paper.paperAuthors?.map((pa: any) => ({
+        id: pa.author.id,
+        name: pa.author.name,
+        orcid: pa.author.orcid,
+        institution: pa.author.institution
+      })) || [],
       institutions: paper.institutions,
       tags: paper.tags,
       link: paper.link,
@@ -97,7 +102,22 @@ export async function loadFeedPosts({
     ],
     include: {
       author: true,
-      paper: true,
+      paper: {
+        include: {
+          paperAuthors: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  orcid: true,
+                  institution: true
+                }
+              }
+            }
+          }
+        }
+      },
     },
   });
 
