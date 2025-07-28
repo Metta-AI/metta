@@ -182,7 +182,13 @@ metta install aws wandb              # Install specific components
 
 2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
    ```bash
+   # Using local file
    uv run ./tools/sim.py run=eval policy_uri=file://./checkpoints/policy.pt
+
+   # Using wandb artifact (format: wandb://run/<run_name> or wandb://<entity>/<project>/<artifact_type>/<name>:<version>)
+   uv run ./tools/sim.py run=eval policy_uri=wandb://run/my-training-run
+   # or
+   uv run ./tools/sim.py run=eval policy_uri=wandb://softmax-ai/metta/model/policy_checkpoint:v42
    ```
 
 3. **Analysis**: `tools/analyze.py` - Analyze evaluation results and generate reports
@@ -195,9 +201,9 @@ metta install aws wandb              # Install specific components
    uv run ./tools/play.py run=play +hardware=macbook
    ```
 
-5. **Sweep Management**: `tools/sweep_setup.py`, `tools/sweep_prepare_run.py` - Hyperparameter sweep tools
-
 #### Visualization Tools
+
+**Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear feedback. Consider running them in separate terminals outside of Claude Code.
 
 - **MettaScope**: Run `cd mettascope && npm run dev` for interactive replay viewer
 - **Observatory**: Run `cd observatory && npm run dev` for training dashboard
@@ -207,15 +213,15 @@ metta install aws wandb              # Install specific components
 
 See @.cursor/commands.md for quick test commands and examples.
 
-### Code Quality
+#### Code Quality
 
 ```bash
 # Run all tests with coverage
 metta test --cov=mettagrid --cov-report=term-missing
 
 # Run specific test modules
-uv run pytest tests/rl/test_trainer_config.py -v
-uv run pytest tests/sim/ -v
+metta test tests/rl/test_trainer_config.py -v
+metta test tests/sim/ -v
 
 # Run linting and formatting on python files with Ruff
 metta lint # optional --fix and --staged arguments
@@ -236,68 +242,16 @@ Not needed, just run scripts, they'll work automatically through uv-powered sheb
 metta clean
 ```
 
-### Running Tests
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run tests with coverage
-uv run pytest --cov=metta --cov-report=term-missing
-
-# Run specific test file
-uv run pytest tests/test_specific.py
-
-# Run tests in parallel
-uv run pytest -n auto
-
-# Run only fast tests (skip slow tests)
-uv run pytest -m "not slow"
-```
-
-### Quick Test Commands (30-60 seconds total)
-
-```bash
-# Set a unique test ID for this testing session
-export TEST_ID=$(date +%Y%m%d_%H%M%S)
-echo "Test ID: $TEST_ID"
-
-# Basic training (will run indefinitely, terminate with Ctrl+C after ~30 seconds)
-uv run ./tools/train.py run=test_$TEST_ID +hardware=macbook trainer.num_workers=2
-
-# Using cursor config (limited to 100k steps)
-uv run ./tools/train.py +user=cursor run=cursor_$TEST_ID trainer.num_workers=2
-
-# Run simulations on trained model
-uv run ./tools/sim.py run=eval_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints device=cpu
-
-# Analyze results
-uv run ./tools/analyze.py run=analysis_$TEST_ID analysis.policy_uri=file://./train_dir/test_$TEST_ID/checkpoints analysis.eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
-```
-
 ### Configuration System
 
 The project uses OmegaConf for configuration, with config files organized in `configs/`:
 
-- `agent/`: Agent architecture configurations (tiny, small, medium, reference_design)
+- `agent/`: Agent architecture configurations (latent_attn_tiny, latent_attn_small, latent_attn_med, fast, reference_design)
 - `trainer/`: Training configurations
 - `sim/`: Simulation configurations (navigation, memory, arena, etc.)
 - `hardware/`: Hardware-specific settings (macbook, github)
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
-
-#### Using Hydra Configuration
-
-Most tools in `tools/` use Hydra for configuration:
-
-- **Override parameters**: `param=value` sets configuration values
-- **Compose configs**: `+group=option` loads from `configs/group/option.yaml`
-- **User configs**: `+user=<name>` loads from `configs/user/<name>.yaml`
-
-Example:
-```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off trainer.num_workers=4
-```
 
 #### Configuration Override Examples
 
@@ -315,7 +269,6 @@ uv run ./tools/train.py wandb=off
 #### Hydra Configuration Patterns
 
 - Use `+` prefix to add new config groups: `+hardware=macbook`
-- Use `~` prefix to override without schema validation: `~trainer.num_workers=2`
 - Use `++` prefix to force override: `++trainer.device=cpu`
 - Config composition order matters - later overrides take precedence
 
@@ -340,12 +293,14 @@ uv run ./tools/train.py wandb=off
 1. Enable debug logging: `HYDRA_FULL_ERROR=1`
 2. Use smaller batch sizes for debugging
 3. Check wandb logs for metrics anomalies
-4. Use `tools/play.py` for interactive debugging
+4. Use `tools/play.py` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
 
 #### Performance Profiling
 
 1. Use `torch.profiler` integration in trainer
-2. Monitor GPU utilization with `nvidia-smi`
+2. Monitor GPU utilization:
+   - On NVIDIA GPUs: `nvidia-smi`
+   - On macOS: Use Activity Monitor or `sudo powermetrics --samplers gpu_power`
 3. Check environment step timing in vecenv
 4. Profile C++ code with cmake debug builds
 
@@ -420,6 +375,8 @@ When reviewing code, focus on:
 - **Maintainability**: Look for code that will be difficult to modify or extend
 - **Documentation**: Ensure complex logic is properly documented
 - **Testing**: Verify that new functionality has appropriate test coverage
+- **Conciseness**: Less code is almost always preferred - avoid unnecessary complexity
+- **Professional Tone**: Avoid emojis in code, comments, and commit messages
 
 ---
 
