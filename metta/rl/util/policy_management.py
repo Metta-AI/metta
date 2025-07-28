@@ -395,3 +395,117 @@ def ensure_initial_policy(
         # Save through policy store
         saved_policy_record = policy_store.save(policy_record)
         logger.info(f"Saved initial policy to {saved_policy_record.uri}")
+
+
+def load_or_initialize_policy(
+    cfg: Any,
+    checkpoint: Optional[Any],
+    policy_store: Any,
+    metta_grid_env: Any,
+    device: torch.device,
+    is_master: bool,
+    rank: int,
+) -> Tuple[Any, Any, Any]:
+    """
+    Load or initialize policy with distributed coordination.
+
+    Returns:
+        Tuple of (policy, initial_policy_record, latest_saved_policy_record)
+    """
+    from metta.agent.metta_agent import make_policy
+    from metta.common.util.fs import wait_for_file
+
+    trainer_cfg = cfg.trainer
+
+    # Non-master ranks in distributed training
+    if torch.distributed.is_initialized() and not is_master:
+        # Non-master ranks wait for master to create and save the policy
+        default_policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
+        logger.info(f"Rank {rank}: Waiting for master to create policy at {default_policy_path}")
+
+        # Synchronize with master before attempting to load
+        torch.distributed.barrier()
+
+        def log_progress(elapsed: float, status: str) -> None:
+            if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                logger.info(f"Rank {rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+            elif status == "found":
+                logger.info(f"Rank {rank}: Policy file found, waiting for write to complete...")
+            elif status == "stable":
+                logger.info(f"Rank {rank}: Policy file stable after {elapsed:.1f}s")
+
+        if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
+
+        try:
+            policy_record = policy_store.policy_record(default_policy_path)
+        except Exception as e:
+            raise RuntimeError(f"Rank {rank}: Failed to load policy from {default_policy_path}: {e}") from e
+
+        policy = policy_record.policy
+        initial_policy_record = policy_record
+        latest_saved_policy_record = policy_record
+
+    # Master rank or single GPU
+    else:
+        policy_record = None
+
+        # Try checkpoint first
+        if checkpoint and checkpoint.policy_path:
+            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+            policy_record = policy_store.policy_record(checkpoint.policy_path)
+
+        # Try initial_policy from config
+        elif trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
+            logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
+            policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
+
+        # Try default checkpoint path
+        else:
+            default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
+            if os.path.exists(default_path):
+                logger.info(f"Loading policy from default path: {default_path}")
+                policy_record = policy_store.policy_record(default_path)
+
+        if policy_record:
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(policy_record.policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                policy_record.policy.restore_original_feature_mapping(
+                    policy_record.metadata["original_feature_mapping"]
+                )
+                logger.info("Restored original_feature_mapping")
+
+            policy = policy_record.policy
+            initial_policy_record = policy_record
+            latest_saved_policy_record = policy_record
+        else:
+            # Create new policy
+            logger.info("No existing policy found, creating new one")
+            name = policy_store.make_model_name(0)
+            pr = policy_store.create_empty_policy_record(name)
+            pr.policy = make_policy(metta_grid_env, cfg)
+            saved_pr = policy_store.save(pr)
+            logger.info(f"Created and saved new policy to {saved_pr.uri}")
+
+            policy = saved_pr.policy
+            initial_policy_record = saved_pr
+            latest_saved_policy_record = saved_pr
+
+            # Synchronize with non-master ranks after saving
+            if torch.distributed.is_initialized():
+                logger.info("Master rank: Policy saved, synchronizing with other ranks")
+                torch.distributed.barrier()
+
+    # Initialize policy to environment
+    if hasattr(policy, "initialize_to_environment"):
+        features = metta_grid_env.get_observation_features()
+        policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    else:
+        policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+
+    logger.info(f"Rank {rank}: USING {initial_policy_record.uri if initial_policy_record else 'new policy'}")
+
+    return policy, initial_policy_record, latest_saved_policy_record

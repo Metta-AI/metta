@@ -261,7 +261,6 @@ if is_master:
 # Create policy store with config structure matching what Hydra provides
 policy_store_config = {
     "device": str(device),
-    "policy_cache_size": 10,
     "run": dirs.run_name,
     "run_dir": dirs.run_dir,
     "vectorization": "serial",  # Set to serial for simplicity in this example

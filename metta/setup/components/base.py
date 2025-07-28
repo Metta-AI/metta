@@ -38,7 +38,8 @@ class SetupModule(ABC):
         pass
 
     def dependencies(self) -> list[str]:
-        # names of other components that must be installed before this one
+        # Other components that must be installed before this one
+        # It is assumed that `core` and `system` are always installed first
         return []
 
     def install(self) -> None:

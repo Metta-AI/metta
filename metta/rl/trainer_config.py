@@ -64,6 +64,9 @@ class SimulationConfig(BaseModelWithForbidExtra):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
+    evaluate_remote: bool = Field(default=False)
+    skip_git_check: bool = Field(default=False)
+    git_hash: str | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "SimulationConfig":

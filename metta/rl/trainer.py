@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from collections import defaultdict
@@ -9,8 +10,11 @@ import torch
 import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
+from rich.console import Console
+from rich.table import Table
 
 from metta.agent.metta_agent import DistributedMettaAgent
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -34,7 +38,7 @@ from metta.rl.util.optimization import (
     maybe_update_l2_weights,
 )
 from metta.rl.util.policy_management import (
-    maybe_load_checkpoint,
+    load_or_initialize_policy,
     validate_policy_environment_match,
 )
 from metta.rl.util.rollout import get_lstm_config
@@ -46,6 +50,7 @@ from metta.rl.util.stats import (
 from metta.rl.util.utils import check_abort, should_run
 from metta.rl.vecenv import make_vecenv
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_policy_to_wandb, upload_replay_html
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -137,31 +142,35 @@ def create_training_components(
     )
 
     # Load checkpoint and policy with distributed coordination
-    checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
-        run_dir=cfg.run_dir,
-        policy_store=policy_store,
-        trainer_cfg=trainer_cfg,
-        metta_grid_env=metta_grid_env,
-        cfg=cfg,
-        device=device,
-        is_master=is_master,
-        rank=rank,
-    )
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+    agent_step = 0
+    epoch = 0
+
+    if checkpoint:
+        agent_step = checkpoint.agent_step
+        epoch = checkpoint.epoch
+        logger.info(f"Restored from checkpoint at {agent_step} steps")
 
     # Restore timer state if checkpoint exists
     if checkpoint and checkpoint.stopwatch_state is not None:
         timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
+    # Load or initialize policy with distributed coordination
+    policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
+        cfg=cfg,
+        checkpoint=checkpoint,
+        policy_store=policy_store,
+        metta_grid_env=metta_grid_env,
+        device=device,
+        is_master=is_master,
+        rank=rank,
+    )
+
     # Extract initial policy info
-    latest_saved_policy_record = policy_record
-    initial_policy_uri = policy_record.uri if policy_record else None
-    initial_generation = policy_record.metadata.get("generation", 0) if policy_record else 0
-
-    policy = policy_record.policy
-
-    # Initialize policy to environment
-    features = metta_grid_env.get_observation_features()
-    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    initial_policy_uri = initial_policy_record.uri if initial_policy_record else None
+    initial_generation = initial_policy_record.metadata.get("generation", 0) if initial_policy_record else 0
 
     # Validate that policy matches environment
     validate_policy_environment_match(policy, metta_grid_env)
@@ -300,6 +309,75 @@ def create_master_trainer_components(
     return memory_monitor, system_monitor
 
 
+def log_master(message: str, level: str = "info", is_master: bool = True) -> None:
+    """Log a message only on the master node.
+
+    Args:
+        message: The message to log
+        level: The log level ('debug', 'info', 'warning', 'error', 'critical')
+        is_master: Whether this is the master rank
+    """
+    if not is_master:
+        return
+
+    log_func = getattr(logger, level, logger.info)
+    log_func(message)
+
+
+def log_training_status(
+    epoch: int,
+    agent_step: int,
+    total_timesteps: int,
+    timer: Stopwatch,
+    steps_before: int,
+    is_master: bool,
+) -> None:
+    """Log training status with rich console output."""
+    if not is_master:
+        return
+
+    rollout_time = timer.get_last_elapsed("_rollout")
+    train_time = timer.get_last_elapsed("_train")
+    stats_time = timer.get_last_elapsed("_process_stats")
+    steps_calculated = agent_step - steps_before
+
+    total_time = train_time + rollout_time + stats_time
+    steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
+
+    train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
+    rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+    stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
+
+    console = Console()
+    table = Table(
+        title=f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]",
+        show_header=True,
+        header_style="bold magenta",
+    )
+
+    # Add columns
+    table.add_column("Metric", style="cyan", justify="left")
+    table.add_column("Progress", style="green", justify="right")
+    table.add_column("Rate", style="yellow", justify="left")
+
+    # Add rows
+    progress_pct = (agent_step / total_timesteps) * 100
+    table.add_row(
+        "Agent Steps",
+        f"{agent_step:,} / {total_timesteps:,} ({progress_pct:.1f}%)",
+        f"[dim]{steps_per_sec:.0f} steps/sec[/dim]",
+    )
+
+    table.add_row(
+        "Epoch Time",
+        f"{total_time:.2f}s",
+        f"[dim]Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%[/dim]",
+    )
+
+    # Log the table
+    console.print(table)
+
+
 def train(
     cfg: DictConfig,
     wandb_run: Any | None,
@@ -309,9 +387,7 @@ def train(
     **kwargs: Any,
 ) -> None:
     """Functional training loop replacing MettaTrainer.train()."""
-    logger.info("Starting training")
-
-    # Create all components individually
+    # Create all components individually first to get is_master value
     (
         vecenv,
         policy,
@@ -344,6 +420,8 @@ def train(
         stats_client=stats_client,
     )
 
+    log_master("Starting training", is_master=is_master)
+
     # Create master-only components
     memory_monitor, system_monitor = create_master_trainer_components(
         policy=policy,
@@ -354,14 +432,32 @@ def train(
     )
 
     # Initialize stats tracking
-    _initialize_stats_tracking(stats_tracker, stats_client, wandb_run)
+    if stats_client is not None:
+        if wandb_run is not None:
+            name = wandb_run.name if wandb_run.name is not None else "unknown"
+            url = wandb_run.url
+            tags = list(wandb_run.tags) if wandb_run.tags is not None else None
+            description = wandb_run.notes
+        else:
+            name = "unknown"
+            url = None
+            tags = None
+            description = None
 
-    logger.info(f"Training on {device}")
+        try:
+            stats_tracker.stats_run_id = stats_client.create_training_run(
+                name=name, attributes={}, url=url, description=description, tags=tags
+            ).id
+        except Exception as e:
+            logger.warning(f"Failed to create training run: {e}")
+
+    log_master(f"Training on {device}", is_master=is_master)
     wandb_policy_name: str | None = None
 
     # Main training loop
     while agent_step < trainer_cfg.total_timesteps:
         steps_before = agent_step
+        record_heartbeat()
 
         with torch_profiler:
             # Rollout phase
@@ -399,11 +495,16 @@ def train(
         with timer("_process_stats"):
             if is_master and wandb_run:
                 # Create temporary initial_policy_record for process_stats
+                from metta.agent.policy_metadata import PolicyMetadata
+                from metta.agent.policy_record import PolicyRecord
+
                 initial_policy_record = None
                 if initial_policy_uri:
-                    initial_policy_record = type(
-                        "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
-                    )()
+                    # Create a minimal PolicyRecord for stats tracking
+                    metadata = PolicyMetadata(generation=initial_generation)
+                    initial_policy_record = PolicyRecord(
+                        policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
+                    )
 
                 process_stats(
                     stats=stats_tracker.rollout_stats,
@@ -429,36 +530,15 @@ def train(
             stats_tracker.clear_rollout_stats()
             stats_tracker.clear_grad_stats()
 
-        # Calculate performance metrics
-        rollout_time = timer.get_last_elapsed("_rollout")
-        train_time = timer.get_last_elapsed("_train")
-        stats_time = timer.get_last_elapsed("_process_stats")
-        steps_calculated = agent_step - steps_before
-
-        total_time = train_time + rollout_time + stats_time
-        steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
-
-        train_pct = (train_time / total_time) * 100
-        rollout_pct = (rollout_time / total_time) * 100
-        stats_pct = (stats_time / total_time) * 100
-
-        # Format total timesteps with scientific notation for large numbers
-        total_timesteps = trainer_cfg.total_timesteps
-        if total_timesteps >= 1e9:
-            total_steps_str = f"{total_timesteps:.0e}"
-        else:
-            total_steps_str = f"{total_timesteps:,}"
-
-        logger.info(
-            f"Epoch {epoch}- "
-            f"{steps_per_sec:.0f} SPS- "
-            f"step {agent_step}/{total_steps_str}- "
-            f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"
+        # Log training status
+        log_training_status(
+            epoch=epoch,
+            agent_step=agent_step,
+            total_timesteps=trainer_cfg.total_timesteps,
+            timer=timer,
+            steps_before=steps_before,
+            is_master=is_master,
         )
-
-        # Periodic tasks
-        if should_run(epoch, 10, is_master):
-            record_heartbeat()
 
         # Update L2 weights if configured
         if hasattr(policy, "l2_init_weight_update_interval"):
@@ -472,11 +552,15 @@ def train(
         # Save policy
         if checkpoint_manager.should_checkpoint(epoch):
             # Create initial policy record for metadata if needed
+            from metta.agent.policy_metadata import PolicyMetadata
+            from metta.agent.policy_record import PolicyRecord
+
             initial_policy_record = None
             if initial_policy_uri:
-                initial_policy_record = type(
-                    "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
-                )()
+                metadata = PolicyMetadata(generation=initial_generation)
+                initial_policy_record = PolicyRecord(
+                    policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
+                )
 
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
@@ -504,7 +588,7 @@ def train(
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
             wandb_policy_name = upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record)
 
-        # Evaluate policy
+        # Evaluate policy (with remote evaluation support)
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if latest_saved_policy_record:
                 # Create stats epoch if needed
@@ -516,6 +600,40 @@ def train(
                         attributes={},
                     ).id
 
+                # Check for remote evaluation
+                if (
+                    trainer_cfg.simulation.evaluate_remote
+                    and wandb_run
+                    and stats_client
+                    and wandb_policy_name  # ensures it was uploaded to wandb
+                ):
+                    # Remote evaluation
+                    if ":" not in wandb_policy_name:
+                        logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
+                    else:
+                        internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
+                        stats_server_policy_id = get_or_create_policy_ids(
+                            stats_client,
+                            [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
+                            stats_tracker.stats_epoch_id,
+                        ).get(internal_wandb_policy_name)
+                        if not stats_server_policy_id:
+                            logger.warning(
+                                f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}"
+                            )
+                        else:
+                            task = asyncio.run(
+                                stats_client.create_task(
+                                    TaskCreateRequest(
+                                        policy_id=stats_server_policy_id,
+                                        git_hash=trainer_cfg.simulation.git_hash,
+                                        sim_suite=sim_suite_config.name,
+                                    )
+                                )
+                            )
+                            logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
+
+                # Local evaluation
                 eval_scores = evaluate_policy(
                     latest_saved_policy_record,
                     sim_suite_config,
@@ -564,20 +682,24 @@ def train(
         if check_abort(wandb_run, trainer_cfg, agent_step):
             break
 
-    logger.info("Training complete!")
+    log_master("Training complete!", is_master=is_master)
     timing_summary = timer.get_all_summaries()
 
     for name, summary in timing_summary.items():
-        logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
+        log_master(f"  {name}: {timer.format_time(summary['total_elapsed'])}", is_master=is_master)
 
     # Force final saves
     if is_master:
         # Create initial policy record for metadata if needed
+        from metta.agent.policy_metadata import PolicyMetadata
+        from metta.agent.policy_record import PolicyRecord
+
         initial_policy_record = None
         if initial_policy_uri:
-            initial_policy_record = type(
-                "obj", (object,), {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}}
-            )()
+            metadata = PolicyMetadata(generation=initial_generation)
+            initial_policy_record = PolicyRecord(
+                policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
+            )
 
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
@@ -613,31 +735,3 @@ def train(
             memory_monitor.clear()
         if system_monitor:
             system_monitor.stop()
-
-
-def _initialize_stats_tracking(
-    stats_tracker: StatsTracker,
-    stats_client: Optional[Any],
-    wandb_run: Optional[Any],
-) -> None:
-    """Initialize stats tracking for training run."""
-    if stats_client is None:
-        return
-
-    if wandb_run is not None:
-        name = wandb_run.name if wandb_run.name is not None else "unknown"
-        url = wandb_run.url
-        tags = list(wandb_run.tags) if wandb_run.tags is not None else None
-        description = wandb_run.notes
-    else:
-        name = "unknown"
-        url = None
-        tags = None
-        description = None
-
-    try:
-        stats_tracker.stats_run_id = stats_client.create_training_run(
-            name=name, attributes={}, url=url, description=description, tags=tags
-        ).id
-    except Exception as e:
-        logger.warning(f"Failed to create training run: {e}")
