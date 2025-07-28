@@ -29,6 +29,9 @@ metta install nodejs
 
 3. Open your browser to the URL shown in the terminal (typically http://localhost:5173)
 
+
+4. For linting and formatting, run `pnpm run format ` and `npm run check:fix`
+
 ## Production Build
 
 1. Build the app:
