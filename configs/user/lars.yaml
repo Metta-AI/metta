@@ -5,14 +5,15 @@
 # trainer:
 #   env: /env/mettagrid/diversity/multi_left_or_right
 
-run: lars_sim_test_4
+run: lars_sim_test_5
 
 # policy_uri: wandb://run/sasmith.20250610.bisect.devbox
-# policy_uri: wandb://run/dd_navigation_curriculum
-policy_uri: wandb://run/gd_backchain_mem_pretrained
+policy_uri: wandb://run/dd_navigation_curriculum
+# policy_uri: wandb://run/gd_backchain_mem_pretrained
 
 # Doxascope configuration for collecting LSTM memory and position data
 sim_job:
   simulation_suite:
     doxascope:
       enabled: true
+

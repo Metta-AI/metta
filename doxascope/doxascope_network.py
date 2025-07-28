@@ -6,15 +6,17 @@ A PyTorch implementation of a neural network that predicts agent movement from L
 """
 
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
-from .doxascope_data import preprocess_doxascope_data
+from .doxascope_data import get_num_classes_for_manhattan_distance, preprocess_doxascope_data
 
 
 def get_activation_fn(name: str):
@@ -40,6 +42,15 @@ class DoxascopeDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 
+@dataclass
+class TrainingResult:
+    """Structured results from a training run."""
+
+    history: Dict[str, List[float]]
+    best_checkpoint: Dict
+    final_val_acc: float
+
+
 class DoxascopeNet(nn.Module):
     """
     Doxascope Neural Network Architecture
@@ -50,67 +61,65 @@ class DoxascopeNet(nn.Module):
         self,
         input_dim=512,
         hidden_dim=512,
-        num_classes=5,
         dropout_rate=0.4,
-        num_future_timesteps=1,
+        num_future_timesteps: int = 1,
+        num_past_timesteps: int = 0,
         activation_fn="silu",
         main_net_depth=3,
         processor_depth=1,
-        skip_connection_weight=0.1,
-        num_past_timesteps=0,
     ):
         super(DoxascopeNet, self).__init__()
 
         self.config = {
             "input_dim": input_dim,
             "hidden_dim": hidden_dim,
-            "num_classes": num_classes,
             "dropout_rate": dropout_rate,
             "num_future_timesteps": num_future_timesteps,
             "num_past_timesteps": num_past_timesteps,
             "activation_fn": activation_fn,
             "main_net_depth": main_net_depth,
             "processor_depth": processor_depth,
-            "skip_connection_weight": skip_connection_weight,
         }
 
         act_fn = get_activation_fn(activation_fn)
         lstm_state_dim = input_dim // 2
         processor_output_dim = hidden_dim // 2
 
-        def build_mlp(depth, in_dim, out_dim):
+        def build_mlp(depth, in_dim, h_dim, out_dim):
             layers = []
-            for i in range(depth):
+            if depth == 0:
+                return nn.Identity()
+            if depth == 1:
                 layers.append(nn.Linear(in_dim, out_dim))
+            else:
+                layers.append(nn.Linear(in_dim, h_dim))
                 layers.append(act_fn)
                 layers.append(nn.Dropout(dropout_rate))
-                in_dim = out_dim
+                for _ in range(depth - 2):
+                    layers.append(nn.Linear(h_dim, h_dim))
+                    layers.append(act_fn)
+                    layers.append(nn.Dropout(dropout_rate))
+                layers.append(nn.Linear(h_dim, out_dim))
             return nn.Sequential(*layers)
 
-        self.hidden_processor = build_mlp(processor_depth, lstm_state_dim, processor_output_dim)
-        self.cell_processor = build_mlp(processor_depth, lstm_state_dim, processor_output_dim)
+        self.hidden_processor = build_mlp(processor_depth, lstm_state_dim, hidden_dim, processor_output_dim)
+        self.cell_processor = build_mlp(processor_depth, lstm_state_dim, hidden_dim, processor_output_dim)
 
-        main_net_layers = []
-        main_in_dim = hidden_dim  # from concatenated processors
-        if main_net_depth > 0:
-            main_out_dim = hidden_dim // 2
-            # Input layer
-            main_net_layers.extend([nn.Linear(main_in_dim, hidden_dim), act_fn, nn.Dropout(dropout_rate)])
-            # Hidden layers
-            for _ in range(main_net_depth - 2):
-                main_net_layers.extend([nn.Linear(hidden_dim, hidden_dim), act_fn, nn.Dropout(dropout_rate)])
-            # Output layer
-            if main_net_depth > 1:
-                main_net_layers.extend([nn.Linear(hidden_dim, main_out_dim), act_fn, nn.Dropout(dropout_rate)])
-            head_input_dim = main_out_dim
-        else:
-            head_input_dim = main_in_dim
+        main_in_dim = processor_output_dim * 2
+        self.main_net = build_mlp(main_net_depth, main_in_dim, hidden_dim, hidden_dim)
 
-        self.main_net = nn.Sequential(*main_net_layers)
+        # Create heads for past and future predictions
+        self.output_heads = nn.ModuleList()
+        self.head_timesteps = sorted(
+            [k for k in range(-num_past_timesteps, 0)] + [k for k in range(1, num_future_timesteps + 1)]
+        )
 
-        num_heads = num_past_timesteps + num_future_timesteps
-        self.output_heads = nn.ModuleList([nn.Linear(head_input_dim, num_classes) for _ in range(num_heads)])
-        self.skip_connection = nn.Linear(input_dim, num_classes)
+        for k in self.head_timesteps:
+            num_classes = get_num_classes_for_manhattan_distance(abs(k))
+            self.output_heads.append(nn.Linear(hidden_dim, num_classes))
+
+        # No skip connection for this classification model yet
+        # self.skip_connection = nn.Linear(input_dim, output_dim)
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         # Input x is expected to be a concatenation of the LSTM hidden state and cell state.
@@ -133,14 +142,6 @@ class DoxascopeNet(nn.Module):
         # Generate predictions from each output head
         outputs = [head(main_features) for head in self.output_heads]
 
-        # Apply a residual skip connection to the first future timestep's prediction
-        skip_weight = self.config.get("skip_connection_weight", 0.0)
-        if skip_weight > 0 and self.config["num_future_timesteps"] > 0:
-            skip_output = self.skip_connection(x)
-            first_future_idx = self.config["num_past_timesteps"]
-            if first_future_idx < len(outputs):
-                outputs[first_future_idx] = outputs[first_future_idx] + skip_weight * skip_output
-
         return outputs
 
 
@@ -158,7 +159,7 @@ class DoxascopeTrainer:
         for i, out in enumerate(outputs):
             target = batch_y[:, i]
             loss += self.criterion(out, target)
-        return loss
+        return loss / len(outputs) if outputs else loss
 
     def _run_epoch(self, dataloader: DataLoader, is_training: bool):
         """Run a single epoch of training or evaluation."""
@@ -169,10 +170,8 @@ class DoxascopeTrainer:
 
         total_loss = 0
         total_samples = 0
-        num_steps = self.model.config.get("num_past_timesteps", 0) + self.model.config.get("num_future_timesteps", 0)
+        num_steps = len(self.model.output_heads)
         correct_per_step = [0] * num_steps
-        all_preds_per_step = [[] for _ in range(num_steps)]
-        all_targets_per_step = [[] for _ in range(num_steps)]
 
         context = torch.no_grad() if not is_training else torch.enable_grad()
         with context:
@@ -187,46 +186,45 @@ class DoxascopeTrainer:
                     loss.backward()
                     self.optimizer.step()
 
-                total_loss += loss.item() * batch_y.size(0)
-                total_samples += batch_y.size(0)
+                total_loss += loss.item() * batch_x.size(0)
+                total_samples += batch_x.size(0)
 
                 for i in range(num_steps):
                     _, predicted = outputs[i].max(1)
                     correct_per_step[i] += predicted.eq(batch_y[:, i]).sum().item()
-                    if not is_training:
-                        all_preds_per_step[i].extend(predicted.cpu().numpy())
-                        all_targets_per_step[i].extend(batch_y[:, i].cpu().numpy())
 
         avg_loss = total_loss / total_samples if total_samples > 0 else 0
-        acc_per_step = [100.0 * c / total_samples for c in correct_per_step] if total_samples > 0 else [0.0] * num_steps
+        acc_per_step = (
+            [100.0 * c / total_samples for c in correct_per_step] if total_samples > 0 else ([0.0] * num_steps)
+        )
 
-        return avg_loss, acc_per_step, all_preds_per_step, all_targets_per_step
+        return avg_loss, acc_per_step
 
-    def train(self, train_loader, val_loader, num_epochs=100, lr=0.001, patience=10):
+    def train(self, train_loader, val_loader, num_epochs=100, lr=0.001, patience=10) -> Optional[TrainingResult]:
         """Train the model and return training history and results."""
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         best_val_acc = 0
         epochs_no_improve = 0
 
-        history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": [], "val_acc_per_step": []}
+        history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
 
         checkpoint = {}
 
         for epoch in range(num_epochs):
             start_time = time.time()
 
-            train_loss, train_acc_per_step, _, _ = self._run_epoch(train_loader, is_training=True)
-            val_loss, val_acc_per_step, _, _ = self._run_epoch(val_loader, is_training=False)
-
-            # Average accuracy across all prediction steps
+            train_loss, train_acc_per_step = self._run_epoch(train_loader, is_training=True)
             avg_train_acc = sum(train_acc_per_step) / len(train_acc_per_step) if train_acc_per_step else 0
+
+            val_loss, val_acc_per_step = (
+                self._run_epoch(val_loader, is_training=False) if val_loader else (float("inf"), [])
+            )
             avg_val_acc = sum(val_acc_per_step) / len(val_acc_per_step) if val_acc_per_step else 0
 
             history["train_loss"].append(train_loss)
             history["val_loss"].append(val_loss)
             history["train_acc"].append(avg_train_acc)
             history["val_acc"].append(avg_val_acc)
-            history["val_acc_per_step"].append(val_acc_per_step)
 
             epoch_duration = time.time() - start_time
             print(
@@ -249,24 +247,20 @@ class DoxascopeTrainer:
                 epochs_no_improve += 1
 
             if epochs_no_improve >= patience:
-                print(f"Early stopping triggered after {patience} epochs with no improvement.")
+                print(f"Early stopping at epoch {epoch + 1}")
                 break
 
-        # Load best model for final evaluation
-        if "state_dict" in checkpoint:
-            self.model.load_state_dict(checkpoint["state_dict"])
+        # If no checkpoint was ever saved (e.g., no val set), save the final model state
+        if not checkpoint:
+            print("Saving model from the final epoch as no best model was found.")
+            checkpoint = {
+                "epoch": num_epochs,
+                "state_dict": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "config": self.model.config,
+            }
 
-        # Final evaluation on validation set to get predictions
-        _, test_acc_per_step, all_preds, all_targets = self._run_epoch(val_loader, is_training=False)
-
-        results = {
-            "test_acc_per_step": test_acc_per_step,
-            "predictions": all_preds,
-            "targets": all_targets,
-            "model_config": self.model.config,
-        }
-
-        return history, results, checkpoint
+        return TrainingResult(history=history, best_checkpoint=checkpoint, final_val_acc=best_val_acc)
 
 
 def prepare_data(
@@ -276,50 +270,97 @@ def prepare_data(
     val_split: float,
     num_future_timesteps: int,
     num_past_timesteps: int,
+    randomize_X: bool = False,
 ):
     """
     Prepares and splits data into training, validation, and test sets.
+    The split is done on a per-file basis to prevent data leakage.
     """
+    train_loader, val_loader, test_loader = None, None, None
     preprocessed_dir = output_dir / "preprocessed_data"
     preprocessed_dir.mkdir(parents=True, exist_ok=True)
 
     all_json_files = sorted(list(raw_data_dir.glob("*.json")))
     if not all_json_files:
-        print(f"No JSON files found in {raw_data_dir}")
-        return None, None
+        raise ValueError(f"No JSON files found in {raw_data_dir}")
 
-    # Split files before preprocessing to prevent data leakage
+    # Shuffle and split the files to prevent data leakage
+    import random
+
+    random.shuffle(all_json_files)
+
     num_files = len(all_json_files)
-    test_idx = int(num_files * (1 - test_split))
-    val_idx = int(test_idx * (1 - val_split))
+    test_idx = int(num_files * test_split)
+    val_idx = test_idx + int(num_files * val_split)
 
-    train_files = all_json_files[:val_idx]
-    val_files = all_json_files[val_idx:test_idx]
-    test_files = all_json_files[test_idx:]
+    # Ensure there's at least one file for training if splits are small
+    if num_files > 2 and val_idx == test_idx:
+        val_idx = test_idx + 1
+    if num_files > 1 and test_idx == 0:
+        test_idx = 1
+    # Ensure train set is not empty if we have enough files
+    if num_files > 2 and val_idx == num_files:
+        val_idx = num_files - 1
 
-    print(f"Splitting {num_files} files: {len(train_files)} train, {len(val_files)} val, {len(test_files)} test")
+    test_files = all_json_files[:test_idx]
+    val_files = all_json_files[test_idx:val_idx]
+    train_files = all_json_files[val_idx:]
 
-    # Preprocess each split
+    print(f"Data split into {len(train_files)} train, {len(val_files)} val, {len(test_files)} test files.")
+
+    # Process files for each split
+    print(f"Processing {len(train_files)} files for training...")
     X_train, y_train = preprocess_doxascope_data(
-        train_files, preprocessed_dir, "train_data.npz", num_future_timesteps, num_past_timesteps
+        train_files, preprocessed_dir, "train.npz", num_future_timesteps, num_past_timesteps
     )
-    X_val, y_val = preprocess_doxascope_data(
-        val_files, preprocessed_dir, "val_data.npz", num_future_timesteps, num_past_timesteps
-    )
-    X_test, y_test = preprocess_doxascope_data(
-        test_files, preprocessed_dir, "test_data.npz", num_future_timesteps, num_past_timesteps
-    )
+    if X_train is None:
+        print("No training data could be generated.")
+        return None, None, None, None
 
-    if X_train is None or y_train is None:
-        print("Training data could not be created.")
-        return None, None
+    print(f"Processing {len(val_files)} files for validation...")
+    X_val, y_val = preprocess_doxascope_data(
+        val_files, preprocessed_dir, "val.npz", num_future_timesteps, num_past_timesteps
+    )
+    if X_val is None:
+        print("Warning: No validation samples could be generated from the validation files.")
+
+    print(f"Processing {len(test_files)} files for testing...")
+    X_test, y_test = preprocess_doxascope_data(
+        test_files, preprocessed_dir, "test.npz", num_future_timesteps, num_past_timesteps
+    )
+    if X_test is None:
+        print("Warning: No test samples could be generated from the test files.")
+
+    if val_loader:
+        print(f"  Validation samples: {len(val_loader.dataset)}")
+    if test_loader:
+        print(f"  Test samples: {len(test_loader.dataset)}")
 
     input_dim = X_train.shape[1]
 
-    train_loader = DataLoader(DoxascopeDataset(X_train, y_train), batch_size=32, shuffle=True)
-    val_loader = DataLoader(DoxascopeDataset(X_val, y_val), batch_size=32, shuffle=False) if X_val is not None else None
-    test_loader = (
-        DataLoader(DoxascopeDataset(X_test, y_test), batch_size=32, shuffle=False) if X_test is not None else None
-    )
+    if randomize_X:
+        print("Randomizing input features for baseline training.")
+        if isinstance(X_train, np.ndarray):
+            print(f"Original X_train mean: {np.mean(X_train):.4f}, std: {np.std(X_train):.4f}")
+            X_train[:] = np.random.randn(*X_train.shape)
+            print(f"Randomized X_train mean: {np.mean(X_train):.4f}, std: {np.std(X_train):.4f}")
+        if X_val is not None and isinstance(X_val, np.ndarray):
+            X_val[:] = np.random.randn(*X_val.shape)
+        if X_test is not None and isinstance(X_test, np.ndarray):
+            X_test[:] = np.random.randn(*X_test.shape)
 
-    return (train_loader, val_loader, test_loader), input_dim
+    # Create datasets and dataloaders
+    train_dataset = DoxascopeDataset(X_train, y_train)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+
+    val_loader = None
+    if X_val is not None and y_val is not None:
+        val_dataset = DoxascopeDataset(X_val, y_val)
+        val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+
+    test_loader = None
+    if X_test is not None and y_test is not None:
+        test_dataset = DoxascopeDataset(X_test, y_test)
+        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+    return train_loader, val_loader, test_loader, input_dim

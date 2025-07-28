@@ -146,7 +146,8 @@ class Simulation:
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
         # ---------------- doxascope setup ---------------------------- #
-        policy_name = self._policy_pr.name.replace("/", "_")
+        base_policy_name = self._policy_pr.name.split(":")[0]
+        policy_name = base_policy_name.replace("/", "_")
         self._doxascope_logger = DoxascopeLogger(
             config.doxascope or {},
             self._id,

@@ -1,220 +1,243 @@
 import json
+import subprocess
+import sys
 
-import numpy as np
 import pytest
-import torch
 
-from metta.agent.policy_state import PolicyState
+from doxascope.doxascope_data import (
+    class_id_to_pos,
+    get_num_classes_for_manhattan_distance,
+    get_positions_for_manhattan_distance,
+    pos_to_class_id,
+)
 
-from .doxascope_data import DoxascopeLogger, Movement, preprocess_doxascope_data
-from .doxascope_network import DoxascopeNet
-from .doxascope_train import train_doxascope
+
+def test_get_num_classes():
+    assert get_num_classes_for_manhattan_distance(0) == 1
+    assert get_num_classes_for_manhattan_distance(1) == 5
+    assert get_num_classes_for_manhattan_distance(2) == 13
+    assert get_num_classes_for_manhattan_distance(3) == 25
+
+
+def test_get_positions():
+    # d=0
+    assert get_positions_for_manhattan_distance(0) == [(0, 0)]
+    # d=1
+    assert get_positions_for_manhattan_distance(1) == [(-1, 0), (0, -1), (0, 0), (0, 1), (1, 0)]
+    # d=2
+    positions_d2 = [
+        (-2, 0),
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+        (0, -2),
+        (0, -1),
+        (0, 0),
+        (0, 1),
+        (0, 2),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+        (2, 0),
+    ]
+    assert get_positions_for_manhattan_distance(2) == positions_d2
+
+
+@pytest.mark.parametrize(
+    "d, pos, expected_id",
+    [
+        (1, (0, 0), 2),
+        (1, (1, 0), 4),
+        (1, (-1, 0), 0),
+        (2, (0, 0), 6),
+        (2, (2, 0), 12),
+        (2, (-2, 0), 0),
+        (2, (1, 1), 11),
+    ],
+)
+def test_pos_to_class_id(d, pos, expected_id):
+    assert pos_to_class_id(pos[0], pos[1], d) == expected_id
+
+
+@pytest.mark.parametrize(
+    "d, class_id, expected_pos",
+    [
+        (1, 2, (0, 0)),
+        (1, 4, (1, 0)),
+        (1, 0, (-1, 0)),
+        (2, 6, (0, 0)),
+        (2, 12, (2, 0)),
+        (2, 0, (-2, 0)),
+        (2, 11, (1, 1)),
+    ],
+)
+def test_class_id_to_pos(d, class_id, expected_pos):
+    assert class_id_to_pos(class_id, d) == expected_pos
+
+
+def test_round_trip_conversion():
+    for d in range(5):
+        positions = get_positions_for_manhattan_distance(d)
+        for i, pos in enumerate(positions):
+            class_id = pos_to_class_id(pos[0], pos[1], d)
+            assert class_id == i
+            retrieved_pos = class_id_to_pos(class_id, d)
+            assert retrieved_pos == pos
+
+
+def test_invalid_inputs():
+    with pytest.raises(ValueError):
+        pos_to_class_id(2, 0, 1)  # Outside distance
+
+    with pytest.raises(ValueError):
+        class_id_to_pos(99, 1)  # Out of bounds
 
 
 @pytest.fixture
-def doxascope_dirs(tmp_path):
-    """Creates a temporary directory structure for a full pipeline test."""
+def doxascope_env(tmp_path):
+    """Creates a temporary directory structure that mimics the real one."""
     policy_name = "test_policy"
-    raw_data_dir = tmp_path / "raw_data" / policy_name
-    results_dir = tmp_path / "results" / policy_name
+    base_dir = tmp_path / "train_dir" / "doxascope"
+    raw_data_dir = base_dir / "raw_data" / policy_name
+    results_dir = base_dir / "results"
 
     raw_data_dir.mkdir(parents=True, exist_ok=True)
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create multiple dummy raw data files to ensure the train/val/test split works
-    for i in range(10):
+    # Create a few dummy raw data files with a predictable "box" movement pattern
+    for i in range(5):
         raw_data = []
-        num_timesteps = 50
-        agent_trajectory = []
         pos = [0, 0]
-        for t in range(num_timesteps):
-            # Create some movement
-            if t % 4 == 0:
-                pos[0] += 1
-            elif t % 4 == 1:
-                pos[1] += 1
-            elif t % 4 == 2:
-                pos[0] -= 1
+        agent_trajectory = []
+        for t in range(50):
+            if t < 10:
+                pos[0] += 1  # Move right
+            elif t < 20:
+                pos[1] += 1  # Move up
+            elif t < 30:
+                pos[0] -= 1  # Move left
             else:
-                pos[1] -= 1
-
+                pos[1] -= 1  # Move down
             agent_trajectory.append({"agent_id": 0, "memory_vector": [0.1] * 512, "position": list(pos)})
 
-        for t in range(num_timesteps):
+        for t in range(50):
             raw_data.append({"timestep": t, "agents": [agent_trajectory[t]]})
 
-        data_file = raw_data_dir / f"doxascope_data_test_{i}.json"
+        data_file = raw_data_dir / f"sim_data_{i}.json"
         with open(data_file, "w") as f:
             json.dump(raw_data, f)
 
     return {
         "policy_name": policy_name,
-        "raw_data_dir": raw_data_dir,
+        "raw_data_dir": base_dir / "raw_data",
         "results_dir": results_dir,
-        "tmp_path": tmp_path,
+        "base_dir": base_dir,
     }
 
 
-def test_doxascope_training_pipeline(doxascope_dirs):
-    """
-    An integration test that runs the core training pipeline.
-    """
-    results = train_doxascope(
-        raw_data_dir=doxascope_dirs["raw_data_dir"],
-        output_dir=doxascope_dirs["results_dir"],
-        num_epochs=1,
-        num_future_timesteps=2,
-        num_past_timesteps=1,
-        test_split=0.5,  # Ensure we have test data
-        val_split=0.2,
+def run_command(cmd: list):
+    """Helper to run a script as a subprocess and handle errors."""
+    process = subprocess.run(
+        [sys.executable, "-m"] + cmd,
+        capture_output=True,
+        text=True,
+        check=False,
     )
-
-    assert results is not None, "Training pipeline failed to run."
-
-    results_dir = doxascope_dirs["results_dir"]
-    assert (results_dir / "best_model.pth").exists()
-    assert (results_dir / "training_curves.png").exists()
-    assert (results_dir / "multistep_accuracy.png").exists()
-    assert (results_dir / "confusion_matrix_t-1.png").exists()
-    assert (results_dir / "confusion_matrix_t+2.png").exists()
-
-    preprocessed_dir = results_dir / "preprocessed_data"
-    assert (preprocessed_dir / "train_data.npz").exists()
-    assert (preprocessed_dir / "val_data.npz").exists()
-    assert (preprocessed_dir / "test_data.npz").exists()
+    if process.returncode != 0:
+        print("--- STDOUT ---")
+        print(process.stdout)
+        print("--- STDERR ---")
+        print(process.stderr)
+        pytest.fail(f"Command '{' '.join(cmd)}' failed with exit code {process.returncode}", pytrace=False)
+    return process
 
 
-def test_preprocess_doxascope_data(doxascope_dirs):
+def test_doxascope_end_to_end(doxascope_env):
     """
-    Tests the data preprocessing logic to ensure correct parsing of trajectories.
+    A full end-to-end integration test for the doxascope module.
+    1. Runs the training script to generate a versioned run directory.
+    2. Verifies that all expected output files are created.
+    3. Runs the analysis script's `analyze` and `compare` commands.
+    4. Verifies that the analysis plots are generated.
     """
-    raw_data_dir = doxascope_dirs["raw_data_dir"]
-    preprocessed_dir = doxascope_dirs["results_dir"] / "preprocessed_data"
-    json_files = list(raw_data_dir.glob("*.json"))
+    policy_name = doxascope_env["policy_name"]
+    raw_data_dir = doxascope_env["raw_data_dir"]
+    results_dir = doxascope_env["results_dir"]
 
-    num_past = 1
-    num_future = 2
+    # --- 1. Run Training ---
+    train_cmd = [
+        "doxascope.doxascope_train",
+        policy_name,
+        "--raw-data-dir",
+        str(raw_data_dir),
+        "--output-dir",
+        str(results_dir),
+        "--num-epochs",
+        "2",
+        "--num-future-timesteps",
+        "1",
+        "--run-name",
+        "test_run_1",
+        "--no-train-random-baseline",  # Disable baseline for speed in this test
+    ]
+    run_command(train_cmd)
 
-    X, y = preprocess_doxascope_data(
-        json_files,
-        preprocessed_dir,
-        num_past_timesteps=num_past,
-        num_future_timesteps=num_future,
-    )
+    # --- 2. Verify Training Outputs ---
+    run_dir = results_dir / policy_name / "test_run_1"
+    assert run_dir.is_dir()
+    assert (run_dir / "best_model.pth").exists()
+    assert (run_dir / "test_results.json").exists()
+    assert (run_dir / "training_history.csv").exists()
+    assert (run_dir / "preprocessed_data" / "train.npz").exists()
 
-    assert X is not None and y is not None
+    # --- 3. Run Analysis ---
+    analyze_cmd = [
+        "doxascope.doxascope_analysis",
+        "analyze",
+        policy_name,
+        "test_run_1",
+        "--data-dir",
+        str(results_dir),
+    ]
+    run_command(analyze_cmd)
 
-    # Each of the 10 files has 50 timesteps.
-    # The loop runs from i=2 to 50-2-1=47.
-    # range(2, 48) -> 46 samples per file. 10 files -> 460 samples.
-    expected_samples = (50 - num_past - num_future - 1) * 10
-    assert X.shape == (expected_samples, 512)
-    assert y.shape == (expected_samples, num_past + num_future)
+    # --- 4. Verify Analysis Outputs ---
+    analysis_dir = run_dir / "analysis"
+    assert analysis_dir.is_dir()
+    assert (analysis_dir / "multistep_accuracy.png").exists()
+    assert (analysis_dir / "training_history.png").exists()
 
-    # Check the content of a specific y sample based on the fixture's movement pattern.
-    # `move(t)` is the delta from pos(t-1) to pos(t).
-    # t=0: pos=(0,0) -> This is the initial state before any move.
-    # t=1: pos=(1,0), move(1) = pos(1)-pos(0)=(1,0) -> down(2)
-    # t=2: pos=(1,1), move(2) = pos(2)-pos(1)=(0,1) -> right(4)
-    # t=3: pos=(0,1), move(3) = pos(3)-pos(2)=(-1,0) -> up(1)
-    # t=4: pos=(0,0), move(4) = pos(4)-pos(3)=(0,-1) -> left(3)
-    # This pattern seems off, let's re-verify the fixture.
-    # In fixture: initial pos is (0,0), then pos[0]+=1 -> (1,0) at t=0. Let's trace carefully.
-    # t=0: pos=(1,0)
-    # t=1: pos=(1,1) -> move(1) = (0,1) = RIGHT
-    # t=2: pos=(0,1) -> move(2) = (-1,0) = UP
-    # t=3: pos=(0,0) -> move(3) = (0,-1) = LEFT
-    # t=4: pos=(1,0) -> move(4) = (1,0) = DOWN
-    move_pattern = [Movement.DOWN, Movement.RIGHT, Movement.UP, Movement.LEFT]  # Moves for t=0,1,2,3
+    # --- 5. Run Comparison ---
+    # First, run training again to create a second run to compare with
+    run_command(train_cmd[:-2] + ["test_run_2"])
 
-    # First sample is from i=num_past+1=2.
-    # y should be [move(i-1), move(i+1), move(i+2)] -> [move(1), move(3), move(4)]
-    # move(4) is DOWN.
-    expected_y_for_i_1 = [move_pattern[1], move_pattern[3], Movement.DOWN]
-    np.testing.assert_array_equal(y[0], expected_y_for_i_1)
+    compare_cmd = [
+        "doxascope.doxascope_analysis",
+        "compare",
+        policy_name,
+        "--data-dir",
+        str(results_dir),
+    ]
+    run_command(compare_cmd)
 
-    # Second sample is from i=3.
-    # y should be [move(i-1), move(i+1), move(i+2)] -> [move(2), move(4), move(5)]
-    # move(4) is DOWN, move(5) is RIGHT
-    expected_y_for_i_2 = [move_pattern[2], Movement.DOWN, Movement.RIGHT]
-    np.testing.assert_array_equal(y[1], expected_y_for_i_2)
+    # --- 6. Verify Comparison Outputs ---
+    policy_results_dir = results_dir / policy_name
+    assert (policy_results_dir / f"comparison_{policy_name}.png").exists()
 
+    # --- 7. Test analyzing the latest run (no run_name specified) ---
+    latest_run_analyze_cmd = [
+        "doxascope.doxascope_analysis",
+        "analyze",
+        policy_name,
+        "--data-dir",
+        str(results_dir),
+    ]
+    run_command(latest_run_analyze_cmd)
 
-def test_doxascope_net_forward_pass():
-    """
-    Tests the forward pass of the DoxascopeNet to ensure correct output shapes.
-    """
-    batch_size = 4
-    input_dim = 512
-    num_past = 1
-    num_future = 4
-    num_classes = 5
-
-    model = DoxascopeNet(
-        input_dim=input_dim,
-        num_past_timesteps=num_past,
-        num_future_timesteps=num_future,
-        num_classes=num_classes,
-    )
-    model.eval()
-
-    dummy_input = torch.randn(batch_size, input_dim)
-    outputs = model(dummy_input)
-
-    assert isinstance(outputs, list)
-    assert len(outputs) == num_past + num_future
-
-    for out in outputs:
-        assert out.shape == (batch_size, num_classes)
-
-
-def test_doxascope_logger(doxascope_dirs):
-    """
-    Tests the DoxascopeLogger to ensure it correctly logs and saves data.
-    """
-    tmp_path = doxascope_dirs["tmp_path"]
-    policy_name = "test_logger_policy"
-    sim_id = "test_sim_123"
-
-    # 1. Initialize logger
-    logger = DoxascopeLogger(
-        doxascope_config={"enabled": True, "output_dir": tmp_path / "raw_data"},
-        simulation_id=sim_id,
-        policy_name=policy_name,
-    )
-    assert logger.enabled
-
-    # 2. Log a timestep
-    policy_state = PolicyState(
-        lstm_h=torch.ones(1, 1, 256),
-        lstm_c=torch.zeros(1, 1, 256),
-        batch_size=[1],
-    )
-    policy_idxs = torch.tensor([0])
-    env_grid_objects = {
-        "obj1": {"type": 0, "agent_id": 0, "r": 10, "c": 20},
-    }
-    logger.log_timestep(policy_state, policy_idxs, env_grid_objects)
-
-    # 3. Save data
-    logger.save()
-
-    # 4. Verify output file and content
-    expected_file = tmp_path / "raw_data" / policy_name / f"doxascope_data_{sim_id}.json"
-    assert expected_file.exists()
-
-    with open(expected_file, "r") as f:
-        data = json.load(f)
-
-    assert isinstance(data, list)
-    assert len(data) == 1
-    timestep_data = data[0]
-    assert timestep_data["timestep"] == 0
-    assert len(timestep_data["agents"]) == 1
-
-    agent_data = timestep_data["agents"][0]
-    assert agent_data["agent_id"] == 0
-    assert agent_data["position"] == [10, 20]
-    assert len(agent_data["memory_vector"]) == 512
-    assert agent_data["memory_vector"][:256] == [1.0] * 256
-    assert agent_data["memory_vector"][256:] == [0.0] * 256
+    # --- 8. Verify Latest Run Analysis Outputs ---
+    # Should have analyzed test_run_2 as it is the latest
+    latest_run_dir = results_dir / policy_name / "test_run_2"
+    latest_analysis_dir = latest_run_dir / "analysis"
+    assert latest_analysis_dir.is_dir()
+    assert (latest_analysis_dir / "multistep_accuracy.png").exists()
+    assert (latest_analysis_dir / "training_history.png").exists()

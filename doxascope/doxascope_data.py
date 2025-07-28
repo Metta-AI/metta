@@ -10,7 +10,6 @@ This module provides functionality for:
 
 import json
 import logging
-from enum import IntEnum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -22,21 +21,55 @@ from metta.agent.policy_state import PolicyState
 logger = logging.getLogger(__name__)
 
 
-class Movement(IntEnum):
-    STAY = 0
-    UP = 1
-    DOWN = 2
-    LEFT = 3
-    RIGHT = 4
+# Coordinate Conversion Utilities
+def get_positions_for_manhattan_distance(d: int) -> List[Tuple[int, int]]:
+    """
+    Returns a canonical, sorted list of all (dr, dc) positions
+    within a given Manhattan distance.
+    """
+    d = abs(d)
+    positions = []
+    for dr in range(-d, d + 1):
+        for dc in range(-d, d + 1):
+            if abs(dr) + abs(dc) <= d:
+                positions.append((dr, dc))
+    # Sort by row, then column for a canonical order
+    return sorted(positions)
 
 
-MOVEMENT_MAP = {
-    (0, 0): Movement.STAY,
-    (-1, 0): Movement.UP,
-    (1, 0): Movement.DOWN,
-    (0, -1): Movement.LEFT,
-    (0, 1): Movement.RIGHT,
-}
+def get_num_classes_for_manhattan_distance(d: int) -> int:
+    """Returns the number of reachable cells within a given Manhattan distance."""
+    d = abs(d)
+    return 2 * d * d + 2 * d + 1
+
+
+def get_pos_to_class_id_map(d: int) -> Dict[Tuple[int, int], int]:
+    """Returns a mapping from (dr, dc) -> class_id for a given Manhattan distance."""
+    positions = get_positions_for_manhattan_distance(d)
+    return {pos: i for i, pos in enumerate(positions)}
+
+
+def get_class_id_to_pos_map(d: int) -> Dict[int, Tuple[int, int]]:
+    """Returns a mapping from class_id -> (dr, dc) for a given Manhattan distance."""
+    positions = get_positions_for_manhattan_distance(d)
+    return {i: pos for i, pos in enumerate(positions)}
+
+
+def pos_to_class_id(dr: int, dc: int, d: int) -> int:
+    """Converts a relative position (dr, dc) to a class index for a given Manhattan distance."""
+    mapping = get_pos_to_class_id_map(d)
+    pos = (dr, dc)
+    if pos not in mapping:
+        raise ValueError(f"Position ({dr}, {dc}) is outside max Manhattan distance {d}")
+    return mapping[pos]
+
+
+def class_id_to_pos(class_id: int, d: int) -> Tuple[int, int]:
+    """Converts a class index back to a relative position (dr, dc) for a given Manhattan distance."""
+    mapping = get_class_id_to_pos_map(d)
+    if class_id not in mapping:
+        raise ValueError(f"Class ID {class_id} is out of bounds for Manhattan distance {d}")
+    return mapping[class_id]
 
 
 class DoxascopeLogger:
@@ -53,7 +86,7 @@ class DoxascopeLogger:
         if not self.enabled:
             return
 
-        base_dir = Path(doxascope_config.get("output_dir", "./doxascope/data/raw_data/"))
+        base_dir = Path(doxascope_config.get("output_dir", "./train_dir/doxascope/raw_data/"))
         self.output_dir = base_dir / policy_name
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -134,6 +167,74 @@ class DoxascopeLogger:
             logger.error(f"Failed to save doxascope data: {e}")
 
 
+def _extract_agent_trajectories(files: list) -> Tuple[Dict[int, list], Optional[int]]:
+    """Loads raw data from JSON files and organizes it into per-agent trajectories."""
+    agent_trajectories: Dict[int, list] = {}
+    expected_dim = None
+
+    for json_file in files:
+        with open(json_file, "r") as f:
+            data = json.load(f)
+
+        for timestep_data in data:
+            for agent_data in timestep_data["agents"]:
+                agent_id = agent_data["agent_id"]
+                if agent_id not in agent_trajectories:
+                    agent_trajectories[agent_id] = []
+
+                memory = np.array(agent_data["memory_vector"], dtype=np.float32)
+
+                if expected_dim is None:
+                    expected_dim = memory.shape[0]
+                elif memory.shape[0] != expected_dim:
+                    logger.warning(
+                        f"Skipping memory vector for agent {agent_id} in {json_file} with dimension "
+                        f"{memory.shape[0]} (expected {expected_dim})"
+                    )
+                    continue
+
+                position = tuple(agent_data["position"])
+                agent_trajectories[agent_id].append((memory, position))
+
+    return agent_trajectories, expected_dim
+
+
+def _create_training_samples(
+    agent_trajectories: Dict[int, list], num_future: int, num_past: int
+) -> Tuple[List[np.ndarray], List[List[int]]]:
+    """Generates training samples (X, y) from agent trajectories."""
+    all_memory_vectors = []
+    all_labels = []
+
+    for trajectory in agent_trajectories.values():
+        if len(trajectory) < num_future + num_past + 1:
+            continue
+
+        for i in range(num_past, len(trajectory) - num_future):
+            current_memory, current_pos = trajectory[i]
+            timestep_labels = []
+            valid_sample = True
+
+            # Create labels for past and future timesteps
+            for k in list(range(-num_past, 0)) + list(range(1, num_future + 1)):
+                pos_k = trajectory[i + k][1]
+                dr, dc = pos_k[0] - current_pos[0], pos_k[1] - current_pos[1]
+                max_dist = abs(k)
+
+                if abs(dr) + abs(dc) > max_dist:
+                    valid_sample = False
+                    break  # Skip sample if any position is out of bounds
+
+                label = pos_to_class_id(dr, dc, max_dist)
+                timestep_labels.append(label)
+
+            if valid_sample:
+                all_labels.append(timestep_labels)
+                all_memory_vectors.append(current_memory)
+
+    return all_memory_vectors, all_labels
+
+
 def preprocess_doxascope_data(
     json_files: list,
     preprocessed_dir: Path,
@@ -142,106 +243,39 @@ def preprocess_doxascope_data(
     num_past_timesteps: int = 0,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """
-    Preprocess all doxascope JSON files to create training data.
-
-    Args:
-        json_files: List of JSON log files to process
-        preprocessed_dir: Directory where the output NPZ file will be saved
-        output_filename: Name of the output NPZ file
-        num_future_timesteps: The number of future steps to predict
-        num_past_timesteps: The number of past steps to predict
-
-    Returns:
-        A tuple containing two NumPy arrays:
-        - X: The input data, with shape (num_samples, memory_vector_dim). Each row is a
-          flattened LSTM memory vector.
-        - y: The target data, with shape (num_samples, num_past_timesteps + num_future_timesteps).
-          Each row contains the sequence of past and future movement classes to be predicted.
+    Preprocesses raw doxascope JSON data to create training-ready NPZ files.
     """
-    output_file = preprocessed_dir / output_filename
-
     if not json_files:
-        logger.warning("No JSON files provided for preprocessing")
+        logger.warning("No JSON files provided for preprocessing.")
         return None, None
 
-    all_memory_vectors = []
-    all_movements = []
-    expected_dim = None
+    logger.info(f"Processing {len(json_files)} simulation log(s)...")
 
-    logger.info(f"Processing {len(json_files)} files...")
+    agent_trajectories, expected_dim = _extract_agent_trajectories(json_files)
+    if not agent_trajectories:
+        logger.warning("No valid agent trajectories found in the provided files.")
+        return None, None
 
-    for json_file in json_files:
-        with open(json_file, "r") as f:
-            data = json.load(f)
-
-        agent_trajectories: Dict[int, list] = {}
-        for timestep_data in data:
-            for agent in timestep_data["agents"]:
-                agent_id = agent["agent_id"]
-                if agent_id not in agent_trajectories:
-                    agent_trajectories[agent_id] = []
-
-                memory = np.array(agent["memory_vector"], dtype=np.float32)
-
-                if expected_dim is None:
-                    expected_dim = memory.shape[0]
-                elif memory.shape[0] != expected_dim:
-                    logger.warning(
-                        f"Skipping memory vector for agent {agent_id} with dimension {memory.shape[0]} (expected {expected_dim})"
-                    )
-                    continue
-
-                position = agent["position"]
-                agent_trajectories[agent_id].append((memory, position))
-
-        for agent_id, trajectory in agent_trajectories.items():
-            if len(trajectory) <= num_future_timesteps + num_past_timesteps + 1:
-                continue
-
-            for i in range(num_past_timesteps + 1, len(trajectory) - num_future_timesteps):
-                current_memory, _ = trajectory[i]
-
-                past_movements = []
-                for k in range(num_past_timesteps, 0, -1):
-                    if i - k - 1 < 0:
-                        continue
-                    pos_after = trajectory[i - k][1]
-                    pos_before = trajectory[i - k - 1][1]
-                    dr, dc = pos_after[0] - pos_before[0], pos_after[1] - pos_before[1]
-                    past_movements.append(MOVEMENT_MAP.get((dr, dc), Movement.STAY))
-
-                future_movements = []
-                for k in range(1, num_future_timesteps + 1):
-                    pos_after = trajectory[i + k][1]
-                    pos_before = trajectory[i + k - 1][1]
-
-                    dr, dc = pos_after[0] - pos_before[0], pos_after[1] - pos_before[1]
-                    movement = MOVEMENT_MAP.get((dr, dc))
-                    if movement is None:
-                        logger.warning(
-                            f"Unexpected movement for agent {agent_id}: dr={dr}, dc={dc}. Defaulting to 'stay'."
-                        )
-                        movement = Movement.STAY
-                    future_movements.append(movement)
-
-                all_movements.append(past_movements + future_movements)
-                all_memory_vectors.append(current_memory)
+    all_memory_vectors, all_labels = _create_training_samples(
+        agent_trajectories, num_future_timesteps, num_past_timesteps
+    )
 
     if not all_memory_vectors:
-        logger.warning("No training data created")
+        logger.warning("No training samples could be created from the trajectories.")
         return None, None
 
     try:
         X = np.array(all_memory_vectors, dtype=np.float32)
-        y = np.array(all_movements, dtype=np.int64)
+        y = np.array(all_labels, dtype=np.int64)
 
+        output_file = preprocessed_dir / output_filename
         preprocessed_dir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(output_file, X=X, y=y)
+
         logger.info(f"Successfully saved {len(X)} samples to {output_file}")
         return X, y
     except ValueError as e:
         logger.error(f"Failed to create NumPy arrays due to inconsistent shapes: {e}")
-        if all_memory_vectors:
-            unique_dims = {mv.shape for mv in all_memory_vectors}
-            logger.error(f"Found memory vectors with the following shapes: {unique_dims}")
+        unique_dims = {mv.shape for mv in all_memory_vectors}
+        logger.error(f"Found memory vectors with the following shapes: {unique_dims}")
         return None, None
