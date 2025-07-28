@@ -374,7 +374,7 @@ def main():
         sys.exit(1)
 
     # Run the build
-    build_success, build_output = run_build(project_root, args.with_coverage, args.verbose)
+    build_success, build_output = run_build(project_root, args.with_coverage)
 
     # Debug mode: show raw output
     print("\n" + "=" * 80)
