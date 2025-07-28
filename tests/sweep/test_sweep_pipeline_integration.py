@@ -86,7 +86,7 @@ class TestSweepPipelineE2E:
                 "max_consecutive_failures": 3,
                 "rollout_retry_delay": 1,
                 "max_observations_to_load": 50,
-                "sweep_job": {
+                "sweep_train_job": {
                     "trainer": {
                         "total_timesteps": 10000,
                     },
