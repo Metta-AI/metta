@@ -1,4 +1,3 @@
-import einops
 import torch
 from tensordict import TensorDict
 
@@ -41,7 +40,8 @@ class ObsTokenToBoxShaper(LayerBase):
         # device = token_observations.device
         # td.set("_BxTT_", torch.full((B,), B * TT, device=device, dtype=torch.long))
 
-        # assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+        # assert token_observations.shape[-1] == 3,
+        # f"Expected 3 channels per token. Got shape {token_observations.shape}"
 
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = token_observations[..., 0].to(torch.uint8)

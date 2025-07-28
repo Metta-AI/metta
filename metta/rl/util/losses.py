@@ -4,7 +4,6 @@ import logging
 from typing import Any, Tuple
 
 import torch
-from gymnasium.spaces import MultiDiscrete
 from tensordict import TensorDict
 from torch import Tensor
 
