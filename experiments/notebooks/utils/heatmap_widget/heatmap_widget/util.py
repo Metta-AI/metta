@@ -1,8 +1,10 @@
 from typing import List
 
+from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget import (
+    HeatmapWidget,
+    create_heatmap_widget,
+)
 from metta.common.client.metta_client import MettaAPIClient
-
-from .HeatmapWidget import HeatmapWidget, create_heatmap_widget
 
 
 async def fetch_real_heatmap_data(
