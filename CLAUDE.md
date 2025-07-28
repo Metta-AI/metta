@@ -150,7 +150,11 @@ metta install aws wandb              # Install specific components
 
 2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
    ```bash
+   # Using local file
    uv run ./tools/sim.py run=eval policy_uri=file://./checkpoints/policy.pt
+
+   # Using wandb artifact (format: wandb://<entity>/<project>/<artifact_name>:<version>)
+   uv run ./tools/sim.py run=eval policy_uri=wandb://softmax-ai/metta/policy_checkpoint:v42
    ```
 
 3. **Analysis**: `tools/analyze.py` - Analyze evaluation results and generate reports
@@ -167,6 +171,8 @@ metta install aws wandb              # Install specific components
 
 #### Visualization Tools
 
+**Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear feedback. Consider running them in separate terminals outside of Claude Code.
+
 - **MettaScope**: Run `cd mettascope && npm run dev` for interactive replay viewer
 - **Observatory**: Run `cd observatory && npm run dev` for training dashboard
 - **GridWorks**: Run `cd gridworks && npm run dev` for web interface
@@ -182,8 +188,8 @@ See @.cursor/commands.md for quick test commands and examples.
 metta test --cov=mettagrid --cov-report=term-missing
 
 # Run specific test modules
-uv run pytest tests/rl/test_trainer_config.py -v
-uv run pytest tests/sim/ -v
+metta test tests/rl/test_trainer_config.py -v
+metta test tests/sim/ -v
 
 # Run linting and formatting on python files with Ruff
 metta lint # optional --fix and --staged arguments
@@ -256,12 +262,14 @@ uv run ./tools/train.py wandb=off
 1. Enable debug logging: `HYDRA_FULL_ERROR=1`
 2. Use smaller batch sizes for debugging
 3. Check wandb logs for metrics anomalies
-4. Use `tools/play.py` for interactive debugging
+4. Use `tools/play.py` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
 
 #### Performance Profiling
 
 1. Use `torch.profiler` integration in trainer
-2. Monitor GPU utilization with `nvidia-smi`
+2. Monitor GPU utilization:
+   - On NVIDIA GPUs: `nvidia-smi`
+   - On macOS: Use Activity Monitor or `sudo powermetrics --samplers gpu_power`
 3. Check environment step timing in vecenv
 4. Profile C++ code with cmake debug builds
 
@@ -336,6 +344,8 @@ When reviewing code, focus on:
 - **Maintainability**: Look for code that will be difficult to modify or extend
 - **Documentation**: Ensure complex logic is properly documented
 - **Testing**: Verify that new functionality has appropriate test coverage
+- **Conciseness**: Less code is almost always preferred - avoid unnecessary complexity
+- **Professional Tone**: Avoid emojis in code, comments, and commit messages
 
 ---
 

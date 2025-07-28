@@ -1,11 +1,7 @@
 #!/bin/bash
 
-# Run ruff format on all Python files
-echo "Running ruff format..."
-uv run ruff format .
+# Run metta lint with auto-fix
+echo "Running metta lint..."
+metta lint --fix
 
-# Run ruff check with fix and unsafe-fixes
-echo "Running ruff check with fixes..."
-uv run ruff check --fix --unsafe-fixes .
-
-echo "Ruff formatting and checking complete!"
+echo "Linting complete!"
