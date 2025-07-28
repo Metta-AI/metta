@@ -127,7 +127,7 @@ class TestRunSingleRollout:
                 "sweep_id": "test_sweep_123",
                 "sweep_name": "test_sweep",
                 "runs_dir": "/tmp/runs",
-                "sweep_job": {"trainer": {"lr": 0.001}},
+                "sweep_train_job": {"trainer": {"lr": 0.001}},
             }
         )
 

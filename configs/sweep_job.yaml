@@ -35,7 +35,7 @@ trainer:
 wandb:
   group: ${sweep_name}
 
-sweep_job:
+sweep_train_job:
   sim: ${sim}
   trainer: ${trainer}
   agent: ${agent}
@@ -45,6 +45,6 @@ sweep_job:
   stats_server_uri: null # No logging to observatory for sweeps
 
 # TODO: Remove and update references.
-sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
-runs_dir: "${.sweep_dir}/runs"
+sweep_dir: "${data_dir}/sweep/${sweep_name}"
+runs_dir: "${sweep_dir}/runs"
 
