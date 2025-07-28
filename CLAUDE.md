@@ -119,9 +119,9 @@ Metta AI is a reinforcement learning project focusing on the emergence of cooper
 - Agent architecture is designed to be adaptable to new game rules and environments
 - Neural components can be mixed and matched via configuration
 - Key classes:
-  - `metta.agent.metta_agent.MettaAgent` - Main agent implementation
-  - `metta.agent.policy_store.PolicyStore` - Manages policy checkpoints
-  - `metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
+  - `agent.src.metta.agent.metta_agent.MettaAgent` - Main agent implementation
+  - `agent.src.metta.agent.policy_store.PolicyStore` - Manages policy checkpoints
+  - `agent.src.metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
 
 ## Development Guide
 
@@ -153,8 +153,10 @@ metta install aws wandb              # Install specific components
    # Using local file
    uv run ./tools/sim.py run=eval policy_uri=file://./checkpoints/policy.pt
 
-   # Using wandb artifact (format: wandb://<entity>/<project>/<artifact_name>:<version>)
-   uv run ./tools/sim.py run=eval policy_uri=wandb://softmax-ai/metta/policy_checkpoint:v42
+   # Using wandb artifact (format: wandb://run/<run_name> or wandb://<entity>/<project>/<artifact_type>/<name>:<version>)
+   uv run ./tools/sim.py run=eval policy_uri=wandb://run/my-training-run
+   # or
+   uv run ./tools/sim.py run=eval policy_uri=wandb://softmax-ai/metta/model/policy_checkpoint:v42
    ```
 
 3. **Analysis**: `tools/analyze.py` - Analyze evaluation results and generate reports
@@ -212,7 +214,7 @@ metta clean
 
 The project uses OmegaConf for configuration, with config files organized in `configs/`:
 
-- `agent/`: Agent architecture configurations (tiny, small, medium, reference_design)
+- `agent/`: Agent architecture configurations (latent_attn_tiny, latent_attn_small, latent_attn_med, fast, reference_design)
 - `trainer/`: Training configurations
 - `sim/`: Simulation configurations (navigation, memory, arena, etc.)
 - `hardware/`: Hardware-specific settings (macbook, github)
@@ -235,7 +237,6 @@ uv run ./tools/train.py wandb=off
 #### Hydra Configuration Patterns
 
 - Use `+` prefix to add new config groups: `+hardware=macbook`
-- Use `~` prefix to override without schema validation: `~trainer.num_workers=2`
 - Use `++` prefix to force override: `++trainer.device=cpu`
 - Config composition order matters - later overrides take precedence
 

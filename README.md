@@ -175,7 +175,6 @@ for configuration management, which allows flexible parameter overrides and comp
 #### Hydra Configuration Patterns
 
 - Use `+` prefix to add new config groups: `+hardware=macbook`
-- Use `~` prefix to override without schema validation: `~trainer.num_workers=2`
 - Use `++` prefix to force override: `++trainer.device=cpu`
 - Config composition order matters - later overrides take precedence
 
