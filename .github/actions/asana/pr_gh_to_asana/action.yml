@@ -1,25 +1,13 @@
-name: "Ensure Asana Task Exists"
+name: "Sync PR Task (GH to Asana)"
 description: "Ensures an Asana task exists with the given GitHub URL. Creates a new task if none is found."
 
 inputs:
   title:
     description: "The title of the pull request."
     required: true
-  description:
-    description: "The body/description of the pull request."
-    required: true
   pr_state:
     description: "The state of the pull request."
     required: true
-  author:
-    description: "The GitHub login of the PR author."
-    required: false
-  assignees:
-    description: "Comma-separated list of GitHub logins of PR assignees."
-    required: false
-  reviewers:
-    description: "Comma-separated list of GitHub logins of PR reviewers."
-    required: false
   project_id:
     description: "The Asana project ID where the task will be created."
     required: true
@@ -50,6 +38,16 @@ inputs:
   asana_attachment_secret:
     description: "The Asana attachment secret. This is used to authenticate the Asana attachment action."
     required: true
+  pr_number:
+    description: "Github PR number."
+    required: true
+  github_repo:
+    description: "Github repo URL."
+    required: true
+  github_token:
+    description: "Github token."
+    required: true
+
 
 outputs:
   task_url:
@@ -67,15 +65,11 @@ runs:
 
     - name: Ensure Asana Task
       id: ensure-task
-      run: uv run ${{ github.action_path }}/main.py
+      run: uv run ${{ github.action_path }}/pr_gh_to_asana.py
       shell: bash
       env:
         INPUT_TITLE: ${{ inputs.title }}
-        INPUT_DESCRIPTION: ${{ inputs.description }}
         INPUT_PR_STATE: ${{ inputs.pr_state }}
-        INPUT_AUTHOR: ${{ inputs.author }}
-        INPUT_ASSIGNEES: ${{ inputs.assignees }}
-        INPUT_REVIEWERS: ${{ inputs.reviewers }}
         INPUT_PROJECT_ID: ${{ inputs.project_id }}
         INPUT_WORKSPACE_ID: ${{ inputs.workspace_id }}
         INPUT_ASANA_TOKEN: ${{ inputs.asana_token }}
@@ -86,3 +80,18 @@ runs:
         INPUT_ASANA_EMAIL_FIELD_ID: ${{ inputs.asana_email_field_id }}
         INPUT_PR_AUTHOR_FIELD_ID: ${{ inputs.pr_author_field_id }}
         INPUT_ASANA_ATTACHMENT_SECRET: ${{ inputs.asana_attachment_secret }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        INPUT_GITHUB_REPO: ${{ inputs.github_repo }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+
+    - name: Upload HTTP interaction logs
+      if: always()  # Runs even if the previous step fails
+      uses: actions/upload-artifact@v4
+      with:
+        name: http-interactions-${{ github.run_id }}
+        path: "http_interactions_*.yaml"
+        retention-days: 7  # Keep for 7 days
+
+
+
+
