@@ -163,23 +163,23 @@ class Experience:
         # Sample segment indices
         idx = torch.multinomial(prio_probs, self.minibatch_segments)
 
-        minibatch_td = self.buffer[idx].clone()
+        minibatch = self.buffer[idx].clone()
         if self.cpu_offload:
-            minibatch_td = minibatch_td.to(self.device, non_blocking=True)
+            minibatch = minibatch.to(self.device, non_blocking=True)
 
-        minibatch_td["advantages"] = advantages[idx]
-        minibatch_td["returns"] = advantages[idx] + minibatch_td["values"]
+        minibatch["advantages"] = advantages[idx]
+        minibatch["returns"] = advantages[idx] + minibatch["values"]
         prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
         # minibatch_td["indices"] = idx.view(-1, 1)
         # minibatch_td["prio_weights"] = (self.segments * prio_probs[idx, None]) ** -prio_beta
         # minibatch_td["indices"] = idx.view(-1, 1).expand(-1, self.bptt_horizon)
         # prio_weights_val = (self.segments * prio_probs[idx, None]) ** -prio_beta
         # minibatch_td["prio_weights"] = prio_weights_val.expand(-1, self.bptt_horizon)
-        return minibatch_td, idx, prio_weights
+        return minibatch, idx, prio_weights
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
-        self.buffer[indices].update(data_td.detach())
+        self.buffer[indices].update(data_td)
 
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers."""

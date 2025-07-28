@@ -68,6 +68,7 @@ def get_loss_experience_spec(act_shape: tuple[int, ...], act_dtype: torch.dtype)
             "actions": torch.zeros(act_shape, dtype=act_dtype),
             "act_log_prob": torch.zeros((), dtype=torch.float32),
             "values": torch.zeros((), dtype=torch.float32),
+            "returns": torch.zeros((), dtype=torch.float32),
         },
         batch_size=[],
     )
@@ -117,7 +118,7 @@ def process_minibatch_update(
 
     # Compute losses
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
-        td,
+        minibatch,
         new_logprob,
         entropy,
         newvalue,
@@ -152,8 +153,8 @@ def process_minibatch_update(
 
     # Update values and ratio in experience buffer
     update_td = TensorDict(
-        {"values": newvalue.view(td["values"].shape), "ratio": importance_sampling_ratio},
-        batch_size=td.batch_size,
+        {"values": newvalue.view(minibatch["values"].shape).detach(), "ratio": importance_sampling_ratio.detach()},
+        batch_size=minibatch.batch_size,
     )
     experience.update(indices, update_td)
 
