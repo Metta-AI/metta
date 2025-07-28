@@ -18,7 +18,7 @@ class HeatmapWidgetSetup(SetupModule):
         return subprocess.call(["which", "npm"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
 
     def check_installed(self) -> bool:
-        return (
+        has_compiled_js = (
             subprocess.call(
                 ["ls", "./experiments/notebooks/utils/heatmap_widget/heatmap_widget/static/index.js"],
                 cwd=self.repo_root,
@@ -27,6 +27,16 @@ class HeatmapWidgetSetup(SetupModule):
             )
             == 0
         )
+        has_heatmap_tsx = (
+            subprocess.call(
+                ["ls", "./experiments/notebooks/utils/heatmap_widget/src/Heatmap.tsx"],
+                cwd=self.repo_root,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            == 0
+        )
+        return has_compiled_js and has_heatmap_tsx
 
     def install(self) -> None:
         info("Setting up HeatmapWidget...")
@@ -35,10 +45,19 @@ class HeatmapWidgetSetup(SetupModule):
                 [
                     "bash",
                     "-c",
-                    "cd ./experiments/notebooks/utils/heatmap_widget && npm install && npm run build",
+                    "cp observatory/src/Heatmap.tsx experiments/notebooks/utils/heatmap_widget/src/Heatmap.tsx",
                 ],
                 check=True,
                 cwd=self.repo_root,
+            )
+            subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    "npm install && npm run build",
+                ],
+                check=True,
+                cwd=self.repo_root / "experiments/notebooks/utils/heatmap_widget",
             )
 
             info(
