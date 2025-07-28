@@ -80,7 +80,6 @@ target_compile_options(mettagrid_warnings INTERFACE
 
     # Global constructor warnings - helps catch static init order issues
     $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wglobal-constructors>
-    $<$<CXX_COMPILER_ID:GNU>:-Weffc++>
   >
 )
 
