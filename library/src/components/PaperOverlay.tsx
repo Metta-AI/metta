@@ -87,7 +87,7 @@ export default function PaperOverlay({
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Authors</h3>
               <p className="text-gray-900">
-                {paper.authors && paper.authors.length > 0 ? paper.authors.join(', ') : ''}
+                {paper.authors && paper.authors.length > 0 ? paper.authors.map(author => author.name).join(', ') : ''}
               </p>
             </div>
 

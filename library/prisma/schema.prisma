@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,21 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User authentication tables (NextAuth.js)
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  
-  // Relations
-  accounts      Account[]
-  sessions      Session[]
-  authenticators Authenticator[]
-  posts         Post[]
+  id                    String                 @id @default(cuid())
+  name                  String?
+  email                 String?                @unique(map: "user_email_unique")
+  emailVerified         DateTime?
+  image                 String?
+  accounts              Account[]
+  authenticators        Authenticator[]
+  posts                 Post[]
+  sessions              Session[]
   userPaperInteractions UserPaperInteraction[]
-  
+
   @@map("user")
 }
 
@@ -33,17 +27,15 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-  
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@id([provider, providerAccountId])
   @@map("account")
 }
@@ -52,97 +44,118 @@ model Session {
   sessionToken String   @id
   userId       String
   expires      DateTime
-  
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("session")
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model VerificationToken {
   identifier String
   token      String
-  expires    DateTime
-  
-  @@id([identifier, token])
+  expires    DateTime @db.Timestamp(6)
+
   @@map("verificationToken")
+  @@ignore
 }
 
 model Authenticator {
-  credentialID           String
-  userId                 String
-  providerAccountId      String
-  credentialPublicKey    String
-  counter                Int
-  credentialDeviceType   String
-  credentialBackedUp     Boolean
-  transports             String?
-  
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  credentialID         String  @unique(map: "authenticator_credentialID_unique")
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@id([userId, credentialID])
-  @@unique([credentialID])
   @@map("authenticator")
 }
 
-// Posts table for social feed
 model Post {
   id        String   @id @default(cuid())
   authorId  String
   title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   content   String?
   postType  String   @default("user-post")
   likes     Int      @default(0)
   retweets  Int      @default(0)
   replies   Int      @default(0)
   paperId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-  
-  // Relations
-  author User @relation(fields: [authorId], references: [id])
-  paper  Paper? @relation(fields: [paperId], references: [id])
-  
+  author    User     @relation(fields: [authorId], references: [id])
+  paper     Paper?   @relation(fields: [paperId], references: [id])
+
   @@map("post")
 }
 
-// Papers table for research content
+model Author {
+  id              String        @id @default(cuid())
+  name            String        @unique
+  username        String?       @unique // "@username" format
+  email           String?
+  avatar          String?       // Profile image URL or initials
+  institution     String?
+  department      String?       // Academic department
+  title           String?       // Academic title
+  expertise       String[]      // Array of expertise tags
+  hIndex          Int?          @default(0)
+  totalCitations  Int?          @default(0)
+  claimed         Boolean       @default(false)
+  recentActivity  DateTime?
+  orcid           String?       @unique
+  googleScholarId String?
+  arxivId         String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now()) @updatedAt
+  paperAuthors    PaperAuthor[]
+
+  @@map("author")
+}
+
 model Paper {
-  id           String   @id @default(cuid())
-  title        String
-  abstract     String?
-  authors      String[]
-  institutions String[]
-  tags         String[]
-  link         String?
-  source       String?
-  externalId   String?
-  stars        Int      @default(0)
-  starred      Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
-  
-  // Relations
-  posts                Post[]
+  id                    String                 @id @default(cuid())
+  title                 String
+  abstract              String?
+  institutions          String[]
+  tags                  String[]
+  link                  String?
+  source                String?
+  externalId            String?
+  stars                 Int                    @default(0)
+  starred               Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @default(now()) @updatedAt
+  paperAuthors          PaperAuthor[]
+  posts                 Post[]
   userPaperInteractions UserPaperInteraction[]
-  
+
   @@map("paper")
 }
 
-// User paper interactions table
-model UserPaperInteraction {
-  userId   String
+model PaperAuthor {
   paperId  String
-  starred  Boolean @default(false)
-  readAt   DateTime?
-  queued   Boolean @default(false)
-  notes    String?
-  
-  // Relations
-  user  User  @relation(fields: [userId], references: [id])
-  paper Paper @relation(fields: [paperId], references: [id])
-  
-  @@id([userId, paperId])
+  authorId String
+  author   Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  paper    Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@id([paperId, authorId])
+  @@map("paper_author")
+}
+
+model UserPaperInteraction {
+  userId  String
+  paperId String
+  starred Boolean?  @default(false)
+  readAt  DateTime? @db.Timestamp(6)
+  queued  Boolean?  @default(false)
+  notes   String?
+  paper   Paper     @relation(fields: [paperId], references: [id])
+  user    User      @relation(fields: [userId], references: [id])
+
+  @@id([userId, paperId], map: "user_paper_interaction_userId_paperId_pk")
   @@map("user_paper_interaction")
-} 
+}

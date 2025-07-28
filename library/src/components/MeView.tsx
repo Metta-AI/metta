@@ -162,7 +162,7 @@ export function MeView({
                       </h3>
                       {paper.authors && paper.authors.length > 0 && (
                         <p className="text-sm text-gray-600 mt-1">
-                          {paper.authors.join(', ')}
+                          {paper.authors.map(author => author.name).join(', ')}
                         </p>
                       )}
                     </button>
@@ -207,7 +207,7 @@ export function MeView({
                       </h3>
                       {paper.authors && paper.authors.length > 0 && (
                         <p className="text-sm text-gray-600 mt-1">
-                          {paper.authors.join(', ')}
+                          {paper.authors.map(author => author.name).join(', ')}
                         </p>
                       )}
                     </button>
