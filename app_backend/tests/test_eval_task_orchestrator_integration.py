@@ -26,7 +26,9 @@ class MockContainerManager(AbstractContainerManager):
     async def discover_alive_workers(self) -> list[WorkerInfo]:
         return list(self.workers.values())
 
-    def start_worker_container(self, git_hash: str, backend_url: str, docker_image: str) -> WorkerInfo:
+    def start_worker_container(
+        self, git_hash: str, backend_url: str, docker_image: str, machine_token: str | None = None
+    ) -> WorkerInfo:
         worker = WorkerInfo(
             git_hash=git_hash,
             container_id=f"container_{git_hash}_{len(self.start_worker_calls)}",
@@ -118,6 +120,7 @@ def orchestrator(mock_container_manager, mock_task_client, monkeypatch):
     """Create an orchestrator with mocked dependencies."""
     orchestrator = EvalTaskOrchestrator(
         backend_url="http://test-backend",
+        machine_token="test-machine-token",
         docker_image="test-image:latest",
         poll_interval=1.0,
         worker_idle_timeout=60.0,
@@ -354,10 +357,10 @@ class TestEvalTaskOrchestratorIntegration:
         assert task.id in mock_task_client.claim_calls[0].tasks
 
     @pytest.mark.asyncio
-    async def test_all_workers_busy_skip_assignment(
+    async def test_all_workers_busy_spawn_new_workers(
         self, orchestrator, mock_container_manager, mock_task_client, sample_task_factory, sample_worker_factory
     ):
-        """Test that tasks are skipped when all workers for git hash are busy."""
+        """Test that new workers are spawned when all workers for git hash are busy."""
         # Create two unassigned tasks
         task1 = sample_task_factory(git_hash="busy_hash")
         task2 = sample_task_factory(git_hash="busy_hash")
@@ -381,9 +384,9 @@ class TestEvalTaskOrchestratorIntegration:
 
         await orchestrator.run_cycle()
 
-        # Should not spawn or claim since worker is busy
-        assert len(mock_container_manager.start_worker_calls) == 0
-        assert len(mock_task_client.claim_calls) == 0
+        # Should spawn new workers for the unassigned tasks (with default max_workers_per_git_hash=5)
+        assert len(mock_container_manager.start_worker_calls) == 2
+        assert len(mock_task_client.claim_calls) == 2
 
     @pytest.mark.asyncio
     async def test_cleanup_idle_workers(
@@ -431,6 +434,139 @@ class TestEvalTaskOrchestratorIntegration:
         spawned_hashes = {call[0] for call in mock_container_manager.start_worker_calls}
         assert spawned_hashes == {"hash1", "hash2", "hash3"}
         assert len(mock_task_client.claim_calls) == 3
+
+    @pytest.mark.asyncio
+    async def test_spawn_multiple_workers_for_busy_git_hash(
+        self, orchestrator, mock_container_manager, mock_task_client, sample_task_factory, sample_worker_factory
+    ):
+        """Test that multiple workers are spawned for a git hash when all existing workers are busy."""
+        # Create 3 tasks for the same git hash
+        tasks = [
+            sample_task_factory(git_hash="busy_hash"),
+            sample_task_factory(git_hash="busy_hash"),
+            sample_task_factory(git_hash="busy_hash"),
+        ]
+        for task in tasks:
+            mock_task_client.tasks[task.id] = task
+
+        # Create one busy worker for the git hash
+        assigned_task = sample_task_factory(
+            git_hash="busy_hash",
+            assignee="worker_busy_0",
+            assigned_at=datetime.now(timezone.utc),
+        )
+        mock_task_client.tasks[assigned_task.id] = assigned_task
+
+        worker = sample_worker_factory(
+            git_hash="busy_hash",
+            container_id="container_busy_0",
+            container_name="worker_busy_0",
+        )
+        mock_container_manager.workers[worker.container_id] = worker
+
+        await orchestrator.run_cycle()
+
+        # Should spawn 3 new workers (one for each unassigned task)
+        assert len(mock_container_manager.start_worker_calls) == 3
+        for call in mock_container_manager.start_worker_calls:
+            assert call[0] == "busy_hash"
+
+        # Should attempt to claim all 3 unassigned tasks
+        assert len(mock_task_client.claim_calls) == 3
+
+    @pytest.mark.asyncio
+    async def test_respect_max_workers_per_git_hash_limit(
+        self, mock_container_manager, mock_task_client, sample_task_factory, sample_worker_factory, monkeypatch
+    ):
+        """Test that the orchestrator respects the max_workers_per_git_hash limit."""
+        # Create orchestrator with max 2 workers per git hash
+        orchestrator = EvalTaskOrchestrator(
+            backend_url="http://test-backend",
+            machine_token="test-machine-token",
+            docker_image="test-image:latest",
+            poll_interval=1.0,
+            worker_idle_timeout=60.0,
+            max_workers_per_git_hash=2,
+            container_manager=mock_container_manager,
+        )
+        monkeypatch.setattr(orchestrator, "_task_client", mock_task_client)
+
+        # Create 5 tasks for the same git hash
+        tasks = [sample_task_factory(git_hash="limited_hash") for _ in range(5)]
+        for task in tasks:
+            mock_task_client.tasks[task.id] = task
+
+        # Create 2 busy workers (at the limit)
+        for i in range(2):
+            assigned_task = sample_task_factory(
+                git_hash="limited_hash",
+                assignee=f"worker_limited_{i}",
+                assigned_at=datetime.now(timezone.utc),
+            )
+            mock_task_client.tasks[assigned_task.id] = assigned_task
+
+            worker = sample_worker_factory(
+                git_hash="limited_hash",
+                container_id=f"container_limited_{i}",
+                container_name=f"worker_limited_{i}",
+            )
+            mock_container_manager.workers[worker.container_id] = worker
+
+        await orchestrator.run_cycle()
+
+        # Should not spawn any new workers since we're at the limit
+        assert len(mock_container_manager.start_worker_calls) == 0
+        # Should not attempt to claim any tasks
+        assert len(mock_task_client.claim_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_multiple_workers_with_some_available(
+        self, orchestrator, mock_container_manager, mock_task_client, sample_task_factory, sample_worker_factory
+    ):
+        """Test task assignment when some workers are available and some are busy."""
+        # Create 3 tasks
+        tasks = [
+            sample_task_factory(git_hash="mixed_hash"),
+            sample_task_factory(git_hash="mixed_hash"),
+            sample_task_factory(git_hash="mixed_hash"),
+        ]
+        for task in tasks:
+            mock_task_client.tasks[task.id] = task
+
+        # Create 2 workers: 1 busy, 1 idle
+        busy_task = sample_task_factory(
+            git_hash="mixed_hash",
+            assignee="worker_mixed_busy",
+            assigned_at=datetime.now(timezone.utc),
+        )
+        mock_task_client.tasks[busy_task.id] = busy_task
+
+        busy_worker = sample_worker_factory(
+            git_hash="mixed_hash",
+            container_id="container_mixed_busy",
+            container_name="worker_mixed_busy",
+        )
+        idle_worker = sample_worker_factory(
+            git_hash="mixed_hash",
+            container_id="container_mixed_idle",
+            container_name="worker_mixed_idle",
+        )
+        mock_container_manager.workers = {
+            busy_worker.container_id: busy_worker,
+            idle_worker.container_id: idle_worker,
+        }
+
+        await orchestrator.run_cycle()
+
+        # Should assign 1 task to idle worker and spawn 2 new workers for remaining tasks
+        assert len(mock_container_manager.start_worker_calls) == 2
+        for call in mock_container_manager.start_worker_calls:
+            assert call[0] == "mixed_hash"
+
+        # Should claim 3 tasks (1 for idle worker, 2 for new workers)
+        assert len(mock_task_client.claim_calls) == 3
+        assignees = {call.assignee for call in mock_task_client.claim_calls}
+        assert "worker_mixed_idle" in assignees
 
     @pytest.mark.asyncio
     async def test_full_cycle_with_mixed_scenarios(
@@ -482,7 +618,7 @@ class TestEvalTaskOrchestratorIntegration:
         # Verify results
         assert "container_timeout_id" in mock_container_manager.cleanup_calls
         assert len(mock_task_client.update_calls) == 2  # timeout task + no_hash task
-        assert len(mock_container_manager.start_worker_calls) == 2  # timeout_hash + new_hash
+        assert len(mock_container_manager.start_worker_calls) == 2  # timeout_hash (replacement) + new_hash
         spawned_hashes = {call[0] for call in mock_container_manager.start_worker_calls}
         assert spawned_hashes == {"timeout_hash", "new_hash"}
-        assert len(mock_task_client.claim_calls) == 3  # timeout + existing + new
+        assert len(mock_task_client.claim_calls) == 3  # timeout (replacement) + existing + new

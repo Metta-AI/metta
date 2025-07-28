@@ -75,6 +75,9 @@ class SimulationConfig(BaseModelWithForbidExtra):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
+    evaluate_remote: bool = Field(default=False)
+    skip_git_check: bool = Field(default=False)
+    git_hash: str | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "SimulationConfig":
@@ -305,7 +308,7 @@ def create_trainer_config(
         config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
+        config_dict["simulation"]["replay_dir"] = f"{cfg.run_dir}/replays/"
 
     if "profile_dir" not in config_dict.setdefault("profiler", {}):
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"

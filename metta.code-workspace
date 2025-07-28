@@ -1,11 +1,7 @@
 {
 	"folders": [
 		{
-			"name": "metta",
-			"path": "."
-		},
-		{
-			"path": "personal"
+			"path": ".."
 		}
 	],
 	"settings": {
@@ -134,6 +130,7 @@
 			"fstream": "cpp",
 			"future": "cpp",
 			"__config": "cpp"
-		}
+		},
+		"vim.textwidth": 120
 	}
 }

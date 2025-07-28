@@ -3,38 +3,38 @@ import textwrap
 from pathlib import Path
 from typing import TypeVar
 
-from metta.common.util.colorama import Fore, blue, bold, colorize, cyan, green, red, yellow
+from metta.common.util.text_styles import Fore, blue, bold, colorize, cyan, green, red, yellow
 
 T = TypeVar("T")
 
 
-def _format_message(message: str) -> str:
+def _format_message(message: str, indent: int = 0) -> str:
     """Apply dedent and strip to message."""
-    return textwrap.dedent(message).strip()
+    return textwrap.indent(textwrap.dedent(message).strip(), " " * indent)
 
 
-def success(message: str, **kwargs) -> None:
-    print(green(_format_message(message)), **kwargs)
+def success(message: str, indent: int = 0, **kwargs) -> None:
+    print(green(_format_message(message, indent)), **kwargs)
 
 
-def info(message: str, **kwargs) -> None:
-    print(blue(_format_message(message)), **kwargs)
+def info(message: str, indent: int = 0, **kwargs) -> None:
+    print(blue(_format_message(message, indent)), **kwargs)
 
 
-def warning(message: str, **kwargs) -> None:
-    print(yellow(_format_message(message)), **kwargs)
+def warning(message: str, indent: int = 0, **kwargs) -> None:
+    print(yellow(_format_message(message, indent)), **kwargs)
 
 
-def error(message: str, **kwargs) -> None:
+def error(message: str, indent: int = 0, **kwargs) -> None:
     print(red(_format_message(message)), **kwargs)
 
 
-def header(message: str) -> None:
-    print(f"\n{bold(cyan(_format_message(message)))}")
+def header(message: str, indent: int = 0) -> None:
+    print(f"\n{bold(cyan(_format_message(message, indent)))}")
 
 
-def step(message: str) -> None:
-    print(colorize(_format_message(message), Fore.WHITE))
+def step(message: str, indent: int = 0) -> None:
+    print(colorize(_format_message(message, indent), Fore.WHITE))
 
 
 def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None) -> T:

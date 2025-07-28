@@ -153,7 +153,7 @@ class BuildChecker:
         summary = self.get_summary()
 
         print("\n" + "=" * 80)
-        print("BUILD SUMMARY")
+        print("METTAGRID C++ BUILD SUMMARY")
         print("=" * 80)
 
         if summary["build_success"]:
@@ -266,7 +266,7 @@ class BuildChecker:
         return "\n".join(lines)
 
 
-def run_build(project_root: Path) -> tuple[bool, str]:
+def run_build(project_root: Path, with_coverage: bool = False) -> tuple[bool, str]:
     """Run the build process and capture output."""
     env = os.environ.copy()
 
@@ -292,10 +292,17 @@ def run_build(project_root: Path) -> tuple[bool, str]:
     if clean_result.returncode != 0:
         print(f"Warning: 'make clean' failed: {clean_result.stderr}")
 
-    print("🔨 Building project...")
+    # Choose build target based on coverage requirement
+    if with_coverage:
+        print("🔨 Building project with coverage...")
+        build_target = "coverage"
+    else:
+        print("🔨 Building project...")
+        build_target = "build"
+
     print(f"Working directory: {project_root}")
 
-    build_result = subprocess.run(["make", "build"], cwd=project_root, capture_output=True, text=True, env=env)
+    build_result = subprocess.run(["make", build_target], cwd=project_root, capture_output=True, text=True, env=env)
 
     # Combine stdout and stderr for analysis
     full_output = build_result.stdout + "\n" + build_result.stderr
@@ -313,6 +320,7 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Check mettagrid build for compiler warnings and errors")
     parser.add_argument("-d", "--debug", action="store_true", help="Show raw build output for debugging")
+    parser.add_argument("-c", "--with-coverage", action="store_true", help="Build with coverage enabled")
 
     args = parser.parse_args()
 
@@ -333,7 +341,7 @@ def main():
         sys.exit(1)
 
     # Run the build
-    build_success, build_output = run_build(project_root)
+    build_success, build_output = run_build(project_root, args.with_coverage)
 
     # Debug mode: show raw output
     if args.debug:

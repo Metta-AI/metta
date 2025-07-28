@@ -15,6 +15,9 @@ game:
   num_observation_tokens: 200
   max_steps: 1000
 
+  # Movement metrics tracking
+  track_movement_metrics: true
+
   # Global observation tokens configuration
   global_obs:
     episode_completion_pct: true
@@ -34,7 +37,7 @@ game:
     - heart
     - armor
     - laser
-    # - blueprint
+    - blueprint
 
   # Show recipe inputs in observations for all converters
   recipe_details_obs: false

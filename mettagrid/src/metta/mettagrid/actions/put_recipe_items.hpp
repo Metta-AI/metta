@@ -12,7 +12,7 @@
 
 class PutRecipeItems : public ActionHandler {
 public:
-  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
+  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_items") {}
 
   unsigned char max_arg() const override {
     return 0;

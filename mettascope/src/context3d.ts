@@ -1,21 +1,21 @@
-import { Vec2f, Mat3f } from './vector_math.js'
+import { Mat3f, Vec2f } from './vector_math.js'
 
 const VERTEX_SHADER_SOURCE = `
   attribute vec2 a_position;
   attribute vec2 a_texcoord;
   attribute vec4 a_color;
-  
+
   uniform vec2 u_canvasSize;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec2 zeroToOne = a_position / u_canvasSize;
     vec2 zeroToTwo = zeroToOne * 2.0;
     vec2 clipSpace = zeroToTwo - vec2(1.0, 1.0);
     gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
-    
+
     v_texcoord = a_texcoord;
     v_color = a_color;
   }
@@ -23,12 +23,12 @@ const VERTEX_SHADER_SOURCE = `
 
 const FRAGMENT_SHADER_SOURCE = `
   precision mediump float;
-  
+
   uniform sampler2D u_sampler;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec4 texColor = texture2D(u_sampler, v_texcoord);
     // Do the premultiplied alpha conversion.
@@ -60,12 +60,16 @@ class Mesh {
   private indexCapacity: number
   private vertexData: Float32Array
   private indexData: Uint32Array
-  private currentQuad: number = 0
-  private currentVertex: number = 0
+  private currentQuad = 0
+  private currentVertex = 0
 
   // Scissor properties
-  public scissorEnabled: boolean = false
+  public scissorEnabled = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
+
+  // Caching properties
+  public cacheable = false
+  public isDirty = true
 
   constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
     this.name = name
@@ -103,7 +107,9 @@ class Mesh {
 
   /** Create WebGL buffers. */
   createBuffers() {
-    if (!this.gl) return
+    if (!this.gl) {
+      return
+    }
 
     // Create vertex buffer
     this.vertexBuffer = this.gl.createBuffer()
@@ -167,11 +173,25 @@ class Mesh {
 
   /** Clear the mesh for a new frame. */
   clear() {
+    if (this.cacheable) {
+      return // Skip clearing cached meshes
+    }
+
     // Reset counters instead of recreating arrays
     this.currentQuad = 0
     this.currentVertex = 0
+    this.isDirty = true
 
     // Reset scissor settings
+    this.scissorEnabled = false
+    this.scissorRect = [0, 0, 0, 0]
+  }
+
+  /** Force clear the mesh even if it's cacheable. */
+  forceClear() {
+    this.currentQuad = 0
+    this.currentVertex = 0
+    this.isDirty = true
     this.scissorEnabled = false
     this.scissorRect = [0, 0, 0, 0]
   }
@@ -228,6 +248,7 @@ class Mesh {
     // Update counters
     this.currentVertex += 4
     this.currentQuad += 1
+    this.isDirty = true
   }
 
   /** Get the number of quads in the mesh. */
@@ -257,8 +278,13 @@ class Mesh {
 
   /** Reset the counters. */
   resetCounters() {
+    if (this.cacheable) {
+      return // Don't reset counters for cacheable meshes
+    }
+
     this.currentQuad = 0
     this.currentVertex = 0
+    this.isDirty = true
   }
 }
 
@@ -266,27 +292,27 @@ class Mesh {
 export class Context3d {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
-  public ready: boolean = false
-  public dpr: number = 1
+  public ready = false
+  public dpr = 1
   public atlasData: AtlasData | null = null
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
   private atlasTexture: WebGLTexture | null = null
   private textureSize: Vec2f = new Vec2f(0, 0)
-  private atlasMargin: number = 4
+  private atlasMargin = 4
 
   // Shader locations
-  private positionLocation: number = -1
-  private texcoordLocation: number = -1
-  private colorLocation: number = -1
+  private positionLocation = -1
+  private texcoordLocation = -1
+  private colorLocation = -1
   private canvasSizeLocation: WebGLUniformLocation | null = null
   private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
   private currentMesh: Mesh | null = null
-  private currentMeshName: string = ''
+  public currentMeshName = ''
 
   // Transformation state
   private currentTransform: Mat3f
@@ -343,6 +369,18 @@ export class Context3d {
   disableScissor() {
     this.ensureMeshSelected()
     this.currentMesh!.scissorEnabled = false
+  }
+
+  /** Set whether the current mesh should be cached between frames. */
+  setCacheable(cacheable: boolean) {
+    this.ensureMeshSelected()
+    this.currentMesh!.cacheable = cacheable
+  }
+
+  /** Clear the current mesh even if it's cacheable. */
+  clearMesh() {
+    this.ensureMeshSelected()
+    this.currentMesh?.forceClear()
   }
 
   /** Helper method to ensure a mesh is selected before drawing. */
@@ -519,7 +557,9 @@ export class Context3d {
   /** Create and compile a shader. */
   private createShader(type: number, source: string): WebGLShader | null {
     const shader = this.gl.createShader(type)
-    if (!shader) return null
+    if (!shader) {
+      return null
+    }
 
     this.gl.shaderSource(shader, source)
     this.gl.compileShader(shader)
@@ -536,7 +576,9 @@ export class Context3d {
   /** Create and link a shader program. */
   private createProgram(vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
     const program = this.gl.createProgram()
-    if (!program) return null
+    if (!program) {
+      return null
+    }
 
     this.gl.attachShader(program, vertexShader)
     this.gl.attachShader(program, fragmentShader)
@@ -553,7 +595,9 @@ export class Context3d {
 
   /** Clears all meshes for a new frame. */
   clear() {
-    if (!this.ready) return
+    if (!this.ready) {
+      return
+    }
 
     // Clear all meshes in the map
     for (const mesh of this.meshes.values()) {
@@ -599,7 +643,7 @@ export class Context3d {
     const bottomRight = this.currentTransform.transform(untransformedBottomRight)
 
     // Send pre-transformed vertices to the mesh
-    this.currentMesh!.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
+    this.currentMesh?.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
   }
 
   /** Check if the image is in the atlas. */
@@ -645,8 +689,37 @@ export class Context3d {
     )
   }
 
-  /** Draws an image from the atlas centered at (x, y). */
-  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0) {
+  /*
+   * Draws a sprite from the texture atlas centered at the specified position.
+   *
+   * @param imageName - Name of the image in the atlas (e.g., 'player.png')
+   * @param x - X coordinate of the sprite's center
+   * @param y - Y coordinate of the sprite's center
+   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
+   * @param scale - Uniform scale (number) or non-uniform scale [scaleX, scaleY]
+   * @param rotation - Rotation angle in radians (positive = clockwise)
+   *
+   * @example
+   * // Draw at original size
+   * ctx.drawSprite('player.png', 100, 200)
+   *
+   * // Draw with uniform scale
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 2)
+   *
+   * // Draw mirrored horizontally
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], [-1, 1])
+   *
+   * // Draw with rotation (45 degrees)
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 1, Math.PI / 4)
+   */
+  drawSprite(
+    imageName: string,
+    x: number,
+    y: number,
+    color: number[] = [1, 1, 1, 1],
+    scale: number | [number, number] = 1,
+    rotation = 0
+  ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -661,23 +734,28 @@ export class Context3d {
     const [sx, sy, sw, sh] = this.atlasData[imageName]
     const m = this.atlasMargin
 
-    // Calculate UV coordinates (normalized 0.0 to 1.0).
-    // Add the margin to allow texture filtering to handle edge anti-aliasing.
+    // Calculate UV coordinates for the sprite in the texture atlas.
+    // The margin (m) is added to prevent texture bleeding at sprite edges.
     const u0 = (sx - m) / this.textureSize.x()
     const v0 = (sy - m) / this.textureSize.y()
     const u1 = (sx + sw + m) / this.textureSize.x()
     const v1 = (sy + sh + m) / this.textureSize.y()
 
-    if (scale != 1 || rotation != 0) {
+    // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
+    const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
+
+    // biome-ignore format: keep comments aligned
+    // Apply transformations if needed (scale or rotation)
+    if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y)
-      this.rotate(rotation)
-      this.scale(scale, scale)
+      this.translate(x, y)       // Move origin to sprite center
+      this.rotate(rotation)      // Apply rotation
+      this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
-        -sw / 2 - m, // Center horizontally with margin adjustment.
-        -sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Reduce width by twice the margin.
-        sh + 2 * m, // Reduce height by twice the margin.
+        -sw / 2 - m, // Left edge: center minus half width minus margin
+        -sh / 2 - m, // Top edge: center minus half height minus margin
+        sw + 2 * m,  // Total width including margins on both sides
+        sh + 2 * m,  // Total height including margins on both sides
         u0,
         v0,
         u1,
@@ -686,13 +764,12 @@ export class Context3d {
       )
       this.restore()
     } else {
-      // Draw the rectangle with the image's texture coordinates.
-      // For centered drawing, we need to account for the reduced size.
+      // Fast path: no transformations needed, draw directly
       this.drawRect(
-        x - sw / 2 - m, // Center horizontally with margin adjustment.
-        y - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Reduce width by twice the margin.
-        sh + 2 * m, // Reduce height by twice the margin.
+        x - sw / 2 - m, // Left edge position
+        y - sh / 2 - m, // Top edge position
+        sw + 2 * m,     // Total width including margins
+        sh + 2 * m,     // Total height including margins
         u0,
         v0,
         u1,
@@ -777,20 +854,27 @@ export class Context3d {
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
       const quadCount = mesh.getQuadCount()
-      if (quadCount === 0) continue
+      if (quadCount === 0) {
+        continue
+      }
 
       const vertexBuffer = mesh.getVertexBuffer()
       const indexBuffer = mesh.getIndexBuffer()
 
-      if (!vertexBuffer || !indexBuffer) continue
+      if (!vertexBuffer || !indexBuffer) {
+        continue
+      }
 
       // Calculate data sizes
       const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
       const indexDataCount = quadCount * 6 // 6 indices per quad
 
-      // Update vertex buffer with current data
+      // Update vertex buffer with current data only if dirty
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer)
-      this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+      if (mesh.isDirty) {
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+        mesh.isDirty = false
+      }
 
       // Set up attributes
       this.gl.enableVertexAttribArray(this.positionLocation)
@@ -850,8 +934,8 @@ export class Context3d {
     y1: number,
     spacing: number,
     color: number[],
-    skipStart: number = 0,
-    skipEnd: number = 0
+    skipStart = 0,
+    skipEnd = 0
   ) {
     // Compute the angle of the line.
     const angle = Math.atan2(y1 - y0, x1 - x0)
