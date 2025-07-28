@@ -2,6 +2,71 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Plan & Review
+
+**IMPORTANT: Always start in plan mode before implementing any changes.**
+
+1. **Enter plan mode first** - Use the ExitPlanMode tool only after presenting a complete plan
+2. **Create a task plan** - Write your plan to `.claude/tasks/TASK_NAME.md` with:
+   - Clear problem statement
+   - MVP approach (always think minimal viable solution first)
+   - Step-by-step implementation plan
+   - Success criteria
+3. **Use appropriate tools** - If the task requires external knowledge or complex searches, use the Task tool with appropriate agents
+4. **Request review** - After writing the plan, explicitly ask: "Please review this plan before I proceed with implementation"
+5. **Wait for approval** - Only exit plan mode and begin implementation after receiving approval
+
+### Plan Template (.claude/tasks/TASK_NAME.md)
+
+```markdown
+# Task: [TASK_NAME]
+
+## Problem Statement
+[Clear description of what needs to be done]
+
+## MVP Approach
+[Minimal solution that solves the core problem]
+
+## Implementation Plan
+1. [Step 1]
+2. [Step 2]
+3. ...
+
+## Success Criteria
+- [ ] [Criterion 1]
+- [ ] [Criterion 2]
+- [ ] ...
+
+## Implementation Updates
+[This section will be updated during implementation]
+```
+
+## While Implementing
+
+**Maintain the plan as living documentation throughout implementation:**
+
+1. **Update as you work** - When you discover new information or need to adjust the approach, update the plan file
+2. **Document completed steps** - After completing each major step, append a brief description:
+   ```markdown
+   ### Step 1 Complete: [Date/Time]
+   - Changed: [what was changed]
+   - Files affected: [list files]
+   - Key decisions: [any important choices made]
+   ```
+3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
+4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
+
+## After Implementation
+
+1. **Final update** - Update the task file with:
+   - Summary of what was accomplished
+   - Any known limitations or future work
+   - Lessons learned (if applicable)
+2. **Verify success criteria** - Check off completed criteria in the plan
+3. **Clean up** - Ensure all code is properly tested and documented
+
+---
+
 ## Project Overview
 
 Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI
@@ -11,8 +76,11 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 The codebase consists of:
 
 - `metta/`: Core Python implementation for agents, maps, RL algorithms, simulation
-- `mettagrid/`: C++/Python grid environment implementation
-- `mettascope/`: Visualization and replay tools
+- `mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
+- `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
+- `observatory/`: React-based dashboard for viewing training runs and evaluations
+- `gridworks/`: Next.js web interface
+- `app_backend/`: FastAPI backend server for stats and data services
 
 ## Development Environment Setup
 
@@ -38,6 +106,10 @@ metta install aws wandb              # Install specific components
 # Run all tests with coverage
 metta test --cov=mettagrid --cov-report=term-missing
 
+# Run specific test modules
+uv run pytest tests/rl/test_trainer_config.py -v
+uv run pytest tests/sim/ -v
+
 # Run linting and formatting on python files with Ruff
 metta lint # optional --fix and --staged arguments
 
@@ -57,6 +129,38 @@ Not needed, just run scripts, they'll work automatically through uv-powered sheb
 metta clean
 ```
 
+## Key Entry Points and Tools
+
+### Training and Evaluation Pipeline
+
+1. **Training**: `tools/train.py` - Main training script using Hydra configuration
+   ```bash
+   uv run ./tools/train.py run=my_experiment +hardware=macbook
+   ```
+
+2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
+   ```bash
+   uv run ./tools/sim.py run=eval policy_uri=file://./checkpoints/policy.pt
+   ```
+
+3. **Analysis**: `tools/analyze.py` - Analyze evaluation results and generate reports
+   ```bash
+   uv run ./tools/analyze.py run=analysis analysis.eval_db_uri=./train_dir/eval/stats.db
+   ```
+
+4. **Interactive Play**: `tools/play.py` - Manual testing and exploration
+   ```bash
+   uv run ./tools/play.py run=play +hardware=macbook
+   ```
+
+5. **Sweep Management**: `tools/sweep_setup.py`, `tools/sweep_prepare_run.py` - Hyperparameter sweep tools
+
+### Visualization Tools
+
+- **MettaScope**: Run `cd mettascope && npm run dev` for interactive replay viewer
+- **Observatory**: Run `cd observatory && npm run dev` for training dashboard
+- **GridWorks**: Run `cd gridworks && npm run dev` for web interface
+
 ## Code Architecture
 
 ### Agent System
@@ -65,6 +169,10 @@ metta clean
 - Policies are stored in `PolicyStore` and managed by `MettaAgent`
 - Agent architecture is designed to be adaptable to new game rules and environments
 - Neural components can be mixed and matched via configuration
+- Key classes:
+  - `metta.agent.metta_agent.MettaAgent` - Main agent implementation
+  - `metta.agent.policy_store.PolicyStore` - Manages policy checkpoints
+  - `metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
 
 ### Environment System
 
@@ -72,6 +180,10 @@ metta clean
 - Procedural world generation with customizable configurations
 - Various environment types with different dynamics and challenges
 - Support for different kinship schemes and mate selection mechanisms
+- Key components:
+  - `mettagrid/` - C++ core implementation for performance
+  - `metta.map.mapgen` - Procedural map generation
+  - `metta.map.scene` - Scene configuration and loading
 
 ### Training Infrastructure
 
@@ -79,6 +191,10 @@ metta clean
 - Integration with Weights & Biases for experiment tracking
 - Scalable architecture for training large-scale multi-agent systems
 - Support for curriculum learning and knowledge distillation
+- Key components:
+  - `metta.rl.trainer.Trainer` - Main training loop
+  - `metta.rl.vecenv` - Vectorized environment wrapper
+  - `metta.rl.kickstarter` - Policy initialization strategies
 
 ### Evaluation System
 
@@ -86,16 +202,34 @@ metta clean
 - Navigation tasks, maze solving, in-context learning
 - Cooperation and competition metrics
 - Support for tracking and comparing multiple policies
+- Key components:
+  - `metta.sim.simulation.Simulation` - Core simulation engine
+  - `metta.sim.simulation_suite` - Evaluation task suites
+  - `metta.eval.eval_stats_db` - SQLite-based stats storage
 
 ## Configuration System
 
 The project uses OmegaConf for configuration, with config files organized in `configs/`:
 
-- `agent/`: Agent architecture configurations
+- `agent/`: Agent architecture configurations (tiny, small, medium, reference_design)
 - `trainer/`: Training configurations
-- `sim/`: Simulation configurations
-- `hardware/`: Hardware-specific settings
+- `sim/`: Simulation configurations (navigation, memory, arena, etc.)
+- `hardware/`: Hardware-specific settings (macbook, github)
 - `user/`: User-specific configurations
+- `wandb/`: Weights & Biases settings
+
+### Configuration Override Examples
+
+```bash
+# Override specific parameters
+uv run ./tools/train.py trainer.num_workers=4 trainer.total_timesteps=100000
+
+# Use different agent architecture
+uv run ./tools/train.py agent=latent_attn_tiny
+
+# Disable wandb
+uv run ./tools/train.py wandb=off
+```
 
 ## Testing Philosophy
 
@@ -105,6 +239,12 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - Tests should be focused on testing one thing
 - Tests should cover edge cases and boundary conditions
 - Tests are organized in the `tests/` directory, mirroring the project structure
+- Test organization:
+  - `tests/rl/` - Reinforcement learning components
+  - `tests/sim/` - Simulation and evaluation
+  - `tests/map/` - Map generation and scene loading
+  - `tests/sweep/` - Hyperparameter sweep infrastructure
+  - `tests/mettagrid/` - Environment-specific tests
 
 ## Code Style Guidelines
 
@@ -154,11 +294,20 @@ When reviewing code, focus on:
 - Validate policy types with runtime checking using `policy_as_metta_agent()`
 - Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
 - Ensure proper type safety for policy handling throughout the system
+- Policy URIs follow format: `file://path/to/checkpoint` or `wandb://project/run/artifact`
 
 ### Device Management
 
 - Add explicit `torch.device` type hints in trainer and simulation modules
 - Be consistent about device placement and movement of tensors
+- Use `device=cpu` on macOS (no CUDA support)
+
+### Hydra Configuration Patterns
+
+- Use `+` prefix to add new config groups: `+hardware=macbook`
+- Use `~` prefix to override without schema validation: `~trainer.num_workers=2`
+- Use `++` prefix to force override: `++trainer.device=cpu`
+- Config composition order matters - later overrides take precedence
 
 ## PR Creation Guidelines
 
@@ -218,3 +367,33 @@ Before creating a PR, ensure:
 - [ ] Proper error handling is implemented
 - [ ] Tests pass locally
 - [ ] Code is formatted according to project standards
+
+## Common Development Workflows
+
+### Adding a New Evaluation Task
+
+1. Create new config in `configs/sim/`
+2. Implement evaluation logic in `metta/sim/`
+3. Add tests in `tests/sim/`
+4. Register with simulation suite if needed
+
+### Modifying Agent Architecture
+
+1. Update or create config in `configs/agent/`
+2. Modify neural network components in `metta/agent/`
+3. Ensure compatibility with existing training pipeline
+4. Test with small-scale training run
+
+### Debugging Training Issues
+
+1. Enable debug logging: `HYDRA_FULL_ERROR=1`
+2. Use smaller batch sizes for debugging
+3. Check wandb logs for metrics anomalies
+4. Use `tools/play.py` for interactive debugging
+
+### Performance Profiling
+
+1. Use `torch.profiler` integration in trainer
+2. Monitor GPU utilization with `nvidia-smi`
+3. Check environment step timing in vecenv
+4. Profile C++ code with cmake debug builds
