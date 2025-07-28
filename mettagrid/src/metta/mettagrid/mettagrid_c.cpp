@@ -223,7 +223,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       if (agent->resource_rewards.count(item) && agent->resource_rewards[item] > 0) {
         // Set bit at position (7 - i) to 1
         // Item 0 goes to bit 7, item 1 to bit 6, etc.
-        packed |= (1 << (7 - i));
+        packed |= (1 << (7 - item));
       }
     }
 
@@ -307,8 +307,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
     if (max_steps > 0) {
-      episode_completion_pct = static_cast<ObservationType>(
-          std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
+      float fraction = (static_cast<float>(current_step) / static_cast<float>(max_steps));
+      episode_completion_pct =
+          static_cast<ObservationType>(std::round(fraction * std::numeric_limits<ObservationType>::max()));
     }
     global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
