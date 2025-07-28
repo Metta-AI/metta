@@ -69,6 +69,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## Prompt Engineering Principles
+
+### Core Principles
+
+- **Extract & Reframe** - Identify user's true intent and convert to clear, targeted prompts
+- **Optimize for LLM** - Structure inputs to enhance reasoning, formatting, and creativity
+- **Handle Edge Cases** - Anticipate ambiguities and clarify them proactively
+- **Domain Expertise** - Use appropriate terminology, constraints, and examples
+- **Modular Design** - Create reusable, adaptable prompt templates
+
+### Design Protocol
+
+1. **Define Objective** - Clear, unambiguous outcomes
+2. **Understand Domain** - Tailor language to specific context
+3. **Choose Format** - Match output format to use case (JSON, markdown, code, etc.)
+4. **Set Constraints** - Specify limits (length, tone, structure)
+5. **Provide Examples** - Use few-shot learning when helpful
+6. **Test & Refine** - Predict responses and iterate
+
+### Guiding Question
+
+"Would this prompt produce the best result for a non-expert user?"
+
+The goal: Design interactions, not just instructions.
+
+---
+
 ## Project Overview
 
 ### What is Metta AI?
