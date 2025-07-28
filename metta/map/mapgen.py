@@ -75,6 +75,31 @@ class MapGen(LevelBuilder):
         self.seed = params.seed
         self.rng = np.random.default_rng(self.seed)
 
+    def __getstate__(self):
+        """Prepare the object for pickling."""
+        state = self.__dict__.copy()
+        # Store the random state instead of the generator itself
+        state["_rng_state"] = self.rng.__getstate__()
+        del state["rng"]
+        # Convert any remaining DictConfig to regular dict
+        if isinstance(state.get("root"), DictConfig):
+            state["root"] = cast(dict, OmegaConf.to_container(state["root"]))
+        # Remove root_scene if it exists (it's created during build())
+        state.pop("root_scene", None)
+        # Remove any other build-time attributes
+        state.pop("grid", None)
+        state.pop("inner_width", None)
+        state.pop("inner_height", None)
+        return state
+
+    def __setstate__(self, state):
+        """Restore the object from pickled state."""
+        # Restore the random generator from its state
+        rng_state = state.pop("_rng_state")
+        self.__dict__.update(state)
+        self.rng = np.random.default_rng()
+        self.rng.__setstate__(rng_state)
+
     def build(self):
         if not self.width or not self.height:
             dict_cfg = scene_cfg_to_dict(self.root)

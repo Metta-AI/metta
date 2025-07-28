@@ -1,25 +1,14 @@
 import logging
-import pickle
 import random
-import struct
 import time
-from multiprocessing import shared_memory
 from typing import Any, Dict
 
-import numpy as np
 from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
+from metta.rl.curriculum.curriculum_state import CurriculumState
 
 logger = logging.getLogger(__name__)
-
-# Shared memory layout constants (must match server)
-TASK_ID_SIZE = 36  # UUID string length
-TASK_NAME_SIZE = 256
-ENV_CFG_SIZE = 65536  # 64KB for pickled env config
-# Updated to match CurriculumState: +4 for num_completed, +4 for mean_score, +4 for num_outstanding, +1 for occupied
-SLOT_SIZE = TASK_ID_SIZE + TASK_NAME_SIZE + ENV_CFG_SIZE + 4 + 4 + 4 + 1
-HEADER_SIZE = 12  # 4 bytes for ready flag + 4 bytes for num_slots + 4 bytes for num_active_tasks
 
 
 class RemoteTask(Task):
@@ -33,34 +22,57 @@ class RemoteTask(Task):
         self._env_cfg = env_cfg
         self._client = client
         self._slot_idx = slot_idx
+        self._start_time = time.time()  # Track when task was acquired
 
     def complete(self, score: float):
         """Complete the task by updating shared memory."""
         if self._is_complete:
-            logger.warning(f"Task {self._id} is already complete")
+            self._client._log(f"Task {self._id} is already complete", level="warning")
             return
 
         # Convert score to Python float in case it's a numpy type
         score = float(score)
 
+        # Calculate task completion time
+        completion_time = time.time() - self._start_time
+
         # Update shared memory
         success = self._client.complete_task(self._slot_idx, score)
         if success:
             self._is_complete = True
-            logger.debug(f"Task {self._name} completed with score {score}")
+            self._client._log(
+                f"Task {self._name} completed with score {score:.3f} in {completion_time:.2f}s", level="debug"
+            )
+            # Update client's completion time tracking
+            self._client._track_completion_time(completion_time)
         else:
-            logger.error(f"Failed to complete task {self._name} in shared memory")
+            self._client._log(f"Failed to complete task {self._name} in shared memory", level="error")
 
     def short_name(self) -> str:
         return self._name.split("/")[-1]
 
 
 class CurriculumClient(Curriculum):
-    """Client that connects to a curriculum server via shared memory.
+    """Client for accessing curriculum tasks from shared memory.
 
-    The server pre-allocates all task slots, so clients can immediately start
-    working without waiting for task creation. Tasks are read without locks
-    for maximum performance.
+    This client connects to a pre-allocated task pool managed by CurriculumServer.
+    Tasks are read directly from shared memory slots without locks, allowing fast
+    parallel access. The server continuously refreshes tasks as they are completed.
+
+    The shared memory layout consists of a fixed number of slots, each containing
+    a task ID, name, and pickled environment configuration. Clients read tasks
+    randomly from available slots, ensuring even distribution of work across
+    parallel workers.
+
+    Note: This implementation uses the base class's default implementations for
+    methods like completed_tasks() and get_completion_rates() which return empty
+    values, as these would require synchronization across processes.
+
+    Example:
+        client = CurriculumClient()
+        task = client.get_task()  # Returns immediately with pre-allocated task
+        # ... run simulation ...
+        task.complete(score)  # Updates shared memory directly
     """
 
     def __init__(self, name: str = "curriculum_server", timeout: float = 30.0):
@@ -70,211 +82,216 @@ class CurriculumClient(Curriculum):
             name: Name of the shared memory segment to connect to.
             timeout: Timeout in seconds for connecting to the server.
         """
-        self.name = name
-        self.timeout = timeout
+        # Generate a random client ID
+        self.client_id = random.randint(0, 999999)
+        self._should_log = (self.client_id % 100) == 0
 
-        # Connect to shared memory with retries
+        # Track timing statistics
+        self._task_acquisition_times = []
+        self._task_completion_times = []
+        self._tasks_acquired = 0
+        self._tasks_completed = 0
+
+        self._log("Initializing curriculum client", level="info")
+
+        # Connect to CurriculumState using the new connect method
         start_time = time.time()
-        connected = False
-        last_error = None
-        retry_count = 0
+        self.state = CurriculumState.connect(name=name, timeout=timeout, wait_ready=True)
+        connection_time = time.time() - start_time
 
-        while time.time() - start_time < timeout:
-            try:
-                self.shm = shared_memory.SharedMemory(name=name)
-                connected = True
-                break
-            except FileNotFoundError as e:
-                last_error = e
-                retry_count += 1
-                if retry_count == 1:
-                    logger.info(f"Waiting for curriculum server shared memory '{name}' to be available...")
-                elif retry_count % 10 == 0:  # Log every second
-                    elapsed = time.time() - start_time
-                    logger.info(f"Still waiting for curriculum server '{name}'... ({elapsed:.1f}s elapsed)")
-                time.sleep(0.1)  # Wait 100ms before retrying
+        # Get initial number of active slots
+        self.num_active_slots = self.state.get_num_active_slots()
 
-        if not connected:
-            raise ConnectionError(
-                f"Curriculum server shared memory '{name}' not found after {timeout}s. "
-                f"Is the server running? Last error: {last_error}"
-            )
-
-        # Create numpy array for easier access
-        self.buffer = np.ndarray((self.shm.size,), dtype=np.uint8, buffer=self.shm.buf)
-
-        # Wait for server to signal it's ready
-        ready_start = time.time()
-        while time.time() - ready_start < 10.0:  # Wait up to 10 seconds
-            ready_flag = struct.unpack_from("I", self.buffer.data, 0)[0]
-            if ready_flag == 1:
-                break
-            time.sleep(0.1)
-        else:
-            raise ConnectionError(
-                "Curriculum server shared memory found but server not ready after 10s. "
-                "The server may still be initializing tasks."
-            )
-
-        # Read num_slots from header
-        self.num_slots = struct.unpack_from("I", self.buffer.data, 4)[0]
-        logger.debug(f"Connected to curriculum server with {self.num_slots} slots")
-
-        # Verify expected size
-        expected_size = HEADER_SIZE + (SLOT_SIZE * self.num_slots)
-        if self.shm.size < expected_size:
-            logger.warning(
-                f"Shared memory size ({self.shm.size}) is smaller than expected ({expected_size}). "
-                f"Server may be using a different layout."
-            )
+        self._log(
+            f"Connected to curriculum server with {self.num_active_slots} active slots in {connection_time:.2f}s",
+            level="debug",
+        )
 
         # Verify at least some slots have tasks
         self._verify_connection()
 
+    def _log(self, message: str, level: str = "info"):
+        """Log a message with client ID prefix, only if this client should log."""
+        if not self._should_log:
+            return
+
+        prefixed_message = f"[Client {self.client_id}] {message}"
+
+        if level == "debug":
+            logger.debug(prefixed_message)
+        elif level == "info":
+            logger.info(prefixed_message)
+        elif level == "warning":
+            logger.warning(prefixed_message)
+        elif level == "error":
+            logger.error(prefixed_message)
+        else:
+            logger.info(prefixed_message)
+
+    def _track_completion_time(self, completion_time: float):
+        """Track task completion time statistics."""
+        self._task_completion_times.append(completion_time)
+        self._tasks_completed += 1
+
+        # Keep only last 100 completion times to avoid memory growth
+        if len(self._task_completion_times) > 100:
+            self._task_completion_times.pop(0)
+
+        # Log statistics every 10 completions
+        if self._tasks_completed % 10 == 0:
+            mean_acquisition = (
+                sum(self._task_acquisition_times) / len(self._task_acquisition_times)
+                if self._task_acquisition_times
+                else 0
+            )
+            mean_completion = (
+                sum(self._task_completion_times) / len(self._task_completion_times)
+                if self._task_completion_times
+                else 0
+            )
+            self._log(
+                f"Stats - Tasks: {self._tasks_acquired} acquired, {self._tasks_completed} completed | "
+                f"Mean times: {mean_acquisition * 1000:.1f}ms to acquire, {mean_completion:.2f}s to complete",
+                level="info",
+            )
+
     def _verify_connection(self):
         """Verify that the shared memory contains valid tasks."""
+        # Update our knowledge of active slots
+        self.num_active_slots = self.state.get_num_active_slots()
+
         valid_count = 0
-        for i in range(min(5, self.num_slots)):  # Check first 5 slots
+        for i in range(min(5, self.num_active_slots)):  # Check first 5 slots
             try:
-                slot_data = self._read_slot(i)
+                slot_data = self.state.read_task(i)
                 if slot_data["task_id"]:
                     valid_count += 1
             except Exception as e:
-                logger.debug(f"Error reading slot {i} during verification: {e}")
+                self._log(f"Error reading slot {i} during verification: {e}", level="debug")
 
         if valid_count == 0:
-            logger.warning(
-                f"No valid tasks found in first {min(5, self.num_slots)} slots. Server may still be initializing."
+            self._log(
+                f"No valid tasks found in first {min(5, self.num_active_slots)} "
+                f"slots. Server may still be initializing. "
+                f"Active slots: {self.num_active_slots}, Max slots: {self.state.max_slots}",
+                level="warning",
             )
 
-    def _get_slot_offset(self, slot_idx: int) -> int:
-        """Get the byte offset for a specific slot."""
-        return HEADER_SIZE + (slot_idx * SLOT_SIZE)
-
-    def _read_slot(self, slot_idx: int) -> Dict:
-        """Read task info from a slot."""
-        offset = self._get_slot_offset(slot_idx)
-
-        # Read task_id
-        task_id_bytes = bytes(self.buffer[offset : offset + TASK_ID_SIZE])
-        task_id = task_id_bytes.decode("utf-8").rstrip("\x00")
-
-        # Read task_name
-        name_offset = offset + TASK_ID_SIZE
-        task_name_bytes = bytes(self.buffer[name_offset : name_offset + TASK_NAME_SIZE])
-        task_name = task_name_bytes.decode("utf-8").rstrip("\x00")
-
-        # Read env_cfg
-        cfg_offset = offset + TASK_ID_SIZE + TASK_NAME_SIZE
-        env_cfg_bytes = bytes(self.buffer[cfg_offset : cfg_offset + ENV_CFG_SIZE])
-        # Find the actual length of pickled data
-        env_cfg_len = len(env_cfg_bytes.rstrip(b"\x00"))
-        if env_cfg_len > 0:
-            env_cfg = pickle.loads(env_cfg_bytes[:env_cfg_len])
-        else:
-            env_cfg = None
-
-        # Read num_completed
-        num_completed_offset = offset + TASK_ID_SIZE + TASK_NAME_SIZE + ENV_CFG_SIZE
-        num_completed = struct.unpack_from("I", self.buffer.data, num_completed_offset)[0]
-
-        # Read mean_score
-        mean_score_offset = num_completed_offset + 4
-        mean_score = struct.unpack_from("f", self.buffer.data, mean_score_offset)[0]
-
-        return {
-            "task_id": task_id,
-            "task_name": task_name,
-            "env_cfg": env_cfg,
-            "num_completed": num_completed,
-            "mean_score": mean_score,
-        }
-
     def get_task(self) -> Task:
-        """Get a random task from shared memory.
+        """Get a task from shared memory by sampling multiple slots and selecting the best one.
 
-        Tasks are pre-allocated by the server, so this method returns immediately
-        without waiting for task creation. Multiple clients can read tasks concurrently
-        since no locks are used for reading.
+        Samples 5 random slots (or all available if fewer) and selects the task with:
+        1. The least number of outstanding clients
+        2. If tied, the least number of completions (to ensure balanced sampling)
+
+        This approach helps distribute work evenly across tasks and prevents task starvation.
         """
-        # Try multiple times to get a task
-        max_attempts = 10
+        start_time = time.time()
+
+        # Update our knowledge of active slots
+        self.num_active_slots = self.state.get_num_active_slots()
+
+        if self.num_active_slots == 0:
+            self._log("No active slots available", level="warning")
+            raise RuntimeError("No active slots available in curriculum server")
+
+        # Number of slots to sample
+        sample_size = min(5, self.num_active_slots)
+
+        # Sample random slots without replacement
+        if self.num_active_slots <= sample_size:
+            # If we have 5 or fewer slots, just use all of them
+            sampled_slots = list(range(self.num_active_slots))
+        else:
+            # Sample 5 random slots
+            sampled_slots = random.sample(range(self.num_active_slots), sample_size)
+
+        # Collect valid tasks from sampled slots
+        valid_tasks = []
         empty_slots = 0
         invalid_slots = 0
 
-        for _ in range(max_attempts):
-            # Pick a random slot
-            slot_idx = random.randint(0, self.num_slots - 1)
+        for slot_idx in sampled_slots:
+            # Read without acquiring lock using CurriculumState
+            slot_data = self.state.read_task(slot_idx)
 
-            # Read without acquiring lock
-            slot_data = self._read_slot(slot_idx)
-
-            # Make sure we have valid task data
+            # Check if we have valid task data
             if slot_data["task_id"] and slot_data["env_cfg"] is not None:
-                return RemoteTask(slot_data["task_id"], slot_data["task_name"], slot_data["env_cfg"], self, slot_idx)
+                valid_tasks.append((slot_idx, slot_data))
             elif not slot_data["task_id"]:
                 empty_slots += 1
             else:
                 invalid_slots += 1
 
-            # Small delay before retry
-            time.sleep(0.1)  # Increased from 0.01 to give server more time
+        # If no valid tasks found, try more attempts with random sampling
+        max_attempts = 10
+        if not valid_tasks:
+            for _ in range(max_attempts):
+                slot_idx = random.randint(0, self.num_active_slots - 1)
+                slot_data = self.state.read_task(slot_idx)
 
-        # Before failing, check one more time with detailed diagnostics
-        logger.warning("Failed to find valid task. Checking all slots for diagnostics...")
-        valid_count = 0
-        for i in range(min(10, self.num_slots)):  # Check first 10 slots
-            slot_data = self._read_slot(i)
-            if slot_data["task_id"]:
-                valid_count += 1
-                logger.debug(
-                    f"Slot {i}: task_id={slot_data['task_id'][:8]}..., has_cfg={slot_data['env_cfg'] is not None}"
-                )
-            else:
-                logger.debug(f"Slot {i}: EMPTY")
+                if slot_data["task_id"] and slot_data["env_cfg"] is not None:
+                    valid_tasks.append((slot_idx, slot_data))
+                    break
+                elif not slot_data["task_id"]:
+                    empty_slots += 1
+                else:
+                    invalid_slots += 1
 
-        logger.warning(f"Found {valid_count}/{min(10, self.num_slots)} valid slots in first 10 slots")
+        # If still no valid tasks, raise error
+        if not valid_tasks:
+            acquisition_time = time.time() - start_time
+            self._log(
+                f"Failed to find valid task after sampling {sample_size} slots and {max_attempts} additional attempts "
+                f"in {acquisition_time:.2f}s. Empty slots: {empty_slots}, Invalid slots: {invalid_slots}",
+                level="error",
+            )
+            raise RuntimeError(
+                f"Failed to find valid task. Empty slots: {empty_slots}, Invalid slots: {invalid_slots}. "
+                f"The curriculum server may not have finished initializing."
+            )
 
-        raise RuntimeError(
-            f"Failed to get task after {max_attempts} attempts. "
-            f"Empty slots: {empty_slots}, Invalid slots: {invalid_slots}. "
-            f"The curriculum server may not have finished initializing."
+        # Select the best task based on:
+        # 1. Least outstanding (primary criterion)
+        # 2. Least completed (tie breaker)
+        best_slot_idx, best_slot_data = min(valid_tasks, key=lambda x: (x[1]["num_outstanding"], x[1]["num_completed"]))
+
+        # Increment outstanding count when task is sampled
+        self.state.increment_outstanding(best_slot_idx)
+
+        # Track acquisition time
+        acquisition_time = time.time() - start_time
+        self._task_acquisition_times.append(acquisition_time)
+        self._tasks_acquired += 1
+
+        # Keep only last 100 acquisition times
+        if len(self._task_acquisition_times) > 100:
+            self._task_acquisition_times.pop(0)
+
+        self._log(
+            f"Acquired task '{best_slot_data['task_name']}' from slot {best_slot_idx} "
+            f"(outstanding: {best_slot_data['num_outstanding']}, completed: {best_slot_data['num_completed']}) "
+            f"after sampling {len(valid_tasks)} valid tasks in {acquisition_time * 1000:.1f}ms",
+            level="debug",
+        )
+
+        return RemoteTask(
+            best_slot_data["task_id"], best_slot_data["task_name"], best_slot_data["env_cfg"], self, best_slot_idx
         )
 
     def complete_task(self, slot_idx: int, score: float) -> bool:
         """Update task completion in shared memory."""
-        try:
-            offset = self._get_slot_offset(slot_idx)
-
-            # Read current values
-            num_completed_offset = offset + TASK_ID_SIZE + TASK_NAME_SIZE + ENV_CFG_SIZE
-            num_completed = struct.unpack_from("I", self.buffer.data, num_completed_offset)[0]
-
-            mean_score_offset = num_completed_offset + 4
-            current_mean = struct.unpack_from("f", self.buffer.data, mean_score_offset)[0]
-
-            # Update values using incremental mean calculation
-            new_num_completed = num_completed + 1
-            new_mean = ((current_mean * num_completed) + score) / new_num_completed
-
-            # Write updated values
-            struct.pack_into("I", self.buffer.data, num_completed_offset, new_num_completed)
-            struct.pack_into("f", self.buffer.data, mean_score_offset, new_mean)
-
-            logger.debug(f"Updated slot {slot_idx}: completions={new_num_completed}, mean_score={new_mean:.3f}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error completing task: {e}")
-            return False
+        # Get task ID and call CurriculumState's complete_task
+        slot_data = self.state.read_task(slot_idx)
+        return self.state.complete_task(slot_data["task_id"], score)
 
     def stats(self) -> Dict[str, Any]:
         """Get statistics from shared memory."""
         stats = {"total_completions": 0, "active_tasks": 0, "slot_utilization": []}
 
-        for slot_idx in range(self.num_slots):
+        for slot_idx in range(self.num_active_slots):
             # Read without acquiring lock
-            slot_data = self._read_slot(slot_idx)
+            slot_data = self.state.read_task(slot_idx)
             if slot_data["task_id"]:
                 stats["active_tasks"] += 1
                 stats["total_completions"] += slot_data["num_completed"]
@@ -287,22 +304,27 @@ class CurriculumClient(Curriculum):
                     }
                 )
 
+        # Add client-specific stats
+        stats["client_stats"] = {
+            "client_id": self.client_id,
+            "tasks_acquired": self._tasks_acquired,
+            "tasks_completed": self._tasks_completed,
+            "mean_acquisition_time_ms": sum(self._task_acquisition_times) / len(self._task_acquisition_times) * 1000
+            if self._task_acquisition_times
+            else 0,
+            "mean_completion_time_sec": sum(self._task_completion_times) / len(self._task_completion_times)
+            if self._task_completion_times
+            else 0,
+        }
+
         return stats
 
     def __del__(self):
         """Clean up shared memory connection."""
-        if hasattr(self, "shm"):
-            self.shm.close()
-
-    # These methods are for API compatibility but don't apply to shared memory version
-    def completed_tasks(self) -> list[str]:
-        """Not implemented for shared memory version."""
-        return []
-
-    def get_completion_rates(self) -> Dict[str, float]:
-        """Not implemented for shared memory version."""
-        return {}
-
-    def get_task_probs(self) -> Dict[str, float]:
-        """Not implemented for shared memory version."""
-        return {}
+        if hasattr(self, "state"):
+            self.state.close()
+            if hasattr(self, "_should_log") and self._should_log:
+                self._log(
+                    f"Closing client - Acquired {self._tasks_acquired} tasks, completed {self._tasks_completed}",
+                    level="info",
+                )

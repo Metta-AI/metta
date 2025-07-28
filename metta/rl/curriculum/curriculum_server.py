@@ -4,7 +4,7 @@ import time
 import uuid
 from typing import Dict
 
-from metta.mettagrid.curriculum.core import Curriculum, Task
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.rl.curriculum.curriculum_state import CurriculumState
 
 logger = logging.getLogger(__name__)
@@ -13,36 +13,49 @@ logger = logging.getLogger(__name__)
 class CurriculumServer:
     """Server that manages curriculum tasks using shared memory.
 
-    Pre-allocates a fixed number of task slots in shared memory that clients can
-    access immediately without waiting. Tasks are automatically refreshed when completed.
+    Dynamically allocates task slots as needed. Starts with no tasks and adds
+    them as clients request work, ensuring all tasks have at least one outstanding
+    client before adding new ones.
     """
 
     def __init__(
         self,
         curriculum: Curriculum,
-        num_slots: int = 100,
-        buffer_size: int = 4096,
+        max_slots: int = 10000,
+        initial_tasks: int = 10,
         auto_start: bool = True,
         status_interval: float = 30.0,
     ):
+        """Initialize the curriculum server.
+
+        Args:
+            curriculum: The curriculum to serve tasks from
+            max_slots: Maximum number of task slots that can be allocated
+            initial_tasks: Number of tasks to start with
+            auto_start: Whether to automatically start the server threads
+            status_interval: Interval in seconds between status prints
+        """
         self.curriculum = curriculum
-        self.num_slots = num_slots
-        self.buffer_size = buffer_size
+        self.max_slots = max_slots
+        self.initial_tasks = initial_tasks
         self.status_interval = status_interval
         self.tasks_created = 0  # Track total tasks created
+        self.tasks_completed = 0  # Track total tasks completed (replaced)
+        self.task_completion_times = []  # Track time to complete each task
+        self.task_start_times = {}  # Track when each task was created
 
         # Create the shared memory state manager
-        self.state = CurriculumState(num_slots=num_slots, name="curriculum_server", create=True)
+        self.state = CurriculumState(max_slots=max_slots, name="curriculum_server", create=True)
 
-        # Pre-allocate all slots with tasks before starting monitor
-        self._initialize_slots()
+        # Store active tasks by slot
+        self._active_tasks = {}
 
-        # Set ready flag after all tasks are allocated
+        # Add initial tasks
+        self._add_initial_tasks()
+
+        # Set ready flag after initial tasks are added
         self.state.set_ready(True)
         logger.info("Set ready flag - clients can now connect")
-
-        # Mark server as ready
-        self._ready = True
 
         # Background threads
         self.running = False
@@ -52,43 +65,62 @@ class CurriculumServer:
         if auto_start:
             self.start()
 
-    def _write_slot(self, slot_idx: int, task: Task):
-        """Write a task to a specific slot."""
-        # Generate task info
-        task_id = str(uuid.uuid4())
-        task_name = task.name()
-        env_cfg = task.env_cfg()
+    def _add_initial_tasks(self):
+        """Add the initial set of tasks."""
+        logger.info(f"Adding {self.initial_tasks} initial tasks...")
 
-        # Write to shared memory using the state manager
-        self.state.write_task(
-            slot_idx=slot_idx, task_id=task_id, task_name=task_name, env_cfg=env_cfg, num_completed=0, mean_score=0.0
-        )
-
-        # Store task reference for completion
-        self._active_tasks[slot_idx] = task
-
-    def _read_slot(self, slot_idx: int) -> Dict:
-        """Read task info from a slot."""
-        return self.state.read_task(slot_idx)
-
-    def _initialize_slots(self):
-        """Pre-allocate all task slots with tasks from the curriculum."""
-        self._active_tasks = {}
-        logger.info(f"Pre-allocating {self.num_slots} tasks in shared memory...")
-
-        start_time = time.time()
-        for i in range(self.num_slots):
+        for i in range(self.initial_tasks):
             task = self.curriculum.get_task()
-            self._write_slot(i, task)
-            self.tasks_created += 1
+            task_id = str(uuid.uuid4())
+            task_name = task.name()
+            env_cfg = task.env_cfg()
 
-            # Log progress for large numbers of slots
-            if (i + 1) % 10 == 0 or (i + 1) == self.num_slots:
-                logger.debug(f"Initialized {i + 1}/{self.num_slots} task slots")
+            slot_idx = self.state.add_task(task_id, task_name, env_cfg)
+            if slot_idx is not None:
+                self._active_tasks[slot_idx] = task
+                self.task_start_times[slot_idx] = time.time()
+                self.tasks_created += 1
+            else:
+                logger.warning(f"Failed to add initial task {i}")
+                break
 
-        elapsed = time.time() - start_time
-        logger.info(f"Successfully pre-allocated {self.num_slots} tasks in {elapsed:.2f}s")
-        logger.info("Curriculum server ready - clients can now connect and start working immediately")
+        logger.info(f"Successfully added {len(self._active_tasks)} initial tasks")
+
+    def _add_new_task_if_needed(self):
+        """Check if a new task should be added and add it if needed.
+
+        A new task is added when all existing tasks have outstanding work.
+        """
+        # Check if we need to add a new task
+        num_active = self.state.get_num_active_slots()
+
+        if num_active >= self.max_slots:
+            return  # Already at maximum capacity
+
+        # Check if all tasks have outstanding work
+        all_have_outstanding = True
+        for slot_idx in range(num_active):
+            try:
+                task_data = self.state.read_task(slot_idx)
+                if task_data.get("task_id") and task_data["num_outstanding"] == 0:
+                    all_have_outstanding = False
+                    break
+            except Exception:
+                pass  # Skip invalid slots
+
+        if all_have_outstanding and num_active > 0:
+            # All tasks have outstanding work, add a new one
+            task = self.curriculum.get_task()
+            task_id = str(uuid.uuid4())
+            task_name = task.name()
+            env_cfg = task.env_cfg()
+
+            slot_idx = self.state.add_task(task_id, task_name, env_cfg)
+            if slot_idx is not None:
+                self._active_tasks[slot_idx] = task
+                self.task_start_times[slot_idx] = time.time()
+                self.tasks_created += 1
+                logger.info(f"Added new task '{task_name}' to slot {slot_idx} (now {num_active + 1} active tasks)")
 
     def _print_status(self):
         """Print detailed status of the task store."""
@@ -98,27 +130,37 @@ class CurriculumServer:
             total_outstanding = 0
             active_tasks = 0
             task_stats = []
+            num_active_slots = self.state.get_num_active_slots()
 
-            for slot_idx in range(self.num_slots):
-                slot_data = self._read_slot(slot_idx)
-                if slot_data["task_id"]:
-                    active_tasks += 1
-                    total_completions += slot_data["num_completed"]
-                    total_outstanding += slot_data["num_outstanding"]
+            for slot_idx in range(num_active_slots):
+                try:
+                    slot_data = self.state.read_task(slot_idx)
+                    if slot_data.get("task_id"):
+                        active_tasks += 1
+                        total_completions += slot_data["num_completed"]
+                        total_outstanding += slot_data["num_outstanding"]
 
-                    # Collect task info for detailed reporting
-                    task_stats.append(
-                        {
-                            "slot": slot_idx,
-                            "name": slot_data["task_name"],
-                            "completed": slot_data["num_completed"],
-                            "outstanding": slot_data["num_outstanding"],
-                            "mean_score": slot_data["mean_score"],
-                        }
-                    )
+                        # Collect task info for detailed reporting
+                        task_stats.append(
+                            {
+                                "slot": slot_idx,
+                                "name": slot_data["task_name"],
+                                "completed": slot_data["num_completed"],
+                                "outstanding": slot_data["num_outstanding"],
+                                "mean_score": slot_data["mean_score"],
+                            }
+                        )
+                except Exception:
+                    pass  # Skip invalid slots
 
             # Sort by number of completions (descending)
             task_stats.sort(key=lambda x: x["completed"], reverse=True)
+
+            # Calculate mean completion time
+            mean_completion_time = (
+                sum(self.task_completion_times) / len(self.task_completion_times) if self.task_completion_times else 0
+            )
+            mean_completions_per_task = self.tasks_completed / self.tasks_created if self.tasks_created > 0 else 0
 
             # Print status header
             print("\n" + "=" * 80)
@@ -127,16 +169,20 @@ class CurriculumServer:
 
             # Print summary statistics
             print("\nSUMMARY:")
-            print(f"  Total slots:          {self.num_slots}")
-            print(f"  Active tasks:         {active_tasks}")
-            print(f"  Tasks created:        {self.tasks_created}")
-            print(f"  Total completions:    {total_completions}")
-            print(f"  Outstanding work:     {total_outstanding}")
+            print(f"  Active slots:            {num_active_slots}")
+            print(f"  Max slots:               {self.max_slots}")
+            print(f"  Active tasks:            {active_tasks}")
+            print(f"  Tasks created:           {self.tasks_created}")
+            print(f"  Tasks completed:         {self.tasks_completed}")
+            print(f"  Total completions:       {total_completions}")
+            print(f"  Outstanding work:        {total_outstanding}")
             print(
-                f"  Avg completions/task: {total_completions / active_tasks:.2f}"
+                f"  Avg completions/task:    {total_completions / active_tasks:.2f}"
                 if active_tasks > 0
-                else "  Avg completions/task: 0.00"
+                else "  Avg completions/task:    0.00"
             )
+            print(f"  Mean time to complete:   {mean_completion_time:.2f}s")
+            print(f"  Mean completions/task:   {mean_completions_per_task:.2f}")
 
             # Print top tasks by completions
             print("\nTOP 10 TASKS BY COMPLETIONS:")
@@ -164,7 +210,13 @@ class CurriculumServer:
                 if curriculum_stats:
                     print("\nCURRICULUM STATS:")
                     for key, value in curriculum_stats.items():
-                        if key not in ["active_tasks", "total_completions", "num_slots", "tasks_created"]:
+                        if key not in [
+                            "active_tasks",
+                            "total_completions",
+                            "active_slots",
+                            "max_slots",
+                            "tasks_created",
+                        ]:
                             print(f"  {key}: {value}")
             except Exception:
                 pass  # Curriculum might not have stats() method
@@ -188,30 +240,63 @@ class CurriculumServer:
                 logger.error(f"Error in status monitor thread: {e}")
 
     def _monitor_tasks(self):
-        """Monitor tasks and refresh those with > 5 completions and no outstanding work."""
+        """Monitor tasks and manage the task pool.
+
+        - Refresh tasks that have no outstanding work
+        - Add new tasks when all existing tasks have outstanding work
+        """
         while self.running:
             try:
+                # Check if we need to add a new task
+                self._add_new_task_if_needed()
+
                 # Get all tasks that can be completed (no outstanding work)
                 completable_tasks = self.state.get_completable_tasks()
 
                 for task_data in completable_tasks:
-                    # Check if task has more than 5 completions
-                    if task_data["num_completed"] > 5:
-                        slot_idx = task_data["slot_idx"]
+                    slot_idx = task_data["slot_idx"]
+
+                    # Calculate completion time if this task had any completions
+                    if task_data["num_completed"] > 0:
+                        if slot_idx in self.task_start_times:
+                            completion_time = time.time() - self.task_start_times[slot_idx]
+                            self.task_completion_times.append(completion_time)
+                            # Keep only last 1000 completion times to avoid memory growth
+                            if len(self.task_completion_times) > 1000:
+                                self.task_completion_times.pop(0)
+
+                        self.tasks_completed += 1
 
                         # Complete the task in the curriculum
                         task = self._active_tasks.get(slot_idx)
                         if task:
                             task.complete(task_data["mean_score"])
                             logger.debug(
-                                f"Completed task {task_data['task_name']} with mean score {task_data['mean_score']:.2f}"
+                                f"Completed task {task_data['task_name']} "
+                                f"with mean score {task_data['mean_score']:.2f}, "
+                                f"{task_data['num_completed']} completions"
                             )
 
-                        # Get a new task and write it to the slot
-                        new_task = self.curriculum.get_task()
-                        self._write_slot(slot_idx, new_task)
-                        self.tasks_created += 1
-                        logger.debug(f"Refreshed slot {slot_idx} with new task {new_task.name()}")
+                    # Get a new task and write it to the slot
+                    new_task = self.curriculum.get_task()
+                    task_id = str(uuid.uuid4())
+                    task_name = new_task.name()
+                    env_cfg = new_task.env_cfg()
+
+                    # Write the new task to the same slot
+                    self.state.write_task(
+                        slot_idx=slot_idx,
+                        task_id=task_id,
+                        task_name=task_name,
+                        env_cfg=env_cfg,
+                        num_completed=0,
+                        mean_score=0.0,
+                    )
+
+                    self._active_tasks[slot_idx] = new_task
+                    self.task_start_times[slot_idx] = time.time()
+                    self.tasks_created += 1
+                    logger.debug(f"Refreshed slot {slot_idx} with new task {task_name}")
 
                 time.sleep(0.1)  # Check every 100ms
 
@@ -253,19 +338,6 @@ class CurriculumServer:
         """Check if the server is running."""
         return self.running and self.monitor_thread is not None and self.monitor_thread.is_alive()
 
-    def is_ready(self) -> bool:
-        """Check if the server has finished pre-allocating tasks."""
-        return hasattr(self, "_ready") and self._ready
-
-    def wait_until_ready(self, timeout: float = 30.0) -> bool:
-        """Wait until server is ready with pre-allocated tasks."""
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            if self.is_ready():
-                return True
-            time.sleep(0.1)
-        return False
-
     def stats(self) -> Dict:
         """Get curriculum statistics."""
         stats = self.curriculum.stats()
@@ -273,28 +345,30 @@ class CurriculumServer:
         # Add shared memory stats
         total_completions = 0
         active_tasks = 0
+        num_active_slots = self.state.get_num_active_slots()
 
-        for slot_idx in range(self.num_slots):
-            slot_data = self._read_slot(slot_idx)
-            if slot_data["task_id"]:
-                active_tasks += 1
-                total_completions += slot_data["num_completed"]
+        for slot_idx in range(num_active_slots):
+            try:
+                slot_data = self.state.read_task(slot_idx)
+                if slot_data.get("task_id"):
+                    active_tasks += 1
+                    total_completions += slot_data["num_completed"]
+            except Exception:
+                pass  # Skip invalid slots
+
+        # Calculate mean statistics
+        mean_completion_time = (
+            sum(self.task_completion_times) / len(self.task_completion_times) if self.task_completion_times else 0
+        )
+        mean_completions_per_task = self.tasks_completed / self.tasks_created if self.tasks_created > 0 else 0
 
         stats["active_tasks"] = active_tasks
+        stats["active_slots"] = num_active_slots
+        stats["max_slots"] = self.max_slots
         stats["total_completions"] = total_completions
-        stats["num_slots"] = self.num_slots
         stats["tasks_created"] = self.tasks_created
+        stats["tasks_completed"] = self.tasks_completed
+        stats["mean_completion_time_sec"] = mean_completion_time
+        stats["mean_completions_per_task"] = mean_completions_per_task
 
         return stats
-
-
-def run_curriculum_server(curriculum: Curriculum, num_slots: int = 100):
-    """Convenience function to create and run a curriculum server."""
-    server = CurriculumServer(curriculum, num_slots=num_slots)
-    # The server auto-starts in __init__, so we just need to keep it running
-    # This function blocks to maintain backward compatibility
-    try:
-        if server.monitor_thread is not None:
-            server.monitor_thread.join()
-    except KeyboardInterrupt:
-        server.stop()

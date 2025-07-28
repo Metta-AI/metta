@@ -5,7 +5,7 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/walkaround
+  curriculum: /env/mettagrid/walkaround
   simulation:
     evaluate_interval: 2
   checkpoint:
@@ -28,7 +28,6 @@ policy_uri: wandb://run/daphne.generalized_nav.bucketed.07-10
 # daphne.generalized_nav.bucketed.07-10
 
 # sasmith.nav-bucketed.no-timing
-
 
 # george.generalized_nav.bucketed.07-10
 # george.generalized_nav.bucketed.07-10

@@ -203,6 +203,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
     num_workers: int = Field(gt=0)
     # Default curriculum: Simple environment for initial experiments
     curriculum: str = "/env/mettagrid/curriculum/arena/basic_easy_shaped"
+    # Number of initial tasks to create before making the curriculum state ready
+    curriculum_initial_tasks: int = Field(default=10, gt=0)
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
@@ -229,8 +231,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
 
-        if not self.curriculum and not self.env:
-            raise ValueError("curriculum or env must be set")
+        if not self.curriculum:
+            raise ValueError("curriculum must be set")
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -267,9 +269,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     def curriculum_or_env(self) -> str:
         if self.curriculum:
             return self.curriculum
-        if self.env:
-            return self.env
-        raise ValueError("curriculum or env must be set")
+        raise ValueError("curriculum must be set")
 
 
 def create_trainer_config(

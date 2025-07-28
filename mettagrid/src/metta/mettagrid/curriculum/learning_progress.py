@@ -124,14 +124,34 @@ class BidirectionalLearningProgress:
         """Return learning progress statistics for logging."""
         stats = {}
         stats["lp/num_active_tasks"] = len(self._sample_levels)
-        stats["lp/mean_sample_prob"] = np.mean(self._task_dist)
-        stats["lp/num_zeros_lp_dist"] = np.sum(self._task_dist == 0)
+
+        # Handle case when _task_dist is not yet initialized
+        if self._task_dist is not None:
+            stats["lp/mean_sample_prob"] = np.mean(self._task_dist)
+            stats["lp/num_zeros_lp_dist"] = np.sum(self._task_dist == 0)
+        else:
+            # Use default values when distribution hasn't been calculated yet
+            stats["lp/mean_sample_prob"] = 1.0 / self._num_tasks if self._num_tasks > 0 else 0.0
+            stats["lp/num_zeros_lp_dist"] = 0
+
+        # Task success rates are initialized as zeros array, so they're always available
         stats["lp/task_1_success_rate"] = self._task_success_rate[0]
         stats[f"lp/task_{self._num_tasks // 2}_success_rate"] = self._task_success_rate[self._num_tasks // 2]
         stats["lp/last_task_success_rate"] = self._task_success_rate[-1]
         stats["lp/task_success_rate"] = np.mean(self._task_success_rate)
-        stats["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
-        stats["lp/num_nan_tasks"] = self._num_nans[-1]
+
+        # Handle mean samples per eval (list may be empty initially)
+        if self._mean_samples_per_eval:
+            stats["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
+        else:
+            stats["lp/mean_evals_per_task"] = 0.0
+
+        # Handle num nans (list may be empty initially)
+        if self._num_nans:
+            stats["lp/num_nan_tasks"] = self._num_nans[-1]
+        else:
+            stats["lp/num_nan_tasks"] = 0
+
         return stats
 
     def _update(self):

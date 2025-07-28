@@ -12,24 +12,17 @@ from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.curriculum.curriculum_server import CurriculumServer
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(message)s")
 
 # Create a simple curriculum
-task_cfg = OmegaConf.create({
-    "game": {
-        "num_agents": 2,
-        "layout": {
-            "rows": 10,
-            "cols": 10
-        }
-    }
-})
+task_cfg = OmegaConf.create({"game": {"num_agents": 2, "layout": {"rows": 10, "cols": 10}}})
 curriculum = SingleTaskCurriculum("test_task", task_cfg)
 
 # Start server with more slots
 print("Starting curriculum server...")
-server = CurriculumServer(curriculum, num_slots=20, auto_start=True)
+server = CurriculumServer(curriculum, max_slots=20, auto_start=True)
 time.sleep(1)
+
 
 def simulate_environment(env_id, episode_duration=2.0):
     """Simulate an environment that runs episodes."""
@@ -47,6 +40,7 @@ def simulate_environment(env_id, episode_duration=2.0):
         score = 0.5 + (env_id * 0.1)
         task.complete(score)
         print(f"Env {env_id} completed episode {episode}")
+
 
 # Create multiple environment threads
 print("\nStarting 5 simulated environments...")

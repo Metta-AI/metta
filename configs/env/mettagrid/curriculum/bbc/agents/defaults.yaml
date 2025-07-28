@@ -4,6 +4,7 @@ _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculu
 
 env_overrides:
   game:
+    num_agents: 24
     global_obs:
       resource_rewards: true
     recipe_details_obs: true
@@ -14,7 +15,6 @@ env_overrides:
       swap: { enabled: false }
 
     map_builder:
-      instances: 24
       instance_border_width: 6
       root:
         params:

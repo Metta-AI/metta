@@ -70,8 +70,6 @@ def make_vecenv(
         vectorizer_cls = pufferlib.vector.Serial
     elif vectorization == "multiprocessing":
         vectorizer_cls = pufferlib.vector.Multiprocessing
-    elif vectorization == "ray":
-        vectorizer_cls = pufferlib.vector.Ray
     else:
         raise ValueError("Invalid --vector (serial/multiprocessing/ray).")
 

@@ -36,17 +36,17 @@ class TestCurriculumServerClient:
     @pytest.fixture
     def curriculum_server(self, simple_curriculum):
         """Create and start a curriculum server."""
-        server = CurriculumServer(simple_curriculum, num_slots=10, auto_start=True)
+        server = CurriculumServer(simple_curriculum, max_slots=10, auto_start=True)
         time.sleep(0.5)  # Give server time to initialize
         yield server
         server.stop()
 
     def test_server_initialization(self, simple_curriculum):
         """Test that a curriculum server initializes correctly."""
-        server = CurriculumServer(simple_curriculum, num_slots=10, auto_start=False)
+        server = CurriculumServer(simple_curriculum, max_slots=10, auto_start=False)
 
         assert server.curriculum == simple_curriculum
-        assert server.num_slots == 10
+        assert server.max_slots == 10
         assert not server.is_running()
 
         server.start()
@@ -58,12 +58,12 @@ class TestCurriculumServerClient:
 
     def test_client_initialization(self, curriculum_server):
         """Test that a curriculum client initializes correctly."""
-        client = CurriculumClient(num_slots=10)
-        assert client.num_slots == 10
+        client = CurriculumClient()
+        assert client.num_active_slots <= 10  # Should start with initial_tasks or less
 
     def test_get_task(self, curriculum_server):
         """Test getting a task from the server."""
-        client = CurriculumClient(num_slots=10)
+        client = CurriculumClient()
         task = client.get_task()
 
         assert task is not None
@@ -73,7 +73,7 @@ class TestCurriculumServerClient:
 
     def test_complete_task(self, curriculum_server):
         """Test completing a task."""
-        client = CurriculumClient(num_slots=10)
+        client = CurriculumClient()
         task = client.get_task()
 
         # Complete the task
@@ -85,7 +85,7 @@ class TestCurriculumServerClient:
 
     def test_multiple_completions(self, curriculum_server):
         """Test multiple completions of the same slot."""
-        client = CurriculumClient(num_slots=10)
+        client = CurriculumClient()
 
         # Get a task and complete it multiple times
         task = client.get_task()
@@ -103,7 +103,7 @@ class TestCurriculumServerClient:
 
     def test_stats(self, curriculum_server):
         """Test getting statistics."""
-        client = CurriculumClient(num_slots=10)
+        client = CurriculumClient()
 
         # Get initial stats
         stats = client.stats()
@@ -120,7 +120,7 @@ class TestCurriculumServerClient:
 
     def test_multiple_clients(self, curriculum_server):
         """Test multiple clients accessing the server."""
-        clients = [CurriculumClient(num_slots=10) for _ in range(3)]
+        clients = [CurriculumClient() for _ in range(3)]
 
         # Each client gets a task
         tasks = []
@@ -135,7 +135,7 @@ class TestCurriculumServerClient:
 
     def test_task_refresh(self, curriculum_server):
         """Test that tasks are refreshed after many completions."""
-        client = CurriculumClient(num_slots=10)
+        client = CurriculumClient()
 
         # Get a task
         task = client.get_task()
@@ -152,13 +152,13 @@ class TestCurriculumServerClient:
         # The slot should have been refreshed with a new task
         # Get stats to check
         stats = curriculum_server.stats()
-        assert stats["tasks_created"] > curriculum_server.num_slots
+        assert stats["tasks_created"] >= stats["active_slots"]  # At least one task per slot
 
     def test_concurrent_access(self, curriculum_server):
         """Test concurrent access to the same slot."""
         import threading
 
-        client = CurriculumClient(num_slots=10)
+        client = CurriculumClient()
         results = []
 
         def worker(worker_id):
