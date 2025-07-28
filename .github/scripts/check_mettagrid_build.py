@@ -76,8 +76,11 @@ class BuildChecker:
                     "AddressSanitizer:DEADLYSIGNAL",
                     "SUMMARY: AddressSanitizer:",
                     "==ABORTING",
-                    "tests failed out of",
+                    "Segmentation fault",
+                    "Assertion failed",
                     "Errors while running CTest",
+                    "Aborted",
+                    "core dumped",
                 ]
             ):
                 self.runtime_issues.append(line_stripped)

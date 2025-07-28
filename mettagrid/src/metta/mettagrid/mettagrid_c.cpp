@@ -223,7 +223,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       if (agent->resource_rewards.count(item) && agent->resource_rewards[item] > 0) {
         // Set bit at position (7 - i) to 1
         // Item 0 goes to bit 7, item 1 to bit 6, etc.
-        packed |= (1 << (7 - item));
+        packed |= static_cast<uint8_t>(1 << (7 - item));
       }
     }
 
