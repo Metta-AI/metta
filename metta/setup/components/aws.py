@@ -24,7 +24,10 @@ class AWSSetup(SetupModule):
         return any(self.config.is_component_enabled(dep) for dep in ["aws", "skypilot"])
 
     def check_installed(self) -> bool:
-        result = self.run_command(["aws", "--version"], check=False)
+        try:
+            result = self.run_command(["aws", "--version"], check=False)
+        except FileNotFoundError:
+            return False
         return result.returncode == 0
 
     def install(self) -> None:
