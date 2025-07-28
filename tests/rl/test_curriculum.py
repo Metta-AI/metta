@@ -38,38 +38,43 @@ class TestCurriculumServerClient:
     @pytest.fixture
     def curriculum_server(self, simple_curriculum):
         """Create and start a curriculum server in a background thread."""
-        server = CurriculumServer(simple_curriculum, port=5555, host="127.0.0.1")
-        server_thread = threading.Thread(target=server.run, daemon=True)
-        server_thread.start()
+        server = CurriculumServer(simple_curriculum, port=5555, auto_start=True)
         time.sleep(0.5)  # Give server time to start
         yield server
         server.stop()
 
     def test_server_initialization(self, simple_curriculum):
         """Test that a curriculum server initializes correctly."""
-        server = CurriculumServer(simple_curriculum, port=5556)
+        server = CurriculumServer(simple_curriculum, port=5556, auto_start=False)
 
         assert server.curriculum == simple_curriculum
         assert server.port == 5556
         assert server.host == "0.0.0.0"
         assert server.buffer_size == 4096
         assert len(server.active_tasks) == 0
-        assert not server.running
+        assert not server.is_running()  # Server should not be running yet since auto_start=False
+
+        # Now start it and check it's running
+        server.start()
+        assert server.is_running()
+
+        # Clean up
+        server.stop()
 
     def test_client_initialization_success(self, curriculum_server):
         """Test successful client initialization when server is running."""
-        client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+        client = CurriculumClient(server_port=5555)
         assert client.server_host == "127.0.0.1"
         assert client.server_port == 5555
 
     def test_client_initialization_failure(self):
         """Test client initialization failure when no server is running."""
         with pytest.raises(ConnectionError):
-            CurriculumClient(server_host="127.0.0.1", server_port=9999)
+            CurriculumClient(server_port=9999)
 
     def test_get_task(self, curriculum_server):
         """Test getting a task from the server."""
-        client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+        client = CurriculumClient(server_port=5555)
 
         task = client.get_task()
 
@@ -86,7 +91,7 @@ class TestCurriculumServerClient:
 
     def test_complete_task(self, curriculum_server):
         """Test completing a task."""
-        client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+        client = CurriculumClient(server_port=5555)
 
         # Get a task
         task = client.get_task()
@@ -99,7 +104,7 @@ class TestCurriculumServerClient:
 
     def test_multiple_tasks(self, curriculum_server):
         """Test getting and completing multiple tasks."""
-        client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+        client = CurriculumClient(server_port=5555)
 
         tasks = []
         for _ in range(3):
@@ -115,7 +120,7 @@ class TestCurriculumServerClient:
 
     def test_stats(self, curriculum_server):
         """Test getting statistics from the server."""
-        client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+        client = CurriculumClient(server_port=5555)
 
         # Initial stats
         stats = client.stats()
@@ -134,7 +139,7 @@ class TestCurriculumServerClient:
 
     def test_double_complete(self, curriculum_server):
         """Test that completing a task twice doesn't cause errors."""
-        client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+        client = CurriculumClient(server_port=5555)
 
         task = client.get_task()
 
@@ -189,7 +194,7 @@ class TestCurriculumServerClient:
 
         # Create multiple clients
         for _ in range(3):
-            client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+            client = CurriculumClient(server_port=5555)
             clients.append(client)
 
         # Get tasks concurrently

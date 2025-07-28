@@ -7,17 +7,16 @@ from pydantic import validate_call
 
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.curriculum.curriculum_client import CurriculumClient
 
 logger = logging.getLogger("vecenv")
 
 
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
-    curriculum: Curriculum,
     buf=None,
     render_mode="rgb_array",
     stats_writer: Optional[StatsWriter] = None,
@@ -32,9 +31,11 @@ def make_env_func(
         register_resolvers()
         init_logging(run_dir=run_dir)
 
+    curriculum_client = CurriculumClient(server_port=5555)
+
     # Create the environment instance
     env = MettaGridEnv(
-        curriculum,
+        curriculum_client=curriculum_client,
         render_mode=render_mode,
         buf=buf,
         stats_writer=stats_writer,
@@ -42,6 +43,7 @@ def make_env_func(
         is_training=is_training,
         **kwargs,
     )
+
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
         raise ValueError("MettaGridEnv._c_env is None after hydra instantiation")
@@ -50,7 +52,6 @@ def make_env_func(
 
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_vecenv(
-    curriculum: Curriculum,
     vectorization: str,
     num_envs=1,
     batch_size=None,
@@ -79,7 +80,6 @@ def make_vecenv(
         raise ValueError(f"num_envs must be at least 1, got {num_envs}")
 
     env_kwargs = {
-        "curriculum": curriculum,
         "render_mode": render_mode,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,

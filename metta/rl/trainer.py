@@ -1035,8 +1035,21 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
-        task = self._curriculum.get_task()
-        env_cfg = task.env_cfg()
+
+        # Get a sample task to determine environment configuration
+        # On master nodes, use the curriculum directly
+        # On non-master nodes, we'll let the environments create their own clients
+        if self._curriculum is not None:
+            task = self._curriculum.get_task()
+            env_cfg = task.env_cfg()
+        else:
+            # For non-master nodes, we need to get a task from the server
+            # This is just for initial configuration
+            from metta.rl.curriculum import CurriculumClient
+
+            temp_client = CurriculumClient(server_host="127.0.0.1", server_port=5555)
+            task = temp_client.get_task()
+            env_cfg = task.env_cfg()
 
         # TODO: relax someday when we support other observation shapes
         try:
@@ -1078,9 +1091,9 @@ class MettaTrainer:
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
+        # Pass curriculum server info instead of curriculum object
         self.vecenv = make_vecenv(
-            self._curriculum,
-            self.cfg.vectorization,
+            vectorization=self.cfg.vectorization,
             num_envs=num_envs,
             batch_size=self.batch_size,
             num_workers=trainer_cfg.num_workers,

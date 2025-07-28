@@ -6,7 +6,7 @@ from logging import Logger
 
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
@@ -17,8 +17,8 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.curriculum.server import CurriculumServer
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.rl.curriculum import CurriculumServer
 from metta.rl.trainer import MettaTrainer
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
@@ -58,7 +58,7 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: DictConfig | ListConfig, curriculum: Curriculum | None, wandb_run: WandbRun | None, logger: Logger):
+def train(cfg: DictConfig, curriculum: Curriculum | None, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
     # Validation must be done after merging
@@ -101,7 +101,7 @@ def train(cfg: DictConfig | ListConfig, curriculum: Curriculum | None, wandb_run
 
     # Instantiate the trainer directly with the typed config
     trainer = MettaTrainer(
-        cfg.trainer,
+        cfg,
         curriculum,
         wandb_run=wandb_run,
         policy_store=policy_store,
@@ -126,13 +126,17 @@ def main(cfg: DictConfig) -> int:
     )
 
     curriculum = None
-    if local_master and cfg.device.startswith("cuda"):
+    curriculum_server = None
+
+    if local_master:
+        # Create curriculum and server on local master regardless of device
+        curriculum = curriculum_from_config_path(cfg.trainer.curriculum, DictConfig(cfg.trainer.env_overrides))
+        curriculum_server = CurriculumServer(curriculum, port=5555)
+
+    if cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
         cfg.device = f"{cfg.device}:{local_rank}"
-        curriculum = curriculum_from_config_path(cfg.trainer.curriculum, DictConfig(cfg.trainer.env_overrides))
-        curriculum_server = CurriculumServer(curriculum)
-        curriculum_server.start()
         dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
@@ -145,6 +149,10 @@ def main(cfg: DictConfig) -> int:
 
     if dist.is_initialized():
         dist.destroy_process_group()
+
+    # Stop curriculum server if it was started
+    if curriculum_server is not None:
+        curriculum_server.stop()
 
     return 0
 

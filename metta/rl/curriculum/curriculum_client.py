@@ -1,9 +1,11 @@
+import base64
 import json
 import logging
+import pickle
 import socket
 from typing import Any, Dict, Optional
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
 
@@ -28,11 +30,14 @@ class RemoteTask(Task):
             logger.warning(f"Task {self._id} is already complete")
             return
 
+        # Convert score to Python float in case it's a numpy type
+        score = float(score)
+
         # Notify the server
         success = self._client.complete_task(self._server_task_id, score)
         if success:
             self._is_complete = True
-            logger.info(f"Task {self._name} completed with score {score}")
+            logger.debug(f"Task {self._name} completed with score {score}")
         else:
             logger.error(f"Failed to complete task {self._name} on server")
 
@@ -43,14 +48,41 @@ class RemoteTask(Task):
 class CurriculumClient(Curriculum):
     """Client that connects to a curriculum server to get tasks using raw TCP sockets."""
 
-    def __init__(
-        self, server_host: str = "localhost", server_port: int = 5000, timeout: float = 30.0, buffer_size: int = 4096
-    ):
-        self.server_host = server_host
+    def __init__(self, server_port: int = 5555, timeout: float = 30.0, buffer_size: int = 4096):
+        self.server_host = "127.0.0.1"  # Always connect to localhost
         self.server_port = server_port
         self.timeout = timeout
         self.buffer_size = buffer_size
         self._check_connection()
+
+    def _receive_message(self, client_socket: socket.socket) -> Optional[dict]:
+        """Receive a length-prefixed message from the server."""
+        try:
+            # First, receive the 4-byte length prefix
+            length_bytes = b""
+            while len(length_bytes) < 4:
+                chunk = client_socket.recv(4 - len(length_bytes))
+                if not chunk:
+                    raise ConnectionError("Server closed connection while reading length")
+                length_bytes += chunk
+
+            # Convert length from bytes
+            message_length = int.from_bytes(length_bytes, byteorder="big")
+
+            # Now receive the actual message
+            message_bytes = b""
+            while len(message_bytes) < message_length:
+                chunk = client_socket.recv(min(self.buffer_size, message_length - len(message_bytes)))
+                if not chunk:
+                    raise ConnectionError("Server closed connection while reading message")
+                message_bytes += chunk
+
+            # Decode JSON
+            return json.loads(message_bytes.decode("utf-8"))
+
+        except Exception as e:
+            logger.error(f"Error receiving message: {e}")
+            return None
 
     def _send_request(self, request: dict) -> Optional[dict]:
         """Send a request to the server and get the response."""
@@ -67,21 +99,14 @@ class CurriculumClient(Curriculum):
             request_data = json.dumps(request).encode("utf-8")
             client_socket.sendall(request_data)
 
-            # Receive response
-            response_data = client_socket.recv(self.buffer_size).decode("utf-8")
-            if not response_data:
-                raise ConnectionError("Server closed connection")
-
-            return json.loads(response_data)
+            # Receive response using length-prefixed protocol
+            return self._receive_message(client_socket)
 
         except socket.timeout:
             logger.error(f"Timeout connecting to curriculum server at {self.server_host}:{self.server_port}")
             return None
         except socket.error as e:
             logger.error(f"Socket error connecting to curriculum server: {e}")
-            return None
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse server response: {e}")
             return None
         except Exception as e:
             logger.error(f"Error communicating with curriculum server: {e}")
@@ -112,15 +137,18 @@ class CurriculumClient(Curriculum):
         # Create a RemoteTask with the server's data
         task_id = response["task_id"]
         task_name = response["task_name"]
-        env_cfg_dict = response["env_cfg"]
+        env_cfg_pickled = response["env_cfg"]
 
-        # Convert dict back to DictConfig
-        env_cfg = OmegaConf.create(env_cfg_dict)
+        # Decode base64 and unpickle the env_cfg
+        env_cfg = pickle.loads(base64.b64decode(env_cfg_pickled))
 
         return RemoteTask(task_id, task_name, env_cfg, self)
 
     def complete_task(self, task_id: str, score: float) -> bool:
         """Notify the server that a task has been completed."""
+        # Convert score to Python float in case it's a numpy type
+        score = float(score)
+
         response = self._send_request({"command": "complete_task", "task_id": task_id, "score": score})
 
         if not response:

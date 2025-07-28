@@ -1,11 +1,12 @@
+import base64
 import json
 import logging
+import pickle
 import socket
 import threading
+import time
 import uuid
 from typing import Dict
-
-from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
 
@@ -15,10 +16,10 @@ logger = logging.getLogger(__name__)
 class CurriculumServer:
     """Server that manages curriculum tasks for distributed training using raw TCP sockets."""
 
-    def __init__(self, curriculum: Curriculum, port: int = 5000, host: str = "0.0.0.0", buffer_size: int = 4096):
+    def __init__(self, curriculum: Curriculum, port: int = 5555, buffer_size: int = 4096, auto_start: bool = True):
         self.curriculum = curriculum
         self.port = port
-        self.host = host
+        self.host = "0.0.0.0"  # Always bind to all interfaces
         self.buffer_size = buffer_size
 
         # Store active tasks by ID
@@ -28,6 +29,25 @@ class CurriculumServer:
         # Server socket
         self.server_socket = None
         self.running = False
+
+        # Background thread for server
+        self.server_thread = None
+
+        # Start the server automatically in a background thread if requested
+        if auto_start:
+            self.start()
+
+    def _send_message(self, client_socket: socket.socket, message: dict):
+        """Send a message with length prefix to handle large payloads."""
+        # Convert message to JSON bytes
+        message_bytes = json.dumps(message).encode("utf-8")
+
+        # Send length prefix (4 bytes, big-endian)
+        message_length = len(message_bytes)
+        client_socket.sendall(message_length.to_bytes(4, byteorder="big"))
+
+        # Send the actual message
+        client_socket.sendall(message_bytes)
 
     def _handle_client(self, client_socket: socket.socket, client_address):
         """Handle a single client connection."""
@@ -51,19 +71,18 @@ class CurriculumServer:
             else:
                 response = {"success": False, "error": f"Unknown command: {command}"}
 
-            # Send response
-            response_data = json.dumps(response).encode("utf-8")
-            client_socket.sendall(response_data)
+            # Send response using length-prefixed protocol
+            self._send_message(client_socket, response)
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON from client: {e}")
-            error_response = json.dumps({"success": False, "error": "Invalid JSON format"}).encode("utf-8")
-            client_socket.sendall(error_response)
+            error_response = {"success": False, "error": "Invalid JSON format"}
+            self._send_message(client_socket, error_response)
         except Exception as e:
             logger.error(f"Error handling client request: {e}")
-            error_response = json.dumps({"success": False, "error": str(e)}).encode("utf-8")
+            error_response = {"success": False, "error": str(e)}
             try:
-                client_socket.sendall(error_response)
+                self._send_message(client_socket, error_response)
             except Exception:
                 pass
         finally:
@@ -88,7 +107,7 @@ class CurriculumServer:
                 "task_id": task_id,
                 "task_name": task.name(),
                 "task_short_name": task.short_name(),
-                "env_cfg": OmegaConf.to_container(task.env_cfg()),
+                "env_cfg": base64.b64encode(pickle.dumps(task.env_cfg())).decode("ascii"),
             }
         except Exception as e:
             logger.error(f"Error generating task: {e}")
@@ -118,7 +137,7 @@ class CurriculumServer:
                 # Remove from active tasks
                 del self.active_tasks[task_id]
 
-            logger.info(f"Task {task_id} ({task.name()}) completed with score {score}")
+            logger.debug(f"Task {task_id} ({task.name()}) completed with score {score}")
 
             return {"success": True, "message": f"Task {task_id} completed successfully"}
 
@@ -147,44 +166,86 @@ class CurriculumServer:
 
     def run(self):
         """Start the curriculum server."""
-        logger.info(f"Starting curriculum server on {self.host}:{self.port}")
-
-        # Create server socket
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind((self.host, self.port))
-        self.server_socket.listen(5)
-
-        self.running = True
-
-        logger.info(f"Curriculum server listening on {self.host}:{self.port}")
-
         try:
-            while self.running:
-                # Accept client connections
-                client_socket, client_address = self.server_socket.accept()
+            logger.info(f"Starting curriculum server on {self.host}:{self.port}")
 
-                # Handle each client in a separate thread
-                client_thread = threading.Thread(
-                    target=self._handle_client, args=(client_socket, client_address), daemon=True
-                )
-                client_thread.start()
+            # Create server socket
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.server_socket.bind((self.host, self.port))
+            self.server_socket.listen(5)
+
+            self.running = True
+
+            logger.info(f"Curriculum server listening on {self.host}:{self.port}")
+
+            while self.running:
+                # Set a timeout so we can check self.running periodically
+                self.server_socket.settimeout(1.0)
+                try:
+                    # Accept client connections
+                    client_socket, client_address = self.server_socket.accept()
+
+                    # Handle each client in a separate thread
+                    client_thread = threading.Thread(
+                        target=self._handle_client, args=(client_socket, client_address), daemon=True
+                    )
+                    client_thread.start()
+                except socket.timeout:
+                    # Timeout is expected, continue to check self.running
+                    continue
+                except Exception as e:
+                    if self.running:
+                        logger.error(f"Error accepting connection: {e}")
+
         except KeyboardInterrupt:
             logger.info("Server interrupted by user")
         except Exception as e:
-            logger.error(f"Server error: {e}")
+            logger.error(f"Server startup error: {e}")
+            raise  # Re-raise to allow caller to handle
         finally:
-            self.stop()
+            self.running = False
+            if self.server_socket:
+                try:
+                    self.server_socket.close()
+                except Exception:
+                    pass
+
+    def start(self):
+        """Start the server in a background thread."""
+        if self.server_thread is None or not self.server_thread.is_alive():
+            self.server_thread = threading.Thread(target=self.run, daemon=True)
+            self.server_thread.start()
+            # Give the server a moment to start up
+
+            time.sleep(0.1)
+            if not self.is_running():
+                raise RuntimeError(f"Failed to start CurriculumServer on {self.host}:{self.port}")
 
     def stop(self):
         """Stop the server."""
         self.running = False
         if self.server_socket:
-            self.server_socket.close()
+            try:
+                self.server_socket.close()
+            except Exception:
+                pass  # Socket might already be closed
+        if self.server_thread is not None:
+            self.server_thread.join(timeout=2.0)  # Wait up to 2 seconds for thread to finish
         logger.info("Curriculum server stopped")
 
+    def is_running(self):
+        """Check if the server is running."""
+        return self.running and self.server_thread is not None and self.server_thread.is_alive()
 
-def run_curriculum_server(curriculum: Curriculum, port: int = 5000, host: str = "0.0.0.0"):
+
+def run_curriculum_server(curriculum: Curriculum, port: int = 5555):
     """Convenience function to create and run a curriculum server."""
-    server = CurriculumServer(curriculum, port, host)
-    server.run()
+    server = CurriculumServer(curriculum, port)
+    # The server auto-starts in __init__, so we just need to keep it running
+    # This function blocks to maintain backward compatibility
+    try:
+        if server.server_thread is not None:
+            server.server_thread.join()
+    except KeyboardInterrupt:
+        server.stop()
