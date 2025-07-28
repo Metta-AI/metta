@@ -839,7 +839,7 @@ export function drawMap(panel: PanelInfo) {
           }
         }, Common.INFO_PANEL_POP_TIME)
       } else if (!objectUnderMouse && ui.hoverObject !== null) {
-        // Reset hover state when moving to empty space
+        // Reset hover state when moving to empty space.
         ui.hoverObject = null
         clearTimeout(ui.hoverTimer)
       }
