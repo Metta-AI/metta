@@ -40,9 +40,14 @@ class NodejsSetup(SetupModule):
         try:
             env = os.environ.copy()
             env["NODE_NO_WARNINGS"] = "1"
-            self.run_command(["pnpm", "--version"], capture_output=True, env=env)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
+            result = subprocess.run(
+                ["pnpm", "--version"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            return result.returncode == 0
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
     def _enable_corepack_with_cleanup(self):
