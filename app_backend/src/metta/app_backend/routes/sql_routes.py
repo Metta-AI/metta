@@ -9,6 +9,7 @@ from psycopg import errors as pg_errors
 from pydantic import BaseModel
 
 from metta.app_backend.auth import create_user_or_token_dependency
+from metta.app_backend.config import anthropic_api_key
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
@@ -37,7 +38,6 @@ class TableSchema(BaseModel):
 
 class AIQueryRequest(BaseModel):
     description: str
-    api_key: str
 
 
 class AIQueryResponse(BaseModel):
@@ -206,6 +206,10 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("generate_ai_query")
     async def generate_ai_query(request: AIQueryRequest, user: str = user_or_token) -> AIQueryResponse:
         """Generate a SQL query from natural language description using Claude."""
+        # Get API key from environment variable
+        if not anthropic_api_key:
+            raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY environment variable not set")
+
         # Fetch all table schemas in parallel
         tables = await list_tables(user)
         schemas = await asyncio.gather(*[get_table_schema(table.table_name, user) for table in tables])
@@ -240,7 +244,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     "https://api.anthropic.com/v1/messages",
                     headers={
                         "Content-Type": "application/json",
-                        "x-api-key": request.api_key,
+                        "x-api-key": anthropic_api_key,
                         "anthropic-version": "2023-06-01",
                     },
                     json={
@@ -250,8 +254,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     },
                     timeout=30.0,
                 )
-
-            response.raise_for_status()
+                response.raise_for_status()
             data = response.json()
             generated_query = data["content"][0]["text"].strip()
             return AIQueryResponse(query=generated_query)

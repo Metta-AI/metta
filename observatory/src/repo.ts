@@ -261,7 +261,6 @@ export type SQLQueryResponse = {
 
 export type AIQueryRequest = {
   description: string
-  api_key: string
 }
 
 export type AIQueryResponse = {
@@ -300,7 +299,7 @@ export interface Repo {
   listTables(): Promise<TableInfo[]>
   getTableSchema(tableName: string): Promise<TableSchema>
   executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
-  generateAIQuery(description: string, apiKey: string): Promise<AIQueryResponse>
+  generateAIQuery(description: string): Promise<AIQueryResponse>
 
   // Training run methods
   getTrainingRuns(): Promise<TrainingRunListResponse>
@@ -332,7 +331,7 @@ export interface Repo {
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') {}
+  constructor(private baseUrl: string = 'http://localhost:8000') { }
 
   private getHeaders(contentType?: string): Record<string, string> {
     const headers: Record<string, string> = {}
@@ -465,10 +464,9 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBody<SQLQueryResponse>('/sql/query', request)
   }
 
-  async generateAIQuery(description: string, apiKey: string): Promise<AIQueryResponse> {
+  async generateAIQuery(description: string): Promise<AIQueryResponse> {
     return this.apiCallWithBody<AIQueryResponse>('/sql/generate-query', {
       description,
-      api_key: apiKey,
     })
   }
 
