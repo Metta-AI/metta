@@ -3,25 +3,22 @@ from typing import List, Optional
 
 import httpx
 
+from metta.common.util.stats_client_cfg import get_machine_token
+
 from .HeatmapWidget import HeatmapWidget, create_heatmap_widget
 
 
 class MettaAPIClient:
     """Fixed client that properly handles authentication and response parsing."""
 
-    def __init__(self, base_url: str, auth_token: Optional[str] = None):
-        print(base_url)
+    def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
-        self.headers = {"Content-Type": "application/json"}
-        if auth_token:
-            # Use X-Auth-Token header format like extract_training_rewards.py
-            self.headers["X-Auth-Token"] = auth_token
+        self.headers = {"Content-Type": "application/json", "X-Auth-Token": get_machine_token(self.base_url)}
 
     async def _make_request(self, method: str, endpoint: str, **kwargs):
         """Make an HTTP request to the API."""
         url = f"{self.base_url}{endpoint}"
         print(f"🔍 Making {method} request to: {url}")
-        print(f"🔑 Headers: {self.headers}")
         if "json" in kwargs:
             print(f"📦 Payload: {kwargs['json']}")
 
@@ -89,10 +86,10 @@ class MettaAPIClient:
         return await self._make_request("POST", url, json=payload)
 
 
-async def test_api_connection_fixed(api_base_url: str, auth_token: str):
+async def test_api_connection_fixed(api_base_url: str):
     """Test API connection with the fixed client."""
     print("🧪 Testing fixed API client...")
-    client = MettaAPIClient(api_base_url, auth_token)
+    client = MettaAPIClient(api_base_url)
 
     try:
         # Test getting policies
@@ -121,7 +118,6 @@ async def fetch_real_heatmap_data(
     metrics: List[str],
     policy_selector: str = "best",
     api_base_url: str = "http://localhost:8000",
-    auth_token: Optional[str] = None,
     max_policies: int = 20,
 ) -> HeatmapWidget:
     """
@@ -131,17 +127,17 @@ async def fetch_real_heatmap_data(
         training_run_names: List of training run names (e.g., ["daveey.arena.rnd.16x4.2"])
         metrics: List of metrics to include (e.g., ["reward", "heart.get"])
         policy_selector: "best" or "latest" policy selection strategy
-        api_base_url: Base URL for the metta API from ~/.metta/observatory_tokens.yaml
-        auth_token: Auth token from ~/.metta/observatory_tokens.yaml
+        api_base_url: Base URL for the stats server
         max_policies: Maximum number of policies to display
 
     Returns:
         HeatmapWidget with real data
     """
     try:
-        client = MettaAPIClient(api_base_url, auth_token)
+        client = MettaAPIClient(api_base_url)
 
         # Step 1: Get available policies to find training run IDs
+        # TODO: backend should be doing the filtering, not frontend
         policies_data = await client.get_policies(page_size=100)
 
         # Find training run IDs that match our training run names
@@ -234,7 +230,7 @@ async def get_available_policies(
 ):
     """Get available policies and training runs."""
     try:
-        client = MettaAPIClient(api_base_url, auth_token)
+        client = MettaAPIClient(api_base_url)
         return await client.get_policies(page_size=limit)
     except Exception as e:
         print(f"❌ Error fetching policies: {e}")
@@ -246,7 +242,7 @@ async def get_available_eval_names(
 ):
     """Get available evaluation names."""
     try:
-        client = MettaAPIClient(api_base_url, auth_token)
+        client = MettaAPIClient(api_base_url)
         return await client.get_eval_names(training_run_ids, [])
     except Exception as e:
         print(f"❌ Error fetching eval names: {e}")
@@ -261,7 +257,7 @@ async def get_available_metrics(
 ):
     """Get available metrics."""
     try:
-        client = MettaAPIClient(api_base_url, auth_token)
+        client = MettaAPIClient(api_base_url)
 
         # Debug: Let's try with a simplified version first
         print(f"🔍 Attempting to get metrics for {len(eval_names)} eval names...")
