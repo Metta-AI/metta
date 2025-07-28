@@ -95,22 +95,22 @@ resource "aws_iam_policy" "minimal" {
       },
       # ECR read-only (identical to AmazonEC2ContainerRegistryReadOnly)
       {
-          "Effect": "Allow",
-          "Action": [
-              "ecr:GetAuthorizationToken",
-              "ecr:BatchCheckLayerAvailability",
-              "ecr:GetDownloadUrlForLayer",
-              "ecr:GetRepositoryPolicy",
-              "ecr:DescribeRepositories",
-              "ecr:ListImages",
-              "ecr:DescribeImages",
-              "ecr:BatchGetImage",
-              "ecr:GetLifecyclePolicy",
-              "ecr:GetLifecyclePolicyPreview",
-              "ecr:ListTagsForResource",
-              "ecr:DescribeImageScanFindings"
-          ],
-          "Resource": "*"
+        "Effect" : "Allow",
+        "Action" : [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:GetRepositoryPolicy",
+          "ecr:DescribeRepositories",
+          "ecr:ListImages",
+          "ecr:DescribeImages",
+          "ecr:BatchGetImage",
+          "ecr:GetLifecyclePolicy",
+          "ecr:GetLifecyclePolicyPreview",
+          "ecr:ListTagsForResource",
+          "ecr:DescribeImageScanFindings"
+        ],
+        "Resource" : "*"
       },
     ]
   })
@@ -118,7 +118,7 @@ resource "aws_iam_policy" "minimal" {
 
 # User - for API server that runs on EKS
 resource "aws_iam_user" "skypilot_api_server" {
-  name               = "skypilot-api-server"
+  name = "skypilot-api-server"
 }
 
 resource "aws_iam_user_policy_attachment" "skypilot_api_server_attach" {
@@ -147,5 +147,5 @@ resource "aws_iam_role_policy_attachment" "skypilot_v1_attach" {
 }
 
 resource "aws_iam_access_key" "skypilot_api_server" {
-  user    = aws_iam_user.skypilot_api_server.name
+  user = aws_iam_user.skypilot_api_server.name
 }
