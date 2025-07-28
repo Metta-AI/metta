@@ -141,8 +141,8 @@ public:
     const int r = static_cast<int>(loc.r);
     const int c = static_cast<int>(loc.c);
 
-    int new_r;
-    int new_c;
+    int new_r = loc.r;
+    int new_c = loc.c;
 
     switch (facing) {
       case Orientation::Up:

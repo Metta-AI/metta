@@ -76,7 +76,7 @@ target_compile_options(mettagrid_warnings INTERFACE
     # Logic and control flow
     $<$<CXX_COMPILER_ID:GNU>:-Wshadow=compatible-local> # gcc shadowing warnings are very aggressive by default
     $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wshadow>
-    -Wfloat-equal
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wfloat-equal> # GCC's -Wfloat-equal is too aggressive for zero comparisons
 
     # Global constructor warnings - helps catch static init order issues
     $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wglobal-constructors>

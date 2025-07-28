@@ -108,6 +108,7 @@ INSTANTIATE_TEST_MACRO(PackedCoordinate,
                                          std::make_pair(1, 1),
                                          std::make_pair(1, 5),
                                          std::make_pair(5, 1)),
-                       [](const ::testing::TestParamInfo<std::pair<int, int>>& info) {
-                         return "H" + std::to_string(info.param.first) + "_W" + std::to_string(info.param.second);
+                       [](const ::testing::TestParamInfo<std::pair<int, int>>& param_info) {
+                         return "H" + std::to_string(param_info.param.first) + "_W" +
+                                std::to_string(param_info.param.second);
                        });
