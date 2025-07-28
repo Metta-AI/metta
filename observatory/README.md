@@ -8,7 +8,7 @@ Talks to the server in `/app_backend` - see instructions on how to run it in `/a
 Ensure Observatory is installed through the Metta setup tool:
 ```bash
 # From the metta root directory
-metta install observatory-fe
+metta install nodejs
 ```
 
 ## Development
@@ -21,6 +21,10 @@ metta install observatory-fe
 2. Start the development server:
    ```bash
    pnpm run dev
+   ```
+   or
+   ```bash
+   metta local observatory [--backend {prod, local}]
    ```
 
 3. Open your browser to the URL shown in the terminal (typically http://localhost:5173)

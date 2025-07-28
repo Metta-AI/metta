@@ -147,3 +147,21 @@ class LocalCommands:
             else:
                 error("Pod name is required for enter command")
                 sys.exit(1)
+
+    def observatory(self, args, unknown_args) -> None:
+        """Launch Observatory with specified backend."""
+        # Build the command to run launch.py
+        cmd = [sys.executable, str(self.repo_root / "observatory" / "launch.py")]
+
+        # Pass through any arguments
+        if unknown_args:
+            cmd.extend(unknown_args)
+
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            error(f"Failed to launch Observatory: {e}")
+            sys.exit(1)
+        except KeyboardInterrupt:
+            info("\nObservatory shutdown")
+            sys.exit(0)
