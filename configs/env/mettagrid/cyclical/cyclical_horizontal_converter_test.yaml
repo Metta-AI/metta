@@ -52,7 +52,7 @@ game:
       initial_resource_count: 0
       color: 13
 
-  # Map configuration using the ASCII map file
+  # Map configuration using the horizontal hallway map file
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii
     uri: "configs/env/mettagrid/maps/cyclical/cyclical_horizontal_hallway.map"
