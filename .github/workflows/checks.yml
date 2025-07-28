@@ -316,13 +316,17 @@ jobs:
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
+          runtime_issues=${{ steps.mettagrid_build_check.outputs.runtime_issues }}
           max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
 
-          echo "Build Summary: $errors errors, $warnings warnings"
+          echo "Build Summary: $errors errors, $warnings warnings, $runtime_issues runtime issues"
           echo "Maximum allowed warnings: $max_warnings"
 
           if [ "$errors" -gt 0 ]; then
             echo "❌ MettaGrid has build errors!"
+            exit 1
+          elif [ "$runtime_issues" -gt 0 ]; then
+            echo "❌ MettaGrid has runtime issues (segfaults, test failures)!"
             exit 1
           elif [ "$warnings" -gt "$max_warnings" ]; then
             echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"

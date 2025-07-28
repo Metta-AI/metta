@@ -445,7 +445,14 @@ def main():
             f.write(f"total_warnings={summary['warnings']}\n")
             f.write(f"total_errors={summary['errors']}\n")
             f.write(f"total_messages={summary['total_messages']}\n")
-            f.write(f"runtime_issues={summary['runtime_issues']}\n")  # Add runtime issues output
+            f.write(f"runtime_issues={summary['runtime_issues']}\n")
+
+            # Add the full build output (escaped for multiline)
+            # GitHub Actions requires special handling for multiline outputs
+            delimiter = "EOF_BUILD_OUTPUT"
+            f.write(f"full_output<<{delimiter}\n")
+            f.write(build_output)
+            f.write(f"\n{delimiter}\n")
 
     # Exit with appropriate code - only fail on actual build failure or errors
     if not build_success:
