@@ -60,7 +60,8 @@ private:
   }
 
 public:
-  StatsTracker() : _env(nullptr) {}
+  StatsTracker()
+      : _stats(), _first_seen_at(), _last_seen_at(), _min_value(), _max_value(), _update_count(), _env(nullptr) {}
 
   void set_environment(MettaGrid* env) {
     _env = env;

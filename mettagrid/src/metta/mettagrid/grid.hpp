@@ -23,7 +23,11 @@ private:
   GridType grid;
 
 public:
-  Grid(GridCoord height, GridCoord width) : height(height), width(width) {
+  Grid(GridCoord height, GridCoord width)
+      : height(height),
+        width(width),
+        objects(),  // Initialize objects in member init list
+        grid() {    // Initialize grid in member init list
     grid.resize(height,
                 std::vector<std::vector<GridObjectId>>(width, std::vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 

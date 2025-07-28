@@ -60,6 +60,8 @@ public:
   TypeId type_id{};
   std::string type_name;
 
+  GridObject() : id(0), location(), type_id(0), type_name() {}
+
   virtual ~GridObject() = default;
 
   void init(TypeId object_type_id, const std::string& object_type_name, const GridLocation& object_location) {
