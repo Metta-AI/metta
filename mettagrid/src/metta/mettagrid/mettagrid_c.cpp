@@ -33,9 +33,6 @@
 
 namespace py = pybind11;
 
-// Static member definition for ActionHandler
-std::map<size_t, std::string> ActionHandler::_global_last_actions;
-
 MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int seed)
     : obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -66,7 +63,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, cfg.recipe_details_obs);
-  _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -712,17 +708,16 @@ GridCoord MettaGrid::map_height() {
 
 // These should correspond to the features we emit in the observations -- either
 // the channel or the feature_id.
-py::dict MettaGrid::feature_normalizations() {
-  return py::cast(_feature_normalizations);
-}
-
 py::dict MettaGrid::feature_spec() {
   py::dict feature_spec;
-  for (const auto& feature : _obs_encoder->feature_names()) {
-    py::str feature_name = feature.second;
-    feature_spec[feature_name] = py::dict();
-    feature_spec[feature_name]["normalization"] = py::float_(_feature_normalizations[feature.first]);
-    feature_spec[feature_name]["id"] = py::int_(feature.first);
+  const auto& names = _obs_encoder->feature_names();
+  const auto& normalizations = _obs_encoder->feature_normalizations();
+
+  for (const auto& [feature_id, feature_name] : names) {
+    py::dict spec;
+    spec["normalization"] = py::float_(normalizations.at(feature_id));
+    spec["id"] = py::int_(feature_id);
+    feature_spec[py::str(feature_name)] = spec;
   }
   return feature_spec;
 }
@@ -829,7 +824,7 @@ unsigned int StatsTracker::get_current_step() const {
 }
 
 const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
-  if (!_env) return StatsTracker::NO_ENV_INVENTORY_ITEM_NAME;
+  if (!_env) return get_no_env_inventory_item_name();
   return _env->inventory_item_names[item];
 }
 
@@ -874,7 +869,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
-      .def("feature_normalizations", &MettaGrid::feature_normalizations)
       .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)

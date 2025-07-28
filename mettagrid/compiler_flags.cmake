@@ -77,6 +77,10 @@ target_compile_options(mettagrid_warnings INTERFACE
     $<$<CXX_COMPILER_ID:GNU>:-Wshadow=compatible-local> # gcc shadowing warnings are very aggressive by default
     $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wshadow>
     -Wfloat-equal
+
+    # Global constructor warnings - helps catch static init order issues
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wglobal-constructors>
+    $<$<CXX_COMPILER_ID:GNU>:-Weffc++>
   >
 )
 
@@ -91,6 +95,7 @@ target_compile_options(mettagrid_strict_warnings INTERFACE
       -Wthread-safety
       -Wimplicit-int-conversion
       -Wshorten-64-to-32
+      -Wexit-time-destructors  # Warns about static destructors
     >
     # GCC-specific useful warnings
     $<$<CXX_COMPILER_ID:GNU>:
@@ -138,7 +143,9 @@ target_compile_options(mettagrid_sanitizers INTERFACE
     -fno-sanitize=shift-base
     -fno-sanitize=shift-exponent
 
-    # Platform-specific sanitizers moved to opt-in mode
+    # Note: -fsanitize=init-order is not available on macOS
+    # More aggressive sanitizer checks for better error detection
+    -fsanitize-address-use-after-scope
   >
 )
 
@@ -147,6 +154,17 @@ target_link_options(mettagrid_sanitizers INTERFACE
   $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
     -fsanitize=address
     -fsanitize=undefined
+  >
+)
+
+# ========================= RUNTIME SANITIZER OPTIONS =========================
+# Set runtime options for sanitizers to catch more issues
+# These are set as compile definitions so they're embedded in the binary
+target_compile_definitions(mettagrid_sanitizers INTERFACE
+  $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+    # Force strict initialization order checking at runtime
+    ASAN_OPTIONS=check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1:detect_leaks=1
+    UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
   >
 )
 
