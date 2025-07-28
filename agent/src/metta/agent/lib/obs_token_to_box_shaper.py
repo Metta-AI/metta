@@ -31,9 +31,9 @@ class ObsTokenToBoxShaper(LayerBase):
 
         # B = token_observations.shape[0]
         # TT = 1
-        if token_observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            # TT = token_observations.shape[1]
-            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
+        # if token_observations.dim() != 3:  # hardcoding for shape [B, M, 3]
+        #     # TT = token_observations.shape[1]
+        #     token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
 
         # The TensorDict is batched, so metadata must also be batched.
         # We create a tensor of shape [B] and fill it with the scalar value.
@@ -41,7 +41,7 @@ class ObsTokenToBoxShaper(LayerBase):
         # device = token_observations.device
         # td.set("_BxTT_", torch.full((B,), B * TT, device=device, dtype=torch.long))
 
-        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+        # assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
 
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = token_observations[..., 0].to(torch.uint8)

@@ -32,14 +32,12 @@ class LSTM(LayerBase):
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
-        self._memory = None
-        # self.memory = TensorDict(
-        #     {
-        #         "lstm_h": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
-        #         "lstm_c": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
-        #     },
-        #     batch_size=[],
-        # )
+
+        self.max_envs = 524288  # av is there a better way to do this? I'd rather not need to get it from the env.
+        # preallocate state buffer. [0] = hidden states, [1] = cell states
+        self.register_buffer(
+            "_memory", torch.zeros(2, self.num_layers, self.max_envs, self.hidden_size), persistent=False
+        )
 
     def get_memory(self):
         return self._memory
@@ -48,7 +46,7 @@ class LSTM(LayerBase):
         self._memory = memory
 
     def reset_memory(self):
-        self._memory = None
+        self._memory.zero_()
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
@@ -69,20 +67,18 @@ class LSTM(LayerBase):
 
     @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
-        hidden = td[self._sources[0]["name"]]
-        state = self._memory
+        hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
-        B = td.batch_size.numel()  # this should capture it all without using numel()
-        if td.meta["train"]:
-            TT = td["env_obs"].shape[1]
+        TT = td.bptt
+        B = td.batch
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        hidden, state = self._net(hidden, state)
+        state = self._memory[:, :, td.training_env_id, :]
+        hidden, (h_n, c_n) = self._net(hidden, (state[0], state[1]))
+        self._memory[:, :, td.training_env_id, :] = torch.stack([h_n.detach(), c_n.detach()], dim=0)
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
-
-        self._memory = (state[0].detach(), state[1].detach())
 
         td[self._name] = hidden
 

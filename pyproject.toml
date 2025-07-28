@@ -45,11 +45,11 @@ dependencies = [
   "termcolor>=2.4.0",
   "testcontainers>=4.10.0",
   "torch>=2.7.1",
-  "torchrl>=0.8.1",
   "tqdm>=4.67.1",
   "uvicorn[standard]>=0.34.2",
   "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
+  "torchrl>=0.8.1",
 ]
 name = "metta"
 version = "0.1"

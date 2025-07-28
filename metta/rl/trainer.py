@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 import numpy as np
+import tensordict
 import torch
 import torch.distributed
 import wandb
@@ -41,7 +42,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
-from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.losses import get_loss_experience_spec, process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
     compute_gradient_stats,
@@ -421,8 +422,6 @@ class MettaTrainer:
 
         # The policy is responsible for creating a zero state if one is not available.
         buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
-        buffer_step.meta["roll_out"] = True
-        buffer_step.meta["train"] = False
 
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
@@ -440,6 +439,7 @@ class MettaTrainer:
             # Prepare the input TensorDict for the policy
             td = buffer_step[training_env_id].clone()
             td["env_obs"] = o
+            td.training_env_id = training_env_id
 
             # Run policy inference
             with torch.no_grad():
@@ -475,8 +475,6 @@ class MettaTrainer:
     def _train(self):
         """Perform training phase."""
         experience = self.experience
-        experience.buffer.meta["roll_out"] = False
-        experience.buffer.meta["train"] = True
         trainer_cfg = self.trainer_cfg
 
         self.losses.zero()
@@ -517,6 +515,7 @@ class MettaTrainer:
 
         # Optimizing the policy and value network
         minibatch_idx = 0
+        policy_spec = self.policy.get_agent_experience_spec()
 
         for _epoch in range(trainer_cfg.update_epochs):
             for _ in range(experience.num_minibatches):
@@ -525,12 +524,15 @@ class MettaTrainer:
                     prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
                 )
+                policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
+                policy_td.training_env_id = indices
 
                 # Use the helper function to process minibatch update
                 loss = process_minibatch_update(
                     policy=self.policy,
                     experience=experience,
-                    td=minibatch,
+                    minibatch=minibatch,
+                    td=policy_td,
                     indices=indices,
                     prio_weights=prio_weights,
                     trainer_cfg=trainer_cfg,
@@ -938,7 +940,11 @@ class MettaTrainer:
         max_minibatch_size = trainer_cfg.minibatch_size
 
         # Get the experience buffer specification from the policy
-        experience_spec = self.policy.get_experience_spec()
+        policy_spec = self.policy.get_agent_experience_spec()
+        act_space = vecenv.single_action_space
+        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+        # check for dups between policy_spec and loss_spec
+        loss_spec = get_loss_experience_spec(*act_space.shape, act_dtype)
 
         # Create experience buffer
         self.experience = Experience(
@@ -947,7 +953,7 @@ class MettaTrainer:
             bptt_horizon=trainer_cfg.bptt_horizon,
             minibatch_size=self._minibatch_size,
             max_minibatch_size=max_minibatch_size,
-            experience_spec=experience_spec,
+            experience_spec=tensordict.merge_tensordicts(policy_spec, loss_spec),
             device=self.device,
             cpu_offload=trainer_cfg.cpu_offload,
         )

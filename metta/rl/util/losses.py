@@ -4,6 +4,7 @@ import logging
 from typing import Any, Tuple
 
 import torch
+from gymnasium.spaces import MultiDiscrete
 from tensordict import TensorDict
 from torch import Tensor
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def compute_ppo_losses(
     minibatch: TensorDict,
-    new_logprobs: Tensor,
+    new_logprob: Tensor,
     entropy: Tensor,
     newvalue: Tensor,
     importance_sampling_ratio: Tensor,
@@ -30,36 +31,53 @@ def compute_ppo_losses(
         importance_sampling_ratio, 1 - trainer_cfg.ppo.clip_coef, 1 + trainer_cfg.ppo.clip_coef
     )
     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+    returns = minibatch["returns"]
+    old_values = minibatch["values"]
 
     # Value loss
-    newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
+    newvalue_reshaped = newvalue.view(returns.shape)
     if trainer_cfg.ppo.clip_vloss:
-        v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
+        v_loss_unclipped = (newvalue_reshaped - returns) ** 2
         vf_clip_coef = trainer_cfg.ppo.vf_clip_coef
-        v_clipped = minibatch["values"] + torch.clamp(
-            newvalue_reshaped - minibatch["values"],
+        v_clipped = old_values + torch.clamp(
+            newvalue_reshaped - old_values,
             -vf_clip_coef,
             vf_clip_coef,
         )
-        v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
+        v_loss_clipped = (v_clipped - returns) ** 2
         v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
     else:
-        v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
+        v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
 
     entropy_loss = entropy.mean()
 
     # Compute metrics
     with torch.no_grad():
-        logratio = new_logprobs - minibatch["logprobs"]
+        logratio = new_logprob - minibatch["act_log_prob"]
         approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
         clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.ppo.clip_coef).float().mean()
 
     return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
 
 
+def get_loss_experience_spec(act_shape: tuple[int, ...], act_dtype: torch.dtype) -> TensorDict:
+    return TensorDict(
+        {
+            "rewards": torch.zeros((), dtype=torch.float32),
+            "dones": torch.zeros((), dtype=torch.float32),
+            "truncateds": torch.zeros((), dtype=torch.float32),
+            "actions": torch.zeros(act_shape, dtype=act_dtype),
+            "act_log_prob": torch.zeros((), dtype=torch.float32),
+            "values": torch.zeros((), dtype=torch.float32),
+        },
+        batch_size=[],
+    )
+
+
 def process_minibatch_update(
     policy: torch.nn.Module,
     experience: Experience,
+    minibatch: TensorDict,
     td: TensorDict,
     trainer_cfg: Any,
     indices: Tensor,
@@ -70,23 +88,23 @@ def process_minibatch_update(
     device: torch.device,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
-    # The policy's training forward pass returns a TD with required tensors for loss calculation.
-    td = policy(td, action=td["actions"])
-    new_logprobs = td["action_log_prob"].reshape(td["logprobs"].shape)
+    td = policy(td, action=minibatch["actions"])
+    old_act_log_prob = minibatch["act_log_prob"]
+    new_logprob = td["act_log_prob"].reshape(old_act_log_prob.shape)
     entropy = td["entropy"]
     newvalue = td["value"]
-    full_logprobs = td["log_probs"]
+    full_logprobs = td["full_log_probs"]
 
-    logratio = new_logprobs - td["logprobs"]
+    logratio = new_logprob - old_act_log_prob
     importance_sampling_ratio = logratio.exp()
 
     # Re-compute advantages with new ratios (V-trace)
     adv = compute_advantage(
-        td["values"],
-        td["rewards"],
-        td["dones"],
+        minibatch["values"],
+        minibatch["rewards"],
+        minibatch["dones"],
         importance_sampling_ratio,
-        td["advantages"],
+        minibatch["advantages"],
         trainer_cfg.ppo.gamma,
         trainer_cfg.ppo.gae_lambda,
         trainer_cfg.vtrace.vtrace_rho_clip,
@@ -101,7 +119,7 @@ def process_minibatch_update(
     # Compute losses
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
         td,
-        new_logprobs,
+        new_logprob,
         entropy,
         newvalue,
         importance_sampling_ratio,
@@ -151,6 +169,6 @@ def process_minibatch_update(
     losses.ks_value_loss_sum += ks_value_loss.item()
     losses.importance_sum += importance_sampling_ratio.mean().item()
     losses.minibatches_processed += 1
-    losses.current_logprobs_sum += new_logprobs.mean().item()
+    losses.current_logprobs_sum += new_logprob.mean().item()
 
     return loss

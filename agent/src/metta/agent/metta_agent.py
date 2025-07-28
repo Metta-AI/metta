@@ -69,8 +69,8 @@ class DistributedMettaAgent(DistributedDataParallel):
         # is_training parameter is deprecated and ignored - mode is auto-detected
         return self.module.initialize_to_environment(features, action_names, action_max_params, device)
 
-    def get_experience_spec(self) -> TensorDict:
-        return self.module.get_experience_spec()
+    def get_agent_experience_spec(self) -> TensorDict:
+        return self.module.get_agent_experience_spec()
 
 
 class MettaAgent(nn.Module):
@@ -144,6 +144,7 @@ class MettaAgent(nn.Module):
                 )
             if hasattr(component, "_memory"):
                 self.components_with_memory.append(name)
+
         self.components = self.components.to(device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
@@ -153,19 +154,14 @@ class MettaAgent(nn.Module):
         for name in self.components_with_memory:
             self.components[name].reset_memory()
 
-    def get_experience_spec(self) -> TensorDict:
+    def get_agent_experience_spec(self) -> TensorDict:
         """Get the specification for the experience buffer."""
         # Note: These tensors are unbatched and on CPU.
         # The experience buffer will expand and move them to the correct device.
         return TensorDict(
             {
-                "obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
-                "rewards": torch.zeros((), dtype=torch.float32),
-                "dones": torch.zeros((), dtype=torch.float32),
-                "truncateds": torch.zeros((), dtype=torch.float32),
-                "actions": torch.zeros(self.agent_attributes["action_space"].shape, dtype=torch.int32),
-                "logprobs": torch.zeros((), dtype=torch.float32),
-                "values": torch.zeros((), dtype=torch.float32),
+                "env_obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
+                # "dropout_mask": torch.zeros((), dtype=torch.float32),
             },
             batch_size=[],
         )
@@ -345,14 +341,6 @@ class MettaAgent(nn.Module):
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Agent actions initialized with: {self.active_actions}")
 
-    def flatten_parameters(self):
-        # av check
-        """Flattens parameters of all LSTM components for performance."""
-        for component in self.components.values():
-            if hasattr(component, "_net") and isinstance(component._net, nn.LSTM):
-                component._net.flatten_parameters()
-                logger.info(f"Flattened LSTM parameters for component {component._name}")
-
     @property
     def total_params(self):
         return self._total_params
@@ -392,7 +380,7 @@ class MettaAgent(nn.Module):
             assert_shape(action, ("BT", 2), "inference_output_action")
 
         td["actions"] = action
-        td["logprobs"] = action_log_prob
+        td["act_log_prob"] = action_log_prob
         td["values"] = value.flatten()
 
         return td
@@ -428,17 +416,17 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
 
-        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
+        action_log_prob, entropy, full_log_probs = evaluate_actions(logits, action_logit_index)
 
         if __debug__:
             assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
             assert_shape(entropy, ("BT",), "training_entropy")
-            assert_shape(log_probs, ("BT", "A"), "training_log_probs")
+            assert_shape(full_log_probs, ("BT", "A"), "training_log_probs")
 
-        td["action_log_prob"] = action_log_prob
+        td["act_log_prob"] = action_log_prob
         td["entropy"] = entropy
         td["value"] = value
-        td["log_probs"] = log_probs
+        td["full_log_probs"] = full_log_probs
 
         return td
 
@@ -456,6 +444,17 @@ class MettaAgent(nn.Module):
             - In inference mode, this contains data to be stored in the experience buffer.
             - In training mode, this contains data for loss calculation.
         """
+        ti = td.training_env_id
+        td.bptt = 1
+        td.batch = td.batch_size.numel()
+        if td.batch_dims > 1:
+            B = td.batch_size[0]
+            TT = td.batch_size[1]
+            td = td.reshape(td.batch_size.numel())
+            td.bptt = TT
+            td.batch = B
+            td.training_env_id = ti
+
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)
 
@@ -468,6 +467,7 @@ class MettaAgent(nn.Module):
             output_td = self.forward_inference(td)
         else:
             output_td = self.forward_training(td, action)
+            output_td = output_td.reshape(B, TT)
 
         return output_td
 
