@@ -14,7 +14,7 @@ export type PolicySelector = 'latest' | 'best'
 export type GroupHeatmapMetric = GroupDiff | string
 
 export type HeatmapData = {
-  evalNames: string[]
+  evalNames: Array<string>
   cells: Record<string, Record<string, HeatmapCell>>
   policyAverageScores: Record<string, number>
   evalAverageScores: Record<string, number>
@@ -38,7 +38,7 @@ export type TokenResponse = {
 }
 
 export type TokenListResponse = {
-  tokens: TokenInfo[]
+  tokens: Array<TokenInfo>
 }
 
 export type SavedDashboard = {
@@ -60,7 +60,7 @@ export type SavedDashboardCreate = {
 }
 
 export type SavedDashboardListResponse = {
-  dashboards: SavedDashboard[]
+  dashboards: Array<SavedDashboard>
 }
 
 export type TrainingRun = {
@@ -72,11 +72,11 @@ export type TrainingRun = {
   status: string
   url: string | null
   description: string | null
-  tags: string[]
+  tags: Array<string>
 }
 
 export type TrainingRunListResponse = {
-  training_runs: TrainingRun[]
+  training_runs: Array<TrainingRun>
 }
 
 export type TrainingRunDescriptionUpdate = {
@@ -84,7 +84,7 @@ export type TrainingRunDescriptionUpdate = {
 }
 
 export type TrainingRunTagsUpdate = {
-  tags: string[]
+  tags: Array<string>
 }
 
 export type Episode = {
@@ -101,11 +101,11 @@ export type Episode = {
   training_run_name: string | null
   training_run_user_id: string | null
   // Episode tags
-  tags: string[]
+  tags: Array<string>
 }
 
 export type EpisodeFilterResponse = {
-  episodes: Episode[]
+  episodes: Array<Episode>
   total_count: number
   page: number
   page_size: number
@@ -113,7 +113,7 @@ export type EpisodeFilterResponse = {
 }
 
 export type EpisodeTagRequest = {
-  episode_ids: string[]
+  episode_ids: Array<string>
   tag: string
 }
 
@@ -127,7 +127,7 @@ export type EpisodeTagResponse = {
 }
 
 export type AllTagsResponse = {
-  tags: string[]
+  tags: Array<string>
 }
 
 export type EvalTaskCreateRequest = {
@@ -151,7 +151,7 @@ export type EvalTask = {
 }
 
 export type EvalTasksResponse = {
-  tasks: EvalTask[]
+  tasks: Array<EvalTask>
 }
 
 // Policy-based heatmap types
@@ -165,7 +165,7 @@ export type TrainingRunInfo = {
   name: string
   user_id: string | null
   created_at: string
-  tags: string[]
+  tags: Array<string>
 }
 
 export type RunFreePolicyInfo = {
@@ -181,7 +181,7 @@ export type UnifiedPolicyInfo = {
   name: string
   user_id: string | null
   created_at: string
-  tags: string[]
+  tags: Array<string>
 }
 
 export type PoliciesRequest = {
@@ -190,27 +190,27 @@ export type PoliciesRequest = {
 }
 
 export type PoliciesResponse = {
-  policies: UnifiedPolicyInfo[]
+  policies: Array<UnifiedPolicyInfo>
   total_count: number
   page: number
   page_size: number
 }
 
 export type EvalNamesRequest = {
-  training_run_ids: string[]
-  run_free_policy_ids: string[]
+  training_run_ids: Array<string>
+  run_free_policy_ids: Array<string>
 }
 
 export type MetricsRequest = {
-  training_run_ids: string[]
-  run_free_policy_ids: string[]
-  eval_names: string[]
+  training_run_ids: Array<string>
+  run_free_policy_ids: Array<string>
+  eval_names: Array<string>
 }
 
 export type PolicyHeatmapRequest = {
-  training_run_ids: string[]
-  run_free_policy_ids: string[]
-  eval_names: string[]
+  training_run_ids: Array<string>
+  run_free_policy_ids: Array<string>
+  eval_names: Array<string>
   training_run_policy_selector: 'latest' | 'best'
   metric: string
 }
@@ -222,8 +222,8 @@ export type PolicyHeatmapCell = {
 }
 
 export type PolicyHeatmapData = {
-  evalNames: string[]
-  policyNames: string[]
+  evalNames: Array<string>
+  policyNames: Array<string>
   cells: Record<string, Record<string, PolicyHeatmapCell>>
   policyAverageScores: Record<string, number>
   evalAverageScores: Record<string, number>
@@ -254,8 +254,8 @@ export type SQLQueryRequest = {
 }
 
 export type SQLQueryResponse = {
-  columns: string[]
-  rows: any[][]
+  columns: Array<string>
+  rows: Array<Array<any>>
   row_count: number
 }
 
@@ -274,9 +274,9 @@ export type AIQueryResponse = {
  * In the future, we will fetch the data from an API.
  */
 export interface Repo {
-  getSuites(): Promise<string[]>
-  getAllMetrics(): Promise<string[]>
-  getGroupIds(suite: string): Promise<string[]>
+  getSuites(): Promise<Array<string>>
+  getAllMetrics(): Promise<Array<string>>
+  getGroupIds(suite: string): Promise<Array<string>>
 
   getHeatmapData(metric: string, suite: string, policySelector?: PolicySelector): Promise<HeatmapData>
 
@@ -296,7 +296,7 @@ export interface Repo {
   whoami(): Promise<{ user_email: string }>
 
   // SQL query methods
-  listTables(): Promise<TableInfo[]>
+  listTables(): Promise<Array<TableInfo>>
   getTableSchema(tableName: string): Promise<TableSchema>
   executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
   generateAIQuery(description: string): Promise<AIQueryResponse>
@@ -305,28 +305,28 @@ export interface Repo {
   getTrainingRuns(): Promise<TrainingRunListResponse>
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
-  updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
+  updateTrainingRunTags(runId: string, tags: Array<string>): Promise<TrainingRun>
   getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData>
 
   // Episode methods
   filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse>
-  addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
-  removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
+  addEpisodeTags(episodeIds: Array<string>, tag: string): Promise<EpisodeTagResponse>
+  removeEpisodeTags(episodeIds: Array<string>, tag: string): Promise<EpisodeTagResponse>
   addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
   removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
   getAllEpisodeTags(): Promise<AllTagsResponse>
 
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
-  getEvalTasks(): Promise<EvalTask[]>
+  getEvalTasks(): Promise<Array<EvalTask>>
 
   // Policy methods
-  getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
+  getPolicyIds(policyNames: Array<string>): Promise<Record<string, string>>
 
   // Policy-based heatmap methods
   getPolicies(request: PoliciesRequest): Promise<PoliciesResponse>
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
-  getAvailableMetrics(request: MetricsRequest): Promise<string[]>
+  getAvailableMetrics(request: MetricsRequest): Promise<Array<string>>
   generatePolicyHeatmap(request: PolicyHeatmapRequest): Promise<PolicyHeatmapData>
 }
 
@@ -391,16 +391,16 @@ export class ServerRepo implements Repo {
     }
   }
 
-  async getSuites(): Promise<string[]> {
-    return this.apiCall<string[]>('/dashboard/suites')
+  async getSuites(): Promise<Array<string>> {
+    return this.apiCall<Array<string>>('/dashboard/suites')
   }
 
-  async getAllMetrics(): Promise<string[]> {
-    return this.apiCall<string[]>('/dashboard/metrics')
+  async getAllMetrics(): Promise<Array<string>> {
+    return this.apiCall<Array<string>>('/dashboard/metrics')
   }
 
-  async getGroupIds(suite: string): Promise<string[]> {
-    return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`)
+  async getGroupIds(suite: string): Promise<Array<string>> {
+    return this.apiCall<Array<string>>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`)
   }
 
   async getHeatmapData(metric: string, suite: string, policySelector: PolicySelector = 'latest'): Promise<HeatmapData> {
@@ -452,8 +452,8 @@ export class ServerRepo implements Repo {
   }
 
   // SQL query methods
-  async listTables(): Promise<TableInfo[]> {
-    return this.apiCall<TableInfo[]>('/sql/tables')
+  async listTables(): Promise<Array<TableInfo>> {
+    return this.apiCall<Array<TableInfo>>('/sql/tables')
   }
 
   async getTableSchema(tableName: string): Promise<TableSchema> {
@@ -485,7 +485,7 @@ export class ServerRepo implements Repo {
     })
   }
 
-  async updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun> {
+  async updateTrainingRunTags(runId: string, tags: Array<string>): Promise<TrainingRun> {
     return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
@@ -505,14 +505,14 @@ export class ServerRepo implements Repo {
     return this.apiCall<EpisodeFilterResponse>(`/episodes?${params}`)
   }
 
-  async addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
+  async addEpisodeTags(episodeIds: Array<string>, tag: string): Promise<EpisodeTagResponse> {
     return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/add', {
       episode_ids: episodeIds,
       tag: tag,
     })
   }
 
-  async removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
+  async removeEpisodeTags(episodeIds: Array<string>, tag: string): Promise<EpisodeTagResponse> {
     return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/remove', {
       episode_ids: episodeIds,
       tag: tag,
@@ -541,12 +541,12 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBody<EvalTask>('/tasks', request)
   }
 
-  async getEvalTasks(): Promise<EvalTask[]> {
+  async getEvalTasks(): Promise<Array<EvalTask>> {
     const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
     return response.tasks
   }
 
-  async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
+  async getPolicyIds(policyNames: Array<string>): Promise<Record<string, string>> {
     const params = new URLSearchParams()
     policyNames.forEach((name) => params.append('policy_names', name))
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
@@ -559,12 +559,12 @@ export class ServerRepo implements Repo {
   }
 
   async getEvalNames(request: EvalNamesRequest): Promise<Set<string>> {
-    const res = await this.apiCallWithBody<string[]>('/heatmap/evals', request)
+    const res = await this.apiCallWithBody<Array<string>>('/heatmap/evals', request)
     return new Set(res)
   }
 
-  async getAvailableMetrics(request: MetricsRequest): Promise<string[]> {
-    return this.apiCallWithBody<string[]>('/heatmap/metrics', request)
+  async getAvailableMetrics(request: MetricsRequest): Promise<Array<string>> {
+    return this.apiCallWithBody<Array<string>>('/heatmap/metrics', request)
   }
 
   async generatePolicyHeatmap(request: PolicyHeatmapRequest): Promise<PolicyHeatmapData> {

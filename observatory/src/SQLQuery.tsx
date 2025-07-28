@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Repo, TableInfo, TableSchema, SQLQueryResponse } from './repo'
+import { useEffect, useState } from 'react'
 import { AIQueryBuilder } from './AIQueryBuilder'
+import type { Repo, SQLQueryResponse, TableInfo, TableSchema } from './repo'
 
 interface QueryHistoryItem {
   query: string
@@ -411,7 +411,7 @@ type QueryState =
   | { type: 'error'; error: string }
 
 export function SQLQuery({ repo }: Props) {
-  const [tables, setTables] = useState<TableInfo[]>([])
+  const [tables, setTables] = useState<Array<TableInfo>>([])
   const [selectedTable, setSelectedTable] = useState<string | null>(null)
   const [tableSchema, setTableSchema] = useState<TableSchema | null>(null)
   const [query, setQuery] = useState('')
@@ -419,7 +419,7 @@ export function SQLQuery({ repo }: Props) {
   const [tablesLoading, setTablesLoading] = useState(true)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [sortConfig, setSortConfig] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null)
-  const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([])
+  const [queryHistory, setQueryHistory] = useState<Array<QueryHistoryItem>>([])
 
   const HISTORY_KEY = 'sql_query_history'
   const MAX_HISTORY_ITEMS = 50
@@ -465,7 +465,7 @@ export function SQLQuery({ repo }: Props) {
     try {
       const stored = localStorage.getItem(HISTORY_KEY)
       if (stored) {
-        const history = JSON.parse(stored) as QueryHistoryItem[]
+        const history = JSON.parse(stored) as Array<QueryHistoryItem>
         setQueryHistory(history)
       }
     } catch (error) {
@@ -473,7 +473,7 @@ export function SQLQuery({ repo }: Props) {
     }
   }
 
-  function saveQueryToHistory(queryText: string, result: SQLQueryResponse | null, error: boolean = false) {
+  function saveQueryToHistory(queryText: string, result: SQLQueryResponse | null, error = false) {
     const newItem: QueryHistoryItem = {
       query: queryText,
       timestamp: Date.now(),
@@ -504,7 +504,9 @@ export function SQLQuery({ repo }: Props) {
   }
 
   async function executeQuery() {
-    if (!query.trim()) return
+    if (!query.trim()) {
+      return
+    }
 
     try {
       setQueryState({ type: 'loading' })
@@ -534,7 +536,9 @@ export function SQLQuery({ repo }: Props) {
   }
 
   function handleSort(column: string) {
-    if (queryState.type !== 'success') return
+    if (queryState.type !== 'success') {
+      return
+    }
 
     let direction: 'asc' | 'desc' = 'asc'
     if (sortConfig && sortConfig.column === column && sortConfig.direction === 'asc') {
@@ -549,16 +553,24 @@ export function SQLQuery({ repo }: Props) {
     }
 
     const columnIndex = queryState.data.columns.indexOf(sortConfig.column)
-    if (columnIndex === -1) return queryState.data.rows
+    if (columnIndex === -1) {
+      return queryState.data.rows
+    }
 
     return [...queryState.data.rows].sort((a, b) => {
       const aVal = a[columnIndex]
       const bVal = b[columnIndex]
 
       // Handle null values
-      if (aVal === null && bVal === null) return 0
-      if (aVal === null) return sortConfig.direction === 'asc' ? 1 : -1
-      if (bVal === null) return sortConfig.direction === 'asc' ? -1 : 1
+      if (aVal === null && bVal === null) {
+        return 0
+      }
+      if (aVal === null) {
+        return sortConfig.direction === 'asc' ? 1 : -1
+      }
+      if (bVal === null) {
+        return sortConfig.direction === 'asc' ? -1 : 1
+      }
 
       // Compare values
       if (typeof aVal === 'number' && typeof bVal === 'number') {
@@ -571,9 +583,8 @@ export function SQLQuery({ repo }: Props) {
 
       if (sortConfig.direction === 'asc') {
         return aStr < bStr ? -1 : aStr > bStr ? 1 : 0
-      } else {
-        return aStr > bStr ? -1 : aStr < bStr ? 1 : 0
       }
+      return aStr > bStr ? -1 : aStr < bStr ? 1 : 0
     })
   }
 

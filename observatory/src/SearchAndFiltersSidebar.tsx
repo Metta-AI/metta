@@ -4,9 +4,9 @@ import styles from './TrainingRuns.module.css'
 interface SearchAndFiltersSidebarProps {
   searchQuery: string
   onSearchQueryChange: (query: string) => void
-  selectedTagFilters: string[]
-  onTagFiltersChange: (filters: string[]) => void
-  availableTags: string[]
+  selectedTagFilters: Array<string>
+  onTagFiltersChange: (filters: Array<string>) => void
+  availableTags: Array<string>
 }
 
 export function SearchAndFiltersSidebar({

@@ -78,7 +78,9 @@ const getShortName = (evalName: string) => {
 }
 
 const getMapImageUrl = (evalName: string) => {
-  if (evalName.toLowerCase() === 'overall') return ''
+  if (evalName.toLowerCase() === 'overall') {
+    return ''
+  }
   const shortName = getShortName(evalName)
   return `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${shortName.toLowerCase()}.png`
 }

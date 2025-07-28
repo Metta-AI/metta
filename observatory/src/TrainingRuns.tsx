@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { TrainingRun, Repo } from './repo'
-import styles from './TrainingRuns.module.css'
 import { SearchAndFiltersSidebar } from './SearchAndFiltersSidebar'
 import { TrainingRunRow } from './TrainingRunRow'
+import styles from './TrainingRuns.module.css'
+import type { Repo, TrainingRun } from './repo'
 
 interface TrainingRunsProps {
   repo: Repo
@@ -11,12 +11,12 @@ interface TrainingRunsProps {
 
 export function TrainingRuns({ repo }: TrainingRunsProps) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [trainingRuns, setTrainingRuns] = useState<TrainingRun[]>([])
+  const [trainingRuns, setTrainingRuns] = useState<Array<TrainingRun>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentUser, setCurrentUser] = useState<string | null>(null)
-  const [selectedTagFilters, setSelectedTagFilters] = useState<string[]>([])
+  const [selectedTagFilters, setSelectedTagFilters] = useState<Array<string>>([])
 
   // Initialize tag filters from URL parameters
   useEffect(() => {
@@ -92,7 +92,7 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
       run.name.toLowerCase().includes(query) ||
       run.status.toLowerCase().includes(query) ||
       run.user_id.toLowerCase().includes(query) ||
-      (run.description && run.description.toLowerCase().includes(query)) ||
+      run.description?.toLowerCase().includes(query) ||
       run.tags.some((tag) => tag.toLowerCase().includes(query))
 
     // Check if run has ALL selected tag filters

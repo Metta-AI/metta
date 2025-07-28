@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Repo, SavedDashboard } from './repo'
+import type { Repo, SavedDashboard } from './repo'
 
 // CSS for saved dashboards
 const SAVED_DASHBOARDS_CSS = `
@@ -184,7 +184,7 @@ interface SavedDashboardsProps {
 }
 
 export function SavedDashboards({ repo, currentUser }: SavedDashboardsProps) {
-  const [dashboards, setDashboards] = useState<SavedDashboard[]>([])
+  const [dashboards, setDashboards] = useState<Array<SavedDashboard>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; visible: boolean } | null>(null)

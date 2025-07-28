@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Repo } from './repo'
+import type { Repo } from './repo'
 
 interface Props {
   repo: Repo

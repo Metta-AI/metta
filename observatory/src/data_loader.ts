@@ -10,11 +10,11 @@ export type PolicyEval = {
   suite: string
   replay_url: string | null
   group_num_agents: Record<string, number>
-  policy_eval_metrics: PolicyEvalMetric[]
+  policy_eval_metrics: Array<PolicyEvalMetric>
 }
 
 export type DashboardData = {
-  policy_evals: PolicyEval[]
+  policy_evals: Array<PolicyEval>
 }
 
 export async function loadDataFromUri(uri: string): Promise<DashboardData> {

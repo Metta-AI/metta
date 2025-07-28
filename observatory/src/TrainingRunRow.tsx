@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { TrainingRun, Repo } from './repo'
-import styles from './TrainingRuns.module.css'
-import { TagEditor } from './TagEditor'
 import { DescriptionEditor } from './DescriptionEditor'
+import { TagEditor } from './TagEditor'
+import styles from './TrainingRuns.module.css'
+import type { Repo, TrainingRun } from './repo'
 
 interface TrainingRunRowProps {
   run: TrainingRun
@@ -43,7 +43,7 @@ export function TrainingRunRow({ run, canEdit, repo, onRunUpdate, onError }: Tra
     }
   }
 
-  const handleTagsChange = async (newTags: string[]) => {
+  const handleTagsChange = async (newTags: Array<string>) => {
     setSaving(true)
     try {
       const updatedRun = await repo.updateTrainingRunTags(run.id, newTags)

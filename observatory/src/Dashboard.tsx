@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { PolicyHeatmapData, Repo, SavedDashboardCreate } from './repo'
-import { PolicySelector } from './components/PolicySelector'
-import { SearchInput } from './components/SearchInput'
-import { EvalSelector } from './components/EvalSelector'
-import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
-import { MetricSelector } from './components/MetricSelector'
-import { Heatmap } from './Heatmap'
 import styles from './Dashboard.module.css'
+import { Heatmap } from './Heatmap'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
+import { EvalSelector } from './components/EvalSelector'
+import { MetricSelector } from './components/MetricSelector'
+import { PolicySelector } from './components/PolicySelector'
+import { SearchInput } from './components/SearchInput'
+import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
+import type { PolicyHeatmapData, Repo, SavedDashboardCreate } from './repo'
 
 interface DashboardProps {
   repo: Repo
@@ -17,9 +17,9 @@ interface DashboardProps {
 
 // Dashboard state interface for saving/loading
 export interface DashboardState {
-  selectedTrainingRunIds: string[]
-  selectedRunFreePolicyIds: string[]
-  selectedEvalNames: string[]
+  selectedTrainingRunIds: Array<string>
+  selectedRunFreePolicyIds: Array<string>
+  selectedEvalNames: Array<string>
   trainingRunPolicySelector: 'latest' | 'best'
   selectedMetric: string
 }
@@ -28,12 +28,12 @@ export function Dashboard({ repo }: DashboardProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   // Data state
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
-  const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
+  const [availableMetrics, setAvailableMetrics] = useState<Array<string>>([])
   const [heatmapData, setHeatmapData] = useState<PolicyHeatmapData | null>(null)
 
   // Selection state
-  const [selectedTrainingRunIds, setSelectedTrainingRunIds] = useState<string[]>([])
-  const [selectedRunFreePolicyIds, setSelectedRunFreePolicyIds] = useState<string[]>([])
+  const [selectedTrainingRunIds, setSelectedTrainingRunIds] = useState<Array<string>>([])
+  const [selectedRunFreePolicyIds, setSelectedRunFreePolicyIds] = useState<Array<string>>([])
   const [selectedEvalNames, setSelectedEvalNames] = useState<Set<string>>(new Set())
   const [trainingRunPolicySelector, setTrainingRunPolicySelector] = useState<'latest' | 'best'>('latest')
   const [selectedMetric, setSelectedMetric] = useState<string>('')
@@ -131,8 +131,8 @@ export function Dashboard({ repo }: DashboardProps) {
 
   // Generate heatmap
   const generateHeatmap = async (
-    selectedTrainingRunIds: string[],
-    selectedRunFreePolicyIds: string[],
+    selectedTrainingRunIds: Array<string>,
+    selectedRunFreePolicyIds: Array<string>,
     selectedEvalNames: Set<string>,
     selectedMetric: string
   ) => {
@@ -186,7 +186,9 @@ export function Dashboard({ repo }: DashboardProps) {
 
   const openReplayUrl = (policyName: string, evalName: string) => {
     const cell = heatmapData?.cells[policyName]?.[evalName]
-    if (!cell?.replayUrl) return
+    if (!cell?.replayUrl) {
+      return
+    }
 
     const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
     window.open(replay_url_prefix + cell.replayUrl, '_blank')
@@ -378,7 +380,7 @@ export function Dashboard({ repo }: DashboardProps) {
               >
                 {loading.heatmap ? (
                   <>
-                    <span className={styles.loadingSpinner}></span>
+                    <span className={styles.loadingSpinner} />
                     Generating Heatmap...
                   </>
                 ) : (

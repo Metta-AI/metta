@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { PoliciesResponse, Repo } from '../repo'
+import type { PoliciesResponse, Repo } from '../repo'
 import styles from './PolicySelector.module.css'
 
 interface PolicySelectorProps {
   repo: Repo
   searchText: string
-  selectedTrainingRunIds: string[]
-  selectedRunFreePolicyIds: string[]
-  onTrainingRunSelectionChange: (selectedIds: string[]) => void
-  onRunFreePolicySelectionChange: (selectedIds: string[]) => void
+  selectedTrainingRunIds: Array<string>
+  selectedRunFreePolicyIds: Array<string>
+  onTrainingRunSelectionChange: (selectedIds: Array<string>) => void
+  onRunFreePolicySelectionChange: (selectedIds: Array<string>) => void
   currentPage: number
   onPageChange: (page: number) => void
   pageSize?: number
@@ -151,7 +151,7 @@ export const PolicySelector: React.FC<PolicySelectorProps> = React.memo(
         <div className={styles.policiesContainer}>
           {loading && (
             <div className={styles.loadingContainer}>
-              <span className={styles.loadingSpinner}></span>
+              <span className={styles.loadingSpinner} />
               Loading policies...
             </div>
           )}

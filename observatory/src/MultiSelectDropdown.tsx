@@ -7,7 +7,7 @@ interface MultiSelectOption {
 }
 
 interface MultiSelectDropdownProps {
-  options: MultiSelectOption[]
+  options: Array<MultiSelectOption>
   selectedValues: Set<string>
   onSelectionChange: (selectedValues: Set<string>) => void
   placeholder?: string
@@ -213,7 +213,6 @@ export function MultiSelectDropdown({
                   placeholder={searchPlaceholder}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  autoFocus
                 />
               </div>
               <div className="multi-select-list">

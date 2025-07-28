@@ -1,8 +1,8 @@
-import React from 'react'
+import type React from 'react'
 import styles from './MetricSelector.module.css'
 
 interface MetricSelectorProps {
-  metrics: string[]
+  metrics: Array<string>
   selectedMetric: string
   onSelectionChange: (metric: string) => void
   loading?: boolean
@@ -20,7 +20,7 @@ export const MetricSelector: React.FC<MetricSelectorProps> = ({
     return (
       <div className={styles.container}>
         <div className={styles.loadingContainer}>
-          <span className={styles.loadingSpinner}></span>
+          <span className={styles.loadingSpinner} />
           Loading metrics...
         </div>
       </div>

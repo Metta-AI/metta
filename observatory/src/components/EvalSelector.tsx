@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import type React from 'react'
+import { useState } from 'react'
 import styles from './EvalSelector.module.css'
 
 interface EvalSelectorProps {
@@ -20,13 +21,13 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
     return evalName.split('/')[0]
   }
 
-  const categories: Map<string, string[]> = new Map()
+  const categories: Map<string, Array<string>> = new Map()
   for (const evalName of evalNames) {
     const [category, envName] = evalName.split('/')
     if (!categories.has(category)) {
       categories.set(category, [])
     }
-    categories.get(category)!.push(envName)
+    categories.get(category)?.push(envName)
   }
 
   const toggleCategoryExpansion = (category: string) => {
@@ -53,13 +54,13 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
 
   const isCategorySelected = (category: string): boolean => {
     // count selected eval names that have this category
-    let count = countSelectedEvalNamesInCategory(category)
-    return count === categories.get(category)!.length
+    const count = countSelectedEvalNamesInCategory(category)
+    return count === categories.get(category)?.length
   }
 
   const isCategoryPartiallySelected = (category: string): boolean => {
-    let count = countSelectedEvalNamesInCategory(category)
-    return count > 0 && count < categories.get(category)!.length
+    const count = countSelectedEvalNamesInCategory(category)
+    return count > 0 && count < categories.get(category)?.length
   }
 
   const isEnvSelected = (category: string, envName: string): boolean => {
@@ -76,7 +77,7 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
       // Select entire category
       const newSelections = new Set([
         ...selectedEvalNames,
-        ...categories.get(category)!.map((envName) => `${category}/${envName}`),
+        ...categories.get(category)?.map((envName) => `${category}/${envName}`),
       ])
       onSelectionChange(newSelections)
     }
@@ -104,7 +105,7 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
       <div className={styles.categoriesContainer}>
         {loading && (
           <div className={styles.loadingContainer}>
-            <span className={styles.loadingSpinner}></span>
+            <span className={styles.loadingSpinner} />
             Loading evaluations...
           </div>
         )}

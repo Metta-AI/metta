@@ -1,4 +1,4 @@
-import React from 'react'
+import type React from 'react'
 
 const SUITE_TABS_CSS = `
 .suite-tabs {
@@ -37,7 +37,7 @@ const SUITE_TABS_CSS = `
 `
 
 interface SuiteTabsProps {
-  suites: string[]
+  suites: Array<string>
   selectedSuite: string
   onSuiteChange: (suite: string) => void
   rightContent?: React.ReactNode

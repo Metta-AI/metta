@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
-import { ServerRepo, Repo } from './repo'
+import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Dashboard } from './Dashboard'
 import { Episodes } from './Episodes'
-import { TokenManager } from './TokenManager'
-import { SavedDashboards } from './SavedDashboards'
-import { SQLQuery } from './SQLQuery'
-import { TrainingRuns } from './TrainingRuns'
-import { TrainingRunDetail } from './TrainingRunDetail'
 import { EvalTasks } from './EvalTasks'
+import { SQLQuery } from './SQLQuery'
+import { SavedDashboards } from './SavedDashboards'
+import { TokenManager } from './TokenManager'
+import { TrainingRunDetail } from './TrainingRunDetail'
+import { TrainingRuns } from './TrainingRuns'
 import { config } from './config'
+import { type Repo, ServerRepo } from './repo'
 
 // CSS for navigation
 const NAV_CSS = `

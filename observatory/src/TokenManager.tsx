@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Repo, TokenInfo, TokenCreate } from './repo'
+import type { Repo, TokenCreate, TokenInfo } from './repo'
 
 // CSS for token manager
 const TOKEN_MANAGER_CSS = `
@@ -184,7 +184,7 @@ interface TokenManagerProps {
 }
 
 export function TokenManager({ repo }: TokenManagerProps) {
-  const [tokens, setTokens] = useState<TokenInfo[]>([])
+  const [tokens, setTokens] = useState<Array<TokenInfo>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)

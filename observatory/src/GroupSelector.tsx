@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { GroupHeatmapMetric, Repo } from './repo'
+import type { GroupHeatmapMetric, Repo } from './repo'
 
 const GROUP_SELECTOR_CSS = `
 .group-selector {
@@ -22,13 +22,12 @@ export const parseGroupMetric = (label: string): GroupHeatmapMetric => {
   if (label.includes(' - ')) {
     const [group1, group2] = label.split(' - ')
     return { group_1: group1, group_2: group2 }
-  } else {
-    return label
   }
+  return label
 }
 
-const generateGroupMetrics = (groupIds: string[]): string[] => {
-  const groupDiffs: string[] = []
+const generateGroupMetrics = (groupIds: Array<string>): Array<string> => {
+  const groupDiffs: Array<string> = []
   for (const groupId1 of groupIds) {
     for (const groupId2 of groupIds) {
       if (groupId1 !== groupId2) {
@@ -47,12 +46,14 @@ interface GroupSelectorProps {
 }
 
 export function GroupSelector({ repo, selectedSuite, selectedGroupMetric, onGroupMetricChange }: GroupSelectorProps) {
-  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([])
+  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<Array<string>>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const loadGroupMetrics = async () => {
-      if (!selectedSuite) return
+      if (!selectedSuite) {
+        return
+      }
 
       setLoading(true)
       try {

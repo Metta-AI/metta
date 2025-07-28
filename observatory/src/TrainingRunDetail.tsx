@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
 import Plot from 'react-plotly.js'
-import { TrainingRun, HeatmapData, Repo } from './repo'
+import { Link, useParams } from 'react-router-dom'
+import { DescriptionEditor } from './DescriptionEditor'
 import { MapViewer } from './MapViewer'
 import { SuiteTabs } from './SuiteTabs'
 import { TagEditor } from './TagEditor'
-import { DescriptionEditor } from './DescriptionEditor'
+import type { HeatmapData, Repo, TrainingRun } from './repo'
 
 const TRAINING_RUN_DETAIL_CSS = `
 .training-run-detail-container {
@@ -184,7 +184,9 @@ interface TrainingRunDetailProps {
 }
 
 const getShortName = (evalName: string) => {
-  if (evalName === 'Overall') return evalName
+  if (evalName === 'Overall') {
+    return evalName
+  }
   return evalName.split('/').pop() || evalName
 }
 
@@ -194,8 +196,8 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   // Data state
   const [trainingRun, setTrainingRun] = useState<TrainingRun | null>(null)
   const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null)
-  const [metrics, setMetrics] = useState<string[]>([])
-  const [suites, setSuites] = useState<string[]>([])
+  const [metrics, setMetrics] = useState<Array<string>>([])
+  const [suites, setSuites] = useState<Array<string>>([])
 
   // UI state
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
@@ -217,7 +219,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   // Load training run and initial data
   useEffect(() => {
     const initializeData = async () => {
-      if (!runId) return
+      if (!runId) {
+        return
+      }
 
       try {
         setLoading(true)
@@ -245,7 +249,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   // Load metrics when suite changes
   useEffect(() => {
     const loadSuiteData = async () => {
-      if (!selectedSuite) return
+      if (!selectedSuite) {
+        return
+      }
 
       try {
         const metricsData = await repo.getAllMetrics()
@@ -261,7 +267,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   // Load heatmap data when parameters change
   useEffect(() => {
     const loadHeatmapData = async () => {
-      if (!runId || !selectedSuite || !selectedMetric) return
+      if (!runId || !selectedSuite || !selectedMetric) {
+        return
+      }
 
       try {
         const heatmapData = await repo.getTrainingRunHeatmapData(runId, selectedMetric, selectedSuite)
@@ -285,7 +293,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
   const openReplayUrl = (policyUri: string, evalName: string) => {
     const evalData = heatmapData?.cells[policyUri]?.[evalName]
-    if (!evalData?.replayUrl) return
+    if (!evalData?.replayUrl) {
+      return
+    }
 
     const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
     window.open(replay_url_prefix + evalData.replayUrl, '_blank')
@@ -323,7 +333,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   }
 
   const handleDescriptionChange = async (newDescription: string) => {
-    if (!runId) return
+    if (!runId) {
+      return
+    }
 
     setSaving(true)
     try {
@@ -334,8 +346,10 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     }
   }
 
-  const handleTagsChange = async (newTags: string[]) => {
-    if (!runId || !trainingRun) return
+  const handleTagsChange = async (newTags: Array<string>) => {
+    if (!runId || !trainingRun) {
+      return
+    }
 
     setSaving(true)
     try {
@@ -348,7 +362,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
   // Create the modified heatmap with policies on X-axis and evals on Y-axis
   const renderHeatmap = () => {
-    if (!heatmapData) return null
+    if (!heatmapData) {
+      return null
+    }
 
     const policies = Object.keys(heatmapData.cells)
     const evalNames = heatmapData.evalNames
@@ -358,7 +374,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     policies.forEach((policy) => {
       policyVersionToPolicy.set(policy.split(':v')[1], policy)
     })
-    const sortedPolicyVersions = [...policyVersionToPolicy.keys()].sort((a, b) => parseInt(a) - parseInt(b))
+    const sortedPolicyVersions = [...policyVersionToPolicy.keys()].sort(
+      (a, b) => Number.parseInt(a) - Number.parseInt(b)
+    )
 
     const shortNameToEvalName = new Map<string, string>()
     evalNames.forEach((evalName) => {
@@ -379,7 +397,9 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     )
 
     const onHover = (event: any) => {
-      if (!event.points?.[0]) return
+      if (!event.points?.[0]) {
+        return
+      }
 
       const policyUri = event.points[0].x
       const shortName = event.points[0].y

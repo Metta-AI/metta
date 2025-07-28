@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Repo } from './repo'
+import type { Repo } from './repo'
 
 interface EvalTask {
   id: string
@@ -22,7 +22,7 @@ interface Props {
 }
 
 export function EvalTasks({ repo }: Props) {
-  const [tasks, setTasks] = useState<EvalTask[]>([])
+  const [tasks, setTasks] = useState<Array<EvalTask>>([])
   const [policyIdInput, setPolicyIdInput] = useState<string>('')
   const [gitHash, setGitHash] = useState<string>('')
   const [simSuite, setSimSuite] = useState<string>('all')
@@ -34,7 +34,7 @@ export function EvalTasks({ repo }: Props) {
   const [completedSortDirection, setCompletedSortDirection] = useState<SortDirection>('desc')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [showPolicySuggestions, setShowPolicySuggestions] = useState(false)
-  const [filteredPolicies, setFilteredPolicies] = useState<string[]>([])
+  const [filteredPolicies, setFilteredPolicies] = useState<Array<string>>([])
 
   // Set up auto-refresh for tasks
   useEffect(() => {
@@ -56,10 +56,12 @@ export function EvalTasks({ repo }: Props) {
   }
 
   // Get unique policy names/IDs from recent tasks for typeahead
-  const getRecentPolicies = (): string[] => {
+  const getRecentPolicies = (): Array<string> => {
     const policySet = new Set<string>()
     tasks.forEach((task) => {
-      if (task.policy_name) policySet.add(task.policy_name)
+      if (task.policy_name) {
+        policySet.add(task.policy_name)
+      }
       policySet.add(task.policy_id)
     })
     return Array.from(policySet).sort()
@@ -131,7 +133,9 @@ export function EvalTasks({ repo }: Props) {
   }
 
   const getStatusColor = (status: string, isInProgress: boolean) => {
-    if (isInProgress) return '#17a2b8' // info blue for in progress
+    if (isInProgress) {
+      return '#17a2b8' // info blue for in progress
+    }
     switch (status) {
       case 'done':
         return '#28a745'
@@ -149,7 +153,7 @@ export function EvalTasks({ repo }: Props) {
   const getDisplayStatus = (task: EvalTask) => {
     // Only show "in progress" for unprocessed tasks with recent assignment
     if (task.status === 'unprocessed' && task.assignee && task.assigned_at) {
-      const assignedTime = new Date(task.assigned_at + 'Z').getTime()
+      const assignedTime = new Date(`${task.assigned_at}Z`).getTime()
       const now = new Date().getTime()
       const twentyMinutesAgo = now - 20 * 60 * 1000
       if (assignedTime > twentyMinutesAgo) {
@@ -161,16 +165,22 @@ export function EvalTasks({ repo }: Props) {
 
   const getWorkingDuration = (task: EvalTask) => {
     // Only show duration for tasks that display as "in progress"
-    if (getDisplayStatus(task) !== 'in progress') return null
+    if (getDisplayStatus(task) !== 'in progress') {
+      return null
+    }
 
-    if (!task.assigned_at) return null
+    if (!task.assigned_at) {
+      return null
+    }
 
-    const start = new Date(task.assigned_at + 'Z') // Add Z to indicate UTC
+    const start = new Date(`${task.assigned_at}Z`) // Add Z to indicate UTC
     const now = new Date()
     const diff = now.getTime() - start.getTime()
 
     // If negative (assigned in future?), show 0
-    if (diff < 0) return '00:00'
+    if (diff < 0) {
+      return '00:00'
+    }
 
     const totalSeconds = Math.floor(diff / 1000)
     const minutes = Math.floor(totalSeconds / 60)
@@ -189,7 +199,9 @@ export function EvalTasks({ repo }: Props) {
   }
 
   const truncateWorkerName = (workerName: string | null) => {
-    if (!workerName) return '-'
+    if (!workerName) {
+      return '-'
+    }
     const parts = workerName.split('-')
     if (parts.length >= 3) {
       // Get the last part (suffix) and abbreviate the middle parts
@@ -200,7 +212,9 @@ export function EvalTasks({ repo }: Props) {
   }
 
   const getWorkerColor = (workerName: string | null) => {
-    if (!workerName) return 'transparent'
+    if (!workerName) {
+      return 'transparent'
+    }
 
     // Simple hash function to generate consistent colors
     let hash = 0
@@ -213,7 +227,7 @@ export function EvalTasks({ repo }: Props) {
     return `hsl(${hue}, 70%, 85%)`
   }
 
-  const sortTasks = (tasksToSort: EvalTask[], field: SortField, direction: SortDirection) => {
+  const sortTasks = (tasksToSort: Array<EvalTask>, field: SortField, direction: SortDirection) => {
     return [...tasksToSort].sort((a, b) => {
       let aVal: any = a[field as keyof EvalTask]
       let bVal: any = b[field as keyof EvalTask]
@@ -233,11 +247,19 @@ export function EvalTasks({ repo }: Props) {
         }
       }
 
-      if (aVal === null || aVal === undefined) aVal = ''
-      if (bVal === null || bVal === undefined) bVal = ''
+      if (aVal === null || aVal === undefined) {
+        aVal = ''
+      }
+      if (bVal === null || bVal === undefined) {
+        bVal = ''
+      }
 
-      if (aVal < bVal) return direction === 'asc' ? -1 : 1
-      if (aVal > bVal) return direction === 'asc' ? 1 : -1
+      if (aVal < bVal) {
+        return direction === 'asc' ? -1 : 1
+      }
+      if (aVal > bVal) {
+        return direction === 'asc' ? 1 : -1
+      }
       return 0
     })
   }
@@ -325,12 +347,18 @@ export function EvalTasks({ repo }: Props) {
       return JSON.stringify(value, null, 2)
     }
 
-    const renderObject = (obj: Record<string, any>, indent: number = 0): React.ReactNode => {
+    const renderObject = (obj: Record<string, any>, indent = 0): React.ReactNode => {
       // Filter out empty/falsy values
       const entries = Object.entries(obj).filter(([_, value]) => {
-        if (value === null || value === undefined || value === '' || value === false) return false
-        if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) return false
-        if (Array.isArray(value) && value.length === 0) return false
+        if (value === null || value === undefined || value === '' || value === false) {
+          return false
+        }
+        if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) {
+          return false
+        }
+        if (Array.isArray(value) && value.length === 0) {
+          return false
+        }
         return true
       })
 
@@ -704,7 +732,7 @@ export function EvalTasks({ repo }: Props) {
                       </td>
                       <td style={{ padding: '12px' }}>{workingDuration || '-'}</td>
                       <td style={{ padding: '12px' }}>{task.retries}</td>
-                      <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(`${task.created_at}Z`).toLocaleString()}</td>
                     </tr>
                     {isExpanded && (
                       <tr>
@@ -815,7 +843,7 @@ export function EvalTasks({ repo }: Props) {
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(`${task.created_at}Z`).toLocaleString()}</td>
                     </tr>
                     {isExpanded && (
                       <tr>

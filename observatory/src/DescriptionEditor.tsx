@@ -63,7 +63,6 @@ export function DescriptionEditor({
           rows={compact ? 3 : 4}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          autoFocus
         />
         <div className={styles.editDescriptionActions}>
           <button onClick={handleSave} disabled={disabled} className={styles.saveBtn}>

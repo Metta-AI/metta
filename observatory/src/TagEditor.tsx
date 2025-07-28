@@ -2,9 +2,9 @@ import { useState } from 'react'
 import styles from './TrainingRuns.module.css'
 
 interface TagEditorProps {
-  tags: string[]
+  tags: Array<string>
   canEdit: boolean
-  onTagsChange: (newTags: string[]) => void
+  onTagsChange: (newTags: Array<string>) => void
   onError: (error: string) => void
   disabled?: boolean
   compact?: boolean // For table rows vs detail pages
@@ -22,7 +22,9 @@ export function TagEditor({ tags, canEdit, onTagsChange, onError, disabled = fal
 
   const handleAddTag = async () => {
     const trimmedTag = newTag.trim()
-    if (!trimmedTag) return
+    if (!trimmedTag) {
+      return
+    }
 
     if (tags.includes(trimmedTag)) {
       onError('Tag already exists')
@@ -49,7 +51,9 @@ export function TagEditor({ tags, canEdit, onTagsChange, onError, disabled = fal
   }
 
   const handleConfirmRemoveTag = async () => {
-    if (!confirmDeleteTag) return
+    if (!confirmDeleteTag) {
+      return
+    }
 
     try {
       const updatedTags = tags.filter((t) => t !== confirmDeleteTag)
@@ -112,7 +116,6 @@ export function TagEditor({ tags, canEdit, onTagsChange, onError, disabled = fal
                       handleCancelAddTag()
                     }
                   }}
-                  autoFocus
                   disabled={disabled}
                 />
                 <div className={styles.tagInputActions}>

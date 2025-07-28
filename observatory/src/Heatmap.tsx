@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Plot from 'react-plotly.js'
-import { HeatmapData } from './repo'
+import type { HeatmapData } from './repo'
 
 interface HeatmapProps {
   data: HeatmapData
@@ -56,7 +56,9 @@ const SUITE_TABS_CSS = `
 `
 
 const getShortName = (evalName: string) => {
-  if (evalName === 'Overall') return evalName
+  if (evalName === 'Overall') {
+    return evalName
+  }
   return evalName.split('/').pop() || evalName
 }
 
@@ -87,13 +89,13 @@ export function Heatmap({
 
   // In the new system, eval names are already properly formatted (e.g. "navigation/maze1")
   // Group them by category for better organization
-  const evalsByCategory = new Map<string, string[]>()
+  const evalsByCategory = new Map<string, Array<string>>()
   data.evalNames.forEach((evalName) => {
     const [category] = evalName.split('/')
     if (!evalsByCategory.has(category)) {
       evalsByCategory.set(category, [])
     }
-    evalsByCategory.get(category)!.push(evalName)
+    evalsByCategory.get(category)?.push(evalName)
   })
 
   // Build x-labels: overall, then grouped by category
@@ -104,7 +106,7 @@ export function Heatmap({
   // Sort categories alphabetically, then envs within each category
   const sortedCategories = Array.from(evalsByCategory.keys()).sort()
   sortedCategories.forEach((category) => {
-    const envs = evalsByCategory.get(category)!.sort()
+    const envs = evalsByCategory.get(category)?.sort()
     envs.forEach((evalName) => {
       const shortName = getShortName(evalName) // Just the environment name
       xLabels.push(shortName)
@@ -122,7 +124,7 @@ export function Heatmap({
 
     // Add scores for each evaluation in order
     sortedCategories.forEach((category) => {
-      const envs = evalsByCategory.get(category)!.sort()
+      const envs = evalsByCategory.get(category)?.sort()
       envs.forEach((evalName) => {
         const cell = data.cells[policy]?.[evalName]
         row.push(cell ? cell.value : 0)
@@ -137,7 +139,9 @@ export function Heatmap({
   })
 
   const onHover = (event: any) => {
-    if (!event.points?.[0]) return
+    if (!event.points?.[0]) {
+      return
+    }
 
     const shortName = event.points[0].x
     const policyUri = event.points[0].y

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { SavedDashboardCreate } from './repo'
+import { useEffect, useState } from 'react'
+import type { SavedDashboardCreate } from './repo'
 
 // CSS for modal
 const MODAL_CSS = `

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Episode, Repo } from './repo'
+import type { Episode, Repo } from './repo'
 
 interface EpisodesProps {
   repo: Repo
 }
 
 export function Episodes({ repo }: EpisodesProps) {
-  const [episodes, setEpisodes] = useState<Episode[]>([])
+  const [episodes, setEpisodes] = useState<Array<Episode>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filterQuery, setFilterQuery] = useState('')
@@ -18,9 +18,9 @@ export function Episodes({ repo }: EpisodesProps) {
   const [selectAllChecked, setSelectAllChecked] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [tagAction, setTagAction] = useState<'add' | 'remove'>('add')
-  const [allTags, setAllTags] = useState<string[]>([])
+  const [allTags, setAllTags] = useState<Array<string>>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
+  const [filteredSuggestions, setFilteredSuggestions] = useState<Array<string>>([])
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
 
   const pageSize = 50
@@ -126,7 +126,9 @@ export function Episodes({ repo }: EpisodesProps) {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggestions || filteredSuggestions.length === 0) return
+    if (!showSuggestions || filteredSuggestions.length === 0) {
+      return
+    }
 
     switch (e.key) {
       case 'ArrowDown':
@@ -151,7 +153,9 @@ export function Episodes({ repo }: EpisodesProps) {
   }
 
   const handleTagAction = async () => {
-    if (!tagInput.trim() || (selectedEpisodes.size === 0 && !selectAllChecked)) return
+    if (!tagInput.trim() || (selectedEpisodes.size === 0 && !selectAllChecked)) {
+      return
+    }
 
     try {
       setLoading(true)
