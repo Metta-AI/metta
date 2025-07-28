@@ -17,10 +17,9 @@ logger = logging.getLogger(__name__)
 TASK_ID_SIZE = 36  # UUID string length
 TASK_NAME_SIZE = 256
 ENV_CFG_SIZE = 65536  # 64KB for pickled env config
-SLOT_SIZE = (
-    TASK_ID_SIZE + TASK_NAME_SIZE + ENV_CFG_SIZE + 4 + 4 + 4
-)  # +4 for num_completed, +4 for mean_score, +4 for lock
-HEADER_SIZE = 4  # 4 bytes for ready flag at the beginning of shared memory
+# Updated to match CurriculumState: +4 for num_completed, +4 for mean_score, +4 for num_outstanding, +1 for occupied
+SLOT_SIZE = TASK_ID_SIZE + TASK_NAME_SIZE + ENV_CFG_SIZE + 4 + 4 + 4 + 1
+HEADER_SIZE = 12  # 4 bytes for ready flag + 4 bytes for num_slots + 4 bytes for num_active_tasks
 
 
 class RemoteTask(Task):
@@ -64,8 +63,14 @@ class CurriculumClient(Curriculum):
     for maximum performance.
     """
 
-    def __init__(self, num_slots: int = 100, timeout: float = 30.0):
-        self.num_slots = num_slots
+    def __init__(self, name: str = "curriculum_server", timeout: float = 30.0):
+        """Initialize the curriculum client.
+
+        Args:
+            name: Name of the shared memory segment to connect to.
+            timeout: Timeout in seconds for connecting to the server.
+        """
+        self.name = name
         self.timeout = timeout
 
         # Connect to shared memory with retries
@@ -76,22 +81,22 @@ class CurriculumClient(Curriculum):
 
         while time.time() - start_time < timeout:
             try:
-                self.shm = shared_memory.SharedMemory(name="curriculum_server")
+                self.shm = shared_memory.SharedMemory(name=name)
                 connected = True
                 break
             except FileNotFoundError as e:
                 last_error = e
                 retry_count += 1
                 if retry_count == 1:
-                    logger.info("Waiting for curriculum server shared memory to be available...")
+                    logger.info(f"Waiting for curriculum server shared memory '{name}' to be available...")
                 elif retry_count % 10 == 0:  # Log every second
                     elapsed = time.time() - start_time
-                    logger.info(f"Still waiting for curriculum server... ({elapsed:.1f}s elapsed)")
+                    logger.info(f"Still waiting for curriculum server '{name}'... ({elapsed:.1f}s elapsed)")
                 time.sleep(0.1)  # Wait 100ms before retrying
 
         if not connected:
             raise ConnectionError(
-                f"Curriculum server shared memory not found after {timeout}s. "
+                f"Curriculum server shared memory '{name}' not found after {timeout}s. "
                 f"Is the server running? Last error: {last_error}"
             )
 
@@ -111,15 +116,19 @@ class CurriculumClient(Curriculum):
                 "The server may still be initializing tasks."
             )
 
-        # Calculate expected size
-        expected_size = HEADER_SIZE + (SLOT_SIZE * num_slots)
-        if self.shm.size != expected_size:
-            actual_slots = (self.shm.size - HEADER_SIZE) // SLOT_SIZE
-            logger.warning(f"Shared memory size mismatch. Expected {num_slots} slots, found {actual_slots}")
-            self.num_slots = actual_slots
+        # Read num_slots from header
+        self.num_slots = struct.unpack_from("I", self.buffer.data, 4)[0]
+        logger.debug(f"Connected to curriculum server with {self.num_slots} slots")
+
+        # Verify expected size
+        expected_size = HEADER_SIZE + (SLOT_SIZE * self.num_slots)
+        if self.shm.size < expected_size:
+            logger.warning(
+                f"Shared memory size ({self.shm.size}) is smaller than expected ({expected_size}). "
+                f"Server may be using a different layout."
+            )
 
         # Verify at least some slots have tasks
-        logger.info(f"Connected to curriculum server shared memory with {self.num_slots} slots")
         self._verify_connection()
 
     def _verify_connection(self):
@@ -141,26 +150,6 @@ class CurriculumClient(Curriculum):
     def _get_slot_offset(self, slot_idx: int) -> int:
         """Get the byte offset for a specific slot."""
         return HEADER_SIZE + (slot_idx * SLOT_SIZE)
-
-    def _acquire_lock(self, slot_idx: int, timeout: float = 1.0) -> bool:
-        """Acquire lock for a slot using compare-and-swap."""
-        offset = self._get_slot_offset(slot_idx)
-        lock_offset = offset + TASK_ID_SIZE + TASK_NAME_SIZE + ENV_CFG_SIZE + 8  # +8 for num_completed and mean_score
-
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            current = struct.unpack_from("I", self.buffer.data, lock_offset)[0]
-            if current == 0:  # Unlocked
-                struct.pack_into("I", self.buffer.data, lock_offset, 1)  # Lock it
-                return True
-            time.sleep(0.001)  # Small delay before retry
-        return False
-
-    def _release_lock(self, slot_idx: int):
-        """Release lock for a slot."""
-        offset = self._get_slot_offset(slot_idx)
-        lock_offset = offset + TASK_ID_SIZE + TASK_NAME_SIZE + ENV_CFG_SIZE + 8
-        struct.pack_into("I", self.buffer.data, lock_offset, 0)  # Unlock
 
     def _read_slot(self, slot_idx: int) -> Dict:
         """Read task info from a slot."""
@@ -254,10 +243,6 @@ class CurriculumClient(Curriculum):
 
     def complete_task(self, slot_idx: int, score: float) -> bool:
         """Update task completion in shared memory."""
-        if not self._acquire_lock(slot_idx, timeout=self.timeout):
-            logger.error(f"Failed to acquire lock for slot {slot_idx}")
-            return False
-
         try:
             offset = self._get_slot_offset(slot_idx)
 
@@ -282,8 +267,6 @@ class CurriculumClient(Curriculum):
         except Exception as e:
             logger.error(f"Error completing task: {e}")
             return False
-        finally:
-            self._release_lock(slot_idx)
 
     def stats(self) -> Dict[str, Any]:
         """Get statistics from shared memory."""

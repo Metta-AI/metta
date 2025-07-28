@@ -139,7 +139,7 @@ def main(cfg: DictConfig) -> int:
     if local_master:
         # Create curriculum and server on local master regardless of device
         curriculum = curriculum_from_config_path(cfg.trainer.curriculum, DictConfig(cfg.trainer.env_overrides))
-        curriculum_server = CurriculumServer(curriculum, num_slots=100)
+        curriculum_server = CurriculumServer(curriculum, num_slots=10)
         logger.info("Curriculum server created and initializing...")
 
     if cfg.device.startswith("cuda"):
