@@ -59,6 +59,9 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
             single_agent: Whether to use single-agent mode
             **kwargs: Additional arguments
         """
+        # Set flag to hide conflicting methods during PufferLib initialization
+        self._pufferlib_init_in_progress = True
+
         # Initialize base environment
         MettaGridEnv.__init__(
             self,
@@ -75,6 +78,30 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
         GymEnv.__init__(self)
 
         self._single_agent = single_agent
+
+        # PufferLib sets observation_space and action_space as instance attributes,
+        # but our properties with setters will handle this correctly
+
+        # Remove flag to allow normal method access
+        delattr(self, "_pufferlib_init_in_progress")
+
+    def __getattribute__(self, name: str):
+        """Override to hide conflicting attributes during PufferLib initialization."""
+        # Hide observation_space and action_space properties during PufferLib __init__ checks
+        if name in ("observation_space", "action_space"):
+            import inspect
+
+            frame = inspect.currentframe()
+            try:
+                # Look for PufferLib's __init__ method in the call stack
+                while frame:
+                    if frame.f_code.co_filename.endswith("pufferlib.py") and frame.f_code.co_name == "__init__":
+                        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+                    frame = frame.f_back
+            finally:
+                del frame
+
+        return super().__getattribute__(name)
 
     @override
     def reset(
@@ -182,4 +209,22 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
             **kwargs,
         )
 
-    # Properties inherited from base MettaGridEnv
+    @property
+    def observation_space(self):
+        """Override to return single-agent observation space."""
+        return self.single_observation_space
+
+    @observation_space.setter
+    def observation_space(self, value):
+        """Ignore PufferLib's attempt to set observation_space."""
+        pass
+
+    @property
+    def action_space(self):
+        """Override to return single-agent action space."""
+        return self.single_action_space
+
+    @action_space.setter
+    def action_space(self, value):
+        """Ignore PufferLib's attempt to set action_space."""
+        pass

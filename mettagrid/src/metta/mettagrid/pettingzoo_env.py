@@ -57,6 +57,9 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
             is_training: Whether this is for training
             **kwargs: Additional arguments
         """
+        # Set flag to hide conflicting methods during PufferLib initialization
+        self._pufferlib_init_in_progress = True
+
         # Initialize base environment
         MettaGridEnv.__init__(
             self,
@@ -69,78 +72,62 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
             **kwargs,
         )
 
-        # Create initial core environment for property access
-        self._core_env = self._create_core_env(0)
+        # Core environment is already created by base class initialization
 
         # PettingZoo attributes
         self.agents: List[str] = []
         self.possible_agents: List[str] = []
 
         # populate possible_agents immediately (PettingZoo spec)
-        num_agents = self._core_env.num_agents
+        num_agents = self._c_env.num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
 
         # Create space objects once to avoid memory leaks
         # PettingZoo requires same space object instances to be returned
-        self._observation_space_obj = self._core_env.observation_space
-        self._action_space_obj = self._core_env.action_space
+        self._observation_space_obj = self._c_env.observation_space
+        self._action_space_obj = self._c_env.action_space
 
-        # Buffers for environment data
-        self._observations: Optional[np.ndarray] = None
-        self._terminals: Optional[np.ndarray] = None
-        self._truncations: Optional[np.ndarray] = None
-        self._rewards: Optional[np.ndarray] = None
+        # Buffers are handled by base MettaGridEnv class
+
+        # Remove PufferLib's instance attributes that shadow our methods
+        # PufferEnv sets these in __init__, but we need methods for PettingZoo
+        if hasattr(self, "observation_space") and not callable(self.observation_space):
+            delattr(self, "observation_space")
+        if hasattr(self, "action_space") and not callable(self.action_space):
+            delattr(self, "action_space")
+
+        # Remove flag to allow normal method access
+        delattr(self, "_pufferlib_init_in_progress")
+
+    def __getattribute__(self, name: str):
+        """Override to hide conflicting attributes during PufferLib initialization."""
+        # Hide observation_space and action_space methods during PufferLib __init__ checks
+        if name in ("observation_space", "action_space"):
+            import inspect
+
+            frame = inspect.currentframe()
+            try:
+                # Look for PufferLib's __init__ method in the call stack
+                while frame:
+                    if frame.f_code.co_filename.endswith("pufferlib.py") and frame.f_code.co_name == "__init__":
+                        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+                    frame = frame.f_back
+            finally:
+                del frame
+
+        return super().__getattribute__(name)
 
     def _setup_agents(self) -> None:
         """Setup agent names after core environment is created."""
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Core environment not initialized")
 
         # Create agent names
-        num_agents = self._core_env.num_agents
+        num_agents = self._c_env.num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
         self.agents = self.possible_agents.copy()
 
-    def _allocate_buffers(self) -> None:
-        """Allocate buffers based on environment dimensions."""
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        num_agents = self._core_env.num_agents
-        obs_space = self._core_env.observation_space
-
-        # Allocate buffers
-        self._observations = np.zeros((num_agents,) + obs_space.shape, dtype=dtype_observations)
-        self._terminals = np.zeros(num_agents, dtype=dtype_terminals)
-        self._truncations = np.zeros(num_agents, dtype=dtype_truncations)
-        self._rewards = np.zeros(num_agents, dtype=dtype_rewards)
-
-    @override
-    def _get_initial_observations(self) -> np.ndarray:
-        """
-        Get initial observations and set up buffers.
-
-        Returns:
-            Initial observations array
-        """
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        # Setup agents
-        self._setup_agents()
-
-        # Allocate buffers
-        self._allocate_buffers()
-
-        # Set buffers in core environment
-        assert self._observations is not None
-        assert self._terminals is not None
-        assert self._truncations is not None
-        assert self._rewards is not None
-        self._core_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
-
-        # Get initial observations
-        return self._core_env.get_initial_observations()
+    # Buffer management is handled by base MettaGridEnv class
 
     @override
     def reset(
@@ -157,7 +144,11 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
             Tuple of (observations_dict, infos_dict)
         """
         del options  # Unused parameter
-        obs_array, info = self.reset_base(seed)
+        obs_array, info = super().reset(seed)
+
+        # Setup agents if not already done
+        if not self.agents:
+            self._setup_agents()
 
         # Convert to PettingZoo format
         observations = {agent: obs_array[i] for i, agent in enumerate(self.agents)}
@@ -185,16 +176,9 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
                 actions_array[i] = actions[agent].astype(dtype_actions)
 
         # Call base step implementation
-        infos = self.step_base(actions_array)
+        observations, rewards, terminals, truncations, infos = super().step(actions_array)
 
-        # Get step results
-        if self._observations is None or self._rewards is None or self._terminals is None or self._truncations is None:
-            raise RuntimeError("Buffers not initialized")
-
-        observations = self._observations.copy()
-        rewards = self._rewards.copy()
-        terminals = self._terminals.copy()
-        truncations = self._truncations.copy()
+        # Step results are already provided by base class
 
         # Convert to PettingZoo format
         obs_dict = {agent: observations[i] for i, agent in enumerate(self.agents)}
@@ -234,21 +218,21 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         Returns:
             Global state array
         """
-        if self._observations is None:
+        if self.observations is None:
             raise RuntimeError("Environment not initialized")
 
         # Return flattened observations as global state
-        return self._observations.flatten()
+        return self.observations.flatten()
 
     @property
     def state_space(self) -> spaces.Box:
         """Get state space (optional for PettingZoo)."""
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
 
         # State space is flattened observation space
-        obs_space = self._core_env.observation_space
-        total_size = self._core_env.num_agents * int(np.prod(obs_space.shape))
+        obs_space = self._c_env.observation_space
+        total_size = self._c_env.num_agents * int(np.prod(obs_space.shape))
 
         return spaces.Box(
             low=obs_space.low.flatten()[0],
@@ -271,7 +255,4 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         """Get maximum number of agents."""
         return len(self.possible_agents)
 
-    @property
-    def num_agents(self) -> int:
-        """Get current number of agents."""
-        return len(self.agents)
+    # num_agents property is defined above

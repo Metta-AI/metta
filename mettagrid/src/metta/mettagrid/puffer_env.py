@@ -60,23 +60,25 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
             is_training: Whether this is for training
             **kwargs: Additional arguments
         """
-        # Initialize base environment
+        # Initialize base environment (this also calls PufferEnv.__init__ with buf)
         MettaGridEnv.__init__(
             self,
             curriculum=curriculum,
             render_mode=render_mode,
             level=level,
+            buf=buf,
             stats_writer=stats_writer,
             replay_writer=replay_writer,
             is_training=is_training,
             **kwargs,
         )
 
-        # Create initial core environment so PufferEnv can access observation space
-        self._core_env = self._create_core_env(0)
+        # Core environment is already created by base MettaGridEnv initialization
+        # PufferEnv needs access to it for observation space
+        self._core_env = self._c_env
 
-        # Initialize PufferEnv
-        PufferEnv.__init__(self, buf)
+        # Note: PufferEnv.__init__ is already called by MettaGridEnv.__init__
+        # No need to call it again - this would cause double initialization
 
         # PufferLib buffer attributes (set by PufferEnv)
         self.observations: np.ndarray
@@ -85,7 +87,6 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
         self.rewards: np.ndarray
         self.actions: np.ndarray
 
-    @override
     def _get_initial_observations(self) -> np.ndarray:
         """
         Get initial observations and set up buffers.
@@ -96,17 +97,9 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
         if self._core_env is None:
             raise RuntimeError("Core environment not initialized")
 
-        # Validate buffer dtypes
-        assert self.observations.dtype == dtype_observations
-        assert self.terminals.dtype == dtype_terminals
-        assert self.truncations.dtype == dtype_truncations
-        assert self.rewards.dtype == dtype_rewards
-
-        # Set buffers in core environment
-        self._core_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
-        # Get initial observations
-        return self._core_env.get_initial_observations()
+        # Reset the environment to get initial observations
+        observations, _ = super().reset()
+        return observations
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -119,7 +112,7 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
         Returns:
             Tuple of (observations, info)
         """
-        return self.reset_base(seed)
+        return super().reset(seed)
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
@@ -133,10 +126,10 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
         # Call base step implementation
-        infos = self.step_base(actions)
+        observations, rewards, terminals, truncations, infos = super().step(actions)
 
         # Return PufferLib-compatible tuple
-        return self.observations, self.rewards, self.terminals, self.truncations, infos
+        return observations, rewards, terminals, truncations, infos
 
     # PufferLib required properties
     @property
