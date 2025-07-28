@@ -22,7 +22,7 @@ class PolicyRecord:
 
     def __init__(self, policy_store: "PolicyStore", run_name: str, uri: str | None, metadata: PolicyMetadata):
         self._policy_store = policy_store
-        self.run_name = run_name  # Human-readable identifier (e.g., from wandb)
+        self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
         # Use the setter to ensure proper type
         self.metadata = metadata
