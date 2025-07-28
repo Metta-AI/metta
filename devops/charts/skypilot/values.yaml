@@ -1,5 +1,5 @@
 apiService:
-  image: berkeleyskypilot/skypilot:0.9.3
+  image: berkeleyskypilot/skypilot:0.10.0
   # Number of replicas to deploy - replicas > 1 is not well tested, and requires
   # a PVC that supports ReadWriteMany (see accessMode in storage section below).
   replicas: 1
@@ -47,7 +47,7 @@ apiService:
     limits:
       cpu: "4"
       memory: "8Gi"
-  
+
   # [Internal] Enable developer mode for SkyPilot
   skypilotDev: false
 

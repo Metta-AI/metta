@@ -70,7 +70,7 @@ dev = [
   "pytest-xdist>=3.8.0",
   "pyright>=1.1.401",
   "ruff>=0.11.13",
-  "skypilot==0.9.3",
+  "skypilot==0.10.0",
   "pytest-testmon>=2.1.3",
   "ipython>=9.4.0",
   "ipykernel>=6.29.5",
