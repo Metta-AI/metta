@@ -336,10 +336,6 @@ export class ServerRepo implements Repo {
       headers['X-Auth-Token'] = config.authToken
     }
 
-    if (config.authRequestEmail) {
-      headers['X-Auth-Request-Email'] = config.authRequestEmail
-    }
-
     return headers
   }
 

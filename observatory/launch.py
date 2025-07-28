@@ -39,7 +39,7 @@ def main():
         info("Auth token: [CONFIGURED]")
 
     try:
-        subprocess.run(["npm", "run", "dev"], env=env, check=True, cwd=observatory_dir)
+        subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=observatory_dir)
     except subprocess.CalledProcessError as e:
         error(f"Error running npm dev: {e}", file=sys.stderr)
         sys.exit(1)
