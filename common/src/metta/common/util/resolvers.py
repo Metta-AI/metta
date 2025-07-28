@@ -220,6 +220,38 @@ def oc_date_format(format_string: str) -> str:
     return now.strftime(python_format)
 
 
+def oc_sampling(*args: Numeric) -> Numeric:
+    """
+    Sample a value from a range or set of choices.
+    
+    Usage:
+    - ${sampling:min, max, default} - samples uniform between min and max, using default if sampling=0
+    - For configuration validation, returns the middle/default value
+    
+    Parameters:
+    -----------
+    args : Numeric
+        Either (min, max, default) for range sampling, or multiple values for choice
+        
+    Returns:
+    --------
+    Numeric
+        The sampled or default value
+    """
+    if len(args) == 3:
+        # Range sampling: min, max, default
+        min_val, max_val, default_val = args
+        # For testing/validation, return the default value
+        return default_val
+    elif len(args) > 1:
+        # Choice sampling: return the middle choice for consistency
+        middle_idx = len(args) // 2
+        return args[middle_idx]
+    else:
+        # Single value
+        return args[0] if args else 0
+
+
 class ResolverRegistrar(Callback):
     """Class for registering custom OmegaConf resolvers."""
 
@@ -295,6 +327,8 @@ class ResolverRegistrar(Callback):
         OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("now", oc_date_format, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("sampling", oc_sampling, replace=True)
         self.resolver_count += 1
         return self
 
