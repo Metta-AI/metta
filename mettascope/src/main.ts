@@ -252,8 +252,12 @@ onEvent('pointermove', 'body', (_target: HTMLElement, e: Event) => {
     onTraceMinimapChange(event)
   }
 
-  // Hide bubble unless mouse is over the bubble itself or over an object
-  const shouldHide = !ui.mouseTargets.includes('.hover-panel') && ui.hoverObject === null && ui.delayedHoverObject !== null
+  const isOverBubble = ui.mouseTargets.includes('.hover-panel')
+  const isOverObject = ui.hoverObject !== null
+  const hasBubble = ui.delayedHoverObject !== null
+
+  const shouldKeepBubble = isOverBubble || isOverObject
+  const shouldHide = !shouldKeepBubble && hasBubble
 
   if (shouldHide) {
     // Start a timer to hide the hover bubble after a delay
