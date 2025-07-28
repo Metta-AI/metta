@@ -71,29 +71,28 @@ class BuildChecker:
             if match:
                 parsed_count += 1
                 groups = match.groupdict()
-                
+
                 # Handle different match types
-                if 'severity' in groups and groups['severity']:
-                    severity = groups['severity']
-                    message_text = groups.get('message', '')
-                    flag = groups.get('flag')
-                elif 'In file included from' in line_stripped:
+                if "severity" in groups and groups["severity"]:
+                    severity = groups["severity"]
+                    message_text = groups.get("message", "")
+                    flag = groups.get("flag")
+                elif "In file included from" in line_stripped:
                     # This is an include chain, treat as note
-                    severity = 'note'
+                    severity = "note"
                     message_text = line_stripped
                     flag = None
                 else:
                     continue
-                
+
                 message = CompilerMessage(
-                    file_path=groups.get('file', ''),
-                    line_number=int(groups['line']) if groups.get('line') else None,
+                    file_path=groups.get("file", ""),
+                    line_number=int(groups["line"]) if groups.get("line") else None,
                     severity=severity,
                     message=message_text,
                     flag=flag,
                     raw_line=line,
                 )
-
 
                 # Make paths relative to repo root for cleaner output
                 try:
@@ -326,11 +325,11 @@ def run_build(project_root: Path, with_coverage: bool = False) -> tuple[bool, st
     # Force verbose output to capture compiler messages
     # Many build systems suppress compiler output by default
     build_cmd = ["make", build_target]
-    
+
     # Always use VERBOSE=1 to ensure we capture compiler output
     build_cmd.append("VERBOSE=1")
     env["VERBOSE"] = "1"  # Another common variable
-    
+
     build_result = subprocess.run(build_cmd, cwd=project_root, capture_output=True, text=True, env=env)
 
     # Combine stdout and stderr for analysis
@@ -342,7 +341,7 @@ def run_build(project_root: Path, with_coverage: bool = False) -> tuple[bool, st
         stdout_lines = len(build_result.stdout.splitlines()) if build_result.stdout else 0
         stderr_lines = len(build_result.stderr.splitlines()) if build_result.stderr else 0
         total_lines = len(full_output.splitlines())
-        
+
         print(f"📝 Captured {total_lines} total lines of build output")
         print(f"📝   - stdout: {stdout_lines} lines")
         print(f"📝   - stderr: {stderr_lines} lines")
