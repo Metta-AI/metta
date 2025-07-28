@@ -317,7 +317,12 @@ jobs:
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
           runtime_issues=${{ steps.mettagrid_build_check.outputs.runtime_issues }}
-          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
+          max_warnings=50
+
+          # Default runtime_issues to 0 if not set
+          if [ -z "$runtime_issues" ]; then
+            runtime_issues=0
+          fi
 
           echo "Build Summary: $errors errors, $warnings warnings, $runtime_issues runtime issues"
           echo "Maximum allowed warnings: $max_warnings"
@@ -333,7 +338,6 @@ jobs:
             exit 1
           else
             echo "✅ MettaGrid build quality check passed"
-          fi
 
       - name: Upload MettaGrid C++ coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
