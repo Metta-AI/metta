@@ -728,6 +728,10 @@ def train(
     if wandb_run and latest_saved_policy_record:
         upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record, force=True)
 
+    # Final synchronization before cleanup
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
     # Cleanup
     vecenv.close()
     if is_master:
