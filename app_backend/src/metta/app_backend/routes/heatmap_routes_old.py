@@ -127,6 +127,7 @@ SPECIFIC_POLICIES_FILTER = """
 GET_EVAL_NAMES_QUERY = "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s"
 GET_MAX_EPISODE_QUERY = "SELECT MAX(internal_id) FROM episodes WHERE eval_category = %s"
 HAS_NEW_DATA_QUERY = "SELECT 1 FROM episodes WHERE eval_category = %s AND internal_id > %s LIMIT 1"
+SUITE_EXISTS_QUERY = "SELECT 1 FROM episodes WHERE eval_category = %s LIMIT 1"
 
 
 # ============================================================================
@@ -155,6 +156,12 @@ async def get_evaluation_names(con: AsyncConnection, suite: str) -> List[str]:
     """Get all evaluation names for a suite."""
     rows = await execute_query_and_log(con, GET_EVAL_NAMES_QUERY, (suite,), "get_evaluation_names")
     return [row[0] for row in rows if row[0] is not None]
+
+
+async def suite_has_episodes(con: AsyncConnection, suite: str) -> bool:
+    """Check if any episodes exist for the given suite."""
+    rows = await execute_query_and_log(con, SUITE_EXISTS_QUERY, (suite,), "suite_has_episodes")
+    return len(rows) > 0
 
 
 def group_by_run(
@@ -285,6 +292,16 @@ def create_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Training run not found")
 
         async with metta_repo.connect() as con:
+            # Quick check: if suite has no episodes, return empty heatmap immediately
+            if not await suite_has_episodes(con, suite):
+                return HeatmapData(
+                    evalNames=[],
+                    cells={},
+                    policyAverageScores={},
+                    evalAverageScores={},
+                    evalMaxScores={},
+                )
+
             # Fetch data for this specific run
             evaluations = await fetch_evaluation_data(
                 con, suite, metric, policy_filter=TRAINING_RUN_FILTER, filter_params=(run_id,)
