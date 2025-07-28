@@ -38,6 +38,7 @@ class EvalTaskOrchestrator:
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 1200.0,
         max_workers_per_git_hash: int = 5,
+        max_workers_total: int = 10,
         container_manager: AbstractContainerManager | None = None,
         logger: logging.Logger | None = None,
     ):
@@ -46,6 +47,7 @@ class EvalTaskOrchestrator:
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
         self._max_workers_per_git_hash = max_workers_per_git_hash
+        self._max_workers_total = max_workers_total
         self._machine_token = machine_token
         self._logger = logger or logging.getLogger(__name__)
         self._task_client = EvalTaskClient(backend_url)
@@ -120,6 +122,14 @@ class EvalTaskOrchestrator:
 
             # If no available workers, try to spawn a new one
             if not available_workers and len(existing_workers) < self._max_workers_per_git_hash:
+                # Check total worker limit
+                total_workers = len(alive_workers_by_name)
+                if total_workers >= self._max_workers_total:
+                    self._logger.info(
+                        f"Cannot spawn new worker for git hash {task.git_hash}: "
+                        f"total worker limit reached ({total_workers}/{self._max_workers_total} max)"
+                    )
+                    continue
                 self._logger.info(
                     f"All {len(existing_workers)} workers for git hash {task.git_hash} are busy, spawning new worker"
                 )
@@ -196,6 +206,7 @@ async def main() -> None:
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "1200"))
     max_workers_per_git_hash = int(os.environ.get("MAX_WORKERS_PER_GIT_HASH", "5"))
+    max_workers_total = int(os.environ.get("MAX_WORKERS_TOTAL", "10"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
     orchestrator = EvalTaskOrchestrator(
@@ -205,6 +216,7 @@ async def main() -> None:
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,
         max_workers_per_git_hash=max_workers_per_git_hash,
+        max_workers_total=max_workers_total,
         logger=logger,
     )
 
