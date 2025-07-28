@@ -1,7 +1,7 @@
 """Policy evaluation functionality."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -40,17 +40,17 @@ def evaluate_policy(
     policy_record: Any,
     sim_suite_config: SimulationSuiteConfig,
     curriculum: Any,
-    stats_client: Optional[Any],
+    stats_client: Any | None,
     stats_tracker: StatsTracker,
     agent_step: int,
     epoch: int,
     device: torch.device,
     vectorization: str,
     replay_dir: str,
-    wandb_policy_name: Optional[str],
+    wandb_policy_name: str | None,
     policy_store: Any,
     cfg: Any,
-    wandb_run: Optional[Any],
+    wandb_run: Any | None,
     logger: logging.Logger,
 ) -> EvalRewardSummary:
     """Evaluate policy using the new eval service."""
@@ -114,8 +114,8 @@ def generate_policy_replay(
     epoch: int,
     device: torch.device,
     vectorization: str,
-    wandb_run: Optional[Any],
-) -> Optional[str]:
+    wandb_run: Any | None,
+) -> str | None:
     """Generate a replay for the policy."""
     # Get curriculum from trainer config
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))

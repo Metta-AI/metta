@@ -3,7 +3,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 import torch
 
@@ -56,7 +56,7 @@ class CheckpointManager:
         run_dir: str,
         metta_grid_env: Any,
         cfg: Any,
-    ) -> Tuple[Optional[TrainerCheckpoint], Any, int, int]:
+    ) -> Tuple[TrainerCheckpoint | None, Any, int, int]:
         """Load checkpoint and policy if they exist, or create new ones.
 
         Args:
@@ -132,7 +132,7 @@ class CheckpointManager:
         policy_path: str,
         timer: Any,
         run_dir: str,
-        kickstarter: Optional[Any] = None,
+        kickstarter: Any | None = None,
         force: bool = False,
     ) -> bool:
         """Save trainer checkpoint if needed.
@@ -202,9 +202,9 @@ class CheckpointManager:
         agent_step: int,
         evals: EvalRewardSummary,
         timer: Any,
-        initial_policy_record: Optional[Any],
+        initial_policy_record: Any | None,
         force: bool = False,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Save policy with metadata if needed.
 
         Args:

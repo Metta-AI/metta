@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import torch
@@ -70,15 +70,15 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 def create_training_components(
     cfg: Any,
-    wandb_run: Optional[Any],
+    wandb_run: Any | None,
     policy_store: Any,
     sim_suite_config: Any,
-    stats_client: Optional[Any] = None,
+    stats_client: Any | None = None,
 ) -> Tuple[Any, ...]:
     """Create training components needed on all ranks."""
     logger.info(f"run_dir = {cfg.run_dir}")
 
-    # Log recent checkpoints like the MettaTrainer did
+    # Log recent checkpoints
     checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
     if checkpoints_dir.exists():
         files = sorted(os.listdir(checkpoints_dir))
@@ -267,10 +267,10 @@ def create_training_components(
 def create_master_trainer_components(
     policy: Any,
     experience: Experience,
-    wandb_run: Optional[Any],
+    wandb_run: Any | None,
     is_master: bool,
-    timer: Optional[Stopwatch] = None,
-) -> Tuple[Optional[MemoryMonitor], Optional[SystemMonitor]]:
+    timer: Stopwatch | None = None,
+) -> Tuple[MemoryMonitor | None, SystemMonitor | None]:
     """Create components only needed on the master rank.
 
     Args:
@@ -386,7 +386,7 @@ def train(
     stats_client: Any | None,
     **kwargs: Any,
 ) -> None:
-    """Functional training loop replacing MettaTrainer.train()."""
+    """Functional training loop."""
     # Create all components individually first to get is_master value
     (
         vecenv,

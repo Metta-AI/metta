@@ -3,7 +3,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import torch
@@ -44,10 +44,10 @@ def save_policy_with_metadata(
     agent_step: int,
     evals: Any,  # EvalRewardSummary
     timer: Any,
-    initial_policy_record: Optional[Any],
+    initial_policy_record: Any | None,
     run_name: str,
     is_master: bool = True,
-) -> Optional[Any]:
+) -> Any | None:
     """Save policy with metadata.
 
     Returns:
@@ -198,7 +198,7 @@ def maybe_load_checkpoint(
     device: torch.device,
     is_master: bool,
     rank: int,
-) -> Tuple[Optional[Any], Any, int, int]:
+) -> Tuple[Any | None, Any, int, int]:
     """Load checkpoint and policy if they exist, or create new ones.
 
     This unifies the checkpoint loading logic from trainer.py and run.py.
@@ -314,7 +314,7 @@ def ensure_initial_policy(
     agent: Any,
     policy_store: Any,
     checkpoint_path: str,
-    loaded_policy_path: Optional[str],
+    loaded_policy_path: str | None,
     device: torch.device,
 ) -> None:
     """Ensure all ranks have the same initial policy in distributed training.
@@ -399,7 +399,7 @@ def ensure_initial_policy(
 
 def load_or_initialize_policy(
     cfg: Any,
-    checkpoint: Optional[Any],
+    checkpoint: Any | None,
     policy_store: Any,
     metta_grid_env: Any,
     device: torch.device,

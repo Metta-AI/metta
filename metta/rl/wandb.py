@@ -5,7 +5,7 @@ import logging
 import os
 import time
 import weakref
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import torch.nn as nn
 import wandb
@@ -103,7 +103,7 @@ def log_model_parameters(policy: nn.Module, wandb_run: Any) -> None:
 
 def setup_wandb_metrics_and_log_model(
     policy: nn.Module,
-    wandb_run: Optional[Any],
+    wandb_run: Any | None,
     is_master: bool = True,
 ) -> None:
     """Convenience function to set up metrics and log model parameters.
@@ -138,7 +138,7 @@ def log_training_metrics(
 def define_custom_metric(
     wandb_run: Any,
     metric_name: str,
-    step_metric: Optional[str] = None,
+    step_metric: str | None = None,
 ) -> None:
     """Define a custom metric with optional step metric.
 
@@ -154,7 +154,7 @@ def define_custom_metric(
 
 
 # Functions moved from trainer.py
-def upload_policy_to_wandb(wandb_run: Any, policy_store: Any, policy_record: Any, force: bool = False) -> Optional[str]:
+def upload_policy_to_wandb(wandb_run: Any, policy_store: Any, policy_record: Any, force: bool = False) -> str | None:
     """Upload policy to wandb.
 
     Args:
