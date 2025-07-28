@@ -48,6 +48,25 @@ Metta is a simulation environment (game) designed to train AI agents capable of 
 core idea is to create an environment where incremental intelligence is rewarded, fostering the development of generally
 intelligent agents.
 
+## Using the Stable Version
+
+For production use, we recommend using the `stable` tag which points to a thoroughly tested version:
+
+```bash
+# Clone and checkout the stable version
+git clone https://github.com/Metta-AI/metta.git
+cd metta
+git checkout stable
+```
+
+The stable tag is automatically advanced after comprehensive testing on the main branch, including:
+- Full test suite with integration tests
+- Performance benchmarks (no regressions >10%)
+- Config validation
+- Example training scripts
+
+For details about the stable release process, see [Stable Tag Advancement](docs/workflows/stable-tag-advancement.md) and the [Stability Dashboard](docs/stability/dashboard.md).
+
 ### Motivation and Approach
 
 1. **Agents and Environment**: Agents are shaped by their environment, learning policies that enhance their fitness. To
