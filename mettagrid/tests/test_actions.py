@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid import (
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,

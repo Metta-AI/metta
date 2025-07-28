@@ -1,7 +1,5 @@
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid import (
     dtype_actions,
     dtype_observations,
@@ -9,6 +7,8 @@ from metta.mettagrid import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,

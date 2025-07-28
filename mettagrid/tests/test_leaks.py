@@ -5,8 +5,8 @@ import psutil
 import pytest
 from hydra import compose, initialize
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid import MettaGridEnv
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 
 
 @pytest.fixture(scope="module")

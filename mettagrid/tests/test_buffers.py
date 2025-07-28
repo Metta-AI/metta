@@ -1,8 +1,6 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid import (
     dtype_actions,
     dtype_observations,
@@ -10,6 +8,8 @@ from metta.mettagrid import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
