@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget import (
     HeatmapWidget,
@@ -8,18 +8,20 @@ from metta.common.client.metta_client import MettaAPIClient
 
 
 async def fetch_real_heatmap_data(
-    training_run_names: List[str],
     metrics: List[str],
+    training_run_names: Optional[List[str]] = None,
+    search_texts: Optional[List[str]] = None,
     policy_selector: str = "best",
     api_base_url: str = "http://localhost:8000",
-    max_policies: int = 20,
+    max_policies: int = 30,
 ) -> HeatmapWidget:
     """
     Fetch real evaluation data using the metta HTTP API (same as repo.ts).
 
     Args:
-        training_run_names: List of training run names (e.g., ["daveey.arena.rnd.16x4.2"])
         metrics: List of metrics to include (e.g., ["reward", "heart.get"])
+        training_run_names: List of training run names (e.g., ["daveey.arena.rnd.16x4.2"])
+        search_texts: List of search texts to use to find training runs (e.g., ["relh.skypilot", "daveey.arena.rnd"])
         policy_selector: "best" or "latest" policy selection strategy
         api_base_url: Base URL for the stats server
         max_policies: Maximum number of policies to display
@@ -31,21 +33,33 @@ async def fetch_real_heatmap_data(
 
     # Step 1: Get available policies to find training run IDs
     # TODO: backend should be doing the filtering, not frontend
-    policies_data = await client.get_policies(page_size=100)
 
     # Find training run IDs that match our training run names
     training_run_ids = []
-    for policy in policies_data.policies:
-        if policy.type == "training_run" and any(
-            run_name in policy.name for run_name in training_run_names
-        ):
-            training_run_ids.append(policy.id)
+    if search_texts:
+        for search_text in search_texts:
+            policies_data = await client.get_policies(
+                search_text=search_text, page_size=100
+            )
+            for policy in policies_data.policies:
+                if policy.type == "training_run" and search_text in policy.name:
+                    training_run_ids.append(policy.id)
+    elif training_run_names:
+        policies_data = await client.get_policies(page_size=100)
+        for policy in policies_data.policies:
+            if policy.type == "training_run" and any(
+                run_name in policy.name for run_name in training_run_names
+            ):
+                training_run_ids.append(policy.id)
+    else:
+        raise Exception(
+            "No training_run_names or search_text provided. Please provide at one of these."
+        )
 
     if not training_run_ids:
-        print(f"❌ No training runs found matching: {training_run_names}")
         raise Exception(
-            f"No training runs found matching: {training_run_names}. This may be due to a limitation in the backend. \
-            We're working on a fix!"
+            f"No training runs found matching: {search_text} or {training_run_names}. This may be due to a \
+                limitation in the backend. We're working on a fix!"
         )
 
     # Step 2: Get available evaluations for these training runs
