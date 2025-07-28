@@ -16,9 +16,12 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
+from gymnasium import Env as GymEnv
 from gymnasium import spaces
 from omegaconf import OmegaConf
+from pufferlib import PufferEnv
 from pydantic import validate_call
+from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
@@ -39,15 +42,23 @@ dtype_actions = np.dtype(np.int32)
 logger = logging.getLogger("MettaGridEnv")
 
 
-class MettaGridEnv:
+class MettaGridEnv(PufferEnv, GymEnv):
     """
-    Base environment class for MettaGrid.
+    Main MettaGrid environment class with PufferLib integration.
 
-    This class provides common functionality for all framework-specific adapters:
-    - Creates new MettaGrid instances on reset (using C++ directly)
+    This class provides the primary environment interface for MettaGrid:
+    - Inherits from both PufferEnv and GymEnv for maximum compatibility
+    - Creates C++ MettaGrid instances with eager initialization
     - Manages curriculum, stats, and replay writing
-    - Provides common interface for all adapters
+    - Provides proper PufferLib buffer management
     """
+
+    # Type hints for attributes defined in PufferEnv to help Pylance
+    observations: np.ndarray
+    terminals: np.ndarray
+    truncations: np.ndarray
+    rewards: np.ndarray
+    actions: np.ndarray
 
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
@@ -55,6 +66,7 @@ class MettaGridEnv:
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
+        buf=None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
         is_training: bool = False,
@@ -91,18 +103,15 @@ class MettaGridEnv:
         self._current_seed: int = 0
         self._is_training = is_training
 
-        # Core environment instance - created on reset
-        self._core_env: Optional[MettaGrid] = None
-
         # Environment metadata
         self.labels: List[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
 
-        # Buffers for environment data (allocated on reset)
-        self._observations: Optional[np.ndarray] = None
-        self._terminals: Optional[np.ndarray] = None
-        self._truncations: Optional[np.ndarray] = None
-        self._rewards: Optional[np.ndarray] = None
+        # Create C++ environment immediately (eager initialization)
+        self._c_env: Optional[MettaGrid] = self._create_c_env()
+
+        # Initialize PufferEnv with buffers (must come after _c_env creation)
+        super().__init__(buf)
 
         # Initialize renderer if needed
         if self._render_mode is not None:
@@ -124,8 +133,8 @@ class MettaGridEnv:
         """Generate unique episode ID."""
         return str(uuid.uuid4())
 
-    @with_instance_timer("_create_core_env")
-    def _create_core_env(self, seed: Optional[int] = None) -> MettaGrid:
+    @with_instance_timer("_create_c_env")
+    def _create_c_env(self, seed: Optional[int] = None) -> MettaGrid:
         """
         Create a new MettaGrid instance.
 
@@ -164,7 +173,7 @@ class MettaGridEnv:
         self._map_labels = level.labels
 
         # Create C++ config
-        with self.timer("_create_core_env.make_c_config"):
+        with self.timer("_create_c_env.make_c_config"):
             try:
                 c_cfg = from_mettagrid_config(game_config_dict)
             except Exception as e:
@@ -178,13 +187,15 @@ class MettaGridEnv:
 
         # Initialize renderer if needed
         if self._render_mode is not None and self._renderer is None:
-            self._renderer = self._renderer_class(core_env.object_type_names)
+            self._renderer = self._renderer_class(core_env.object_type_names())
 
         return core_env
 
-    def reset_base(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+    @override
+    @with_instance_timer("reset")
+    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
-        Base reset implementation - creates new core environment.
+        Reset the environment.
 
         Args:
             seed: Random seed
@@ -197,12 +208,24 @@ class MettaGridEnv:
         # Get new task from curriculum
         self._task = self._curriculum.get_task()
 
-        # Create new core environment
-        self._core_env = self._create_core_env(seed)
+        # Recreate C++ environment for new task (after first reset)
+        if self._resets > 0:
+            self._c_env = self._create_c_env(seed)
 
         # Reset counters
         self._steps = 0
         self._resets += 1
+
+        # Validate buffer dtypes (PufferEnv sets these up)
+        assert self.observations.dtype == dtype_observations
+        assert self.terminals.dtype == dtype_terminals
+        assert self.truncations.dtype == dtype_truncations
+        assert self.rewards.dtype == dtype_rewards
+
+        # Set buffers in core environment
+        if self._c_env is None:
+            raise RuntimeError("Core environment not initialized")
+        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         # Set up episode tracking
         self._episode_id = self._make_episode_id()
@@ -216,91 +239,52 @@ class MettaGridEnv:
         # Reset flags
         self._should_reset = False
 
-        # Get initial observations - subclasses handle buffer setup
-        obs = self._get_initial_observations()
+        # Get initial observations from core environment
+        obs, infos = self._c_env.reset()
 
         self.timer.start("thread_idle")
-        return obs, {}
+        return obs, infos
 
-    def _allocate_buffers(self) -> None:
-        """Allocate buffers based on environment dimensions."""
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        num_agents = self._core_env.num_agents
-        obs_space = self._core_env.observation_space
-
-        # Allocate buffers
-        self._observations = np.zeros((num_agents,) + obs_space.shape, dtype=dtype_observations)
-        self._terminals = np.zeros(num_agents, dtype=dtype_terminals)
-        self._truncations = np.zeros(num_agents, dtype=dtype_truncations)
-        self._rewards = np.zeros(num_agents, dtype=dtype_rewards)
-
-    def _get_initial_observations(self) -> np.ndarray:
+    @override
+    @with_instance_timer("step")
+    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """
-        Get initial observations after reset.
-
-        Allocates buffers and sets them in the core environment,
-        then returns the initial observations.
-        """
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        # Allocate buffers
-        self._allocate_buffers()
-
-        # Set buffers in core environment
-        assert self._observations is not None
-        assert self._terminals is not None
-        assert self._truncations is not None
-        assert self._rewards is not None
-
-        self._core_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
-
-        # Get initial observations (MettaGrid populates the observation buffer)
-        obs, _ = self._core_env.reset()
-        return obs
-
-    def step_base(self, actions: np.ndarray) -> Dict[str, Any]:
-        """
-        Base step implementation - handles common logic.
+        Execute one timestep of the environment dynamics with the given actions.
 
         Args:
-            actions: Action array
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
 
         Returns:
-            Info dictionary with episode completion data
+            Tuple of (observations, rewards, terminals, truncations, infos)
         """
         self.timer.stop("thread_idle")
 
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized. Call reset() first.")
 
         # Execute step in core environment
-        with self.timer("_core_env.step"):
-            self._core_env.step(actions)
+        with self.timer("_c_env.step"):
+            self._c_env.step(actions)
             self._steps += 1
 
         # Record step for replay
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                if self._rewards is not None:
-                    self._replay_writer.log_step(self._episode_id, actions, self._rewards)
+                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         # Check for episode completion
         infos = {}
 
-        if self._terminals is not None and self._truncations is not None:
-            if self._terminals.all() or self._truncations.all():
-                self._process_episode_completion(infos)
-                self._should_reset = True
+        if self.terminals.all() or self.truncations.all():
+            self._process_episode_completion(infos)
+            self._should_reset = True
 
         self.timer.start("thread_idle")
-        return infos
+        return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def _process_episode_completion(self, infos: Dict[str, Any]) -> None:
         """Process episode completion - stats, curriculum, etc."""
-        if self._core_env is None:
+        if self._c_env is None:
             return
 
         self.timer.start("process_episode_stats")
@@ -309,9 +293,9 @@ class MettaGridEnv:
         infos.clear()
 
         # Get episode rewards and stats
-        episode_rewards = self._core_env.get_episode_rewards()
+        episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
-        episode_rewards_mean = episode_rewards_sum / self._core_env.num_agents
+        episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
         # Add map and label rewards
         for label in self._map_labels + self.labels:
@@ -324,8 +308,8 @@ class MettaGridEnv:
             infos[f"curriculum/{key}"] = value
 
         # Get episode stats from core environment
-        with self.timer("_core_env.get_episode_stats"):
-            stats = self._core_env.get_episode_stats()
+        with self.timer("_c_env.get_episode_stats"):
+            stats = self._c_env.get_episode_stats()
 
         # Process agent stats
         infos["game"] = stats["game"]
@@ -334,17 +318,17 @@ class MettaGridEnv:
             for n, v in agent_stats.items():
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self._core_env.num_agents
+            infos["agent"][n] = v / self._c_env.num_agents
 
         # Add attributes
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
-            "map_w": self._core_env.map_width,
-            "map_h": self._core_env.map_height,
-            "initial_grid_hash": self._core_env.initial_grid_hash,
+            "map_w": self._c_env.map_width,
+            "map_h": self._c_env.map_height,
+            "initial_grid_hash": self._c_env.initial_grid_hash,
             "steps": self._steps,
             "resets": self._resets,
-            "max_steps": self._core_env.max_steps,
+            "max_steps": self._c_env.max_steps,
             "completion_time": time.time(),
         }
         infos["attributes"] = attributes
@@ -371,7 +355,7 @@ class MettaGridEnv:
         self._add_timing_info(infos)
 
         # Add task-specific info
-        task_init_time_msec = self.timer.lap_all().get("_create_core_env", 0) * 1000
+        task_init_time_msec = self.timer.lap_all().get("_create_c_env", 0) * 1000
         infos.update(
             {
                 f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
@@ -388,7 +372,7 @@ class MettaGridEnv:
         self, stats: Dict[str, Any], episode_rewards: np.ndarray, replay_url: Optional[str]
     ) -> None:
         """Write episode statistics to stats writer."""
-        if not self._stats_writer or not self._episode_id or not self._core_env:
+        if not self._stats_writer or not self._episode_id or not self._c_env:
             return
 
         # Flatten environment config
@@ -406,7 +390,7 @@ class MettaGridEnv:
                 agent_metrics[agent_idx][k] = float(v)
 
         # Get agent groups
-        grid_objects = self._core_env.grid_objects()
+        grid_objects = self._c_env.grid_objects()
         agent_groups: Dict[int, int] = {
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
         }
@@ -417,7 +401,7 @@ class MettaGridEnv:
             env_cfg_flattened,
             agent_metrics,
             agent_groups,
-            self._core_env.max_steps,
+            self._c_env.max_steps,
             replay_url,
             self._reset_at,
         )
@@ -454,18 +438,18 @@ class MettaGridEnv:
 
     def render(self) -> Optional[str]:
         """Render the environment."""
-        if self._renderer is None or self._core_env is None:
+        if self._renderer is None or self._c_env is None:
             return None
 
-        return self._renderer.render(self._core_env.current_step, self._core_env.grid_objects())
+        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 
     def close(self) -> None:
         """Close the environment."""
-        if self._core_env is not None:
+        if self._c_env is not None:
             # Clean up any resources if needed
-            self._core_env = None
+            self._c_env = None
 
-    # Properties that expose core environment functionality
+    # Properties that expose C++ environment functionality
     @property
     def done(self) -> bool:
         """Check if environment needs reset."""
@@ -479,135 +463,133 @@ class MettaGridEnv:
     @property
     def core_env(self) -> Optional[MettaGrid]:
         """Get core environment instance."""
-        return self._core_env
+        return self._c_env
 
     # Properties that delegate to core environment
     @property
     def max_steps(self) -> int:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.max_steps
+        return self._c_env.max_steps
 
     @property
     def num_agents(self) -> int:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.num_agents
+        return self._c_env.num_agents
 
     @property
     def obs_width(self) -> int:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.obs_width
+        return self._c_env.obs_width
 
     @property
     def obs_height(self) -> int:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.obs_height
+        return self._c_env.obs_height
 
     @property
     def map_width(self) -> int:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.map_width
+        return self._c_env.map_width
 
     @property
     def map_height(self) -> int:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.map_height
+        return self._c_env.map_height
 
     @property
     def single_observation_space(self) -> spaces.Box:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.observation_space
+        return self._c_env.observation_space
 
     @property
     def single_action_space(self) -> spaces.MultiDiscrete:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.action_space
+        return self._c_env.action_space
 
     @property
     def action_names(self) -> List[str]:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.action_names
+        return self._c_env.action_names()
 
     @property
     def max_action_args(self) -> List[int]:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.max_action_args
+        action_args_array = self._c_env.max_action_args()
+        return [int(x) for x in action_args_array]
 
     @property
     def object_type_names(self) -> List[str]:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.object_type_names
+        return self._c_env.object_type_names()
 
     @property
     def inventory_item_names(self) -> List[str]:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.inventory_item_names
+        return self._c_env.inventory_item_names()
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.feature_normalizations
+        return self._c_env.feature_normalizations()
 
     @property
     def initial_grid_hash(self) -> int:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.initial_grid_hash
+        return self._c_env.initial_grid_hash
 
     @property
     def action_success(self) -> List[bool]:
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.action_success
+        return self._c_env.action_success()
 
     @property
     def global_features(self) -> List[Any]:
         """Global features for compatibility."""
         return []
 
-    # Backward compatibility properties
-    @property
-    def _c_env(self):
-        """Backward compatibility alias for _core_env."""
-        if self._core_env is None:
-            return None
-
-        # Create a compatibility wrapper that mimics the old interface
-        class CompatibilityWrapper:
-            def __init__(self, core_env):
-                self._core_env = core_env
-
-            def max_action_args(self):
-                """Method version of max_action_args for backward compatibility."""
-                return self._core_env.max_action_args
-
-            def __getattr__(self, name):
-                # Delegate all other attributes to the core environment
-                return getattr(self._core_env, name)
-
-        return CompatibilityWrapper(self._core_env)
-
     def get_observation_features(self) -> Dict[str, Dict]:
-        """Get observation features for policy initialization."""
-        if self._core_env is None:
+        """
+        Build the features dictionary for initialize_to_environment.
+
+        Returns:
+            Dictionary mapping feature names to their properties
+        """
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.get_observation_features()
+
+        # Get feature spec from C++ environment
+        feature_spec = self._c_env.feature_spec()
+
+        features = {}
+        for feature_name, feature_info in feature_spec.items():
+            feature_dict: Dict[str, Any] = {"id": feature_info["id"]}
+
+            # Add normalization if present
+            if "normalization" in feature_info:
+                feature_dict["normalization"] = feature_info["normalization"]
+
+            features[feature_name] = feature_dict
+
+        return features
 
     @property
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
-        if self._core_env is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
-        return self._core_env.grid_objects()
+        return self._c_env.grid_objects()
