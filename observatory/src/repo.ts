@@ -259,6 +259,15 @@ export type SQLQueryResponse = {
   row_count: number
 }
 
+export type AIQueryRequest = {
+  description: string
+  api_key: string
+}
+
+export type AIQueryResponse = {
+  query: string
+}
+
 /**
  * Interface for data fetching.
  *
@@ -291,6 +300,7 @@ export interface Repo {
   listTables(): Promise<TableInfo[]>
   getTableSchema(tableName: string): Promise<TableSchema>
   executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
+  generateAIQuery(description: string, apiKey: string): Promise<AIQueryResponse>
 
   // Training run methods
   getTrainingRuns(): Promise<TrainingRunListResponse>
@@ -319,11 +329,10 @@ export interface Repo {
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
   getAvailableMetrics(request: MetricsRequest): Promise<string[]>
   generatePolicyHeatmap(request: PolicyHeatmapRequest): Promise<PolicyHeatmapData>
-
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') { }
+  constructor(private baseUrl: string = 'http://localhost:8000') {}
 
   private getHeaders(contentType?: string): Record<string, string> {
     const headers: Record<string, string> = {}
@@ -341,7 +350,7 @@ export class ServerRepo implements Repo {
 
   private async apiCall<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      headers: this.getHeaders()
+      headers: this.getHeaders(),
     })
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
@@ -376,7 +385,7 @@ export class ServerRepo implements Repo {
   private async apiCallDelete(endpoint: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'DELETE',
-      headers: this.getHeaders()
+      headers: this.getHeaders(),
     })
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
@@ -454,6 +463,13 @@ export class ServerRepo implements Repo {
 
   async executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse> {
     return this.apiCallWithBody<SQLQueryResponse>('/sql/query', request)
+  }
+
+  async generateAIQuery(description: string, apiKey: string): Promise<AIQueryResponse> {
+    return this.apiCallWithBody<AIQueryResponse>('/sql/generate-query', {
+      description,
+      api_key: apiKey,
+    })
   }
 
   // Training run methods
@@ -534,11 +550,10 @@ export class ServerRepo implements Repo {
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
     const params = new URLSearchParams()
-    policyNames.forEach(name => params.append('policy_names', name))
+    policyNames.forEach((name) => params.append('policy_names', name))
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
     return response.policy_ids
   }
-
 
   // Policy-based heatmap methods
   async getPolicies(request: PoliciesRequest): Promise<PoliciesResponse> {
