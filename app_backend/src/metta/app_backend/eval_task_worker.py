@@ -24,6 +24,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
 )
 from metta.common.util.collections import remove_none_values
+from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
 
@@ -45,6 +46,30 @@ class EvalTaskWorker:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._client.close()
 
+    def _run_cmd_from_versioned_checkout(
+        self,
+        cmd: list[str],
+        error_msg: str,
+        capture_output: bool = True,
+    ) -> subprocess.CompletedProcess:
+        """Run a command from the versioned checkout with a clean environment."""
+        env = os.environ.copy()
+        for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
+            env.pop(key, None)
+
+        result = subprocess.run(
+            cmd,
+            cwd=self._versioned_path,
+            capture_output=capture_output,
+            text=True,
+            env=env,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(f"{error_msg}: {result.stderr}")
+
+        return result
+
     def _setup_versioned_checkout(self) -> None:
         self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
         if os.path.exists(self._versioned_path):
@@ -56,7 +81,7 @@ class EvalTaskWorker:
         os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
         result = subprocess.run(
-            ["git", "clone", "https://github.com/Metta-AI/metta.git", self._versioned_path],
+            ["git", "clone", METTA_API_REPO_URL, self._versioned_path],
             capture_output=True,
             text=True,
         )
@@ -73,6 +98,17 @@ class EvalTaskWorker:
         if result.returncode != 0:
             raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
 
+        # Install dependencies in the versioned checkout
+        self._logger.info("Installing dependencies in versioned checkout...")
+        self._run_cmd_from_versioned_checkout(
+            ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
+            "Failed to configure dependencies",
+        )
+        self._run_cmd_from_versioned_checkout(
+            ["uv", "run", "metta", "install"],
+            "Failed to install dependencies",
+        )
+
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
     async def _run_sim_task(
@@ -86,8 +122,6 @@ class EvalTaskWorker:
             raise RuntimeError(f"Policy name not found for task {task.id}")
         cmd = [
             "uv",
-            "--project",
-            self._versioned_path,
             "run",
             "tools/sim.py",
             f"policy_uri=wandb://run/{policy_name}",
@@ -103,10 +137,10 @@ class EvalTaskWorker:
 
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            raise RuntimeError(f"sim.py failed with exit code {result.returncode}:\n{result.stderr}")
+        result = self._run_cmd_from_versioned_checkout(
+            cmd,
+            "sim.py failed with exit code",
+        )
 
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
 

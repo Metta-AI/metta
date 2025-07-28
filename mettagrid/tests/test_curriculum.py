@@ -142,8 +142,8 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
         "metta.mettagrid.curriculum.bucketed.config_from_path", lambda path, env_overrides=None: env_cfg
     )
     buckets = {
-        "game.map.width": {"values": [5, 10]},
-        "game.map.height": {"values": [5, 10]},
+        "game.map.width": [5, 10],
+        "game.map.height": [5, 10],
     }
     curr = BucketedCurriculum(env_cfg_template_path="dummy", buckets=buckets)
 
@@ -196,7 +196,7 @@ def test_bucketed_curriculum_from_yaml_with_map_builder():
 
 def test_expand_buckets_values_and_range():
     buckets = {
-        "param1": {"values": [1, 2, 3]},
+        "param1": [1, 2, 3],
         "param2": {"range": (0, 10), "bins": 2},
     }
     expanded = _expand_buckets(buckets)
@@ -207,6 +207,34 @@ def test_expand_buckets_values_and_range():
     assert expanded["param2"][0]["range"] == (0, 5)
     assert expanded["param2"][1]["range"] == (5, 10)
     assert all(isinstance(b, dict) and "range" in b for b in expanded["param2"])
+
+
+def test_expand_buckets_choice():
+    buckets = {
+        "param1": ["red", "blue", "green"],
+        "param2": [1, 2, 3, 4],
+        "param3": [True, False],
+    }
+    expanded = _expand_buckets(buckets)
+    # All choice parameters should be direct lists
+    assert expanded["param1"] == ["red", "blue", "green"]
+    assert expanded["param2"] == [1, 2, 3, 4]
+    assert expanded["param3"] == [True, False]
+
+
+def test_expand_buckets_mixed_types():
+    buckets = {
+        "param1": [1, 2, 3],
+        "param2": {"range": (0, 10), "bins": 2},
+        "param3": ["a", "b", "c"],
+    }
+    expanded = _expand_buckets(buckets)
+    # Test all three types together
+    assert expanded["param1"] == [1, 2, 3]
+    assert len(expanded["param2"]) == 2
+    assert expanded["param2"][0]["range"] == (0, 5)
+    assert expanded["param2"][1]["range"] == (5, 10)
+    assert expanded["param3"] == ["a", "b", "c"]
 
 
 def test_sampled_task_curriculum():
