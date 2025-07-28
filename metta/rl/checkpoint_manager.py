@@ -5,9 +5,10 @@ import os
 from pathlib import Path
 from typing import Any, Tuple
 
+import numpy as np
 import torch
 
-from metta.agent.metta_agent import make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.common.util.fs import wait_for_file
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
@@ -233,8 +234,6 @@ class CheckpointManager:
         logger.info(f"Saving policy at epoch {epoch}")
 
         # Extract the actual policy module from distributed wrapper if needed
-        from metta.agent.metta_agent import DistributedMettaAgent
-
         policy_to_save = policy
         if isinstance(policy, DistributedMettaAgent):
             policy_to_save = policy.module
@@ -252,11 +251,8 @@ class CheckpointManager:
                 # It's an EvalRewardSummary object
                 avg_reward = evals.avg_category_score if evals.avg_category_score is not None else 0.0
                 # Calculate aggregated score for sweep evaluation
-                import numpy as np
-
                 category_scores = list(evals.category_scores.values())
-                if category_scores:
-                    score = float(np.mean(category_scores))
+                score = float(np.mean(category_scores)) if category_scores else 0.0
                 evals_dict = {
                     "category_scores": evals.category_scores,
                     "simulation_scores": {

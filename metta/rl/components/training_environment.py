@@ -7,6 +7,7 @@ import torch
 
 from metta.interface.environment import Environment
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.util.batch_utils import calculate_batch_sizes
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +61,6 @@ class TrainingEnvironment:
         curriculum = curriculum_path or self.trainer_config.curriculum
 
         logger.info(f"Creating environment with curriculum: {curriculum}")
-
-        # Import batch size calculation utility
-        from metta.rl.util.batch_utils import calculate_batch_sizes
 
         # Default num_agents - will be updated from actual environment
         self._num_agents = 4

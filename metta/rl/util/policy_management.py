@@ -7,8 +7,11 @@ from typing import Any, Tuple
 
 import numpy as np
 import torch
+from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.common.util.fs import wait_for_file
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
 logger = logging.getLogger(__name__)
 
@@ -172,10 +175,6 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
         The agent, possibly wrapped in DistributedMettaAgent
     """
     if torch.distributed.is_initialized():
-        from torch.nn.parallel import DistributedDataParallel
-
-        from metta.agent.metta_agent import DistributedMettaAgent
-
         # For CPU, we need to handle DistributedDataParallel differently
         if device.type == "cpu":
             # Convert BatchNorm to SyncBatchNorm
@@ -216,10 +215,6 @@ def maybe_load_checkpoint(
     Returns:
         Tuple of (checkpoint, policy_record, agent_step, epoch)
     """
-    from metta.agent.metta_agent import make_policy
-    from metta.common.util.fs import wait_for_file
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
     # Try to load checkpoint
     checkpoint = TrainerCheckpoint.load(run_dir)
     agent_step = 0
@@ -329,9 +324,6 @@ def ensure_initial_policy(
         loaded_policy_path: Path to already loaded policy (None if no checkpoint)
         device: Training device
     """
-    from metta.agent.metta_agent import DistributedMettaAgent
-    from metta.common.util.fs import wait_for_file
-
     # If we already loaded a policy, nothing to do
     if loaded_policy_path is not None:
         return
@@ -412,9 +404,6 @@ def load_or_initialize_policy(
     Returns:
         Tuple of (policy, initial_policy_record, latest_saved_policy_record)
     """
-    from metta.agent.metta_agent import make_policy
-    from metta.common.util.fs import wait_for_file
-
     trainer_cfg = cfg.trainer
 
     # Non-master ranks in distributed training

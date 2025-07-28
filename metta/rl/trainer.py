@@ -14,6 +14,8 @@ from rich.console import Console
 from rich.table import Table
 
 from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.policy_metadata import PolicyMetadata
+from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
@@ -30,6 +32,7 @@ from metta.rl.losses import Losses
 from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.train import train_ppo
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.util.batch_utils import calculate_batch_sizes
 from metta.rl.util.distributed import setup_distributed_vars
@@ -142,8 +145,6 @@ def create_training_components(
     )
 
     # Load checkpoint and policy with distributed coordination
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
     checkpoint = TrainerCheckpoint.load(cfg.run_dir)
     agent_step = 0
     epoch = 0
@@ -495,9 +496,6 @@ def train(
         with timer("_process_stats"):
             if is_master and wandb_run:
                 # Create temporary initial_policy_record for process_stats
-                from metta.agent.policy_metadata import PolicyMetadata
-                from metta.agent.policy_record import PolicyRecord
-
                 initial_policy_record = None
                 if initial_policy_uri:
                     # Create a minimal PolicyRecord for stats tracking
@@ -552,9 +550,6 @@ def train(
         # Save policy
         if checkpoint_manager.should_checkpoint(epoch):
             # Create initial policy record for metadata if needed
-            from metta.agent.policy_metadata import PolicyMetadata
-            from metta.agent.policy_record import PolicyRecord
-
             initial_policy_record = None
             if initial_policy_uri:
                 metadata = PolicyMetadata(generation=initial_generation)
@@ -691,9 +686,6 @@ def train(
     # Force final saves
     if is_master:
         # Create initial policy record for metadata if needed
-        from metta.agent.policy_metadata import PolicyMetadata
-        from metta.agent.policy_record import PolicyRecord
-
         initial_policy_record = None
         if initial_policy_uri:
             metadata = PolicyMetadata(generation=initial_generation)

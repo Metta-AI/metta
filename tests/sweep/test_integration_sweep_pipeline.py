@@ -20,6 +20,8 @@ import wandb
 from omegaconf import OmegaConf
 
 from metta.sweep.protein_metta import MettaProtein
+from metta.sweep.wandb_utils import create_wandb_sweep
+from tools.sweep_config_utils import save_train_job_override_config
 from tools.sweep_prepare_run import apply_protein_suggestion
 
 
@@ -157,8 +159,6 @@ class TestSweepPipelineIntegration:
         with patch("wandb.sweep") as mock_sweep:
             mock_sweep.return_value = "test_sweep_123"
 
-            from metta.sweep.wandb_utils import create_wandb_sweep
-
             # Test sweep creation
             sweep_id = create_wandb_sweep(
                 sweep_name="test_sweep",
@@ -242,8 +242,6 @@ class TestSweepPipelineIntegration:
             suggestion, _ = metta_protein.suggest()
 
             # Apply suggestion to config (simulate sweep_init.py behavior)
-            from tools.sweep_prepare_run import apply_protein_suggestion
-
             # Create a copy of the base config for testing
             test_config = OmegaConf.create({"trainer": base_train_config.trainer})
 
@@ -308,8 +306,6 @@ class TestSweepPipelineIntegration:
         test_overrides = {"trainer": {"optimizer": {"learning_rate": 0.005}, "batch_size": 96}}
 
         # Save overrides
-        from tools.sweep_config_utils import save_train_job_override_config
-
         test_config = OmegaConf.create(base_train_config)
         test_config.run_dir = run_dir
 
@@ -500,8 +496,6 @@ class TestSweepPipelineIntegration:
         # Patch wandb.sweep to avoid real API calls and verify parameters
         with patch("wandb.sweep") as mock_sweep:
             mock_sweep.return_value = "e2e_test_sweep_id"
-
-            from metta.sweep.wandb_utils import create_wandb_sweep
 
             result = create_wandb_sweep(
                 sweep_name="e2e_test_sweep",

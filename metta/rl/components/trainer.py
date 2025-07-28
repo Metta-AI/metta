@@ -18,13 +18,19 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbContext
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config
+from metta.interface.evaluation import create_evaluation_config_suite
+from metta.interface.optimizer import create_optimizer
+from metta.rl.evaluate import evaluate_policy, should_evaluate
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
+from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.train import train_ppo
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.util.distributed import setup_device_and_distributed
+from metta.rl.util.evaluation import generate_replay
 from metta.rl.util.optimization import maybe_update_l2_weights
 from metta.rl.util.policy_management import (
     cleanup_old_policies,
@@ -238,10 +244,7 @@ class Trainer:
             logger.info("Compiling policy")
             self.agent = torch.compile(self.agent, mode=self.trainer_config.compile_mode)
 
-        # Create optimizer
         # Create optimizer using interface
-        from metta.interface.optimizer import create_optimizer
-
         self.optimizer = create_optimizer(self.agent, self.trainer_config.optimizer, checkpoint)
 
         # Wrap agent for distributed training
@@ -317,8 +320,6 @@ class Trainer:
             self.stats_client,
         )
         # Create evaluation config
-        from metta.interface.evaluation import create_evaluation_config_suite
-
         self.evaluation_config = create_evaluation_config_suite()
 
         # Create torch profiler
@@ -343,8 +344,6 @@ class Trainer:
         # Rollout phase
         rollout_start = time.time()
         # Use functional rollout interface
-        from metta.rl.rollout import rollout
-
         num_steps, raw_infos = rollout(
             vecenv=self.env,
             policy=self.agent,
@@ -361,8 +360,6 @@ class Trainer:
         # Training phase
         train_start = time.time()
         # Use functional training interface
-        from metta.rl.train import train_ppo
-
         train_ppo(
             policy=self.agent,
             optimizer=self.optimizer,
@@ -557,14 +554,10 @@ class Trainer:
                     break
 
             # Evaluation
-            from metta.rl.evaluate import should_evaluate
-
             if (
                 should_evaluate(self.epoch, self.trainer_config.simulation.evaluate_interval, self.is_master)
                 and self.latest_saved_policy_record
             ):
-                from metta.rl.evaluate import evaluate_policy
-
                 eval_scores = evaluate_policy(
                     policy_record=self.latest_saved_policy_record,
                     sim_suite_config=self.evaluation_config,
@@ -586,8 +579,6 @@ class Trainer:
                 self.stats_tracker.update_eval_scores(eval_scores)
 
                 # Generate replay
-                from metta.rl.util.evaluation import generate_replay
-
                 generate_replay(
                     policy_record=self.latest_saved_policy_record,
                     policy_store=self.policy_store,
@@ -611,11 +602,8 @@ class Trainer:
             logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
         # Final evaluation if needed
-        # Final evaluation if needed
         final_eval_needed = self.is_master and self.last_evaluation_epoch < self.epoch
         if final_eval_needed and self.latest_saved_policy_record:
-            from metta.rl.evaluate import evaluate_policy
-
             eval_scores = evaluate_policy(
                 policy_record=self.latest_saved_policy_record,
                 sim_suite_config=self.evaluation_config,

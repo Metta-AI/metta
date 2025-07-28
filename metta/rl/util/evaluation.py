@@ -6,6 +6,9 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import wandb
 
+from metta.sim.simulation import Simulation
+from metta.sim.simulation_config import SingleEnvSimulationConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -92,9 +95,6 @@ def generate_replay(
     wandb_run: Optional[Any] = None,
 ) -> Optional[str]:
     """Generate and upload replay."""
-    from metta.sim.simulation import Simulation
-    from metta.sim.simulation_config import SingleEnvSimulationConfig
-
     player_url = None
     replay_sim_config = SingleEnvSimulationConfig(
         env="/env/mettagrid/mettagrid",
