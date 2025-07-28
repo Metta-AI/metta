@@ -6,7 +6,7 @@ import pytest
 from hydra import compose, initialize
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid import MettaGridEnv
 
 
 @pytest.fixture(scope="module")

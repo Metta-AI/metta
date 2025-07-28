@@ -107,22 +107,24 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.labels: List[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
 
+        # Initialize renderer class if needed (before C++ env creation)
+        if self._render_mode is not None:
+            self._initialize_renderer()
+
         # Create C++ environment immediately (eager initialization)
         self._c_env: Optional[MettaGrid] = self._create_c_env()
 
         # Initialize PufferEnv with buffers (must come after _c_env creation)
         super().__init__(buf)
 
-        # Initialize renderer if needed
-        if self._render_mode is not None:
-            self._initialize_renderer()
-
     def _initialize_renderer(self) -> None:
-        """Initialize renderer based on render mode."""
+        """Initialize renderer class based on render mode."""
+        self._renderer = None
+        self._renderer_class = None
+
         if self._render_mode == "human":
             from metta.mettagrid.renderer.nethack import NethackRenderer
 
-            # We'll set object_type_names after core env is created
             self._renderer_class = NethackRenderer
         elif self._render_mode == "miniscope":
             from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
@@ -181,15 +183,20 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 logger.error(f"Game config: {game_config_dict}")
                 raise e
 
-        # Create core environment
+        # Create C++ environment
         current_seed = seed if seed is not None else self._current_seed
-        core_env = MettaGrid(c_cfg, level.grid.tolist(), current_seed)
+        c_env = MettaGrid(c_cfg, level.grid.tolist(), current_seed)
 
         # Initialize renderer if needed
-        if self._render_mode is not None and self._renderer is None:
-            self._renderer = self._renderer_class(core_env.object_type_names())
+        if (
+            self._render_mode is not None
+            and self._renderer is None
+            and hasattr(self, "_renderer_class")
+            and self._renderer_class is not None
+        ):
+            self._renderer = self._renderer_class(c_env.object_type_names())
 
-        return core_env
+        return c_env
 
     @override
     @with_instance_timer("reset")

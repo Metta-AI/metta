@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from omegaconf import OmegaConf
 
 if TYPE_CHECKING:
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
+    from metta.mettagrid import MettaGridEnv
 
 import json
 import zlib

@@ -3,7 +3,7 @@ import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_env import (
+from metta.mettagrid import (
     dtype_actions,
     dtype_observations,
     dtype_rewards,

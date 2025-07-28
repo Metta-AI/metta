@@ -3,7 +3,7 @@ import numpy as np
 from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.util.hydra import get_cfg
 
 
