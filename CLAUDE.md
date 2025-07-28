@@ -30,8 +30,6 @@ metta install aws wandb              # Install specific components
 
 ## Common Commands
 
-@.cursor/commands.md
-
 ### Code Quality
 
 ```bash
@@ -55,6 +53,45 @@ Not needed, just run scripts, they'll work automatically through uv-powered sheb
 ```bash
 # Clean debug cmake build artifacts. `metta install` also does this
 metta clean
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=metta --cov-report=term-missing
+
+# Run specific test file
+uv run pytest tests/test_specific.py
+
+# Run tests in parallel
+uv run pytest -n auto
+
+# Run only fast tests (skip slow tests)
+uv run pytest -m "not slow"
+```
+
+### Quick Test Commands (30-60 seconds total)
+
+```bash
+# Set a unique test ID for this testing session
+export TEST_ID=$(date +%Y%m%d_%H%M%S)
+echo "Test ID: $TEST_ID"
+
+# Basic training (will run indefinitely, terminate with Ctrl+C after ~30 seconds)
+uv run ./tools/train.py run=test_$TEST_ID +hardware=macbook trainer.num_workers=2
+
+# Using cursor config (limited to 100k steps)
+uv run ./tools/train.py +user=cursor run=cursor_$TEST_ID trainer.num_workers=2
+
+# Run simulations on trained model
+uv run ./tools/sim.py run=eval_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints device=cpu
+
+# Analyze results
+uv run ./tools/analyze.py run=analysis_$TEST_ID analysis.policy_uri=file://./train_dir/test_$TEST_ID/checkpoints analysis.eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
 ```
 
 ## Code Architecture
@@ -97,9 +134,20 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `hardware/`: Hardware-specific settings
 - `user/`: User-specific configurations
 
-## Testing Philosophy
+### Using Hydra Configuration
 
-@.cursor/docs.md
+Most tools in `tools/` use Hydra for configuration:
+
+- **Override parameters**: `param=value` sets configuration values
+- **Compose configs**: `+group=option` loads from `configs/group/option.yaml`
+- **User configs**: `+user=<name>` loads from `configs/user/<name>.yaml`
+
+Example:
+```bash
+./tools/train.py run=my_experiment +hardware=macbook wandb=off trainer.num_workers=4
+```
+
+## Testing Philosophy
 
 - Tests should be independent and idempotent
 - Tests should be focused on testing one thing
@@ -218,3 +266,54 @@ Before creating a PR, ensure:
 - [ ] Proper error handling is implemented
 - [ ] Tests pass locally
 - [ ] Code is formatted according to project standards
+
+## Interactive Tools
+
+### Exploration and Debugging
+
+```bash
+# Interactive simulation for manual testing and exploration
+uv run ./tools/play.py run=my_experiment +hardware=macbook wandb=off
+
+# Interactive play with specific policy
+uv run ./tools/play.py run=play_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints +hardware=macbook
+```
+
+## Navigation Evaluation Database
+
+### Adding Policies to Evaluation Database
+
+```bash
+# Add a policy to the navigation evals database
+uv run ./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+
+# Analyze results with heatmap
+uv run ./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
+```
+
+## Smoke Test Mode
+
+When `+smoke_test=true` is added:
+
+- Training: Verifies wandb metrics structure
+- Simulation: Runs limited sims and verifies stats DB structure
+- Both use deterministic seeds and settings for reproducibility
+
+## Working with Cursorrules
+
+Important patterns from `.cursorrules`:
+
+- Make changes file by file and give a chance to spot mistakes
+- Don't suggest whitespace changes or summarize changes made
+- Don't remove unrelated code or functionalities
+- Provide all edits in a single chunk for the same file
+- Use bash with PATH including /opt/homebrew/bin
+- Activate virtual environment before python commands: `source .venv/bin/activate`
+
+## Dependencies and Environment
+
+- Python 3.11.7 is required (enforced in pyproject.toml)
+- Project uses `uv` for dependency management
+- Main dependencies include PyTorch, Gymnasium, PufferLib, Hydra, WandB
+- Development dependencies include pytest, ruff, pyright
+- Custom dependencies from workspace: metta-app-backend, metta-mettagrid, metta-common, metta-agent
