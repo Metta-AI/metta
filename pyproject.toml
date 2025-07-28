@@ -57,6 +57,8 @@ dependencies = [
   "anywidget>=0.9.18",
   "traitlets>=5.14.3",
   "tiktoken>=0.9.0",
+  "raylib>=5.5.0.0",
+  "bidict>=0.23.1",
 ]
 name = "metta"
 version = "0.1"
@@ -123,6 +125,3 @@ metta-app-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
-
-[tool.ruff]
-exclude = ["*.ipynb"]

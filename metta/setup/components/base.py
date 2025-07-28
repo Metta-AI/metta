@@ -37,6 +37,11 @@ class SetupModule(ABC):
     def check_installed(self) -> bool:
         pass
 
+    def dependencies(self) -> list[str]:
+        # Other components that must be installed before this one
+        # It is assumed that `core` and `system` are always installed first
+        return []
+
     def install(self) -> None:
         if self.setup_script_location:
             _ = self.run_script(self.setup_script_location)

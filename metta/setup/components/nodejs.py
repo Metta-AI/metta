@@ -4,25 +4,36 @@ import subprocess
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import info, success, warning
+from metta.setup.utils import info, warning
 
 
 @register_module
-class GridworksSetup(SetupModule):
-    @property
-    def name(self) -> str:
-        return "gridworks"
-
+class NodejsSetup(SetupModule):
     @property
     def description(self) -> str:
-        return "Gridworks frontend development"
+        return "Node.js infrastructure - pnpm and turborepo"
 
     def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("gridworks")
+        return self.config.is_component_enabled("nodejs")
+
+    def _script_exists(self, script: str) -> bool:
+        try:
+            self.run_command(["which", script], capture_output=True)
+            return True
+        except subprocess.CalledProcessError:
+            return False
 
     def check_installed(self) -> bool:
-        gridworks_dir = self.repo_root / "gridworks"
-        return (gridworks_dir / "node_modules").exists()
+        if not (self.repo_root / "node_modules").exists():
+            return False
+
+        if not self._check_pnpm():
+            return False
+
+        if not self._script_exists("turbo"):
+            return False
+
+        return True
 
     def _check_pnpm(self) -> bool:
         """Check if pnpm is working."""
@@ -68,22 +79,16 @@ class GridworksSetup(SetupModule):
         return False
 
     def install(self) -> None:
-        info("Setting up Gridworks frontend...")
-
-        gridworks_dir = self.repo_root / "gridworks"
-        if not gridworks_dir.exists():
-            warning("Gridworks directory not found")
-            return
+        info("Setting up pnpm...")
 
         if not self._check_pnpm():
             # Try to enable corepack with automatic cleanup
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
-        # Run pnpm install
-        env = os.environ.copy()
-        env["NODE_NO_WARNINGS"] = "1"
+        info("Installing turbo...")
+        self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
 
-        self.run_command(["pnpm", "install", "--frozen-lockfile"], cwd=gridworks_dir, capture_output=False, env=env)
-
-        success("Gridworks frontend installed")
+        info("Installing dependencies...")
+        # pnpm install with frozen lockfile to avoid prompts
+        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False)
