@@ -1,14 +1,21 @@
 import argparse
+import json
+import logging
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import wandb
+from omegaconf import DictConfig
 
+from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import get_repo_root
+from metta.common.util.stats_client_cfg import get_stats_client_direct
+from metta.common.wandb.wandb_runs import find_training_runs
 from metta.setup.tools.local.kind import Kind
-from metta.setup.tools.local.load_policies import get_recent_runs, post_policies_to_stats, print_runs_with_artifacts
 from metta.setup.utils import error, info
+from metta.sim.utils import get_or_create_policy_ids
 
 
 class LocalCommands:
@@ -46,11 +53,7 @@ class LocalCommands:
         parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
         parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
         parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
-        parser.add_argument(
-            "--post-policies", action="store_true", help="Post model artifacts as policies to stats database"
-        )
         parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
-        parser.add_argument("--debug", action="store_true", help="Show debug information")
 
         # Handle help manually since metta intercepts -h
         if "--help" in unknown_args or "-h" in unknown_args:
@@ -58,10 +61,6 @@ class LocalCommands:
             sys.exit(0)
 
         args = parser.parse_args(unknown_args)
-
-        # Validate that stats-db-uri is provided when post-policies is used
-        if args.post_policies and not args.stats_db_uri:
-            parser.error("--stats-db-uri is required when using --post-policies")
 
         # Get entity from args or W&B default
         api = wandb.Api()
@@ -77,27 +76,50 @@ class LocalCommands:
         project = args.project if args.project else "metta"
 
         info(f"Using entity: {entity}, project: {project}")
+        if not args.stats_db_uri:
+            print("\nNo STATS_DB_URI provided, skipping policy posting.")
+            return
 
-        try:
-            runs = get_recent_runs(
-                entity=entity,
-                project=project,
-                days_back=args.days_back,
-                limit=args.limit,
-                run_name=args.run_name,
-                debug=args.debug,
-            )
-
-            # Always print human-readable output
-            print_runs_with_artifacts(runs, args.run_name)
-
-            # Post policies if requested
-            if args.post_policies:
-                post_policies_to_stats(runs, args.stats_db_uri)
-
-        except Exception as e:
-            error(f"Error: {e}")
-            sys.exit(1)
+        print(f"\nConnecting to stats database at {args.stats_db_uri}...")
+        logger = logging.getLogger(__name__)
+        stats_client = get_stats_client_direct(args.stats_db_uri, logger)
+        if not stats_client:
+            print("No stats client")
+            return
+        stats_client.validate_authenticated()
+        runs = find_training_runs(
+            entity=entity,
+            project=project,
+            created_after=(datetime.now() - timedelta(days=args.days_back)).isoformat(),
+            limit=args.limit,
+            run_names=[args.run_name] if args.run_name else None,
+        )
+        policy_store = PolicyStore(
+            DictConfig(
+                dict(
+                    wandb=dict(
+                        enabled=True,
+                        project=project,
+                        entity=entity,
+                    ),
+                    device="cpu",
+                )
+            ),
+            wandb_run=None,
+        )
+        policy_records = []
+        for run in runs:
+            uri = f"wandb://run/{run.name}"
+            # n and metric are ignored
+            policy_records.extend(policy_store.policy_records(uri, selector_type="all", n=1, metric="top"))
+        policy_ids = get_or_create_policy_ids(
+            stats_client,
+            [(pr.run_name, pr.uri, None) for pr in policy_records],
+        )
+        json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
+        print(f"Ensured {len(policy_ids)} policy IDs: {json_repr}")
+        sys.stdout.flush()
+        sys.stderr.flush()
 
     def kind(self, args) -> None:
         """Handle Kind cluster management for Kubernetes testing."""

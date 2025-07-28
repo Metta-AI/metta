@@ -236,6 +236,8 @@
     "vtrace",
     "wandb",
     "Werror",
+    "worktree",
+    "worktrees",
     "wyhash",
     "wymix",
     "wymum",
