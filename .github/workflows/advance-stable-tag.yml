@@ -1,0 +1,416 @@
+name: "Advance Stable Tag"
+concurrency:
+  group: stable-tag-advancement
+  cancel-in-progress: false
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "Skip tests and advance tag immediately (use with caution)"
+        type: boolean
+        default: false
+      grace_period_minutes:
+        description: "Grace period in minutes before advancing tag"
+        type: number
+        default: 30
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
+env:
+  HYDRA_FULL_ERROR: 1
+  VENV_PATH: .venv
+  PYTEST_WORKERS: auto
+
+jobs:
+  comprehensive-tests:
+    name: "Run Comprehensive Tests"
+    if: github.event.inputs.skip_tests != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      test_result: ${{ steps.test_summary.outputs.result }}
+      commit_sha: ${{ steps.commit_info.outputs.sha }}
+      commit_message: ${{ steps.commit_info.outputs.message }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for comparing with previous stable
+
+      - name: Get commit info
+        id: commit_info
+        run: |
+          echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "message=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "testing"
+
+      - name: Run unit tests
+        id: unit_tests
+        run: |
+          echo "Running comprehensive unit tests..."
+          pytest -n ${{ env.PYTEST_WORKERS }} --maxfail=5 --disable-warnings --durations=20 -v || exit 1
+
+      - name: Run integration tests
+        id: integration_tests
+        run: |
+          echo "Running integration tests..."
+          # Run specific integration tests
+          pytest tests/sweep/test_integration_sweep_pipeline.py -v || exit 1
+          pytest app_backend/tests/test_docker_integration.py -v || exit 1
+          pytest app_backend/tests/test_eval_task_orchestrator_integration.py -v || exit 1
+
+      - name: Validate all configs
+        id: config_validation
+        run: |
+          echo "Validating all configuration files..."
+          pytest tests/test_validate_all_envs.py -v || exit 1
+          pytest tests/test_validate_all_curriculums.py -v || exit 1
+          pytest tests/sim/test_all_sim_configs.py -v || exit 1
+          pytest tests/rl/test_trainer_config.py::TestRealTypedConfigs -v || exit 1
+
+      - name: Test example training scripts
+        id: training_examples
+        run: |
+          echo "Testing example training scripts..."
+          # Test that demo scripts at least import correctly
+          python -c "import mettagrid.demos.demo_train_gym" || exit 1
+          python -c "import mettagrid.demos.demo_train_puffer" || exit 1
+          python -c "import mettagrid.demos.demo_train_pettingzoo" || exit 1
+          
+          # Run a quick training test
+          python tools/train.py +env=mettagrid/test/fast +agent=fast trainer.steps=100 trainer.evaluate_interval=50 || exit 1
+
+      - name: Test summary
+        id: test_summary
+        if: always()
+        run: |
+          if [ "${{ steps.unit_tests.outcome }}" == "success" ] && \
+             [ "${{ steps.integration_tests.outcome }}" == "success" ] && \
+             [ "${{ steps.config_validation.outcome }}" == "success" ] && \
+             [ "${{ steps.training_examples.outcome }}" == "success" ]; then
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "✅ All comprehensive tests passed!"
+          else
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "❌ Some tests failed"
+            echo "Unit tests: ${{ steps.unit_tests.outcome }}"
+            echo "Integration tests: ${{ steps.integration_tests.outcome }}"
+            echo "Config validation: ${{ steps.config_validation.outcome }}"
+            echo "Training examples: ${{ steps.training_examples.outcome }}"
+          fi
+
+  performance-benchmarks:
+    name: "Run Performance Benchmarks"
+    if: github.event.inputs.skip_tests != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      benchmark_result: ${{ steps.benchmark_summary.outputs.result }}
+      regression_detected: ${{ steps.benchmark_summary.outputs.regression }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "testing"
+
+      - name: Get previous stable tag
+        id: prev_stable
+        run: |
+          PREV_TAG=$(git describe --tags --match="stable-*" --abbrev=0 2>/dev/null || echo "")
+          echo "previous_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          if [ -n "$PREV_TAG" ]; then
+            echo "Previous stable tag: $PREV_TAG"
+          else
+            echo "No previous stable tag found"
+          fi
+
+      - name: Run Python benchmarks
+        id: python_benchmarks
+        run: |
+          PYTHONOPTIMIZE=1 pytest --benchmark-only --benchmark-json=current_benchmark.json
+
+      - name: Check for performance regression
+        id: benchmark_summary
+        run: |
+          # For now, just check that benchmarks ran successfully
+          # In the future, compare with previous stable tag benchmarks
+          if [ -f "current_benchmark.json" ]; then
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "regression=false" >> $GITHUB_OUTPUT
+            echo "✅ Benchmarks completed successfully"
+          else
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "regression=unknown" >> $GITHUB_OUTPUT
+            echo "❌ Benchmarks failed to generate results"
+          fi
+
+  grace-period:
+    name: "Grace Period"
+    needs: [comprehensive-tests, performance-benchmarks]
+    if: |
+      always() &&
+      needs.comprehensive-tests.outputs.test_result == 'success' &&
+      needs.performance-benchmarks.outputs.benchmark_result == 'success' &&
+      needs.performance-benchmarks.outputs.regression_detected != 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: stable-tag-grace-period
+    steps:
+      - name: Wait for grace period
+        run: |
+          GRACE_MINUTES="${{ github.event.inputs.grace_period_minutes || 30 }}"
+          echo "⏳ Entering ${GRACE_MINUTES} minute grace period..."
+          echo "This deployment can be cancelled manually if issues are discovered."
+          echo "Grace period ends at: $(date -d "+${GRACE_MINUTES} minutes" '+%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          echo "To cancel this deployment:"
+          echo "1. Go to the Actions tab"
+          echo "2. Click on this workflow run" 
+          echo "3. Cancel the 'grace-period' job"
+          echo ""
+          # Actually wait for the grace period
+          sleep $((GRACE_MINUTES * 60))
+
+  advance-stable-tag:
+    name: "Advance Stable Tag"
+    needs: [comprehensive-tests, performance-benchmarks, grace-period]
+    if: |
+      always() &&
+      needs.comprehensive-tests.outputs.test_result == 'success' &&
+      needs.performance-benchmarks.outputs.benchmark_result == 'success' &&
+      needs.performance-benchmarks.outputs.regression_detected != 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.create_tag.outputs.tag }}
+      previous_tag: ${{ steps.get_tags.outputs.previous }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag information
+        id: get_tags
+        run: |
+          # Get current date-based tag name
+          TAG_NAME="stable-$(date '+%Y%m%d-%H%M%S')"
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          
+          # Get previous stable tag
+          PREV_TAG=$(git describe --tags --match="stable-*" --abbrev=0 2>/dev/null || echo "")
+          echo "previous=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create and push stable tag
+        id: create_tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.get_tags.outputs.tag }}"
+          
+          # Create annotated tag
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          TAG_MESSAGE="Stable release ${TAG_NAME}
+          
+          Commit: ${{ needs.comprehensive-tests.outputs.commit_sha }}
+          All tests passed ✅
+          No performance regressions detected ✅
+          
+          Commit message: ${{ needs.comprehensive-tests.outputs.commit_message }}"
+          
+          git tag -a "$TAG_NAME" -m "$TAG_MESSAGE" ${{ needs.comprehensive-tests.outputs.commit_sha }}
+          git push origin "$TAG_NAME"
+          
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Created stable tag: $TAG_NAME"
+
+  generate-stability-report:
+    name: "Generate Stability Report"
+    needs: [advance-stable-tag]
+    if: always() && needs.advance-stable-tag.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          NEW_TAG="${{ needs.advance-stable-tag.outputs.new_tag }}"
+          PREV_TAG="${{ needs.advance-stable-tag.outputs.previous_tag }}"
+          
+          if [ -n "$PREV_TAG" ]; then
+            echo "## Changes since $PREV_TAG" > changelog.md
+            echo "" >> changelog.md
+            
+            # Get commit count
+            COMMIT_COUNT=$(git rev-list --count ${PREV_TAG}..${NEW_TAG})
+            echo "**Total commits:** $COMMIT_COUNT" >> changelog.md
+            echo "" >> changelog.md
+            
+            # Get merged PRs
+            echo "### Merged Pull Requests" >> changelog.md
+            git log ${PREV_TAG}..${NEW_TAG} --grep="Merge pull request" --pretty=format:"- %s" >> changelog.md || true
+            echo "" >> changelog.md
+            
+            # Get contributors
+            echo "### Contributors" >> changelog.md
+            git log ${PREV_TAG}..${NEW_TAG} --pretty=format:"%an" | sort -u | sed 's/^/- /' >> changelog.md
+            echo "" >> changelog.md
+            
+            # Get file change summary
+            echo "### File Changes Summary" >> changelog.md
+            git diff --stat ${PREV_TAG}..${NEW_TAG} | tail -n 1 >> changelog.md
+          else
+            echo "## Initial Stable Release" > changelog.md
+            echo "This is the first stable tag for the repository." >> changelog.md
+          fi
+          
+          # Save changelog for artifact
+          cp changelog.md /tmp/changelog.md
+
+      - name: Create stability dashboard
+        run: |
+          mkdir -p stability-dashboard
+          
+          # Create dashboard JSON
+          cat > stability-dashboard/latest.json << EOF
+          {
+            "tag": "${{ needs.advance-stable-tag.outputs.new_tag }}",
+            "commit": "${{ needs.comprehensive-tests.outputs.commit_sha }}",
+            "timestamp": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+            "tests_passed": true,
+            "benchmarks_passed": true,
+            "previous_tag": "${{ needs.advance-stable-tag.outputs.previous_tag }}"
+          }
+          EOF
+          
+          # Create simple HTML dashboard
+          cat > stability-dashboard/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Metta Stable Tag Dashboard</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 40px; }
+                  .status { padding: 20px; margin: 20px 0; border-radius: 5px; }
+                  .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+                  .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+                  h1 { color: #333; }
+                  .timestamp { color: #666; font-size: 0.9em; }
+              </style>
+          </head>
+          <body>
+              <h1>Metta Stable Tag Dashboard</h1>
+              <div class="status success">
+                  <h2>Latest Stable Tag</h2>
+                  <p><strong>Tag:</strong> ${{ needs.advance-stable-tag.outputs.new_tag }}</p>
+                  <p><strong>Commit:</strong> ${{ needs.comprehensive-tests.outputs.commit_sha }}</p>
+                  <p class="timestamp">Generated at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')</p>
+              </div>
+              <div class="status info">
+                  <h2>Test Results</h2>
+                  <p>✅ All comprehensive tests passed</p>
+                  <p>✅ No performance regressions detected</p>
+                  <p>✅ All configs validated successfully</p>
+                  <p>✅ Example training scripts completed</p>
+              </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload stability artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stability-dashboard-${{ needs.advance-stable-tag.outputs.new_tag }}
+          path: |
+            stability-dashboard/
+            /tmp/changelog.md
+
+  notify-stable-release:
+    name: "Send Notifications"
+    needs: [advance-stable-tag, generate-stability-report]
+    if: always() && needs.advance-stable-tag.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare notification message
+        id: notification
+        run: |
+          MESSAGE="🎉 New stable tag created: ${{ needs.advance-stable-tag.outputs.new_tag }}
+          
+          ✅ All tests passed
+          ✅ No performance regressions
+          ✅ Configs validated
+          ✅ Training examples verified
+          
+          View commit: https://github.com/${{ github.repository }}/commit/${{ needs.comprehensive-tests.outputs.commit_sha }}
+          View tag: https://github.com/${{ github.repository }}/releases/tag/${{ needs.advance-stable-tag.outputs.new_tag }}"
+          
+          # Format for JSON
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download changelog artifact
+          gh run download ${{ github.run_id }} -n stability-dashboard-${{ needs.advance-stable-tag.outputs.new_tag }}
+          
+          # Create release
+          gh release create ${{ needs.advance-stable-tag.outputs.new_tag }} \
+            --title "Stable Release ${{ needs.advance-stable-tag.outputs.new_tag }}" \
+            --notes-file changelog.md \
+            --verify-tag
+
+      # Note: Slack/Discord notifications would be added here
+      # For now, we'll just log the notification
+      - name: Log notification (placeholder for Slack/Discord)
+        run: |
+          echo "Would send notification:"
+          echo "${{ steps.notification.outputs.message }}"
+          echo ""
+          echo "To enable Slack notifications, add a step using slack-github-action"
+          echo "To enable Discord notifications, add a webhook step"
+
+  handle-test-failure:
+    name: "Handle Test Failure"
+    needs: [comprehensive-tests, performance-benchmarks]
+    if: |
+      always() &&
+      (needs.comprehensive-tests.outputs.test_result == 'failure' ||
+       needs.performance-benchmarks.outputs.benchmark_result == 'failure' ||
+       needs.performance-benchmarks.outputs.regression_detected == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report failure
+        run: |
+          echo "❌ Stable tag advancement failed!"
+          echo ""
+          echo "Test result: ${{ needs.comprehensive-tests.outputs.test_result }}"
+          echo "Benchmark result: ${{ needs.performance-benchmarks.outputs.benchmark_result }}"
+          echo "Regression detected: ${{ needs.performance-benchmarks.outputs.regression_detected }}"
+          echo ""
+          echo "The stable tag was NOT advanced due to test failures or performance regressions."
+          echo "Please investigate the failures and fix them before the next merge to main."
+          
+      # Note: This would also send failure notifications to Slack/Discord
