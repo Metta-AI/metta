@@ -76,6 +76,6 @@ def load_train_job_config_with_overrides(cfg: DictConfig | ListConfig) -> DictCo
     if os.path.exists(overrides_path):
         override_cfg = OmegaConf.load(overrides_path)
 
-        # Since sweep_job mimics train_job.yaml, just merge them directly
+        # Since sweep_train_job mimics train_job.yaml, just merge them directly
         cfg = merge_train_job_config_overrides(cfg, override_cfg)
     return cfg

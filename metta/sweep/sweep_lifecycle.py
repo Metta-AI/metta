@@ -126,12 +126,12 @@ def prepare_sweep_run(cfg: DictConfig, logger: logging.Logger) -> tuple[str, Dic
     logger.info(f"Created WandB run for sweep: {cfg.sweep_name} with run name: {run_name}")
 
     # Merge trainer overrides with protein suggestion
-    sweep_job_cfg = cfg.sweep_job
-    sweep_job_cfg.run = run_name
-    apply_protein_suggestion(sweep_job_cfg, protein_suggestion)
+    train_job_cfg = cfg.sweep_train_job
+    train_job_cfg.run = run_name
+    apply_protein_suggestion(train_job_cfg, protein_suggestion)
     train_cfg_overrides = DictConfig(
         {
-            **sweep_job_cfg,
+            **train_job_cfg,
             "run": run_name,
             "run_dir": downstream_cfg.data_dir,
             "sweep_name": cfg.sweep_name,

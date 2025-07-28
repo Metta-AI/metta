@@ -147,7 +147,7 @@ class TestPrepareSweepRun:
                 "data_dir": "/tmp/data",
                 "runs_dir": "/tmp/test_sweep/runs",
                 "max_observations_to_load": 100,
-                "sweep_job": {
+                "sweep_train_job": {
                     "trainer": {"learning_rate": 0.001},
                 },
             }

@@ -226,7 +226,7 @@ class TestSweepPipelineIntegration:
                 "max_consecutive_failures": 3,
                 "rollout_retry_delay": 1,
                 "max_observations_to_load": 100,
-                "sweep_job": {
+                "sweep_train_job": {
                     "trainer": {"learning_rate": 0.001},
                 },
             }
@@ -508,7 +508,7 @@ class TestMultipleRolloutProgression:
                 },
                 "wandb": {"entity": "test", "project": "test"},
                 "runs_dir": "/tmp/runs",
-                "sweep_job": {},
+                "sweep_train_job": {},
                 "max_observations_to_load": 100,
                 "sim": {"num_envs": 1, "num_episodes": 10},
                 "device": "cpu",
