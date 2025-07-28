@@ -55,6 +55,7 @@ class BuildChecker:
         self.repo_root = self.project_root.parent.resolve()
         self.messages: list[CompilerMessage] = []
         self.build_failed = False
+        self.runtime_issues = []  # Simple list for runtime problems
 
     def parse_build_output(self, output: str) -> None:
         """Parse build output and extract warnings/errors."""
@@ -66,6 +67,21 @@ class BuildChecker:
             line_stripped = line.strip()
             if not line_stripped:
                 continue
+
+            # Check for runtime issues (simple patterns)
+            if any(
+                pattern in line_stripped
+                for pattern in [
+                    "AddressSanitizer: SEGV",
+                    "AddressSanitizer:DEADLYSIGNAL",
+                    "SUMMARY: AddressSanitizer:",
+                    "==ABORTING",
+                    "tests failed out of",
+                    "Errors while running CTest",
+                ]
+            ):
+                self.runtime_issues.append(line_stripped)
+                self.build_failed = True
 
             match = self.GCC_CLANG_PATTERN.match(line_stripped)
             if match:
@@ -115,6 +131,8 @@ class BuildChecker:
                     self.build_failed = True
 
         print(f"🔍 Parsed {parsed_count} compiler messages from {total_lines} lines of output")
+        if self.runtime_issues:
+            print(f"💥 Found {len(self.runtime_issues)} runtime issue(s)")
 
     def get_errors(self) -> list[CompilerMessage]:
         """Get all error messages."""
@@ -158,6 +176,7 @@ class BuildChecker:
             "errors": len(by_severity["error"]),
             "warnings": len(by_severity["warning"]),
             "notes": len(by_severity["note"]),
+            "runtime_issues": len(self.runtime_issues),  # Add runtime issues count
             "files_with_issues": len(by_file),
             "warnings_by_flag": dict(
                 sorted([(flag, len(msgs)) for flag, msgs in warnings_by_flag.items()], key=lambda x: x[1], reverse=True)
@@ -186,6 +205,9 @@ class BuildChecker:
         print(f"  - Warnings: {summary['warnings']}")
         print(f"  - Notes:    {summary['notes']}")
 
+        if summary["runtime_issues"] > 0:
+            print(f"  - Runtime issues: {summary['runtime_issues']}")
+
         # Print all errors with details
         errors = self.get_errors()
         if errors:
@@ -198,6 +220,14 @@ class BuildChecker:
                 if error.flag:
                     print(f"Flag: {error.flag}")
                 print(f"Raw: {error.raw_line}")
+            print("-" * 80)
+
+        # Print runtime issues
+        if self.runtime_issues:
+            print(f"\n💥 RUNTIME ISSUES ({len(self.runtime_issues)}):")
+            print("-" * 80)
+            for i, issue in enumerate(self.runtime_issues, 1):
+                print(f"[{i}] {issue}")
             print("-" * 80)
 
         if summary["warnings"] > 0:
@@ -234,6 +264,7 @@ class BuildChecker:
         lines.append(f"- **Total Messages:** {summary['total_messages']}")
         lines.append(f"- **Errors:** {summary['errors']}")
         lines.append(f"- **Warnings:** {summary['warnings']}")
+        lines.append(f"- **Runtime Issues:** {summary['runtime_issues']}")
         lines.append(f"- **Files with Issues:** {summary['files_with_issues']}")
 
         # Add detailed error section
@@ -265,6 +296,14 @@ class BuildChecker:
                 # Add a horizontal rule between errors for clarity
                 if i < len(errors):
                     lines.append("\n---\n")
+
+        # Add runtime issues section
+        if self.runtime_issues:
+            lines.append("\n### 💥 Runtime Issues\n")
+            lines.append("The following runtime issues occurred:\n")
+            for i, issue in enumerate(self.runtime_issues, 1):
+                lines.append(f"{i}. `{issue}`")
+            lines.append("")
 
         if summary["warnings"] > 0:
             lines.append("\n### ⚠️ Warnings by Type")
@@ -406,6 +445,7 @@ def main():
             f.write(f"total_warnings={summary['warnings']}\n")
             f.write(f"total_errors={summary['errors']}\n")
             f.write(f"total_messages={summary['total_messages']}\n")
+            f.write(f"runtime_issues={summary['runtime_issues']}\n")  # Add runtime issues output
 
     # Exit with appropriate code - only fail on actual build failure or errors
     if not build_success:
