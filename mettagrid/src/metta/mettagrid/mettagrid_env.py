@@ -2,7 +2,7 @@
 MettaGridEnv - Base Python environment class.
 
 This class provides the common functionality for all framework-specific adapters:
-- Creates new MettaGrid instances on reset (using C++ directly)
+- Creates new MettaGridCpp instances on reset (using C++ directly)
 - Manages curriculum, stats, and replay writing
 - Provides common interface for all adapters
 """
@@ -26,7 +26,7 @@ from typing_extensions import override
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -48,7 +48,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     This class provides the primary environment interface for MettaGrid:
     - Inherits from both PufferEnv and GymEnv for maximum compatibility
-    - Creates C++ MettaGrid instances with eager initialization
+    - Creates C++ MettaGridCpp instances with eager initialization
     - Manages curriculum, stats, and replay writing
     - Provides proper PufferLib buffer management
     """
@@ -112,7 +112,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._initialize_renderer()
 
         # Create C++ environment immediately (eager initialization)
-        self._c_env: Optional[MettaGrid] = self._create_c_env()
+        self._c_env: Optional[MettaGridCpp] = self._create_c_env()
 
         # Initialize PufferEnv with buffers (must come after _c_env creation)
         super().__init__(buf)
@@ -136,15 +136,15 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return str(uuid.uuid4())
 
     @with_instance_timer("_create_c_env")
-    def _create_c_env(self, seed: Optional[int] = None) -> MettaGrid:
+    def _create_c_env(self, seed: Optional[int] = None) -> MettaGridCpp:
         """
-        Create a new MettaGrid instance.
+        Create a new MettaGridCpp instance.
 
         Args:
             seed: Random seed for environment
 
         Returns:
-            New MettaGrid instance
+            New MettaGridCpp instance
         """
         task = self._task
         task_cfg = task.env_cfg()
@@ -185,7 +185,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Create C++ environment
         current_seed = seed if seed is not None else self._current_seed
-        c_env = MettaGrid(c_cfg, level.grid.tolist(), current_seed)
+        c_env = MettaGridCpp(c_cfg, level.grid.tolist(), current_seed)
 
         # Initialize renderer if needed
         if (
@@ -468,7 +468,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._render_mode
 
     @property
-    def core_env(self) -> Optional[MettaGrid]:
+    def core_env(self) -> Optional[MettaGridCpp]:
         """Get core environment instance."""
         return self._c_env
 

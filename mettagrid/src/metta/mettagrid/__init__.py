@@ -14,8 +14,13 @@ stats collection, and replay recording.
 
 from __future__ import annotations
 
+# Import other commonly used classes
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
+from metta.mettagrid.level_builder import Level
+
 # Import the main environment (our own concrete implementation)
-from metta.mettagrid.base_env import (
+from metta.mettagrid.mettagrid_env import (
     MettaGridEnv,
     dtype_actions,
     dtype_observations,
@@ -25,12 +30,7 @@ from metta.mettagrid.base_env import (
 )
 
 # Import all environment adapters
-from metta.mettagrid.base_env import MettaGridEnv as MettaGridBaseEnv
-
-# Import other commonly used classes
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
-from metta.mettagrid.level_builder import Level
+from metta.mettagrid.mettagrid_env import MettaGridEnv as MettaGridBaseEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 from metta.mettagrid.puffer_env import MettaGridPufferEnv
 from metta.mettagrid.replay_writer import ReplayWriter
