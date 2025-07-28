@@ -48,8 +48,8 @@ class HeatmapWidgetSetup(SetupModule):
                 "\n"
                 "You can also use it in your own notebooks by importing it like "
                 "\n"
-                "`from experiments.notebooks.utils.heatmap_widget import "
-                "HeatmapWidget, create_demo_heatmap, create_heatmap_widget`."
+                "`from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget import "
+                "HeatmapWidget`."
             )
 
         except subprocess.CalledProcessError:

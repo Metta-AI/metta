@@ -84,17 +84,18 @@ For production use or when you're done developing:
 ### Basic Usage
 
 ```python
-from heatmap_widget import create_demo_heatmap
+from heatmap_widget import HeatmapWidget
 
 # Create a demo widget with sample data
-widget = create_demo_heatmap()
+widget = HeamapWidget()
 widget
 ```
 
 ### Loading Real Data
 
 ```python
-from heatmap_widget import HeatmapWidget, fetch_real_heatmap_data
+from heatmap_widget import HeatmapWidget
+from heatmap_widget.util import fetch_real_heatmap_data
 
 # Fetch real data from the Metta backend
 data = fetch_real_heatmap_data()
@@ -146,23 +147,6 @@ widget.on_replay_opened(on_replay_opened)
    - Commit your changes
    - Users can install with `metta install heatmapwidget`
 
-## File Structure
-
-```
-heatmap_widget/
-├── README.md                 # This file
-├── package.json              # NPM dependencies and scripts
-├── vite.config.js           # Vite build configuration
-├── src/                     # TypeScript/React source code
-│   ├── index.tsx            # Main React component
-│   └── styles.css           # CSS styles
-└── heatmap_widget/          # Python package
-    ├── __init__.py          # Package exports
-    ├── HeatmapWidget.py     # Main widget class (set _DEV here)
-    ├── metta_client.py      # API client for fetching data
-    └── static/              # Built JavaScript assets
-        └── index.js         # Built JavaScript bundle
-```
 
 ## Important Notes
 
