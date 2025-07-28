@@ -348,7 +348,7 @@ class MettaCLI:
             return
         module.configure()
 
-    def cmd_run(self, args) -> None:
+    def cmd_run(self, args, unknown_args=None) -> None:
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info
 
@@ -819,6 +819,10 @@ Examples:
         if args.command in COMMAND_REGISTRY:
             cmd_config = COMMAND_REGISTRY[args.command]
 
+            # Initialize components if needed
+            if cmd_config.needs_components:
+                self._init_all()
+
             # Handle subprocess commands
             if cmd_config.subprocess_cmd:
                 self._run_subprocess_command(args.command, args, unknown_args)
@@ -862,7 +866,7 @@ def main():
                     pass
 
             try:
-                subprocess.run(cmd, check=True)
+                subprocess.run(cmd, cwd=get_repo_root(), check=True)
             except subprocess.CalledProcessError as e:
                 sys.exit(e.returncode)
             except FileNotFoundError:

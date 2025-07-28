@@ -41,15 +41,9 @@ class SystemSetup(SetupModule):
             return False
 
         try:
-            # Add timeout to prevent hanging, but still check properly
-            result = subprocess.run(
-                [brew_path, "bundle", "check", "--file", str(brewfile_path)],
-                capture_output=True,
-                text=True,
-                timeout=5,  # 5 seconds should be enough for brew bundle check
-            )
+            result = self.run_command([brew_path, "bundle", "check", "--file", str(brewfile_path)], check=False)
             return result.returncode == 0
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
     @override
