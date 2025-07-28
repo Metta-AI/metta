@@ -1,0 +1,11 @@
+# Configuration for external PyTorch policy architecture
+# This should match the architecture of your pufferlib-trained policy
+
+# Use the Recurrent wrapper with the base Policy
+_target_: metta.agent.external.example.Recurrent
+input_size: 512
+hidden_size: 512
+policy:
+  _target_: metta.agent.external.example.Policy
+  cnn_channels: 128
+  hidden_size: 512
