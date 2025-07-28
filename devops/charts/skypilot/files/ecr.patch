@@ -1,0 +1,50 @@
+diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
+--- sky/provision/docker_utils.py	2025-06-02 23:54:17
++++ sky-patched/provision/docker_utils.py	2025-07-28 13:28:05
+@@ -221,0 +222,22 @@
++        def is_ecr_server(server: str):
++            return server.endswith(".amazonaws.com") and ".ecr." in server
++
++        def fix_ecr_server(server: str):
++            if not is_ecr_server(server):
++                return server
++
++            az = None
++            try:
++                az = self._run("ec2metadata | fgrep availability-zone: | awk '{print $2}'")
++            except Exception as e:
++                logger.error(f'Failed to patch ECR server, maybe not running on AWS: {e}')
++
++            if az:
++                region = az[:-1]
++                import re
++                server = re.sub(
++                    r"\.[\w-]+\.amazonaws\.com", f".{region}.amazonaws.com", server
++                )
++
++            return server
++
+@@ -246,0 +269,16 @@
++            elif is_ecr_server(docker_login_config.server):
++                # Handle AWS ECR authentication
++                docker_login_config.server = fix_ecr_server(docker_login_config.server)
++                self._run('sudo apt update && sudo apt install -y amazon-ecr-credential-helper')
++                # Create the docker config directory if it doesn't exist
++                self._run('mkdir -p ~/.docker')
++                # Create or update the docker config.json file with ECR credentials helper
++                config_json = {
++                    "credHelpers": {
++                        docker_login_config.server: "ecr-login"
++                    }
++                }
++                # Write the config to a temporary file and move it to the right location
++                import json
++                self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
++                            f'mv /tmp/docker_config.json ~/.docker/config.json')
+diff -U0 -r sky/resources.py sky-patched/resources.py
+--- sky/resources.py	2025-07-28 13:24:57
++++ sky-patched/resources.py	2025-07-28 13:26:34
+@@ -2197,3 +2196,0 @@
+-        if self._docker_login_config is not None:
+-            config['_docker_login_config'] = dataclasses.asdict(
+-                self._docker_login_config)
