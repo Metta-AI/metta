@@ -1,0 +1,587 @@
+check-context	Set up job	﻿2025-07-29T14:54:28.8851748Z Current runner version: '2.326.0'
+check-context	Set up job	2025-07-29T14:54:28.8877255Z ##[group]Runner Image Provisioner
+check-context	Set up job	2025-07-29T14:54:28.8878259Z Hosted Compute Agent
+check-context	Set up job	2025-07-29T14:54:28.8878837Z Version: 20250711.363
+check-context	Set up job	2025-07-29T14:54:28.8879373Z Commit: 6785254374ce925a23743850c1cb91912ce5c14c
+check-context	Set up job	2025-07-29T14:54:28.8880184Z Build Date: 2025-07-11T20:04:25Z
+check-context	Set up job	2025-07-29T14:54:28.8880749Z ##[endgroup]
+check-context	Set up job	2025-07-29T14:54:28.8881259Z ##[group]Operating System
+check-context	Set up job	2025-07-29T14:54:28.8881934Z Ubuntu
+check-context	Set up job	2025-07-29T14:54:28.8882388Z 24.04.2
+check-context	Set up job	2025-07-29T14:54:28.8882832Z LTS
+check-context	Set up job	2025-07-29T14:54:28.8883479Z ##[endgroup]
+check-context	Set up job	2025-07-29T14:54:28.8883992Z ##[group]Runner Image
+check-context	Set up job	2025-07-29T14:54:28.8884496Z Image: ubuntu-24.04
+check-context	Set up job	2025-07-29T14:54:28.8885095Z Version: 20250720.1.0
+check-context	Set up job	2025-07-29T14:54:28.8886045Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250720.1/images/ubuntu/Ubuntu2404-Readme.md
+check-context	Set up job	2025-07-29T14:54:28.8887364Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250720.1
+check-context	Set up job	2025-07-29T14:54:28.8888537Z ##[endgroup]
+check-context	Set up job	2025-07-29T14:54:28.8889646Z ##[group]GITHUB_TOKEN Permissions
+check-context	Set up job	2025-07-29T14:54:28.8891627Z Contents: read
+check-context	Set up job	2025-07-29T14:54:28.8892172Z Metadata: read
+check-context	Set up job	2025-07-29T14:54:28.8892767Z Packages: read
+check-context	Set up job	2025-07-29T14:54:28.8893458Z ##[endgroup]
+check-context	Set up job	2025-07-29T14:54:28.8895713Z Secret source: Actions
+check-context	Set up job	2025-07-29T14:54:28.8896506Z Prepare workflow directory
+check-context	Set up job	2025-07-29T14:54:28.9228992Z Prepare all required actions
+check-context	Set up job	2025-07-29T14:54:28.9267377Z Getting action download info
+check-context	Set up job	2025-07-29T14:54:29.3908542Z ##[group]Download immutable action package 'actions/checkout@v4'
+check-context	Set up job	2025-07-29T14:54:29.3909565Z Version: 4.2.2
+check-context	Set up job	2025-07-29T14:54:29.3910674Z Digest: sha256:ccb2698953eaebd21c7bf6268a94f9c26518a7e38e27e0b83c1fe1ad049819b1
+check-context	Set up job	2025-07-29T14:54:29.3911796Z Source commit SHA: 11bd71901bbe5b1630ceea73d27597364c9af683
+check-context	Set up job	2025-07-29T14:54:29.3912515Z ##[endgroup]
+check-context	Set up job	2025-07-29T14:54:29.5576073Z Complete job name: check-context
+check-context	Checkout repository	﻿2025-07-29T14:54:29.6283211Z ##[group]Run actions/checkout@v4
+check-context	Checkout repository	2025-07-29T14:54:29.6284575Z with:
+check-context	Checkout repository	2025-07-29T14:54:29.6285034Z   repository: Metta-AI/metta
+check-context	Checkout repository	2025-07-29T14:54:29.6285739Z   token: ***
+check-context	Checkout repository	2025-07-29T14:54:29.6286125Z   ssh-strict: true
+check-context	Checkout repository	2025-07-29T14:54:29.6286506Z   ssh-user: git
+check-context	Checkout repository	2025-07-29T14:54:29.6286905Z   persist-credentials: true
+check-context	Checkout repository	2025-07-29T14:54:29.6287347Z   clean: true
+check-context	Checkout repository	2025-07-29T14:54:29.6287737Z   sparse-checkout-cone-mode: true
+check-context	Checkout repository	2025-07-29T14:54:29.6288215Z   fetch-depth: 1
+check-context	Checkout repository	2025-07-29T14:54:29.6288592Z   fetch-tags: false
+check-context	Checkout repository	2025-07-29T14:54:29.6288991Z   show-progress: true
+check-context	Checkout repository	2025-07-29T14:54:29.6289384Z   lfs: false
+check-context	Checkout repository	2025-07-29T14:54:29.6289750Z   submodules: false
+check-context	Checkout repository	2025-07-29T14:54:29.6290145Z   set-safe-directory: true
+check-context	Checkout repository	2025-07-29T14:54:29.6290820Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:29.7386036Z Syncing repository: Metta-AI/metta
+check-context	Checkout repository	2025-07-29T14:54:29.7388700Z ##[group]Getting Git version info
+check-context	Checkout repository	2025-07-29T14:54:29.7389476Z Working directory is '/home/runner/work/metta/metta'
+check-context	Checkout repository	2025-07-29T14:54:29.7390519Z [command]/usr/bin/git version
+check-context	Checkout repository	2025-07-29T14:54:29.7425930Z git version 2.50.1
+check-context	Checkout repository	2025-07-29T14:54:29.7452070Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:29.7466885Z Temporarily overriding HOME='/home/runner/work/_temp/7137f7ca-bb13-4cde-a6a5-8b26db4a2252' before making global git config changes
+check-context	Checkout repository	2025-07-29T14:54:29.7468288Z Adding repository directory to the temporary git global config as a safe directory
+check-context	Checkout repository	2025-07-29T14:54:29.7471892Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+check-context	Checkout repository	2025-07-29T14:54:29.7509164Z Deleting the contents of '/home/runner/work/metta/metta'
+check-context	Checkout repository	2025-07-29T14:54:29.7512047Z ##[group]Initializing the repository
+check-context	Checkout repository	2025-07-29T14:54:29.7516167Z [command]/usr/bin/git init /home/runner/work/metta/metta
+check-context	Checkout repository	2025-07-29T14:54:29.7572915Z hint: Using 'master' as the name for the initial branch. This default branch name
+check-context	Checkout repository	2025-07-29T14:54:29.7574641Z hint: is subject to change. To configure the initial branch name to use in all
+check-context	Checkout repository	2025-07-29T14:54:29.7575869Z hint: of your new repositories, which will suppress this warning, call:
+check-context	Checkout repository	2025-07-29T14:54:29.7576782Z hint:
+check-context	Checkout repository	2025-07-29T14:54:29.7577741Z hint: 	git config --global init.defaultBranch <name>
+check-context	Checkout repository	2025-07-29T14:54:29.7578359Z hint:
+check-context	Checkout repository	2025-07-29T14:54:29.7578912Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+check-context	Checkout repository	2025-07-29T14:54:29.7579794Z hint: 'development'. The just-created branch can be renamed via this command:
+check-context	Checkout repository	2025-07-29T14:54:29.7580495Z hint:
+check-context	Checkout repository	2025-07-29T14:54:29.7580893Z hint: 	git branch -m <name>
+check-context	Checkout repository	2025-07-29T14:54:29.7581349Z hint:
+check-context	Checkout repository	2025-07-29T14:54:29.7582169Z hint: Disable this message with "git config set advice.defaultBranchName false"
+check-context	Checkout repository	2025-07-29T14:54:29.7583747Z Initialized empty Git repository in /home/runner/work/metta/metta/.git/
+check-context	Checkout repository	2025-07-29T14:54:29.7588638Z [command]/usr/bin/git remote add origin https://github.com/Metta-AI/metta
+check-context	Checkout repository	2025-07-29T14:54:29.7620343Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:29.7621189Z ##[group]Disabling automatic garbage collection
+check-context	Checkout repository	2025-07-29T14:54:29.7624629Z [command]/usr/bin/git config --local gc.auto 0
+check-context	Checkout repository	2025-07-29T14:54:29.7654714Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:29.7655531Z ##[group]Setting up auth
+check-context	Checkout repository	2025-07-29T14:54:29.7661642Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+check-context	Checkout repository	2025-07-29T14:54:29.7692349Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+check-context	Checkout repository	2025-07-29T14:54:29.8894902Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+check-context	Checkout repository	2025-07-29T14:54:29.8925253Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+check-context	Checkout repository	2025-07-29T14:54:29.9154993Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+check-context	Checkout repository	2025-07-29T14:54:29.9192885Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:29.9194106Z ##[group]Fetching the repository
+check-context	Checkout repository	2025-07-29T14:54:29.9202194Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +77ba8aadd67c08fd2364798abc4b79d282c1e2ff:refs/remotes/pull/1774/merge
+check-context	Checkout repository	2025-07-29T14:54:30.8497193Z From https://github.com/Metta-AI/metta
+check-context	Checkout repository	2025-07-29T14:54:30.8498869Z  * [new ref]         77ba8aadd67c08fd2364798abc4b79d282c1e2ff -> pull/1774/merge
+check-context	Checkout repository	2025-07-29T14:54:30.8528297Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:30.8530204Z ##[group]Determining the checkout info
+check-context	Checkout repository	2025-07-29T14:54:30.8532262Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:30.8536743Z [command]/usr/bin/git sparse-checkout disable
+check-context	Checkout repository	2025-07-29T14:54:30.8577572Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+check-context	Checkout repository	2025-07-29T14:54:30.8608113Z ##[group]Checking out the ref
+check-context	Checkout repository	2025-07-29T14:54:30.8611913Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1774/merge
+check-context	Checkout repository	2025-07-29T14:54:31.0107924Z Note: switching to 'refs/remotes/pull/1774/merge'.
+check-context	Checkout repository	2025-07-29T14:54:31.0109173Z 
+check-context	Checkout repository	2025-07-29T14:54:31.0110245Z You are in 'detached HEAD' state. You can look around, make experimental
+check-context	Checkout repository	2025-07-29T14:54:31.0112675Z changes and commit them, and you can discard any commits you make in this
+check-context	Checkout repository	2025-07-29T14:54:31.0115323Z state without impacting any branches by switching back to a branch.
+check-context	Checkout repository	2025-07-29T14:54:31.0116775Z 
+check-context	Checkout repository	2025-07-29T14:54:31.0117610Z If you want to create a new branch to retain commits you create, you may
+check-context	Checkout repository	2025-07-29T14:54:31.0119063Z do so (now or later) by using -c with the switch command. Example:
+check-context	Checkout repository	2025-07-29T14:54:31.0119895Z 
+check-context	Checkout repository	2025-07-29T14:54:31.0120251Z   git switch -c <new-branch-name>
+check-context	Checkout repository	2025-07-29T14:54:31.0121066Z 
+check-context	Checkout repository	2025-07-29T14:54:31.0121610Z Or undo this operation with:
+check-context	Checkout repository	2025-07-29T14:54:31.0122400Z 
+check-context	Checkout repository	2025-07-29T14:54:31.0122758Z   git switch -
+check-context	Checkout repository	2025-07-29T14:54:31.0123204Z 
+check-context	Checkout repository	2025-07-29T14:54:31.0124123Z Turn off this advice by setting config variable advice.detachedHead to false
+check-context	Checkout repository	2025-07-29T14:54:31.0125214Z 
+check-context	Checkout repository	2025-07-29T14:54:31.0126452Z HEAD is now at 77ba8aa Merge 061d163aab14f12f028a36e880118314dbb01622 into 6932e08ffdb7e72a31b602634662fe4170fc143d
+check-context	Checkout repository	2025-07-29T14:54:31.0130698Z ##[endgroup]
+check-context	Checkout repository	2025-07-29T14:54:31.0160899Z [command]/usr/bin/git log -1 --format=%H
+check-context	Checkout repository	2025-07-29T14:54:31.0184512Z 77ba8aadd67c08fd2364798abc4b79d282c1e2ff
+check-context	Detect PR context	﻿2025-07-29T14:54:31.0499882Z Prepare all required actions
+check-context	Detect PR context	2025-07-29T14:54:31.0612323Z ##[group]Run ./.github/actions/detect-external-pr
+check-context	Detect PR context	2025-07-29T14:54:31.0613819Z ##[endgroup]
+check-context	Detect PR context	2025-07-29T14:54:31.0765183Z ##[group]Run # Detect the context
+check-context	Detect PR context	2025-07-29T14:54:31.0766623Z [36;1m# Detect the context[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0767702Z [36;1mIS_FORK="false"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0768713Z [36;1mIS_DEPENDABOT="false"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0769797Z [36;1mHEAD_REPO="Metta-AI/metta"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0770951Z [36;1mBASE_REPO="Metta-AI/metta"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0772006Z [36;1m[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0772859Z [36;1m# Determine if external[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0774794Z [36;1mif [[ "$IS_FORK" == "true" ]] || [[ "$IS_DEPENDABOT" == "true" ]] || [[ "$HEAD_REPO" != "$BASE_REPO" && -n "$HEAD_REPO" ]]; then[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0776751Z [36;1m  echo "is_external=true" >> $GITHUB_OUTPUT[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0778553Z [36;1m  echo "::notice::🔓 Running on external PR - external services will be skipped"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0780239Z [36;1melse[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0781204Z [36;1m  echo "is_external=false" >> $GITHUB_OUTPUT[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0782793Z [36;1m  echo "::notice::🔒 Running on internal PR - all services enabled"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0784399Z [36;1mfi[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0785162Z [36;1m[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0786158Z [36;1m# Detailed logging for debugging[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0787357Z [36;1mecho "::group::PR Context Details"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0788509Z [36;1mecho "Is Fork: $IS_FORK"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0789622Z [36;1mecho "Is Dependabot: $IS_DEPENDABOT"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0790789Z [36;1mecho "Actor: badjacent2"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0791847Z [36;1mecho "Head Repo: $HEAD_REPO"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0792942Z [36;1mecho "Base Repo: $BASE_REPO"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0794318Z [36;1mecho "Event Name: pull_request_review"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0795544Z [36;1mecho "PR Number: 1774"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0796549Z [36;1mecho "::endgroup::"[0m
+check-context	Detect PR context	2025-07-29T14:54:31.0833628Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+check-context	Detect PR context	2025-07-29T14:54:31.0835159Z ##[endgroup]
+check-context	Detect PR context	2025-07-29T14:54:31.0940461Z ##[notice]🔒 Running on internal PR - all services enabled
+check-context	Detect PR context	2025-07-29T14:54:31.0942675Z ##[group]PR Context Details
+check-context	Detect PR context	2025-07-29T14:54:31.0943906Z Is Fork: false
+check-context	Detect PR context	2025-07-29T14:54:31.0944718Z Is Dependabot: false
+check-context	Detect PR context	2025-07-29T14:54:31.0945565Z Actor: badjacent2
+check-context	Detect PR context	2025-07-29T14:54:31.0946406Z Head Repo: Metta-AI/metta
+check-context	Detect PR context	2025-07-29T14:54:31.0947330Z Base Repo: Metta-AI/metta
+check-context	Detect PR context	2025-07-29T14:54:31.0948273Z Event Name: pull_request_review
+check-context	Detect PR context	2025-07-29T14:54:31.0949243Z PR Number: 1774
+check-context	Detect PR context	2025-07-29T14:54:31.0950588Z ##[endgroup]
+check-context	Post Checkout repository	﻿2025-07-29T14:54:31.1191957Z Post job cleanup.
+check-context	Post Checkout repository	2025-07-29T14:54:31.2160943Z [command]/usr/bin/git version
+check-context	Post Checkout repository	2025-07-29T14:54:31.2197289Z git version 2.50.1
+check-context	Post Checkout repository	2025-07-29T14:54:31.2249145Z Temporarily overriding HOME='/home/runner/work/_temp/7a2ab35d-5fd2-4180-848b-75b4fb62a9bf' before making global git config changes
+check-context	Post Checkout repository	2025-07-29T14:54:31.2252376Z Adding repository directory to the temporary git global config as a safe directory
+check-context	Post Checkout repository	2025-07-29T14:54:31.2255244Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+check-context	Post Checkout repository	2025-07-29T14:54:31.2289056Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+check-context	Post Checkout repository	2025-07-29T14:54:31.2325088Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+check-context	Post Checkout repository	2025-07-29T14:54:31.2557227Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+check-context	Post Checkout repository	2025-07-29T14:54:31.2578489Z http.https://github.com/.extraheader
+check-context	Post Checkout repository	2025-07-29T14:54:31.2593457Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+check-context	Post Checkout repository	2025-07-29T14:54:31.2628338Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+check-context	Complete job	﻿2025-07-29T14:54:31.2979604Z Evaluate and set job outputs
+check-context	Complete job	2025-07-29T14:54:31.2986735Z Set output 'is_external'
+check-context	Complete job	2025-07-29T14:54:31.2989691Z Cleaning up orphan processes
+asana_integration	Set up job	﻿2025-07-29T14:54:38.3392047Z Current runner version: '2.326.0'
+asana_integration	Set up job	2025-07-29T14:54:38.3416154Z ##[group]Runner Image Provisioner
+asana_integration	Set up job	2025-07-29T14:54:38.3417161Z Hosted Compute Agent
+asana_integration	Set up job	2025-07-29T14:54:38.3417696Z Version: 20250711.363
+asana_integration	Set up job	2025-07-29T14:54:38.3418291Z Commit: 6785254374ce925a23743850c1cb91912ce5c14c
+asana_integration	Set up job	2025-07-29T14:54:38.3419035Z Build Date: 2025-07-11T20:04:25Z
+asana_integration	Set up job	2025-07-29T14:54:38.3419634Z ##[endgroup]
+asana_integration	Set up job	2025-07-29T14:54:38.3420379Z ##[group]Operating System
+asana_integration	Set up job	2025-07-29T14:54:38.3421001Z Ubuntu
+asana_integration	Set up job	2025-07-29T14:54:38.3421465Z 24.04.2
+asana_integration	Set up job	2025-07-29T14:54:38.3421884Z LTS
+asana_integration	Set up job	2025-07-29T14:54:38.3422402Z ##[endgroup]
+asana_integration	Set up job	2025-07-29T14:54:38.3422937Z ##[group]Runner Image
+asana_integration	Set up job	2025-07-29T14:54:38.3423439Z Image: ubuntu-24.04
+asana_integration	Set up job	2025-07-29T14:54:38.3424002Z Version: 20250720.1.0
+asana_integration	Set up job	2025-07-29T14:54:38.3424992Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250720.1/images/ubuntu/Ubuntu2404-Readme.md
+asana_integration	Set up job	2025-07-29T14:54:38.3426339Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250720.1
+asana_integration	Set up job	2025-07-29T14:54:38.3427523Z ##[endgroup]
+asana_integration	Set up job	2025-07-29T14:54:38.3428762Z ##[group]GITHUB_TOKEN Permissions
+asana_integration	Set up job	2025-07-29T14:54:38.3431129Z Actions: read
+asana_integration	Set up job	2025-07-29T14:54:38.3431699Z Contents: read
+asana_integration	Set up job	2025-07-29T14:54:38.3432273Z Metadata: read
+asana_integration	Set up job	2025-07-29T14:54:38.3432793Z PullRequests: write
+asana_integration	Set up job	2025-07-29T14:54:38.3433315Z ##[endgroup]
+asana_integration	Set up job	2025-07-29T14:54:38.3435313Z Secret source: Actions
+asana_integration	Set up job	2025-07-29T14:54:38.3436077Z Prepare workflow directory
+asana_integration	Set up job	2025-07-29T14:54:38.3752257Z Prepare all required actions
+asana_integration	Set up job	2025-07-29T14:54:38.3789344Z Getting action download info
+asana_integration	Set up job	2025-07-29T14:54:38.7260576Z ##[group]Download immutable action package 'actions/checkout@v4'
+asana_integration	Set up job	2025-07-29T14:54:38.7261682Z Version: 4.2.2
+asana_integration	Set up job	2025-07-29T14:54:38.7262705Z Digest: sha256:ccb2698953eaebd21c7bf6268a94f9c26518a7e38e27e0b83c1fe1ad049819b1
+asana_integration	Set up job	2025-07-29T14:54:38.7263880Z Source commit SHA: 11bd71901bbe5b1630ceea73d27597364c9af683
+asana_integration	Set up job	2025-07-29T14:54:38.7264603Z ##[endgroup]
+asana_integration	Set up job	2025-07-29T14:54:38.8851879Z Complete job name: asana_integration
+asana_integration	Checkout repository	﻿2025-07-29T14:54:38.9508056Z ##[group]Run actions/checkout@v4
+asana_integration	Checkout repository	2025-07-29T14:54:38.9508909Z with:
+asana_integration	Checkout repository	2025-07-29T14:54:38.9509323Z   repository: Metta-AI/metta
+asana_integration	Checkout repository	2025-07-29T14:54:38.9510154Z   token: ***
+asana_integration	Checkout repository	2025-07-29T14:54:38.9510555Z   ssh-strict: true
+asana_integration	Checkout repository	2025-07-29T14:54:38.9510955Z   ssh-user: git
+asana_integration	Checkout repository	2025-07-29T14:54:38.9511368Z   persist-credentials: true
+asana_integration	Checkout repository	2025-07-29T14:54:38.9511817Z   clean: true
+asana_integration	Checkout repository	2025-07-29T14:54:38.9512237Z   sparse-checkout-cone-mode: true
+asana_integration	Checkout repository	2025-07-29T14:54:38.9512722Z   fetch-depth: 1
+asana_integration	Checkout repository	2025-07-29T14:54:38.9513140Z   fetch-tags: false
+asana_integration	Checkout repository	2025-07-29T14:54:38.9513545Z   show-progress: true
+asana_integration	Checkout repository	2025-07-29T14:54:38.9513951Z   lfs: false
+asana_integration	Checkout repository	2025-07-29T14:54:38.9514328Z   submodules: false
+asana_integration	Checkout repository	2025-07-29T14:54:38.9514736Z   set-safe-directory: true
+asana_integration	Checkout repository	2025-07-29T14:54:38.9515417Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.0562744Z Syncing repository: Metta-AI/metta
+asana_integration	Checkout repository	2025-07-29T14:54:39.0564399Z ##[group]Getting Git version info
+asana_integration	Checkout repository	2025-07-29T14:54:39.0565061Z Working directory is '/home/runner/work/metta/metta'
+asana_integration	Checkout repository	2025-07-29T14:54:39.0565942Z [command]/usr/bin/git version
+asana_integration	Checkout repository	2025-07-29T14:54:39.0608166Z git version 2.50.1
+asana_integration	Checkout repository	2025-07-29T14:54:39.0633495Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.0647119Z Temporarily overriding HOME='/home/runner/work/_temp/8f8b837c-f444-46ca-ae1d-06f3d5d6844b' before making global git config changes
+asana_integration	Checkout repository	2025-07-29T14:54:39.0652137Z Adding repository directory to the temporary git global config as a safe directory
+asana_integration	Checkout repository	2025-07-29T14:54:39.0653410Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+asana_integration	Checkout repository	2025-07-29T14:54:39.0686194Z Deleting the contents of '/home/runner/work/metta/metta'
+asana_integration	Checkout repository	2025-07-29T14:54:39.0690546Z ##[group]Initializing the repository
+asana_integration	Checkout repository	2025-07-29T14:54:39.0694828Z [command]/usr/bin/git init /home/runner/work/metta/metta
+asana_integration	Checkout repository	2025-07-29T14:54:39.0758637Z hint: Using 'master' as the name for the initial branch. This default branch name
+asana_integration	Checkout repository	2025-07-29T14:54:39.0760283Z hint: is subject to change. To configure the initial branch name to use in all
+asana_integration	Checkout repository	2025-07-29T14:54:39.0761793Z hint: of your new repositories, which will suppress this warning, call:
+asana_integration	Checkout repository	2025-07-29T14:54:39.0763088Z hint:
+asana_integration	Checkout repository	2025-07-29T14:54:39.0763944Z hint: 	git config --global init.defaultBranch <name>
+asana_integration	Checkout repository	2025-07-29T14:54:39.0765003Z hint:
+asana_integration	Checkout repository	2025-07-29T14:54:39.0765995Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+asana_integration	Checkout repository	2025-07-29T14:54:39.0767936Z hint: 'development'. The just-created branch can be renamed via this command:
+asana_integration	Checkout repository	2025-07-29T14:54:39.0769243Z hint:
+asana_integration	Checkout repository	2025-07-29T14:54:39.0770145Z hint: 	git branch -m <name>
+asana_integration	Checkout repository	2025-07-29T14:54:39.0770916Z hint:
+asana_integration	Checkout repository	2025-07-29T14:54:39.0771910Z hint: Disable this message with "git config set advice.defaultBranchName false"
+asana_integration	Checkout repository	2025-07-29T14:54:39.0773612Z Initialized empty Git repository in /home/runner/work/metta/metta/.git/
+asana_integration	Checkout repository	2025-07-29T14:54:39.0776275Z [command]/usr/bin/git remote add origin https://github.com/Metta-AI/metta
+asana_integration	Checkout repository	2025-07-29T14:54:39.0805946Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.0807154Z ##[group]Disabling automatic garbage collection
+asana_integration	Checkout repository	2025-07-29T14:54:39.0810749Z [command]/usr/bin/git config --local gc.auto 0
+asana_integration	Checkout repository	2025-07-29T14:54:39.0838623Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.0840082Z ##[group]Setting up auth
+asana_integration	Checkout repository	2025-07-29T14:54:39.0846017Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+asana_integration	Checkout repository	2025-07-29T14:54:39.0876008Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+asana_integration	Checkout repository	2025-07-29T14:54:39.1127102Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+asana_integration	Checkout repository	2025-07-29T14:54:39.1156782Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+asana_integration	Checkout repository	2025-07-29T14:54:39.1373761Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+asana_integration	Checkout repository	2025-07-29T14:54:39.1415983Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.1416780Z ##[group]Fetching the repository
+asana_integration	Checkout repository	2025-07-29T14:54:39.1424897Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +77ba8aadd67c08fd2364798abc4b79d282c1e2ff:refs/remotes/pull/1774/merge
+asana_integration	Checkout repository	2025-07-29T14:54:39.7477496Z From https://github.com/Metta-AI/metta
+asana_integration	Checkout repository	2025-07-29T14:54:39.7480330Z  * [new ref]         77ba8aadd67c08fd2364798abc4b79d282c1e2ff -> pull/1774/merge
+asana_integration	Checkout repository	2025-07-29T14:54:39.7503891Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.7505245Z ##[group]Determining the checkout info
+asana_integration	Checkout repository	2025-07-29T14:54:39.7506797Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.7511504Z [command]/usr/bin/git sparse-checkout disable
+asana_integration	Checkout repository	2025-07-29T14:54:39.7551096Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+asana_integration	Checkout repository	2025-07-29T14:54:39.7581860Z ##[group]Checking out the ref
+asana_integration	Checkout repository	2025-07-29T14:54:39.7585321Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1774/merge
+asana_integration	Checkout repository	2025-07-29T14:54:39.9099238Z Note: switching to 'refs/remotes/pull/1774/merge'.
+asana_integration	Checkout repository	2025-07-29T14:54:39.9100627Z 
+asana_integration	Checkout repository	2025-07-29T14:54:39.9101482Z You are in 'detached HEAD' state. You can look around, make experimental
+asana_integration	Checkout repository	2025-07-29T14:54:39.9103285Z changes and commit them, and you can discard any commits you make in this
+asana_integration	Checkout repository	2025-07-29T14:54:39.9105047Z state without impacting any branches by switching back to a branch.
+asana_integration	Checkout repository	2025-07-29T14:54:39.9105981Z 
+asana_integration	Checkout repository	2025-07-29T14:54:39.9106667Z If you want to create a new branch to retain commits you create, you may
+asana_integration	Checkout repository	2025-07-29T14:54:39.9108144Z do so (now or later) by using -c with the switch command. Example:
+asana_integration	Checkout repository	2025-07-29T14:54:39.9108994Z 
+asana_integration	Checkout repository	2025-07-29T14:54:39.9109622Z   git switch -c <new-branch-name>
+asana_integration	Checkout repository	2025-07-29T14:54:39.9110726Z 
+asana_integration	Checkout repository	2025-07-29T14:54:39.9111187Z Or undo this operation with:
+asana_integration	Checkout repository	2025-07-29T14:54:39.9111852Z 
+asana_integration	Checkout repository	2025-07-29T14:54:39.9112229Z   git switch -
+asana_integration	Checkout repository	2025-07-29T14:54:39.9112773Z 
+asana_integration	Checkout repository	2025-07-29T14:54:39.9113589Z Turn off this advice by setting config variable advice.detachedHead to false
+asana_integration	Checkout repository	2025-07-29T14:54:39.9114758Z 
+asana_integration	Checkout repository	2025-07-29T14:54:39.9115906Z HEAD is now at 77ba8aa Merge 061d163aab14f12f028a36e880118314dbb01622 into 6932e08ffdb7e72a31b602634662fe4170fc143d
+asana_integration	Checkout repository	2025-07-29T14:54:39.9119463Z ##[endgroup]
+asana_integration	Checkout repository	2025-07-29T14:54:39.9151670Z [command]/usr/bin/git log -1 --format=%H
+asana_integration	Checkout repository	2025-07-29T14:54:39.9173855Z 77ba8aadd67c08fd2364798abc4b79d282c1e2ff
+asana_integration	Sync PR Task (GH to Asana)	﻿2025-07-29T14:54:39.9574076Z Prepare all required actions
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:39.9575544Z Getting action download info
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.1421428Z Download action repository 'astral-sh/setup-uv@v6' (SHA:e92bafb6253dcd438e0484186d7669ea7a8ca1cc)
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.4140897Z ##[group]Download immutable action package 'actions/upload-artifact@v4'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.4141425Z Version: 4.6.2
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.4141848Z Digest: sha256:290722aa3281d5caf23d0acdc3dbeb3424786a1a01a9cc97e72f147225e37c38
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.4142401Z Source commit SHA: ea165f8d65b6e75b540449e92b4886f43607fa02
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.4142811Z ##[endgroup]
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6025447Z ##[group]Run ./.github/actions/asana/pr_gh_to_asana
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6025866Z with:
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6026194Z   title: add a change so that a pull request can be created
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6026603Z   pr_state: open
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6026867Z   project_id: 1210348820405981
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6027174Z   workspace_id: 1209016784099267
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6027798Z   asana_token: ***
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6028195Z   github_url: https://github.com/Metta-AI/metta/pull/1774
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6028605Z   github_url_field_id: 1210578228718257
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6028939Z   roster_project_id: 1209948553419016
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6029264Z   gh_login_field_id: 1210594297567963
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6029581Z   asana_email_field_id: 1209050603577235
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6030247Z   pr_author_field_id: 1210679003513019
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6030826Z   asana_attachment_secret: ***
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6031130Z   pr_number: 1774
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6031406Z   github_repo: Metta-AI/metta
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6031877Z   github_token: ***
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6032147Z ##[endgroup]
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6158106Z ##[group]Run astral-sh/setup-uv@v6
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6158486Z with:
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6158765Z   version: 0.7.3
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6159566Z   enable-cache: true
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6160797Z   activate-environment: false
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6161334Z   working-directory: /home/runner/work/metta/metta
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6161782Z   server-url: https://github.com
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6162305Z   github-token: ***
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6162975Z   cache-dependency-glob: **/*requirements*.txt
+asana_integration	Sync PR Task (GH to Asana)	**/*requirements*.in
+asana_integration	Sync PR Task (GH to Asana)	**/*constraints*.txt
+asana_integration	Sync PR Task (GH to Asana)	**/*constraints*.in
+asana_integration	Sync PR Task (GH to Asana)	**/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	**/uv.lock
+asana_integration	Sync PR Task (GH to Asana)	
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6163662Z   prune-cache: true
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6163971Z   ignore-nothing-to-cache: false
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6164318Z   ignore-empty-workdir: false
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.6164638Z ##[endgroup]
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.8512921Z manifest-file not provided, reading from local file.
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:40.8555086Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.7.3/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.1704400Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/db529658-248e-4251-aac7-a7a6bf67612d -f /home/runner/work/_temp/ac4f93f4-9e32-49e1-8e62-ffde25a5c5ce
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5318902Z Added /home/runner/.local/bin to the path
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5331517Z Added /opt/hostedtoolcache/uv/0.7.3/x86_64 to the path
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5349282Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5349718Z Successfully installed uv version 0.7.3
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5351210Z Searching files using cache dependency glob: /home/runner/work/metta/metta/**/*requirements*.txt,/home/runner/work/metta/metta/**/*requirements*.in,/home/runner/work/metta/metta/**/*constraints*.txt,/home/runner/work/metta/metta/**/*constraints*.in,/home/runner/work/metta/metta/**/pyproject.toml,/home/runner/work/metta/metta/**/uv.lock
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5533962Z /home/runner/work/metta/metta/.github/actions/asana/pr_gh_to_asana/test/requirements.txt
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5678048Z /home/runner/work/metta/metta/agent/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5756703Z /home/runner/work/metta/metta/app_backend/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.5839202Z /home/runner/work/metta/metta/common/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.6757017Z /home/runner/work/metta/metta/experiments/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.7090235Z /home/runner/work/metta/metta/metta/setup/tools/codeclip/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.7145409Z /home/runner/work/metta/metta/mettagrid/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.7819692Z /home/runner/work/metta/metta/pyproject.toml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.8221906Z /home/runner/work/metta/metta/uv.lock
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.8237574Z Found 9 files to hash.
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:41.9244926Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.0271506Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1077448Z Received 1050256 of 1050256 (100.0%), 24.4 MBs/sec
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1078389Z Cache Size: ~1 MB (1050256 B)
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1102436Z [command]/usr/bin/tar -xf /home/runner/work/_temp/1938e8d0-313b-4eb1-bdd2-62ba9855dc26/cache.tzst -P -C /home/runner/work/metta/metta --use-compress-program unzstd
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1241992Z Cache restored successfully
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1249355Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1438946Z ##[group]Run uv run /home/runner/work/metta/metta/./.github/actions/asana/pr_gh_to_asana/pr_gh_to_asana.py
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1440038Z [36;1muv run /home/runner/work/metta/metta/./.github/actions/asana/pr_gh_to_asana/pr_gh_to_asana.py[0m
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1475869Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1476313Z env:
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1476624Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1477133Z   INPUT_TITLE: add a change so that a pull request can be created
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1477563Z   INPUT_PR_STATE: open
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1477845Z   INPUT_PROJECT_ID: 1210348820405981
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1478219Z   INPUT_WORKSPACE_ID: 1209016784099267
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1478877Z   INPUT_ASANA_TOKEN: ***
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1479298Z   INPUT_GITHUB_URL: https://github.com/Metta-AI/metta/pull/1774
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1479788Z   INPUT_GITHUB_URL_FIELD_ID: 1210578228718257
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1480321Z   INPUT_ROSTER_PROJECT_ID: 1209948553419016
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1480662Z   INPUT_GH_LOGIN_FIELD_ID: 1210594297567963
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1481016Z   INPUT_ASANA_EMAIL_FIELD_ID: 1209050603577235
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1481379Z   INPUT_PR_AUTHOR_FIELD_ID: 1210679003513019
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1481981Z   INPUT_ASANA_ATTACHMENT_SECRET: ***
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1482304Z   INPUT_PR_NUMBER: 1774
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1482588Z   INPUT_GITHUB_REPO: Metta-AI/metta
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1483050Z   INPUT_GITHUB_TOKEN: ***
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.1483335Z ##[endgroup]
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.2102309Z Downloading cpython-3.11.7-linux-x86_64-gnu (download) (28.0MiB)
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:42.7748899Z  Downloading cpython-3.11.7-linux-x86_64-gnu (download)
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:43.0486281Z Installed 11 packages in 5ms
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4347438Z VCR record mode: new_episodes
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4348546Z Starting VCR recording with cassette: http_interactions_16599697450.yaml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4349570Z Current working directory: /home/runner/work/metta/metta
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4350478Z Environment variable 'INPUT_PROJECT_ID' = '1210348820405981'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4351168Z Environment variable 'INPUT_WORKSPACE_ID' = '1209016784099267'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4352329Z Environment variable 'INPUT_ASANA_TOKEN' = '***'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4353142Z Environment variable 'INPUT_GITHUB_URL' = 'https://github.com/Metta-AI/metta/pull/1774'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4354024Z Environment variable 'INPUT_GITHUB_URL_FIELD_ID' = '1210578228718257'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4355017Z Environment variable 'INPUT_GH_LOGIN_FIELD_ID' = '1210594297567963'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4355628Z Environment variable 'INPUT_ASANA_EMAIL_FIELD_ID' = '1209050603577235'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4356225Z Environment variable 'INPUT_ROSTER_PROJECT_ID' = '1209948553419016'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4356977Z Environment variable 'INPUT_PR_AUTHOR_FIELD_ID' = '1210679003513019'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4357859Z Environment variable 'INPUT_ASANA_ATTACHMENT_SECRET' = '***'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4358362Z Environment variable 'INPUT_PR_NUMBER' = '1774'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4358850Z Environment variable 'INPUT_GITHUB_REPO' = 'Metta-AI/metta'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4359625Z Environment variable 'INPUT_GITHUB_TOKEN' = '***'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4360437Z github_login_to_asana_email: {'sasmith': 'sasmith@stem.ai', 'badjacent': 'mh.next@gmail.com'}
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4361059Z assignees: ['sasmith']
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4361344Z author: badjacent
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4361623Z reviewers: ['badjacent2']
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4361920Z commenters: []
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4362252Z github_logins: {'sasmith', 'badjacent2', 'badjacent'}
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4363637Z event stream: [{'type': 'review', 'timestamp': '2025-07-29T14:54:22Z', 'user': 'badjacent2', 'text': 'You checked in an empty file. Please fix this in one of the following ways:\r\n\r\n1. Add some contents to the file\r\n2. Delete the file\r\n3. Rename the file', 'action': 'changes_requested', 'id': 3067973019}]
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4365670Z last event: {'type': 'review', 'timestamp': '2025-07-29T14:54:22Z', 'user': 'badjacent2', 'text': 'You checked in an empty file. Please fix this in one of the following ways:\r\n\r\n1. Add some contents to the file\r\n2. Delete the file\r\n3. Rename the file', 'action': 'changes_requested', 'id': 3067973019}
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4366767Z [__init__] Initializing AsanaTask with project_id=1210348820405981, workspace_id=1209016784099267
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4367208Z Found 1 Asana URLs in description: 
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4367386Z 
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4367681Z [Asana Task](https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624)
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4368810Z [ensure] ensure() called with title='add a change so that a pull request can be created', github_url='https://github.com/Metta-AI/metta/pull/1774', urls=['https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624)']
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4369763Z [ensure] Checking 1 existing URLs for validation
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4370410Z [ensure] Validating URL: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624)
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4371426Z [validate] validate() called with url='https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624)', github_url='https://github.com/Metta-AI/metta/pull/1774'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4372536Z [extract_gid_from_url] extract_gid_from_url() called with task_url='https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624)'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4373242Z [extract_gid_from_url] Extracted GID using Format 2: 1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4373675Z [validate] Extracted GID: 1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4374174Z [validate] Making GET request to: https://app.asana.com/api/1.0/tasks/1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4374602Z [validate] Response status: 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4375133Z [validate] Task GitHub URL: 'https://github.com/Metta-AI/metta/pull/1774', expected: 'https://github.com/Metta-AI/metta/pull/1774'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4375659Z [validate] Task validation successful
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4376156Z [ensure] Found valid existing task: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4376881Z [ensure] Updating existing task: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4377440Z [update_if_needed] update_if_needed() called
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4377726Z [update_if_needed] Current vs new values:
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4378317Z   title: 'add a change so that a pull request can be created' vs 'add a change so that a pull request can be created'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4378740Z   notes: '
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4378839Z 
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4379096Z [Asana Task](https://app.asana.com/1/12090167840...' vs '
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4379316Z 
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4379437Z [Asana Task](https://app.asana.com/1/12090167840...'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4379727Z   completed: False vs False
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4380104Z   assignee: 'sasmith@stem.ai' vs 'mh.next@gmail.com'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4380434Z [update_if_needed] Changes detected, updating task
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4380953Z [update] update() called with gid='1210917200277624', title='add a change so that a pull request can be created', completed=False
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4382453Z [update] Updating task with payload: {'data': {'name': 'add a change so that a pull request can be created', 'notes': '\n\n[Asana Task](https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624)', 'completed': False, 'assignee': 'mh.next@gmail.com', 'custom_fields': {'1210578228718257': 'https://github.com/Metta-AI/metta/pull/1774', '1210679003513019': 'mh.next@gmail.com'}}}
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4383721Z [update] Update response status: 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4383984Z [update] Task updated successfully
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4384480Z [task_url.setter] Setting task_url to: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4385066Z [synchronize_comments_in_asana_as_multiple_blocks] Starting with:
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4385465Z [asana_comments_with_links] asana_comments_with_links() called
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4386097Z [extract_gid_from_url] extract_gid_from_url() called with task_url='https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4386738Z [extract_gid_from_url] Extracted GID using Format 2: 1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4387357Z [task_gid] Extracted task_gid: 1210917200277624 from URL: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4387981Z [get_comments] get_comments() called with task_id='1210917200277624'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4388458Z [get_comments] Making GET request to: https://app.asana.com/api/1.0/tasks/1210917200277624/stories
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4388889Z [get_comments] Get comments response status: 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4389221Z [get_comments] Found 0 comment stories out of 4 total stories
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4389541Z [get_comments] Processed 0 comments
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4389782Z comments in asana: []
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4390196Z [asana_comments_with_links] Found 0 comments with review links of 0
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4390533Z   asana_comments_with_links: 0 comments
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4390790Z   comments_from_github: 1 reviews
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4391337Z [extract_gid_from_url] extract_gid_from_url() called with task_url='https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624'
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4391980Z [extract_gid_from_url] Extracted GID using Format 2: 1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4392596Z [task_gid] Extracted task_gid: 1210917200277624 from URL: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4393149Z [s] Existing comments by review ID: []
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4393478Z [s] Processing review 3067973019 from badjacent2 (changes_requested)
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4393811Z VCR record mode: new_episodes
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4394070Z [s] Review 3067973019 has no existing Asana comment
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4394357Z [s] Adding new comment for review 3067973019
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4395301Z {'data': {'html_text': '<body><strong>Review from badjacent2 (ID 3067973019)</strong>: Changes Requested\nYou checked in an empty file. Please fix this in one of the following ways:\r\n\r\n1. Add some contents to the file\r\n2. Delete the file\r\n3. Rename the file</body>', 'type': 'comment'}}
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4396224Z Added new Asana comment for review 3067973019
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4396720Z Recorded 9 HTTP interactions in http_interactions_16599697450.yaml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4397141Z   1. GET https://api.github.com/repos/Metta-AI/metta/pulls/1774 -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4397693Z   2. GET https://api.github.com/repos/Metta-AI/metta/issues/1774/comments -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4398157Z   3. GET https://api.github.com/repos/Metta-AI/metta/pulls/1774/reviews -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4398616Z   4. GET https://api.github.com/repos/Metta-AI/metta/issues/1774/timeline -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4399176Z   5. GET https://app.asana.com/api/1.0/projects/1209948553419016/tasks?limit=100&opt_fields=custom_fields -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4400243Z   6. GET https://app.asana.com/api/1.0/tasks/1210917200277624?opt_fields=permalink_url%2Ccustom_fields%2Cname%2Cnotes%2Cmodified_at%2Ccompleted%2Cassignee.email%2Cfollowers.email%2Cprojects.gid -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4401067Z   7. PUT https://app.asana.com/api/1.0/tasks/1210917200277624 -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4401852Z   8. GET https://app.asana.com/api/1.0/tasks/1210917200277624/stories?opt_fields=text%2Chtml_text%2Ccreated_by.name%2Ccreated_by.email%2Ccreated_at%2Ctype%2Cresource_subtype%2Cis_pinned -> 200
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4402645Z   9. POST https://app.asana.com/api/1.0/tasks/1210917200277624/stories -> 201
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4708270Z ##[group]Run actions/upload-artifact@v4
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4708616Z with:
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4708821Z   name: http-interactions-16599697450
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4709090Z   path: http_interactions_*.yaml
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4709319Z   retention-days: 7
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4709529Z   if-no-files-found: warn
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4709749Z   compression-level: 6
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4710187Z   overwrite: false
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4710401Z   include-hidden-files: false
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4710644Z env:
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4710866Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.4711163Z ##[endgroup]
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.6815992Z With the provided path, there will be 1 file uploaded
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.6821781Z Artifact name is valid!
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.6822670Z Root directory input is valid!
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.8073078Z Beginning upload of artifact content to blob storage
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.8792810Z Uploaded bytes 12262
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.9010605Z Finished uploading artifact content to blob storage!
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.9015183Z SHA256 digest of uploaded artifact zip is 18fe587371cdbb21ccc1eee32e904ec930e12ad4f6c77b8e1e364b7955fdb901
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.9016916Z Finalizing artifact upload
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.9916285Z Artifact http-interactions-16599697450.zip successfully finalized. Artifact ID 3640052274
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.9918439Z Artifact http-interactions-16599697450 has been successfully uploaded! Final size is 12262 bytes. Artifact ID is 3640052274
+asana_integration	Sync PR Task (GH to Asana)	2025-07-29T14:54:47.9925361Z Artifact download URL: https://github.com/Metta-AI/metta/actions/runs/16599697450/artifacts/3640052274
+asana_integration	Sync PR Description (Asana to GH)	﻿2025-07-29T14:54:48.0051447Z Prepare all required actions
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.0051835Z Getting action download info
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1344805Z ##[group]Run ./.github/actions/asana/pr_description_asana_to_gh
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1345157Z with:
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1345365Z   pr_number: 1774
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1345590Z   repo: Metta-AI/metta
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1346000Z   token: ***
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1346413Z   task_url: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1346871Z env:
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1347128Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1347439Z ##[endgroup]
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1410878Z ##[group]Run astral-sh/setup-uv@v6
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1411154Z with:
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1411357Z   version: 0.7.3
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1411577Z   enable-cache: true
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1411817Z   activate-environment: false
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1412117Z   working-directory: /home/runner/work/metta/metta
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1412450Z   server-url: https://github.com
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1413054Z   github-token: ***
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1413571Z   cache-dependency-glob: **/*requirements*.txt
+asana_integration	Sync PR Description (Asana to GH)	**/*requirements*.in
+asana_integration	Sync PR Description (Asana to GH)	**/*constraints*.txt
+asana_integration	Sync PR Description (Asana to GH)	**/*constraints*.in
+asana_integration	Sync PR Description (Asana to GH)	**/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	**/uv.lock
+asana_integration	Sync PR Description (Asana to GH)	
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1414128Z   prune-cache: true
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1414368Z   ignore-nothing-to-cache: false
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1414643Z   ignore-empty-workdir: false
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1414898Z env:
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1415145Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.1415452Z ##[endgroup]
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.3788564Z Found uv in tool-cache for 0.7.3
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.3793376Z Added /home/runner/.local/bin to the path
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.3799319Z Added /opt/hostedtoolcache/uv/0.7.3/x86_64 to the path
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.3809413Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.3810078Z Successfully installed uv version 0.7.3
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.3811412Z Searching files using cache dependency glob: /home/runner/work/metta/metta/**/*requirements*.txt,/home/runner/work/metta/metta/**/*requirements*.in,/home/runner/work/metta/metta/**/*constraints*.txt,/home/runner/work/metta/metta/**/*constraints*.in,/home/runner/work/metta/metta/**/pyproject.toml,/home/runner/work/metta/metta/**/uv.lock
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.4051344Z /home/runner/work/metta/metta/.github/actions/asana/pr_gh_to_asana/test/requirements.txt
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.4228959Z /home/runner/work/metta/metta/agent/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.4322214Z /home/runner/work/metta/metta/app_backend/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.4406992Z /home/runner/work/metta/metta/common/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.5444212Z /home/runner/work/metta/metta/experiments/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.5763371Z /home/runner/work/metta/metta/metta/setup/tools/codeclip/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.5818606Z /home/runner/work/metta/metta/mettagrid/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.6391619Z /home/runner/work/metta/metta/pyproject.toml
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.6676878Z /home/runner/work/metta/metta/uv.lock
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.6693041Z Found 9 files to hash.
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.6944263Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.7904500Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.8835022Z Received 1644471 of 1644471 (100.0%), 27.0 MBs/sec
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.8836031Z Cache Size: ~2 MB (1644471 B)
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.8873476Z [command]/usr/bin/tar -xf /home/runner/work/_temp/fc4bd7a5-5854-47ba-bb9d-f5eb289d6d6b/cache.tzst -P -C /home/runner/work/metta/metta --use-compress-program unzstd
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9047132Z Cache restored successfully
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9057263Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9157787Z ##[group]Run uv run /home/runner/work/metta/metta/./.github/actions/asana/pr_description_asana_to_gh/pr_description_asana_to_gh.py
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9159029Z [36;1muv run /home/runner/work/metta/metta/./.github/actions/asana/pr_description_asana_to_gh/pr_description_asana_to_gh.py[0m
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9189116Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9189583Z env:
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9190082Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9190537Z   INPUT_REPO: Metta-AI/metta
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9190878Z   INPUT_PR_NUMBER: 1774
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9191503Z   INPUT_TASK_URL: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9192406Z   INPUT_TOKEN: ***
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:48.9192698Z ##[endgroup]
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:49.0062769Z Installed 5 packages in 6ms
+asana_integration	Sync PR Description (Asana to GH)	2025-07-29T14:54:50.1725053Z Updating PR description for Metta-AI/metta #1774 with task https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	Post Sync PR Description (Asana to GH)	﻿2025-07-29T14:54:50.1958256Z Post job cleanup.
+asana_integration	Post Sync PR Description (Asana to GH)	2025-07-29T14:54:50.1997538Z Post job cleanup.
+asana_integration	Post Sync PR Description (Asana to GH)	2025-07-29T14:54:50.3532199Z Cache hit occurred on key setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c, not saving cache.
+asana_integration	Post Sync PR Task (GH to Asana)	﻿2025-07-29T14:54:50.3646934Z Post job cleanup.
+asana_integration	Post Sync PR Task (GH to Asana)	2025-07-29T14:54:50.3685950Z Post job cleanup.
+asana_integration	Post Sync PR Task (GH to Asana)	2025-07-29T14:54:50.5224800Z Cache hit occurred on key setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c, not saving cache.
+asana_integration	Post Checkout repository	﻿2025-07-29T14:54:50.5380357Z Post job cleanup.
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6305329Z [command]/usr/bin/git version
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6340666Z git version 2.50.1
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6387716Z Temporarily overriding HOME='/home/runner/work/_temp/0215e096-3cc2-4428-86ea-e48f7e80722e' before making global git config changes
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6389223Z Adding repository directory to the temporary git global config as a safe directory
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6392788Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6425196Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6456185Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6678913Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6699420Z http.https://github.com/.extraheader
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6712873Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+asana_integration	Post Checkout repository	2025-07-29T14:54:50.6741885Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+asana_integration	Complete job	﻿2025-07-29T14:54:50.7086266Z Cleaning up orphan processes
