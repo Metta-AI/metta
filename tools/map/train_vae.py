@@ -97,7 +97,7 @@ def main():
     parser.add_argument("file_path", type=str, help="Path to the JSON file.")
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
+    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate.")
     args = parser.parse_args()
 
     dataset = MapDataset(args.file_path)
