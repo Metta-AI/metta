@@ -44,13 +44,6 @@ _PATTERNS = [
 #........#
 ##########
 """,
-    """
-..#..
-.###.
-#####
-.###.
-..#..
-""",
     "....\n.##.\n.##.\n....",
     "#####\n#...#\n#...#\n#####",
 ]
@@ -163,8 +156,8 @@ def generate_wfc_scene_params(rng) -> dict:
         "pattern_size": rng.integers(2, 4),
         "next_node_heuristic": rng.choice(["scanline", "mrv", "entropy"]),
         "periodic_input": rng.choice([True, False]),
-        "symmetry": rng.choice(["all", "x", "y", "xy", "none"]),
-        "attempts": 10,
+        "symmetry": rng.choice(["all", "horizontal", "none"]),
+        "attempts": rng.integers(50, 200),
     }
 
 
@@ -208,9 +201,5 @@ SCENE_GENERATORS: Dict[str, Dict[str, Any]] = {
     "room_grid": {
         "params_fn": generate_room_grid_scene_params,
         "class_path": "metta.map.scenes.room_grid.RoomGrid",
-    },
-    "wfc": {
-        "params_fn": generate_wfc_scene_params,
-        "class_path": "metta.map.scenes.wfc.WFC",
     },
 }
