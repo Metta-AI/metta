@@ -25,7 +25,7 @@ def _init_process_group() -> bool:
     return True
 
 
-def run_once(fn: Callable[[], T], destroy_on_finish: bool = True) -> T:
+def run_once(fn: Callable[[], T]) -> T:
     """Run ``fn`` only on rank 0 and broadcast the result.
 
     If ``torch.distributed`` is not initialized, this function will attempt to
@@ -35,9 +35,6 @@ def run_once(fn: Callable[[], T], destroy_on_finish: bool = True) -> T:
 
     Args:
         fn: Function to run only on rank 0
-        destroy_on_finish: Whether to destroy the process group after execution.
-                          Set to False when using external distributed frameworks
-                          like SkyPilot that manage the process group lifecycle.
     """
     group_initialized = _init_process_group()
     if dist.is_initialized():
@@ -52,7 +49,7 @@ def run_once(fn: Callable[[], T], destroy_on_finish: bool = True) -> T:
         dist.broadcast_object_list(result_list, src=0)
         result = result_list[0]
 
-    if group_initialized and destroy_on_finish:
+    if group_initialized:
         dist.destroy_process_group()
 
     assert result is not None  # This should always be true after broadcast
