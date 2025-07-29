@@ -191,11 +191,7 @@ def train(
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
-        logger.info(f"Rank {rank}: About to initialize DistributedDataParallel on device {device}")
-        logger.info(f"Rank {rank}: Policy type before wrapping: {type(policy)}")
-        logger.info(
-            f"Rank {rank}: device: {next(policy.parameters()).device if hasattr(policy, 'parameters') else 'N/A'}"
-        )
+        logger.info(f"Initializing DistributedDataParallel on device {device}")
 
         # Ensure all ranks are ready before wrapping
         torch.distributed.barrier()
@@ -203,7 +199,7 @@ def train(
         # Use the wrap_agent_distributed function which handles CPU vs GPU correctly
         policy = wrap_agent_distributed(policy, device)
 
-        logger.info(f"Rank {rank}: Successfully wrapped policy for distributed training")
+        # Ensure all ranks have wrapped before proceeding
         torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
