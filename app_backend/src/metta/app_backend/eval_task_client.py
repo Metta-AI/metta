@@ -68,11 +68,6 @@ class EvalTaskClient:
         if filters is None:
             filters = TaskFilterParams()
 
-        # Convert the Pydantic model to dict and remove None values
-        params = filters.model_dump(exclude_none=True)
-
-        # Convert UUIDs to strings if present
-        if filters.policy_ids is not None:
-            params["policy_ids"] = [str(pid) for pid in filters.policy_ids]
-
-        return await self._make_request(TasksResponse, "GET", "/tasks/all", params=params)
+        return await self._make_request(
+            TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
+        )

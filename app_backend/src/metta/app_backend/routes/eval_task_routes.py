@@ -150,14 +150,18 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/all", response_model=TasksResponse)
     @timed_http_handler
     async def get_all_tasks(
-        filters: TaskFilterParams = Depends(),
+        limit: int = Query(default=500, ge=1, le=1000),
+        statuses: list[str] | None = Query(default=None),
+        git_hash: str | None = Query(default=None),
+        policy_ids: list[uuid.UUID] | None = Query(default=None),
+        sim_suites: list[str] | None = Query(default=None),
     ) -> TasksResponse:
         tasks = await stats_repo.get_all_tasks(
-            limit=filters.limit,
-            statuses=filters.statuses,
-            git_hash=filters.git_hash,
-            policy_ids=filters.policy_ids,
-            sim_suites=filters.sim_suites,
+            limit=limit,
+            statuses=statuses,
+            git_hash=git_hash,
+            policy_ids=policy_ids,
+            sim_suites=sim_suites,
         )
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)

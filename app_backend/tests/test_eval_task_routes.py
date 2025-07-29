@@ -398,11 +398,14 @@ class TestEvalTaskRoutes:
         # Create tasks with different attributes
         created_tasks = []
 
+        # Use unique test prefix to avoid conflicts with other tests
+        test_prefix = f"filter_test_{uuid.uuid4().hex[:8]}"
+
         # Task 1: unprocessed, git_hash_1, policy_1, suite_navigation
         task1 = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
-                git_hash="git_hash_1",
+                git_hash=f"{test_prefix}_git_hash_1",
                 sim_suite="navigation",
             )
         )
@@ -412,7 +415,7 @@ class TestEvalTaskRoutes:
         task2 = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
-                git_hash="git_hash_2",
+                git_hash=f"{test_prefix}_git_hash_2",
                 sim_suite="memory",
             )
         )
@@ -422,7 +425,7 @@ class TestEvalTaskRoutes:
         task3 = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
-                git_hash="git_hash_1",
+                git_hash=f"{test_prefix}_git_hash_1",
                 sim_suite="navigation",
             )
         )
@@ -433,7 +436,7 @@ class TestEvalTaskRoutes:
         task4 = await eval_task_client.create_task(
             TaskCreateRequest(
                 policy_id=test_policy_id,
-                git_hash="git_hash_1",
+                git_hash=f"{test_prefix}_git_hash_1",
                 sim_suite="navigation",
             )
         )
@@ -450,13 +453,14 @@ class TestEvalTaskRoutes:
         filters = TaskFilterParams(statuses=["unprocessed"], limit=100)
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
+
         assert task1.id in task_ids
         assert task2.id in task_ids
         assert task3.id in task_ids  # claimed but still unprocessed
         assert task4.id not in task_ids  # done status
 
         # Test 2: Filter by git_hash
-        filters = TaskFilterParams(git_hash="git_hash_1", limit=100)
+        filters = TaskFilterParams(git_hash=f"{test_prefix}_git_hash_1", limit=100)
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
         assert task1.id in task_ids
@@ -481,7 +485,7 @@ class TestEvalTaskRoutes:
 
         # Test 5: Combined filters
         filters = TaskFilterParams(
-            statuses=["unprocessed"], git_hash="git_hash_1", sim_suites=["navigation"], limit=100
+            statuses=["unprocessed"], git_hash=f"{test_prefix}_git_hash_1", sim_suites=["navigation"], limit=100
         )
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
@@ -690,7 +694,7 @@ class TestEvalTaskRoutes:
                 await eval_task_client.update_task_status(
                     TaskUpdateRequest(
                         require_assignee="sql_test_worker",
-                        updates={task.id: TaskStatusUpdate(status=status)},
+                        updates={task.id: TaskStatusUpdate(status=status)},  # type: ignore
                     )
                 )
 
