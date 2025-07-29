@@ -1,3 +1,22 @@
+/* Force the layout to take the full window. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+#layout-container {
+  height: 100vh;
+  width: 100vw;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
 /* Layout container styles */
 .layout-container {
   display: flex;

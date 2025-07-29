@@ -245,7 +245,12 @@ export class Pane {
   private performSplit(draggedTab: Tab, dropZone: DropZone): void {
     // Find the parent layout that contains this pane.
     const parentLayout = this.parent
-    if (!parentLayout) return
+    if (!parentLayout) {
+      return
+    }
+
+    // Mark all layouts in the hierarchy as being in a split operation.
+    parentLayout.markSplitOperationInProgress(parentLayout, true)
 
     // Determine split direction based on drop zone.
     const isHorizontalSplit = dropZone === DropZone.LEFT || dropZone === DropZone.RIGHT
@@ -259,7 +264,10 @@ export class Pane {
 
     // Find the index of this pane in the parent layout.
     const paneIndex = parentLayout.children.indexOf(this)
-    if (paneIndex === -1) return
+    if (paneIndex === -1) {
+      parentLayout.markSplitOperationInProgress(parentLayout, false)
+      return
+    }
 
     // If parent layout has the same direction as our split, just insert the new pane.
     if (parentLayout.direction === newDirection) {
@@ -284,6 +292,10 @@ export class Pane {
       // Insert the nested layout at the original position.
       parentLayout.insertChild(nestedLayout, paneIndex)
     }
+
+    // Clear the split operation flag and check for any needed simplification.
+    parentLayout.markSplitOperationInProgress(parentLayout, false)
+    parentLayout.checkSimplificationAfterSplit(parentLayout)
   }
 
   private toggleDropdown(): void {
@@ -462,6 +474,7 @@ export class Layout {
   private dragSplitterIndex: number = -1
   private startPosition: number = 0
   private startSizes: number[] = []
+  private isInSplitOperation: boolean = false
 
   constructor(container: HTMLElement, direction: LayoutDirection = LayoutDirection.HORIZONTAL) {
     this.container = container
@@ -474,10 +487,17 @@ export class Layout {
   }
 
   private render(): void {
-    this.container.innerHTML = `
-      <div class="layout-container ${this.direction}">
-      </div>
-    `
+    // Only create the layout-container if it doesn't exist
+    let layoutContainer = this.container.querySelector('.layout-container') as HTMLElement
+    if (!layoutContainer) {
+      this.container.innerHTML = `
+        <div class="layout-container ${this.direction}">
+        </div>
+      `
+    } else {
+      // Update the direction class if container already exists
+      layoutContainer.className = `layout-container ${this.direction}`
+    }
   }
 
   public addChild(child: LayoutChild): void {
@@ -499,8 +519,8 @@ export class Layout {
       child.parent = null
       this.updateLayout()
 
-      // If this layout is now empty or has only one child, check if we need cleanup.
-      if (this.children.length <= 1) {
+      // Only check for simplification if we're not in the middle of a split operation.
+      if (!this.isInSplitOperation && this.children.length <= 1) {
         this.checkForSimplification()
       }
     }
@@ -566,7 +586,7 @@ export class Layout {
         // For Panes, append their existing element to the new container.
         childContainer.appendChild(child.element)
       } else {
-        // For nested Layouts, update their container and re-render.
+        // For nested Layouts, set container and ensure proper rendering.
         child.setContainer(childContainer)
         child.render()
         child.updateLayout()
@@ -620,11 +640,17 @@ export class Layout {
 
       if (newLeftSize >= minSize && newRightSize >= minSize) {
         const totalFlexibleSize = containerSize - this.splitters.length * splitterSize
-        const leftFlex = newLeftSize / totalFlexibleSize
-        const rightFlex = newRightSize / totalFlexibleSize
 
-        this.childContainers[leftIndex].style.flex = `${leftFlex}`
-        this.childContainers[rightIndex].style.flex = `${rightFlex}`
+        // Calculate new sizes for all containers
+        const newSizes = [...this.startSizes]
+        newSizes[leftIndex] = newLeftSize
+        newSizes[rightIndex] = newRightSize
+
+        // Update flex values for all containers to maintain proper ratios
+        newSizes.forEach((size, index) => {
+          const flex = size / totalFlexibleSize
+          this.childContainers[index].style.flex = `${flex}`
+        })
       }
     })
 
@@ -648,6 +674,26 @@ export class Layout {
     this.container = container
     // Store reference to this layout instance on the new container.
     ;(this.container as any).layoutInstance = this
+  }
+
+  public markSplitOperationInProgress(layout: Layout, inProgress: boolean): void {
+    // Mark this layout and walk up the hierarchy.
+    let current: Layout | null = layout
+    while (current) {
+      current.isInSplitOperation = inProgress
+      current = current.parent
+    }
+  }
+
+  public checkSimplificationAfterSplit(layout: Layout): void {
+    // Check the entire hierarchy for needed simplification now that split is complete.
+    let current: Layout | null = layout
+    while (current) {
+      if (current.children.length <= 1) {
+        current.checkForSimplification()
+      }
+      current = current.parent
+    }
   }
 }
 
