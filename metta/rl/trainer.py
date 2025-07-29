@@ -309,19 +309,16 @@ def create_master_trainer_components(
     return memory_monitor, system_monitor
 
 
-def log_master(message: str, level: str = "info", is_master: bool = True) -> None:
-    """Log a message only on the master node.
-
-    Args:
-        message: The message to log
-        level: The log level ('debug', 'info', 'warning', 'error', 'critical')
-        is_master: Whether this is the master rank
-    """
-    if not is_master:
-        return
-
-    log_func = getattr(logger, level, logger.info)
-    log_func(message)
+def _create_initial_policy_record(
+    policy_store: Any,
+    initial_policy_uri: str | None,
+    initial_generation: int,
+) -> Any | None:
+    """Create a minimal PolicyRecord for stats tracking."""
+    if not initial_policy_uri:
+        return None
+    metadata = PolicyMetadata(generation=initial_generation)
+    return PolicyRecord(policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata)
 
 
 def log_training_status(
@@ -397,7 +394,8 @@ def train(
         stats_client=stats_client,
     )
 
-    log_master("Starting training", is_master=is_master)
+    if is_master:
+        logger.info("Starting training")
 
     # Create master-only components
     memory_monitor, system_monitor = create_master_trainer_components(
@@ -410,16 +408,11 @@ def train(
 
     # Initialize stats tracking
     if stats_client is not None:
-        if wandb_run is not None:
-            name = wandb_run.name if wandb_run.name is not None else "unknown"
-            url = wandb_run.url
-            tags = list(wandb_run.tags) if wandb_run.tags is not None else None
-            description = wandb_run.notes
-        else:
-            name = "unknown"
-            url = None
-            tags = None
-            description = None
+        # Extract wandb attributes with defaults
+        name = getattr(wandb_run, "name", "unknown") or "unknown"
+        url = getattr(wandb_run, "url", None)
+        tags = list(wandb_run.tags) if wandb_run and wandb_run.tags else None
+        description = getattr(wandb_run, "notes", None)
 
         try:
             stats_tracker.stats_run_id = stats_client.create_training_run(
@@ -428,7 +421,8 @@ def train(
         except Exception as e:
             logger.warning(f"Failed to create training run: {e}")
 
-    log_master(f"Training on {device}", is_master=is_master)
+    if is_master:
+        logger.info(f"Training on {device}")
     wandb_policy_name: str | None = None
 
     # Main training loop
@@ -462,14 +456,10 @@ def train(
         # Process stats
         with timer("_process_stats"):
             if is_master and wandb_run:
-                # Create temporary initial_policy_record for process_stats
-                initial_policy_record = None
-                if initial_policy_uri:
-                    # Create a minimal PolicyRecord for stats tracking
-                    metadata = PolicyMetadata(generation=initial_generation)
-                    initial_policy_record = PolicyRecord(
-                        policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
-                    )
+                # Create initial policy record for process_stats
+                initial_policy_record = _create_initial_policy_record(
+                    policy_store, initial_policy_uri, initial_generation
+                )
 
                 process_stats(
                     stats=stats_tracker.rollout_stats,
@@ -516,13 +506,8 @@ def train(
 
         # Save policy
         if checkpoint_manager.should_checkpoint(epoch):
-            # Create initial policy record for metadata if needed
-            initial_policy_record = None
-            if initial_policy_uri:
-                metadata = PolicyMetadata(generation=initial_generation)
-                initial_policy_record = PolicyRecord(
-                    policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
-                )
+            # Create initial policy record for metadata
+            initial_policy_record = _create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
 
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
@@ -651,21 +636,16 @@ def train(
                     )
                 break
 
-    log_master("Training complete!", is_master=is_master)
-    timing_summary = timer.get_all_summaries()
-
-    for name, summary in timing_summary.items():
-        log_master(f"  {name}: {timer.format_time(summary['total_elapsed'])}", is_master=is_master)
+    if is_master:
+        logger.info("Training complete!")
+        timing_summary = timer.get_all_summaries()
+        for name, summary in timing_summary.items():
+            logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
     # Force final saves
     if is_master:
-        # Create initial policy record for metadata if needed
-        initial_policy_record = None
-        if initial_policy_uri:
-            metadata = PolicyMetadata(generation=initial_generation)
-            initial_policy_record = PolicyRecord(
-                policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
-            )
+        # Create initial policy record for metadata
+        initial_policy_record = _create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
 
         saved_record = checkpoint_manager.save_policy(
             policy=policy,

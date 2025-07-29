@@ -240,16 +240,15 @@ class CheckpointManager:
         # Build metadata
         name = self.policy_store.make_model_name(epoch)
 
-        # Extract average reward from evals
-        # Handle both EvalRewardSummary object and dict
+        # Extract average reward and scores from evals
         avg_reward = 0.0
-        score = 0.0  # Aggregated score for sweep evaluation
+        score = 0.0
         evals_dict = {}
+
         if evals:
             if hasattr(evals, "avg_category_score"):
-                # It's an EvalRewardSummary object
-                avg_reward = evals.avg_category_score if evals.avg_category_score is not None else 0.0
-                # Calculate aggregated score for sweep evaluation
+                # EvalRewardSummary object
+                avg_reward = getattr(evals, "avg_category_score", 0.0) or 0.0
                 category_scores = list(evals.category_scores.values())
                 score = float(np.mean(category_scores)) if category_scores else 0.0
                 evals_dict = {
@@ -261,11 +260,11 @@ class CheckpointManager:
                     "avg_simulation_score": evals.avg_simulation_score,
                 }
             else:
-                # It's a dict
-                avg_reward = sum(v for k, v in evals.items() if k.endswith("/score")) / max(
-                    1, len([k for k in evals.keys() if k.endswith("/score")])
-                )
-                score = avg_reward  # Use avg_reward as score for dict case
+                # Dict format
+                score_keys = [k for k in evals.keys() if k.endswith("/score")]
+                if score_keys:
+                    avg_reward = sum(evals[k] for k in score_keys) / len(score_keys)
+                score = avg_reward
                 evals_dict = evals
 
         metadata = {

@@ -150,25 +150,6 @@ def log_training_progress(
         )
 
 
-def calculate_steps_per_second(
-    agent_step: int,
-    steps_before: int,
-    total_time: float,
-) -> float:
-    """Calculate training steps per second.
-
-    Args:
-        agent_step: Current agent step
-        steps_before: Agent step before epoch
-        total_time: Total time for epoch
-
-    Returns:
-        Steps per second
-    """
-    steps_calculated = agent_step - steps_before
-    return steps_calculated / total_time if total_time > 0 else 0
-
-
 def get_epoch_timing(timer: Stopwatch) -> Tuple[float, float, float]:
     """Get timing breakdown for the last epoch.
 
@@ -183,46 +164,3 @@ def get_epoch_timing(timer: Stopwatch) -> Tuple[float, float, float]:
     stats_time = timer.get_last_elapsed("_process_stats")
 
     return rollout_time, train_time, stats_time
-
-
-def create_policy_store_config(
-    device: torch.device,
-    run_name: str,
-    run_dir: str,
-    trainer_config: Any,
-    wandb_ctx: Any = None,
-) -> dict:
-    """Create policy store configuration.
-
-    Args:
-        device: Training device
-        run_name: Run name
-        run_dir: Run directory
-        trainer_config: Trainer configuration
-        wandb_ctx: Optional WandB context
-
-    Returns:
-        Policy store configuration dict
-    """
-    config = {
-        "device": str(device),
-        "policy_cache_size": 10,
-        "run": run_name,
-        "run_dir": run_dir,
-        "vectorization": "serial",  # Will be updated when env is created
-        "trainer": trainer_config.model_dump() if hasattr(trainer_config, "model_dump") else trainer_config,
-    }
-
-    # Add wandb config if available
-    if wandb_ctx and hasattr(wandb_ctx, "cfg"):
-        try:
-            wandb_cfg = wandb_ctx.cfg
-            if hasattr(wandb_cfg, "enabled") and wandb_cfg.enabled:
-                config["wandb"] = {
-                    "entity": getattr(wandb_cfg, "entity", None),
-                    "project": getattr(wandb_cfg, "project", None),
-                }
-        except AttributeError:
-            pass
-
-    return config
