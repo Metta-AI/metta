@@ -51,12 +51,11 @@ export class Pane {
   }
 
   private render(): void {
+    this.element.className = 'pane'
     this.element.innerHTML = `
-            <div class="pane">
-                <div class="tab-bar"></div>
-                <div class="tab-content"></div>
-            </div>
-        `
+        <div class="tab-bar"></div>
+        <div class="tab-content"></div>
+    `
 
     this.tabBarElement = this.element.querySelector('.tab-bar') as HTMLElement
     this.contentElement = this.element.querySelector('.tab-content') as HTMLElement

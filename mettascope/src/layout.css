@@ -19,6 +19,7 @@
   min-height: 200px;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 /* Legacy split-container support */
@@ -84,6 +85,7 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 }
 
 .tab-bar {
@@ -118,6 +120,7 @@
   padding: 16px;
   background: #1e1e1e;
   overflow: auto;
+  min-height: 0;
 }
 
 .add-tab-container {
