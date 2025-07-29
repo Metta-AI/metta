@@ -34,8 +34,8 @@ else
     exit 2
 fi
 
-readonly FILES_TO_CHECK=$(find src -name '*.tsx' -o -name '*.ts' -o -name '*.jsx' -o -name '*.js')
-readonly CURRENT_MD5SUMS=$($MD5_CMD $FILES_TO_CHECK 2>/dev/null | sort)
+readonly FILES_TO_CHECK=$(find src -name '*.tsx' -o -name '*.ts' -o -name '*.jsx' -o -name '*.js' | sort)
+readonly CURRENT_MD5SUMS=$($MD5_CMD $FILES_TO_CHECK 2>/dev/null)
 
 # Build the project and save the md5sums
 build_and_save() {
