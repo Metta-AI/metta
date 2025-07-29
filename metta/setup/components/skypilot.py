@@ -7,7 +7,9 @@ from metta.setup.utils import info, success
 
 @register_module
 class SkypilotSetup(SetupModule):
-    install_once = True
+    install_once = False
+
+    softmax_url = "skypilot-api.softmax-research.net"
 
     def dependencies(self) -> list[str]:
         return ["aws"]
@@ -28,9 +30,9 @@ class SkypilotSetup(SetupModule):
 
     def _check_gh_auth(self) -> bool:
         try:
-            result = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True)
+            result = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, timeout=2)
             return result.returncode == 0
-        except FileNotFoundError:
+        except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
     @property
@@ -53,15 +55,22 @@ class SkypilotSetup(SetupModule):
                 info("GitHub authentication may have been cancelled or failed.")
                 info("You can complete it later with: gh auth login")
 
-        if self.config.user_type.is_softmax:
-            super().install()
-            success("SkyPilot installed")
+        connected_as = self.check_connected_as()
+        if connected_as == self.softmax_url:
+            info("SkyPilot is already configured for a softmax user. Skipping authentication.")
+        elif connected_as == "configured":
+            info("SkyPilot is already configured for external use. Skipping authentication.")
         else:
-            info("""
-                To use SkyPilot with your own AWS account:
-                  1. Ensure AWS credentials are configured
-                  2. Authenticate with uv run sky api login
-            """)
+            # Need to authenticate skypilot.
+            if self.config.user_type.is_softmax:
+                super().install()
+                success("SkyPilot installed")
+            else:
+                info("""
+                    To use SkyPilot with your own AWS account:
+                    1. Ensure AWS credentials are configured
+                    2. Authenticate with uv run sky api login
+                """)
 
     def check_connected_as(self) -> str | None:
         if not self.check_installed():
@@ -69,21 +78,20 @@ class SkypilotSetup(SetupModule):
 
         if self.config.user_type.is_softmax:
             try:
-                result = subprocess.run(["sky", "api", "info"], capture_output=True, text=True)
-                softmax_url = "skypilot-api.softmax-research.net"
+                result = subprocess.run(["uv", "run", "sky", "api", "info"], capture_output=True, text=True)
 
                 if result.returncode == 0:
-                    if softmax_url in result.stdout:
+                    if self.softmax_url in result.stdout:
                         if "healthy" in result.stdout.lower():
-                            return f"{softmax_url}"
+                            return f"{self.softmax_url}"
                         else:
-                            return f"{softmax_url} (unhealthy)"
+                            return f"{self.softmax_url} (unhealthy)"
                 return None
             except Exception:
                 return None
         else:
             try:
-                result = subprocess.run(["sky", "check"], capture_output=True, text=True)
+                result = subprocess.run(["uv", "run", "sky", "check"], capture_output=True, text=True)
                 if result.returncode == 0:
                     return "configured"
                 return None

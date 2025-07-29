@@ -1,24 +1,42 @@
 import json
 import logging
 import subprocess
+from pathlib import Path
+
+import httpx
+
+from metta.common.util.memoization import memoize
 
 
 class GitError(Exception):
     """Custom exception for git-related errors."""
 
 
-METTA_API_REPO_URL = "https://github.com/Metta-AI/metta.git"
+METTA_API_REPO = "Metta-AI/metta"
+METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
 
 
-def run_git(*args: str) -> str:
-    """Run a git command and return its output."""
+def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
+    """Run a git command with optional working directory and return its output."""
     try:
-        result = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            ["git", *args], capture_output=True, text=True, check=True, cwd=str(cwd) if cwd else None
+        )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
     except FileNotFoundError as e:
         raise GitError("Git is not installed!") from e
+
+
+def run_git(*args: str) -> str:
+    """Run a git command and return its output."""
+    return run_git_with_cwd(list(args))
+
+
+def run_git_in_dir(cwd: str | Path, *args: str) -> str:
+    """Run a git command in a specific directory and return its output."""
+    return run_git_with_cwd(list(args), cwd)
 
 
 def run_gh(*args: str) -> str:
@@ -177,3 +195,74 @@ def get_git_hash_for_remote_task(
             logger.warning(f"Proceeding with unpushed commit {short_commit} due to {skip_cmd}")
 
     return current_commit
+
+
+@memoize(max_age=60 * 5)
+async def get_latest_commit(branch: str = "main") -> str:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.github.com/repos/{METTA_API_REPO}/commits/{branch}",
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
+        response.raise_for_status()
+        commit_data = response.json()
+        return commit_data["sha"]
+
+
+def get_file_list(repo_path: Path | None = None, ref: str = "HEAD") -> list[str]:
+    """Get list of all files in repository."""
+    try:
+        if repo_path:
+            # First check if ref exists
+            run_git_in_dir(repo_path, "rev-parse", "--verify", ref)
+            # If ref exists, list files
+            output = run_git_in_dir(repo_path, "ls-tree", "-r", "--name-only", ref)
+        else:
+            # First check if ref exists
+            run_git("rev-parse", "--verify", ref)
+            # If ref exists, list files
+            output = run_git("ls-tree", "-r", "--name-only", ref)
+        return output.split("\n") if output else []
+    except GitError as e:
+        # If ref doesn't exist (empty repo), return empty list
+        if "Not a valid object name" in str(e) or "bad revision" in str(e) or "Needed a single revision" in str(e):
+            return []
+        raise
+
+
+def get_commit_count(repo_path: Path | None = None) -> int:
+    """Get total number of commits."""
+    try:
+        if repo_path:
+            # First check if HEAD exists
+            run_git_in_dir(repo_path, "rev-parse", "--verify", "HEAD")
+            # If HEAD exists, count commits
+            result = run_git_in_dir(repo_path, "rev-list", "--count", "HEAD")
+        else:
+            # First check if HEAD exists
+            run_git("rev-parse", "--verify", "HEAD")
+            # If HEAD exists, count commits
+            result = run_git("rev-list", "--count", "HEAD")
+        return int(result)
+    except GitError as e:
+        # If HEAD doesn't exist (empty repo), return 0
+        if "Not a valid object name" in str(e) or "bad revision" in str(e) or "Needed a single revision" in str(e):
+            return 0
+        raise
+
+
+def add_remote(name: str, url: str, repo_path: Path | None = None):
+    """Add a remote repository."""
+    # Try to remove first in case it exists
+    try:
+        if repo_path:
+            run_git_in_dir(repo_path, "remote", "remove", name)
+        else:
+            run_git("remote", "remove", name)
+    except GitError:
+        pass  # Ignore if it doesn't exist
+
+    if repo_path:
+        run_git_in_dir(repo_path, "remote", "add", name, url)
+    else:
+        run_git("remote", "add", name, url)

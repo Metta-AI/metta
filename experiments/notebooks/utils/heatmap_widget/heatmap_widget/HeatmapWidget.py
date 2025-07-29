@@ -19,13 +19,9 @@ bundled_assets_dir = pathlib.Path(__file__).parent / "static"
 src_dir = pathlib.Path(__file__).parent / "../src"
 
 if _DEV:
-    # from `npx vite`
     ESM = "http://localhost:5174/src/index.js?anywidget"
-    print("DEV MODE")
 else:
-    # from `npx vite build`
     ESM = (bundled_assets_dir / "index.js").read_text()
-    print("PRODUCTION MODE")
 
 CSS = (src_dir / "styles.css").read_text()
 

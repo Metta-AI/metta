@@ -1,7 +1,7 @@
 import subprocess
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import UserType
+from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success, warning
 
