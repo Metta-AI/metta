@@ -278,12 +278,6 @@ export type SQLQueryResponse = {
  * In the future, we will fetch the data from an API.
  */
 export interface Repo {
-  getSuites(): Promise<string[]>
-  getAllMetrics(): Promise<string[]>
-  getGroupIds(suite: string): Promise<string[]>
-
-  getHeatmapData(metric: string, suite: string, policySelector?: PolicySelector): Promise<HeatmapData>
-
   // Token management methods
   createToken(tokenData: TokenCreate): Promise<TokenResponse>
   listTokens(): Promise<TokenListResponse>
@@ -309,7 +303,6 @@ export interface Repo {
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
   updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData>
   generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData>
   getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
 
@@ -397,27 +390,6 @@ export class ServerRepo implements Repo {
     }
   }
 
-  async getSuites(): Promise<string[]> {
-    return this.apiCall<string[]>('/dashboard/suites')
-  }
-
-  async getAllMetrics(): Promise<string[]> {
-    return this.apiCall<string[]>('/dashboard/metrics')
-  }
-
-  async getGroupIds(suite: string): Promise<string[]> {
-    return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`)
-  }
-
-  async getHeatmapData(metric: string, suite: string, policySelector: PolicySelector = 'latest'): Promise<HeatmapData> {
-    // Use POST endpoint for GroupDiff
-    const apiData = await this.apiCallWithBody<HeatmapData>(
-      `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
-      { policy_selector: policySelector }
-    )
-    return apiData
-  }
-
   // Token management methods
   async createToken(tokenData: TokenCreate): Promise<TokenResponse> {
     return this.apiCallWithBody<TokenResponse>('/tokens', tokenData)
@@ -487,12 +459,6 @@ export class ServerRepo implements Repo {
 
   async updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun> {
     return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
-  }
-
-  async getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData> {
-    return this.apiCall<HeatmapData>(
-      `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`
-    )
   }
 
   async generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData> {
