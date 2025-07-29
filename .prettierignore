@@ -6,7 +6,6 @@
 devops/tf/eks/skypilot/skypilot-chart/
 
 # Formatted by Biome
-/mettascope/**
 /observatory/**
 
 .DS_Store
