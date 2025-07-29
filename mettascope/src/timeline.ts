@@ -66,8 +66,7 @@ export function updateTimeline() {
   const scrubberWidth = ui.timelinePanel.width - 32
   const fullSteps = state.replay.max_steps - 1
   html.stepCounter.textContent = state.step.toString()
-  html.stepCounter.parentElement!.style.left =
-    `${(16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString()}px`
+  html.stepCounter.parentElement!.style.left = `${(16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString()}px`
 }
 
 /** Draws the timeline. */
