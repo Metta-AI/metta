@@ -147,6 +147,9 @@ def main():
     if args.step < 0:
         print("Step number must be non-negative", file=sys.stderr)
         sys.exit(1)
+    if args.size < 1:
+        print("Size must be at least 1 pixel", file=sys.stderr)
+        sys.exit(1)
 
     # Input the replay file into a data object.
     try:
