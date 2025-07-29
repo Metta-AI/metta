@@ -6,10 +6,6 @@ resources:
   image_id: docker:metta:latest
 
 file_mounts:
-  # Wandb Credentials
-  ~/.netrc: ~/.netrc
-  ~/.metta: ~/.metta
-
   /mnt/s3/softmax-public:
     source: s3://softmax-public
     mode: MOUNT_CACHED
@@ -40,6 +36,11 @@ setup: |
   echo 'export NODE_INDEX=${SKYPILOT_NODE_RANK}' >> ~/.bashrc
   echo 'export NCCL_SHM_DISABLE=1' >> ~/.bashrc
 
+  echo "[SETUP] Creating job secrets..."
+  ./devops/skypilot/create_job_secrets.py \
+    --wandb-password $WANDB_PASSWORD \
+    --observatory-token $OBSERVATORY_TOKEN
+
   echo "Sandbox is ready"
 
 run: |
@@ -48,6 +49,10 @@ run: |
 envs:
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
+
+  # configured by launch script based on local credentials
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""
