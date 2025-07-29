@@ -62,7 +62,7 @@ constexpr ObservationType ObservationFeatureCount = 14;
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
-// Use functions to avoid global constructors/destructors
+// Use function-local statics to avoid global constructors and initialization order issues
 inline const std::map<ObservationType, std::string>& GetFeatureNames() {
   static const std::map<ObservationType, std::string> feature_names = {
       {ObservationFeature::TypeId, "type_id"},

@@ -427,6 +427,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def done(self):
         return self._should_reset
 
+    # TODO: we should eliminate this and use feature spec instead
     @property
     def feature_normalizations(self) -> dict[int, float]:
         # Get feature spec from C++ environment
