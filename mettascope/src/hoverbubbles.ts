@@ -168,11 +168,13 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
   for (const inventoryPair of getAttr(object, 'inventory')) {
     const inventoryId = inventoryPair[0]
     const resourceAmount = inventoryPair[1]
-    const resourceName = state.replay.item_names[inventoryId]
-    const item = itemTemplate.cloneNode(true) as HTMLElement
-    item.querySelector('.amount')!.textContent = resourceAmount
-    item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
-    inventory.appendChild(item)
+    if (resourceAmount > 0) {
+      const resourceName = state.replay.item_names[inventoryId]
+      const item = itemTemplate.cloneNode(true) as HTMLElement
+      item.querySelector('.amount')!.textContent = resourceAmount
+      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
+      inventory.appendChild(item)
+    }
   }
 
   // Populate the recipe area if the object config has input_ or output_ resources.

@@ -198,7 +198,6 @@ export function drawTrace(panel: PanelInfo) {
         const prevInventory = getAttr(agent, 'inventory', j - 1)
         let y = 0
         const step = 32
-        console.info('step', step)
         for (const inventoryPair of inventory) {
           const inventoryId = inventoryPair[0]
           const inventoryAmount = inventoryPair[1]
@@ -209,7 +208,7 @@ export function drawTrace(panel: PanelInfo) {
               diff = inventoryAmount - prevInventoryPair[1]
             }
           }
-          if (diff > 0) {
+          for (let k = 0; k < diff; k++) {
             const inventoryName = state.replay.item_names[inventoryId]
             const inventoryImage = `resources/${inventoryName}.png`
             ctx.drawSprite(
