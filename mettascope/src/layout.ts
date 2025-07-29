@@ -256,11 +256,11 @@ export class Pane {
     newPane.addTab(draggedTab)
 
     // Find the index of this pane in the parent layout.
-    const paneIndex = parentLayout.getChildren().indexOf(this)
+    const paneIndex = parentLayout.children.indexOf(this)
     if (paneIndex === -1) return
 
     // If parent layout has the same direction as our split, just insert the new pane.
-    if (parentLayout.getDirection() === newDirection) {
+    if (parentLayout.direction === newDirection) {
       const insertIndex = insertBefore ? paneIndex : paneIndex + 1
       parentLayout.insertChild(newPane, insertIndex)
     } else {
@@ -471,11 +471,11 @@ export class Pane {
 export type LayoutChild = Pane | Layout
 
 export class Layout {
-  private container: HTMLElement
-  private children: LayoutChild[] = []
+  public container: HTMLElement
+  public children: LayoutChild[] = []
   private childContainers: HTMLElement[] = []
   private splitters: HTMLElement[] = []
-  private direction: LayoutDirection
+  public direction: LayoutDirection
   private isDragging: boolean = false
   private dragSplitterIndex: number = -1
   private startPosition: number = 0
@@ -537,7 +537,7 @@ export class Layout {
         // For non-root layouts, replace this layout with its single child.
         const parentLayout = this.findParentLayoutAggressively()
         if (parentLayout) {
-          const layoutIndex = parentLayout.getChildren().indexOf(this)
+          const layoutIndex = parentLayout.children.indexOf(this)
           if (layoutIndex !== -1) {
             // Remove single child from this layout first.
             this.children = []
@@ -679,22 +679,10 @@ export class Layout {
     })
   }
 
-  public getChildren(): LayoutChild[] {
-    return this.children
-  }
-
-  public getDirection(): LayoutDirection {
-    return this.direction
-  }
-
   public setDirection(direction: LayoutDirection): void {
     this.direction = direction
     this.render()
     this.updateLayout()
-  }
-
-  public getContainer(): HTMLElement {
-    return this.container
   }
 
   public setContainer(container: HTMLElement): void {
