@@ -9,7 +9,6 @@ from metta.app_backend.stats_client import StatsClient
 class TestTrainingRunsRoutes:
     """Tests for the training runs API routes."""
 
-
     @pytest.fixture(scope="class")
     def test_training_runs(self, stats_client: StatsClient) -> Dict:
         """Create test training runs with comprehensive data."""
@@ -213,7 +212,9 @@ class TestTrainingRunsRoutes:
         assert "training_runs" in data
         assert isinstance(data["training_runs"], list)
 
-    def test_get_training_runs_list(self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]) -> None:
+    def test_get_training_runs_list(
+        self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]
+    ) -> None:
         """Test listing all training runs."""
         response = test_client.get("/training-runs", headers=auth_headers)
         assert response.status_code == 200
@@ -246,7 +247,9 @@ class TestTrainingRunsRoutes:
         assert "created_at" in run2
         assert run2["url"] is None
 
-    def test_get_specific_training_run(self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]) -> None:
+    def test_get_specific_training_run(
+        self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]
+    ) -> None:
         """Test getting a specific training run by ID."""
         run1 = test_training_runs["runs"][0]
 
