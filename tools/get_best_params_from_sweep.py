@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import hydra
 from omegaconf import DictConfig
 
-from metta.sweep.wandb_utils import get_sweep_runs, sweep_id_from_name
+from metta.sweep.wandb_utils import get_sweep_runs
 
 logger = logging.getLogger(__name__)
 
@@ -173,14 +173,12 @@ def main(cfg: DictConfig) -> int:
     # Always load from WandB
     logger.info(f"Loading best parameters from WandB sweep: {cfg.sweep_name}")
 
-    # Get sweep ID
-    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, cfg.sweep_name)
-    if not sweep_id:
-        logger.error(f"Sweep not found: {cfg.sweep_name}")
-        return 1
+    # Get runs directly using sweep name (now using groups)
+    runs = get_sweep_runs(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project)
 
-    # Get runs
-    runs = get_sweep_runs(sweep_id, cfg.wandb.entity, cfg.wandb.project)
+    if not runs:
+        logger.error(f"No runs found for sweep: {cfg.sweep_name}")
+        return 1
 
     if args.show_scores:
         logger.info("\nAll runs with scores:")
