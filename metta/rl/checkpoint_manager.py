@@ -10,6 +10,7 @@ import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.common.util.fs import wait_for_file
+from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
@@ -155,13 +156,18 @@ class CheckpointManager:
         if not force and checkpoint_interval and epoch % checkpoint_interval != 0:
             return False
 
-        # Non-master ranks participate in barrier but don't save
+        # Now all ranks that should save are here
+        # Only master saves training state, but all ranks must participate in barrier
         if not self.is_master:
+            # Non-master ranks need to participate in the barrier below
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             return False
 
         logger.info(f"Saving checkpoint at epoch {epoch}")
+
+        # Record heartbeat to prevent timeout during long save operations
+        record_heartbeat()
 
         # Build extra args if kickstarter is provided
         extra_args = {}
@@ -189,7 +195,7 @@ class CheckpointManager:
         # Cleanup old policies
         self._cleanup_old_policies()
 
-        # Synchronize all ranks after save
+        # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
@@ -224,13 +230,18 @@ class CheckpointManager:
         if not force and checkpoint_interval and epoch % checkpoint_interval != 0:
             return None
 
-        # Non-master ranks participate in barrier but don't save
+        # Now all ranks that should save are here
+        # Only master saves policies, but all ranks must participate in barrier
         if not self.is_master:
+            # Non-master ranks need to participate in the barrier below
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
             return None
 
         logger.info(f"Saving policy at epoch {epoch}")
+
+        # Record heartbeat to prevent timeout during long save operations
+        record_heartbeat()
 
         # Extract the actual policy module from distributed wrapper if needed
         policy_to_save = policy
@@ -301,7 +312,7 @@ class CheckpointManager:
         if epoch % 10 == 0:
             self._cleanup_old_policies()
 
-        # Synchronize all ranks after save
+        # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
