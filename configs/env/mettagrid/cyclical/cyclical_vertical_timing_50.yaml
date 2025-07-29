@@ -80,4 +80,4 @@ game:
       enabled: false
       number_of_glyphs: 4
 
-eval: null
+eval: /sim/cyclical_timing

@@ -1,0 +1,51 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: cyclical_timing
+
+simulations:
+  cyclical/horizontal_timing_6:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_6
+  cyclical/vertical_timing_6:
+    env: env/mettagrid/cyclical/evals/vertical_timing_6
+  cyclical/horizontal_timing_8:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_8
+  cyclical/vertical_timing_8:
+    env: env/mettagrid/cyclical/evals/vertical_timing_8
+  cyclical/horizontal_timing_10:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_10
+  cyclical/vertical_timing_10:
+    env: env/mettagrid/cyclical/evals/vertical_timing_10
+  cyclical/horizontal_timing_15:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_15
+  cyclical/vertical_timing_15:
+    env: env/mettagrid/cyclical/evals/vertical_timing_15
+  cyclical/horizontal_timing_16:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_16
+  cyclical/vertical_timing_16:
+    env: env/mettagrid/cyclical/evals/vertical_timing_16
+  cyclical/horizontal_timing_18:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_18
+  cyclical/vertical_timing_18:
+    env: env/mettagrid/cyclical/evals/vertical_timing_18
+  cyclical/horizontal_timing_20:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_20
+  cyclical/vertical_timing_20:
+    env: env/mettagrid/cyclical/evals/vertical_timing_20
+  cyclical/horizontal_timing_22:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_22
+  cyclical/vertical_timing_22:
+    env: env/mettagrid/cyclical/evals/vertical_timing_22
+  cyclical/horizontal_timing_25:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_25
+  cyclical/vertical_timing_25:
+    env: env/mettagrid/cyclical/evals/vertical_timing_25
+  cyclical/horizontal_timing_50:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_50
+  cyclical/vertical_timing_50:
+    env: env/mettagrid/cyclical/evals/vertical_timing_50
+  cyclical/horizontal_timing_100:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_100
+  cyclical/vertical_timing_100:
+    env: env/mettagrid/cyclical/evals/vertical_timing_100
