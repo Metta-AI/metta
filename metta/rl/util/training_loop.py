@@ -12,6 +12,7 @@ from metta.rl.losses import Losses
 from metta.rl.rollout import rollout
 from metta.rl.train import train_ppo
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.util.rich_progress import log_rich_progress, should_use_rich_console
 
 logger = logging.getLogger(__name__)
 
@@ -107,18 +108,30 @@ def log_training_progress(
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
     stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
 
-    # Format total timesteps for readability
-    if total_timesteps >= 1e9:
-        total_steps_str = f"{total_timesteps:.0e}"
+    # Use rich console if appropriate
+    if should_use_rich_console():
+        log_rich_progress(
+            epoch=epoch,
+            agent_step=agent_step,
+            total_timesteps=total_timesteps,
+            steps_per_sec=steps_per_sec,
+            train_pct=train_pct,
+            rollout_pct=rollout_pct,
+            stats_pct=stats_pct,
+        )
     else:
-        total_steps_str = f"{total_timesteps:,}"
+        # Format total timesteps for readability
+        if total_timesteps >= 1e9:
+            total_steps_str = f"{total_timesteps:.0e}"
+        else:
+            total_steps_str = f"{total_timesteps:,}"
 
-    logger.info(
-        f"Epoch {epoch}- "
-        f"{steps_per_sec:.0f} SPS- "
-        f"step {agent_step}/{total_steps_str}- "
-        f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"
-    )
+        logger.info(
+            f"Epoch {epoch}- "
+            f"{steps_per_sec:.0f} SPS- "
+            f"step {agent_step}/{total_steps_str}- "
+            f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"
+        )
 
 
 def calculate_steps_per_second(
