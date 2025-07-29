@@ -60,6 +60,7 @@ class VAE(nn.Module):
         self.fc1 = nn.Linear(flattened_size, h_dim)
         self.fc2 = nn.Linear(h_dim, z_dim)
         self.fc3 = nn.Linear(h_dim, z_dim)
+        self.z_dim = z_dim
 
         self.decoder = nn.Sequential(
             nn.Linear(z_dim, flattened_size),
@@ -82,6 +83,11 @@ class VAE(nn.Module):
         mu, logvar = self.fc2(h_fc1), self.fc3(h_fc1)
         z = self.reparameterize(mu, logvar)
         return self.decoder(z), mu, logvar
+
+    def sample(self, num_samples, device="cpu"):
+        z = torch.randn(num_samples, self.z_dim).to(device)
+        with torch.no_grad():
+            return self.decoder(z)
 
 
 def loss_function(recon_x, x, mu, logvar):
@@ -140,7 +146,7 @@ def main():
                 print(f"{orig_line}   {recon_line}")
             print("-" * 40)
 
-    torch.save(model.state_dict(), "vae.pth")
+    torch.save({"state_dict": model.state_dict(), "height": height, "width": width}, "vae.pth")
     print("Training complete. Model saved to vae.pth")
 
 
