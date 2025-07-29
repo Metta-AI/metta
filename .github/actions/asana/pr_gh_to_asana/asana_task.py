@@ -264,7 +264,7 @@ class AsanaTask:
                 body["data"]["completed"] = True
 
             print(f"[create] Creating task with body: {body}")
-            task = self.tasks_api.create_task(body)
+            task = self.tasks_api.create_task(body, {})
 
             url = task["permalink_url"]
             print(f"[create] Task created successfully: {url}")
@@ -528,9 +528,7 @@ class AsanaTask:
             )
 
             if review_id in existing_comments_by_review_id:
-                print(
-                    f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} has existing Asana comment"
-                )
+                print(f"[s] Review {review_id} has existing Asana comment")
                 # Update existing comment if content differs
                 existing_comment = existing_comments_by_review_id[review_id]
                 if existing_comment["text"] != formatted_comment:
@@ -547,9 +545,7 @@ class AsanaTask:
                     except Exception as e:
                         print(f"Error updating Asana comment {story_id}: {e}")
                 else:
-                    print(
-                        f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} comment is up to date"
-                    )
+                    print(f"[s] Review {review_id} comment is up to date")
             else:
                 print(f"[s] Review {review_id} has no existing Asana comment")
                 # Check if we should add this comment (don't add out of order)
