@@ -125,4 +125,3 @@ class TestFilterRepo:
 
         with pytest.raises(RuntimeError, match="git-filter-repo not found"):
             filter_repo(source_repo, ["mettagrid/"])
-

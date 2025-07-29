@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .git import GitError, add_remote, get_commit_count, get_file_list, run_git, run_git_in_dir
+from .git import GitError, get_commit_count, get_file_list, run_git
 
 
 def filter_repo(source_path: Path, paths: list[str]) -> Path:
