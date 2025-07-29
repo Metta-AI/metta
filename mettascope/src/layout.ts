@@ -228,49 +228,30 @@ export class Pane {
     }
   }
 
-    private performSplit(draggedTab: Tab, dropZone: DropZone): void {
-    console.log('performSplit called:', { draggedTab: draggedTab.title, dropZone })
-
+  private performSplit(draggedTab: Tab, dropZone: DropZone): void {
     // Find the parent layout that contains this pane
     const parentLayout = this.findParentLayout()
-    if (!parentLayout) {
-      console.log('Parent layout not found')
-      return
-    }
-
-    console.log('Found parent layout:', parentLayout)
+    if (!parentLayout) return
 
     // Determine split direction
     const isHorizontalSplit = dropZone === DropZone.LEFT || dropZone === DropZone.RIGHT
     const newDirection = isHorizontalSplit ? LayoutDirection.HORIZONTAL : LayoutDirection.VERTICAL
     const insertBefore = dropZone === DropZone.LEFT || dropZone === DropZone.TOP
 
-    console.log('Split details:', { isHorizontalSplit, newDirection, insertBefore })
-
     // Create new pane for the dragged tab
     const newContainer = document.createElement('div')
     const newPane = new Pane(newContainer)
     newPane.addTab(draggedTab)
 
-    console.log('Created new pane:', newPane)
-
     // Find the index of this pane in the parent layout
     const paneIndex = parentLayout.getChildren().indexOf(this)
-    if (paneIndex === -1) {
-      console.log('This pane not found in parent layout')
-      return
-    }
-
-    console.log('Pane index in parent:', paneIndex)
+    if (paneIndex === -1) return
 
     // If parent layout has the same direction as our split, just insert the new pane
     if (parentLayout.getDirection() === newDirection) {
-      console.log('Parent has same direction, inserting new pane')
       const insertIndex = insertBefore ? paneIndex : paneIndex + 1
-      console.log('Insert index:', insertIndex)
       parentLayout.insertChild(newPane, insertIndex)
     } else {
-      console.log('Parent has different direction, creating nested layout')
       // Create a new nested layout for the split
       const nestedContainer = document.createElement('div')
       const nestedLayout = new Layout(nestedContainer, newDirection)
@@ -289,8 +270,6 @@ export class Pane {
       // Insert the nested layout at the original position
       parentLayout.insertChild(nestedLayout, paneIndex)
     }
-
-    console.log('Split completed')
   }
 
   private toggleDropdown(): void {
@@ -337,12 +316,39 @@ export class Pane {
     }
   }
 
-  public closeTab(index: number): void {
+      public closeTab(index: number): void {
     if (index >= 0 && index < this.tabs.length) {
       this.removeTab(index)
-      // If this was the last tab in the pane, we might want to remove the pane
-      // For now, we'll keep the empty pane
+
+      // If this was the last tab in the pane, remove the pane
+      if (this.tabs.length === 0) {
+        this.removePaneFromLayout()
+      }
     }
+  }
+
+            private removePaneFromLayout(): void {
+    const parentLayout = this.findParentLayout()
+    if (!parentLayout) return
+
+    // Remove this pane from the parent layout
+    parentLayout.removeChild(this)
+  }
+
+
+
+
+
+  private findParentLayoutOf(targetLayout: Layout): Layout | null {
+    // Walk up the DOM to find the parent of the target layout
+    let current = targetLayout.getContainer().parentElement
+    while (current) {
+      if ((current as any).layoutInstance && (current as any).layoutInstance !== targetLayout) {
+        return (current as any).layoutInstance
+      }
+      current = current.parentElement
+    }
+    return null
   }
 
   public getPaneId(): string {
@@ -365,15 +371,24 @@ export class Pane {
     return panes
   }
 
-  private findParentLayout(): Layout | null {
-    // Walk up the DOM to find the parent layout
+    private findParentLayout(): Layout | null {
+    // Walk up the DOM to find the immediate parent layout
     let current = this.element.parentElement
+
     while (current) {
+      // Check if this element has a layout instance
       if ((current as any).layoutInstance) {
         return (current as any).layoutInstance
       }
+
+      // Also check parent element in case layout instance is stored there
+      if (current.parentElement && (current.parentElement as any).layoutInstance) {
+        return (current.parentElement as any).layoutInstance
+      }
+
       current = current.parentElement
     }
+
     return null
   }
 
@@ -487,13 +502,10 @@ export class Layout {
   }
 
   private render(): void {
-    console.log('Layout render called, direction:', this.direction)
     this.container.innerHTML = `
       <div class="layout-container ${this.direction}">
       </div>
     `
-    const layoutContainer = this.container.querySelector('.layout-container') as HTMLElement
-    console.log('Layout container created:', layoutContainer, 'with classes:', layoutContainer?.className)
   }
 
   public addChild(child: LayoutChild): void {
@@ -506,16 +518,78 @@ export class Layout {
     this.updateLayout()
   }
 
-  public removeChild(child: LayoutChild): void {
+        public removeChild(child: LayoutChild): void {
     const index = this.children.indexOf(child)
     if (index !== -1) {
       this.children.splice(index, 1)
       this.updateLayout()
+
+      // If this layout is now empty or has only one child, check if we need cleanup
+      if (this.children.length <= 1) {
+        this.checkForSimplification()
+      }
     }
   }
 
-  private updateLayout(): void {
-    console.log('Layout updateLayout called, direction:', this.direction, 'children count:', this.children.length)
+        private checkForSimplification(): void {
+    // Check if this is actually the root layout by looking for layout-container ID
+    const isRootLayout = this.container.id === 'layout-container'
+
+    if (this.children.length === 1) {
+      const singleChild = this.children[0]
+
+      if (isRootLayout) {
+        // For root layout, just replace all children with the single child
+        this.children = []
+        this.addChild(singleChild)
+      } else {
+        // For non-root layouts, replace this layout with its single child
+        const parentLayout = this.findParentLayoutAggressively()
+        if (parentLayout) {
+          const layoutIndex = parentLayout.getChildren().indexOf(this)
+          if (layoutIndex !== -1) {
+            // Remove single child from this layout first
+            this.children = []
+            // Replace this layout with the single child
+            parentLayout.removeChild(this)
+            parentLayout.insertChild(singleChild, layoutIndex)
+          }
+        }
+      }
+    } else if (this.children.length === 0 && !isRootLayout) {
+      const parentLayout = this.findParentLayoutAggressively()
+      if (parentLayout) {
+        parentLayout.removeChild(this)
+      }
+    }
+  }
+
+    private findParentLayoutAggressively(): Layout | null {
+    // Try multiple strategies to find the parent
+    let current = this.container.parentElement
+    let depth = 0
+
+    while (current && depth < 10) {
+      if ((current as any).layoutInstance && (current as any).layoutInstance !== this) {
+        return (current as any).layoutInstance
+      }
+
+      // Also check if this element has a layout-container child that might have the instance
+      const layoutContainer = current.querySelector('.layout-container')
+      if (layoutContainer && (layoutContainer as any).layoutInstance && (layoutContainer as any).layoutInstance !== this) {
+        return (layoutContainer as any).layoutInstance
+      }
+
+      current = current.parentElement
+      depth++
+    }
+
+    return null
+  }
+
+
+
+    private updateLayout(): void {
     const layoutContainer = this.container.querySelector('.layout-container') as HTMLElement
     if (!layoutContainer) {
       console.error('Layout container not found!')
@@ -528,8 +602,6 @@ export class Layout {
 
     // Create containers for each child
     this.children.forEach((child, index) => {
-      console.log('Setting up child', index, ':', child instanceof Pane ? 'Pane' : 'Layout')
-
       // Create child container
       const childContainer = document.createElement('div')
       childContainer.className = 'layout-child'
@@ -537,23 +609,15 @@ export class Layout {
       layoutContainer.appendChild(childContainer)
       this.childContainers.push(childContainer)
 
-      console.log('Child container created:', childContainer, 'with styles:', {
-        flex: childContainer.style.flex,
-        height: childContainer.style.height,
-        width: childContainer.style.width
-      })
-
       // Set up the child in its container
       if (child instanceof Pane) {
         // For Panes, append their existing element to the new container
         childContainer.appendChild(child.element)
-        console.log('Pane element appended to container')
       } else {
         // For nested Layouts, update their container and re-render
-        child.container = childContainer
+        child.setContainer(childContainer)
         child.render()
         child.updateLayout()
-        console.log('Nested layout set up in container')
       }
 
       // Add splitter after each child except the last
@@ -562,11 +626,9 @@ export class Layout {
         splitter.className = `splitter ${this.direction}`
         layoutContainer.appendChild(splitter)
         this.splitters.push(splitter)
-        console.log('Splitter added:', splitter.className)
       }
     })
 
-    console.log('Layout update completed, final child containers:', this.childContainers.length)
     this.setupSplitters()
   }
 
@@ -636,6 +698,16 @@ export class Layout {
     this.direction = direction
     this.render()
     this.updateLayout()
+  }
+
+  public getContainer(): HTMLElement {
+    return this.container
+  }
+
+  public setContainer(container: HTMLElement): void {
+    this.container = container;
+    // Store reference to this layout instance on the new container
+    (this.container as any).layoutInstance = this;
   }
 }
 
