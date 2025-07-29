@@ -14,7 +14,6 @@ set -euo pipefail
 # Configuration
 readonly MD5SUMS_FILE=".md5sums"
 readonly COMPILED_JS="heatmap_widget/static/index.js"
-readonly SOURCE_PATTERN="src/*.tsx src/*.ts src/*.jsx src/*.js"
 
 # Get command-line arguments
 readonly SHOULD_BUILD="${1:-0}"
@@ -35,7 +34,8 @@ else
     exit 2
 fi
 
-readonly CURRENT_MD5SUMS=$($MD5_CMD $SOURCE_PATTERN 2>/dev/null | sort)
+readonly FILES_TO_CHECK=$(find src -name '*.tsx' -o -name '*.ts' -o -name '*.jsx' -o -name '*.js')
+readonly CURRENT_MD5SUMS=$($MD5_CMD $FILES_TO_CHECK 2>/dev/null | sort)
 
 # Build the project and save the md5sums
 build_and_save() {
