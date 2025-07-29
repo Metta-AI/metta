@@ -368,29 +368,34 @@ def train(
         if interval := getattr(policy, "l2_init_weight_update_interval", 0):
             maybe_update_l2_weights(policy, epoch, interval, is_master)
 
-        # Save policy
+        # Save policy - all ranks must participate in checkpoint decision
         if checkpoint_manager.should_checkpoint(epoch):
-            saved_record = checkpoint_manager.save_policy(
-                policy=policy,
-                epoch=epoch,
-                agent_step=agent_step,
-                evals=eval_scores,
-                timer=timer,
-                initial_policy_record=initial_policy_record,
-            )
-            if saved_record:
-                latest_saved_policy_record = saved_record
-
-                # Save training state with the new policy path
-                checkpoint_manager.save_checkpoint(
-                    agent_step=agent_step,
+            if is_master:
+                saved_record = checkpoint_manager.save_policy(
+                    policy=policy,
                     epoch=epoch,
-                    optimizer=optimizer,
-                    policy_path=saved_record.uri,
+                    agent_step=agent_step,
+                    evals=eval_scores,
                     timer=timer,
-                    run_dir=cfg.run_dir,
-                    kickstarter=kickstarter,
+                    initial_policy_record=initial_policy_record,
                 )
+                if saved_record:
+                    latest_saved_policy_record = saved_record
+
+                    # Save training state with the new policy path
+                    checkpoint_manager.save_checkpoint(
+                        agent_step=agent_step,
+                        epoch=epoch,
+                        optimizer=optimizer,
+                        policy_path=saved_record.uri,
+                        timer=timer,
+                        run_dir=cfg.run_dir,
+                        kickstarter=kickstarter,
+                    )
+            else:
+                # Non-master ranks must participate in the barrier
+                if torch.distributed.is_initialized():
+                    torch.distributed.barrier()
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
@@ -501,7 +506,7 @@ def train(
         for name, summary in timing_summary.items():
             logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
-    # Force final saves
+    # Force final saves - all ranks must participate
     if is_master:
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
@@ -526,6 +531,10 @@ def train(
                 kickstarter=kickstarter,
                 force=True,
             )
+    else:
+        # Non-master ranks must participate in the barrier
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
     if wandb_run and latest_saved_policy_record:
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record, force=True)
