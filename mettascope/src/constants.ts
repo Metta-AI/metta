@@ -1,4 +1,4 @@
-// Constants imported from Python constants file
+// Keep in sync with metta/common/src/metta/common/util/constants.py
 export const METTA_GITHUB_ORGANIZATION = 'Metta-AI'
 export const METTA_GITHUB_REPO = 'metta'
 export const METTA_GITHUB_PRIMARY_BRANCH = 'main'
