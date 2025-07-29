@@ -6,14 +6,12 @@ The Experience class provides:
 - Segmented tensor storage for observations, actions, rewards, etc.
 - Support for BPTT (Backpropagation Through Time) with configurable horizon
 - Prioritized experience replay with importance sampling
-- LSTM state management for recurrent policies
 - Zero-copy operations where possible
 - Efficient minibatch creation for training
 
 Key features:
 - Stores trajectories in segmented tensors for BPTT
 - Supports both CPU and GPU storage with optional CPU offloading
-- Handles LSTM hidden states if using recurrent policies
 - Provides prioritized sampling for training
 - Manages minibatch creation for training
 """
@@ -62,6 +60,8 @@ class Experience:
         self.buffer = self.buffer.to(self.device)
         if self.cpu_offload:
             # Offload obs to CPU after creation to save GPU memory
+            # AV: this might be deprecated sinc TD keeps all tensors on the same device. We'd have to break it into
+            # a seperate tensor and update the agent's forward args.
             if "obs" in self.buffer.keys():
                 self.buffer["obs"] = self.buffer["obs"].to("cpu")
 
@@ -152,7 +152,7 @@ class Experience:
         self,
         advantages: Tensor,
         prio_alpha: float,
-        prio_beta: float,  # av delete this
+        prio_beta: float,
     ) -> tuple[TensorDict, Tensor, Tensor]:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
@@ -170,11 +170,6 @@ class Experience:
         minibatch["advantages"] = advantages[idx]
         minibatch["returns"] = advantages[idx] + minibatch["values"]
         prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        # minibatch_td["indices"] = idx.view(-1, 1)
-        # minibatch_td["prio_weights"] = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        # minibatch_td["indices"] = idx.view(-1, 1).expand(-1, self.bptt_horizon)
-        # prio_weights_val = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        # minibatch_td["prio_weights"] = prio_weights_val.expand(-1, self.bptt_horizon)
         return minibatch, idx, prio_weights
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
