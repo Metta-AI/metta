@@ -24,7 +24,7 @@ class CommitHookMode(Enum):
 
     @classmethod
     def get_default(cls) -> "CommitHookMode":
-        return CommitHookMode.CHECK
+        return CommitHookMode.FIX
 
     @classmethod
     def parse(cls, value: str | None) -> "CommitHookMode":
