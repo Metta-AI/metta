@@ -10,9 +10,8 @@ sampling: 1
 
 game:
   num_agents: 24
-  max_steps: 100
   agent:
-    default_resource_limit: 5
+    default_resource_limit: 1
     rewards:
       inventory:
         ore_red: 0
@@ -61,3 +60,5 @@ game:
         battery_red: 0
       output_resources:
         heart: 0
+    mine_red:
+      cooldown: 50

@@ -12,7 +12,7 @@ game:
   num_agents: 24
   max_steps: 100
   agent:
-    default_resource_limit: 5
+    default_resource_limit: 1
     rewards:
       inventory:
         ore_red: 0
@@ -46,3 +46,5 @@ game:
       output_resources:
         battery_blue: 0
         heart: 1
+    mine_blue:
+      cooldown: 50

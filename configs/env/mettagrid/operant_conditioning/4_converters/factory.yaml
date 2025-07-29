@@ -12,7 +12,7 @@ game:
   num_agents: 24
   max_steps: 100
   agent:
-    default_resource_limit: 5
+    default_resource_limit: 1
     rewards:
       inventory:
         ore_red: 0
@@ -52,7 +52,7 @@ game:
       output_resources:
         battery_green: 0
     factory:
-      cooldown: 1
+      cooldown: 50
       input_resources:
         blueprint: 0
         ore_red: 0
