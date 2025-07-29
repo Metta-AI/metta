@@ -75,7 +75,7 @@ public:
   RewardType current_resource_reward;
   RewardType current_stat_reward;
   RewardType* reward;
-  int* how_long_blue_battery_held;
+  int how_long_blue_battery_held;
 
 
     Agent(GridCoord r, GridCoord c, const AgentConfig& config)
@@ -98,13 +98,12 @@ public:
         current_resource_reward(0),
         current_stat_reward(0),
         reward(nullptr),
-        how_long_blue_battery_held(new int(0)) {
+        how_long_blue_battery_held(0) {
       GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
     }
 
-  ~Agent() {
-    delete how_long_blue_battery_held;
-  }
+
+  ~Agent() = default;
 
   void init(RewardType* reward_ptr) {
       this->reward = reward_ptr;

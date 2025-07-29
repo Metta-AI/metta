@@ -8,6 +8,7 @@
 #include <numeric>
 #include <random>
 #include <fstream>
+#include <iostream>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -79,7 +80,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   // Find blue battery item index once
 
-  int _blue_battery_item = -1;
+  _blue_battery_item = -1;
   for (size_t i = 0; i < inventory_item_names.size(); ++i) {
     if (inventory_item_names[i] == "battery_blue") {
       _blue_battery_item = static_cast<int>(i);
@@ -276,12 +277,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   set_buffers(observations, terminals, truncations, rewards);
 }
 
-MettaGrid::~MettaGrid() {
-  // Clean up agents to prevent memory leaks
-  for (auto* agent : _agents) {
-    delete agent;
-  }
-}
+MettaGrid::~MettaGrid() = default;
 
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
@@ -442,6 +438,23 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
+  // Reset resource rewards for all agents to prevent cumulative rewards across timesteps
+  for (auto& agent : _agents) {
+    // Calculate current cumulative resource reward based on inventory
+    float cumulative_reward = 0;
+    for (const auto& [item, amount] : agent->inventory) {
+      auto reward_it = agent->resource_rewards.find(item);
+      if (reward_it != agent->resource_rewards.end()) {
+        float item_reward = reward_it->second * amount;
+        if (agent->resource_reward_max.count(item) > 0) {
+          item_reward = std::min(item_reward, agent->resource_reward_max.at(item));
+        }
+        cumulative_reward += item_reward;
+      }
+    }
+    agent->current_resource_reward = cumulative_reward;
+  }
+
   auto obs_ptr = static_cast<ObservationType*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
@@ -501,14 +514,16 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   if (_blue_battery_item != -1) {
     for (auto& agent : _agents) {
       auto it = agent->inventory.find(_blue_battery_item);
-      if (it != agent->inventory.end() && it->second > 0 && agent->how_long_blue_battery_held) {
-        (*agent->how_long_blue_battery_held)++;
+      if (it != agent->inventory.end() && it->second > 0) {
+        (agent->how_long_blue_battery_held)++;
+        // Debug print for battery holding duration
       }
-      if (agent->how_long_blue_battery_held && *agent->how_long_blue_battery_held >= 20) {
+      if (agent->how_long_blue_battery_held >= 20) {
         *agent->reward -= 10.0f;
       }
     }
   }
+
 
   // Compute observations for next step
   _compute_observations(actions);
@@ -523,6 +538,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
     episode_rewards_view(i) += rewards_view(i);
   }
+
+
 
   // Check for truncation
   if (max_steps > 0 && current_step >= max_steps) {
@@ -642,6 +659,8 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
   std::fill(_group_rewards.begin(), _group_rewards.end(), 0.0f);
 
   bool share_rewards = false;
+
+
 
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     if (rewards_view(agent_idx) != 0.0f) {
