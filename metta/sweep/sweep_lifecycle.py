@@ -3,7 +3,7 @@ import os
 import time
 from typing import Any
 
-from omegaconf import DictConfig, OmegaConf, SCMode
+from omegaconf import DictConfig, OmegaConf
 
 from cogweb.cogweb_client import CogwebClient
 from metta.agent.policy_store import PolicyStore
@@ -19,50 +19,51 @@ from metta.sweep.wandb_utils import (
     record_protein_observation_to_wandb,
 )
 
-
 # 1 - Sweep Lifecycle Utils
-# TODO: Expects sweep_job configuration.
-def setup_sweep(cfg: DictConfig, logger: logging.Logger) -> None:
+
+
+def setup_sweep(sweep_job_cfg: DictConfig, logger: logging.Logger) -> str:
     """
     Setup a new sweep with the given name. If the sweep already exists, skip creation.
     Save the sweep configuration to sweep_dir/metadata.yaml.
     Returns the sweep name.
     """
     # Check if sweep already exists
-    cogweb_client = CogwebClient.get_client(base_url=cfg.sweep_server_uri)
+    cogweb_client = CogwebClient.get_client(base_url=sweep_job_cfg.sweep_server_uri)
     sweep_client = cogweb_client.sweep_client()
 
     # Get sweep info
-    sweep_info = sweep_client.get_sweep(cfg.sweep_name)
+    sweep_info = sweep_client.get_sweep(sweep_job_cfg.sweep_name)
 
     # The sweep hasn't been registered with the centralized DB
     if not sweep_info.exists:
-        logger.info(f"Creating sweep {cfg.sweep_name} in the centralized DB")
+        logger.info(f"Creating sweep {sweep_job_cfg.sweep_name} in the centralized DB")
 
         # Create directories
-        os.makedirs(cfg.runs_dir, exist_ok=True)
+        os.makedirs(sweep_job_cfg.runs_dir, exist_ok=True)
 
         # Register the sweep in the centralized DB
         # Pass sweep_name as wandb_sweep_id for now to maintain API compatibility
-        logger.info(f"Registering sweep {cfg.sweep_name} in the centralized DB")
+        logger.info(f"Registering sweep {sweep_job_cfg.sweep_name} in the centralized DB")
         sweep_client.create_sweep(
-            cfg.sweep_name, cfg.wandb.project, cfg.wandb.entity, cfg.sweep_name
+            sweep_job_cfg.sweep_name, sweep_job_cfg.wandb.project, sweep_job_cfg.wandb.entity, sweep_job_cfg.sweep_name
         )  # TODO: Remove sweep_name from the sweep_client.create_sweep callin place of sweep_id
     else:
-        logger.info(f"Found existing sweep {cfg.sweep_name} in the centralized DB")
+        logger.info(f"Found existing sweep {sweep_job_cfg.sweep_name} in the centralized DB")
 
     # Save sweep metadata locally
     OmegaConf.save(
         {
-            "sweep": cfg.sweep,  # The sweep parameters/settings
-            "sweep_name": cfg.sweep_name,
-            "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}",
-            "wandb_entity": cfg.wandb.entity,
-            "wandb_project": cfg.wandb.project,
+            "sweep_name": sweep_job_cfg.sweep_name,
+            "wandb_path": f"{sweep_job_cfg.wandb.entity}/{sweep_job_cfg.wandb.project}",
+            "wandb_entity": sweep_job_cfg.wandb.entity,
+            "wandb_project": sweep_job_cfg.wandb.project,
         },
-        os.path.join(cfg.sweep_dir, "metadata.yaml"),
+        os.path.join(sweep_job_cfg.sweep_dir, "metadata.yaml"),
     )
-    logger.info(f"Saved sweep metadata to {os.path.join(cfg.sweep_dir, 'metadata.yaml')}")
+    logger.info(f"Saved sweep metadata to {os.path.join(sweep_job_cfg.sweep_dir, 'metadata.yaml')}")
+
+    return sweep_job_cfg.sweep_name
 
 
 # Expects sweep_job configuration.
@@ -89,7 +90,7 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
     logger.info(f"Got next run name from Cogweb DB: {run_name}")
 
     # Prepare the train job config
-    train_job_cfg = create_train_job_cfg_for_run(sweep_job_cfg, run_name)
+    train_job_cfg = _create_train_job_cfg_for_run(sweep_job_cfg, run_name)
 
     # Prepare the run directory
     os.makedirs(train_job_cfg.run_dir, exist_ok=True)
@@ -122,15 +123,7 @@ def evaluate_rollout(
     """Evaluate the rollout - only runs on rank 0."""
     logger.info(f"Evaluating run: {train_job_cfg.run} (rank 0 only)")
 
-    # Convert the config to a proper container to handle any wrapped Pydantic models
-    # This will properly handle the 'value' wrapper that OmegaConf adds when loading
-    # configs with Pydantic discriminated unions
-
-    config_dict = OmegaConf.to_container(train_job_cfg, structured_config_mode=SCMode.DICT)
-    assert isinstance(config_dict, dict)
-    wandb_cfg = config_dict["wandb"]
-
-    with WandbContext(wandb_cfg, train_job_cfg) as wandb_run:
+    with WandbContext(train_job_cfg.wandb, train_job_cfg) as wandb_run:
         if wandb_run is None:
             logger.error("Failed to initialize WandB context for evaluation")
             raise RuntimeError("WandB initialization failed during evaluation")
@@ -175,7 +168,7 @@ def evaluate_rollout(
     return eval_results
 
 
-# 2 - Sweep Evaluation (no pipeline dependencies)
+# 2 - Private methods
 
 
 def _evaluate_sweep_run(
@@ -247,8 +240,10 @@ def _evaluate_sweep_run(
     return eval_results
 
 
-def create_train_job_cfg_for_run(sweep_job_cfg: DictConfig, run_name: str) -> DictConfig:
+def _create_train_job_cfg_for_run(sweep_job_cfg: DictConfig, run_name: str) -> DictConfig:
     sweep_job_copy = OmegaConf.create(OmegaConf.to_container(sweep_job_cfg, resolve=False))
+
+    # These must be set before resolving the config so that paths are properly interpolated
     sweep_job_copy.run = run_name
     sweep_job_copy.sweep_dir = f"{sweep_job_cfg.data_dir}/sweep/{sweep_job_cfg.sweep_name}"
     sweep_job_copy.data_dir = f"{sweep_job_copy.sweep_dir}/runs"
