@@ -315,12 +315,17 @@ class CheckpointManager:
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
+            rank = torch.distributed.get_rank()
+            logger.info(f"Rank {rank}: Master entering barrier after policy save")
             torch.distributed.barrier()
+            logger.info(f"Rank {rank}: Master passed barrier after policy save")
 
         return saved_policy_record
 
     def should_checkpoint(self, epoch: int, force: bool = False) -> bool:
         """Check if we should checkpoint at this epoch.
+
+        All ranks must return the same value to maintain synchronization.
 
         Args:
             epoch: Current epoch
@@ -329,9 +334,6 @@ class CheckpointManager:
         Returns:
             True if we should checkpoint
         """
-        if not self.is_master:
-            return False
-
         if force:
             return True
 
