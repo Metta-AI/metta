@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Plot from 'react-plotly.js'
-import { TrainingRun, PolicyHeatmapData, Repo } from './repo'
+import { TrainingRun, PolicyHeatmapData, TrainingRunPolicy, Repo } from './repo'
 import { MapViewer } from './MapViewer'
 import { EvalSelector } from './components/EvalSelector'
 import { MetricSelector } from './components/MetricSelector'
@@ -198,6 +198,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const [heatmapData, setHeatmapData] = useState<PolicyHeatmapData | null>(null)
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
   const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
+  const [trainingRunPolicies, setTrainingRunPolicies] = useState<TrainingRunPolicy[]>([])
 
   // Selection state
   const [selectedEvalNames, setSelectedEvalNames] = useState<Set<string>>(new Set())
@@ -206,6 +207,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   // UI state
   const [loading, setLoading] = useState({
     initial: true,
+    policies: false,
     evalNames: false,
     metrics: false,
     heatmap: false
@@ -246,6 +248,27 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     }
 
     initializeData()
+  }, [runId, repo])
+
+  // Load training run policies with epoch information
+  useEffect(() => {
+    const loadPolicies = async () => {
+      if (!runId) return
+
+      try {
+        setLoading(prev => ({ ...prev, policies: true }))
+        setError(null)
+        const policiesData = await repo.getTrainingRunPolicies(runId)
+        setTrainingRunPolicies(policiesData)
+      } catch (err) {
+        setError(`Failed to load policies: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setTrainingRunPolicies([])
+      } finally {
+        setLoading(prev => ({ ...prev, policies: false }))
+      }
+    }
+
+    loadPolicies()
   }, [runId, repo])
 
   // Load eval names when training run is loaded
@@ -422,15 +445,28 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       return <div style={{ textAlign: 'center', padding: '20px' }}>No evaluations found for selected criteria.</div>
     }
 
-    // Sort policies by version number (preserve existing logic)
-    const policyVersionToPolicy = new Map<string, string>()
-    policies.forEach((policy) => {
-      const versionMatch = policy.split(':v')[1]
-      if (versionMatch) {
-        policyVersionToPolicy.set(versionMatch, policy)
-      }
+    if (trainingRunPolicies.length === 0) {
+      return <div style={{ textAlign: 'center', padding: '20px' }}>No policy epoch data available. Loading...</div>
+    }
+
+    // Sort policies by epoch information instead of parsing names
+    const policyNameToEpoch = new Map<string, number>()
+    trainingRunPolicies.forEach((policy) => {
+      // Use epoch_start for sorting, fallback to 0 if null
+      policyNameToEpoch.set(policy.policy_name, policy.epoch_end ?? 0)
     })
-    const sortedPolicyVersions = [...policyVersionToPolicy.keys()].sort((a, b) => parseInt(a) - parseInt(b))
+
+    // Sort policies by epoch_start, then by name for consistent ordering
+    const sortedPolicies = policies
+      .filter(policy => policyNameToEpoch.has(policy)) // Only include policies we have epoch data for
+      .sort((a, b) => {
+        const epochA = policyNameToEpoch.get(a) ?? 0
+        const epochB = policyNameToEpoch.get(b) ?? 0
+        if (epochA !== epochB) {
+          return epochA - epochB
+        }
+        return a.localeCompare(b) // Secondary sort by name
+      })
 
     const shortNameToEvalName = new Map<string, string>()
     evalNames.forEach((evalName) => {
@@ -438,13 +474,15 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     })
     const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => b.localeCompare(a))
 
-    const xLabels = sortedPolicyVersions
+    const xLabels = sortedPolicies.map(policy => {
+      const epoch = policyNameToEpoch.get(policy) ?? 0
+      return `Step ${epoch}` // Use epoch as the label
+    })
     const yLabels = sortedShortNames
 
     const z = yLabels.map((shortName) =>
-      xLabels.map((policyVersion) => {
+      sortedPolicies.map((policy) => {
         const evalName = shortNameToEvalName.get(shortName)!
-        const policy = policyVersionToPolicy.get(policyVersion)!
         const cell = heatmapData.cells[policy]?.[evalName]
         return cell ? cell.value : 0
       })
@@ -453,13 +491,17 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     const onHover = (event: any) => {
       if (!event.points?.[0]) return
 
-      const policyVersion = event.points[0].x
+      const epochLabel = event.points[0].x
       const shortName = event.points[0].y
       const evalName = shortNameToEvalName.get(shortName)!
-      const policyUri = policyVersionToPolicy.get(policyVersion)!
 
-      setLastHoveredCell({ policyUri, evalName })
-      setSelectedCellIfNotLocked({ policyUri, evalName })
+      // Find the policy by epoch label index
+      const policyIndex = xLabels.indexOf(epochLabel)
+      if (policyIndex >= 0 && policyIndex < sortedPolicies.length) {
+        const policyUri = sortedPolicies[policyIndex]
+        setLastHoveredCell({ policyUri, evalName })
+        setSelectedCellIfNotLocked({ policyUri, evalName })
+      }
     }
 
     const onDoubleClick = () => {
@@ -626,7 +668,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
               loading={loading.evalNames}
             />
           </div>
-          
+
           <div className="control-section">
             <h3>Metric Selection</h3>
             <MetricSelector

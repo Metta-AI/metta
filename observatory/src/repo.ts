@@ -220,6 +220,13 @@ export type TrainingRunHeatmapRequest = {
   metric: string
 }
 
+export type TrainingRunPolicy = {
+  policy_name: string
+  policy_id: string
+  epoch_start: number | null
+  epoch_end: number | null
+}
+
 export type PolicyHeatmapCell = {
   evalName: string
   replayUrl: string | null
@@ -304,6 +311,7 @@ export interface Repo {
   updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
   getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData>
   generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData>
+  getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
 
   // Episode methods
   filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse>
@@ -489,6 +497,10 @@ export class ServerRepo implements Repo {
 
   async generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData> {
     return this.apiCallWithBody<PolicyHeatmapData>(`/heatmap/training-run/${encodeURIComponent(runId)}`, request)
+  }
+
+  async getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]> {
+    return this.apiCall<TrainingRunPolicy[]>(`/heatmap/training-run/${encodeURIComponent(runId)}/policies`)
   }
 
   // Episode methods
