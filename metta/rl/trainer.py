@@ -10,17 +10,13 @@ import torch
 import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
-from rich.console import Console
-from rich.table import Table
 
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
-from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -29,13 +25,15 @@ from metta.rl.evaluate import evaluate_policy, generate_policy_replay
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
-from metta.rl.train import train_ppo
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.util.batch_utils import calculate_batch_sizes
 from metta.rl.util.distributed import setup_distributed_vars
+from metta.rl.util.monitoring import (
+    cleanup_monitoring,
+    setup_monitoring,
+)
 from metta.rl.util.optimization import (
     compute_gradient_stats,
     maybe_update_l2_weights,
@@ -50,9 +48,17 @@ from metta.rl.util.stats import (
     accumulate_rollout_stats,
     process_stats,
 )
+from metta.rl.util.training_loop import (
+    get_epoch_timing,
+    log_training_progress,
+    run_training_epoch,
+)
 from metta.rl.util.utils import check_abort, should_run
+from metta.rl.util.wandb_integration import (
+    upload_policy_artifact,
+)
 from metta.rl.vecenv import make_vecenv
-from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_policy_to_wandb, upload_replay_html
+from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_replay_html
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
@@ -271,7 +277,7 @@ def create_master_trainer_components(
     wandb_run: Any | None,
     is_master: bool,
     timer: Stopwatch | None = None,
-) -> Tuple[MemoryMonitor | None, SystemMonitor | None]:
+) -> Tuple[Any, Any]:
     """Create components only needed on the master rank.
 
     Args:
@@ -284,28 +290,18 @@ def create_master_trainer_components(
     Returns:
         Tuple of (memory_monitor, system_monitor)
     """
-    memory_monitor = None
-    system_monitor = None
+    # Use new monitoring setup function
+    memory_monitor, system_monitor = setup_monitoring(
+        policy=policy,
+        experience=experience,
+        is_master=is_master,
+        timer=timer,
+    )
 
-    if is_master:
-        # Create memory monitor
-        memory_monitor = MemoryMonitor()
-        memory_monitor.add(experience, name="Experience", track_attributes=True)
-        memory_monitor.add(policy, name="Policy", track_attributes=False)
-
-        # Create system monitor
-        system_monitor = SystemMonitor(
-            sampling_interval_sec=1.0,
-            history_size=100,
-            logger=logger,
-            auto_start=True,
-            external_timer=timer,
-        )
-
-        # Set up wandb metrics
-        if wandb_run and is_master:
-            setup_wandb_metrics(wandb_run)
-            log_model_parameters(policy, wandb_run)
+    # Set up wandb metrics
+    if wandb_run and is_master:
+        setup_wandb_metrics(wandb_run)
+        log_model_parameters(policy, wandb_run)
 
     return memory_monitor, system_monitor
 
@@ -337,46 +333,23 @@ def log_training_status(
     if not is_master:
         return
 
-    rollout_time = timer.get_last_elapsed("_rollout")
-    train_time = timer.get_last_elapsed("_train")
-    stats_time = timer.get_last_elapsed("_process_stats")
+    rollout_time, train_time, stats_time = get_epoch_timing(timer)
     steps_calculated = agent_step - steps_before
 
     total_time = train_time + rollout_time + stats_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
 
-    train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
-    rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
-    stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
-
-    console = Console()
-    table = Table(
-        title=f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]",
-        show_header=True,
-        header_style="bold magenta",
+    # Use our new logging function
+    log_training_progress(
+        epoch=epoch,
+        agent_step=agent_step,
+        total_timesteps=total_timesteps,
+        steps_per_sec=steps_per_sec,
+        train_time=train_time,
+        rollout_time=rollout_time,
+        stats_time=stats_time,
+        is_master=is_master,
     )
-
-    # Add columns
-    table.add_column("Metric", style="cyan", justify="left")
-    table.add_column("Progress", style="green", justify="right")
-    table.add_column("Rate", style="yellow", justify="left")
-
-    # Add rows
-    progress_pct = (agent_step / total_timesteps) * 100
-    table.add_row(
-        "Agent Steps",
-        f"{agent_step:,} / {total_timesteps:,} ({progress_pct:.1f}%)",
-        f"[dim]{steps_per_sec:.0f} steps/sec[/dim]",
-    )
-
-    table.add_row(
-        "Epoch Time",
-        f"{total_time:.2f}s",
-        f"[dim]Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%[/dim]",
-    )
-
-    # Log the table
-    console.print(table)
 
 
 def train(
@@ -461,34 +434,25 @@ def train(
         record_heartbeat()
 
         with torch_profiler:
-            # Rollout phase
-            with timer("_rollout"):
-                num_steps, raw_infos = rollout(
-                    vecenv=vecenv,
-                    policy=policy,
-                    experience=experience,
-                    device=device,
-                    timer=timer,
-                )
-                agent_step += num_steps * world_size
+            # Run training epoch using new functional interface
+            agent_step, epochs_trained, raw_infos = run_training_epoch(
+                vecenv=vecenv,
+                policy=policy,
+                optimizer=optimizer,
+                experience=experience,
+                kickstarter=kickstarter,
+                losses=losses,
+                trainer_cfg=trainer_cfg,
+                agent_step=agent_step,
+                epoch=epoch,
+                device=device,
+                timer=timer,
+                world_size=world_size,
+            )
+            epoch += epochs_trained
 
-                # Process rollout stats
-                accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
-
-            # Training phase
-            with timer("_train"):
-                epochs_trained = train_ppo(
-                    policy=policy,
-                    optimizer=optimizer,
-                    experience=experience,
-                    kickstarter=kickstarter,
-                    losses=losses,
-                    trainer_cfg=trainer_cfg,
-                    agent_step=agent_step,
-                    epoch=epoch,
-                    device=device,
-                )
-                epoch += epochs_trained
+            # Process rollout stats
+            accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
         torch_profiler.on_epoch_end(epoch)
 
@@ -581,7 +545,7 @@ def train(
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
-            wandb_policy_name = upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record)
+            wandb_policy_name = upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
 
         # Evaluate policy (with remote evaluation support)
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
@@ -718,7 +682,7 @@ def train(
             )
 
     if wandb_run and latest_saved_policy_record:
-        upload_policy_to_wandb(wandb_run, policy_store, latest_saved_policy_record, force=True)
+        upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record, force=True)
 
     # Final synchronization before cleanup
     if torch.distributed.is_initialized():
@@ -726,8 +690,4 @@ def train(
 
     # Cleanup
     vecenv.close()
-    if is_master:
-        if memory_monitor:
-            memory_monitor.clear()
-        if system_monitor:
-            system_monitor.stop()
+    cleanup_monitoring(memory_monitor, system_monitor)
