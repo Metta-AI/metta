@@ -1,0 +1,55 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 4
+
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
+    get_items:
+      enabled: false
+
+  agent:
+    default_resource_limit: 5
+    rewards:
+      inventory:
+        heart: 10
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 21
+    height: 21
+    border_width: 1
+    instances: ${..num_agents}
+    instance_border_width: 3
+
+    root:
+      type: metta.map.scenes.perfect_maze.PerfectMaze
+      params:
+        algorithm: recursive_backtracking
+        entrance: top-left
+        exit: bottom-right
+
+      children:
+        - where:
+            tags:
+              - entrance
+          scene:
+            type: metta.map.scenes.inline_ascii.InlineAscii
+            params:
+              data: '@'
+        - where:
+            tags:
+              - exit
+          scene:
+            type: metta.map.scenes.inline_ascii.InlineAscii
+            params:
+              data: '_'

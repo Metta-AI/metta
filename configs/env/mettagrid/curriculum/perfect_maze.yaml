@@ -1,0 +1,20 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/perfect_maze/basic
+
+# Define different maze configurations to train on
+buckets:
+  # Vary the maze size for progressive difficulty
+  game.map_builder.width:
+    range: [11, 31]
+    bins: 3  # Small (11x11), Medium (21x21), Large (31x31)
+
+  game.map_builder.height:
+    range: [11, 31]
+    bins: 3
+
+  # Vary the algorithm to expose agent to different maze structures
+  game.map_builder.root.params.algorithm:
+    - recursive_backtracking
+    - kruskal
+    - prim

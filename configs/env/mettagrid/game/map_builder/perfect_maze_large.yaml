@@ -1,0 +1,29 @@
+_target_: metta.map.mapgen.MapGen
+
+border_width: 1
+width: 31
+height: 31
+
+instances: 4
+instance_border_width: 5
+
+root:
+  type: metta.map.scenes.perfect_maze.PerfectMaze
+  params:
+    algorithm: kruskal
+
+  children:
+    - where:
+        tags:
+          - top-left
+      scene:
+        type: metta.map.scenes.inline_ascii.InlineAscii
+        params:
+          data: '@' # agent
+    - where:
+        tags:
+          - bottom-right
+      scene:
+        type: metta.map.scenes.inline_ascii.InlineAscii
+        params:
+          data: '_' # goal

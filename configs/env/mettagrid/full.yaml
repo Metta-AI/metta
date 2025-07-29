@@ -1,0 +1,95 @@
+sampling: 0
+
+game:
+  num_agents: 1  # Will be overridden by show.py based on actual map content
+  obs_width: 11
+  obs_height: 11
+  num_observation_tokens: 200
+  max_steps: 1000
+
+  # Movement metrics tracking
+  track_movement_metrics: true
+
+  # Global observation tokens configuration
+  global_obs:
+    episode_completion_pct: true
+    last_action: true # Controls both last_action and last_action_arg tokens
+    last_reward: true
+    resource_rewards: false
+
+  # Basic inventory for visualization
+  inventory_item_names:
+    - ore_red
+    - ore_blue
+    - ore_green
+    - battery_red
+    - battery_blue
+    - battery_green
+    - heart
+    - armor
+    - laser
+    - blueprint
+
+  # Show recipe inputs in observations for all converters
+  recipe_details_obs: false
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: true
+      consumed_resources:
+        laser: 1
+      defense_resources:
+        armor: 1
+    swap:
+      enabled: true
+    change_color:
+      enabled: false
+    change_glyph:
+      enabled: false
+      number_of_glyphs: 4
+
+  # Agent configuration (resolved from game/agent/agent.yaml + rewards/hearts.yaml)
+  agent:
+    default_resource_limit: 50
+    resource_limits:
+      heart: 255
+    freeze_duration: 10
+    rewards:
+      inventory:
+        heart: 1
+
+  # Groups configuration (resolved from game/groups/solo.yaml)
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  # Objects configuration (resolved from game/objects/basic.yaml)
+  objects:
+    altar:
+      type_id: 8
+      input_resources:
+        battery_red: 3
+      output_resources:
+        heart: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 10
+      initial_resource_count: 0
+    wall:
+      type_id: 1
+      swappable: false
+    block:
+      type_id: 14
+      swappable: true

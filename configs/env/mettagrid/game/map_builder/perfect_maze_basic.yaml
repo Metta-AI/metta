@@ -1,0 +1,9 @@
+# Minimal example of a perfect maze scene.
+_target_: metta.map.mapgen.MapGen
+
+width: 21
+height: 21
+border_width: 1
+
+root:
+  type: metta.map.scenes.perfect_maze.PerfectMaze

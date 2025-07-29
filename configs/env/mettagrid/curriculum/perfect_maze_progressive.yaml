@@ -1,0 +1,18 @@
+_target_: metta.mettagrid.curriculum.progressive.ProgressiveCurriculum
+
+# Start with small mazes and progressively increase difficulty
+stages:
+  # Stage 1: Small mazes (easy)
+  - env_cfg_path: /env/mettagrid/perfect_maze/small
+    num_episodes: 1000
+
+  # Stage 2: Medium mazes
+  - env_cfg_path: /env/mettagrid/perfect_maze/basic
+    num_episodes: 2000
+
+  # Stage 3: Large mazes (hard)
+  - env_cfg_path: /env/mettagrid/perfect_maze/large
+    num_episodes: 3000
+
+# Keep using large mazes after curriculum completion
+final_env_cfg_path: /env/mettagrid/perfect_maze/large

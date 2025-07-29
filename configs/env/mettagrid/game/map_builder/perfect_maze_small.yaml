@@ -1,0 +1,29 @@
+# Small perfect maze for quick testing and development.
+_target_: metta.map.mapgen.MapGen
+
+width: 11
+height: 11
+border_width: 1
+
+root:
+  type: metta.map.scenes.perfect_maze.PerfectMaze
+  params:
+    algorithm: prim
+    entrance: top-left
+    exit: bottom-right
+
+  children:
+    - where:
+        tags:
+          - entrance
+      scene:
+        type: metta.map.scenes.inline_ascii.InlineAscii
+        params:
+          data: '@'
+    - where:
+        tags:
+          - exit
+      scene:
+        type: metta.map.scenes.inline_ascii.InlineAscii
+        params:
+          data: '_'
