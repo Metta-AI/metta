@@ -402,6 +402,12 @@ def train(
                     )
                     logger.info(f"Rank {rank}: Master completed checkpoint save")
 
+            # All ranks must synchronize after checkpoint operations
+            if torch.distributed.is_initialized():
+                logger.info(f"Rank {rank}: Entering post-checkpoint barrier")
+                torch.distributed.barrier()
+                logger.info(f"Rank {rank}: Exited post-checkpoint barrier")
+
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
             wandb_policy_name = upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
@@ -536,10 +542,10 @@ def train(
                 kickstarter=kickstarter,
                 force=True,
             )
-    else:
-        # Non-master ranks must participate in the barrier
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+
+    # All ranks must synchronize after final save operations
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     if wandb_run and latest_saved_policy_record:
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record, force=True)
