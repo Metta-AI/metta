@@ -2,19 +2,19 @@ import type { Vec2f } from './vector_math.js'
 
 /** Mesh class responsible for managing vertex data. */
 export class Mesh {
-  private name: string
-  private gl: WebGLRenderingContext
-  private vertexBuffer: WebGLBuffer | null = null
-  private indexBuffer: WebGLBuffer | null = null
+  public name: string
+  public gl: WebGLRenderingContext
+  public vertexBuffer: WebGLBuffer | null = null
+  public indexBuffer: WebGLBuffer | null = null
 
   // Buffer management
-  private maxQuads: number
-  private vertexCapacity: number
-  private indexCapacity: number
-  private vertexData: Float32Array
-  private indexData: Uint32Array
-  private currentQuad = 0
-  private currentVertex = 0
+  public maxQuads: number
+  public vertexCapacity: number
+  public indexCapacity: number
+  public vertexData: Float32Array
+  public indexData: Uint32Array
+  public currentQuad = 0
+  public currentVertex = 0
 
   // Scissor properties
   public scissorEnabled = false
@@ -202,31 +202,6 @@ export class Mesh {
     this.currentVertex += 4
     this.currentQuad += 1
     this.isDirty = true
-  }
-
-  /** Get the number of quads in the mesh. */
-  getQuadCount(): number {
-    return this.currentQuad
-  }
-
-  /** Get the vertex data. */
-  getVertexData(): Float32Array {
-    return this.vertexData
-  }
-
-  /** Get the current vertex count. */
-  getCurrentVertexCount(): number {
-    return this.currentVertex
-  }
-
-  /** Get the vertex buffer. */
-  getVertexBuffer(): WebGLBuffer | null {
-    return this.vertexBuffer
-  }
-
-  /** Get the index buffer. */
-  getIndexBuffer(): WebGLBuffer | null {
-    return this.indexBuffer
   }
 
   /** Reset the counters. */
