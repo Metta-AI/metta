@@ -127,7 +127,7 @@
   pointer-events: none;
 }
 
-.tab[draggable="true"] {
+.tab[draggable='true'] {
   cursor: move;
 }
 

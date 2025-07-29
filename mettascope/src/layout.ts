@@ -6,12 +6,12 @@ export enum PanelType {
   LOGS = 'Logs',
   METRICS = 'Metrics',
   MAP_VIEW = 'Map View',
-  AGENT_DETAILS = 'Agent Details'
+  AGENT_DETAILS = 'Agent Details',
 }
 
 export enum LayoutDirection {
   HORIZONTAL = 'horizontal',
-  VERTICAL = 'vertical'
+  VERTICAL = 'vertical',
 }
 
 export enum DropZone {
@@ -19,7 +19,7 @@ export enum DropZone {
   LEFT = 'left',
   RIGHT = 'right',
   TOP = 'top',
-  BOTTOM = 'bottom'
+  BOTTOM = 'bottom',
 }
 
 export class Tab {
@@ -76,7 +76,7 @@ export class Pane {
     this.tabBarElement = this.element.querySelector('.tab-bar') as HTMLElement
     this.contentElement = this.element.querySelector('.tab-content') as HTMLElement
 
-            // Set up drop zones
+    // Set up drop zones
     this.dropZones.set(DropZone.LEFT, this.element.querySelector('.drop-zone-left') as HTMLElement)
     this.dropZones.set(DropZone.RIGHT, this.element.querySelector('.drop-zone-right') as HTMLElement)
     this.dropZones.set(DropZone.TOP, this.element.querySelector('.drop-zone-top') as HTMLElement)
@@ -107,7 +107,7 @@ export class Pane {
 
     // Handle dropdown item clicks.
     const dropdownItems = this.addTabContainer.querySelectorAll('.dropdown-item')
-    dropdownItems.forEach(item => {
+    dropdownItems.forEach((item) => {
       item.addEventListener('click', (e) => {
         const panelType = (e.target as HTMLElement).getAttribute('data-type') as PanelType
         this.createNewTab(panelType)
@@ -147,9 +147,9 @@ export class Pane {
       }
     })
 
-                    // Set up edge drop zones
+    // Set up edge drop zones
     this.dropZones.forEach((element, zone) => {
-            element.addEventListener('dragover', (e) => {
+      element.addEventListener('dragover', (e) => {
         e.preventDefault()
         this.setActiveDropZone(zone)
       })
@@ -178,7 +178,7 @@ export class Pane {
     })
   }
 
-          private setActiveDropZone(zone: DropZone): void {
+  private setActiveDropZone(zone: DropZone): void {
     this.clearAllDropZones()
     this.activeDropZone = zone
 
@@ -202,14 +202,19 @@ export class Pane {
   private clearAllDropZones(): void {
     this.activeDropZone = null
     this.tabBarElement.classList.remove('drag-over')
-    this.dropZones.forEach(element => element.classList.remove('active'))
-    this.element.classList.remove('split-preview-left', 'split-preview-right', 'split-preview-top', 'split-preview-bottom')
+    this.dropZones.forEach((element) => element.classList.remove('active'))
+    this.element.classList.remove(
+      'split-preview-left',
+      'split-preview-right',
+      'split-preview-top',
+      'split-preview-bottom'
+    )
   }
 
-      private handleTabDrop(sourceId: string, tabIndex: number, dropZone: DropZone): void {
+  private handleTabDrop(sourceId: string, tabIndex: number, dropZone: DropZone): void {
     // Find the source pane
     const allPanes = this.findAllPanes()
-    const sourcePane = allPanes.find(pane => pane.getPaneId() === sourceId)
+    const sourcePane = allPanes.find((pane) => pane.getPaneId() === sourceId)
 
     if (!sourcePane) return
 
@@ -309,14 +314,14 @@ export class Pane {
     if (index >= 0 && index < this.tabs.length) {
       this.tabs.splice(index, 1)
       // If we removed the active tab, activate another one
-      if (this.tabs.length > 0 && !this.tabs.some(tab => tab.isActive)) {
+      if (this.tabs.length > 0 && !this.tabs.some((tab) => tab.isActive)) {
         this.tabs[Math.min(index, this.tabs.length - 1)].isActive = true
       }
       this.updateTabs()
     }
   }
 
-      public closeTab(index: number): void {
+  public closeTab(index: number): void {
     if (index >= 0 && index < this.tabs.length) {
       this.removeTab(index)
 
@@ -327,17 +332,13 @@ export class Pane {
     }
   }
 
-            private removePaneFromLayout(): void {
+  private removePaneFromLayout(): void {
     const parentLayout = this.findParentLayout()
     if (!parentLayout) return
 
     // Remove this pane from the parent layout
     parentLayout.removeChild(this)
   }
-
-
-
-
 
   private findParentLayoutOf(targetLayout: Layout): Layout | null {
     // Walk up the DOM to find the parent of the target layout
@@ -363,7 +364,7 @@ export class Pane {
     // you might want to traverse the layout tree more systematically
     const panes: Pane[] = []
     const containers = document.querySelectorAll('.pane')
-    containers.forEach(container => {
+    containers.forEach((container) => {
       if ((container as any).paneInstance) {
         panes.push((container as any).paneInstance)
       }
@@ -371,7 +372,7 @@ export class Pane {
     return panes
   }
 
-    private findParentLayout(): Layout | null {
+  private findParentLayout(): Layout | null {
     // Walk up the DOM to find the immediate parent layout
     let current = this.element.parentElement
 
@@ -410,12 +411,12 @@ export class Pane {
 
   private updateTabs(): void {
     // Store reference to this pane instance on the element
-    (this.element as any).paneInstance = this
+    ;(this.element as any).paneInstance = this
 
     // Clear the entire tab bar.
     this.tabBarElement.innerHTML = ''
 
-        // Add all tabs.
+    // Add all tabs.
     this.tabs.forEach((tab, index) => {
       const tabElement = document.createElement('div')
       tabElement.className = `tab ${tab.isActive ? 'active' : ''}`
@@ -437,11 +438,11 @@ export class Pane {
       tabElement.appendChild(tabTitle)
       tabElement.appendChild(closeButton)
 
-            // Add drag event listeners
+      // Add drag event listeners
       tabElement.addEventListener('dragstart', (e) => {
         const dragData = {
           sourceId: this.getPaneId(),
-          tabIndex: index
+          tabIndex: index,
         }
         e.dataTransfer?.setData('text/plain', JSON.stringify(dragData))
         tabElement.classList.add('dragging')
@@ -493,12 +494,12 @@ export class Layout {
   private startSizes: number[] = []
 
   constructor(container: HTMLElement, direction: LayoutDirection = LayoutDirection.HORIZONTAL) {
-    this.container = container;
-    this.direction = direction;
+    this.container = container
+    this.direction = direction
     // Store reference to this layout instance
-    (this.container as any).layoutInstance = this;
-    this.render();
-    this.setupSplitters();
+    ;(this.container as any).layoutInstance = this
+    this.render()
+    this.setupSplitters()
   }
 
   private render(): void {
@@ -518,7 +519,7 @@ export class Layout {
     this.updateLayout()
   }
 
-        public removeChild(child: LayoutChild): void {
+  public removeChild(child: LayoutChild): void {
     const index = this.children.indexOf(child)
     if (index !== -1) {
       this.children.splice(index, 1)
@@ -531,7 +532,7 @@ export class Layout {
     }
   }
 
-        private checkForSimplification(): void {
+  private checkForSimplification(): void {
     // Check if this is actually the root layout by looking for layout-container ID
     const isRootLayout = this.container.id === 'layout-container'
 
@@ -564,7 +565,7 @@ export class Layout {
     }
   }
 
-    private findParentLayoutAggressively(): Layout | null {
+  private findParentLayoutAggressively(): Layout | null {
     // Try multiple strategies to find the parent
     let current = this.container.parentElement
     let depth = 0
@@ -576,7 +577,11 @@ export class Layout {
 
       // Also check if this element has a layout-container child that might have the instance
       const layoutContainer = current.querySelector('.layout-container')
-      if (layoutContainer && (layoutContainer as any).layoutInstance && (layoutContainer as any).layoutInstance !== this) {
+      if (
+        layoutContainer &&
+        (layoutContainer as any).layoutInstance &&
+        (layoutContainer as any).layoutInstance !== this
+      ) {
         return (layoutContainer as any).layoutInstance
       }
 
@@ -587,9 +592,7 @@ export class Layout {
     return null
   }
 
-
-
-    private updateLayout(): void {
+  private updateLayout(): void {
     const layoutContainer = this.container.querySelector('.layout-container') as HTMLElement
     if (!layoutContainer) {
       console.error('Layout container not found!')
@@ -638,7 +641,7 @@ export class Layout {
         this.isDragging = true
         this.dragSplitterIndex = index
         this.startPosition = this.direction === LayoutDirection.HORIZONTAL ? e.clientX : e.clientY
-        this.startSizes = this.childContainers.map(container =>
+        this.startSizes = this.childContainers.map((container) =>
           this.direction === LayoutDirection.HORIZONTAL ? container.offsetWidth : container.offsetHeight
         )
         document.body.style.cursor = this.direction === LayoutDirection.HORIZONTAL ? 'col-resize' : 'row-resize'
@@ -652,12 +655,12 @@ export class Layout {
 
       const currentPosition = this.direction === LayoutDirection.HORIZONTAL ? e.clientX : e.clientY
       const delta = currentPosition - this.startPosition
-      const containerSize = this.direction === LayoutDirection.HORIZONTAL
-        ? this.container.offsetWidth
-        : this.container.offsetHeight
-      const splitterSize = this.direction === LayoutDirection.HORIZONTAL
-        ? this.splitters[0]?.offsetWidth || 0
-        : this.splitters[0]?.offsetHeight || 0
+      const containerSize =
+        this.direction === LayoutDirection.HORIZONTAL ? this.container.offsetWidth : this.container.offsetHeight
+      const splitterSize =
+        this.direction === LayoutDirection.HORIZONTAL
+          ? this.splitters[0]?.offsetWidth || 0
+          : this.splitters[0]?.offsetHeight || 0
 
       const leftIndex = this.dragSplitterIndex
       const rightIndex = this.dragSplitterIndex + 1
@@ -667,7 +670,7 @@ export class Layout {
       const minSize = 100
 
       if (newLeftSize >= minSize && newRightSize >= minSize) {
-        const totalFlexibleSize = containerSize - (this.splitters.length * splitterSize)
+        const totalFlexibleSize = containerSize - this.splitters.length * splitterSize
         const leftFlex = newLeftSize / totalFlexibleSize
         const rightFlex = newRightSize / totalFlexibleSize
 
@@ -705,9 +708,9 @@ export class Layout {
   }
 
   public setContainer(container: HTMLElement): void {
-    this.container = container;
+    this.container = container
     // Store reference to this layout instance on the new container
-    (this.container as any).layoutInstance = this;
+    ;(this.container as any).layoutInstance = this
   }
 }
 
@@ -724,12 +727,20 @@ export function initLayout(): void {
   // Create initial panes
   const leftContainer = document.createElement('div')
   const leftPane = new Pane(leftContainer)
-  const leftTab = new Tab('Left Panel', 'This is the left side panel.\n\nYou can add more tabs using the + button.', PanelType.LOGS)
+  const leftTab = new Tab(
+    'Left Panel',
+    'This is the left side panel.\n\nYou can add more tabs using the + button.',
+    PanelType.LOGS
+  )
   leftPane.addTab(leftTab)
 
   const rightContainer = document.createElement('div')
   const rightPane = new Pane(rightContainer)
-  const rightTab = new Tab('Right Panel', 'This is the right side panel.\n\nIt works independently from the left panel.', PanelType.MAP_VIEW)
+  const rightTab = new Tab(
+    'Right Panel',
+    'This is the right side panel.\n\nIt works independently from the left panel.',
+    PanelType.MAP_VIEW
+  )
   rightPane.addTab(rightTab)
 
   layout.addChild(leftPane)
