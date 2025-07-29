@@ -46,6 +46,7 @@ export class Tab {
 export class Pane {
   public tabs: Tab[] = []
   public element: HTMLElement
+  public parent: Layout | null = null
   private tabBarElement!: HTMLElement
   private contentElement!: HTMLElement
   private addTabContainer!: HTMLElement
@@ -56,6 +57,7 @@ export class Pane {
 
   constructor(container: HTMLElement) {
     this.element = container
+    this.parent = null // Will be set when added to a layout
     this.render()
     this.setupEventListeners()
     this.setupDragAndDrop()
@@ -242,7 +244,7 @@ export class Pane {
 
   private performSplit(draggedTab: Tab, dropZone: DropZone): void {
     // Find the parent layout that contains this pane.
-    const parentLayout = this.findParentLayout()
+    const parentLayout = this.parent
     if (!parentLayout) return
 
     // Determine split direction based on drop zone.
@@ -340,7 +342,7 @@ export class Pane {
   }
 
   private removePaneFromLayout(): void {
-    const parentLayout = this.findParentLayout()
+    const parentLayout = this.parent
     if (!parentLayout) return
 
     parentLayout.removeChild(this)
@@ -362,27 +364,6 @@ export class Pane {
       }
     })
     return panes
-  }
-
-  private findParentLayout(): Layout | null {
-    // Walk up the DOM to find the immediate parent layout.
-    let current = this.element.parentElement
-
-    while (current) {
-      // Check if this element has a layout instance.
-      if ((current as any).layoutInstance) {
-        return (current as any).layoutInstance
-      }
-
-      // Also check parent element in case layout instance is stored there.
-      if (current.parentElement && (current.parentElement as any).layoutInstance) {
-        return (current.parentElement as any).layoutInstance
-      }
-
-      current = current.parentElement
-    }
-
-    return null
   }
 
   private enableGlobalDropZones(): void {
@@ -473,6 +454,7 @@ export type LayoutChild = Pane | Layout
 export class Layout {
   public container: HTMLElement
   public children: LayoutChild[] = []
+  public parent: Layout | null = null
   private childContainers: HTMLElement[] = []
   private splitters: HTMLElement[] = []
   public direction: LayoutDirection
@@ -484,6 +466,7 @@ export class Layout {
   constructor(container: HTMLElement, direction: LayoutDirection = LayoutDirection.HORIZONTAL) {
     this.container = container
     this.direction = direction
+    this.parent = null // Root layout has no parent
     // Store reference to this layout instance.
     ;(this.container as any).layoutInstance = this
     this.render()
@@ -499,11 +482,13 @@ export class Layout {
 
   public addChild(child: LayoutChild): void {
     this.children.push(child)
+    child.parent = this
     this.updateLayout()
   }
 
   public insertChild(child: LayoutChild, index: number): void {
     this.children.splice(index, 0, child)
+    child.parent = this
     this.updateLayout()
   }
 
@@ -511,6 +496,7 @@ export class Layout {
     const index = this.children.indexOf(child)
     if (index !== -1) {
       this.children.splice(index, 1)
+      child.parent = null
       this.updateLayout()
 
       // If this layout is now empty or has only one child, check if we need cleanup.
@@ -535,12 +521,13 @@ export class Layout {
         this.addChild(singleChild)
       } else {
         // For non-root layouts, replace this layout with its single child.
-        const parentLayout = this.findParentLayoutAggressively()
+        const parentLayout = this.parent
         if (parentLayout) {
           const layoutIndex = parentLayout.children.indexOf(this)
           if (layoutIndex !== -1) {
             // Remove single child from this layout first.
             this.children = []
+            singleChild.parent = null
             // Replace this layout with the single child.
             parentLayout.removeChild(this)
             parentLayout.insertChild(singleChild, layoutIndex)
@@ -548,39 +535,11 @@ export class Layout {
         }
       }
     } else if (this.children.length === 0 && !isRootLayout) {
-      const parentLayout = this.findParentLayoutAggressively()
+      const parentLayout = this.parent
       if (parentLayout) {
         parentLayout.removeChild(this)
       }
     }
-  }
-
-  private findParentLayoutAggressively(): Layout | null {
-    // TODO this is dumb why do we have multiple strategies?
-    // Try multiple strategies to find the parent.
-    let current = this.container.parentElement
-    let depth = 0
-
-    while (current && depth < 10) {
-      if ((current as any).layoutInstance && (current as any).layoutInstance !== this) {
-        return (current as any).layoutInstance
-      }
-
-      // Also check if this element has a layout-container child that might have the instance.
-      const layoutContainer = current.querySelector('.layout-container')
-      if (
-        layoutContainer &&
-        (layoutContainer as any).layoutInstance &&
-        (layoutContainer as any).layoutInstance !== this
-      ) {
-        return (layoutContainer as any).layoutInstance
-      }
-
-      current = current.parentElement
-      depth++
-    }
-
-    return null
   }
 
   private updateLayout(): void {
