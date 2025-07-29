@@ -35,7 +35,7 @@ protected:
       if (_grid->is_empty(target_loc.r, target_loc.c) && blue_battery_item_ >= 0) {
         if (actor->inventory.count(blue_battery_item_) && actor->inventory[blue_battery_item_] > 0) {
           actor->update_inventory(blue_battery_item_, -1);
-          actor->how_long_blue_battery_held = 0;
+          *actor->how_long_blue_battery_held = 0;
           Box* box = new Box(target_loc.r, target_loc.c, box_type_id_, box_type_name_, actor->id, actor->agent_id, blue_battery_item_);
           _grid->add_object(box);
           actor->stats.add("box.created", 1.0f);
