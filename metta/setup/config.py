@@ -48,11 +48,13 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
+            "filter-repo": {"enabled": True},
             "observatory-key": {"enabled": False},
             "aws": {"enabled": False},
             "wandb": {"enabled": False},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
+            "heatmapwidget": {"enabled": True},
         }
     },
     UserType.CLOUD: {
@@ -62,11 +64,13 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
+            "filter-repo": {"enabled": True},
             "observatory-key": {"enabled": False},
             "aws": {"enabled": True},
             "wandb": {"enabled": True},
             "skypilot": {"enabled": True},
             "tailscale": {"enabled": False},
+            "heatmapwidget": {"enabled": False},
         }
     },
     UserType.SOFTMAX_DOCKER: {
@@ -76,11 +80,13 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "nodejs": {"enabled": False},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": False},
+            "filter-repo": {"enabled": True},
             "observatory-key": {"enabled": False},
             "aws": {"enabled": True, "expected_connection": "751442549699"},
             "wandb": {"enabled": True, "expected_connection": "metta-research"},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
+            "heatmapwidget": {"enabled": False},
         }
     },
     UserType.SOFTMAX: {
@@ -91,11 +97,13 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
+            "filter-repo": {"enabled": True},
             "observatory-key": {"enabled": True, "expected_connection": "@stem.ai"},
             "aws": {"enabled": True, "expected_connection": "751442549699"},
             "wandb": {"enabled": True, "expected_connection": "metta-research"},
             "skypilot": {"enabled": True, "expected_connection": "skypilot-api.softmax-research.net"},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
+            "heatmapwidget": {"enabled": True},
         }
     },
 }

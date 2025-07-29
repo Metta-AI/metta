@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import subprocess
 
@@ -40,9 +41,14 @@ class NodejsSetup(SetupModule):
         try:
             env = os.environ.copy()
             env["NODE_NO_WARNINGS"] = "1"
-            self.run_command(["pnpm", "--version"], capture_output=True, env=env)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
+            result = subprocess.run(
+                ["pnpm", "--version"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            return result.returncode == 0
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
     def _enable_corepack_with_cleanup(self):
@@ -86,8 +92,31 @@ class NodejsSetup(SetupModule):
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
-        info("Installing turbo...")
-        self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
+        def _set_pnpm_home_now(value: str) -> None:
+            os.environ["PNPM_HOME"] = value
+            os.environ["PATH"] = f"{value}:{os.environ['PATH']}"  # pnpm complains if PNPM_HOME is not in PATH
+            info("PNPM_HOME configured. Restart your shell to apply.")
+
+        if not os.environ.get("PNPM_HOME"):
+            # We need to setup pnpm before we can install turbo globally
+            # This command will update the user's `~/.bashrc` or `~/.zshrc`.
+            self.run_command(["pnpm", "setup"], capture_output=False)
+
+            # PNPM_HOME configuration is in the user's shell profile, but we need to set it now.
+            # Apply some heuristics to detect the correct directory.
+            #
+            # Note: we could run a new temporary shell script, print env from it and capture, but that might be more
+            # error prone.
+            if platform.system() == "Darwin":
+                _set_pnpm_home_now(os.path.expanduser("~/Library/pnpm"))
+            elif os.path.exists(os.path.expanduser("~/.pnpm")):
+                _set_pnpm_home_now(os.path.expanduser("~/.pnpm"))
+
+        if os.environ.get("PNPM_HOME"):
+            info("Installing turbo...")
+            self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
+        else:
+            warning("Failed to detect PNPM_HOME dir, skipping global turbo install")
 
         info("Installing dependencies...")
         # pnpm install with frozen lockfile to avoid prompts

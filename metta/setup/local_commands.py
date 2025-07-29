@@ -5,23 +5,28 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import wandb
-from omegaconf import DictConfig
-
-from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import get_repo_root
-from metta.common.util.stats_client_cfg import get_stats_client_direct
-from metta.common.wandb.wandb_runs import find_training_runs
-from metta.setup.tools.local.kind import Kind
 from metta.setup.utils import error, info
-from metta.sim.utils import get_or_create_policy_ids
+
+# Type checking imports
+if TYPE_CHECKING:
+    pass
 
 
 class LocalCommands:
     def __init__(self):
         self.repo_root = get_repo_root()
-        self._kind_manager = Kind()
+        self._kind_manager = None
+
+    @property
+    def kind_manager(self):
+        if self._kind_manager is None:
+            from metta.setup.tools.local.kind import Kind
+
+            self._kind_manager = Kind()
+        return self._kind_manager
 
     def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
         cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
@@ -44,6 +49,15 @@ class LocalCommands:
 
     def load_policies(self, unknown_args) -> None:
         """Load W&B artifacts as policies into stats database."""
+        # Lazy imports
+        import wandb
+        from omegaconf import DictConfig
+
+        from metta.agent.policy_store import PolicyStore
+        from metta.common.util.stats_client_cfg import get_stats_client_direct
+        from metta.common.wandb.wandb_runs import find_training_runs
+        from metta.sim.utils import get_or_create_policy_ids
+
         # Create parser for load-policies specific arguments
         parser = argparse.ArgumentParser(
             prog="metta local load-policies", description="Load W&B artifacts as policies into stats database"
@@ -126,24 +140,61 @@ class LocalCommands:
         action = args.action
 
         if action == "build":
-            self._kind_manager.build()
+            self.kind_manager.build()
         elif action == "up":
-            self._kind_manager.up()
+            self.kind_manager.up()
         elif action == "down":
-            self._kind_manager.down()
+            self.kind_manager.down()
         elif action == "clean":
-            self._kind_manager.clean()
+            self.kind_manager.clean()
         elif action == "get-pods":
-            self._kind_manager.get_pods()
+            self.kind_manager.get_pods()
         elif action == "logs":
             if hasattr(args, "pod_name") and args.pod_name:
-                self._kind_manager.logs(args.pod_name)
+                self.kind_manager.logs(args.pod_name)
             else:
                 error("Pod name is required for logs command")
                 sys.exit(1)
         elif action == "enter":
             if hasattr(args, "pod_name") and args.pod_name:
-                self._kind_manager.enter(args.pod_name)
+                self.kind_manager.enter(args.pod_name)
             else:
                 error("Pod name is required for enter command")
                 sys.exit(1)
+
+    def observatory(self, args, unknown_args) -> None:
+        """Launch Observatory with specified backend."""
+        # Build the command to run launch.py
+        cmd = [sys.executable, str(self.repo_root / "observatory" / "launch.py")]
+
+        # Pass through any arguments
+        if unknown_args:
+            cmd.extend(unknown_args)
+
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            error(f"Failed to launch Observatory: {e}")
+            sys.exit(1)
+        except KeyboardInterrupt:
+            info("\nObservatory shutdown")
+            sys.exit(0)
+
+    def stats_server(self, args, unknown_args) -> None:
+        """Launch Stats Server."""
+        cmd = [
+            "uv",
+            "run",
+            "python",
+            str(self.repo_root / "app_backend" / "src" / "metta" / "app_backend" / "server.py"),
+            *unknown_args,
+        ]
+
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            error(f"Failed to launch Stats Server: {e}")
+            sys.exit(1)
+        except KeyboardInterrupt:
+            info("\nStats Server shutdown")
+            sys.exit(0)

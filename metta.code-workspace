@@ -1,136 +1,154 @@
 {
-	"folders": [
-		{
-			"path": ".."
-		}
-	],
-	"settings": {
-		"yaml.schemas": {
-			"envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml"
-		},
-		"ruff.enable": true,
-		"ruff.nativeServer": "on",
-		"files.excludeGitIgnored": true,
-		"terminal.integrated.profiles.osx": {
-			"metta-0": {
-				"path": "bash",
-				"args": [
-					"-c",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta0 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-				],
-				"overrideName": true,
-				"name": "metta-0"
-			},
-			"metta-1": {
-				"path": "bash",
-				"args": [
-					"-c",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-				],
-				"overrideName": true,
-				"name": "metta-1"
-			},
-			"metta-2": {
-				"path": "bash",
-				"args": [
-					"-c",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta2 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-				],
-				"overrideName": true,
-				"name": "metta-2"
-			},
-			"metta-3": {
-				"path": "bash",
-				"args": [
-					"-c",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta3 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-				],
-				"overrideName": true,
-				"name": "metta-3"
-			},
-			"metta-4": {
-				"path": "bash",
-				"args": [
-					"-c",
-					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta4 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-				],
-				"overrideName": true,
-				"name": "metta-4"
-			}
-		},
-		"terminal.integrated.cwd": "${workspaceFolder}",
-		"terminal.integrated.splitCwd": "workspaceRoot",
-		"files.autoGuessEncoding": false,
-		"files.associations": {
-			"__bit_reference": "cpp",
-			"__hash_table": "cpp",
-			"__locale": "cpp",
-			"__node_handle": "cpp",
-			"__split_buffer": "cpp",
-			"__tree": "cpp",
-			"__verbose_abort": "cpp",
-			"algorithm": "cpp",
-			"any": "cpp",
-			"array": "cpp",
-			"bitset": "cpp",
-			"cctype": "cpp",
-			"charconv": "cpp",
-			"clocale": "cpp",
-			"cmath": "cpp",
-			"codecvt": "cpp",
-			"complex": "cpp",
-			"condition_variable": "cpp",
-			"cstdarg": "cpp",
-			"cstdint": "cpp",
-			"cstdio": "cpp",
-			"cstdlib": "cpp",
-			"cstring": "cpp",
-			"ctime": "cpp",
-			"cwchar": "cpp",
-			"cwctype": "cpp",
-			"deque": "cpp",
-			"execution": "cpp",
-			"forward_list": "cpp",
-			"initializer_list": "cpp",
-			"iomanip": "cpp",
-			"ios": "cpp",
-			"iosfwd": "cpp",
-			"iostream": "cpp",
-			"istream": "cpp",
-			"limits": "cpp",
-			"list": "cpp",
-			"locale": "cpp",
-			"map": "cpp",
-			"memory": "cpp",
-			"mutex": "cpp",
-			"new": "cpp",
-			"optional": "cpp",
-			"print": "cpp",
-			"queue": "cpp",
-			"ratio": "cpp",
-			"regex": "cpp",
-			"set": "cpp",
-			"shared_mutex": "cpp",
-			"span": "cpp",
-			"sstream": "cpp",
-			"stack": "cpp",
-			"stdexcept": "cpp",
-			"streambuf": "cpp",
-			"string_view": "cpp",
-			"string": "cpp",
-			"typeindex": "cpp",
-			"typeinfo": "cpp",
-			"unordered_map": "cpp",
-			"unordered_set": "cpp",
-			"valarray": "cpp",
-			"variant": "cpp",
-			"vector": "cpp",
-			"cinttypes": "cpp",
-			"csignal": "cpp",
-			"fstream": "cpp",
-			"future": "cpp",
-			"__config": "cpp"
-		},
-		"vim.textwidth": 120
-	}
+  "folders": [
+    {
+      "name": "metta",
+      "path": ".",
+    },
+    {
+      "path": "personal",
+    },
+  ],
+  "settings": {
+    "yaml.schemas": {
+      "envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml",
+    },
+    "ruff.enable": true,
+    "ruff.nativeServer": "on",
+    "files.excludeGitIgnored": true,
+    "terminal.integrated.profiles.osx": {
+      "metta-0": {
+        "path": "bash",
+        "args": [
+          "-c",
+          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta0 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'",
+        ],
+        "overrideName": true,
+        "name": "metta-0",
+      },
+      "metta-1": {
+        "path": "bash",
+        "args": [
+          "-c",
+          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'",
+        ],
+        "overrideName": true,
+        "name": "metta-1",
+      },
+      "metta-2": {
+        "path": "bash",
+        "args": [
+          "-c",
+          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta2 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'",
+        ],
+        "overrideName": true,
+        "name": "metta-2",
+      },
+      "metta-3": {
+        "path": "bash",
+        "args": [
+          "-c",
+          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta3 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'",
+        ],
+        "overrideName": true,
+        "name": "metta-3",
+      },
+      "metta-4": {
+        "path": "bash",
+        "args": [
+          "-c",
+          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta4 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'",
+        ],
+        "overrideName": true,
+        "name": "metta-4",
+      },
+    },
+    "terminal.integrated.cwd": "${workspaceFolder}",
+    "terminal.integrated.splitCwd": "workspaceRoot",
+    "files.autoGuessEncoding": false,
+    "files.associations": {
+      "__bit_reference": "cpp",
+      "__hash_table": "cpp",
+      "__locale": "cpp",
+      "__node_handle": "cpp",
+      "__split_buffer": "cpp",
+      "__tree": "cpp",
+      "__verbose_abort": "cpp",
+      "algorithm": "cpp",
+      "any": "cpp",
+      "array": "cpp",
+      "bitset": "cpp",
+      "cctype": "cpp",
+      "charconv": "cpp",
+      "clocale": "cpp",
+      "cmath": "cpp",
+      "codecvt": "cpp",
+      "complex": "cpp",
+      "condition_variable": "cpp",
+      "cstdarg": "cpp",
+      "cstdint": "cpp",
+      "cstdio": "cpp",
+      "cstdlib": "cpp",
+      "cstring": "cpp",
+      "ctime": "cpp",
+      "cwchar": "cpp",
+      "cwctype": "cpp",
+      "deque": "cpp",
+      "execution": "cpp",
+      "forward_list": "cpp",
+      "initializer_list": "cpp",
+      "iomanip": "cpp",
+      "ios": "cpp",
+      "iosfwd": "cpp",
+      "iostream": "cpp",
+      "istream": "cpp",
+      "limits": "cpp",
+      "list": "cpp",
+      "locale": "cpp",
+      "map": "cpp",
+      "memory": "cpp",
+      "mutex": "cpp",
+      "new": "cpp",
+      "optional": "cpp",
+      "print": "cpp",
+      "queue": "cpp",
+      "ratio": "cpp",
+      "regex": "cpp",
+      "set": "cpp",
+      "shared_mutex": "cpp",
+      "span": "cpp",
+      "sstream": "cpp",
+      "stack": "cpp",
+      "stdexcept": "cpp",
+      "streambuf": "cpp",
+      "string_view": "cpp",
+      "string": "cpp",
+      "typeindex": "cpp",
+      "typeinfo": "cpp",
+      "unordered_map": "cpp",
+      "unordered_set": "cpp",
+      "valarray": "cpp",
+      "variant": "cpp",
+      "vector": "cpp",
+      "cinttypes": "cpp",
+      "csignal": "cpp",
+      "fstream": "cpp",
+      "future": "cpp",
+      "__config": "cpp",
+    },
+    "vim.textwidth": 120,
+    "eslint.useFlatConfig": true,
+    "eslint.workingDirectories": ["./mettascope", "./observatory"],
+    "[typescriptreact]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
+    "[typescript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
+    "[jsonc]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
+    "[json]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
+  },
 }
