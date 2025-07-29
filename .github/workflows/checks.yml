@@ -339,6 +339,7 @@ jobs:
             exit 1
           else
             echo "✅ MettaGrid build quality check passed"
+          fi
 
       - name: Upload MettaGrid C++ coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
