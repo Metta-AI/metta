@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 from collections import defaultdict
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -12,8 +11,6 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent
-from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -29,6 +26,7 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.util.batch_utils import calculate_batch_sizes
+from metta.rl.util.checkpoint import log_recent_checkpoints
 from metta.rl.util.distributed import setup_distributed_vars
 from metta.rl.util.monitoring import (
     cleanup_monitoring,
@@ -42,6 +40,7 @@ from metta.rl.util.policy_management import (
     load_or_initialize_policy,
     validate_policy_environment_match,
 )
+from metta.rl.util.policy_utils import create_initial_policy_record
 from metta.rl.util.rollout import get_lstm_config
 from metta.rl.util.stats import (
     StatsTracker,
@@ -91,12 +90,8 @@ def train(
     """Functional training loop."""
     logger.info(f"run_dir = {cfg.run_dir}")
 
-    # Log recent checkpoints
-    checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
-    if checkpoints_dir.exists():
-        files = sorted(os.listdir(checkpoints_dir))
-        recent_files = files[-3:] if len(files) >= 3 else files
-        logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
+    # Log recent checkpoints for debugging
+    log_recent_checkpoints(cfg.run_dir)
 
     # Create trainer config from Hydra config
     trainer_cfg = create_trainer_config(cfg)
@@ -316,12 +311,9 @@ def train(
         with timer("_process_stats"):
             if is_master and wandb_run:
                 # Create initial policy record for process_stats
-                initial_policy_record = None
-                if initial_policy_uri:
-                    metadata = PolicyMetadata(generation=initial_generation)
-                    initial_policy_record = PolicyRecord(
-                        policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
-                    )
+                initial_policy_record = create_initial_policy_record(
+                    policy_store, initial_policy_uri, initial_generation
+                )
 
                 process_stats(
                     stats=stats_tracker.rollout_stats,
@@ -378,12 +370,7 @@ def train(
         # Save policy
         if checkpoint_manager.should_checkpoint(epoch):
             # Create initial policy record for metadata
-            initial_policy_record = None
-            if initial_policy_uri:
-                metadata = PolicyMetadata(generation=initial_generation)
-                initial_policy_record = PolicyRecord(
-                    policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
-                )
+            initial_policy_record = create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
 
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
@@ -518,12 +505,7 @@ def train(
     # Force final saves
     if is_master:
         # Create initial policy record for metadata
-        initial_policy_record = None
-        if initial_policy_uri:
-            metadata = PolicyMetadata(generation=initial_generation)
-            initial_policy_record = PolicyRecord(
-                policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
-            )
+        initial_policy_record = create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
 
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
