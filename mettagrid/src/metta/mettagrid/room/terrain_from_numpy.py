@@ -16,14 +16,60 @@ logger = logging.getLogger("terrain_from_numpy")
 
 
 def safe_load(path, retries=5, delay=1.0):
+    """
+    Safely load numpy array with retries and better error handling.
+
+    The error "array.shape = shape" in numpy's format.py typically occurs when:
+    1. File is being written by another process (incomplete write)
+    2. File is corrupted
+    3. There's a mismatch between data size and expected shape
+    """
+    # Use file locking to prevent concurrent access issues
+    lock_path = f"{path}.lock"
+    lock = FileLock(lock_path, timeout=30)
+
     for attempt in range(retries):
         try:
-            return np.load(path, allow_pickle=True)
-        except ValueError:
+            with lock.acquire(timeout=10):
+                # First, check if file exists and is readable
+                if not os.path.exists(path):
+                    raise FileNotFoundError(f"File not found: {path}")
+
+                # Check file size to ensure it's not empty or being written
+                file_size = os.path.getsize(path)
+                if file_size == 0:
+                    raise ValueError(f"File is empty: {path}")
+
+                # Try loading with mmap_mode=None first (loads entire array into memory)
+                # This avoids issues with memory-mapped arrays in distributed settings
+                try:
+                    arr = np.load(path, allow_pickle=True, mmap_mode=None)
+                    # Verify the array is valid
+                    if not hasattr(arr, "shape"):
+                        raise ValueError(f"Loaded object is not a numpy array: {type(arr)}")
+                    # Force a copy to ensure we have a standard numpy array
+                    return np.array(arr, copy=True)
+                except ValueError as e:
+                    # If standard load fails, try with mmap_mode='c' (copy-on-write)
+                    # This can help with files that are being accessed concurrently
+                    if "array.shape" in str(e):
+                        logger.warning(f"Shape assignment error, trying alternative load method: {e}")
+                        arr = np.load(path, allow_pickle=True, mmap_mode="c")
+                        # Immediately copy to avoid any mmap issues
+                        return arr.copy()
+                    else:
+                        raise
+
+        except (ValueError, OSError, FileNotFoundError) as e:
             if attempt < retries - 1:
-                time.sleep(delay)
+                logger.warning(f"Failed to load {path} (attempt {attempt + 1}/{retries}): {type(e).__name__}: {e}")
+                # Exponential backoff with jitter
+                sleep_time = delay * (2**attempt) + random.uniform(0, 0.1)
+                time.sleep(sleep_time)
                 continue
-            raise
+            else:
+                logger.error(f"Failed to load {path} after {retries} attempts")
+                raise
 
 
 def pick_random_file(path):
@@ -133,7 +179,13 @@ class TerrainFromNumpy(Room):
         else:
             uri = self._file
 
-        level = safe_load(f"{map_dir}/{uri}")
+        file_path = f"{map_dir}/{uri}"
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Terrain file not found: {file_path}")
+
+        level = safe_load(file_path)
+        if level.ndim != 2:
+            raise ValueError(f"Expected 2D array, got {level.ndim}D array from {file_path}")
         height, width = level.shape
         self.set_size_labels(width, height)
 
