@@ -22,7 +22,7 @@ def setup_local_parser(parser: argparse.ArgumentParser) -> None:
     This just adds a simple help message since the actual parsing
     is delegated to LocalCommands.main().
     """
-    parser.add_argument("args", nargs="*", help="Arguments to pass to local commands")
+    # No arguments needed - we'll get unknown_args in the handler
     # Store parser for help display
     parser.set_defaults(local_parser=parser)
 
@@ -79,19 +79,12 @@ class LocalCommands:
         """Main entry point for local commands CLI."""
         parser = self._build_parser()
 
-        # Commands that need unknown args
-        pass_unknown_cmds = {"build-policy-evaluator-img", "stats-server", "observatory"}
-
         # Parse arguments
         if argv is None:
-            argv = sys.argv[1:]
+            argv = []
 
-        # Use parse_known_args for commands that accept unknown args
-        if len(argv) > 0 and argv[0] in pass_unknown_cmds:
-            args, unknown_args = parser.parse_known_args(argv)
-        else:
-            args = parser.parse_args(argv)
-            unknown_args = []
+        # Always use parse_known_args for consistency
+        args, unknown_args = parser.parse_known_args(argv)
 
         # Dispatch to command handler
         if not args.command:
@@ -270,7 +263,7 @@ class LocalCommands:
                 error("Pod name is required for enter command")
                 sys.exit(1)
 
-    def observatory(self, args, unknown_args) -> None:
+    def observatory(self, args, unknown_args=None) -> None:
         """Launch Observatory with specified backend."""
         # Build the command to run launch.py
         cmd = [sys.executable, str(self.repo_root / "observatory" / "launch.py")]
@@ -288,14 +281,14 @@ class LocalCommands:
             info("\nObservatory shutdown")
             sys.exit(0)
 
-    def stats_server(self, args, unknown_args) -> None:
+    def stats_server(self, args, unknown_args=None) -> None:
         """Launch Stats Server."""
         cmd = [
             "uv",
             "run",
             "python",
             str(self.repo_root / "app_backend" / "src" / "metta" / "app_backend" / "server.py"),
-            *unknown_args,
+            *(unknown_args or []),
         ]
 
         try:
@@ -311,7 +304,7 @@ class LocalCommands:
 def main():
     """Entry point for standalone execution."""
     local_commands = LocalCommands()
-    local_commands.main()
+    local_commands.main(sys.argv[1:])
 
 
 if __name__ == "__main__":

@@ -117,7 +117,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         needs_config=True,
         pass_unknown_args=True,
         add_help=False,  # Let LocalCommands handle its own help
-        parser_setup=None,  # Will be set dynamically to avoid circular imports
+        parser_setup=None,
     ),
     "symlink-setup": CommandConfig(
         help="Create symlink to make metta command globally available",
@@ -287,7 +287,7 @@ class MettaCLI:
         success("\nCustom configuration saved.")
         info("\nRun 'metta install' to set up your environment.")
 
-    def cmd_configure(self, args) -> None:
+    def cmd_configure(self, args, unknown_args=None) -> None:
         if args.component:
             self.configure_component(args.component)
         elif args.profile:
@@ -337,7 +337,7 @@ class MettaCLI:
         # Run the component's command
         module.run(args.args)
 
-    def cmd_install(self, args) -> None:
+    def cmd_install(self, args, unknown_args=None) -> None:
         from metta.setup.registry import get_all_modules, get_applicable_modules
         from metta.setup.utils import error, info, success, warning
 
@@ -395,7 +395,7 @@ class MettaCLI:
 
         success("Installation complete!")
 
-    def cmd_clean(self, args, verbose: bool = False) -> None:
+    def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
         from metta.setup.utils import info, warning
 
         build_dir = self.repo_root / "build"
@@ -427,7 +427,7 @@ class MettaCLI:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_symlink_setup(self, args) -> None:
+    def cmd_symlink_setup(self, args, unknown_args=None) -> None:
         self.path_setup.setup_path(force=args.force)
 
     def _run_subprocess_command(self, command: str, args, unknown_args=None) -> None:
@@ -463,24 +463,14 @@ class MettaCLI:
                 print("Run: metta install codeclip", file=sys.stderr)
             sys.exit(1)
 
-    def cmd_report_env_details(self, args) -> None:
+    def cmd_report_env_details(self, args, unknown_args=None) -> None:
         print(f"UV Project Directory: {self.repo_root}")
         print(f"Metta CLI Working Directory: {Path.cwd()}")
 
     def cmd_local(self, args, unknown_args=None) -> None:
-        """Delegate to LocalCommands CLI."""
-        # Get all arguments after 'local' command
-        try:
-            local_index = sys.argv.index("local")
-            remaining_args = sys.argv[local_index + 1 :] if local_index + 1 < len(sys.argv) else []
-        except ValueError:
-            # Fallback to args if 'local' not found
-            remaining_args = getattr(args, "args", []) or []
+        self.local_commands.main(unknown_args)
 
-        # Run LocalCommands with the remaining arguments
-        self.local_commands.main(remaining_args)
-
-    def cmd_lint(self, args) -> None:
+    def cmd_lint(self, args, unknown_args=None) -> None:
         files = []
         if args.staged:
             result = subprocess.run(
@@ -530,7 +520,7 @@ class MettaCLI:
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
 
-    def cmd_status(self, args) -> None:
+    def cmd_status(self, args, unknown_args=None) -> None:
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info, success, warning
 
@@ -729,7 +719,6 @@ Examples:
             if cmd_config.parser_setup:
                 cmd_config.parser_setup(cmd_parser)
             elif cmd_name == "local":
-                # Import setup_local_parser dynamically to avoid circular imports
                 from metta.setup.local_commands import setup_local_parser
 
                 setup_local_parser(cmd_parser)
@@ -797,11 +786,8 @@ Examples:
             # Handle method handlers
             elif cmd_config.handler:
                 handler = getattr(self, cmd_config.handler)
-
-                if cmd_config.pass_unknown_args:
-                    handler(args, unknown_args)
-                else:
-                    handler(args)
+                # Always pass both args and unknown_args for consistency
+                handler(args, unknown_args)
             else:
                 print(f"Error: Command {args.command} has no handler or subprocess_cmd", file=sys.stderr)
                 sys.exit(1)
