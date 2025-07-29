@@ -9,18 +9,6 @@ from metta.app_backend.stats_client import StatsClient
 class TestTrainingRunsRoutes:
     """Tests for the training runs API routes."""
 
-    @pytest.fixture(scope="class")
-    def stats_client(self, test_client: TestClient) -> StatsClient:
-        """Create a stats client for testing."""
-        # Create a machine token
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "test_training_runs_token"},
-            headers={"X-Auth-Request-Email": "test@example.com"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-        return StatsClient(test_client, machine_token=token)
 
     @pytest.fixture(scope="class")
     def test_training_runs(self, stats_client: StatsClient) -> Dict:
@@ -217,17 +205,17 @@ class TestTrainingRunsRoutes:
             "episode_ids": episode_ids,
         }
 
-    def test_get_training_runs_empty(self, test_client: TestClient) -> None:
+    def test_get_training_runs_empty(self, test_client: TestClient, auth_headers: Dict[str, str]) -> None:
         """Test getting training runs when none exist."""
-        response = test_client.get("/dashboard/training-runs")
+        response = test_client.get("/training-runs", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "training_runs" in data
         assert isinstance(data["training_runs"], list)
 
-    def test_get_training_runs_list(self, test_client: TestClient, test_training_runs: Dict) -> None:
+    def test_get_training_runs_list(self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]) -> None:
         """Test listing all training runs."""
-        response = test_client.get("/dashboard/training-runs")
+        response = test_client.get("/training-runs", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
 
@@ -246,7 +234,7 @@ class TestTrainingRunsRoutes:
         assert "id" in run1
         assert run1["name"] == "training_run_1"
         assert run1["status"] == "running"  # Default status
-        assert run1["user_id"] == "test@example.com"
+        assert run1["user_id"] == "test_user@example.com"
         assert "created_at" in run1
         assert run1["url"] == "https://wandb.ai/test/run1"
 
@@ -254,35 +242,35 @@ class TestTrainingRunsRoutes:
         assert "id" in run2
         assert run2["name"] == "training_run_2"
         assert run2["status"] == "running"
-        assert run2["user_id"] == "test@example.com"
+        assert run2["user_id"] == "test_user@example.com"
         assert "created_at" in run2
         assert run2["url"] is None
 
-    def test_get_specific_training_run(self, test_client: TestClient, test_training_runs: Dict) -> None:
+    def test_get_specific_training_run(self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]) -> None:
         """Test getting a specific training run by ID."""
         run1 = test_training_runs["runs"][0]
 
-        response = test_client.get(f"/dashboard/training-runs/{run1.id}")
+        response = test_client.get(f"/training-runs/{run1.id}", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
 
         assert data["id"] == str(run1.id)
         assert data["name"] == "training_run_1"
         assert data["status"] == "running"
-        assert data["user_id"] == "test@example.com"
+        assert data["user_id"] == "test_user@example.com"
         assert "created_at" in data
         assert data["url"] == "https://wandb.ai/test/run1"
 
-    def test_get_training_run_not_found(self, test_client: TestClient) -> None:
+    def test_get_training_run_not_found(self, test_client: TestClient, auth_headers: Dict[str, str]) -> None:
         """Test getting a non-existent training run."""
         fake_id = "00000000-0000-0000-0000-000000000000"
-        response = test_client.get(f"/dashboard/training-runs/{fake_id}")
+        response = test_client.get(f"/training-runs/{fake_id}", headers=auth_headers)
         assert response.status_code == 404
         assert "Training run not found" in response.json()["detail"]
 
-    def test_get_training_run_invalid_uuid(self, test_client: TestClient) -> None:
+    def test_get_training_run_invalid_uuid(self, test_client: TestClient, auth_headers: Dict[str, str]) -> None:
         """Test getting a training run with invalid UUID."""
-        response = test_client.get("/dashboard/training-runs/invalid-uuid")
+        response = test_client.get("/training-runs/invalid-uuid", headers=auth_headers)
         assert response.status_code == 404
 
 
