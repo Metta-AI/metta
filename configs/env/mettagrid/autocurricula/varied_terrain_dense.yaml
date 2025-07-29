@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/autocurricula/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    room:
+      dir: ${choose:varied_terrain/dense_large,varied_terrain/dense_medium,varied_terrain/dense_small}
