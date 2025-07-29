@@ -224,7 +224,14 @@ export function Episodes({ repo }: EpisodesProps) {
       )}
 
       {/* Filter Section */}
-      <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '5px' }}>
+      <div
+        style={{
+          marginBottom: '20px',
+          padding: '20px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '5px',
+        }}
+      >
         <form onSubmit={handleFilterSubmit}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <label htmlFor="filter-query">Filter:</label>
@@ -270,9 +277,23 @@ export function Episodes({ repo }: EpisodesProps) {
       </div>
 
       {/* Tag Management Section */}
-      <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '5px' }}>
+      <div
+        style={{
+          marginBottom: '20px',
+          padding: '20px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '5px',
+        }}
+      >
         <h3>Tag Management</h3>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+            marginBottom: '10px',
+          }}
+        >
           <div style={{ position: 'relative', flex: '0 0 200px' }}>
             <input
               type="text"
@@ -336,7 +357,11 @@ export function Episodes({ repo }: EpisodesProps) {
           <select
             value={tagAction}
             onChange={(e) => setTagAction(e.target.value as 'add' | 'remove')}
-            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+            style={{
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+            }}
           >
             <option value="add">Add Tag</option>
             <option value="remove">Remove Tag</option>
@@ -362,33 +387,123 @@ export function Episodes({ repo }: EpisodesProps) {
 
       {/* Episodes Table */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '10px',
+          }}
+        >
           <p>
             Showing {episodes.length} episodes (Page {currentPage} of {totalPages}, Total: {totalCount})
             {(selectedEpisodes.size > 0 || selectAllChecked) && (
-              <span style={{ marginLeft: '10px', color: '#007bff', fontWeight: 'bold' }}>
+              <span
+                style={{
+                  marginLeft: '10px',
+                  color: '#007bff',
+                  fontWeight: 'bold',
+                }}
+              >
                 {selectAllChecked ? `All ${totalCount} episodes selected` : `${selectedEpisodes.size} selected`}
               </span>
             )}
           </p>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              cursor: 'pointer',
+            }}
+          >
             <input type="checkbox" checked={selectAllChecked} onChange={handleSelectAll} style={{ margin: 0 }} />
             Select All ({totalCount} episodes)
           </label>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '14px',
+            }}
+          >
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>Select</th>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>ID</th>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>created_at</th>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>policy_name</th>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>training_run_name</th>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>eval_category</th>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>env_name</th>
-                <th style={{ padding: '12px', textAlign: 'left', border: '1px solid #ddd' }}>Tags</th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  Select
+                </th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  ID
+                </th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  created_at
+                </th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  policy_name
+                </th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  training_run_name
+                </th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  eval_category
+                </th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  env_name
+                </th>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                  }}
+                >
+                  Tags
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -411,7 +526,13 @@ export function Episodes({ repo }: EpisodesProps) {
                   <td style={{ padding: '12px', border: '1px solid #ddd' }}>{episode.env_name || 'N/A'}</td>
                   <td style={{ padding: '12px', border: '1px solid #ddd' }}>
                     {episode.tags.length > 0 ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '4px',
+                        }}
+                      >
                         {episode.tags.map((tag) => (
                           <span
                             key={tag}
@@ -440,7 +561,14 @@ export function Episodes({ repo }: EpisodesProps) {
       </div>
 
       {/* Pagination */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '10px',
+          alignItems: 'center',
+        }}
+      >
         <button
           onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
           disabled={currentPage === 1}

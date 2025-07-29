@@ -53,6 +53,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": False},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
+            "heatmapwidget": {"enabled": True},
         }
     },
     UserType.CLOUD: {
@@ -67,6 +68,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True},
             "skypilot": {"enabled": True},
             "tailscale": {"enabled": False},
+            "heatmapwidget": {"enabled": False},
         }
     },
     UserType.SOFTMAX_DOCKER: {
@@ -81,6 +83,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": "metta-research"},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
+            "heatmapwidget": {"enabled": False},
         }
     },
     UserType.SOFTMAX: {
@@ -96,6 +99,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": "metta-research"},
             "skypilot": {"enabled": True, "expected_connection": "skypilot-api.softmax-research.net"},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
+            "heatmapwidget": {"enabled": True},
         }
     },
 }

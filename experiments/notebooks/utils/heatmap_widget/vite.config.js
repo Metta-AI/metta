@@ -1,8 +1,8 @@
 // vite.config.js
 import { defineConfig } from "vite";
 import anywidget from "@anywidget/vite";
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import react from '@vitejs/plugin-react';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
   build: {
@@ -11,12 +11,18 @@ export default defineConfig({
       entry: ["src/index.tsx"],
       formats: ["es"],
     },
+    rollupOptions: {
+      external: [
+        // Externalize the symlinked Heatmap component from Observatory
+        './src/Heatmap.tsx',
+      ],
+    },
   },
   plugins: [
     react(),
     anywidget(),
     nodePolyfills({
-      // Specifically include process polyfill
+      // More conservative polyfill configuration
       include: ['process'],
       globals: {
         global: true,
@@ -24,4 +30,8 @@ export default defineConfig({
       },
     })
   ],
+  resolve: {
+    // Preserve symlinks to avoid conflicts
+    preserveSymlinks: true,
+  },
 });

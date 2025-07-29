@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Heatmap } from './Heatmap';
-// import { Heatmap } from '../../../../../observatory/src/Heatmap';
+
 
 interface HeatmapWidgetProps {
     model: {
@@ -12,6 +12,7 @@ interface HeatmapWidgetProps {
         save_changes: () => void;
     };
 }
+
 
 function HeatmapWidget({ model }: HeatmapWidgetProps) {
     const [heatmapData, setHeatmapData] = useState(null);
@@ -80,16 +81,6 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
         model.save_changes();
     };
 
-    // Controls for num_policies_to_show
-    const handleNumPoliciesChange = (event: any) => {
-        const newValue = parseInt(event.target.value);
-        if (newValue > 0) {
-            setNumPoliciesToShow(newValue);
-            model.set('num_policies_to_show', newValue);
-            model.save_changes();
-        }
-    };
-
     // Transform data to use selected metric
     const transformedData = React.useMemo(() => {
         if (!heatmapData || !selectedMetric || !heatmapData.cells) return heatmapData;
@@ -98,7 +89,6 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
         const transformedPolicyAverages: any = {};
 
         // Transform cells to use selected metric value
-        console.log("heatmapData.cells", heatmapData.cells);
         Object.keys(heatmapData.cells).forEach(policyName => {
             transformedCells[policyName] = {};
             const policy = heatmapData.cells[policyName];
