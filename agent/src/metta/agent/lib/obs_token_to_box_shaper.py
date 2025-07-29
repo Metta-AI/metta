@@ -1,3 +1,5 @@
+import warnings
+
 import einops
 import torch
 from tensordict import TensorDict
@@ -13,6 +15,13 @@ class ObsTokenToBoxShaper(LayerBase):
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent is instantiated
     and never again. I.e., not when it is reloaded from a saved policy.
+
+    Backward Compatibility:
+    This class gracefully handles cases where the environment provides observation channels (attribute indices)
+    that exceed what the policy was trained with. Any observation tokens with attribute indices >= num_layers
+    will be filtered out with a warning. This allows policies trained with fewer observation channels to run
+    in environments that have since added new observation types, though the policy will not benefit from the
+    new information.
     """
 
     def __init__(self, obs_shape, obs_width, obs_height, feature_normalizations, **cfg):
@@ -24,6 +33,8 @@ class ObsTokenToBoxShaper(LayerBase):
         self.out_height = obs_height
         self.num_layers = max(feature_normalizations.keys()) + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
+        # Track which invalid indices we've already warned about
+        self._warned_about_invalid_indices = set()
 
     def _forward(self, td: TensorDict):
         token_observations = td["x"]
@@ -57,12 +68,32 @@ class ObsTokenToBoxShaper(LayerBase):
         batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
         valid_tokens = coords_byte != 0xFF
+
+        # Additional validation: ensure atr_indices are within valid range
+        valid_atr = atr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_atr
+
+        # Log warning for out-of-bounds indices (only once per unique index)
+        invalid_atr_mask = valid_tokens & ~valid_atr
+        if invalid_atr_mask.any():
+            invalid_indices = atr_indices[invalid_atr_mask].unique()
+            new_invalid = set(invalid_indices.tolist()) - self._warned_about_invalid_indices
+
+            if new_invalid:
+                self._warned_about_invalid_indices.update(new_invalid)
+                warnings.warn(
+                    f"Found observation attribute indices {sorted(new_invalid)} >= num_layers ({self.num_layers}). "
+                    f"These tokens will be ignored. This may indicate the policy was trained with fewer",
+                    "observation channels.",
+                    stacklevel=2,
+                )
+
         box_obs[
-            batch_indices[valid_tokens],
-            atr_indices[valid_tokens],
-            x_coord_indices[valid_tokens],
-            y_coord_indices[valid_tokens],
-        ] = atr_values[valid_tokens]
+            batch_indices[valid_mask],
+            atr_indices[valid_mask],
+            x_coord_indices[valid_mask],
+            y_coord_indices[valid_mask],
+        ] = atr_values[valid_mask]
 
         td["_TT_"] = TT
         td["_batch_size_"] = B
