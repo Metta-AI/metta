@@ -72,6 +72,7 @@ class ConverterConfig(GridObjectConfig):
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     max_output: int
+    max_conversions: int
     conversion_ticks: int
     cooldown: int
     initial_resource_count: int
