@@ -160,7 +160,7 @@ def main():
         "--output", "-o", type=str, default="thumb.png", help="Path to output file (default: thumb.png)"
     )
     parser.add_argument("--step", "-s", type=int, default=0, help="Step number to process (default: 0)")
-    parser.add_argument("--size", "-S", type=int, default=16, help="Size in pixels of a cell (default: 4)")
+    parser.add_argument("--size", "-S", type=int, default=4, help="Size in pixels of a cell (default: 4)")
     parser.add_argument(
         "--width", "-W", type=int, default=800, help="Width in pixels of the output image (default: 800)"
     )
