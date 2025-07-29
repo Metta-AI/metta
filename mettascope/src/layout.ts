@@ -347,17 +347,17 @@ export class Pane {
         this.tabs[Math.min(index, this.tabs.length - 1)].isActive = true
       }
       this.updateTabs()
+
+      // If this was the last tab in the pane, remove the pane.
+      if (this.tabs.length === 0) {
+        this.removePaneFromLayout()
+      }
     }
   }
 
   public closeTab(index: number): void {
     if (index >= 0 && index < this.tabs.length) {
       this.removeTab(index)
-
-      // If this was the last tab in the pane, remove the pane.
-      if (this.tabs.length === 0) {
-        this.removePaneFromLayout()
-      }
     }
   }
 
