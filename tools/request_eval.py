@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import concurrent.futures
 import logging
+import uuid
 
 import wandb
 from omegaconf import DictConfig
@@ -13,7 +14,7 @@ from pydantic.fields import Field
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from metta.common.util.collections import group_by, remove_none_values
 from metta.common.util.stats_client_cfg import get_stats_client_direct
 from metta.setup.utils import info, success, warning
@@ -37,6 +38,7 @@ class EvalRequest(BaseModel):
     wandb_entity: str = Field(default="")
 
     skip_missing_policies: bool = Field(default=False)
+    allow_duplicates: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate(self) -> "EvalRequest":
@@ -127,20 +129,53 @@ async def _create_remote_eval_tasks(
         warning("No policies found")
         return
 
-    tasks = [
-        stats_client.create_task(
-            TaskCreateRequest(
-                policy_id=policy_id,
-                git_hash=request.git_hash,
-                sim_suite=eval_name,
-            )
+    # Check for existing tasks if not allowing duplicates
+    existing_tasks: dict[tuple[uuid.UUID, str], list[TaskResponse]] = {}
+    if not request.allow_duplicates:
+        info("Checking for existing tasks...")
+        task_filters = TaskFilterParams(
+            limit=1000,
+            statuses=["unprocessed", "done"],
+            git_hash=request.git_hash,
+            sim_suites=request.evals,
         )
-        for policy_id in policy_ids.values()
-        for eval_name in request.evals
-    ]
-    info(f"Creating {len(tasks)} evaluation tasks for {len(policy_ids)} policies...")
+        all_tasks = await stats_client.get_all_tasks(filters=task_filters)
+        existing_tasks = group_by(all_tasks.tasks, lambda t: (t.policy_id, t.sim_suite))
 
-    results: list[TaskResponse] = await asyncio.gather(*tasks)
+        if existing_tasks:
+            info(f"Found {len(existing_tasks)} existing tasks that would be duplicates")
+
+    task_requests = []
+    skipped_count = 0
+    for policy_id in policy_ids.values():
+        for eval_name in request.evals:
+            if not request.allow_duplicates and (existing := existing_tasks[(policy_id, eval_name)]):
+                policy_name = policy_ids.inv[policy_id]
+                info(
+                    f"Skipping {(policy_name, eval_name)}. Job exists: {existing[0].id} (status: {existing[0].status})"
+                )
+                skipped_count += 1
+            else:
+                task_requests.append(
+                    stats_client.create_task(
+                        TaskCreateRequest(
+                            policy_id=policy_id,
+                            git_hash=request.git_hash,
+                            sim_suite=eval_name,
+                        )
+                    )
+                )
+
+    if not task_requests:
+        warning("No new tasks to create (all would be duplicates)")
+        return
+
+    if skipped_count > 0:
+        info(f"Skipped {skipped_count} duplicate tasks")
+
+    info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_ids)} policies...")
+
+    results: list[TaskResponse] = await asyncio.gather(*task_requests)
     for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
         policy_name = policy_ids.inv[policy_id]
         success(f"{policy_name}:", indent=2)
@@ -239,6 +274,12 @@ async def main() -> None:
         help="Skip policies that cannot be found instead of erroring out",
     )
 
+    parser.add_argument(
+        "--allow-duplicates",
+        action="store_true",
+        help="Allow scheduling duplicate policy,eval pairs that are already scheduled or running",
+    )
+
     args = parser.parse_args()
 
     # Parse arguments into Pydantic model
@@ -255,6 +296,7 @@ async def main() -> None:
                 wandb_project=args.wandb_project,
                 wandb_entity=args.wandb_entity,
                 skip_missing_policies=args.skip_missing_policies,
+                allow_duplicates=args.allow_duplicates,
             )
         )
     )
