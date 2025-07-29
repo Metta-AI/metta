@@ -1,6 +1,6 @@
 # BBC Learning Progress Curriculum
 
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
   /env/mettagrid/curriculum/bbc/agents/1: 1

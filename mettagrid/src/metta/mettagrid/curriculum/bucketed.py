@@ -12,12 +12,12 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
 
-from .learning_progress import LearningProgressCurriculum
+from .random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class BucketedCurriculum(LearningProgressCurriculum):
+class BucketedCurriculum(RandomCurriculum):
     def __init__(
         self,
         *,
