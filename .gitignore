@@ -1,5 +1,6 @@
 # Environment and IDE
 .claude/tasks
+.claude/analysis
 .envrc
 .env
 .env.*
