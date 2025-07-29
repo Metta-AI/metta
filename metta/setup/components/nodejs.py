@@ -30,8 +30,9 @@ class NodejsSetup(SetupModule):
         if not self._check_pnpm():
             return False
 
-        # Turbo can be available via npx even if not globally installed
-        # So we don't require it to be in PATH
+        if not self._script_exists("turbo"):
+            return False
+
         return True
 
     def _check_pnpm(self) -> bool:
@@ -39,39 +40,26 @@ class NodejsSetup(SetupModule):
         try:
             env = os.environ.copy()
             env["NODE_NO_WARNINGS"] = "1"
-            env["COREPACK_ENABLE_STRICT"] = "0"  # Avoid download prompts
-            self.run_command(["pnpm", "--version"], capture_output=True, env=env)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
+            result = subprocess.run(
+                ["pnpm", "--version"],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            return result.returncode == 0
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
     def _enable_corepack_with_cleanup(self):
         """Enable corepack, removing dead symlinks as needed."""
-        info("Attempting to enable corepack...")
-        for _attempt in range(10):
+        for _ in range(10):
             try:
-                # Try to enable corepack with timeout
-                # Set COREPACK_ENABLE_STRICT=0 to avoid prompts
-                env = os.environ.copy()
-                env["COREPACK_ENABLE_STRICT"] = "0"
-                subprocess.run(
-                    ["corepack", "enable"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,  # 30 second timeout
-                    check=True,
-                    env=env,
-                )
+                # Try to enable corepack
+                self.run_command(["corepack", "enable"], capture_output=True, check=True)
                 info("Corepack enabled successfully")
                 return True
             except subprocess.CalledProcessError as e:
-                # Get error output from stdout or stderr
-                error_output = ""
-                if hasattr(e, "stdout") and e.stdout:
-                    error_output += e.stdout
-                if hasattr(e, "stderr") and e.stderr:
-                    error_output += e.stderr
-
+                error_output = e.output
                 # Look for EEXIST error with file path
                 match = re.search(r"EEXIST: file already exists, symlink .* -> '([^']+)'", error_output)
                 if match:
@@ -91,9 +79,6 @@ class NodejsSetup(SetupModule):
                     # Not an EEXIST error or couldn't parse it
                     warning(f"Corepack enable failed: {error_output}")
                     raise
-            except subprocess.TimeoutExpired as e:
-                warning("Corepack enable timed out after 30 seconds")
-                raise RuntimeError("Corepack enable timed out") from e
 
         warning("Failed to enable corepack after removing dead symlinks")
         return False
@@ -106,31 +91,9 @@ class NodejsSetup(SetupModule):
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
-        # Run pnpm setup to ensure global bin directory exists
-        info("Running pnpm setup...")
-        try:
-            env = os.environ.copy()
-            env["NODE_NO_WARNINGS"] = "1"
-            env["COREPACK_ENABLE_STRICT"] = "0"
-            self.run_command(["pnpm", "setup"], capture_output=False, env=env)
-            info("pnpm setup completed. You may need to restart your shell for PATH changes to take effect.")
-        except subprocess.CalledProcessError:
-            warning("pnpm setup failed - continuing anyway")
-
         info("Installing turbo...")
-        # Use npx to run turbo instead of global install to avoid PATH issues
-        # First try global install, but if it fails, we'll use npx
-        try:
-            env = os.environ.copy()
-            env["NODE_NO_WARNINGS"] = "1"
-            env["COREPACK_ENABLE_STRICT"] = "0"
-            self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False, env=env)
-        except subprocess.CalledProcessError:
-            info("Global install failed, turbo will be available via npx")
+        self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
 
         info("Installing dependencies...")
         # pnpm install with frozen lockfile to avoid prompts
-        env = os.environ.copy()
-        env["NODE_NO_WARNINGS"] = "1"
-        env["COREPACK_ENABLE_STRICT"] = "0"
-        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False, env=env)
+        self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False)
