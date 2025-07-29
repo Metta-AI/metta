@@ -706,6 +706,8 @@ Examples:
   metta tool train run=test            # Run train.py tool with arguments
   metta tool sim policy_uri=...        # Run sim.py tool with arguments
   metta clip -e py metta               # Copy Python files to clipboard
+
+  metta local ...                      # Commands for local development
             """,
         )
 
