@@ -17,6 +17,10 @@ simulations:
     env: env/mettagrid/cyclical/evals/horizontal_timing_10
   cyclical/vertical_timing_10:
     env: env/mettagrid/cyclical/evals/vertical_timing_10
+  cyclical/horizontal_timing_11:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_11
+  cyclical/vertical_timing_11:
+    env: env/mettagrid/cyclical/evals/vertical_timing_11
   cyclical/horizontal_timing_15:
     env: env/mettagrid/cyclical/evals/horizontal_timing_15
   cyclical/vertical_timing_15:
@@ -41,6 +45,10 @@ simulations:
     env: env/mettagrid/cyclical/evals/horizontal_timing_25
   cyclical/vertical_timing_25:
     env: env/mettagrid/cyclical/evals/vertical_timing_25
+  cyclical/horizontal_timing_33:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_33
+  cyclical/vertical_timing_33:
+    env: env/mettagrid/cyclical/evals/vertical_timing_33
   cyclical/horizontal_timing_50:
     env: env/mettagrid/cyclical/evals/horizontal_timing_50
   cyclical/vertical_timing_50:

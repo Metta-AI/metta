@@ -1,0 +1,18 @@
+defaults:
+  - /env/mettagrid/cyclical/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 500
+
+  objects:
+    converter:
+      conversion_ticks: 11
+      cooldown: 11
+    C:
+      conversion_ticks: 11
+      cooldown: 11
+      phase: 11
+
+  map_builder:
+    uri: "configs/env/mettagrid/maps/cyclical/cyclical_horizontal_hallway.map"
