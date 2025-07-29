@@ -17,7 +17,6 @@ public:
     GridObjectId creator_agent_object_id;
     unsigned char creator_agent_id;
 
-
     Box(GridCoord r, GridCoord c, TypeId type_id, const std::string& type_name,
         GridObjectId creator_agent_object_id, unsigned char creator_agent_id,
         InventoryItem blue_battery_item)

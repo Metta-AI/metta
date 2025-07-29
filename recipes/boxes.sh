@@ -26,7 +26,7 @@
 
 agent_cluster_type=positions_in_same_area
 num_rooms=4
-num_agents_per_room=4
+num_agents_per_room=1
 for seed in 0; do
   python3 tools/train.py \
     run=$USER.navigation.ffa_NAVIG_BOXES_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
