@@ -501,15 +501,12 @@ def train(
             with timer("grad_stats"):
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
-        # Check for abort
-        if trainer_cfg.check_abort_interval > 0 and agent_step % trainer_cfg.check_abort_interval == 0:
+        # Check for abort every 5 epochs
+        if is_master and wandb_run and epoch % 5 == 0:
             if abort_requested(wandb_run, min_interval_sec=60):
                 logger.info("Abort tag detected. Stopping the run.")
                 trainer_cfg.total_timesteps = int(agent_step)
-                if wandb_run:
-                    wandb_run.config.update(
-                        {"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True
-                    )
+                wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
                 break
 
     if is_master:
