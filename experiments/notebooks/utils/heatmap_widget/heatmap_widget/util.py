@@ -127,7 +127,7 @@ async def fetch_real_heatmap_data(
         cells=cells,
         eval_names=heatmap_data.evalNames,
         policy_names=heatmap_data.policyNames,
-        metrics=[primary_metric],
+        metrics=metrics,
         selected_metric=primary_metric,
     )
 
