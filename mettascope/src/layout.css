@@ -86,6 +86,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  position: relative;
 }
 
 .tab-bar {
@@ -211,4 +212,108 @@
 
 .dropdown-item:hover {
   background: #37373d;
+}
+
+/* Drop zones for splitting */
+.drop-zone {
+  position: absolute;
+  pointer-events: none;
+  background: transparent;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.drop-zone-left {
+  left: 0;
+  top: 0;
+  width: 80px;
+  height: 100%;
+}
+
+.drop-zone-right {
+  right: 0;
+  top: 0;
+  width: 80px;
+  height: 100%;
+}
+
+.drop-zone-top {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 80px;
+}
+
+.drop-zone-bottom {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 80px;
+}
+
+/* When dragging is active globally */
+.layout-container.dragging .drop-zone {
+  pointer-events: auto;
+  opacity: 1;
+  background: rgba(0, 102, 204, 0.1);
+  border: 1px solid rgba(0, 102, 204, 0.3);
+}
+
+.drop-zone.active {
+  background: rgba(0, 102, 204, 0.3);
+  border: 2px dashed #0066cc;
+}
+
+/* Split preview styles */
+.pane.split-preview-left::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pane.split-preview-right::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pane.split-preview-top::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 50%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pane.split-preview-bottom::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 50%;
+  background: rgba(0, 102, 204, 0.1);
+  border: 2px dashed #0066cc;
+  z-index: 5;
+  pointer-events: none;
 }

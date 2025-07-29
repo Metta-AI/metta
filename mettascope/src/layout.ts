@@ -14,6 +14,14 @@ export enum LayoutDirection {
   VERTICAL = 'vertical'
 }
 
+export enum DropZone {
+  TAB_BAR = 'tab-bar',
+  LEFT = 'left',
+  RIGHT = 'right',
+  TOP = 'top',
+  BOTTOM = 'bottom'
+}
+
 export class Tab {
   public title: string
   public content: string
@@ -36,6 +44,8 @@ export class Pane {
   private dropdown!: HTMLElement
   private isDropdownVisible: boolean = false
   private isDragTarget: boolean = false
+  private dropZones: Map<DropZone, HTMLElement> = new Map()
+  private activeDropZone: DropZone | null = null
 
   constructor(container: HTMLElement) {
     this.element = container
@@ -57,10 +67,32 @@ export class Pane {
     this.element.innerHTML = `
         <div class="tab-bar"></div>
         <div class="tab-content"></div>
+        <div class="drop-zone drop-zone-left"></div>
+        <div class="drop-zone drop-zone-right"></div>
+        <div class="drop-zone drop-zone-top"></div>
+        <div class="drop-zone drop-zone-bottom"></div>
     `
 
     this.tabBarElement = this.element.querySelector('.tab-bar') as HTMLElement
     this.contentElement = this.element.querySelector('.tab-content') as HTMLElement
+
+        // Set up drop zones
+    const leftZone = this.element.querySelector('.drop-zone-left') as HTMLElement
+    const rightZone = this.element.querySelector('.drop-zone-right') as HTMLElement
+    const topZone = this.element.querySelector('.drop-zone-top') as HTMLElement
+    const bottomZone = this.element.querySelector('.drop-zone-bottom') as HTMLElement
+
+    console.log('Drop zone elements found:', {
+      left: leftZone,
+      right: rightZone,
+      top: topZone,
+      bottom: bottomZone
+    })
+
+    this.dropZones.set(DropZone.LEFT, leftZone)
+    this.dropZones.set(DropZone.RIGHT, rightZone)
+    this.dropZones.set(DropZone.TOP, topZone)
+    this.dropZones.set(DropZone.BOTTOM, bottomZone)
 
     // Create the add-tab-container separately.
     this.addTabContainer = document.createElement('div')
@@ -104,79 +136,199 @@ export class Pane {
   }
 
   private setupDragAndDrop(): void {
-    // Make this pane a drop target
+    // Make this pane a drop target for tabs
     this.tabBarElement.addEventListener('dragover', (e) => {
       e.preventDefault()
-      this.isDragTarget = true
-      this.tabBarElement.classList.add('drag-over')
+      this.setActiveDropZone(DropZone.TAB_BAR)
     })
 
     this.tabBarElement.addEventListener('dragleave', (e) => {
       if (!this.tabBarElement.contains(e.relatedTarget as Node)) {
-        this.isDragTarget = false
-        this.tabBarElement.classList.remove('drag-over')
+        this.clearActiveDropZone(DropZone.TAB_BAR)
       }
     })
 
     this.tabBarElement.addEventListener('drop', (e) => {
       e.preventDefault()
-      this.isDragTarget = false
-      this.tabBarElement.classList.remove('drag-over')
+      this.clearActiveDropZone(DropZone.TAB_BAR)
 
       const dragData = e.dataTransfer?.getData('text/plain')
       if (dragData) {
         const { sourceId, tabIndex } = JSON.parse(dragData)
-        this.handleTabDrop(sourceId, tabIndex)
+        this.handleTabDrop(sourceId, tabIndex, DropZone.TAB_BAR)
       }
+    })
+
+                    // Set up edge drop zones
+    this.dropZones.forEach((element, zone) => {
+      element.addEventListener('dragover', (e) => {
+        e.preventDefault()
+        console.log('Dragover on zone:', zone)
+        this.setActiveDropZone(zone)
+      })
+
+      element.addEventListener('dragenter', (e) => {
+        e.preventDefault()
+        console.log('Dragenter on zone:', zone)
+        this.setActiveDropZone(zone)
+      })
+
+      element.addEventListener('dragleave', (e) => {
+        if (!element.contains(e.relatedTarget as Node)) {
+          console.log('Dragleave on zone:', zone)
+          this.clearActiveDropZone(zone)
+        }
+      })
+
+      element.addEventListener('drop', (e) => {
+        e.preventDefault()
+        console.log('Drop on zone:', zone)
+        this.clearActiveDropZone(zone)
+
+        const dragData = e.dataTransfer?.getData('text/plain')
+        if (dragData) {
+          console.log('Got drag data:', dragData)
+          const { sourceId, tabIndex } = JSON.parse(dragData)
+          this.handleTabDrop(sourceId, tabIndex, zone)
+        } else {
+          console.log('No drag data received')
+        }
+      })
     })
   }
 
-  private handleTabDrop(sourceId: string, tabIndex: number): void {
+        private setActiveDropZone(zone: DropZone): void {
+    console.log('setActiveDropZone called for zone:', zone)
+    this.clearAllDropZones()
+    this.activeDropZone = zone
+
+    if (zone === DropZone.TAB_BAR) {
+      this.tabBarElement.classList.add('drag-over')
+      console.log('Added drag-over class to tab bar')
+    } else {
+      const element = this.dropZones.get(zone)
+      console.log('Drop zone element for', zone, ':', element)
+      if (element) {
+        element.classList.add('active')
+        this.element.classList.add(`split-preview-${zone}`)
+        console.log('Added active class and split preview for zone:', zone)
+      } else {
+        console.log('No drop zone element found for zone:', zone)
+      }
+    }
+  }
+
+  private clearActiveDropZone(zone: DropZone): void {
+    if (this.activeDropZone === zone) {
+      this.clearAllDropZones()
+    }
+  }
+
+  private clearAllDropZones(): void {
+    console.log('clearAllDropZones called')
+    this.activeDropZone = null
+    this.tabBarElement.classList.remove('drag-over')
+    this.dropZones.forEach(element => element.classList.remove('active'))
+    this.element.classList.remove('split-preview-left', 'split-preview-right', 'split-preview-top', 'split-preview-bottom')
+  }
+
+    private handleTabDrop(sourceId: string, tabIndex: number, dropZone: DropZone): void {
+    console.log('handleTabDrop called:', { sourceId, tabIndex, dropZone })
+
     // Find the source pane
     const allPanes = this.findAllPanes()
     const sourcePane = allPanes.find(pane => pane.getPaneId() === sourceId)
 
-    if (sourcePane && sourcePane !== this) {
-      const draggedTab = sourcePane.tabs[tabIndex]
-      if (draggedTab) {
-        // Remove from source
-        sourcePane.removeTab(tabIndex)
-        // Add to this pane
-        this.addTab(draggedTab)
-        this.activateTab(this.tabs.length - 1)
-      }
+    if (!sourcePane) {
+      console.log('Source pane not found')
+      return
+    }
+
+    const draggedTab = sourcePane.tabs[tabIndex]
+    if (!draggedTab) {
+      console.log('Dragged tab not found')
+      return
+    }
+
+    console.log('Processing drop:', { dropZone, draggedTab: draggedTab.title })
+
+    if (dropZone === DropZone.TAB_BAR && sourcePane !== this) {
+      console.log('Performing simple tab move')
+      // Simple tab move to existing pane
+      sourcePane.removeTab(tabIndex)
+      this.addTab(draggedTab)
+      this.activateTab(this.tabs.length - 1)
+    } else if (dropZone !== DropZone.TAB_BAR) {
+      console.log('Performing split operation')
+      // Split operation
+      sourcePane.removeTab(tabIndex)
+      this.performSplit(draggedTab, dropZone)
     }
   }
 
-  private findAllPanes(): Pane[] {
-    // This is a simplified approach - in a real implementation,
-    // you might want to traverse the layout tree more systematically
-    const panes: Pane[] = []
-    const containers = document.querySelectorAll('.pane')
-    containers.forEach(container => {
-      if ((container as any).paneInstance) {
-        panes.push((container as any).paneInstance)
-      }
-    })
-    return panes
-  }
+    private performSplit(draggedTab: Tab, dropZone: DropZone): void {
+    console.log('performSplit called:', { draggedTab: draggedTab.title, dropZone })
 
-  public getPaneId(): string {
-    if (!this.element.dataset.paneId) {
-      this.element.dataset.paneId = `pane-${Math.random().toString(36).substr(2, 9)}`
+    // Find the parent layout that contains this pane
+    const parentLayout = this.findParentLayout()
+    if (!parentLayout) {
+      console.log('Parent layout not found')
+      return
     }
-    return this.element.dataset.paneId
-  }
 
-  public removeTab(index: number): void {
-    if (index >= 0 && index < this.tabs.length) {
-      this.tabs.splice(index, 1)
-      // If we removed the active tab, activate another one
-      if (this.tabs.length > 0 && !this.tabs.some(tab => tab.isActive)) {
-        this.tabs[Math.min(index, this.tabs.length - 1)].isActive = true
-      }
-      this.updateTabs()
+    console.log('Found parent layout:', parentLayout)
+
+    // Determine split direction
+    const isHorizontalSplit = dropZone === DropZone.LEFT || dropZone === DropZone.RIGHT
+    const newDirection = isHorizontalSplit ? LayoutDirection.HORIZONTAL : LayoutDirection.VERTICAL
+    const insertBefore = dropZone === DropZone.LEFT || dropZone === DropZone.TOP
+
+    console.log('Split details:', { isHorizontalSplit, newDirection, insertBefore })
+
+    // Create new pane for the dragged tab
+    const newContainer = document.createElement('div')
+    const newPane = new Pane(newContainer)
+    newPane.addTab(draggedTab)
+
+    console.log('Created new pane:', newPane)
+
+    // Find the index of this pane in the parent layout
+    const paneIndex = parentLayout.getChildren().indexOf(this)
+    if (paneIndex === -1) {
+      console.log('This pane not found in parent layout')
+      return
     }
+
+    console.log('Pane index in parent:', paneIndex)
+
+    // If parent layout has the same direction as our split, just insert the new pane
+    if (parentLayout.getDirection() === newDirection) {
+      console.log('Parent has same direction, inserting new pane')
+      const insertIndex = insertBefore ? paneIndex : paneIndex + 1
+      console.log('Insert index:', insertIndex)
+      parentLayout.insertChild(newPane, insertIndex)
+    } else {
+      console.log('Parent has different direction, creating nested layout')
+      // Create a new nested layout for the split
+      const nestedContainer = document.createElement('div')
+      const nestedLayout = new Layout(nestedContainer, newDirection)
+
+      // Remove this pane from parent and add it to nested layout
+      parentLayout.removeChild(this)
+
+      if (insertBefore) {
+        nestedLayout.addChild(newPane)
+        nestedLayout.addChild(this)
+      } else {
+        nestedLayout.addChild(this)
+        nestedLayout.addChild(newPane)
+      }
+
+      // Insert the nested layout at the original position
+      parentLayout.insertChild(nestedLayout, paneIndex)
+    }
+
+    console.log('Split completed')
   }
 
   private toggleDropdown(): void {
@@ -212,6 +364,70 @@ export class Pane {
     }
   }
 
+  public removeTab(index: number): void {
+    if (index >= 0 && index < this.tabs.length) {
+      this.tabs.splice(index, 1)
+      // If we removed the active tab, activate another one
+      if (this.tabs.length > 0 && !this.tabs.some(tab => tab.isActive)) {
+        this.tabs[Math.min(index, this.tabs.length - 1)].isActive = true
+      }
+      this.updateTabs()
+    }
+  }
+
+  public getPaneId(): string {
+    if (!this.element.dataset.paneId) {
+      this.element.dataset.paneId = `pane-${Math.random().toString(36).substr(2, 9)}`
+    }
+    return this.element.dataset.paneId
+  }
+
+  private findAllPanes(): Pane[] {
+    // This is a simplified approach - in a real implementation,
+    // you might want to traverse the layout tree more systematically
+    const panes: Pane[] = []
+    const containers = document.querySelectorAll('.pane')
+    containers.forEach(container => {
+      if ((container as any).paneInstance) {
+        panes.push((container as any).paneInstance)
+      }
+    })
+    return panes
+  }
+
+  private findParentLayout(): Layout | null {
+    // Walk up the DOM to find the parent layout
+    let current = this.element.parentElement
+    while (current) {
+      if ((current as any).layoutInstance) {
+        return (current as any).layoutInstance
+      }
+      current = current.parentElement
+    }
+    return null
+  }
+
+  private enableGlobalDropZones(): void {
+    // Find the root layout container and add dragging class
+    const layoutContainer = document.querySelector('.layout-container')
+    console.log('Layout container found:', layoutContainer)
+    if (layoutContainer) {
+      layoutContainer.classList.add('dragging')
+      console.log('Added dragging class to layout container')
+    } else {
+      console.log('Layout container not found!')
+    }
+  }
+
+  private disableGlobalDropZones(): void {
+    // Find the root layout container and remove dragging class
+    const layoutContainer = document.querySelector('.layout-container')
+    if (layoutContainer) {
+      layoutContainer.classList.remove('dragging')
+      console.log('Removed dragging class from layout container')
+    }
+  }
+
   private updateTabs(): void {
     // Store reference to this pane instance on the element
     (this.element as any).paneInstance = this
@@ -226,18 +442,26 @@ export class Pane {
       tabElement.textContent = tab.title
       tabElement.draggable = true
 
-      // Add drag event listeners
+                  // Add drag event listeners
       tabElement.addEventListener('dragstart', (e) => {
         const dragData = {
           sourceId: this.getPaneId(),
           tabIndex: index
         }
+        console.log('Drag started:', dragData)
         e.dataTransfer?.setData('text/plain', JSON.stringify(dragData))
         tabElement.classList.add('dragging')
+        // Enable drop zones globally
+        this.enableGlobalDropZones()
+        console.log('Drop zones enabled')
       })
 
       tabElement.addEventListener('dragend', () => {
+        console.log('Drag ended')
         tabElement.classList.remove('dragging')
+        // Disable drop zones globally
+        this.disableGlobalDropZones()
+        console.log('Drop zones disabled')
       })
 
       tabElement.addEventListener('click', () => this.activateTab(index))
@@ -278,10 +502,12 @@ export class Layout {
   private startSizes: number[] = []
 
   constructor(container: HTMLElement, direction: LayoutDirection = LayoutDirection.HORIZONTAL) {
-    this.container = container
-    this.direction = direction
-    this.render()
-    this.setupSplitters()
+    this.container = container;
+    this.direction = direction;
+    // Store reference to this layout instance
+    (this.container as any).layoutInstance = this;
+    this.render();
+    this.setupSplitters();
   }
 
   private render(): void {
@@ -293,6 +519,11 @@ export class Layout {
 
   public addChild(child: LayoutChild): void {
     this.children.push(child)
+    this.updateLayout()
+  }
+
+  public insertChild(child: LayoutChild, index: number): void {
+    this.children.splice(index, 0, child)
     this.updateLayout()
   }
 
