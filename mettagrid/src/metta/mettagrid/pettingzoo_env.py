@@ -13,26 +13,23 @@ from gymnasium import spaces
 from pettingzoo import ParallelEnv
 from typing_extensions import override
 
+from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
 
-# Data types for PettingZoo
-dtype_observations = np.dtype(np.uint8)
-dtype_terminals = np.dtype(bool)
-dtype_truncations = np.dtype(bool)
-dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)
+# Data types for PettingZoo - import from C++ module
+from metta.mettagrid.mettagrid_c import (
+    dtype_actions,
+)
 
 
-class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
+class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
     """
     PettingZoo ParallelEnv adapter for MettaGrid environments.
 
     This class provides a PettingZoo-compatible interface for MettaGrid environments,
     using the parallel environment API for multi-agent scenarios.
+    No training features are included - this is purely for PettingZoo compatibility.
     """
 
     def __init__(
@@ -40,9 +37,6 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
-        is_training: bool = False,
         **kwargs: Any,
     ):
         """
@@ -52,70 +46,30 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
             curriculum: Curriculum for task management
             render_mode: Rendering mode
             level: Optional pre-built level
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
             **kwargs: Additional arguments
         """
-        # Set flag to hide conflicting methods during PufferLib initialization
-        self._pufferlib_init_in_progress = True
-
-        # Initialize base environment
-        MettaGridEnv.__init__(
+        # Initialize core environment (no training features)
+        MettaGridCore.__init__(
             self,
             curriculum=curriculum,
             render_mode=render_mode,
             level=level,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
             **kwargs,
         )
-
-        # Core environment is already created by base class initialization
 
         # PettingZoo attributes
         self.agents: List[str] = []
         self.possible_agents: List[str] = []
 
         # populate possible_agents immediately (PettingZoo spec)
-        num_agents = self._c_env.num_agents
-        self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
+        if self._c_env is not None:
+            num_agents = self._c_env.num_agents
+            self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
 
-        # Create space objects once to avoid memory leaks
-        # PettingZoo requires same space object instances to be returned
-        self._observation_space_obj = self._c_env.observation_space
-        self._action_space_obj = self._c_env.action_space
-
-        # Buffers are handled by base MettaGridEnv class
-
-        # Remove PufferLib's instance attributes that shadow our methods
-        # PufferEnv sets these in __init__, but we need methods for PettingZoo
-        if hasattr(self, "observation_space") and not callable(self.observation_space):
-            delattr(self, "observation_space")
-        if hasattr(self, "action_space") and not callable(self.action_space):
-            delattr(self, "action_space")
-
-        # Remove flag to allow normal method access
-        delattr(self, "_pufferlib_init_in_progress")
-
-    def __getattribute__(self, name: str):
-        """Override to hide conflicting attributes during PufferLib initialization."""
-        # Hide observation_space and action_space methods during PufferLib __init__ checks
-        if name in ("observation_space", "action_space"):
-            import inspect
-
-            frame = inspect.currentframe()
-            try:
-                # Look for PufferLib's __init__ method in the call stack
-                while frame:
-                    if frame.f_code.co_filename.endswith("pufferlib.py") and frame.f_code.co_name == "__init__":
-                        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-                    frame = frame.f_back
-            finally:
-                del frame
-
-        return super().__getattribute__(name)
+            # Create space objects once to avoid memory leaks
+            # PettingZoo requires same space object instances to be returned
+            self._observation_space_obj = self._c_env.observation_space
+            self._action_space_obj = self._c_env.action_space
 
     def _setup_agents(self) -> None:
         """Setup agent names after core environment is created."""
@@ -218,11 +172,14 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         Returns:
             Global state array
         """
-        if self.observations is None:
+        if self._c_env is None:
             raise RuntimeError("Environment not initialized")
 
-        # Return flattened observations as global state
-        return self.observations.flatten()
+        # For state, we can return a flattened representation of all current observations
+        # Since we don't store observations, we'll create a zero state of appropriate size
+        obs_space = self._c_env.observation_space
+        total_size = self._c_env.num_agents * int(np.prod(obs_space.shape))
+        return np.zeros(total_size, dtype=obs_space.dtype)
 
     @property
     def state_space(self) -> spaces.Box:

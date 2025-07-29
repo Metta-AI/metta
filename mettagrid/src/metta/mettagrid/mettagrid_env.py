@@ -1,64 +1,41 @@
 """
-MettaGridEnv - Base Python environment class.
+MettaGridEnv - Training-specific Python environment class.
 
-This class provides the common functionality for all framework-specific adapters:
-- Creates new MettaGridCpp instances on reset (using C++ directly)
-- Manages curriculum, stats, and replay writing
-- Provides common interface for all adapters
+This class provides Metta's custom training environment, built on PufferLib
+for high-performance vectorized training. Includes stats writing, replay writing,
+and episode tracking functionality.
 """
 
 from __future__ import annotations
 
-import datetime
 import logging
-import time
-import uuid
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
-from gymnasium import Env as GymEnv
-from gymnasium import spaces
 from omegaconf import OmegaConf
 from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
-from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.profiling.stopwatch import with_instance_timer
+from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.mettagrid.util.dict_utils import unroll_nested_dict
-
-# Data types for buffers
-dtype_observations = np.dtype(np.uint8)
-dtype_terminals = np.dtype(bool)
-dtype_truncations = np.dtype(bool)
-dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)
 
 logger = logging.getLogger("MettaGridEnv")
 
 
-class MettaGridEnv(PufferEnv, GymEnv):
+class MettaGridEnv(MettaGridCore, PufferEnv):
     """
-    Main MettaGrid environment class with PufferLib integration.
+    Main MettaGrid environment class for training.
 
-    This class provides the primary environment interface for MettaGrid:
-    - Inherits from both PufferEnv and GymEnv for maximum compatibility
-    - Creates C++ MettaGridCpp instances with eager initialization
-    - Manages curriculum, stats, and replay writing
-    - Provides proper PufferLib buffer management
+    Inherits from MettaGridCore and PufferEnv, adding training-specific features like stats writing,
+    replay writing, and episode tracking. This class is tightly coupled to PufferLib for
+    vectorization support in the training system.
     """
-
-    # Type hints for attributes defined in PufferEnv to help Pylance
-    observations: np.ndarray
-    terminals: np.ndarray
-    truncations: np.ndarray
-    rewards: np.ndarray
-    actions: np.ndarray
 
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
@@ -66,143 +43,71 @@ class MettaGridEnv(PufferEnv, GymEnv):
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        buf=None,
+        buf: Optional[Any] = None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
         is_training: bool = False,
         **kwargs: Any,
     ):
         """
-        Initialize base MettaGridEnv.
+        Initialize MettaGridEnv for training.
 
         Args:
             curriculum: Curriculum for task management
             render_mode: Rendering mode (None, "human", "miniscope")
             level: Optional pre-built level
+            buf: PufferLib buffer object
             stats_writer: Optional stats writer
             replay_writer: Optional replay writer
             is_training: Whether this is for training
-            **kwargs: Additional arguments passed to subclasses
+            **kwargs: Additional arguments
         """
+        # Add training-specific attributes first (needed by MettaGridCore)
+        import datetime
+
+        from metta.common.profiling.stopwatch import Stopwatch
+
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
         self._steps = 0
         self._resets = 0
-
-        self._render_mode = render_mode
-        self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
-        self._level = level
-        self._renderer = None
-        self._map_labels: List[str] = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
-        self._current_seed: int = 0
         self._is_training = is_training
 
-        # Environment metadata
-        self.labels: List[str] = self._task.env_cfg().get("labels", [])
-        self._should_reset = False
+        # Initialize core functionality
+        MettaGridCore.__init__(
+            self,
+            curriculum=curriculum,
+            render_mode=render_mode,
+            level=level,
+            **kwargs,
+        )
 
-        # Initialize renderer class if needed (before C++ env creation)
-        if self._render_mode is not None:
-            self._initialize_renderer()
+        # Initialize PufferEnv with buffers
+        PufferEnv.__init__(self, buf=buf)
 
-        # Create C++ environment immediately (eager initialization)
-        self._c_env: Optional[MettaGridCpp] = self._create_c_env()
-
-        # Initialize PufferEnv with buffers (must come after _c_env creation)
-        super().__init__(buf)
-
-    def _initialize_renderer(self) -> None:
-        """Initialize renderer class based on render mode."""
-        self._renderer = None
-        self._renderer_class = None
-
-        if self._render_mode == "human":
-            from metta.mettagrid.renderer.nethack import NethackRenderer
-
-            self._renderer_class = NethackRenderer
-        elif self._render_mode == "miniscope":
-            from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
-
-            self._renderer_class = MiniscopeRenderer
+        # PufferLib buffer attributes will be set by PufferEnv
+        self.observations: np.ndarray
+        self.terminals: np.ndarray
+        self.truncations: np.ndarray
+        self.rewards: np.ndarray
+        self.actions: np.ndarray
 
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
+        import uuid
+
         return str(uuid.uuid4())
-
-    @with_instance_timer("_create_c_env")
-    def _create_c_env(self, seed: Optional[int] = None) -> MettaGridCpp:
-        """
-        Create a new MettaGridCpp instance.
-
-        Args:
-            seed: Random seed for environment
-
-        Returns:
-            New MettaGridCpp instance
-        """
-        task = self._task
-        task_cfg = task.env_cfg()
-        level = self._level
-
-        if level is None:
-            with self.timer("_initialize_c_env.build_map"):
-                level = task_cfg.game.map_builder.build()
-
-        # Validate the level
-        level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task_cfg.game.num_agents == level_agents, (
-            f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
-        )
-
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
-
-        # Ensure we have a dict
-        if not isinstance(game_config_dict, dict):
-            raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
-
-        # Handle episode desyncing for training
-        if self._is_training and self._resets == 0:
-            max_steps = game_config_dict["max_steps"]
-            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-
-        self._map_labels = level.labels
-
-        # Create C++ config
-        with self.timer("_create_c_env.make_c_config"):
-            try:
-                c_cfg = from_mettagrid_config(game_config_dict)
-            except Exception as e:
-                logger.error(f"Error creating C++ config: {e}")
-                logger.error(f"Game config: {game_config_dict}")
-                raise e
-
-        # Create C++ environment
-        current_seed = seed if seed is not None else self._current_seed
-        c_env = MettaGridCpp(c_cfg, level.grid.tolist(), current_seed)
-
-        # Initialize renderer if needed
-        if (
-            self._render_mode is not None
-            and self._renderer is None
-            and hasattr(self, "_renderer_class")
-            and self._renderer_class is not None
-        ):
-            self._renderer = self._renderer_class(c_env.object_type_names())
-
-        return c_env
 
     @override
     @with_instance_timer("reset")
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
-        Reset the environment.
+        Reset the environment for training.
 
         Args:
             seed: Random seed
@@ -223,20 +128,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._steps = 0
         self._resets += 1
 
-        # Validate buffer dtypes (PufferEnv sets these up)
-        assert self.observations.dtype == dtype_observations
-        assert self.terminals.dtype == dtype_terminals
-        assert self.truncations.dtype == dtype_truncations
-        assert self.rewards.dtype == dtype_rewards
-
-        # Set buffers in core environment
-        if self._c_env is None:
-            raise RuntimeError("Core environment not initialized")
-        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
         # Set up episode tracking
         self._episode_id = self._make_episode_id()
         self._current_seed = seed or 0
+        import datetime
+
         self._reset_at = datetime.datetime.now()
 
         # Start replay recording if enabled
@@ -247,19 +143,25 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._should_reset = False
 
         # Get initial observations from core environment
-        obs, infos = self._c_env.reset()
+        if self._c_env is None:
+            raise RuntimeError("Core environment not initialized")
+        observations, info = self._c_env.reset()
+
+        # Set buffers in C++ environment for direct writes
+        if self._c_env and hasattr(self, "observations"):
+            self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         self.timer.start("thread_idle")
-        return obs, infos
+        return observations, info
 
     @override
     @with_instance_timer("step")
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """
-        Execute one timestep of the environment dynamics with the given actions.
+        Execute one timestep for training.
 
         Args:
-            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
+            actions: Array of actions
 
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
@@ -271,28 +173,58 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Execute step in core environment
         with self.timer("_c_env.step"):
-            self._c_env.step(actions)
+            obs, rewards, terminals, truncations, _ = self._c_env.step(actions)
             self._steps += 1
 
         # Record step for replay
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
+                self._replay_writer.log_step(self._episode_id, actions, rewards)
 
         # Check for episode completion
         infos = {}
 
-        if self.terminals.all() or self.truncations.all():
+        if terminals.all() or truncations.all():
             self._process_episode_completion(infos)
             self._should_reset = True
 
         self.timer.start("thread_idle")
-        return self.observations, self.rewards, self.terminals, self.truncations, infos
+        return obs, rewards, terminals, truncations, infos
+
+    def _create_c_env(self, seed: Optional[int] = None) -> MettaGridCpp:
+        """
+        Create a new MettaGridCpp instance with training-specific features.
+
+        Args:
+            seed: Random seed for environment
+
+        Returns:
+            New MettaGridCpp instance
+        """
+        c_env = super()._create_c_env(seed)
+
+        # Handle episode desyncing for training
+        if self._is_training and self._resets == 0:
+            task_cfg = self._task.env_cfg()
+            game_config_dict = OmegaConf.to_container(task_cfg.game)
+            max_steps = game_config_dict["max_steps"]
+            # Recreate with random max_steps
+            from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+
+            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            c_cfg = from_mettagrid_config(game_config_dict)
+            level = self._level or task_cfg.game.map_builder.build()
+            current_seed = seed if seed is not None else self._current_seed
+            c_env = MettaGridCpp(c_cfg, level.grid.tolist(), current_seed)
+
+        return c_env
 
     def _process_episode_completion(self, infos: Dict[str, Any]) -> None:
         """Process episode completion - stats, curriculum, etc."""
         if self._c_env is None:
             return
+
+        import time
 
         self.timer.start("process_episode_stats")
 
@@ -382,6 +314,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if not self._stats_writer or not self._episode_id or not self._c_env:
             return
 
+        from typing import cast
+
+        from metta.mettagrid.util.dict_utils import unroll_nested_dict
+
         # Flatten environment config
         env_cfg_flattened: Dict[str, str] = {}
         env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
@@ -423,7 +359,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         lap_times = self.timer.lap_all(exclude_global=False)
         lap_thread_idle_time = lap_times.pop("thread_idle", 0)
-        wall_time_for_lap = lap_times.pop("global", 0)
+
+        wall_time_for_lap = sum(lap_times.values()) + lap_thread_idle_time
         adjusted_lap_time = wall_time_for_lap - lap_thread_idle_time
 
         infos["timing_per_epoch"] = {
@@ -443,160 +380,18 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "frac/thread_idle": thread_idle_time / wall_time,
         }
 
-    def render(self) -> Optional[str]:
-        """Render the environment."""
-        if self._renderer is None or self._c_env is None:
-            return None
-
-        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
-
-    def close(self) -> None:
-        """Close the environment."""
-        if self._c_env is not None:
-            # Clean up any resources if needed
-            self._c_env = None
-
-    # Properties that expose C++ environment functionality
+    # PufferLib compatibility properties for training
     @property
-    def done(self) -> bool:
-        """Check if environment needs reset."""
-        return self._should_reset
+    def single_observation_space(self):
+        """Single agent observation space for PufferLib."""
+        return self._observation_space
 
     @property
-    def render_mode(self) -> Optional[str]:
-        """Get render mode."""
-        return self._render_mode
+    def single_action_space(self):
+        """Single agent action space for PufferLib."""
+        return self._action_space
 
     @property
-    def core_env(self) -> Optional[MettaGridCpp]:
-        """Get core environment instance."""
-        return self._c_env
-
-    # Properties that delegate to core environment
-    @property
-    def max_steps(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.max_steps
-
-    @property
-    def num_agents(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.num_agents
-
-    @property
-    def obs_width(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.obs_width
-
-    @property
-    def obs_height(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.obs_height
-
-    @property
-    def map_width(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.map_width
-
-    @property
-    def map_height(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.map_height
-
-    @property
-    def single_observation_space(self) -> spaces.Box:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.observation_space
-
-    @property
-    def single_action_space(self) -> spaces.MultiDiscrete:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.action_space
-
-    @property
-    def action_names(self) -> List[str]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.action_names()
-
-    @property
-    def max_action_args(self) -> List[int]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        action_args_array = self._c_env.max_action_args()
-        return [int(x) for x in action_args_array]
-
-    @property
-    def object_type_names(self) -> List[str]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.object_type_names()
-
-    @property
-    def inventory_item_names(self) -> List[str]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.inventory_item_names()
-
-    @property
-    def feature_normalizations(self) -> Dict[int, float]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.feature_normalizations()
-
-    @property
-    def initial_grid_hash(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.initial_grid_hash
-
-    @property
-    def action_success(self) -> List[bool]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.action_success()
-
-    @property
-    def global_features(self) -> List[Any]:
-        """Global features for compatibility."""
-        return []
-
-    def get_observation_features(self) -> Dict[str, Dict]:
-        """
-        Build the features dictionary for initialize_to_environment.
-
-        Returns:
-            Dictionary mapping feature names to their properties
-        """
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-
-        # Get feature spec from C++ environment
-        feature_spec = self._c_env.feature_spec()
-
-        features = {}
-        for feature_name, feature_info in feature_spec.items():
-            feature_dict: Dict[str, Any] = {"id": feature_info["id"]}
-
-            # Add normalization if present
-            if "normalization" in feature_info:
-                feature_dict["normalization"] = feature_info["normalization"]
-
-            features[feature_name] = feature_dict
-
-        return features
-
-    @property
-    def grid_objects(self) -> Dict[int, Dict[str, Any]]:
-        """Get grid objects information."""
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.grid_objects()
+    def emulated(self) -> bool:
+        """Native envs do not use emulation (PufferLib compatibility)."""
+        return False

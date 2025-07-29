@@ -13,26 +13,23 @@ import numpy as np
 from gymnasium import Env as GymEnv
 from typing_extensions import override
 
+from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
 
-# Data types for Gymnasium
-dtype_observations = np.dtype(np.uint8)
-dtype_terminals = np.dtype(bool)
-dtype_truncations = np.dtype(bool)
-dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)
+# Data types for Gymnasium - import from C++ module
+from metta.mettagrid.mettagrid_c import (
+    dtype_actions,
+)
 
 
-class MettaGridGymEnv(MettaGridEnv, GymEnv):
+class MettaGridGymEnv(MettaGridCore, GymEnv):
     """
     Gymnasium adapter for MettaGrid environments.
 
     This class provides a Gymnasium-compatible interface for MettaGrid environments,
     supporting both single-agent and multi-agent scenarios.
+    No training features are included - this is purely for Gymnasium compatibility.
     """
 
     def __init__(
@@ -40,9 +37,6 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
-        is_training: bool = False,
         single_agent: bool = False,
         **kwargs: Any,
     ):
@@ -53,24 +47,15 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
             curriculum: Curriculum for task management
             render_mode: Rendering mode
             level: Optional pre-built level
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
             single_agent: Whether to use single-agent mode
             **kwargs: Additional arguments
         """
-        # Set flag to hide conflicting methods during PufferLib initialization
-        self._pufferlib_init_in_progress = True
-
-        # Initialize base environment
-        MettaGridEnv.__init__(
+        # Initialize core environment (no training features)
+        MettaGridCore.__init__(
             self,
             curriculum=curriculum,
             render_mode=render_mode,
             level=level,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
             **kwargs,
         )
 
@@ -78,30 +63,6 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
         GymEnv.__init__(self)
 
         self._single_agent = single_agent
-
-        # PufferLib sets observation_space and action_space as instance attributes,
-        # but our properties with setters will handle this correctly
-
-        # Remove flag to allow normal method access
-        delattr(self, "_pufferlib_init_in_progress")
-
-    def __getattribute__(self, name: str):
-        """Override to hide conflicting attributes during PufferLib initialization."""
-        # Hide observation_space and action_space properties during PufferLib __init__ checks
-        if name in ("observation_space", "action_space"):
-            import inspect
-
-            frame = inspect.currentframe()
-            try:
-                # Look for PufferLib's __init__ method in the call stack
-                while frame:
-                    if frame.f_code.co_filename.endswith("pufferlib.py") and frame.f_code.co_name == "__init__":
-                        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-                    frame = frame.f_back
-            finally:
-                del frame
-
-        return super().__getattribute__(name)
 
     @override
     def reset(
@@ -165,7 +126,34 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
             # Multi-agent format - return arrays
             return (observations, rewards, terminals, truncations, infos)
 
-    # Gymnasium properties are inherited from base MettaGridEnv
+    # Gymnasium space properties
+    @property
+    def observation_space(self):
+        """Get observation space."""
+        if self._single_agent:
+            return self._observation_space
+        else:
+            # Multi-agent case - return the multi-agent space
+            return self._observation_space
+
+    @property
+    def action_space(self):
+        """Get action space."""
+        if self._single_agent:
+            return self._action_space
+        else:
+            # Multi-agent case - return the multi-agent space
+            return self._action_space
+
+    @property
+    def single_observation_space(self):
+        """Single agent observation space."""
+        return self._observation_space
+
+    @property
+    def single_action_space(self):
+        """Single agent action space."""
+        return self._action_space
 
 
 class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
@@ -181,9 +169,6 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
-        is_training: bool = False,
         **kwargs: Any,
     ):
         """
@@ -193,38 +178,12 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
             curriculum: Curriculum for task management
             render_mode: Rendering mode
             level: Optional pre-built level
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
             **kwargs: Additional arguments
         """
         super().__init__(
             curriculum=curriculum,
             render_mode=render_mode,
             level=level,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
             single_agent=True,
             **kwargs,
         )
-
-    @property
-    def observation_space(self):
-        """Override to return single-agent observation space."""
-        return self.single_observation_space
-
-    @observation_space.setter
-    def observation_space(self, value):
-        """Ignore PufferLib's attempt to set observation_space."""
-        pass
-
-    @property
-    def action_space(self):
-        """Override to return single-agent action space."""
-        return self.single_action_space
-
-    @action_space.setter
-    def action_space(self, value):
-        """Ignore PufferLib's attempt to set action_space."""
-        pass

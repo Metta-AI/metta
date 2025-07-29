@@ -12,28 +12,18 @@ import numpy as np
 from pufferlib import PufferEnv
 from typing_extensions import override
 
+from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
-
-# Data types must match PufferLib -- see pufferlib/vector.py
-dtype_observations = np.dtype(np.uint8)
-dtype_terminals = np.dtype(bool)
-dtype_truncations = np.dtype(bool)
-dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)
-dtype_masks = np.dtype(bool)
-dtype_success = np.dtype(bool)
 
 
-class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
+class MettaGridPufferEnv(MettaGridCore, PufferEnv):
     """
     PufferLib adapter for MettaGrid environments.
 
-    This class combines the base MettaGridEnv functionality with PufferLib's
-    vectorized environment interface, including proper buffer management.
+    This class provides a clean PufferLib interface for users who want to use
+    MettaGrid environments with their own PufferLib training setup.
+    No training features are included - this is purely for PufferLib compatibility.
     """
 
     def __init__(
@@ -42,9 +32,6 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
         buf: Optional[Any] = None,
-        stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
-        is_training: bool = False,
         **kwargs: Any,
     ):
         """
@@ -55,30 +42,23 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
             render_mode: Rendering mode
             level: Optional pre-built level
             buf: PufferLib buffer object
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
             **kwargs: Additional arguments
         """
-        # Initialize base environment (this also calls PufferEnv.__init__ with buf)
-        MettaGridEnv.__init__(
+        # Initialize core environment (no training features)
+        MettaGridCore.__init__(
             self,
             curriculum=curriculum,
             render_mode=render_mode,
             level=level,
-            buf=buf,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
             **kwargs,
         )
 
-        # Core environment is already created by base MettaGridEnv initialization
+        # Initialize PufferEnv with buffers
+        PufferEnv.__init__(self, buf=buf)
+
+        # Core environment is already created by base MettaGridCore initialization
         # PufferEnv needs access to it for observation space
         self._core_env = self._c_env
-
-        # Note: PufferEnv.__init__ is already called by MettaGridEnv.__init__
-        # No need to call it again - this would cause double initialization
 
         # PufferLib buffer attributes (set by PufferEnv)
         self.observations: np.ndarray
@@ -86,6 +66,22 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
         self.truncations: np.ndarray
         self.rewards: np.ndarray
         self.actions: np.ndarray
+
+    # PufferLib required properties
+    @property
+    def single_observation_space(self):
+        """Single agent observation space for PufferLib."""
+        return self._observation_space
+
+    @property
+    def single_action_space(self):
+        """Single agent action space for PufferLib."""
+        return self._action_space
+
+    @property
+    def emulated(self) -> bool:
+        """Native envs do not use emulation (PufferLib compatibility)."""
+        return False
 
     def _get_initial_observations(self) -> np.ndarray:
         """
