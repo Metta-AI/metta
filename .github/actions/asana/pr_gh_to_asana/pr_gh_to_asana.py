@@ -1,250 +1,589 @@
-#!/usr/bin/env -S uv run
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#   "requests>=2.31.0",
-#   "vcrpy>=6.0.0",
-#   "pyyaml>=6.0.0",
-#   "asana>=3.0.0",
-# ]
-# ///
-
-import os
 import re
 from datetime import datetime
+from typing import Dict, List, Optional
 
-import vcr
-from asana_task import AsanaTask
-from github_asana_mapping import GithubAsanaMapping
-from pull_request import PullRequest
+import asana
+import requests
+from asana.rest import ApiException
 
-# VCR configuration for tracking REST traffic
-# logging.basicConfig(level=logging.INFO)
-# vcr_log = logging.getLogger("vcr")
-# vcr_log.setLevel(logging.DEBUG)
-
-record_mode = os.getenv("VCR_RECORD_MODE", "new_episodes")
-print(f"VCR record mode: {record_mode}")
-
-my_vcr = vcr.VCR(
-    record_mode=record_mode,
-    cassette_library_dir=".",
-    filter_headers=["Authorization", "User-Agent"],
-    match_on=["uri", "method"],
-    filter_query_parameters=["access_token"],
-)
+ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
 
-def log_http_interactions(cassette_name):
-    """Log HTTP interactions from the VCR cassette"""
-    try:
-        import os
+class AsanaTask:
+    def __init__(
+        self,
+        asana_token: str,
+        github_url_field_id: str,
+        pr_author_field_id: str,
+        asana_email_field_id: str,
+        project_id: str,
+        workspace_id: str,
+        attachment_secret: str,
+    ):
+        print(f"[__init__] Initializing AsanaTask with project_id={project_id}, workspace_id={workspace_id}")
+        self.asana_token = asana_token
+        self.github_url_field_id = github_url_field_id
+        self.pr_author_field_id = pr_author_field_id
+        self.asana_email_field_id = asana_email_field_id
+        self.project_id = project_id
+        self.workspace_id = workspace_id
+        self.attachment_secret = attachment_secret
+        self._task_url = None
 
-        import yaml
+        # Initialize Asana client (v5 API)
+        self.configuration = asana.Configuration()
+        self.configuration.access_token = asana_token
+        self.api_client = asana.ApiClient(self.configuration)
 
-        # Check if file exists
-        if not os.path.exists(cassette_name):
-            print(f"VCR cassette file not found: {cassette_name}")
-            print(f"Current working directory: {os.getcwd()}")
-            print(f"Files in current directory: {os.listdir('.')}")
-            return
+        # Initialize API instances
+        self.tasks_api = asana.TasksApi(self.api_client)
+        self.stories_api = asana.StoriesApi(self.api_client)
 
-        with open(cassette_name, "r") as f:
-            cassette_data = yaml.safe_load(f)
+    @property
+    def task_url(self):
+        if self._task_url is None:
+            raise Exception("task_url is not set on AsanaTask instance")
+        return self._task_url
 
-        if cassette_data and "interactions" in cassette_data:
-            interactions = cassette_data["interactions"]
-            print(f"Recorded {len(interactions)} HTTP interactions in {cassette_name}")
+    @task_url.setter
+    def task_url(self, value):
+        print(f"[task_url.setter] Setting task_url to: {value}")
+        self._task_url = value
 
-            for i, interaction in enumerate(interactions):
-                request = interaction.get("request", {})
-                response = interaction.get("response", {})
-                method = request.get("method", "UNKNOWN")
-                uri = request.get("uri", "UNKNOWN")
-                status = response.get("status", {}).get("code", "UNKNOWN")
-                print(f"  {i + 1}. {method} {uri} -> {status}")
+    @property
+    def task_gid(self):
+        gid = self.extract_gid_from_url(self.task_url)
+        print(f"[task_gid] Extracted task_gid: {gid} from URL: {self.task_url}")
+        return gid
+
+    @staticmethod
+    def extract_gid_from_url(task_url: str) -> str:
+        print(f"[extract_gid_from_url] extract_gid_from_url() called with task_url='{task_url}'")
+        # Try Format 1: https://app.asana.com/0/project_id/task_id
+        match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)(?:/|$)", task_url)
+        if match:
+            gid = match.group(1)
+            print(f"[extract_gid_from_url] Extracted GID using Format 1: {gid}")
+            return gid
+
+        # Try Format 2: https://app.asana.com/1/workspace_id/project/project_id/task/task_id
+        match = re.search(r"https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)", task_url)
+        if match:
+            gid = match.group(1)
+            print(f"[extract_gid_from_url] Extracted GID using Format 2: {gid}")
+            return gid
+
+        print(f"[extract_gid_from_url] Could not extract task ID from URL: {task_url}")
+        raise Exception(f"Could not extract task ID from URL: {task_url}")
+
+    def ensure(
+        self,
+        title: str,
+        description: str,
+        task_completed: bool,
+        assignee: Optional[str],
+        collaborators: List[str],
+        github_url: str,
+        pr_author: Optional[str],
+        urls: List[str],
+    ) -> str:
+        print(f"[ensure] ensure() called with title='{title}', github_url='{github_url}', urls={urls}")
+        existing = None
+        if urls:
+            print(f"[ensure] Checking {len(urls)} existing URLs for validation")
+            for url in urls:
+                print(f"[ensure] Validating URL: {url}")
+                validated = self.validate(url, github_url)
+                if validated:
+                    print(f"[ensure] Found valid existing task: {validated.get('permalink_url')}")
+                    existing = validated
+                    break
+            if not existing:
+                print("[ensure] None of the existing Asana URLs in description are valid for this project")
+
+        if not existing:
+            print(f"[ensure] Searching for existing task with github_url: {github_url}")
+            existing = self.search(github_url=github_url)
+            if existing:
+                print(f"[ensure] Found existing task via search: {existing.get('permalink_url')}")
+            else:
+                print("[ensure] No existing task found via search")
+
+        if existing:
+            print(f"[ensure] Updating existing task: {existing.get('permalink_url')}")
+            self.update_if_needed(
+                existing,
+                title,
+                description,
+                task_completed,
+                assignee,
+                github_url,
+                pr_author,
+            )
+            self.task_url = existing["permalink_url"]
+            return self.task_url
+
+        print(f"[ensure] Creating new task with title: {title}")
+        new_url = self.create(
+            title,
+            description,
+            task_completed,
+            assignee,
+            collaborators,
+            github_url,
+            pr_author,
+        )
+        self.task_url = new_url
+        return new_url
+
+    def validate(self, url: str, github_url: str) -> Optional[Dict]:
+        print(f"[validate] validate() called with url='{url}', github_url='{github_url}'")
+        gid = self.extract_gid_from_url(url)
+        if not gid:
+            print(f"[validate] Could not extract GID from URL: {url}")
+            return None
+        print(f"[validate] Extracted GID: {gid}")
+
+        try:
+            opts = {
+                "opt_fields": [
+                    "permalink_url",
+                    "custom_fields",
+                    "name",
+                    "notes",
+                    "modified_at",
+                    "completed",
+                    "assignee.email",
+                    "followers.email",
+                    "projects.gid",
+                ],
+            }
+
+            print(f"[validate] Getting task {gid} from Asana API")
+            task = self.tasks_api.get_task(gid, opts)
+            print("[validate] Successfully retrieved task")
+
+            # Check if task is in the target project
+            projects = [project["gid"] for project in task.get("projects", [])]
+            if self.project_id not in projects:
+                print(
+                    f"[validate] Task not in target project. Task projects: {projects}, target project: {self.project_id}"
+                )
+                return None
+
+            # Check if GitHub URL matches
+            custom_fields = task.get("custom_fields", [])
+            task_github_url = None
+            for field in custom_fields:
+                if field.get("gid") == self.github_url_field_id:
+                    task_github_url = field.get("text_value")
+                    break
+
+            print(f"[validate] Task GitHub URL: '{task_github_url}', expected: '{github_url}'")
+            if task_github_url != github_url:
+                print("[validate] GitHub URL mismatch")
+                return None
+
+            print("[validate] Task validation successful")
+            return task
+
+        except ApiException as e:
+            print(f"[validate] Asana API error: {e}")
+            return None
+        except Exception as e:
+            print(f"[validate] Unexpected error: {e}")
+            return None
+
+    def search(self, github_url: str) -> Optional[Dict]:
+        print(f"[search] search() called with github_url='{github_url}'")
+
+        try:
+            opts = {
+                "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email",
+                "limit": 100,
+                "sort_by": "created_at",
+                "projects.any": self.project_id,
+                f"custom_fields.{self.github_url_field_id}.value": github_url,
+            }
+
+            print(f"[search] Making search request with opts: {opts}")
+            results = list(self.tasks_api.search_tasks_for_workspace(self.workspace_id, opts))
+
+            print(f"[search] Search returned {len(results)} results")
+            if results:
+                print(f"[search] Returning first result: {results[0].get('permalink_url')}")
+                return results[0]
+            return None
+
+        except ApiException as e:
+            print(f"[search] Asana API error: {e}")
+            return None
+        except Exception as e:
+            print(f"[search] Unexpected error: {e}")
+            return None
+
+    def create(
+        self,
+        title: str,
+        description: str,
+        completed: bool,
+        assignee: Optional[str],
+        collaborators: List[str],
+        github_url: str,
+        pr_author: Optional[str],
+    ) -> str:
+        print(f"[create] create() called with title='{title}', assignee='{assignee}', collaborators={collaborators}")
+
+        try:
+            body = {
+                "data": {
+                    "name": title,
+                    "notes": description,
+                    "projects": [self.project_id],
+                    "followers": collaborators,
+                    "custom_fields": {
+                        self.github_url_field_id: github_url,
+                        self.pr_author_field_id: pr_author,
+                    },
+                }
+            }
+
+            if assignee:
+                body["data"]["assignee"] = assignee
+
+            if completed:
+                body["data"]["completed"] = True
+
+            print(f"[create] Creating task with body: {body}")
+            task = self.tasks_api.create_task(body)
+
+            url = task["permalink_url"]
+            print(f"[create] Task created successfully: {url}")
+            self.ensure_github_url_in_task(url, title, github_url)
+            return url
+
+        except ApiException as e:
+            print(f"[create] Asana API error: {e}")
+            raise Exception(f"Asana API Error (create): {e}")
+        except Exception as e:
+            print(f"[create] Unexpected error: {e}")
+            raise Exception(f"Task creation failed: {e}")
+
+    def update(
+        self,
+        gid: str,
+        title: str,
+        description: str,
+        completed: bool,
+        assignee: Optional[str],
+        github_url: str,
+        pr_author: Optional[str],
+    ):
+        print(f"[update] update() called with gid='{gid}', title='{title}', completed={completed}")
+
+        try:
+            body = {
+                "data": {
+                    "name": title,
+                    "notes": description,
+                    "completed": completed,
+                    "custom_fields": {
+                        self.github_url_field_id: github_url,
+                        self.pr_author_field_id: pr_author,
+                    },
+                }
+            }
+
+            if assignee:
+                body["data"]["assignee"] = assignee
+
+            print(f"[update] Updating task with body: {body}")
+            self.tasks_api.update_task(gid, body)
+            print("[update] Task updated successfully")
+
+        except ApiException as e:
+            print(f"[update] Asana API error: {e}")
+            raise Exception(f"Asana API Error (update): {e}")
+        except Exception as e:
+            print(f"[update] Unexpected error: {e}")
+            raise Exception(f"Task update failed: {e}")
+
+    def update_if_needed(
+        self,
+        data: Dict,
+        title: str,
+        description: str,
+        task_completed: bool,
+        assignee: Optional[str],
+        github_url: str,
+        pr_author: Optional[str],
+    ) -> None:
+        print("[update_if_needed] update_if_needed() called")
+        current_title = data.get("name") or ""
+        current_notes = data.get("notes") or ""
+        current_completed = data.get("completed") or False
+        current_assignee = (data.get("assignee") or {}).get("email") or ""
+
+        print("[update_if_needed] Current vs new values:")
+        print(f"  title: '{current_title}' vs '{title}'")
+        print(f"  notes: '{current_notes[:50]}...' vs '{description[:50]}...'")
+        print(f"  completed: {current_completed} vs {task_completed}")
+        print(f"  assignee: '{current_assignee}' vs '{assignee}'")
+
+        if (
+            current_title != title
+            or current_notes != description
+            or current_completed != task_completed
+            or current_assignee != assignee
+        ):
+            print("[update_if_needed] Changes detected, updating task")
+            self.update(
+                data["gid"],
+                title,
+                description,
+                task_completed,
+                assignee,
+                github_url,
+                pr_author,
+            )
         else:
-            print(f"No HTTP interactions recorded in {cassette_name}")
-    except Exception as e:
-        print(f"Error logging HTTP interactions: {e}")
-        import traceback
+            print("[update_if_needed] No changes needed")
 
-        traceback.print_exc()
+    def ensure_github_url_in_task(
+        self,
+        url: str,
+        title: str,
+        github_url: str,
+    ) -> Optional[Dict]:
+        print(f"[ensure_github_url_in_task] ensure_github_url_in_task() called with url='{url}', title='{title}'")
+        github_url_number = github_url.split("pull/")[-1]
+        if not github_url_number.isdigit():
+            print(f"[ensure_github_url_in_task] Could not extract PR number from GitHub URL: {github_url}")
+            return None
 
+        print(f"[ensure_github_url_in_task] PR number extracted: {github_url_number}")
+        headers = {
+            "Authorization": f"Bearer {self.attachment_secret}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "allowedProjects": [self.project_id],
+            "blockedProjects": [],
+            "pullRequestName": title,
+            "pullRequestDescription": url,
+            "pullRequestNumber": int(github_url_number),
+            "pullRequestURL": github_url,
+        }
+        print(f"[ensure_github_url_in_task] Making attachment request with payload: {payload}")
 
-def format_github_review_body_for_asana(review_body, github_user, review_state, review_id, github_timestamp):
-    """
-    Format GitHub review body comment for Asana
+        try:
+            response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
+            print(f"[ensure_github_url_in_task] Attachment response status: {response.status_code}")
+            if response.status_code == 201:
+                print("[ensure_github_url_in_task] GitHub attachment successful")
+                return response.json()
+            else:
+                print(f"[ensure_github_url_in_task] GitHub attachment failed: {response.text}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"[ensure_github_url_in_task] Request error: {e}")
+            return None
 
-    Args:
-        review_body: The review's body text (markdown string)
-        github_user: GitHub username of the reviewer
-        review_state: Review state (APPROVED, CHANGES_REQUESTED, COMMENTED)
-        review_id: GitHub review ID number
-        github_timestamp: When the review was submitted
-    """
-    # Format header with review ID
-    header = f"<strong>Review from {github_user} (ID {review_id})</strong>: {review_state.replace('_', ' ').title()}\n"
-    # Convert basic markdown in body
-    formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
+    def extract_github_review_id(self, asana_comment_text: str) -> Optional[int]:
+        """
+        Extract GitHub review ID from Asana comment text
 
-    return "<body>" + header + formatted_body + "</body>"
+        Args:
+            asana_comment_text: The text content of an Asana comment
 
+        Returns:
+            int: GitHub review ID if found, None otherwise
+        """
+        if not asana_comment_text:
+            return None
 
-def convert_basic_markdown(text):
-    """Convert basic markdown to Asana HTML"""
+        pattern = r"ID (\d+)"
+        match = re.search(pattern, asana_comment_text)
 
-    # Bold: **text** -> <strong>text</strong>
-    text = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", text)
+        if match:
+            return int(match.group(1))
 
-    # Italic: *text* -> <em>text</em>
-    text = re.sub(r"\*(.*?)\*", r"<em>\1</em>", text)
+        return None
 
-    # Inline code: `code` -> <code>code</code>
-    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    def get_comments(self, task_id: str) -> List[Dict]:
+        """
+        Fetches comments for an Asana task
+        Args:
+            task_id (str): Asana task ID
+        Returns:
+            List[Dict]: List of comment dictionaries
+        """
+        print(f"[get_comments] get_comments() called with task_id='{task_id}'")
 
-    return text
+        try:
+            opts = {
+                "opt_fields": [
+                    "text",
+                    "html_text",
+                    "created_by.name",
+                    "created_by.email",
+                    "created_at",
+                    "type",
+                    "resource_subtype",
+                    "is_pinned",
+                ],
+            }
 
+            print(f"[get_comments] Getting stories for task {task_id}")
+            stories = list(self.stories_api.get_stories_for_task(task_id, opts))
 
-def getenv_or_bust(key: str) -> str:
-    """
-    Get environment variable value, throwing exception if not found
-
-    Args:
-        key (str): Environment variable name
-
-    Returns:
-        str: Environment variable value (guaranteed non-None)
-
-    Raises:
-        Exception: If environment variable is not set or is empty
-    """
-    value = os.getenv(key)
-    print(f"Environment variable '{key}' = {repr(value)}")
-
-    if value is None:
-        raise Exception(f"Environment variable '{key}' is not set")
-
-    # Optional: Also check for empty strings
-    if value == "":
-        raise Exception(f"Environment variable '{key}' is empty")
-
-    return value
-
-
-"""
-asana task assignment (asana owner) should be the PR author or PR assignee dep who is responsible at this time
-    - as a story, we say that the PR author is doing the coding, the PR assignee is doing the admin behind the PR
-    - we switch from author <=> assignee while the review process is ongoing
-    -   specifically we look at the last event
-    -      (an event is either a passing or failing review or a review_requested)
-    -    if there is no event, there has been no review, so the assignee has work to do and is the asana owner
-    -    if the last event is a review (whether passing or failing the PR), the PR author is the asana owner
-    -    if the last event is a review_request (meaning the author requested re-review), goes back to the assignee
-    - note that this is only for active PRs
-    -   if the PR is closed or merged (ie not open), or is a draft, the PR author is the asana owner
-    - simplifying this logic:
-    -   asana designee is github designee when last_event is None or review_requested
-    - ideally we would want to incorporate mergeability
-    -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
-    -     however, this is not easy to implement because mergeability is computed async and there is no hook
-"""
-if __name__ == "__main__":
-    import traceback
-
-    run_id = os.getenv("GITHUB_RUN_ID", datetime.now().strftime("%Y%m%d_%H%M%S"))
-    cassette_override = os.getenv("VCR_CASSETTE_PATH")
-    if cassette_override:
-        cassette_name = cassette_override
-        print(f"Using cassette override: {cassette_name}")
-    else:
-        cassette_name = f"http_interactions_{run_id}.yaml"
-
-    print(f"Starting VCR recording with cassette: {cassette_name}")
-    print(f"Current working directory: {os.getcwd()}")
-
-    try:
-        with my_vcr.use_cassette(cassette_name):
-            # Inputs from the Action
-            project_id = getenv_or_bust("INPUT_PROJECT_ID")
-            workspace_id = getenv_or_bust("INPUT_WORKSPACE_ID")
-            asana_token = getenv_or_bust("INPUT_ASANA_TOKEN")
-            github_url = getenv_or_bust("INPUT_GITHUB_URL")
-            github_url_field_id = getenv_or_bust("INPUT_GITHUB_URL_FIELD_ID")
-            gh_login_field_id = getenv_or_bust("INPUT_GH_LOGIN_FIELD_ID")
-            asana_email_field_id = getenv_or_bust("INPUT_ASANA_EMAIL_FIELD_ID")
-            roster_project_id = getenv_or_bust("INPUT_ROSTER_PROJECT_ID")
-            pr_author_field_id = getenv_or_bust("INPUT_PR_AUTHOR_FIELD_ID")
-            asana_attachment_secret = getenv_or_bust("INPUT_ASANA_ATTACHMENT_SECRET")
-            pr_number = getenv_or_bust("INPUT_PR_NUMBER")
-            github_repo = getenv_or_bust("INPUT_GITHUB_REPO")
-            github_token = getenv_or_bust("INPUT_GITHUB_TOKEN")
-
-            pr = PullRequest(github_repo, pr_number, github_token)
-
-            mapping = GithubAsanaMapping(
-                pr.github_logins,
-                roster_project_id,
-                gh_login_field_id,
-                asana_email_field_id,
-                asana_token,
-            )
-
-            asana_assignee_is_github_assignee = not (pr.last_event) or pr.last_event["type"] == "review_requested"
-            designated_pr_assignee = next((a for a in sorted(pr.assignees) if a != pr.author), pr.author)
-            asana_assignee_github_name = designated_pr_assignee if asana_assignee_is_github_assignee else pr.author
-
-            asana_assignee = (
-                mapping.github_login_to_asana_email.get(asana_assignee_github_name) if pr.assignees else None
-            )
-            asana_collaborators = [
-                mapping.github_login_to_asana_email[login]
-                for login in pr.github_logins
-                if login in mapping.github_login_to_asana_email
+            # Filter for comments only
+            comments = [
+                story
+                for story in stories
+                if story.get("type") == "comment" or story.get("resource_subtype") == "comment_added"
             ]
 
-            # Get the author's Asana ID for the custom field
-            pr_author_asana = mapping.github_login_to_asana_email.get(pr.author)
+            print(f"[get_comments] Found {len(comments)} comment stories out of {len(stories)} total stories")
 
-            # print out debug info
-            pr.print_debug_info()
+            ret = []
+            for comment in comments:
+                comment_data = {
+                    "id": comment.get("gid"),
+                    "text": comment.get("text", ""),
+                    "html_text": comment.get("html_text", ""),
+                    "author": {
+                        "name": comment.get("created_by", {}).get("name", "Unknown"),
+                        "email": comment.get("created_by", {}).get("email"),
+                    },
+                    "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
+                    "is_pinned": comment.get("is_pinned", False),
+                    "review_id": self.extract_github_review_id(comment.get("text", "")),
+                }
+                ret.append(comment_data)
 
-            # todo print out variables above
+            print(f"[get_comments] Processed {len(ret)} comments")
+            print(f"comments in asana: {ret}")
+            return ret
 
-            asana_task = AsanaTask(
-                asana_token=asana_token,
-                github_url_field_id=github_url_field_id,
-                pr_author_field_id=pr_author_field_id,
-                asana_email_field_id=asana_email_field_id,
-                project_id=project_id,
-                workspace_id=workspace_id,
-                attachment_secret=asana_attachment_secret,
+        except ApiException as e:
+            print(f"[get_comments] Asana API error: {e}")
+            return []
+        except Exception as e:
+            print(f"[get_comments] Unexpected error: {e}")
+            return []
+
+    def asana_comments_with_links(self) -> List[Dict]:
+        print("[asana_comments_with_links] asana_comments_with_links() called")
+        comments = self.get_comments(self.task_gid)
+        linked_comments = [comment for comment in comments if comment["review_id"] is not None]
+        print(f"[asana_comments_with_links] Found {len(linked_comments)} comments with review links of {len(comments)}")
+        return linked_comments
+
+    def synchronize_comments_in_asana_as_multiple_blocks(self, comments_from_github: List[Dict]) -> None:
+        """
+        Synchronize review comments in Asana as multiple blocks.
+        Args:
+            comments_from_github (list[dict]): List of review comments from GitHub
+        """
+        print("[synchronize_comments_in_asana_as_multiple_blocks] Starting with:")
+        asana_comments_with_links = self.asana_comments_with_links()
+        print(f"  asana_comments_with_links: {len(asana_comments_with_links)} comments")
+        print(f"  comments_from_github: {len(comments_from_github)} reviews")
+
+        if not comments_from_github:
+            print("[synchronize_comments_in_asana_as_multiple_blocks] No GitHub comments to process")
+            return
+
+        # Create a map of review IDs to existing Asana comments
+        existing_comments_by_review_id = {
+            comment["review_id"]: comment for comment in asana_comments_with_links if comment["review_id"] is not None
+        }
+        print(f"[s] Existing comments by review ID: {list(existing_comments_by_review_id.keys())}")
+
+        # Process each GitHub review
+        for github_review in comments_from_github:
+            review_id = github_review["id"]
+            review_body = github_review.get("text", "")
+            github_user = github_review["user"]
+            review_state = github_review["action"]
+            github_timestamp = github_review["timestamp"]
+
+            print(f"[s] Processing review {review_id} from {github_user} ({review_state})")
+
+            # Format the review for Asana
+            from pr_gh_to_asana import format_github_review_body_for_asana
+
+            formatted_comment = format_github_review_body_for_asana(
+                review_body, github_user, review_state, review_id, github_timestamp
             )
 
-            # Ensure task exists and output URL
-            task_url = asana_task.ensure(
-                title=pr.title,
-                description=pr.body,
-                task_completed=pr.task_completed,
-                assignee=asana_assignee,
-                collaborators=asana_collaborators,
-                github_url=github_url,
-                pr_author=pr_author_asana,
-                urls=pr.asana_urls,
-            )
+            if review_id in existing_comments_by_review_id:
+                print(
+                    f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} has existing Asana comment"
+                )
+                # Update existing comment if content differs
+                existing_comment = existing_comments_by_review_id[review_id]
+                if existing_comment["text"] != formatted_comment:
+                    print(f"[s] Updating existing comment for review {review_id}")
+                    story_id = existing_comment["id"]
 
-            review_comments = [e for e in pr.events if e["type"] == "review"]
-            asana_task.synchronize_comments_in_asana_as_multiple_blocks(review_comments)
-
-            if "GITHUB_OUTPUT" in os.environ:
-                with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                    f.write(f"task_url={task_url}\n")
+                    try:
+                        body = {"data": {"html_text": formatted_comment}}
+                        print(f"[s] Updating story {story_id} with body: {body}")
+                        self.stories_api.update_story(story_id, body)
+                        print(f"Updated Asana comment {story_id} for review {review_id}")
+                    except ApiException as e:
+                        print(f"Failed to update Asana comment {story_id}: {e}")
+                    except Exception as e:
+                        print(f"Error updating Asana comment {story_id}: {e}")
+                else:
+                    print(
+                        f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} comment is up to date"
+                    )
             else:
-                print(f"Skipping write to GITHUB_OUTPUT. Task URL: {task_url}")
+                print(f"[s] Review {review_id} has no existing Asana comment")
+                # Check if we should add this comment (don't add out of order)
+                # Find the last existing comment that matches a GitHub review
+                last_matching_review_id = None
+                for existing_comment in asana_comments_with_links:
+                    if existing_comment["review_id"] is not None:
+                        if existing_comment["review_id"] in {r["id"] for r in comments_from_github}:
+                            last_matching_review_id = existing_comment["review_id"]
 
-    except Exception:
-        traceback.print_exc()
-        raise
-    finally:
-        # Log all HTTP interactions
-        log_http_interactions(cassette_name)
+                # Check if this review comes before the last matching review
+                should_add = True
+                if last_matching_review_id is not None:
+                    # Find the position of the last matching review in the GitHub reviews list
+                    last_matching_index = -1
+                    for i, review in enumerate(comments_from_github):
+                        if review["id"] == last_matching_review_id:
+                            last_matching_index = i
+                            break
+
+                    # Find the position of current review in the GitHub reviews list
+                    current_review_index = -1
+                    for i, review in enumerate(comments_from_github):
+                        if review["id"] == review_id:
+                            current_review_index = i
+                            break
+
+                    # Only add if current review comes after the last matching review
+                    if current_review_index <= last_matching_index:
+                        print(f"[s] Review {review_id} comes before or at last review {last_matching_review_id}, skip")
+                        should_add = False
+
+                if should_add:
+                    print(f"[s] Adding new comment for review {review_id}")
+                    # Create new comment
+                    try:
+                        body = {"data": {"html_text": formatted_comment, "type": "comment"}}
+                        print(f"[s] Creating story for task {self.task_gid} with body: {body}")
+                        self.stories_api.create_story_for_task(self.task_gid, body)
+                        print(f"Added new Asana comment for review {review_id}")
+                    except ApiException as e:
+                        print(f"Error adding Asana comment for review {review_id}: {e}")
+                    except Exception as e:
+                        print(f"Error adding Asana comment for review {review_id}: {e}")
+                else:
+                    print(f"[s] Skipped adding comment for review {review_id} due to ordering constraint")
