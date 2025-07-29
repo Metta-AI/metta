@@ -49,7 +49,7 @@ class LocalCommands:
         # Load policies command
         load_parser = subparsers.add_parser("load-policies", help="Load W&B artifacts as policies")
         load_parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
-        load_parser.add_argument("--project", help=f"W&B project name (default: '{METTA_WANDB_PROJECT}')")
+        load_parser.add_argument("--project", help="W&B project name (default: 'metta')")
         load_parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
         load_parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
         load_parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
@@ -156,7 +156,6 @@ class LocalCommands:
         from omegaconf import DictConfig
 
         from metta.agent.policy_store import PolicyStore
-        from metta.common.util.constants import METTA_WANDB_PROJECT
         from metta.common.util.stats_client_cfg import get_stats_client_direct
         from metta.common.wandb.wandb_runs import find_training_runs
         from metta.sim.utils import get_or_create_policy_ids
@@ -166,7 +165,7 @@ class LocalCommands:
             prog="metta local load-policies", description="Load W&B artifacts as policies into stats database"
         )
         parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
-        parser.add_argument("--project", help=f"W&B project name (default: '{METTA_WANDB_PROJECT}')")
+        parser.add_argument("--project", help="W&B project name (default: 'metta')")
         parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
         parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
         parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
@@ -189,7 +188,6 @@ class LocalCommands:
                 error("No W&B entity found. Please login with 'wandb login'")
                 sys.exit(1)
 
-        # Use provided project or default to METTA_WANDB_PROJECT
         project = args.project if args.project else METTA_WANDB_PROJECT
 
         info(f"Using entity: {entity}, project: {project}")
