@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -28,14 +28,14 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
-from metta.interface.environment import PreBuiltConfigCurriculum
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
+from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,7 @@ class Simulation:
         self._wandb_policy_name: str | None = None
         self._wandb_uri: str | None = None
         if wandb_policy_name is not None:
-            # wandb_policy_name is a qualified name like 'entity/project/artifact:version'
-            # we store the uris as 'wandb://project/artifact:version', so need to strip 'entity'
-            arr = wandb_policy_name.split("/")
-            self._wandb_policy_name = arr[2]
-            self._wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
+            self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
 
         # ---------------- env config ----------------------------------- #
         logger.info(f"config.env {config.env}")
@@ -133,8 +129,7 @@ class Simulation:
                 pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
             curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
         else:
-            # Use the standard SamplingCurriculum that loads from Hydra
-            curriculum = SamplingCurriculum(config.env, env_overrides)
+            curriculum = curriculum_from_config_path(config.env, env_overrides)
 
         env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
@@ -394,17 +389,6 @@ class Simulation:
         )
         return db
 
-    def get_policy_ids(self, stats_client: StatsClient, policies: List[Tuple[str, str]]) -> Dict[str, uuid.UUID]:
-        policy_names = [policy[0] for policy in policies]
-        policy_ids_response = stats_client.get_policy_ids(policy_names)
-        policy_ids = policy_ids_response.policy_ids
-
-        for policy in policies:
-            if policy[0] not in policy_ids:
-                policy_response = stats_client.create_policy(policy[0], None, policy[1], epoch_id=self._stats_epoch_id)
-                policy_ids[policy[0]] = policy_response.id
-        return policy_ids
-
     def _get_policy_name(self) -> str:
         return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
 
@@ -416,10 +400,11 @@ class Simulation:
         if self._stats_client is not None:
             policy_name = self._get_policy_name()
             policy_uri = self._get_policy_uri()
-            policies = [(policy_name, policy_uri)]
+            policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
             if self._npc_pr is not None:
-                policies.append((self._npc_pr.run_name, self._npc_pr.uri))
-            policy_ids = self.get_policy_ids(self._stats_client, policies)
+                policy_details.append((self._npc_pr.run_name, self._npc_pr.uri, None))
+
+            policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
             agent_map: Dict[int, uuid.UUID] = {}
             for idx in self._policy_idxs:

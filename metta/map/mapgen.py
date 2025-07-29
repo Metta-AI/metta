@@ -4,8 +4,9 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.config import Config
-from metta.map.scene import load_class, make_scene, scene_cfg_to_dict
+from metta.map.scene import Scene, load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
+from metta.map.scenes.transplant_scene import TransplantScene
 from metta.map.types import MapGrid
 from metta.mettagrid.level_builder import Level, LevelBuilder
 
@@ -28,18 +29,31 @@ class MapGenParams(Config):
     # This value usually shouldn't be changed.
     border_width: int = 5
 
-    # Number of root scene instances to generate. If set, the map will be
-    # generated as a grid of instances, separated by the given
-    # `instance_border_width`.
+    # Random seed. If not set, a random seed will be generated.
+    # Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.
+    seed: int | None = None
+
+    ##### Multiple instances parameters #####
+
+    # MapGen can place multiple instances of the root scene on the grid. This is useful for additional parallelization.
+    # By default, the map will be generated as a single root scene instance, with the given width and height.
     #
-    # MapGen will try to make the grid as square as possible, and if that
-    # square-ish grid will have more areas than the number of instances, it will
-    # leave some areas empty.
+    # There are two ways to get multiple root scene instances:
+    # 1. Set `instances` explicitly to the number of instances that you need.
+    # 2. Set `num_agents` and allow MapGen to compute the number of instances based on it.
     #
-    # This is useful for additional parallelization. By default, the map will be
-    # generated as a single root scene instance, with the given width and
-    # height.
-    instances: int = 1
+    # In either case, if the number of instances is larger than 1, MapGen will organize them in a grid separated by
+    # borders, and make the overall grid as square as possible.
+
+    # Number of root scene instances to generate. If set, the map will be generated as a grid of instances, separated by
+    # the given `instance_border_width`.
+    instances: int | None = None
+
+    # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how many
+    # agents there are in the root scene.
+    num_agents: int | None = None
+
+    # Inner border width between instances. This value usually shouldn't be changed.
     instance_border_width: int = 5
 
 
@@ -56,12 +70,12 @@ class MapGen(LevelBuilder):
         self.height = params.height
         self.border_width = params.border_width
         self.instances = params.instances
+        self.num_agents = params.num_agents
         self.instance_border_width = params.instance_border_width
+        self.seed = params.seed
+        self.rng = np.random.default_rng(self.seed)
 
     def build(self):
-        instance_rows = int(np.ceil(np.sqrt(self.instances)))
-        instance_cols = int(np.ceil(self.instances / instance_rows))
-
         if not self.width or not self.height:
             dict_cfg = scene_cfg_to_dict(self.root)
             root_cls = load_class(dict_cfg["type"])
@@ -70,27 +84,43 @@ class MapGen(LevelBuilder):
                 raise ValueError("width and height must be provided if the root scene has no intrinsic size")
             self.height, self.width = intrinsic_size
 
+        single_instance_scene: Scene | None = None
+        if self.num_agents:
+            # Auto-detect the number of instances.
+            # We'll render the first instance in a separate grid to count the number of agents.
+            # Then we'll transplant it into the final multi-instance grid.
+            single_instance_grid = np.full((self.height, self.width), "empty", dtype="<U50")
+            single_instance_area = Area(
+                x=0, y=0, width=self.width, height=self.height, grid=single_instance_grid, tags=[]
+            )
+            single_instance_scene = make_scene(self.root, single_instance_area, rng=self.rng)
+            single_instance_scene.render_with_children()
+            single_instance_num_agents = int(np.count_nonzero(np.char.startswith(single_instance_grid, "agent")))
+            if self.num_agents % single_instance_num_agents != 0:
+                raise ValueError(
+                    f"Number of agents {self.num_agents} is not divisible by number of agents in a single instance"
+                    f" {single_instance_num_agents}"
+                )
+            instances = self.num_agents // single_instance_num_agents
+
+            # Usually, when num_agents is set, you don't need to set `instances` explicitly.
+            if self.instances and self.instances != instances:
+                raise ValueError(
+                    f"Derived number of instances {instances} does not match the explicitly requested"
+                    f" number of instances {self.instances}"
+                )
+            self.instances = instances
+
+        if self.instances is None:
+            # neither `instances` nor `num_agents` were set, so we'll generate a single instance
+            self.instances = 1
+
+        ######### Prepare the full grid and its inner area #########
+        instance_rows = int(np.ceil(np.sqrt(self.instances)))
+        instance_cols = int(np.ceil(self.instances / instance_rows))
+
         self.inner_width = self.width * instance_cols + (instance_cols - 1) * self.instance_border_width
         self.inner_height = self.height * instance_rows + (instance_rows - 1) * self.instance_border_width
-
-        root_scene_cfg = self.root
-
-        if self.instances > 1:
-            root_scene_cfg = RoomGrid.factory(
-                RoomGridParams(
-                    rows=instance_rows,
-                    columns=instance_cols,
-                    border_width=self.instance_border_width,
-                ),
-                children=[
-                    ChildrenAction(
-                        scene=self.root,
-                        where=AreaWhere(tags=["room"]),
-                        limit=self.instances,
-                        order_by="first",
-                    )
-                ],
-            )
 
         bw = self.border_width
 
@@ -114,7 +144,49 @@ class MapGen(LevelBuilder):
 
         inner_area = Area(x=bw, y=bw, width=self.inner_width, height=self.inner_height, grid=inner_grid, tags=[])
 
-        self.root_scene = make_scene(root_scene_cfg, inner_area, rng=np.random.default_rng())
+        ######### Prepare the root scene #########
+        root_scene_cfg = self.root
+
+        if self.instances > 1:
+            children_actions: list[ChildrenAction] = []
+            if single_instance_scene:
+                # first instance is already rendered, so we want to transplant it into our larger grid
+                children_actions.append(
+                    ChildrenAction(
+                        scene=TransplantScene.factory(
+                            {
+                                "scene": single_instance_scene,
+                                "grid": self.grid,
+                            }
+                        ),
+                        where=AreaWhere(tags=["room"]),
+                        limit=1,
+                        order_by="first",
+                        lock="lock",
+                    )
+                )
+
+            children_actions.append(
+                ChildrenAction(
+                    scene=self.root,
+                    where=AreaWhere(tags=["room"]),
+                    limit=self.instances - (1 if single_instance_scene else 0),
+                    order_by="first",
+                    lock="lock",
+                )
+            )
+
+            root_scene_cfg = RoomGrid.factory(
+                RoomGridParams(
+                    rows=instance_rows,
+                    columns=instance_cols,
+                    border_width=self.instance_border_width,
+                ),
+                children_actions=children_actions,
+            )
+
+        ######### Render the root scene #########
+        self.root_scene = make_scene(root_scene_cfg, inner_area, rng=self.rng)
 
         self.root_scene.render_with_children()
 

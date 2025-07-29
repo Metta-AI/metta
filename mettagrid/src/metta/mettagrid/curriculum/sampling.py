@@ -34,7 +34,7 @@ class SampledTaskCurriculum(Curriculum):
     def __init__(
         self,
         task_id: str,
-        task_cfg_template: OmegaConf.DictConfig,
+        task_cfg_template: DictConfig,
         sampling_parameters: Dict[str, Dict[str, Any]],
     ):
         self._task_id = task_id
@@ -48,11 +48,15 @@ class SampledTaskCurriculum(Curriculum):
         return Task(self._task_id, self, cfg)
 
 
-def _sample(choice: Any) -> Any:
-    if isinstance(choice, dict) and "range" in choice:
-        lo, hi = choice["range"]
-        value = np.random.uniform(lo, hi)
-        if choice.get("want_int", False):
-            value = int(value)
-        return value
-    return choice
+def _sample(dist: Any) -> Any:
+    if isinstance(dist, dict):
+        if "range" in dist:
+            lo, hi = dist["range"]
+            value = np.random.uniform(lo, hi)
+            if dist.get("want_int", False):
+                value = int(value)
+    elif isinstance(dist, list):
+        value = np.random.choice(dist)
+    else:
+        value = dist
+    return value

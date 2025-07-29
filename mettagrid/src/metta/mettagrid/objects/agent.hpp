@@ -67,9 +67,10 @@ public:
   std::string group_name;
   ObservationType color;
   ObservationType glyph;
-  unsigned char agent_id;  // index into MettaGrid._agents (std::vector<Agent*>)
+  // Despite being a GridObjectId, this is different from the `id` property.
+  // This is the index into MettaGrid._agents (std::vector<Agent*>)
+  GridObjectId agent_id;
   StatsTracker stats;
-  RewardType current_resource_reward;
   RewardType current_stat_reward;
   RewardType* reward;
 
@@ -90,7 +91,6 @@ public:
         glyph(0),
         agent_id(0),
         stats(),  // default constructor
-        current_resource_reward(0),
         current_stat_reward(0),
         reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
@@ -157,7 +157,7 @@ public:
 
     // Update the agent's reward with the difference
     float reward_delta = new_stat_reward - this->current_stat_reward;
-    if (reward_delta != 0) {
+    if (reward_delta != 0.0f) {
       *this->reward += reward_delta;
       this->current_stat_reward = new_stat_reward;
     }
@@ -198,12 +198,22 @@ private:
       return;
     }
 
-    float prev_resource_reward = this->current_resource_reward;
-    this->current_resource_reward += reward_it->second * (new_amount - old_amount);
-    if (this->resource_reward_max.count(item) > 0) {
-      this->current_resource_reward = std::min(current_resource_reward, this->resource_reward_max.at(item));
+    // Calculate the old and new contributions from this item
+    float reward_per_item = reward_it->second;
+    float old_contribution = reward_per_item * old_amount;
+    float new_contribution = reward_per_item * new_amount;
+
+    // Apply per-item cap if it exists
+    auto max_it = this->resource_reward_max.find(item);
+    if (max_it != this->resource_reward_max.end()) {
+      float reward_cap = max_it->second;
+      old_contribution = std::min(old_contribution, reward_cap);
+      new_contribution = std::min(new_contribution, reward_cap);
     }
-    *this->reward += this->current_resource_reward - prev_resource_reward;
+
+    // Update both the current resource reward and the total reward
+    float reward_delta = new_contribution - old_contribution;
+    *this->reward += reward_delta;
   }
 };
 

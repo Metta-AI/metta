@@ -5,8 +5,7 @@ set -e
 # Parse arguments
 args="${@:1}"
 
-# Check for both run= and sweep_name= parameters
-# Use precise patterns to avoid matching sweep_name= when looking for run=
+# Check for both run=...
 has_run=$(echo "$args" | grep -E -c '(^|[[:space:]])run=' || true)
 
 # Validate that exactly one is present
@@ -19,8 +18,7 @@ fi
 sweep_name=$(echo "$args" | grep -E -o '(^|[[:space:]])run=[^ ]*' | sed 's/.*run=//')
 
 
-# Convert run= to sweep_name= for downstream scripts, ensuring only sweep_name= is passed
-# Replace run= with sweep_name= - handle both start of string and after space
+# Replace run=<name> with sweep_name=<name> - handle both start of string and after space
 args_for_rollout=$(echo "$args" | sed 's/^run=/sweep_name=/' | sed 's/ run=/ sweep_name=/g')
 
 source ./devops/setup.env # TODO: Make sure that this is the right source-ing.
@@ -28,25 +26,11 @@ source ./devops/setup.env # TODO: Make sure that this is the right source-ing.
 echo "[INFO] Setting up sweep: $sweep_name"
 mkdir -p "${DATA_DIR}/sweep/$sweep_name"
 
-# Parse the path for distributed configuration.
-DIST_ID=${DIST_ID:-localhost}
-DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_name/dist_$DIST_ID.yaml"
-
-# Create initial dist file to avoid FileNotFoundError in @metta_script decorator
-# TODO: Not a fan of this
-echo "Creating initial dist config: $DIST_CFG_PATH"
-cat > "$DIST_CFG_PATH" << EOF
-# Placeholder dist config - will be updated by sweep_init.py
-run: null
-wandb_run_id: null
-EOF
-
 # Initialize the sweep
 # This script either creates or fetches sweep details
 # and ensures the data is written to a local $SWEEP_DIR/metadata.yaml
-# TODO: I am 95% certain we should NOT pass a dist_cfg_path
 echo "[SWEEP:$sweep_name] Initializing sweep configuration..."
-cmd="tools/sweep_setup.py dist_cfg_path=$DIST_CFG_PATH sweep_name=$sweep_name"
+cmd="tools/sweep_setup.py sweep_name=$sweep_name"
 echo "[SWEEP:$sweep_name] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Sweep initialization failed: $sweep_name"

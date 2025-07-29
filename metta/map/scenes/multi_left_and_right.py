@@ -54,7 +54,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                         columns=columns,
                         border_width=6,
                     ),
-                    children=[
+                    children_actions=[
                         ChildrenAction(
                             scene=RoomGrid.factory(
                                 params=dict(
@@ -71,7 +71,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                                         ],
                                     ],
                                 ),
-                                children=[
+                                children_actions=[
                                     ChildrenAction(
                                         scene=Random.factory(
                                             params={
@@ -110,7 +110,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                     ],
                 ),
             ),
-            *self.children,
+            *self.children_actions,
         ]
 
     def render(self):

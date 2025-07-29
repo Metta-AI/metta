@@ -6,7 +6,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, List, Protocol, Tuple
 
-import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
@@ -21,6 +20,7 @@ from metta.mettagrid.mettagrid_env import (
 )
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.mettagrid.util.hydra import get_cfg
+from metta.util.metta_script import metta_script
 
 
 class Policy(Protocol):
@@ -230,7 +230,7 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
     """
     # Determine render mode
     render_mode: str = cfg.renderer_job.get("renderer_type", "human")
-    if render_mode not in ["human", "nethack", "miniscope"]:
+    if render_mode not in ["human", "nethack", "miniscope", "raylib"]:
         print(f"⚠️  Unknown renderer type '{render_mode}', using 'human' (nethack)")
         render_mode = "human"
 
@@ -256,7 +256,7 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
     return env, render_mode
 
 
-def run_renderer(cfg: DictConfig) -> None:
+def main(cfg: DictConfig) -> None:
     """
     Run policy visualization with ASCII or Miniscope rendering.
 
@@ -330,10 +330,4 @@ def run_renderer(cfg: DictConfig) -> None:
     print(f"\n🎯 Final Results: {total_reward:.3f} reward over {step_count:,} steps")
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="renderer_job")
-def main(cfg: DictConfig) -> None:
-    run_renderer(cfg)
-
-
-if __name__ == "__main__":
-    main()
+metta_script(main, "renderer_job")

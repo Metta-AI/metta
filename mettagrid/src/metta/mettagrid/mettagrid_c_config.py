@@ -120,6 +120,10 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]
     del game_cpp_params["groups"]
+    if "params" in game_cpp_params:
+        del game_cpp_params["params"]
+    if "map_builder" in game_cpp_params:
+        del game_cpp_params["map_builder"]
 
     # Convert global_obs configuration
     global_obs_config = game_config.global_obs
@@ -177,7 +181,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
-    # Note: global_observations configuration is handled through the global_obs parameter
+
     # Add recipe_details_obs flag
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
 

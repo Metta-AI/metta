@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from metta.common.util.fs import get_repo_root
 from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
 from metta.setup.local_commands import LocalCommands
 from metta.setup.registry import get_all_modules, get_applicable_modules
@@ -17,10 +18,10 @@ import_all_modules_from_subpackage("metta.setup", "components")
 
 class MettaCLI:
     def __init__(self):
-        self.repo_root: Path = Path(__file__).parent.parent.parent
+        self.repo_root: Path = get_repo_root()
         self.config: SetupConfig = SetupConfig()
         self.path_setup: PathSetup = PathSetup(self.repo_root)
-        self.local_commands: LocalCommands = LocalCommands(self.repo_root)
+        self.local_commands: LocalCommands = LocalCommands()
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
@@ -71,8 +72,6 @@ class MettaCLI:
         info("\nCustomize components:")
         # Get all registered components
         all_modules = get_all_modules(self.config)
-        # Sort by name for consistent ordering
-        all_modules.sort(key=lambda m: m.name)
 
         for module in all_modules:
             current_enabled = self.config.is_component_enabled(module.name)
@@ -193,7 +192,7 @@ class MettaCLI:
 
         success("Installation complete!")
 
-    def cmd_clean(self, args) -> None:
+    def cmd_clean(self, args, verbose: bool = False) -> None:
         build_dir = self.repo_root / "build"
         if build_dir.exists():
             info("  Removing root build directory...")
@@ -209,10 +208,24 @@ class MettaCLI:
         # Run cleanup script to remove empty directories and __pycache__
         cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
         if cleanup_script.exists():
+            cmd = [str(cleanup_script)]
+            if verbose:
+                cmd.append("--verbose")
             try:
-                subprocess.run([sys.executable, str(cleanup_script), str(self.repo_root)], check=True)
+                subprocess.run(cmd, cwd=str(self.repo_root), check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
+
+    def cmd_clip(self, args) -> None:
+        """Run the codeclip tool with provided arguments."""
+        try:
+            # Simply pass through to codeclip
+            cmd = ["codeclip"] + (args.args if args.args else ["--help"])
+            subprocess.run(cmd, check=False)
+        except FileNotFoundError:
+            error("codeclip is not installed.")
+            error("Run: metta install codeclip")
+            sys.exit(1)
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
@@ -233,15 +246,23 @@ class MettaCLI:
     def cmd_shell(self) -> None:
         subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
 
+    def cmd_report_env_details(self) -> None:
+        info(f"UV Project Directory: {self.repo_root}")
+        info(f"Metta CLI Working Directory: {Path.cwd()}")
+
     def cmd_local(self, args, unknown_args=None) -> None:
         """Handle local development commands."""
         if hasattr(args, "local_command") and args.local_command:
-            if args.local_command == "build-docker-img":
-                self.local_commands.build_docker_img(args)
+            if args.local_command == "build-policy-evaluator-img":
+                self.local_commands.build_policy_evaluator_img(build_args=unknown_args)
             elif args.local_command == "build-app-backend-img":
                 self.local_commands.build_app_backend_img()
             elif args.local_command == "load-policies":
                 self.local_commands.load_policies(unknown_args or [])
+            elif args.local_command == "kind":
+                self.local_commands.kind(args)
+            elif args.local_command == "observatory":
+                self.local_commands.observatory(args, unknown_args or [])
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -301,12 +322,36 @@ class MettaCLI:
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
 
-    def cmd_status(self, _args) -> None:
+    def cmd_status(self, args) -> None:
         """Show status of all components."""
-        modules = get_all_modules(self.config)
+        # Get all modules first
+        all_modules = get_all_modules(self.config)
+
+        # Filter by requested components if specified
+        if args.components:
+            # Parse comma-separated components
+            requested_components = [c.strip() for c in args.components.split(",")]
+            module_map = {m.name: m for m in all_modules}
+            modules = []
+            for comp in requested_components:
+                if comp in module_map:
+                    modules.append(module_map[comp])
+                else:
+                    warning(f"Unknown component: {comp}")
+                    info(f"Available components: {', '.join(sorted(module_map.keys()))}")
+            if not modules:
+                return
+        else:
+            modules = all_modules
 
         if not modules:
             warning("No modules found.")
+            return
+
+        # Check if any modules are applicable
+        applicable_modules = [m for m in modules if m.is_applicable()]
+        if not applicable_modules:
+            warning("No applicable modules found.")
             return
 
         max_comp_len = max(len(m.name) for m in modules) + 2
@@ -405,13 +450,19 @@ class MettaCLI:
                     not_connected.append(module.name)
 
         # Offer to fix connection issues
-        if not_connected and sys.stdin.isatty():
+        if not_connected:
             warning(f"\nComponents not connected: {', '.join(not_connected)}")
             info("This could be due to expired credentials, network issues, or broken installations.")
-            response = input("\nReinstall these components to fix connection issues? (y/n): ").strip().lower()
-            if response == "y":
-                info(f"\nRunning: ./metta.sh install {' '.join(not_connected)} --force")
-                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=self.repo_root)
+
+            if args.non_interactive:
+                info(f"\nTo fix: metta install {' '.join(not_connected)} --force")
+            elif sys.stdin.isatty():
+                response = input("\nReinstall these components to fix connection issues? (y/n): ").strip().lower()
+                if response == "y":
+                    info(f"\nRunning: metta install {' '.join(not_connected)} --force")
+                    subprocess.run(
+                        [sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=self.repo_root
+                    )
 
         # Check for not installed components
         not_installed = []
@@ -419,12 +470,16 @@ class MettaCLI:
             if module.is_applicable() and not module.check_installed():
                 not_installed.append(module.name)
 
-        if not_installed and sys.stdin.isatty():
+        if not_installed:
             warning(f"\nComponents not installed: {', '.join(not_installed)}")
-            response = input("\nInstall these components? (y/n): ").strip().lower()
-            if response == "y":
-                info(f"\nRunning: ./metta.sh install {' '.join(not_installed)}")
-                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=self.repo_root)
+
+            if args.non_interactive:
+                info(f"\nTo fix: metta install {' '.join(not_installed)}")
+            elif sys.stdin.isatty():
+                response = input("\nInstall these components? (y/n): ").strip().lower()
+                if response == "y":
+                    info(f"\nRunning: metta install {' '.join(not_installed)}")
+                    subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=self.repo_root)
 
     def main(self) -> None:
         parser = argparse.ArgumentParser(
@@ -437,7 +492,9 @@ Examples:
   metta configure --profile=softmax    # Configure for Softmax employee
   metta install                        # Install all configured components
   metta install aws wandb              # Install specific components
-  metta status                         # Show component status
+  metta status                         # Show status of all components
+  metta status --components=aws,wandb  # Show status of specific components
+  metta status --non-interactive       # Show status without prompts
   metta clean                          # Clean build artifacts
   metta symlink-setup                  # Set up symlink to make metta command globally available
 
@@ -489,7 +546,18 @@ Examples:
         )
 
         # Status command
-        subparsers.add_parser("status", help="Show installation and authentication status of all components")
+        status_parser = subparsers.add_parser(
+            "status", help="Show installation and authentication status of all components"
+        )
+        status_parser.add_argument(
+            "--components", help="Comma-separated list of components to check (e.g., --components=aws,wandb,core)"
+        )
+        status_parser.add_argument(
+            "--non-interactive",
+            "-n",
+            action="store_true",
+            help="Non-interactive mode - prints actions instead of prompting",
+        )
 
         # Clean command
         subparsers.add_parser("clean", help="Clean build artifacts and temporary files")
@@ -519,16 +587,49 @@ Examples:
         # Shell command
         subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
 
+        # Report Environment Details command
+        subparsers.add_parser(
+            "report-env-details", help="Report environment details including which UV project directory is being used"
+        )
+
         # Local command
         local_parser = subparsers.add_parser("local", help="Local development commands")
         local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
 
         # Local subcommands
-        local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
+        local_subparsers.add_parser(
+            "build-policy-evaluator-img", help="Build local development policy evaluator Docker image"
+        )
         local_subparsers.add_parser("build-app-backend-img", help="Build local development app_backend Docker image")
 
         # Add load-policies command
         local_subparsers.add_parser("load-policies", help="Load W&B artifacts as policies into stats database")
+
+        # Add kind command for Kubernetes local testing
+        kind_parser = local_subparsers.add_parser("kind", help="Manage Kind cluster for Kubernetes testing")
+        kind_subparsers = kind_parser.add_subparsers(dest="action", help="Kind actions")
+
+        # Add subcommands for kind
+        kind_subparsers.add_parser("build", help="Create Kind cluster and set up for Metta")
+        kind_subparsers.add_parser("up", help="Start orchestrator in Kind cluster")
+        kind_subparsers.add_parser("down", help="Stop orchestrator and worker pods")
+        kind_subparsers.add_parser("clean", help="Delete the Kind cluster")
+        kind_subparsers.add_parser("get-pods", help="Get list of pods in the cluster")
+
+        # Add logs subcommand with pod_name argument
+        logs_parser = kind_subparsers.add_parser("logs", help="Follow logs for a specific pod")
+        logs_parser.add_argument("pod_name", help="Name of the pod to get logs from")
+
+        # Add enter subcommand with pod_name argument
+        enter_parser = kind_subparsers.add_parser("enter", help="Enter a pod with an interactive shell")
+        enter_parser.add_argument("pod_name", help="Name of the pod to enter")
+
+        # Add observatory command
+        local_subparsers.add_parser("observatory", help="Launch Observatory frontend locally")
+
+        # Add clip command
+        clip_parser = subparsers.add_parser("clip", help="copy subsets of codebase for LLM contexts", add_help=False)
+        clip_parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments to pass to the clip tool")
 
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)
@@ -537,10 +638,14 @@ Examples:
         args, unknown_args = parser.parse_known_args()
 
         # Allow unknown args for certain commands
-        if args.command == "local" and hasattr(args, "local_command") and args.local_command == "load-policies":
-            # load-policies handles its own args
+        if (
+            args.command == "local"
+            and hasattr(args, "local_command")
+            and args.local_command in ["load-policies", "build-policy-evaluator-img", "observatory"]
+        ):
+            # These commands handle their own args
             pass
-        elif args.command not in ["test", "test-changed", "tool"]:
+        elif args.command not in ["clip", "test", "test-changed", "tool"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -551,8 +656,8 @@ Examples:
             return
 
         # Check if configuration is required for this command
-        # Allow configure, symlink-setup, and local to run without config
-        if args.command not in ["configure", "symlink-setup", "local"]:
+        # Allow configure, symlink-setup, report-env-details, and local to run without config
+        if args.command not in ["configure", "symlink-setup", "report-env-details", "local"]:
             if not self.config.config_path.exists():
                 error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
@@ -572,7 +677,7 @@ Examples:
         elif args.command == "status":
             self.cmd_status(args)
         elif args.command == "clean":
-            self.cmd_clean(args)
+            self.cmd_clean(args, verbose=True)
         elif args.command == "symlink-setup":
             self.cmd_symlink_setup(args)
         elif args.command == "test":
@@ -585,6 +690,10 @@ Examples:
             self.cmd_lint(args)
         elif args.command == "shell":
             self.cmd_shell()
+        elif args.command == "report-env-details":
+            self.cmd_report_env_details()
+        elif args.command == "clip":
+            self.cmd_clip(args)
         elif args.command == "local":
             self.cmd_local(args, unknown_args)
         else:

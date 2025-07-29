@@ -1,74 +1,46 @@
 import argparse
-import shutil
+import json
+import logging
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import wandb
+from omegaconf import DictConfig
 
-from metta.setup.tools.local.load_policies import get_recent_runs, post_policies_to_stats, print_runs_with_artifacts
-from metta.setup.utils import error, info, success
+from metta.agent.policy_store import PolicyStore
+from metta.common.util.fs import get_repo_root
+from metta.common.util.stats_client_cfg import get_stats_client_direct
+from metta.common.wandb.wandb_runs import find_training_runs
+from metta.setup.tools.local.kind import Kind
+from metta.setup.utils import error, info
+from metta.sim.utils import get_or_create_policy_ids
 
 
 class LocalCommands:
-    def __init__(self, repo_root: Path):
-        self.repo_root = repo_root
+    def __init__(self):
+        self.repo_root = get_repo_root()
+        self._kind_manager = Kind()
+
+    def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
+        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
+        if build_args:
+            cmd.extend(build_args)
+        cmd.append(str(self.repo_root))
+        subprocess.run(cmd, check=True)
 
     def build_app_backend_img(self) -> None:
-        """Build local development Docker image."""
-        docker_dir = self.repo_root / "app_backend"
-        dockerfile_path = docker_dir / "Dockerfile"
-        subprocess.run(
-            ["docker", "build", "-t", "metta-app-backend:latest", "-f", str(dockerfile_path), str(self.repo_root)],
-            check=True,
+        self._build_img("metta-app-backend:latest", self.repo_root / "app_backend" / "Dockerfile")
+
+    def build_policy_evaluator_img(
+        self, tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
+    ) -> None:
+        self._build_img(
+            tag,
+            self.repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
+            build_args or [],
         )
-
-    def build_docker_img(self, args) -> None:
-        """Build local development Docker image."""
-        docker_dir = self.repo_root / "devops" / "docker"
-        dockerfile_path = docker_dir / "Dockerfile.local"
-
-        if not dockerfile_path.exists():
-            error(f"Dockerfile not found at {dockerfile_path}")
-            sys.exit(1)
-
-        info("Building local development Docker image...")
-        info("Note: This will copy the entire repo and run install.sh during build.")
-        info("This may take several minutes...")
-        info("")
-
-        # Track if we copied .metta
-        copied_metta = False
-        metta_home_dir = Path.home() / ".metta"
-        metta_repo_dir = self.repo_root / ".metta"
-
-        try:
-            # Copy .metta directory if it exists
-            if metta_home_dir.exists():
-                info("Found ~/.metta directory - copying to build context")
-                shutil.copytree(metta_home_dir, metta_repo_dir, dirs_exist_ok=True)
-                copied_metta = True
-
-            tag = "metta-local:latest"
-            # Build the image with repo root as the build context
-            cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path), str(self.repo_root)]
-
-            result = subprocess.run(cmd, cwd=self.repo_root)
-
-            if result.returncode == 0:
-                info("")
-                info("Note: The container has a full copy of the repo at build time.")
-                info("Local changes won't be reflected unless you rebuild or attach.")
-                success(f"Build complete! Image available as {tag}")
-            else:
-                error("Build failed!")
-                sys.exit(result.returncode)
-
-        finally:
-            # Clean up .metta directory if we copied it
-            if copied_metta and metta_repo_dir.exists():
-                info("Cleaning up .metta directory from build context")
-                shutil.rmtree(metta_repo_dir)
 
     def load_policies(self, unknown_args) -> None:
         """Load W&B artifacts as policies into stats database."""
@@ -81,11 +53,7 @@ class LocalCommands:
         parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
         parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
         parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
-        parser.add_argument(
-            "--post-policies", action="store_true", help="Post model artifacts as policies to stats database"
-        )
         parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
-        parser.add_argument("--debug", action="store_true", help="Show debug information")
 
         # Handle help manually since metta intercepts -h
         if "--help" in unknown_args or "-h" in unknown_args:
@@ -93,10 +61,6 @@ class LocalCommands:
             sys.exit(0)
 
         args = parser.parse_args(unknown_args)
-
-        # Validate that stats-db-uri is provided when post-policies is used
-        if args.post_policies and not args.stats_db_uri:
-            parser.error("--stats-db-uri is required when using --post-policies")
 
         # Get entity from args or W&B default
         api = wandb.Api()
@@ -112,24 +76,92 @@ class LocalCommands:
         project = args.project if args.project else "metta"
 
         info(f"Using entity: {entity}, project: {project}")
+        if not args.stats_db_uri:
+            print("\nNo STATS_DB_URI provided, skipping policy posting.")
+            return
+
+        print(f"\nConnecting to stats database at {args.stats_db_uri}...")
+        logger = logging.getLogger(__name__)
+        stats_client = get_stats_client_direct(args.stats_db_uri, logger)
+        if not stats_client:
+            print("No stats client")
+            return
+        stats_client.validate_authenticated()
+        runs = find_training_runs(
+            entity=entity,
+            project=project,
+            created_after=(datetime.now() - timedelta(days=args.days_back)).isoformat(),
+            limit=args.limit,
+            run_names=[args.run_name] if args.run_name else None,
+        )
+        policy_store = PolicyStore(
+            DictConfig(
+                dict(
+                    wandb=dict(
+                        enabled=True,
+                        project=project,
+                        entity=entity,
+                    ),
+                    device="cpu",
+                )
+            ),
+            wandb_run=None,
+        )
+        policy_records = []
+        for run in runs:
+            uri = f"wandb://run/{run.name}"
+            # n and metric are ignored
+            policy_records.extend(policy_store.policy_records(uri, selector_type="all", n=1, metric="top"))
+        policy_ids = get_or_create_policy_ids(
+            stats_client,
+            [(pr.run_name, pr.uri, None) for pr in policy_records],
+        )
+        json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
+        print(f"Ensured {len(policy_ids)} policy IDs: {json_repr}")
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+    def kind(self, args) -> None:
+        """Handle Kind cluster management for Kubernetes testing."""
+        action = args.action
+
+        if action == "build":
+            self._kind_manager.build()
+        elif action == "up":
+            self._kind_manager.up()
+        elif action == "down":
+            self._kind_manager.down()
+        elif action == "clean":
+            self._kind_manager.clean()
+        elif action == "get-pods":
+            self._kind_manager.get_pods()
+        elif action == "logs":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.logs(args.pod_name)
+            else:
+                error("Pod name is required for logs command")
+                sys.exit(1)
+        elif action == "enter":
+            if hasattr(args, "pod_name") and args.pod_name:
+                self._kind_manager.enter(args.pod_name)
+            else:
+                error("Pod name is required for enter command")
+                sys.exit(1)
+
+    def observatory(self, args, unknown_args) -> None:
+        """Launch Observatory with specified backend."""
+        # Build the command to run launch.py
+        cmd = [sys.executable, str(self.repo_root / "observatory" / "launch.py")]
+
+        # Pass through any arguments
+        if unknown_args:
+            cmd.extend(unknown_args)
 
         try:
-            runs = get_recent_runs(
-                entity=entity,
-                project=project,
-                days_back=args.days_back,
-                limit=args.limit,
-                run_name=args.run_name,
-                debug=args.debug,
-            )
-
-            # Always print human-readable output
-            print_runs_with_artifacts(runs, args.run_name)
-
-            # Post policies if requested
-            if args.post_policies:
-                post_policies_to_stats(runs, args.stats_db_uri)
-
-        except Exception as e:
-            error(f"Error: {e}")
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            error(f"Failed to launch Observatory: {e}")
             sys.exit(1)
+        except KeyboardInterrupt:
+            info("\nObservatory shutdown")
+            sys.exit(0)
