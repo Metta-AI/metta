@@ -356,7 +356,7 @@ class MettaAgent(nn.Module):
         Returns:
             TensorDict containing:
             - actions: Sampled action, shape (BT, 2)
-            - logprobs: Log probability of the sampled action, shape (BT,)
+            - act_log_prob: Log probability of the sampled action, shape (BT,)
             - values: Value estimate, shape (BT,)
         """
         value = td["_value_"]

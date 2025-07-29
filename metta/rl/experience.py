@@ -186,7 +186,7 @@ class Experience:
         stats = {
             "rewards": self.buffer["rewards"].mean().item(),
             "values": self.buffer["values"].mean().item(),
-            "logprobs": self.buffer["logprobs"].mean().item(),
+            "act_log_probs": self.buffer["act_log_probs"].mean().item(),
             "dones": self.buffer["dones"].mean().item(),
             "truncateds": self.buffer["truncateds"].mean().item(),
         }
