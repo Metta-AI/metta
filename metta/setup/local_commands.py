@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 import argparse
 import json
 import logging
@@ -15,10 +16,117 @@ if TYPE_CHECKING:
     pass
 
 
+def setup_local_parser(parser: argparse.ArgumentParser) -> None:
+    """Setup local subcommands parser for compatibility with metta CLI.
+
+    This just adds a simple help message since the actual parsing
+    is delegated to LocalCommands.main().
+    """
+    parser.add_argument("args", nargs="*", help="Arguments to pass to local commands")
+    # Store parser for help display
+    parser.set_defaults(local_parser=parser)
+
+
 class LocalCommands:
     def __init__(self):
         self.repo_root = get_repo_root()
         self._kind_manager = None
+
+    def _build_parser(self) -> argparse.ArgumentParser:
+        """Build argument parser for local commands."""
+        parser = argparse.ArgumentParser(
+            description="Metta Local Development Commands",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+
+        subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+        # Build commands
+        subparsers.add_parser("build-policy-evaluator-img", help="Build policy evaluator Docker image")
+        subparsers.add_parser("build-app-backend-img", help="Build app backend Docker image")
+
+        # Load policies command
+        load_parser = subparsers.add_parser("load-policies", help="Load W&B artifacts as policies")
+        load_parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
+        load_parser.add_argument("--project", help="W&B project name (default: 'metta')")
+        load_parser.add_argument("--days-back", type=int, default=30, help="Number of days to look back (default: 30)")
+        load_parser.add_argument("--limit", type=int, help="Maximum number of runs to fetch")
+        load_parser.add_argument("--run-name", help="Specific run name to fetch (ignores days-back and limit)")
+        load_parser.add_argument("--stats-db-uri", help="Stats database URI (required when using --post-policies)")
+
+        # Server commands
+        subparsers.add_parser("stats-server", help="Launch Stats Server")
+        subparsers.add_parser("observatory", help="Launch Observatory")
+
+        # Kind command
+        kind_parser = subparsers.add_parser("kind", help="Manage Kind cluster")
+        kind_subparsers = kind_parser.add_subparsers(dest="action", help="Kind actions")
+        kind_subparsers.add_parser("build", help="Create Kind cluster")
+        kind_subparsers.add_parser("up", help="Start orchestrator")
+        kind_subparsers.add_parser("down", help="Stop orchestrator")
+        kind_subparsers.add_parser("clean", help="Delete cluster")
+        kind_subparsers.add_parser("get-pods", help="List pods")
+
+        logs_parser = kind_subparsers.add_parser("logs", help="Follow pod logs")
+        logs_parser.add_argument("pod_name", help="Pod name")
+
+        enter_parser = kind_subparsers.add_parser("enter", help="Enter pod shell")
+        enter_parser.add_argument("pod_name", help="Pod name")
+
+        return parser
+
+    def main(self, argv=None) -> None:
+        """Main entry point for local commands CLI."""
+        parser = self._build_parser()
+
+        # Commands that need unknown args
+        pass_unknown_cmds = {"build-policy-evaluator-img", "stats-server", "observatory"}
+
+        # Parse arguments
+        if argv is None:
+            argv = sys.argv[1:]
+
+        # Use parse_known_args for commands that accept unknown args
+        if len(argv) > 0 and argv[0] in pass_unknown_cmds:
+            args, unknown_args = parser.parse_known_args(argv)
+        else:
+            args = parser.parse_args(argv)
+            unknown_args = []
+
+        # Dispatch to command handler
+        if not args.command:
+            parser.print_help()
+            return
+
+        if args.command == "build-policy-evaluator-img":
+            self.build_policy_evaluator_img(build_args=unknown_args)
+        elif args.command == "build-app-backend-img":
+            self.build_app_backend_img()
+        elif args.command == "load-policies":
+            # Convert back to list format for compatibility
+            load_args = []
+            if args.entity:
+                load_args.extend(["--entity", args.entity])
+            if args.project:
+                load_args.extend(["--project", args.project])
+            if args.days_back != 30:
+                load_args.extend(["--days-back", str(args.days_back)])
+            if args.limit:
+                load_args.extend(["--limit", str(args.limit)])
+            if args.run_name:
+                load_args.extend(["--run-name", args.run_name])
+            if args.stats_db_uri:
+                load_args.extend(["--stats-db-uri", args.stats_db_uri])
+            self.load_policies(load_args)
+        elif args.command == "kind":
+            self.kind(args)
+        elif args.command == "observatory":
+            self.observatory(args, unknown_args)
+        elif args.command == "stats-server":
+            self.stats_server(args, unknown_args)
+        else:
+            error(f"Unknown command: {args.command}")
+            sys.exit(1)
 
     @property
     def kind_manager(self):
@@ -198,3 +306,13 @@ class LocalCommands:
         except KeyboardInterrupt:
             info("\nStats Server shutdown")
             sys.exit(0)
+
+
+def main():
+    """Entry point for standalone execution."""
+    local_commands = LocalCommands()
+    local_commands.main()
+
+
+if __name__ == "__main__":
+    main()
