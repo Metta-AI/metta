@@ -29,7 +29,7 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    policy_select_type: PolicySelectorType = "all"
+    policy_select_type: PolicySelectorType = "latest"
     policy_select_metric: str = "score"
     policy_select_num: int = 1
 
@@ -186,7 +186,7 @@ async def main() -> None:
     parser.add_argument(
         "--policy-select-type",
         type=str,
-        default="all",
+        default="latest",
         choices=PolicySelectorType.__args__,
         help="Policy selection type.",
     )
