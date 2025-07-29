@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -26,7 +27,6 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.util.batch_utils import calculate_batch_sizes
-from metta.rl.util.checkpoint import log_recent_checkpoints
 from metta.rl.util.distributed import setup_distributed_vars
 from metta.rl.util.monitoring import (
     cleanup_monitoring,
@@ -40,7 +40,6 @@ from metta.rl.util.policy_management import (
     load_or_initialize_policy,
     validate_policy_environment_match,
 )
-from metta.rl.util.policy_utils import create_initial_policy_record
 from metta.rl.util.rollout import get_lstm_config
 from metta.rl.util.stats import (
     StatsTracker,
@@ -48,7 +47,6 @@ from metta.rl.util.stats import (
     process_stats,
 )
 from metta.rl.util.training_loop import (
-    get_epoch_timing,
     log_training_progress,
     run_training_epoch,
     should_run,
@@ -91,7 +89,11 @@ def train(
     logger.info(f"run_dir = {cfg.run_dir}")
 
     # Log recent checkpoints for debugging
-    log_recent_checkpoints(cfg.run_dir)
+    checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
+    if checkpoints_dir.exists():
+        files = sorted(os.listdir(checkpoints_dir))
+        recent_files = files[-3:] if len(files) >= 3 else files
+        logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
     # Create trainer config from Hydra config
     trainer_cfg = create_trainer_config(cfg)
@@ -179,6 +181,19 @@ def train(
     # Extract initial policy info
     initial_policy_uri = initial_policy_record.uri if initial_policy_record else None
     initial_generation = initial_policy_record.metadata.get("generation", 0) if initial_policy_record else 0
+
+    # Create a reusable initial policy record object for metadata
+    def make_initial_policy_record():
+        if initial_policy_uri:
+            return type(
+                "obj",
+                (object,),
+                {
+                    "uri": initial_policy_uri,
+                    "metadata": {"generation": initial_generation},
+                },
+            )()
+        return None
 
     # Validate that policy matches environment
     validate_policy_environment_match(policy, metta_grid_env)
@@ -311,9 +326,7 @@ def train(
         with timer("_process_stats"):
             if is_master and wandb_run:
                 # Create initial policy record for process_stats
-                initial_policy_record = create_initial_policy_record(
-                    policy_store, initial_policy_uri, initial_generation
-                )
+                initial_policy_record = make_initial_policy_record()
 
                 process_stats(
                     stats=stats_tracker.rollout_stats,
@@ -341,7 +354,9 @@ def train(
 
         # Log training status
         if is_master:
-            rollout_time, train_time, stats_time = get_epoch_timing(timer)
+            rollout_time = timer.get_last_elapsed("_rollout")
+            train_time = timer.get_last_elapsed("_train")
+            stats_time = timer.get_last_elapsed("_process_stats")
             steps_calculated = agent_step - steps_before
 
             total_time = train_time + rollout_time + stats_time
@@ -370,7 +385,7 @@ def train(
         # Save policy
         if checkpoint_manager.should_checkpoint(epoch):
             # Create initial policy record for metadata
-            initial_policy_record = create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
+            initial_policy_record = make_initial_policy_record()
 
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
@@ -505,7 +520,7 @@ def train(
     # Force final saves
     if is_master:
         # Create initial policy record for metadata
-        initial_policy_record = create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
+        initial_policy_record = make_initial_policy_record()
 
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
