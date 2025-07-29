@@ -74,8 +74,10 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        state = self._memory[:, :, td.training_env_id, :]
-        hidden, (h_n, c_n) = self._net(hidden, (state[0], state[1]))
+        # state = self._memory[:, :, td.training_env_id, :]
+        h_0 = self._memory[0, :, td.training_env_id, :].contiguous()
+        c_0 = self._memory[1, :, td.training_env_id, :].contiguous()
+        hidden, (h_n, c_n) = self._net(hidden, (h_0, c_0))
         self._memory[:, :, td.training_env_id, :] = torch.stack([h_n.detach(), c_n.detach()], dim=0)
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
