@@ -64,9 +64,10 @@ export function drawTrace(panel: PanelInfo) {
         ) {
           updateSelection(state.replay.agents[agentId])
           console.info('Selected an agent on a trace:', state.selectedGridObject)
+          const location = getAttr(state.selectedGridObject, 'location')
           ui.mapPanel.focusPos(
-            getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE,
-            getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE,
+            location[0] * Common.TILE_SIZE,
+            location[1] * Common.TILE_SIZE,
             Common.DEFAULT_ZOOM_LEVEL
           )
           // Update the step to the clicked step.

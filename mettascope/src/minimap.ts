@@ -21,11 +21,12 @@ export function renderMinimapObjects(offset: Vec2f) {
   )
 
   // Draw the grid objects on the minimap.
-  for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, 'c')
-    const y = getAttr(gridObject, 'r')
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+  for (const gridObject of state.replay.objects) {
+    const location = getAttr(gridObject, 'location')
+    const x = location[0]
+    const y = location[1]
+    const type = getAttr(gridObject, 'type_id')
+    const typeName = state.replay.type_names[type]
     let color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
@@ -36,11 +37,12 @@ export function renderMinimapObjects(offset: Vec2f) {
   }
 
   // Draw the agent pips on top.
-  for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, 'c')
-    const y = getAttr(gridObject, 'r')
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+  for (const gridObject of state.replay.objects) {
+    const location = getAttr(gridObject, 'location')
+    const x = location[0]
+    const y = location[1]
+    const type = getAttr(gridObject, 'type_id')
+    const typeName = state.replay.type_names[type]
     const pipScale = 0.3
     if (typeName === 'agent') {
       const agent_id = getAttr(gridObject, 'agent_id')

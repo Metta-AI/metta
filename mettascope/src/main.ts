@@ -412,7 +412,7 @@ function updateUrlParams() {
   // Handle the selected object.
   if (state.selectedGridObject !== null) {
     // Find the index of the selected object.
-    const selectedObjectIndex = state.replay.grid_objects.indexOf(state.selectedGridObject)
+    const selectedObjectIndex = state.replay.objects.indexOf(state.selectedGridObject)
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString())
       // Remove map position parameters when an object is selected.
@@ -771,8 +771,8 @@ async function parseUrlParams() {
     // Set the selected object.
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = Number.parseInt(urlParams.get('selectedObjectId') || '-1') - 1
-      if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-        updateSelection(state.replay.grid_objects[selectedObjectId], true)
+      if (selectedObjectId >= 0 && selectedObjectId < state.replay.objects.length) {
+        updateSelection(state.replay.objects[selectedObjectId], true)
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
         console.info('Selected object via query parameter:', state.selectedGridObject)

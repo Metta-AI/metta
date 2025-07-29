@@ -100,7 +100,7 @@ export function updateHoverBubble(object: any) {
       }
     }
 
-    const typeName = state.replay.object_types[getAttr(object, 'type')]
+    const typeName = state.replay.type_names[getAttr(object, 'type_id')]
     if (typeName === 'wall') {
       // Don't show hover bubble for walls.
       hoverBubble.classList.add('hidden')
@@ -112,8 +112,9 @@ export function updateHoverBubble(object: any) {
 
     const bubbleRect = hoverBubble.getBoundingClientRect()
 
-    const x = getAttr(object, 'c') * Common.TILE_SIZE
-    const y = getAttr(object, 'r') * Common.TILE_SIZE
+    const location = getAttr(object, 'location')
+    const x = location[0] * Common.TILE_SIZE
+    const y = location[1] * Common.TILE_SIZE
 
     const uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
 
@@ -144,31 +145,31 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
   removeChildren(inventory)
   for (const key in object) {
     let value = getAttr(object, key)
-    if ((key.startsWith('inv:') || key.startsWith('agent:inv:')) && value > 0) {
-      const item = itemTemplate.cloneNode(true) as HTMLElement
-      item.querySelector('.amount')!.textContent = value
-      const resource = key.replace('inv:', '').replace('agent:', '')
-      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-      inventory.appendChild(item)
-    } else {
-      if (key === 'type') {
-        value = state.replay.object_types[value]
-      } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.size) {
-        const colorNames = Array.from(Common.COLORS.keys())
-        value = colorNames[value]
-      } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
-        // If the value is a float and not an integer, round it to three decimal places.
-        if (typeof value === 'number' && !Number.isInteger(value)) {
-          value = value.toFixed(3)
-        }
-      } else {
-        continue
-      }
-      const param = paramTemplate.cloneNode(true) as HTMLElement
-      param.querySelector('.name')!.textContent = key
-      param.querySelector('.value')!.textContent = value
-      params.appendChild(param)
-    }
+    // if ((key.startsWith('inv:') || key.startsWith('agent:inv:')) && value > 0) {
+    //   const item = itemTemplate.cloneNode(true) as HTMLElement
+    //   item.querySelector('.amount')!.textContent = value
+    //   const resource = key.replace('inv:', '').replace('agent:', '')
+    //   item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
+    //   inventory.appendChild(item)
+    // } else {
+    //   if (key === 'type') {
+    //     value = state.replay.type_names[value]
+    //   } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.size) {
+    //     const colorNames = Array.from(Common.COLORS.keys())
+    //     value = colorNames[value]
+    //   } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
+    //     // If the value is a float and not an integer, round it to three decimal places.
+    //     if (typeof value === 'number' && !Number.isInteger(value)) {
+    //       value = value.toFixed(3)
+    //     }
+    //   } else {
+    //     continue
+    //   }
+    //   const param = paramTemplate.cloneNode(true) as HTMLElement
+    //   param.querySelector('.name')!.textContent = key
+    //   param.querySelector('.value')!.textContent = value
+    //   params.appendChild(param)
+    // }
   }
 
   // Populate the recipe area if the object config has input_ or output_ resources.
@@ -248,9 +249,9 @@ export function updateReadout() {
   readout += `Max steps: ${state.replay.max_steps}\n`
 
   const objectTypeCounts = new Map<string, number>()
-  for (const gridObject of state.replay.grid_objects) {
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+  for (const gridObject of state.replay.objects) {
+    const typeId = getAttr(gridObject, 'type_id')
+    const typeName = state.replay.type_names[typeId]
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }
   for (const [key, value] of objectTypeCounts.entries()) {

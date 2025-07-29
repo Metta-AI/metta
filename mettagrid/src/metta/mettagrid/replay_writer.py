@@ -48,7 +48,7 @@ class EpisodeReplay:
             "version": 2,
             "action_names": env.action_names,
             "inventory_items": env.inventory_item_names,
-            "object_types": env.object_type_names,
+            "type_names": env.object_type_names,
             "map_size": [env.map_width, env.map_height],
             "num_agents": env.num_agents,
             "max_steps": env.max_steps,
@@ -74,7 +74,9 @@ class EpisodeReplay:
             if "agent_id" in grid_object:
                 agent_id = grid_object["agent_id"]
                 update_object["agent_id"] = agent_id
-                update_object["action"] = actions[agent_id].tolist()
+                update_object["vision_size"] = 11  # TODO: Waiting for env to support this
+                update_object["action_id"] = int(actions[agent_id][0])
+                update_object["action_param"] = int(actions[agent_id][1])
                 update_object["action_success"] = bool(self.env.action_success[agent_id])
                 update_object["current_reward"] = rewards[agent_id].item()
                 update_object["total_reward"] = self.total_rewards[agent_id].item()
@@ -87,10 +89,10 @@ class EpisodeReplay:
                 update_object["input_resources"] = grid_object["input_resources"]
                 update_object["output_resources"] = grid_object["output_resources"]
                 update_object["output_limit"] = grid_object["output_limit"]
-                update_object["conversion_remaining"] = 0  # TODO: Add production progress
+                update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
                 update_object["is_converting"] = grid_object["is_converting"]
                 update_object["conversion_duration"] = grid_object["conversion_duration"]
-                update_object["cooldown_remaining"] = 0  # TODO: Add cooldown progress
+                update_object["cooldown_remaining"] = 0  # TODO: Waiting for env to support this
                 update_object["is_cooling_down"] = grid_object["is_cooling_down"]
                 update_object["cooldown_duration"] = grid_object["cooldown_duration"]
 
@@ -129,6 +131,7 @@ class EpisodeReplay:
 
     def write_replay(self, path: str):
         """Writes a replay to a file."""
+
         replay_data = json.dumps(self.get_replay_data())  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes

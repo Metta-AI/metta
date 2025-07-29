@@ -45,7 +45,7 @@ class Shot {
 /** Current active shot. */
 let shot: Shot | null = null
 
-export function initDemoMode() {}
+export function initDemoMode() { }
 
 export function startDemoMode() {
   state.demoMode = true
@@ -91,11 +91,12 @@ export function doDemoMode() {
         const agent = state.replay.agents[i]
         let actionFound = false
         for (let j = 0; j < 10; j++) {
-          const action = getAttr(agent, 'action', state.step + j)
-          if (action == null || action[0] == null || action[1] == null) {
+          const actionId = getAttr(agent, 'action_id', state.step + j)
+          const actionParam = getAttr(agent, 'action_param', state.step + j)
+          if (actionId == null || actionParam == null) {
             continue
           }
-          const actionName = state.replay.action_names[action[0]]
+          const actionName = state.replay.action_names[actionId]
           const actionSuccess = getAttr(agent, 'action_success', state.step + j)
           if (
             actionName !== 'noop' &&

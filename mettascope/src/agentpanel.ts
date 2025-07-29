@@ -233,7 +233,7 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, _e: Event) =
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, _e: Event) => {
   const agentId = findAttr(target, 'data-agent-id')
   if (agentId !== '') {
-    state.replay.grid_objects.forEach((gridObject: any) => {
+    state.replay.objects.forEach((gridObject: any) => {
       if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') === agentId) {
         updateSelection(gridObject, true)
         // Note: can't use break with forEach

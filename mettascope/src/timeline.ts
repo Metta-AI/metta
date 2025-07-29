@@ -113,16 +113,16 @@ export function drawTimeline(panel: PanelInfo) {
 
   // Draw key actions on the timeline.
   for (const agent of state.replay.agents) {
-    let prevFrozen = 0
+    let prevFrozen = false
     for (let j = 0; j < state.replay.max_steps; j++) {
       // Draw the frozen state.
-      const frozen = getAttr(agent, 'agent:frozen', j)
-      if (frozen > 0 && prevFrozen === 0) {
+      const isFrozen = getAttr(agent, 'is_frozen', j)
+      if (isFrozen && !prevFrozen) {
         const x = 16 + (j / fullSteps) * scrubberWidth
         ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
         ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
       }
-      prevFrozen = frozen
+      prevFrozen = isFrozen
     }
   }
 

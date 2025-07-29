@@ -10,7 +10,7 @@ export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): 
   if (prop === undefined) {
     return defaultValue
   }
-  if (!Array.isArray(prop)) {
+  if (!Array.isArray(prop) || prop.length != state.replay.max_steps) {
     return prop // This must be a constant that does not change over time.
   }
   return prop[atStep === -1 ? state.step : atStep] // When the step is not passed in, use the global step.
@@ -135,12 +135,12 @@ function loadReplayText(url: string, replayData: string) {
 // adding missing keys, recomputing invalid values, etc.
 // It also creates some internal data structures for faster access to images.
 function fixReplay() {
-  // Fix "agent.agent" -> "agent".
-  for (let i = 0; i < state.replay.object_types.length; i++) {
-    if (state.replay.object_types[i] === 'agent.agent') {
-      state.replay.object_types[i] = 'agent'
-    }
-  }
+  // // Fix "agent.agent" -> "agent".
+  // for (let i = 0; i < state.replay.type_names.length; i++) {
+  //   if (state.replay.type_names[i] === 'agent.agent') {
+  //     state.replay.type_names[i] = 'agent'
+  //   }
+  // }
 
   // Create action image mappings for faster access.
   state.replay.action_images = []
@@ -156,7 +156,7 @@ function fixReplay() {
 
   // Create a list of all keys that objects can have.
   state.replay.all_keys = new Set()
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     for (const key in gridObject) {
       state.replay.all_keys.add(key)
     }
@@ -166,7 +166,7 @@ function fixReplay() {
   // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
   // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
-  state.replay.object_types.forEach((originalTypeName: string) => {
+  state.replay.type_names.forEach((originalTypeName: string) => {
     let typeName = originalTypeName
     // Remove known color suffixes.
     for (const colorName of Common.COLORS.keys()) {
@@ -221,33 +221,39 @@ function fixReplay() {
     }
   }
 
-  // The map size is not to be trusted. Recompute the map size just in case.
-  const oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]]
-  state.replay.map_size[0] = 1
-  state.replay.map_size[1] = 1
-  for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, 'c') + 1
-    const y = getAttr(gridObject, 'r') + 1
-    state.replay.map_size[0] = Math.max(state.replay.map_size[0], x)
-    state.replay.map_size[1] = Math.max(state.replay.map_size[1], y)
-  }
-  if (oldMapSize[0] !== state.replay.map_size[0] || oldMapSize[1] !== state.replay.map_size[1]) {
-    // The map size changed, so update the map.
-    console.info('Map size changed to: ', state.replay.map_size[0], 'x', state.replay.map_size[1])
-    focusFullMap(ui.mapPanel)
-    // Force a resize to update the minimap panel.
-    onResize()
-  }
+  // // The map size is not to be trusted. Recompute the map size just in case.
+  // const oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]]
+  // state.replay.map_size[0] = 1
+  // state.replay.map_size[1] = 1
+  // for (const gridObject of state.replay.objects) {
+  //   const location = getAttr(gridObject, 'location')
+  //   const x = location[0] + 1
+  //   const y = location[1] + 1
+  //   state.replay.map_size[0] = Math.max(state.replay.map_size[0], x)
+  //   state.replay.map_size[1] = Math.max(state.replay.map_size[1], y)
+  // }
+  // if (oldMapSize[0] !== state.replay.map_size[0] || oldMapSize[1] !== state.replay.map_size[1]) {
+  //   // The map size changed, so update the map.
+  //   console.info('Map size changed to: ', state.replay.map_size[0], 'x', state.replay.map_size[1])
+  //   focusFullMap(ui.mapPanel)
+  //   // Force a resize to update the minimap panel.
+  //   onResize()
+  // }
 }
 
 /** Loads a replay from a JSON object. */
 function loadReplayJson(url: string, replayData: any) {
+  if (replayData.version !== 2) {
+    Common.showModal('error', 'Error loading replay', `Unsupported replay version: ${replayData.version}`)
+    return
+  }
+
   state.replay = replayData
 
   // Go through each grid object and expand its key sequence.
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     for (const key in gridObject) {
-      if (Array.isArray(gridObject[key])) {
+      if (Array.isArray(gridObject[key]) && gridObject[key][0].length == 2) {
         gridObject[key] = expandSequence(gridObject[key], state.replay.max_steps)
       }
     }
@@ -257,7 +263,7 @@ function loadReplayJson(url: string, replayData: any) {
   state.replay.agents = []
   for (let i = 0; i < state.replay.num_agents; i++) {
     state.replay.agents.push({})
-    for (const gridObject of state.replay.grid_objects) {
+    for (const gridObject of state.replay.objects) {
       if (gridObject.agent_id === i) {
         state.replay.agents[i] = gridObject
       }
@@ -288,37 +294,37 @@ export function loadReplayStep(replayStep: any) {
 
   state.replay.max_steps = Math.max(state.replay.max_steps, step + 1)
 
-  for (const gridObject of replayStep.grid_objects) {
+  for (const gridObject of replayStep.objects) {
     // Grid objects are 1-indexed.
     const index = gridObject.id - 1
     for (const key in gridObject) {
       const value = gridObject[key]
       // Ensure that the grid object exists.
-      while (state.replay.grid_objects.length <= index) {
-        state.replay.grid_objects.push({})
+      while (state.replay.objects.length <= index) {
+        state.replay.objects.push({})
       }
       // Ensure that the key exists.
-      if (state.replay.grid_objects[index][key] === undefined || state.replay.grid_objects[index][key] === null) {
-        state.replay.grid_objects[index][key] = []
-        while (state.replay.grid_objects[index][key].length <= step) {
-          state.replay.grid_objects[index][key].push(null)
+      if (state.replay.objects[index][key] === undefined || state.replay.objects[index][key] === null) {
+        state.replay.objects[index][key] = []
+        while (state.replay.objects[index][key].length <= step) {
+          state.replay.objects[index][key].push(null)
         }
       }
 
-      state.replay.grid_objects[index][key][step] = value
+      state.replay.objects[index][key][step] = value
 
       if (key === 'agent_id') {
         // Update the agent.
         while (state.replay.agents.length <= value) {
           state.replay.agents.push({})
         }
-        state.replay.agents[value] = state.replay.grid_objects[index]
+        state.replay.agents[value] = state.replay.objects[index]
       }
     }
     // Make sure that the keys that don't exist in the update are set to null too.
-    for (const key in state.replay.grid_objects[index]) {
+    for (const key in state.replay.objects[index]) {
       if (gridObject[key] === undefined) {
-        state.replay.grid_objects[index][key][step] = null
+        state.replay.objects[index][key][step] = null
       }
     }
   }
@@ -332,7 +338,7 @@ export function loadReplayStep(replayStep: any) {
 
 /** Get object config. */
 export function getObjectConfig(object: any) {
-  const typeName = state.replay.object_types[object.type]
+  const typeName = state.replay.type_names[object.type]
   if (state.replay.config == null) {
     return null
   }
@@ -408,8 +414,8 @@ export function propertyName(key: string) {
 
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
-  if (state.replay.object_types.includes(key)) {
-    const idx = state.replay.object_types.indexOf(key)
+  if (state.replay.type_names.includes(key)) {
+    const idx = state.replay.type_names.indexOf(key)
     return `data/atlas/${state.replay.object_images[idx][0]}`
   }
   if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
