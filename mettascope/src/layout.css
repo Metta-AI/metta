@@ -115,12 +115,41 @@
   background: #37373d;
 }
 
+.tab.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  pointer-events: none;
+}
+
+.tab[draggable="true"] {
+  cursor: move;
+}
+
 .tab-content {
   flex: 1;
   padding: 16px;
   background: #1e1e1e;
   overflow: auto;
   min-height: 0;
+}
+
+.tab-bar.drag-over {
+  background: #4a4a4a;
+  border: 2px dashed #0066cc;
+  border-bottom: 2px dashed #0066cc;
+  position: relative;
+}
+
+.tab-bar.drag-over::after {
+  content: 'Drop tab here';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #0066cc;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .add-tab-container {

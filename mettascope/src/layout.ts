@@ -35,11 +35,13 @@ export class Pane {
   private addTabContainer!: HTMLElement
   private dropdown!: HTMLElement
   private isDropdownVisible: boolean = false
+  private isDragTarget: boolean = false
 
   constructor(container: HTMLElement) {
     this.element = container
     this.render()
     this.setupEventListeners()
+    this.setupDragAndDrop()
   }
 
   public addTab(tab: Tab): void {
@@ -101,6 +103,82 @@ export class Pane {
     })
   }
 
+  private setupDragAndDrop(): void {
+    // Make this pane a drop target
+    this.tabBarElement.addEventListener('dragover', (e) => {
+      e.preventDefault()
+      this.isDragTarget = true
+      this.tabBarElement.classList.add('drag-over')
+    })
+
+    this.tabBarElement.addEventListener('dragleave', (e) => {
+      if (!this.tabBarElement.contains(e.relatedTarget as Node)) {
+        this.isDragTarget = false
+        this.tabBarElement.classList.remove('drag-over')
+      }
+    })
+
+    this.tabBarElement.addEventListener('drop', (e) => {
+      e.preventDefault()
+      this.isDragTarget = false
+      this.tabBarElement.classList.remove('drag-over')
+
+      const dragData = e.dataTransfer?.getData('text/plain')
+      if (dragData) {
+        const { sourceId, tabIndex } = JSON.parse(dragData)
+        this.handleTabDrop(sourceId, tabIndex)
+      }
+    })
+  }
+
+  private handleTabDrop(sourceId: string, tabIndex: number): void {
+    // Find the source pane
+    const allPanes = this.findAllPanes()
+    const sourcePane = allPanes.find(pane => pane.getPaneId() === sourceId)
+
+    if (sourcePane && sourcePane !== this) {
+      const draggedTab = sourcePane.tabs[tabIndex]
+      if (draggedTab) {
+        // Remove from source
+        sourcePane.removeTab(tabIndex)
+        // Add to this pane
+        this.addTab(draggedTab)
+        this.activateTab(this.tabs.length - 1)
+      }
+    }
+  }
+
+  private findAllPanes(): Pane[] {
+    // This is a simplified approach - in a real implementation,
+    // you might want to traverse the layout tree more systematically
+    const panes: Pane[] = []
+    const containers = document.querySelectorAll('.pane')
+    containers.forEach(container => {
+      if ((container as any).paneInstance) {
+        panes.push((container as any).paneInstance)
+      }
+    })
+    return panes
+  }
+
+  public getPaneId(): string {
+    if (!this.element.dataset.paneId) {
+      this.element.dataset.paneId = `pane-${Math.random().toString(36).substr(2, 9)}`
+    }
+    return this.element.dataset.paneId
+  }
+
+  public removeTab(index: number): void {
+    if (index >= 0 && index < this.tabs.length) {
+      this.tabs.splice(index, 1)
+      // If we removed the active tab, activate another one
+      if (this.tabs.length > 0 && !this.tabs.some(tab => tab.isActive)) {
+        this.tabs[Math.min(index, this.tabs.length - 1)].isActive = true
+      }
+      this.updateTabs()
+    }
+  }
+
   private toggleDropdown(): void {
     this.isDropdownVisible = !this.isDropdownVisible
     this.dropdown.classList.toggle('visible', this.isDropdownVisible)
@@ -135,6 +213,9 @@ export class Pane {
   }
 
   private updateTabs(): void {
+    // Store reference to this pane instance on the element
+    (this.element as any).paneInstance = this
+
     // Clear the entire tab bar.
     this.tabBarElement.innerHTML = ''
 
@@ -143,6 +224,22 @@ export class Pane {
       const tabElement = document.createElement('div')
       tabElement.className = `tab ${tab.isActive ? 'active' : ''}`
       tabElement.textContent = tab.title
+      tabElement.draggable = true
+
+      // Add drag event listeners
+      tabElement.addEventListener('dragstart', (e) => {
+        const dragData = {
+          sourceId: this.getPaneId(),
+          tabIndex: index
+        }
+        e.dataTransfer?.setData('text/plain', JSON.stringify(dragData))
+        tabElement.classList.add('dragging')
+      })
+
+      tabElement.addEventListener('dragend', () => {
+        tabElement.classList.remove('dragging')
+      })
+
       tabElement.addEventListener('click', () => this.activateTab(index))
       this.tabBarElement.appendChild(tabElement)
     })
