@@ -4,7 +4,8 @@
 # dependencies = [
 #   "requests>=2.31.0",
 #   "vcrpy>=6.0.0",
-#   "pyyaml>=6.0.0"
+#   "pyyaml>=6.0.0",
+#   "asana>=3.0.0",
 # ]
 # ///
 
