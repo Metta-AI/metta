@@ -199,10 +199,10 @@ def train(
         # Ensure all ranks are ready before wrapping
         torch.distributed.barrier()
 
-        # Use the maybe_wrap_distributed function which handles CPU vs GPU correctly
-        from metta.rl.util.policy_management import maybe_wrap_distributed
+        # Use the wrap_agent_distributed function which handles CPU vs GPU correctly
+        from metta.rl.util.policy_management import wrap_agent_distributed
 
-        policy = maybe_wrap_distributed(policy, device)
+        policy = wrap_agent_distributed(policy, device)
 
         logger.info(f"Rank {rank}: Successfully wrapped policy for distributed training")
         torch.distributed.barrier()
