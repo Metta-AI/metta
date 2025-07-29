@@ -12,7 +12,6 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.common.util.fs import wait_for_file
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.util.policy_management import cleanup_old_policies
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +187,7 @@ class CheckpointManager:
         checkpoint.save(run_dir)
 
         # Cleanup old policies
-        cleanup_old_policies(self.checkpoint_dir, keep_last_n=5)
+        self._cleanup_old_policies()
 
         # Synchronize all ranks after save
         if torch.distributed.is_initialized():
@@ -301,7 +300,7 @@ class CheckpointManager:
 
         # Clean up old policies periodically
         if epoch % 10 == 0:
-            cleanup_old_policies(self.checkpoint_dir, keep_last_n=5)
+            self._cleanup_old_policies()
 
         # Synchronize all ranks after save
         if torch.distributed.is_initialized():
@@ -336,3 +335,16 @@ class CheckpointManager:
         ):
             policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
             logger.info("Restored original_feature_mapping from policy metadata")
+
+    def _cleanup_old_policies(self, keep_last_n: int = 5) -> None:
+        """Clean up old policy checkpoints."""
+        try:
+            policy_files = sorted(Path(self.checkpoint_dir).glob("policy_*.pt"))
+            if len(policy_files) > keep_last_n:
+                for file_path in policy_files[:-keep_last_n]:
+                    try:
+                        file_path.unlink()
+                    except Exception as e:
+                        logger.warning(f"Failed to remove old policy file {file_path}: {e}")
+        except Exception as e:
+            logger.warning(f"Error during policy cleanup: {e}")

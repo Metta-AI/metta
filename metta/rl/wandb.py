@@ -101,25 +101,6 @@ def log_model_parameters(policy: nn.Module, wandb_run: Any) -> None:
         wandb_run.summary["model/total_parameters"] = num_params
 
 
-def setup_wandb_metrics_and_log_model(
-    policy: nn.Module,
-    wandb_run: Any | None,
-    is_master: bool = True,
-) -> None:
-    """Convenience function to set up metrics and log model parameters.
-
-    DEPRECATED: Use setup_wandb_metrics() and log_model_parameters() separately.
-
-    Args:
-        policy: The policy model
-        wandb_run: The wandb run object (optional)
-        is_master: Whether this is the master process in distributed training
-    """
-    if wandb_run and is_master:
-        setup_wandb_metrics(wandb_run)
-        log_model_parameters(policy, wandb_run)
-
-
 def log_training_metrics(
     wandb_run: Any,
     metrics: dict[str, Any],
@@ -153,26 +134,30 @@ def define_custom_metric(
         wandb_run.define_metric(metric_name)
 
 
-# Functions moved from trainer.py
-def upload_policy_to_wandb(wandb_run: Any, policy_store: Any, policy_record: Any, force: bool = False) -> str | None:
-    """Upload policy to wandb.
+def upload_policy_artifact(
+    wandb_run: Any,
+    policy_store: Any,
+    policy_record: Any,
+    force: bool = False,
+) -> str | None:
+    """Upload policy to WandB as artifact.
 
     Args:
-        wandb_run: The wandb run object
-        policy_store: PolicyStore instance
-        policy_record: PolicyRecord to upload
-        force: Force upload even if not needed
+        wandb_run: WandB run object
+        policy_store: Policy store
+        policy_record: Policy record to upload
+        force: Force upload even if already uploaded
 
     Returns:
-        Artifact name if uploaded, None otherwise
+        WandB policy name or None if failed
     """
     if not wandb_run or not policy_record:
         return None
 
     try:
-        result = policy_store.add_to_wandb_run(wandb_run.id, policy_record)
-        logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.get('epoch', 'unknown')}")
-        return result
+        wandb_policy_name = policy_store.add_to_wandb_run(wandb_run.id, policy_record, force=force)
+        logger.info(f"Uploaded policy to wandb: {wandb_policy_name}")
+        return wandb_policy_name
     except Exception as e:
         logger.warning(f"Failed to upload policy to wandb: {e}")
         return None

@@ -2,10 +2,8 @@
 
 import logging
 import os
-from pathlib import Path
 from typing import Any, Tuple
 
-import numpy as np
 import torch
 from torch.nn.parallel import DistributedDataParallel
 
@@ -14,117 +12,6 @@ from metta.common.util.fs import wait_for_file
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
 logger = logging.getLogger(__name__)
-
-
-def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
-    """Clean up old policy checkpoints, keeping only the most recent ones."""
-    try:
-        # Get checkpoint directory
-        checkpoint_path = Path(checkpoint_dir)
-        if not checkpoint_path.exists():
-            return
-
-        # List all policy files
-        policy_files = sorted(checkpoint_path.glob("policy_*.pt"))
-
-        # Keep only the most recent ones
-        if len(policy_files) > keep_last_n:
-            files_to_remove = policy_files[:-keep_last_n]
-            for file_path in files_to_remove:
-                try:
-                    file_path.unlink()
-                except Exception as e:
-                    logger.warning(f"Failed to remove old policy file {file_path}: {e}")
-
-    except Exception as e:
-        logger.warning(f"Error during policy cleanup: {e}")
-
-
-def save_policy_with_metadata(
-    policy: Any,
-    policy_store: Any,
-    epoch: int,
-    agent_step: int,
-    evals: Any,  # EvalRewardSummary
-    timer: Any,
-    initial_policy_record: Any | None,
-    run_name: str,
-    is_master: bool = True,
-) -> Any | None:
-    """Save policy with metadata.
-
-    Returns:
-        Saved policy record or None if not master
-    """
-    if not is_master:
-        return None
-
-    logger.info(f"Saving policy at epoch {epoch}")
-
-    # Extract the actual policy module from distributed wrapper if needed
-    policy_to_save = policy
-    if isinstance(policy, DistributedMettaAgent):
-        policy_to_save = policy.module
-
-    # Build metadata
-    name = policy_store.make_model_name(epoch)
-
-    # Extract average reward from evals
-    # Handle both EvalRewardSummary object and dict
-    avg_reward = 0.0
-    score = 0.0  # Aggregated score for sweep evaluation
-    evals_dict = {}
-    if evals:
-        if hasattr(evals, "avg_category_score"):
-            # It's an EvalRewardSummary object
-            avg_reward = evals.avg_category_score if evals.avg_category_score is not None else 0.0
-            # Calculate aggregated score for sweep evaluation
-            category_scores = list(evals.category_scores.values())
-            if category_scores:
-                score = float(np.mean(category_scores))
-            evals_dict = {
-                "category_scores": evals.category_scores,
-                "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
-                "avg_category_score": evals.avg_category_score,
-                "avg_simulation_score": evals.avg_simulation_score,
-            }
-        else:
-            # It's a dict
-            avg_reward = sum(v for k, v in evals.items() if k.endswith("/score")) / max(
-                1, len([k for k in evals.keys() if k.endswith("/score")])
-            )
-            score = avg_reward  # Use avg_reward as score for dict case
-            evals_dict = evals
-
-    metadata = {
-        "epoch": epoch,
-        "agent_step": agent_step,
-        "total_time": timer.get_elapsed(),
-        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
-        "run": run_name,
-        "initial_pr": initial_policy_record.uri if initial_policy_record else None,
-        "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
-        "evals": evals_dict,
-        "avg_reward": avg_reward,
-        "score": score,  # Aggregated score for sweep evaluation
-    }
-
-    # Save original feature mapping
-    if hasattr(policy_to_save, "get_original_feature_mapping"):
-        original_feature_mapping = policy_to_save.get_original_feature_mapping()
-        if original_feature_mapping is not None:
-            metadata["original_feature_mapping"] = original_feature_mapping
-            logger.info(f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata")
-
-    # Create and save policy record
-    policy_record = policy_store.create_empty_policy_record(name)
-    policy_record.metadata = metadata
-    policy_record.policy = policy_to_save
-
-    saved_policy_record = policy_store.save(policy_record)
-    logger.info(f"Successfully saved policy at epoch {epoch}")
-
-    return saved_policy_record
 
 
 def validate_policy_environment_match(policy: Any, env: Any) -> None:

@@ -28,10 +28,8 @@ from .optimization import (
 
 # Policy management
 from .policy_management import (
-    cleanup_old_policies,
     load_or_initialize_policy,
     maybe_load_checkpoint,
-    save_policy_with_metadata,
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
@@ -50,9 +48,6 @@ from .stats import (
 
 # Utility functions
 from .utils import should_run
-
-# For backward compatibility, also provide should_run_on_interval as an alias
-should_run_on_interval = should_run
 
 __all__ = [
     # Advantage
@@ -75,10 +70,8 @@ __all__ = [
     "compute_gradient_stats",
     "maybe_update_l2_weights",
     # Policy management
-    "cleanup_old_policies",
     "load_or_initialize_policy",
     "maybe_load_checkpoint",
-    "save_policy_with_metadata",
     "validate_policy_environment_match",
     "wrap_agent_distributed",
     # Rollout
@@ -93,5 +86,4 @@ __all__ = [
     "process_training_stats",
     # Utils
     "should_run",
-    "should_run_on_interval",
 ]

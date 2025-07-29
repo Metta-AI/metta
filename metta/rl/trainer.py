@@ -53,12 +53,15 @@ from metta.rl.util.training_loop import (
     log_training_progress,
     run_training_epoch,
 )
-from metta.rl.util.utils import check_abort, should_run
-from metta.rl.util.wandb_integration import (
-    upload_policy_artifact,
-)
+from metta.rl.util.utils import should_run
 from metta.rl.vecenv import make_vecenv
-from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_replay_html
+from metta.rl.wandb import (
+    abort_requested,
+    log_model_parameters,
+    setup_wandb_metrics,
+    upload_policy_artifact,
+    upload_replay_html,
+)
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
@@ -638,8 +641,15 @@ def train(
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort
-        if check_abort(wandb_run, trainer_cfg, agent_step):
-            break
+        if trainer_cfg.check_abort_interval > 0 and agent_step % trainer_cfg.check_abort_interval == 0:
+            if abort_requested(wandb_run, min_interval_sec=60):
+                logger.info("Abort tag detected. Stopping the run.")
+                trainer_cfg.total_timesteps = int(agent_step)
+                if wandb_run:
+                    wandb_run.config.update(
+                        {"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True
+                    )
+                break
 
     log_master("Training complete!", is_master=is_master)
     timing_summary = timer.get_all_summaries()
