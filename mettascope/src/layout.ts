@@ -76,23 +76,11 @@ export class Pane {
     this.tabBarElement = this.element.querySelector('.tab-bar') as HTMLElement
     this.contentElement = this.element.querySelector('.tab-content') as HTMLElement
 
-        // Set up drop zones
-    const leftZone = this.element.querySelector('.drop-zone-left') as HTMLElement
-    const rightZone = this.element.querySelector('.drop-zone-right') as HTMLElement
-    const topZone = this.element.querySelector('.drop-zone-top') as HTMLElement
-    const bottomZone = this.element.querySelector('.drop-zone-bottom') as HTMLElement
-
-    console.log('Drop zone elements found:', {
-      left: leftZone,
-      right: rightZone,
-      top: topZone,
-      bottom: bottomZone
-    })
-
-    this.dropZones.set(DropZone.LEFT, leftZone)
-    this.dropZones.set(DropZone.RIGHT, rightZone)
-    this.dropZones.set(DropZone.TOP, topZone)
-    this.dropZones.set(DropZone.BOTTOM, bottomZone)
+            // Set up drop zones
+    this.dropZones.set(DropZone.LEFT, this.element.querySelector('.drop-zone-left') as HTMLElement)
+    this.dropZones.set(DropZone.RIGHT, this.element.querySelector('.drop-zone-right') as HTMLElement)
+    this.dropZones.set(DropZone.TOP, this.element.querySelector('.drop-zone-top') as HTMLElement)
+    this.dropZones.set(DropZone.BOTTOM, this.element.querySelector('.drop-zone-bottom') as HTMLElement)
 
     // Create the add-tab-container separately.
     this.addTabContainer = document.createElement('div')
@@ -161,59 +149,46 @@ export class Pane {
 
                     // Set up edge drop zones
     this.dropZones.forEach((element, zone) => {
-      element.addEventListener('dragover', (e) => {
+            element.addEventListener('dragover', (e) => {
         e.preventDefault()
-        console.log('Dragover on zone:', zone)
         this.setActiveDropZone(zone)
       })
 
       element.addEventListener('dragenter', (e) => {
         e.preventDefault()
-        console.log('Dragenter on zone:', zone)
         this.setActiveDropZone(zone)
       })
 
       element.addEventListener('dragleave', (e) => {
         if (!element.contains(e.relatedTarget as Node)) {
-          console.log('Dragleave on zone:', zone)
           this.clearActiveDropZone(zone)
         }
       })
 
       element.addEventListener('drop', (e) => {
         e.preventDefault()
-        console.log('Drop on zone:', zone)
         this.clearActiveDropZone(zone)
 
         const dragData = e.dataTransfer?.getData('text/plain')
         if (dragData) {
-          console.log('Got drag data:', dragData)
           const { sourceId, tabIndex } = JSON.parse(dragData)
           this.handleTabDrop(sourceId, tabIndex, zone)
-        } else {
-          console.log('No drag data received')
         }
       })
     })
   }
 
-        private setActiveDropZone(zone: DropZone): void {
-    console.log('setActiveDropZone called for zone:', zone)
+          private setActiveDropZone(zone: DropZone): void {
     this.clearAllDropZones()
     this.activeDropZone = zone
 
     if (zone === DropZone.TAB_BAR) {
       this.tabBarElement.classList.add('drag-over')
-      console.log('Added drag-over class to tab bar')
     } else {
       const element = this.dropZones.get(zone)
-      console.log('Drop zone element for', zone, ':', element)
       if (element) {
         element.classList.add('active')
         this.element.classList.add(`split-preview-${zone}`)
-        console.log('Added active class and split preview for zone:', zone)
-      } else {
-        console.log('No drop zone element found for zone:', zone)
       }
     }
   }
@@ -225,41 +200,28 @@ export class Pane {
   }
 
   private clearAllDropZones(): void {
-    console.log('clearAllDropZones called')
     this.activeDropZone = null
     this.tabBarElement.classList.remove('drag-over')
     this.dropZones.forEach(element => element.classList.remove('active'))
     this.element.classList.remove('split-preview-left', 'split-preview-right', 'split-preview-top', 'split-preview-bottom')
   }
 
-    private handleTabDrop(sourceId: string, tabIndex: number, dropZone: DropZone): void {
-    console.log('handleTabDrop called:', { sourceId, tabIndex, dropZone })
-
+      private handleTabDrop(sourceId: string, tabIndex: number, dropZone: DropZone): void {
     // Find the source pane
     const allPanes = this.findAllPanes()
     const sourcePane = allPanes.find(pane => pane.getPaneId() === sourceId)
 
-    if (!sourcePane) {
-      console.log('Source pane not found')
-      return
-    }
+    if (!sourcePane) return
 
     const draggedTab = sourcePane.tabs[tabIndex]
-    if (!draggedTab) {
-      console.log('Dragged tab not found')
-      return
-    }
-
-    console.log('Processing drop:', { dropZone, draggedTab: draggedTab.title })
+    if (!draggedTab) return
 
     if (dropZone === DropZone.TAB_BAR && sourcePane !== this) {
-      console.log('Performing simple tab move')
       // Simple tab move to existing pane
       sourcePane.removeTab(tabIndex)
       this.addTab(draggedTab)
       this.activateTab(this.tabs.length - 1)
     } else if (dropZone !== DropZone.TAB_BAR) {
-      console.log('Performing split operation')
       // Split operation
       sourcePane.removeTab(tabIndex)
       this.performSplit(draggedTab, dropZone)
@@ -375,6 +337,14 @@ export class Pane {
     }
   }
 
+  public closeTab(index: number): void {
+    if (index >= 0 && index < this.tabs.length) {
+      this.removeTab(index)
+      // If this was the last tab in the pane, we might want to remove the pane
+      // For now, we'll keep the empty pane
+    }
+  }
+
   public getPaneId(): string {
     if (!this.element.dataset.paneId) {
       this.element.dataset.paneId = `pane-${Math.random().toString(36).substr(2, 9)}`
@@ -410,12 +380,8 @@ export class Pane {
   private enableGlobalDropZones(): void {
     // Find the root layout container and add dragging class
     const layoutContainer = document.querySelector('.layout-container')
-    console.log('Layout container found:', layoutContainer)
     if (layoutContainer) {
       layoutContainer.classList.add('dragging')
-      console.log('Added dragging class to layout container')
-    } else {
-      console.log('Layout container not found!')
     }
   }
 
@@ -424,7 +390,6 @@ export class Pane {
     const layoutContainer = document.querySelector('.layout-container')
     if (layoutContainer) {
       layoutContainer.classList.remove('dragging')
-      console.log('Removed dragging class from layout container')
     }
   }
 
@@ -435,33 +400,44 @@ export class Pane {
     // Clear the entire tab bar.
     this.tabBarElement.innerHTML = ''
 
-    // Add all tabs.
+        // Add all tabs.
     this.tabs.forEach((tab, index) => {
       const tabElement = document.createElement('div')
       tabElement.className = `tab ${tab.isActive ? 'active' : ''}`
-      tabElement.textContent = tab.title
       tabElement.draggable = true
 
-                  // Add drag event listeners
+      // Create tab content with title and close button
+      const tabTitle = document.createElement('span')
+      tabTitle.className = 'tab-title'
+      tabTitle.textContent = tab.title
+
+      const closeButton = document.createElement('span')
+      closeButton.className = 'tab-close'
+      closeButton.textContent = '×'
+      closeButton.addEventListener('click', (e) => {
+        e.stopPropagation() // Prevent tab activation
+        this.closeTab(index)
+      })
+
+      tabElement.appendChild(tabTitle)
+      tabElement.appendChild(closeButton)
+
+            // Add drag event listeners
       tabElement.addEventListener('dragstart', (e) => {
         const dragData = {
           sourceId: this.getPaneId(),
           tabIndex: index
         }
-        console.log('Drag started:', dragData)
         e.dataTransfer?.setData('text/plain', JSON.stringify(dragData))
         tabElement.classList.add('dragging')
         // Enable drop zones globally
         this.enableGlobalDropZones()
-        console.log('Drop zones enabled')
       })
 
       tabElement.addEventListener('dragend', () => {
-        console.log('Drag ended')
         tabElement.classList.remove('dragging')
         // Disable drop zones globally
         this.disableGlobalDropZones()
-        console.log('Drop zones disabled')
       })
 
       tabElement.addEventListener('click', () => this.activateTab(index))
@@ -511,10 +487,13 @@ export class Layout {
   }
 
   private render(): void {
+    console.log('Layout render called, direction:', this.direction)
     this.container.innerHTML = `
       <div class="layout-container ${this.direction}">
       </div>
     `
+    const layoutContainer = this.container.querySelector('.layout-container') as HTMLElement
+    console.log('Layout container created:', layoutContainer, 'with classes:', layoutContainer?.className)
   }
 
   public addChild(child: LayoutChild): void {
@@ -536,13 +515,21 @@ export class Layout {
   }
 
   private updateLayout(): void {
+    console.log('Layout updateLayout called, direction:', this.direction, 'children count:', this.children.length)
     const layoutContainer = this.container.querySelector('.layout-container') as HTMLElement
+    if (!layoutContainer) {
+      console.error('Layout container not found!')
+      return
+    }
+
     layoutContainer.innerHTML = ''
     this.childContainers = []
     this.splitters = []
 
     // Create containers for each child
     this.children.forEach((child, index) => {
+      console.log('Setting up child', index, ':', child instanceof Pane ? 'Pane' : 'Layout')
+
       // Create child container
       const childContainer = document.createElement('div')
       childContainer.className = 'layout-child'
@@ -550,14 +537,23 @@ export class Layout {
       layoutContainer.appendChild(childContainer)
       this.childContainers.push(childContainer)
 
+      console.log('Child container created:', childContainer, 'with styles:', {
+        flex: childContainer.style.flex,
+        height: childContainer.style.height,
+        width: childContainer.style.width
+      })
+
       // Set up the child in its container
       if (child instanceof Pane) {
         // For Panes, append their existing element to the new container
         childContainer.appendChild(child.element)
+        console.log('Pane element appended to container')
       } else {
-        // For nested Layouts, update their container
+        // For nested Layouts, update their container and re-render
         child.container = childContainer
         child.render()
+        child.updateLayout()
+        console.log('Nested layout set up in container')
       }
 
       // Add splitter after each child except the last
@@ -566,9 +562,11 @@ export class Layout {
         splitter.className = `splitter ${this.direction}`
         layoutContainer.appendChild(splitter)
         this.splitters.push(splitter)
+        console.log('Splitter added:', splitter.className)
       }
     })
 
+    console.log('Layout update completed, final child containers:', this.childContainers.length)
     this.setupSplitters()
   }
 

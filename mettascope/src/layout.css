@@ -20,6 +20,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* Legacy split-container support */
@@ -105,6 +107,9 @@
   cursor: pointer;
   user-select: none;
   color: #cccccc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tab.active {
@@ -124,6 +129,29 @@
 
 .tab[draggable="true"] {
   cursor: move;
+}
+
+.tab-title {
+  flex: 1;
+}
+
+.tab-close {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.tab-close:hover {
+  opacity: 1;
+  background: #464647;
+  color: #ffffff;
 }
 
 .tab-content {
