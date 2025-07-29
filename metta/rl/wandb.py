@@ -11,8 +11,6 @@ import torch.nn as nn
 import wandb
 from omegaconf import OmegaConf
 
-from metta.rl.metrics import count_model_parameters
-
 logger = logging.getLogger(__name__)
 
 # Use WeakKeyDictionary to associate state with each wandb.Run without mutating the object
@@ -96,7 +94,7 @@ def log_model_parameters(policy: nn.Module, wandb_run: Any) -> None:
         policy: The policy model
         wandb_run: The wandb run object
     """
-    num_params = count_model_parameters(policy)
+    num_params = sum(p.numel() for p in policy.parameters())
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
 
