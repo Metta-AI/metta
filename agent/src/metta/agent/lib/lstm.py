@@ -1,3 +1,5 @@
+from typing import Dict
+
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -35,9 +37,12 @@ class LSTM(LayerBase):
 
         self.max_envs = 524288  # av hack. need a better way. don't want to get it from the env, it should just work.
         # preallocate state buffer. [0] = hidden states, [1] = cell states
-        self.register_buffer(
-            "_memory", torch.zeros(2, self.num_layers, self.max_envs, self.hidden_size), persistent=False
-        )
+        # self.register_buffer(
+        #     "_memory", torch.zeros(2, self.num_layers, self.max_envs, self.hidden_size), persistent=False
+        # )
+        self.lstm_h: Dict[int, torch.Tensor] = {}
+        self.lstm_c: Dict[int, torch.Tensor] = {}
+        self._memory = True
 
     def get_memory(self):
         return self._memory
@@ -46,7 +51,8 @@ class LSTM(LayerBase):
         self._memory = memory
 
     def reset_memory(self):
-        self._memory.zero_()
+        self.lstm_h.clear()
+        self.lstm_c.clear()
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
@@ -75,10 +81,28 @@ class LSTM(LayerBase):
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
         # state = self._memory[:, :, td.training_env_id, :]
-        h_0 = self._memory[0, :, td.training_env_id, :].contiguous()
-        c_0 = self._memory[1, :, td.training_env_id, :].contiguous()
-        hidden, (h_n, c_n) = self._net(hidden, (h_0, c_0))
-        self._memory[:, :, td.training_env_id, :] = torch.stack([h_n.detach(), c_n.detach()], dim=0)
+        # h_0 = self._memory[0, :, td.training_env_id, :].contiguous()
+        # c_0 = self._memory[1, :, td.training_env_id, :].contiguous()
+        if hasattr(td, "training_env_id"):
+            h_0 = (
+                self.lstm_h[td.training_env_id.start]
+                if td.training_env_id.start in self.lstm_h
+                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            )
+            c_0 = (
+                self.lstm_c[td.training_env_id.start]
+                if td.training_env_id.start in self.lstm_c
+                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            )
+            state = (h_0, c_0)
+        else:
+            state = None
+
+        hidden, (h_n, c_n) = self._net(hidden, state)
+        if hasattr(td, "training_env_id"):
+            self.lstm_h[td.training_env_id.start] = h_n.detach()
+            self.lstm_c[td.training_env_id.start] = c_n.detach()
+        # self._memory[:, :, td.training_env_id, :] = torch.stack([h_n.detach(), c_n.detach()], dim=0)
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 

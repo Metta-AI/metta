@@ -447,7 +447,6 @@ class MettaAgent(nn.Module):
             - In inference mode, this contains data to be stored in the experience buffer.
             - In training mode, this contains data for loss calculation.
         """
-        ti = td.training_env_id
         td.bptt = 1
         td.batch = td.batch_size.numel()
         if td.batch_dims > 1:
@@ -456,7 +455,6 @@ class MettaAgent(nn.Module):
             td = td.reshape(td.batch_size.numel())
             td.bptt = TT
             td.batch = B
-            td.training_env_id = ti
 
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)

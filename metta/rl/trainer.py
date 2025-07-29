@@ -570,7 +570,6 @@ class MettaTrainer:
                     prio_beta=anneal_beta,
                 )
                 policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
-                policy_td.training_env_id = indices
 
                 # Use the helper function to process minibatch update
                 loss = process_minibatch_update(
