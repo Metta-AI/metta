@@ -81,6 +81,7 @@ def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 def process_training_stats(
     raw_stats: Dict[str, Any],
+    curriculum_stats: Dict[str, Any],
     losses: Any,
     experience: Any,
     trainer_config: Any,
@@ -90,6 +91,7 @@ def process_training_stats(
 
     Args:
         raw_stats: Raw statistics dictionary (possibly with lists of values)
+        curriculum_stats: Curriculum statistics dictionary
         losses: Losses object with stats() method
         experience: Experience object with stats() method
         trainer_config: Training configuration
@@ -143,6 +145,7 @@ def process_training_stats(
 
     return {
         "mean_stats": mean_stats,
+        "curriculum_stats": curriculum_stats,
         "losses_stats": losses_stats,
         "experience_stats": experience_stats,
         "environment_stats": environment_stats,
@@ -220,6 +223,7 @@ def compute_timing_stats(
 
 def build_wandb_stats(
     processed_stats: Dict[str, Any],
+    curriculum_stats: Dict[str, Any],
     timing_info: Dict[str, Any],
     weight_stats: Dict[str, Any],
     grad_stats: Dict[str, Any],
@@ -236,6 +240,7 @@ def build_wandb_stats(
 
     Args:
         processed_stats: Output from process_training_stats
+        curriculum_stats: Curriculum statistics
         timing_info: Output from compute_timing_stats
         weight_stats: Weight analysis statistics
         grad_stats: Gradient statistics
@@ -293,6 +298,7 @@ def build_wandb_stats(
 
 def process_stats(
     stats: Dict[str, Any],
+    curriculum_stats: Dict[str, Any],
     losses: Any,
     evals: EvalRewardSummary,
     grad_stats: Dict[str, float],
@@ -318,6 +324,7 @@ def process_stats(
     # Process training stats
     processed_stats = process_training_stats(
         raw_stats=stats,
+        curriculum_stats=curriculum_stats,
         losses=losses,
         experience=experience,
         trainer_config=trainer_cfg,
@@ -357,6 +364,7 @@ def process_stats(
     # Build complete stats
     all_stats = build_wandb_stats(
         processed_stats=processed_stats,
+        curriculum_stats=curriculum_stats,
         timing_info=timing_info,
         weight_stats=weight_stats,
         grad_stats=grad_stats,

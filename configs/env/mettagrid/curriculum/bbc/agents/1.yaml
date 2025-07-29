@@ -5,7 +5,6 @@ defaults:
 env_overrides:
   game:
     map_builder:
-      instances: 24
       root:
         params:
           agents: 1

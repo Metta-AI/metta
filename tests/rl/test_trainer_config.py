@@ -35,8 +35,8 @@ valid_trainer_config = {
     "compile_mode": "reduce-overhead",
     "profiler": {"interval_epochs": 10000, "profile_dir": "/test/upload/dir"},
     "num_workers": 1,
-    "env": "/env/mettagrid/arena/advanced",
-    "curriculum": None,
+    "curriculum": "/env/mettagrid/arena/advanced",
+    "curriculum_initial_tasks": 10,
     "env_overrides": {},
     "grad_mean_variance_interval": 0,
     "ppo": {

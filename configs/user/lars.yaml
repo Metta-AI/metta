@@ -1,6 +1,6 @@
 # @package __global__
 
 trainer:
-  env: /env/mettagrid/diversity/multi_left_or_right
+  curriculum: /env/mettagrid/diversity/multi_left_or_right
 
 run: diversity-train-test-1
