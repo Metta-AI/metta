@@ -1,0 +1,39 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: all
+
+simulations:
+  backchain1:
+    env: env/mettagrid/extended_sequence/backchain1
+  backchain2:
+    env: env/mettagrid/extended_sequence/backchain2
+  backchain3:
+    env: env/mettagrid/extended_sequence/backchain3
+  backchain4:
+    env: env/mettagrid/extended_sequence/backchain4
+  backchain5:
+    env: env/mettagrid/extended_sequence/backchain5
+  2_converters_blue:
+    env: env/mettagrid/operantconditioning/2_converters/mine_blue
+  2_converters_red:
+    env: env/mettagrid/operantconditioning/2_converters/mine_red
+  3_converters_blue:
+    env: env/mettagrid/operantconditioning/3_converters/mine_blue
+  3_converters_red:
+    env: env/mettagrid/operantconditioning/3_converters/mine_red
+  3_converters_green:
+    env: env/mettagrid/operantconditioning/3_converters/mine_green
+  4_converters_blue:
+    env: env/mettagrid/operantconditioning/4_converters/mine_blue
+  4_converters_red:
+    env: env/mettagrid/operantconditioning/4_converters/mine_red
+  4_converters_green:
+    env: env/mettagrid/operantconditioning/4_converters/mine_green
+  4_converters_factory:
+    env: env/mettagrid/operantconditioning/4_converters/factory
+
+env_overrides:
+  game:
+    max_steps: 100
