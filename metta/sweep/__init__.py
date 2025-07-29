@@ -7,7 +7,6 @@ from .protein_utils import apply_protein_suggestion, generate_protein_suggestion
 from .sweep_lifecycle import evaluate_rollout, prepare_sweep_run, setup_sweep
 from .wandb_utils import (
     create_wandb_run_for_sweep,
-    create_wandb_sweep,
     fetch_protein_observations_from_wandb,
     record_protein_observation_to_wandb,
 )
@@ -18,7 +17,6 @@ __all__ = [
     "apply_protein_suggestion",
     "generate_protein_suggestion",
     "create_wandb_run_for_sweep",
-    "create_wandb_sweep",
     "fetch_protein_observations_from_wandb",
     "record_protein_observation_to_wandb",
     "evaluate_rollout",
