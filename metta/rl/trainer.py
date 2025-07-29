@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 import numpy as np
 import torch
@@ -80,14 +80,15 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
-def create_training_components(
-    cfg: Any,
+def train(
+    cfg: DictConfig,
     wandb_run: Any | None,
     policy_store: Any,
     sim_suite_config: Any,
-    stats_client: Any | None = None,
-) -> Tuple[Any, ...]:
-    """Create training components needed on all ranks."""
+    stats_client: Any | None,
+    **kwargs: Any,
+) -> None:
+    """Functional training loop."""
     logger.info(f"run_dir = {cfg.run_dir}")
 
     # Log recent checkpoints
@@ -97,21 +98,22 @@ def create_training_components(
         recent_files = files[-3:] if len(files) >= 3 else files
         logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
+    # Create trainer config from Hydra config
     trainer_cfg = create_trainer_config(cfg)
 
     # Set up distributed
     is_master, world_size, rank = setup_distributed_vars()
     device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
 
-    # Create utilities
+    # Create timer
     timer = Stopwatch(logger)
     timer.start()
 
-    # Instantiate losses tracker and torch profiler
+    # Create losses tracker and torch profiler
     losses = Losses()
     torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
 
-    # Create curriculum and vecenv
+    # Create curriculum from config path
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
     # Calculate batch sizes
@@ -123,6 +125,7 @@ def create_training_components(
         trainer_cfg.async_factor,
     )
 
+    # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
         cfg.vectorization,
@@ -153,7 +156,7 @@ def create_training_components(
         run_name=cfg.run,
     )
 
-    # Load checkpoint and policy with distributed coordination
+    # Load checkpoint if it exists
     checkpoint = TrainerCheckpoint.load(cfg.run_dir)
     agent_step = 0
     epoch = 0
@@ -203,8 +206,10 @@ def create_training_components(
         policy = DistributedMettaAgent(policy, device)
         torch.distributed.barrier()
 
-    # Create experience buffer
+    # Get LSTM configuration
     hidden_size, num_lstm_layers = get_lstm_config(policy)
+
+    # Create experience buffer
     experience = Experience(
         total_agents=vecenv.num_agents,  # type: ignore[attr-defined]
         batch_size=trainer_cfg.batch_size,  # Already scaled if needed
@@ -244,56 +249,10 @@ def create_training_components(
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-    hyperparameter_scheduler = None  # Disabled for now
+    if is_master:
+        logger.info("Starting training")
 
-    # Return all components in the expected order
-    return (
-        vecenv,
-        policy,
-        optimizer,
-        experience,
-        kickstarter,
-        hyperparameter_scheduler,
-        losses,
-        timer,
-        torch_profiler,
-        trainer_cfg,
-        device,
-        is_master,
-        world_size,
-        rank,
-        agent_step,
-        epoch,
-        stats_tracker,
-        latest_saved_policy_record,
-        initial_policy_uri,
-        initial_generation,
-        eval_scores,
-        curriculum,
-        checkpoint_manager,
-    )
-
-
-def create_master_trainer_components(
-    policy: Any,
-    experience: Experience,
-    wandb_run: Any | None,
-    is_master: bool,
-    timer: Stopwatch | None = None,
-) -> Tuple[Any, Any]:
-    """Create components only needed on the master rank.
-
-    Args:
-        policy: The policy model
-        experience: The experience buffer
-        wandb_run: Weights & Biases run object
-        is_master: Whether this is the master rank
-        timer: Stopwatch timer instance (optional)
-
-    Returns:
-        Tuple of (memory_monitor, system_monitor)
-    """
-    # Use new monitoring setup function
+    # Set up monitoring (master only)
     memory_monitor, system_monitor = setup_monitoring(
         policy=policy,
         experience=experience,
@@ -301,110 +260,10 @@ def create_master_trainer_components(
         timer=timer,
     )
 
-    # Set up wandb metrics
+    # Set up wandb metrics (master only)
     if wandb_run and is_master:
         setup_wandb_metrics(wandb_run)
         log_model_parameters(policy, wandb_run)
-
-    return memory_monitor, system_monitor
-
-
-def _create_initial_policy_record(
-    policy_store: Any,
-    initial_policy_uri: str | None,
-    initial_generation: int,
-) -> Any | None:
-    """Create a minimal PolicyRecord for stats tracking."""
-    if not initial_policy_uri:
-        return None
-    metadata = PolicyMetadata(generation=initial_generation)
-    return PolicyRecord(policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata)
-
-
-def log_training_status(
-    epoch: int,
-    agent_step: int,
-    total_timesteps: int,
-    timer: Stopwatch,
-    steps_before: int,
-    is_master: bool,
-) -> None:
-    """Log training status with rich console output."""
-    if not is_master:
-        return
-
-    rollout_time, train_time, stats_time = get_epoch_timing(timer)
-    steps_calculated = agent_step - steps_before
-
-    total_time = train_time + rollout_time + stats_time
-    steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
-
-    # Use our new logging function
-    log_training_progress(
-        epoch=epoch,
-        agent_step=agent_step,
-        total_timesteps=total_timesteps,
-        steps_per_sec=steps_per_sec,
-        train_time=train_time,
-        rollout_time=rollout_time,
-        stats_time=stats_time,
-        is_master=is_master,
-    )
-
-
-def train(
-    cfg: DictConfig,
-    wandb_run: Any | None,
-    policy_store: Any,
-    sim_suite_config: Any,
-    stats_client: Any | None,
-    **kwargs: Any,
-) -> None:
-    """Functional training loop."""
-    # Create all components individually first to get is_master value
-    (
-        vecenv,
-        policy,
-        optimizer,
-        experience,
-        kickstarter,
-        hyperparameter_scheduler,
-        losses,
-        timer,
-        torch_profiler,
-        trainer_cfg,
-        device,
-        is_master,
-        world_size,
-        rank,
-        agent_step,
-        epoch,
-        stats_tracker,
-        latest_saved_policy_record,
-        initial_policy_uri,
-        initial_generation,
-        eval_scores,
-        curriculum,
-        checkpoint_manager,
-    ) = create_training_components(
-        cfg=cfg,
-        wandb_run=wandb_run,
-        policy_store=policy_store,
-        sim_suite_config=sim_suite_config,
-        stats_client=stats_client,
-    )
-
-    if is_master:
-        logger.info("Starting training")
-
-    # Create master-only components
-    memory_monitor, system_monitor = create_master_trainer_components(
-        policy=policy,
-        experience=experience,
-        wandb_run=wandb_run,
-        is_master=is_master,
-        timer=timer,
-    )
 
     # Initialize stats tracking
     if stats_client is not None:
@@ -457,9 +316,12 @@ def train(
         with timer("_process_stats"):
             if is_master and wandb_run:
                 # Create initial policy record for process_stats
-                initial_policy_record = _create_initial_policy_record(
-                    policy_store, initial_policy_uri, initial_generation
-                )
+                initial_policy_record = None
+                if initial_policy_uri:
+                    metadata = PolicyMetadata(generation=initial_generation)
+                    initial_policy_record = PolicyRecord(
+                        policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
+                    )
 
                 process_stats(
                     stats=stats_tracker.rollout_stats,
@@ -486,14 +348,23 @@ def train(
             stats_tracker.clear_grad_stats()
 
         # Log training status
-        log_training_status(
-            epoch=epoch,
-            agent_step=agent_step,
-            total_timesteps=trainer_cfg.total_timesteps,
-            timer=timer,
-            steps_before=steps_before,
-            is_master=is_master,
-        )
+        if is_master:
+            rollout_time, train_time, stats_time = get_epoch_timing(timer)
+            steps_calculated = agent_step - steps_before
+
+            total_time = train_time + rollout_time + stats_time
+            steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
+
+            log_training_progress(
+                epoch=epoch,
+                agent_step=agent_step,
+                total_timesteps=trainer_cfg.total_timesteps,
+                steps_per_sec=steps_per_sec,
+                train_time=train_time,
+                rollout_time=rollout_time,
+                stats_time=stats_time,
+                is_master=is_master,
+            )
 
         # Update L2 weights if configured
         if hasattr(policy, "l2_init_weight_update_interval"):
@@ -507,7 +378,12 @@ def train(
         # Save policy
         if checkpoint_manager.should_checkpoint(epoch):
             # Create initial policy record for metadata
-            initial_policy_record = _create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
+            initial_policy_record = None
+            if initial_policy_uri:
+                metadata = PolicyMetadata(generation=initial_generation)
+                initial_policy_record = PolicyRecord(
+                    policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
+                )
 
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
@@ -645,7 +521,12 @@ def train(
     # Force final saves
     if is_master:
         # Create initial policy record for metadata
-        initial_policy_record = _create_initial_policy_record(policy_store, initial_policy_uri, initial_generation)
+        initial_policy_record = None
+        if initial_policy_uri:
+            metadata = PolicyMetadata(generation=initial_generation)
+            initial_policy_record = PolicyRecord(
+                policy_store=policy_store, run_name="", uri=initial_policy_uri, metadata=metadata
+            )
 
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
