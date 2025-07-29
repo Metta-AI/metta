@@ -463,6 +463,7 @@ class MettaTrainer:
 
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
+        self.policy.reset_memory()
 
         # The policy is responsible for creating a zero state if one is not available.
         buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
@@ -520,7 +521,7 @@ class MettaTrainer:
         """Perform training phase."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
-
+        self.policy.reset_memory()
         self.losses.zero()
 
         prio_cfg = trainer_cfg.prioritized_experience_replay

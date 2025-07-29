@@ -26,7 +26,7 @@ class PolicyRecord:
         self.uri: str | None = uri
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy = None
+        self._cached_policy: nn.Module | None = None
 
     @property
     def metadata(self) -> PolicyMetadata:

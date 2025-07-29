@@ -72,6 +72,9 @@ class DistributedMettaAgent(DistributedDataParallel):
     def get_agent_experience_spec(self) -> TensorDict:
         return self.module.get_agent_experience_spec()
 
+    def reset_memory(self):
+        return self.module.reset_memory()
+
 
 class MettaAgent(nn.Module):
     def __init__(
