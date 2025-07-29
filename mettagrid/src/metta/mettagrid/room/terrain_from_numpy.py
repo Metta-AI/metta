@@ -16,44 +16,12 @@ logger = logging.getLogger("terrain_from_numpy")
 
 
 def safe_load(path, retries=5, delay=1.0):
-    """
-    Safely load numpy array with retries and handling for distributed environments.
-
-    The "array.shape = shape" error in numpy can occur when:
-    1. File is being written by another process
-    2. File system race conditions in distributed training
-    3. Memory mapping issues with concurrent access
-    """
     for attempt in range(retries):
         try:
-            # Check if file exists and has non-zero size
-            if not os.path.exists(path):
-                raise FileNotFoundError(f"File not found: {path}")
-
-            file_size = os.path.getsize(path)
-            if file_size == 0:
-                raise ValueError(f"File is empty: {path}")
-
-            # Try different loading strategies to handle various failure modes
-            try:
-                # First attempt: standard load
-                return np.load(path, allow_pickle=True)
-            except ValueError as e:
-                if "array.shape" in str(e):
-                    # Shape assignment error - try loading with copy
-                    logger.warning(f"Shape assignment error on {path}, attempting workaround")
-                    # Load with mmap_mode='c' (copy-on-write) and immediately copy
-                    arr = np.load(path, allow_pickle=True, mmap_mode="c")
-                    return arr.copy()
-                else:
-                    raise
-
-        except (ValueError, OSError, FileNotFoundError) as e:
+            return np.load(path, allow_pickle=True)
+        except ValueError:
             if attempt < retries - 1:
-                logger.warning(f"Failed to load {path} (attempt {attempt + 1}/{retries}): {e}")
-                # Exponential backoff with jitter to reduce thundering herd
-                sleep_time = delay * (2**attempt) + random.uniform(0, 0.5)
-                time.sleep(sleep_time)
+                time.sleep(delay)
                 continue
             raise
 
@@ -162,23 +130,10 @@ class TerrainFromNumpy(Room):
 
         if self._file is None:
             uri = pick_random_file(map_dir)
-            if uri is None:
-                raise ValueError(f"No valid files found in {map_dir}")
         else:
             uri = self._file
 
-        file_path = f"{map_dir}/{uri}"
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Terrain file not found: {file_path}")
-
-        level = safe_load(file_path)
-
-        # Validate loaded array
-        if not isinstance(level, np.ndarray):
-            raise TypeError(f"Expected numpy array, got {type(level)} from {file_path}")
-        if level.ndim != 2:
-            raise ValueError(f"Expected 2D array, got {level.ndim}D array from {file_path}")
-
+        level = safe_load(f"{map_dir}/{uri}")
         height, width = level.shape
         self.set_size_labels(width, height)
 
