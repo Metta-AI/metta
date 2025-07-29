@@ -192,6 +192,117 @@
       },
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "C++ Debug: Train Metta",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "-m", "tools.train",
+        "+hardware=macbook",
+        "+user=${env:USER}"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [
+        {
+          "name": "PYTHONPATH",
+          "value": "${workspaceFolder}"
+        },
+        {
+          "name": "UV_PROJECT_ENVIRONMENT",
+          "value": "${env:VIRTUAL_ENV}"
+        }
+      ],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set breakpoint pending",
+          "text": "set breakpoint pending on"
+        }
+      ],
+      "preLaunchTask": "install-debug"
+    },
+    {
+      "name": "C++ Debug: Test",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "-m", "pytest",
+        "-v", "-s",
+        "./tests"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [
+        {
+          "name": "PYTHONPATH",
+          "value": "${workspaceFolder}"
+        },
+        {
+          "name": "UV_PROJECT_ENVIRONMENT",
+          "value": "${env:VIRTUAL_ENV}"
+        }
+      ],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set breakpoint pending",
+          "text": "set breakpoint pending on"
+        }
+      ],
+      "preLaunchTask": "install-debug"
+    },
+    {
+      "name": "C++ Debug: Play Metta",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "-m", "tools.play",
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [
+        {
+          "name": "PYTHONPATH",
+          "value": "${workspaceFolder}"
+        },
+        {
+          "name": "UV_PROJECT_ENVIRONMENT",
+          "value": "${env:VIRTUAL_ENV}"
+        }
+      ],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set breakpoint pending",
+          "text": "set breakpoint pending on"
+        }
+      ],
+      "preLaunchTask": "install-debug"
     }
   ]
 }
