@@ -1,7 +1,10 @@
 #!/usr/bin/env zsh
 
-# Maintain the md5sums of the src/*.tsx files in a .md5sums file.
-# If the md5sums have changed, rebuild the widget.
+# Maintain the md5sums of the src/*.tsx files in a .md5sums file. If the md5sums
+# have changed, rebuild the widget.  The reason for this script: `metta install`
+# needs a script that can return whether or not the widget needs to be rebuilt,
+# and `npm run build` needs a script that can do that and also build the widget.
+# This script's exit code is 0 if the widget needs to be rebuilt, 1 if it doesn't.
 
 
 local md5sums_file=".md5sums"
