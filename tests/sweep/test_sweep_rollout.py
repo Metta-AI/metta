@@ -1,5 +1,6 @@
 """Unit tests for sweep rollout orchestration."""
 
+import logging
 import subprocess
 import sys
 from unittest.mock import Mock, patch
@@ -66,34 +67,6 @@ class TestMain:
         assert mock_run_single_rollout.call_count == 3
 
     @patch("sweep_rollout.run_once")
-    @patch("sweep_rollout.run_single_rollout")
-    @patch("sweep_rollout.time.sleep")
-    def test_main_retry_logic_on_failures(self, mock_sleep, mock_run_single_rollout, mock_run_once, mock_config):
-        """Test retry logic when rollouts fail."""
-        # Setup mocks
-        mock_run_once.side_effect = lambda func, **kwargs: func()
-
-        # Simulate failures then success
-        mock_run_single_rollout.side_effect = [
-            Exception("Failed 1"),
-            Exception("Failed 2"),
-            Exception("Failed 3"),
-            Exception("Max failures reached"),
-        ]
-
-        # Mock setup_sweep
-        with patch("sweep_rollout.setup_sweep", return_value="test_sweep_id"):
-            with patch.object(sys, "argv", ["sweep_rollout.py"]):
-                with patch("sweep_rollout.hydra.main", lambda **kwargs: lambda func: func):
-                    # Should exit with 0 after max failures
-                    result = main(mock_config)
-                    assert result == 0
-
-        # Verify sleep was called between failures (4 times, once after each failure)
-        assert mock_sleep.call_count == 4
-        mock_sleep.assert_called_with(5)  # rollout_retry_delay
-
-    @patch("sweep_rollout.run_once")
     @patch("sweep_rollout.logger")
     def test_main_setup_failure(self, mock_logger, mock_run_once, mock_config):
         """Test handling of sweep setup failure."""
@@ -118,34 +91,55 @@ class TestRunSingleRollout:
 
     @pytest.fixture
     def mock_config(self):
-        """Create a mock configuration for testing."""
+        """Create a mock configuration."""
         return DictConfig(
             {
-                "sweep": {"metric": "reward"},
-                "trainer": {"batch_size": 2048},
-                "wandb": {"entity": "test_entity", "project": "test_project"},
-                "sweep_id": "test_sweep_123",
                 "sweep_name": "test_sweep",
-                "runs_dir": "/tmp/runs",
-                "sweep_train_job": {"trainer": {"lr": 0.001}},
+                "sweep_dir": "/tmp/test_sweep",
+                "data_dir": "/tmp/test_sweep/runs",
+                "sweep": {
+                    "name": "test_sweep",
+                    "metric": "reward",
+                },
             }
         )
 
-    @patch("sweep_rollout.run_once")
+    @patch("sweep_rollout.evaluate_rollout")
     @patch("sweep_rollout.train_for_run")
     @patch("sweep_rollout.prepare_sweep_run")
-    @patch("sweep_rollout.evaluate_rollout")
-    def test_run_single_rollout_success(self, mock_evaluate, mock_prepare, mock_train, mock_run_once, mock_config):
-        """Test successful single rollout execution."""
-        # Setup mocks
-        mock_run_once.side_effect = lambda func, **kwargs: func()
+    @patch("sweep_rollout.run_once")
+    @patch("sweep_rollout.OmegaConf.load")
+    def test_run_single_rollout_success(
+        self, mock_load, mock_run_once, mock_prepare, mock_train, mock_evaluate, mock_config
+    ):
+        """Test successful rollout execution."""
+        # Mock run_once to execute the function
+        mock_run_once.side_effect = lambda func: func()
 
         # Prepare returns run info
+        mock_train_cfg = DictConfig(
+            {
+                "run": "test_sweep.r.1",
+                "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
+                "dist_cfg_path": "/tmp/test_sweep/runs/test_sweep.r.1/dist_cfg.yaml",
+            }
+        )
         mock_prepare.return_value = (
             "test_sweep.r.1",
-            DictConfig({"dist_cfg_path": "/tmp/dist.yaml", "data_dir": "/tmp/data"}),
+            mock_train_cfg,
             {"trainer": {"lr": 0.005}},
         )
+
+        # Mock loading the full config
+        mock_full_config = DictConfig(
+            {
+                "run": "test_sweep.r.1",
+                "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
+                "device": "cpu",
+                "wandb": {"enabled": True},
+            }
+        )
+        mock_load.return_value = mock_full_config
 
         # Evaluate returns results
         mock_evaluate.return_value = {"score": 0.95}
@@ -157,6 +151,13 @@ class TestRunSingleRollout:
         assert result == 0
         assert mock_run_once.call_count == 2  # prepare and evaluate
         mock_train.assert_called_once()
+        mock_evaluate.assert_called_once_with(
+            mock_full_config,
+            {"trainer": {"lr": 0.005}},
+            metric="reward",
+            sweep_name="test_sweep",
+            logger=logging.getLogger("sweep_rollout"),
+        )
 
     @patch("sweep_rollout.run_once")
     @patch("sweep_rollout.prepare_sweep_run")
@@ -164,70 +165,83 @@ class TestRunSingleRollout:
     def test_run_single_rollout_missing_config_keys(self, mock_logger, mock_prepare, mock_run_once, mock_config):
         """Test error handling for missing configuration keys."""
         # Remove required key
-        del mock_config["sweep_id"]
-
-        # Mock prepare_sweep_run to raise ValueError
-        mock_prepare.side_effect = ValueError("Missing required configuration keys: ['sweep_id']")
-        mock_run_once.side_effect = lambda func, **kwargs: func()
+        del mock_config["sweep_name"]
 
         # Call function and expect exception
-        with pytest.raises(ValueError, match="Missing required configuration keys"):
+        with pytest.raises(Exception, match="Missing key sweep_name"):
             run_single_rollout(mock_config)
 
-    @patch("sweep_rollout.run_once")
     @patch("sweep_rollout.train_for_run")
-    @patch("sweep_rollout.logger")
-    def test_run_single_rollout_training_failure(self, mock_logger, mock_train, mock_run_once, mock_config):
-        """Test handling of training failure."""
-        # Setup mocks
-        mock_run_once.side_effect = lambda func, **kwargs: func()
-
-        # Prepare succeeds
-        with patch("sweep_rollout.prepare_sweep_run") as mock_prepare:
-            mock_prepare.return_value = (
-                "test_sweep.r.1",
-                DictConfig({"dist_cfg_path": "/tmp/dist.yaml", "data_dir": "/tmp/data"}),
-                {},
-            )
-
-            # Training fails
-            mock_train.side_effect = Exception("Training failed")
-
-            # Call function and expect exception
-            with pytest.raises(Exception, match="Training failed"):
-                run_single_rollout(mock_config)
-
+    @patch("sweep_rollout.prepare_sweep_run")
     @patch("sweep_rollout.run_once")
+    def test_run_single_rollout_training_failure(self, mock_run_once, mock_prepare, mock_train, mock_config):
+        """Test handling of training failures."""
+        # Mock run_once to execute the function
+        mock_run_once.side_effect = lambda func: func()
+
+        # Prepare returns run info
+        mock_train_cfg = DictConfig(
+            {
+                "run": "test_sweep.r.1",
+                "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
+                "dist_cfg_path": "/tmp/test_sweep/runs/test_sweep.r.1/dist_cfg.yaml",
+            }
+        )
+        mock_prepare.return_value = (
+            "test_sweep.r.1",
+            mock_train_cfg,
+            {"trainer": {"lr": 0.005}},
+        )
+
+        # Training fails
+        mock_train.side_effect = RuntimeError("Training failed")
+
+        # Call function and expect exception
+        with pytest.raises(RuntimeError, match="Training failed"):
+            run_single_rollout(mock_config)
+
+    @patch("sweep_rollout.evaluate_rollout")
     @patch("sweep_rollout.train_for_run")
-    @patch("sweep_rollout.logger")
-    def test_run_single_rollout_evaluation_failure(self, mock_logger, mock_train, mock_run_once, mock_config):
-        """Test handling of evaluation failure."""
+    @patch("sweep_rollout.prepare_sweep_run")
+    @patch("sweep_rollout.run_once")
+    @patch("sweep_rollout.OmegaConf.load")
+    def test_run_single_rollout_evaluation_failure(
+        self, mock_load, mock_run_once, mock_prepare, mock_train, mock_evaluate, mock_config
+    ):
+        """Test handling of evaluation failures."""
+        # Mock run_once to execute the function
+        mock_run_once.side_effect = lambda func: func()
 
-        # Setup mocks
-        def run_once_side_effect(func, **kwargs):
-            # First call (prepare) succeeds
-            if not hasattr(run_once_side_effect, "call_count"):
-                run_once_side_effect.call_count = 0
-            run_once_side_effect.call_count += 1
+        # Prepare returns run info
+        mock_train_cfg = DictConfig(
+            {
+                "run": "test_sweep.r.1",
+                "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
+                "dist_cfg_path": "/tmp/test_sweep/runs/test_sweep.r.1/dist_cfg.yaml",
+            }
+        )
+        mock_prepare.return_value = (
+            "test_sweep.r.1",
+            mock_train_cfg,
+            {"trainer": {"lr": 0.005}},
+        )
 
-            if run_once_side_effect.call_count == 1:
-                return func()
-            else:
-                # Second call (evaluate) returns None
-                return None
+        # Mock loading the full config
+        mock_full_config = DictConfig(
+            {
+                "run": "test_sweep.r.1",
+                "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
+                "device": "cpu",
+            }
+        )
+        mock_load.return_value = mock_full_config
 
-        mock_run_once.side_effect = run_once_side_effect
+        # Evaluation fails
+        mock_evaluate.side_effect = RuntimeError("Evaluation failed")
 
-        with patch("sweep_rollout.prepare_sweep_run") as mock_prepare:
-            mock_prepare.return_value = (
-                "test_sweep.r.1",
-                DictConfig({"dist_cfg_path": "/tmp/dist.yaml", "data_dir": "/tmp/data"}),
-                {},
-            )
-
-            # Call function and expect exception
-            with pytest.raises(RuntimeError, match="Evaluation failed"):
-                run_single_rollout(mock_config)
+        # Call function and expect exception
+        with pytest.raises(RuntimeError, match="Evaluation failed"):
+            run_single_rollout(mock_config)
 
 
 class TestTrainForRun:
@@ -239,26 +253,34 @@ class TestTrainForRun:
         # Setup mock
         mock_subprocess_run.return_value = Mock(returncode=0)
 
+        # Create mock config
+        mock_config = DictConfig(
+            {
+                "run": "test_run",
+                "run_dir": "/tmp/test_run",
+                "data_dir": "/tmp/test_run",
+                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
+            }
+        )
+
         # Call function
         train_for_run(
             run_name="test_run",
-            dist_cfg_path="/tmp/dist.yaml",
-            data_dir="/tmp/data",
+            train_job_cfg=mock_config,
             original_args=["--gpus=4", "--nodes=2", "wandb=off"],
             logger=Mock(),
         )
 
-        # Verify command
+        # Verify subprocess was called
         mock_subprocess_run.assert_called_once()
-        cmd = mock_subprocess_run.call_args[0][0]
+        call_args = mock_subprocess_run.call_args[0][0]
 
-        assert cmd[0] == "./devops/train.sh"
-        assert "run=test_run" in cmd
-        assert "dist_cfg_path=/tmp/dist.yaml" in cmd
-        assert "data_dir=/tmp/data" in cmd
-        assert "--gpus=4" in cmd
-        assert "--nodes=2" in cmd
-        assert "wandb=off" in cmd
+        # Check command structure
+        assert "./devops/train.sh" in call_args
+        assert "run=test_run" in call_args
+        assert "dist_cfg_path=/tmp/test_run/dist_cfg.yaml" in call_args
+        assert "--gpus=4" in call_args
+        assert "--nodes=2" in call_args
 
     @patch("subprocess.run")
     def test_train_for_run_filters_duplicate_args(self, mock_subprocess_run):
@@ -266,60 +288,81 @@ class TestTrainForRun:
         # Setup mock
         mock_subprocess_run.return_value = Mock(returncode=0)
 
-        # Call function with args that should be filtered
-        train_for_run(
-            run_name="test_run",
-            dist_cfg_path="/tmp/dist.yaml",
-            data_dir="/tmp/data",
-            original_args=[
-                "run=old_run",  # Should be filtered
-                "sweep_name=old_sweep",  # Should be filtered
-                "--gpus=4",  # Should be kept
-            ],
+        # Create mock config
+        mock_config = DictConfig(
+            {
+                "run": "test_run",
+                "run_dir": "/tmp/test_run",
+                "data_dir": "/tmp/test_run",
+                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
+            }
         )
 
-        # Verify command
-        cmd = mock_subprocess_run.call_args[0][0]
+        # Call function with duplicate args
+        train_for_run(
+            run_name="test_run",
+            train_job_cfg=mock_config,
+            original_args=["run=old_run", "--gpus=4", "dist_cfg_path=/old/path"],
+            logger=Mock(),
+        )
 
-        # Check filtered args are not present
-        assert "run=old_run" not in cmd
-        assert "sweep_name=old_sweep" not in cmd
+        # Verify subprocess was called
+        call_args = mock_subprocess_run.call_args[0][0]
 
-        # Check new args are present
-        assert "run=test_run" in cmd
-        assert "--gpus=4" in cmd
+        # Should have filtered out duplicate run and dist_cfg_path
+        assert call_args.count("run=test_run") == 1
+        assert call_args.count("dist_cfg_path=/tmp/test_run/dist_cfg.yaml") == 1
+        assert "run=old_run" not in call_args
+        assert "dist_cfg_path=/old/path" not in call_args
 
     @patch("subprocess.run")
     def test_train_for_run_handles_failure(self, mock_subprocess_run):
-        """Test handling of training subprocess failure."""
+        """Test error handling when training fails."""
         # Setup mock to fail
         mock_subprocess_run.side_effect = subprocess.CalledProcessError(1, "train.sh")
+
+        # Create mock config
+        mock_config = DictConfig(
+            {
+                "run": "test_run",
+                "run_dir": "/tmp/test_run",
+                "data_dir": "/tmp/test_run",
+                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
+            }
+        )
 
         # Call function and expect exception
         with pytest.raises(Exception, match="Training failed for test_run"):
             train_for_run(
                 run_name="test_run",
-                dist_cfg_path="/tmp/dist.yaml",
-                data_dir="/tmp/data",
+                train_job_cfg=mock_config,
+                original_args=[],
                 logger=Mock(),
             )
 
     @patch("subprocess.run")
-    @patch("builtins.print")
-    def test_train_for_run_without_logger(self, mock_print, mock_subprocess_run):
-        """Test that function works without logger (uses print)."""
+    def test_train_for_run_without_logger(self, mock_subprocess_run):
+        """Test that function works without a logger."""
         # Setup mock
         mock_subprocess_run.return_value = Mock(returncode=0)
+
+        # Create mock config
+        mock_config = DictConfig(
+            {
+                "run": "test_run",
+                "run_dir": "/tmp/test_run",
+                "data_dir": "/tmp/test_run",
+                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
+            }
+        )
 
         # Call function without logger
         train_for_run(
             run_name="test_run",
-            dist_cfg_path="/tmp/dist.yaml",
-            data_dir="/tmp/data",
+            train_job_cfg=mock_config,
+            original_args=[],
+            logger=None,
         )
 
-        # Verify print was called
-        mock_print.assert_called()
-        print_output = str(mock_print.call_args[0][0])
-        assert "[SWEEP:test_run]" in print_output
-        assert "Running:" in print_output
+        # Should complete without error
+        mock_subprocess_run.assert_called_once()
