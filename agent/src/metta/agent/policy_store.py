@@ -45,6 +45,10 @@ class PolicySelectorConfig:
         self.metric = metric
 
 
+class PolicyMissingError(ValueError):
+    pass
+
+
 class PolicyStore:
     def __init__(self, cfg: DictConfig, wandb_run: WandbRun | None, policy_cache_size: int = 10) -> None:
         self._cfg = cfg
@@ -92,7 +96,7 @@ class PolicyStore:
         prs = self._load_policy_records_from_uri(uri)
 
         if not prs:
-            raise ValueError(f"No policy records found at {uri}")
+            raise PolicyMissingError(f"No policy records found at {uri}")
 
         logger.info(f"Found {len(prs)} policy records at {uri}")
 

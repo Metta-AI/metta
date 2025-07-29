@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Repo, TableInfo, TableSchema, SQLQueryResponse } from './repo'
+import { AIQueryBuilder } from './AIQueryBuilder'
 
 interface QueryHistoryItem {
   query: string
@@ -656,6 +657,8 @@ export function SQLQuery({ repo }: Props) {
                 </div>
               </div>
             )}
+
+            <AIQueryBuilder repo={repo} onQueryGenerated={setQuery} />
 
             <div className="query-input-wrapper">
               <textarea
