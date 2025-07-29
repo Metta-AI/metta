@@ -369,12 +369,7 @@ def train(
             maybe_update_l2_weights(policy, epoch, interval, is_master)
 
         # Save policy - all ranks must participate in checkpoint decision
-        should_checkpoint = checkpoint_manager.should_checkpoint(epoch)
-        if torch.distributed.is_initialized():
-            logger.info(f"Rank {rank}: Epoch {epoch}, should_checkpoint={should_checkpoint}, is_master={is_master}")
-
-        if should_checkpoint:
-            logger.info(f"Rank {rank}: Entering checkpoint block")
+        if checkpoint_manager.should_checkpoint(epoch):
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
                 epoch=epoch,
@@ -383,14 +378,12 @@ def train(
                 timer=timer,
                 initial_policy_record=initial_policy_record,
             )
-            logger.info(f"Rank {rank}: Exited save_policy, saved_record={saved_record is not None}")
 
             if saved_record:
                 latest_saved_policy_record = saved_record
 
                 # Only master saves training state
                 if is_master:
-                    logger.info(f"Rank {rank}: Master saving checkpoint")
                     checkpoint_manager.save_checkpoint(
                         agent_step=agent_step,
                         epoch=epoch,
@@ -400,7 +393,6 @@ def train(
                         run_dir=cfg.run_dir,
                         kickstarter=kickstarter,
                     )
-                    logger.info(f"Rank {rank}: Master completed checkpoint save")
 
             # All ranks must synchronize after checkpoint operations
             if torch.distributed.is_initialized():
