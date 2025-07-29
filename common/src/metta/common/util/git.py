@@ -2,12 +2,17 @@ import json
 import logging
 import subprocess
 
+import httpx
+
+from metta.common.util.memoization import memoize
+
 
 class GitError(Exception):
     """Custom exception for git-related errors."""
 
 
-METTA_API_REPO_URL = "https://github.com/Metta-AI/metta.git"
+METTA_API_REPO = "Metta-AI/metta"
+METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
 
 
 def run_git(*args: str) -> str:
@@ -177,3 +182,15 @@ def get_git_hash_for_remote_task(
             logger.warning(f"Proceeding with unpushed commit {short_commit} due to {skip_cmd}")
 
     return current_commit
+
+
+@memoize(max_age=60 * 5)
+async def get_latest_commit(branch: str = "main") -> str:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.github.com/repos/{METTA_API_REPO}/commits/{branch}",
+            headers={"Accept": "application/vnd.github.v3+json"},
+        )
+        response.raise_for_status()
+        commit_data = response.json()
+        return commit_data["sha"]
