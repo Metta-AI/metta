@@ -183,7 +183,7 @@ export const AuthorsView: FC<AuthorsViewProps> = ({ authors }) => {
           <input
             ref={filterInputRef}
             type="text"
-            placeholder="Filter by name, institution, or expertise..."
+            placeholder="Filter..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -279,7 +279,7 @@ export const AuthorsView: FC<AuthorsViewProps> = ({ authors }) => {
                       {author.name}
                     </h3>
                     <p className="text-gray-600 text-sm break-words leading-tight">
-                      {author.institution || 'No institution'}
+                      {author.institution || ''}
                     </p>
                   </div>
                 </div>
@@ -332,7 +332,8 @@ export const AuthorsView: FC<AuthorsViewProps> = ({ authors }) => {
       {/* Author Profile Overlay */}
       {isOverlayOpen && selectedAuthor && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center pt-12 pb-12 bg-black bg-opacity-30 fadeIn"
+          className="fixed inset-0 z-50 flex items-start justify-center pt-12 pb-12 fadeIn"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
           onClick={closeOverlay}
         >
           <div
