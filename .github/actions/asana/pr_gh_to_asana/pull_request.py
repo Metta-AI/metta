@@ -118,8 +118,6 @@ class PullRequest:
         return self.events[-1] if self.events else None
 
     def print_debug_info(self):
-        # print("Pull request JSON:")
-        # print(json.dumps(self.data, indent=2))
         print(f"assignees: {self.assignees}")
         print(f"author: {self.author}")
         print(f"reviewers: {self.reviewers}")
