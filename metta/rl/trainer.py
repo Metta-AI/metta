@@ -91,9 +91,9 @@ def train(
     # Log recent checkpoints for debugging
     checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
     if checkpoints_dir.exists():
-        files = sorted(os.listdir(checkpoints_dir))
-        recent_files = files[-3:] if len(files) >= 3 else files
-        logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
+        files = sorted(os.listdir(checkpoints_dir))[-3:]
+        if files:
+            logger.info(f"Recent checkpoints: {', '.join(files)}")
 
     # Create trainer config from Hydra config
     trainer_cfg = create_trainer_config(cfg)
@@ -155,17 +155,13 @@ def train(
 
     # Load checkpoint if it exists
     checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-    agent_step = 0
-    epoch = 0
+    agent_step = checkpoint.agent_step if checkpoint else 0
+    epoch = checkpoint.epoch if checkpoint else 0
 
     if checkpoint:
-        agent_step = checkpoint.agent_step
-        epoch = checkpoint.epoch
         logger.info(f"Restored from checkpoint at {agent_step} steps")
-
-    # Restore timer state if checkpoint exists
-    if checkpoint and checkpoint.stopwatch_state is not None:
-        timer.load_state(checkpoint.stopwatch_state, resume_running=True)
+        if checkpoint.stopwatch_state is not None:
+            timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
@@ -177,23 +173,6 @@ def train(
         is_master=is_master,
         rank=rank,
     )
-
-    # Extract initial policy info
-    initial_policy_uri = initial_policy_record.uri if initial_policy_record else None
-    initial_generation = initial_policy_record.metadata.get("generation", 0) if initial_policy_record else 0
-
-    # Create a reusable initial policy record object for metadata
-    def make_initial_policy_record():
-        if initial_policy_uri:
-            return type(
-                "obj",
-                (object,),
-                {
-                    "uri": initial_policy_uri,
-                    "metadata": {"generation": initial_generation},
-                },
-            )()
-        return None
 
     # Validate that policy matches environment
     validate_policy_environment_match(policy, metta_grid_env)
@@ -325,9 +304,6 @@ def train(
         # Process stats
         with timer("_process_stats"):
             if is_master and wandb_run:
-                # Create initial policy record for process_stats
-                initial_policy_record = make_initial_policy_record()
-
                 process_stats(
                     stats=stats_tracker.rollout_stats,
                     losses=losses,
@@ -374,19 +350,11 @@ def train(
             )
 
         # Update L2 weights if configured
-        if hasattr(policy, "l2_init_weight_update_interval"):
-            maybe_update_l2_weights(
-                agent=policy,
-                epoch=epoch,
-                interval=getattr(policy, "l2_init_weight_update_interval", 0),
-                is_master=is_master,
-            )
+        if interval := getattr(policy, "l2_init_weight_update_interval", 0):
+            maybe_update_l2_weights(policy, epoch, interval, is_master)
 
         # Save policy
         if checkpoint_manager.should_checkpoint(epoch):
-            # Create initial policy record for metadata
-            initial_policy_record = make_initial_policy_record()
-
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
                 epoch=epoch,
@@ -519,9 +487,6 @@ def train(
 
     # Force final saves
     if is_master:
-        # Create initial policy record for metadata
-        initial_policy_record = make_initial_policy_record()
-
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
             epoch=epoch,
