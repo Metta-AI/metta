@@ -17,6 +17,22 @@ from metta.rl.util.rich_progress import log_rich_progress, should_use_rich_conso
 logger = logging.getLogger(__name__)
 
 
+def should_run(
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> bool:
+    """Check if a periodic task should run based on interval and master status."""
+    if not is_master or not interval:
+        return False
+
+    if force:
+        return True
+
+    return epoch % interval == 0
+
+
 def run_training_epoch(
     vecenv: Any,
     policy: Any,

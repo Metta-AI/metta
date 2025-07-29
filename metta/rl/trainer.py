@@ -52,8 +52,8 @@ from metta.rl.util.training_loop import (
     get_epoch_timing,
     log_training_progress,
     run_training_epoch,
+    should_run,
 )
-from metta.rl.util.utils import should_run
 from metta.rl.vecenv import make_vecenv
 from metta.rl.wandb import (
     abort_requested,

@@ -21,7 +21,6 @@ from .losses import compute_ppo_losses, process_minibatch_update
 
 # Optimization utilities
 from .optimization import (
-    calculate_explained_variance,
     compute_gradient_stats,
     maybe_update_l2_weights,
 )
@@ -46,9 +45,6 @@ from .stats import (
     process_training_stats,
 )
 
-# Utility functions
-from .utils import should_run
-
 __all__ = [
     # Advantage
     "compute_advantage",
@@ -66,7 +62,6 @@ __all__ = [
     "compute_ppo_losses",
     "process_minibatch_update",
     # Optimization
-    "calculate_explained_variance",
     "compute_gradient_stats",
     "maybe_update_l2_weights",
     # Policy management
@@ -84,6 +79,4 @@ __all__ = [
     "compute_timing_stats",
     "process_stats",
     "process_training_stats",
-    # Utils
-    "should_run",
 ]

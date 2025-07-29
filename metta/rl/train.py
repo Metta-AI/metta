@@ -8,7 +8,6 @@ from metta.rl.losses import Losses
 from metta.rl.util.advantage import compute_advantage
 from metta.rl.util.batch_utils import calculate_prioritized_sampling_params
 from metta.rl.util.losses import process_minibatch_update
-from metta.rl.util.optimization import calculate_explained_variance
 
 
 def train_ppo(
@@ -111,6 +110,9 @@ def train_ppo(
                 break
 
     # Calculate explained variance
-    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+    y_pred = experience.values.flatten()
+    y_true = advantages.flatten() + experience.values.flatten()
+    var_y = y_true.var()
+    losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
 
     return epochs_trained
