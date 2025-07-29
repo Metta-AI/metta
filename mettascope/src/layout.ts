@@ -9,6 +9,11 @@ export enum PanelType {
   AGENT_DETAILS = 'Agent Details'
 }
 
+export enum LayoutDirection {
+  HORIZONTAL = 'horizontal',
+  VERTICAL = 'vertical'
+}
+
 export class Tab {
   public title: string
   public content: string
@@ -162,98 +167,154 @@ export class Pane {
   }
 }
 
-export class SplitLayout {
-  private container: HTMLElement
-  private leftPane!: Pane
-  private rightPane!: Pane
-  private splitter!: HTMLElement
-  private leftContainer!: HTMLElement
-  private rightContainer!: HTMLElement
-  private isDragging: boolean = false
-  private startX: number = 0
-  private startLeftWidth: number = 0
+// Layout child can be either a Pane or another Layout for nesting
+export type LayoutChild = Pane | Layout
 
-  constructor(container: HTMLElement) {
+export class Layout {
+  private container: HTMLElement
+  private children: LayoutChild[] = []
+  private childContainers: HTMLElement[] = []
+  private splitters: HTMLElement[] = []
+  private direction: LayoutDirection
+  private isDragging: boolean = false
+  private dragSplitterIndex: number = -1
+  private startPosition: number = 0
+  private startSizes: number[] = []
+
+  constructor(container: HTMLElement, direction: LayoutDirection = LayoutDirection.HORIZONTAL) {
     this.container = container
+    this.direction = direction
     this.render()
-    this.setupSplitter()
-    this.initializePanes()
+    this.setupSplitters()
   }
 
   private render(): void {
     this.container.innerHTML = `
-      <div class="split-container">
-        <div class="pane-container" style="flex: 1;"></div>
-        <div class="splitter"></div>
-        <div class="pane-container" style="flex: 1;"></div>
+      <div class="layout-container ${this.direction}">
       </div>
     `
-
-    this.leftContainer = this.container.querySelector('.pane-container:first-child') as HTMLElement
-    this.rightContainer = this.container.querySelector('.pane-container:last-child') as HTMLElement
-    this.splitter = this.container.querySelector('.splitter') as HTMLElement
   }
 
-  private setupSplitter(): void {
-    this.splitter.addEventListener('mousedown', (e) => {
-      this.isDragging = true
-      this.startX = e.clientX
-      this.startLeftWidth = this.leftContainer.offsetWidth
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-      e.preventDefault()
+  public addChild(child: LayoutChild): void {
+    this.children.push(child)
+    this.updateLayout()
+  }
+
+  public removeChild(child: LayoutChild): void {
+    const index = this.children.indexOf(child)
+    if (index !== -1) {
+      this.children.splice(index, 1)
+      this.updateLayout()
+    }
+  }
+
+  private updateLayout(): void {
+    const layoutContainer = this.container.querySelector('.layout-container') as HTMLElement
+    layoutContainer.innerHTML = ''
+    this.childContainers = []
+    this.splitters = []
+
+    // Create containers for each child
+    this.children.forEach((child, index) => {
+      // Create child container
+      const childContainer = document.createElement('div')
+      childContainer.className = 'layout-child'
+      childContainer.style.flex = '1'
+      layoutContainer.appendChild(childContainer)
+      this.childContainers.push(childContainer)
+
+      // Set up the child in its container
+      if (child instanceof Pane) {
+        // For Panes, append their existing element to the new container
+        childContainer.appendChild(child.element)
+      } else {
+        // For nested Layouts, update their container
+        child.container = childContainer
+        child.render()
+      }
+
+      // Add splitter after each child except the last
+      if (index < this.children.length - 1) {
+        const splitter = document.createElement('div')
+        splitter.className = `splitter ${this.direction}`
+        layoutContainer.appendChild(splitter)
+        this.splitters.push(splitter)
+      }
+    })
+
+    this.setupSplitters()
+  }
+
+  private setupSplitters(): void {
+    this.splitters.forEach((splitter, index) => {
+      splitter.addEventListener('mousedown', (e) => {
+        this.isDragging = true
+        this.dragSplitterIndex = index
+        this.startPosition = this.direction === LayoutDirection.HORIZONTAL ? e.clientX : e.clientY
+        this.startSizes = this.childContainers.map(container =>
+          this.direction === LayoutDirection.HORIZONTAL ? container.offsetWidth : container.offsetHeight
+        )
+        document.body.style.cursor = this.direction === LayoutDirection.HORIZONTAL ? 'col-resize' : 'row-resize'
+        document.body.style.userSelect = 'none'
+        e.preventDefault()
+      })
     })
 
     document.addEventListener('mousemove', (e) => {
-      if (!this.isDragging) return
+      if (!this.isDragging || this.dragSplitterIndex === -1) return
 
-      const deltaX = e.clientX - this.startX
-      const containerWidth = this.container.offsetWidth
-      const splitterWidth = this.splitter.offsetWidth
-      const newLeftWidth = this.startLeftWidth + deltaX
-      const minWidth = 200
-      const maxWidth = containerWidth - splitterWidth - minWidth
+      const currentPosition = this.direction === LayoutDirection.HORIZONTAL ? e.clientX : e.clientY
+      const delta = currentPosition - this.startPosition
+      const containerSize = this.direction === LayoutDirection.HORIZONTAL
+        ? this.container.offsetWidth
+        : this.container.offsetHeight
+      const splitterSize = this.direction === LayoutDirection.HORIZONTAL
+        ? this.splitters[0]?.offsetWidth || 0
+        : this.splitters[0]?.offsetHeight || 0
 
-      if (newLeftWidth >= minWidth && newLeftWidth <= maxWidth) {
-        const leftFlex = newLeftWidth / (containerWidth - splitterWidth)
-        const rightFlex = 1 - leftFlex
+      const leftIndex = this.dragSplitterIndex
+      const rightIndex = this.dragSplitterIndex + 1
 
-        this.leftContainer.style.flex = `${leftFlex}`
-        this.rightContainer.style.flex = `${rightFlex}`
+      const newLeftSize = this.startSizes[leftIndex] + delta
+      const newRightSize = this.startSizes[rightIndex] - delta
+      const minSize = 100
+
+      if (newLeftSize >= minSize && newRightSize >= minSize) {
+        const totalFlexibleSize = containerSize - (this.splitters.length * splitterSize)
+        const leftFlex = newLeftSize / totalFlexibleSize
+        const rightFlex = newRightSize / totalFlexibleSize
+
+        this.childContainers[leftIndex].style.flex = `${leftFlex}`
+        this.childContainers[rightIndex].style.flex = `${rightFlex}`
       }
     })
 
     document.addEventListener('mouseup', () => {
       if (this.isDragging) {
         this.isDragging = false
+        this.dragSplitterIndex = -1
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
       }
     })
   }
 
-  private initializePanes(): void {
-    // Create left pane with initial tab.
-    this.leftPane = new Pane(this.leftContainer)
-    const leftTab = new Tab('Left Panel', 'This is the left side panel.\n\nYou can add more tabs using the + button.', PanelType.LOGS)
-    this.leftPane.addTab(leftTab)
-
-    // Create right pane with initial tab.
-    this.rightPane = new Pane(this.rightContainer)
-    const rightTab = new Tab('Right Panel', 'This is the right side panel.\n\nIt works independently from the left panel.', PanelType.MAP_VIEW)
-    this.rightPane.addTab(rightTab)
+  public getChildren(): LayoutChild[] {
+    return this.children
   }
 
-  public getLeftPane(): Pane {
-    return this.leftPane
+  public getDirection(): LayoutDirection {
+    return this.direction
   }
 
-  public getRightPane(): Pane {
-    return this.rightPane
+  public setDirection(direction: LayoutDirection): void {
+    this.direction = direction
+    this.render()
+    this.updateLayout()
   }
 }
 
-// Initialize the layout system with split panes.
+// Initialize the layout system with a basic horizontal split.
 export function initLayout(): void {
   const container = document.getElementById('layout-container')
   if (!container) {
@@ -261,7 +322,21 @@ export function initLayout(): void {
     return
   }
 
-  const splitLayout = new SplitLayout(container)
+  const layout = new Layout(container, LayoutDirection.HORIZONTAL)
+
+  // Create initial panes
+  const leftContainer = document.createElement('div')
+  const leftPane = new Pane(leftContainer)
+  const leftTab = new Tab('Left Panel', 'This is the left side panel.\n\nYou can add more tabs using the + button.', PanelType.LOGS)
+  leftPane.addTab(leftTab)
+
+  const rightContainer = document.createElement('div')
+  const rightPane = new Pane(rightContainer)
+  const rightTab = new Tab('Right Panel', 'This is the right side panel.\n\nIt works independently from the left panel.', PanelType.MAP_VIEW)
+  rightPane.addTab(rightTab)
+
+  layout.addChild(leftPane)
+  layout.addChild(rightPane)
 }
 
 // Auto-initialize when the DOM is ready.
