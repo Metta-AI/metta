@@ -1,7 +1,7 @@
 {
   "type": "module",
   "scripts": {
-    "build": "./should_build.sh 1 || true",
+    "build": "./should_build.sh 1",
     "dev": "vite --port 5174"
   },
   "devDependencies": {
