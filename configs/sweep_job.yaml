@@ -9,7 +9,6 @@ defaults:
 
 cmd: sweep
 sweep_name: ???  # Will be set via command line override
-sweep_id: ???  # Will be set via command line override
 max_consecutive_failures: 0
 rollout_retry_delay: 5
 max_observations_to_load: 250
@@ -32,19 +31,19 @@ trainer:
 #     simple:
 #       env: /env/mettagrid/arena/basic_easy_shaped
 
-wandb:
-  group: ${sweep_name}
-
 sweep_train_job:
   sim: ${sim}
   trainer: ${trainer}
   agent: ${agent}
   wandb: ${wandb}
-  run: ???  # Will be set via command line override
-  runs_dir: "${sweep_dir}/runs"
+  # These fields are set programmatically by create_train_job_cfg_for_run()
+  run: ${run}
+  data_dir: "${sweep_dir}/runs"
+  run_dir: "${sweep_dir}/runs/${run}"
+  dist_cfg_path: "${run_dir}/dist_cfg.yaml"
   stats_server_uri: null # No logging to observatory for sweeps
 
-# TODO: Remove and update references.
-sweep_dir: "${data_dir}/sweep/${sweep_name}"
+sweep_dir: ???
+run: ???
 runs_dir: "${sweep_dir}/runs"
 
