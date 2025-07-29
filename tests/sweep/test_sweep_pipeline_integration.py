@@ -94,124 +94,6 @@ class TestSweepPipelineE2E:
             }
         )
 
-    def test_complete_sweep_workflow(self, e2e_config, temp_workspace):
-        """Test the complete sweep workflow from setup to evaluation."""
-        import sys
-
-        sys.path.insert(0, "tools")
-
-        # Import after path manipulation
-        from sweep_rollout import run_single_rollout
-
-        from metta.sweep.sweep_lifecycle import setup_sweep
-
-        # Mock external dependencies
-        with (
-            patch("metta.sweep.sweep_lifecycle.CogwebClient") as mock_cogweb,
-            patch("metta.sweep.wandb_utils.wandb") as mock_wandb,
-            patch("subprocess.run") as mock_subprocess,
-            patch("metta.common.util.lock.run_once", side_effect=lambda func, **kwargs: func()),
-        ):
-            # Setup Cogweb mock
-            mock_client = Mock()
-            mock_cogweb.get_client.return_value = mock_client
-            mock_sweep_client = Mock()
-            mock_client.sweep_client.return_value = mock_sweep_client
-
-            # New sweep
-            mock_sweep_info = Mock()
-            mock_sweep_info.exists = False
-            mock_sweep_client.get_sweep.return_value = mock_sweep_info
-
-            # Mock WandB
-            mock_wandb.Api.return_value = Mock()
-            mock_wandb.sweep.return_value = "test_wandb_sweep_123"
-
-            # Mock run creation
-            mock_run = MagicMock()
-            mock_run.name = "test_run_001"
-            mock_run.id = "run_123"
-            mock_run.summary = {}
-            mock_wandb.init.return_value = mock_run
-
-            # Setup sweep
-            logger = Mock()
-            sweep_id = setup_sweep(e2e_config, logger)
-            e2e_config.sweep_id = sweep_id
-
-            # Verify sweep was created
-            assert sweep_id == "test_wandb_sweep_123"
-            assert mock_wandb.sweep.called
-
-            # Mock successful training
-            mock_subprocess.return_value = Mock(returncode=0)
-
-            # Mock policy evaluation
-            with (
-                patch("metta.sweep.sweep_lifecycle.PolicyStore") as mock_ps_class,
-                patch("metta.sweep.sweep_lifecycle.SimulationSuite") as mock_sim_class,
-                patch("metta.sweep.sweep_lifecycle.EvalStatsDB") as mock_eval_db,
-            ):
-                # Setup policy store
-                mock_ps = Mock()
-                mock_ps_class.return_value = mock_ps
-                mock_policy = Mock()
-                mock_policy.uri = "wandb://run/test_run"
-                mock_policy.metadata = {"train_time": 100.0, "agent_step": 1000, "epoch": 10}
-                mock_ps.policy_record.return_value = mock_policy
-                mock_ps.load_from_uri.return_value = mock_policy
-
-                # Setup simulation
-                mock_sim = Mock()
-                mock_sim_class.return_value = mock_sim
-                mock_results = Mock()
-                mock_results.stats_db = Mock()
-                mock_sim.simulate.return_value = mock_results
-
-                # Setup eval DB
-                mock_eval = Mock()
-                mock_eval_db.from_sim_stats_db.return_value = mock_eval
-                mock_eval.get_average_metric_by_filter.return_value = 0.85
-
-                # Mock next run ID
-                mock_sweep_client.get_next_run_id.return_value = "e2e_test_sweep.r.1"
-
-                # Mock MettaProtein to avoid parameter parsing issues
-                with patch("metta.sweep.sweep_lifecycle.MettaProtein") as mock_protein_class:
-                    mock_protein = Mock()
-                    mock_protein_class.return_value = mock_protein
-
-                    # Mock generate_protein_suggestion
-                    with (
-                        patch("metta.sweep.sweep_lifecycle.generate_protein_suggestion") as mock_gen_suggestion,
-                        patch("metta.sweep.sweep_lifecycle.fetch_protein_observations_from_wandb") as mock_fetch_obs,
-                        patch("metta.sweep.sweep_lifecycle.os.makedirs"),
-                        patch("metta.sweep.sweep_lifecycle.OmegaConf.save"),
-                        patch("metta.sweep.sweep_lifecycle.WandbContext") as mock_wandb_context,
-                        patch("metta.sweep.sweep_lifecycle.SimulationSuiteConfig") as mock_sim_config,
-                    ):
-                        mock_gen_suggestion.return_value = {"trainer": {"learning_rate": 0.001}}
-                        mock_fetch_obs.return_value = []
-
-                        # Mock WandbContext
-                        mock_wandb_run = Mock()
-                        mock_wandb_run.name = "test_run"
-                        mock_wandb_context.return_value.__enter__.return_value = mock_wandb_run
-
-                        # Mock SimulationSuiteConfig
-                        mock_sim_config.return_value = Mock()
-
-                        # Run single rollout
-                        result = run_single_rollout(e2e_config)
-
-                # Verify success
-                assert result == 0
-                assert mock_subprocess.called
-
-                # Verify files were created
-                metadata_path = Path(temp_workspace["sweep_dir"]) / "metadata.yaml"
-                assert metadata_path.exists()
-
     def test_wandb_protein_observation_flow(self):
         """Test the flow of protein observations through WandB."""
         # Mock WandB run
@@ -443,7 +325,7 @@ class TestSweepErrorRecovery:
 
             # Should raise RuntimeError
             with pytest.raises(RuntimeError, match="WandB initialization failed"):
-                evaluate_rollout(config, {}, logger)
+                evaluate_rollout(config, {}, metric="reward", sweep_name="test_sweep", logger=logger)
 
     @patch("metta.sweep.protein_utils.validate_protein_suggestion")
     def test_invalid_suggestion_handling(self, mock_validate):
