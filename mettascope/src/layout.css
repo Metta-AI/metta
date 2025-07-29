@@ -249,20 +249,19 @@
   background: transparent;
   z-index: 10;
   opacity: 0;
-  transition: opacity 0.2s;
 }
 
 .drop-zone-left {
   left: 0;
   top: 0;
-  width: 80px;
+  width: 120px;
   height: 100%;
 }
 
 .drop-zone-right {
   right: 0;
   top: 0;
-  width: 80px;
+  width: 120px;
   height: 100%;
 }
 
@@ -270,22 +269,19 @@
   left: 0;
   top: 0;
   width: 100%;
-  height: 80px;
+  height: 120px;
 }
 
 .drop-zone-bottom {
   left: 0;
   bottom: 0;
   width: 100%;
-  height: 80px;
+  height: 120px;
 }
 
 /* When dragging is active globally */
 .layout-container.dragging .drop-zone {
   pointer-events: auto;
-  opacity: 1;
-  background: rgba(0, 102, 204, 0.1);
-  border: 1px solid rgba(0, 102, 204, 0.3);
 }
 
 .drop-zone.active {
