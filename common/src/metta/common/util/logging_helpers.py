@@ -119,14 +119,17 @@ def init_logging(level: str | None = None, run_dir: str | None = None) -> None:
 
     # Check if we're running with wandb or in a context where logs might be captured
     # This includes wandb runs, batch jobs, or when NO_HYPERLINKS is set
-    use_simple_handler = (
-        os.environ.get("WANDB_MODE") is not None  # wandb is configured
-        or os.environ.get("WANDB_RUN_ID") is not None  # wandb run is active
-        or os.environ.get("METTA_RUN_ID") is not None  # metta run that might use wandb
-        or os.environ.get("AWS_BATCH_JOB_ID") is not None  # AWS batch job
-        or os.environ.get("SKYPILOT_TASK_ID") is not None  # SkyPilot job
-        or os.environ.get("NO_HYPERLINKS") is not None  # explicit disable
-        or os.environ.get("NO_RICH_LOGS") is not None  # explicit disable rich
+    use_simple_handler = any(
+        os.environ.get(var)
+        for var in [
+            "WANDB_MODE",
+            "WANDB_RUN_ID",
+            "METTA_RUN_ID",
+            "AWS_BATCH_JOB_ID",
+            "SKYPILOT_TASK_ID",
+            "NO_HYPERLINKS",
+            "NO_RICH_LOGS",
+        ]
     )
 
     if use_simple_handler:

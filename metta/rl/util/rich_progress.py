@@ -13,29 +13,18 @@ def should_use_rich_console() -> bool:
         False for batch jobs, wandb, skypilot, or when disabled.
         True for interactive terminals.
     """
+    import sys
+
     # Check if explicitly disabled
     if os.environ.get("DISABLE_RICH_LOGGING", "").lower() in ("1", "true", "yes"):
         return False
 
-    # Check for batch job environments
-    if os.environ.get("SLURM_JOB_ID") or os.environ.get("PBS_JOBID"):
-        return False
-
-    # Check for wandb
-    if os.environ.get("WANDB_RUN_ID"):
-        return False
-
-    # Check for skypilot
-    if os.environ.get("SKYPILOT_TASK_ID"):
+    # Check for batch job environments, wandb, or skypilot
+    if any(os.environ.get(var) for var in ["SLURM_JOB_ID", "PBS_JOBID", "WANDB_RUN_ID", "SKYPILOT_TASK_ID"]):
         return False
 
     # Check if we have a TTY
-    import sys
-
-    if not hasattr(sys.stdout, "isatty") or not sys.stdout.isatty():
-        return False
-
-    return True
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 
 def create_progress_table(epoch: int) -> Table:
