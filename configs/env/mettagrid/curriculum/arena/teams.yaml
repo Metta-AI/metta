@@ -1,0 +1,7 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/arena/basic_teams: 1
+  /env/mettagrid/arena/combat_teams: 1
+  /env/mettagrid/arena/advanced_teams: 1
+  /env/mettagrid/arena/tag_teams: 1
