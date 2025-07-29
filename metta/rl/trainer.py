@@ -193,9 +193,7 @@ def train(
         logger.info(f"Rank {rank}: About to initialize DistributedDataParallel on device {device}")
         logger.info(f"Rank {rank}: Policy type before wrapping: {type(policy)}")
         logger.info(
-            f"Rank {rank}: Policy device: {
-                next(policy.parameters()).device if hasattr(policy, 'parameters') else 'N/A'
-            }"
+            f"Rank {rank}: device: {next(policy.parameters()).device if hasattr(policy, 'parameters') else 'N/A'}"
         )
 
         # Ensure all ranks are ready before wrapping
