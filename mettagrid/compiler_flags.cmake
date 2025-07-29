@@ -156,17 +156,6 @@ target_link_options(mettagrid_sanitizers INTERFACE
   >
 )
 
-# ========================= RUNTIME SANITIZER OPTIONS =========================
-# Set runtime options for sanitizers to catch more issues
-# These are set as compile definitions so they're embedded in the binary
-target_compile_definitions(mettagrid_sanitizers INTERFACE
-  $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
-    # Force strict initialization order checking at runtime
-    ASAN_OPTIONS=check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1:detect_leaks=1
-    UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
-  >
-)
-
 # ========================= CONVENIENCE TARGETS =========================
 # Combined targets for easy use
 add_library(mettagrid_common_flags INTERFACE)

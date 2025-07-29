@@ -82,10 +82,19 @@ if(BUILD_TESTS)
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name} --gtest_color=yes)
-    set_tests_properties(${test_name} PROPERTIES
-      ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
-      LABELS "test"
-    )
+
+    # Set test environment with sanitizer options for Debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+      set_tests_properties(${test_name} PROPERTIES
+        ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES};ASAN_OPTIONS=detect_leaks=1:check_initialization_order=1:strict_init_order=1;UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1"
+        LABELS "test"
+      )
+    else()
+      set_tests_properties(${test_name} PROPERTIES
+        ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
+        LABELS "test"
+      )
+    endif()
   endforeach()
 endif()
 
