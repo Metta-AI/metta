@@ -38,6 +38,7 @@ from metta.rl.util.optimization import (
 from metta.rl.util.policy_management import (
     load_or_initialize_policy,
     validate_policy_environment_match,
+    wrap_agent_distributed,
 )
 from metta.rl.util.rollout import get_lstm_config
 from metta.rl.util.stats import (
@@ -200,8 +201,6 @@ def train(
         torch.distributed.barrier()
 
         # Use the wrap_agent_distributed function which handles CPU vs GPU correctly
-        from metta.rl.util.policy_management import wrap_agent_distributed
-
         policy = wrap_agent_distributed(policy, device)
 
         logger.info(f"Rank {rank}: Successfully wrapped policy for distributed training")
