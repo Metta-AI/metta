@@ -46,9 +46,22 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
 
 class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        logger.info(f"Rank {rank}: Starting DistributedMettaAgent initialization on device {device}")
+        logger.info(f"Rank {rank}: Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+
+        # Move agent to device before converting BatchNorm
+        if hasattr(agent, "to"):
+            agent = agent.to(device)
+            logger.info(f"Rank {rank}: Moved agent to device {device}")
+
         agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+        logger.info(f"Rank {rank}: Successfully converted to SyncBatchNorm")
+
+        # Note: device_ids should be [device] for GPU, None for CPU
+        # This is handled by the maybe_wrap_distributed function in policy_management.py
         super().__init__(agent, device_ids=[device], output_device=device)
+        logger.info(f"Rank {rank}: Successfully initialized DistributedDataParallel")
 
     def __getattr__(self, name):
         try:

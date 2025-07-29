@@ -11,7 +11,6 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -191,8 +190,23 @@ def train(
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
-        logger.info(f"Initializing DistributedDataParallel on device {device}")
-        policy = DistributedMettaAgent(policy, device)
+        logger.info(f"Rank {rank}: About to initialize DistributedDataParallel on device {device}")
+        logger.info(f"Rank {rank}: Policy type before wrapping: {type(policy)}")
+        logger.info(
+            f"Rank {rank}: Policy device: {
+                next(policy.parameters()).device if hasattr(policy, 'parameters') else 'N/A'
+            }"
+        )
+
+        # Ensure all ranks are ready before wrapping
+        torch.distributed.barrier()
+
+        # Use the maybe_wrap_distributed function which handles CPU vs GPU correctly
+        from metta.rl.util.policy_management import maybe_wrap_distributed
+
+        policy = maybe_wrap_distributed(policy, device)
+
+        logger.info(f"Rank {rank}: Successfully wrapped policy for distributed training")
         torch.distributed.barrier()
 
     # Get LSTM configuration
