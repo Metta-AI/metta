@@ -92,6 +92,40 @@ class HyperparameterScheduler:
                 initial_value = self.trainer.hyperparameters[param_name]
                 self.schedulers[param_name] = ConstantSchedule(initial_value)
 
+    @classmethod
+    def from_trainer_config(cls, trainer_cfg: DictConfig, optimizer, total_timesteps: int, logger=None):
+        """Factory method to create HyperparameterScheduler from trainer config.
+
+        Args:
+            trainer_cfg: The trainer configuration
+            optimizer: The optimizer to update learning rate on
+            total_timesteps: Total timesteps for progress calculation
+            logger: Logger instance (optional)
+        """
+
+        # Create a mock trainer object that provides the necessary hyperparameters
+        class MockTrainer:
+            def __init__(self, trainer_cfg, optimizer):
+                self.trainer_cfg = trainer_cfg
+                self.optimizer = optimizer
+                self.hyperparameters = {
+                    "learning_rate": trainer_cfg.optimizer.learning_rate,
+                    "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
+                    "ppo_vf_clip_coef": trainer_cfg.ppo.vf_clip_coef,
+                    "ppo_ent_coef": trainer_cfg.ppo.ent_coef,
+                    "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
+                    "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
+                }
+
+        mock_trainer = MockTrainer(trainer_cfg, optimizer)
+
+        if logger is None:
+            import logging as log_module
+
+            logger = log_module
+
+        return cls(trainer_cfg, mock_trainer, total_timesteps, logger)
+
     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
         """Compute the scheduled value for a hyperparameter at the current step."""
         schedule_fn = self.schedulers[param_name]
@@ -99,10 +133,18 @@ class HyperparameterScheduler:
         progress = min(current_step / self.total_timesteps, 1.0)
         return schedule_fn(progress)
 
-    def step(self, current_step: int) -> None:
-        """Update trainer hyperparameters for the current step."""
+    def step(self, current_step: int, update_callbacks: dict[str, callable] = None) -> dict[str, float]:
+        """Update trainer hyperparameters for the current step.
+
+        Args:
+            current_step: Current training step
+            update_callbacks: Optional dict of callbacks to update values (e.g., trainer_cfg setters)
+
+        Returns:
+            Dict of updated parameter values
+        """
         if not self.schedulers:
-            return  # No schedulers configured
+            return {}  # No schedulers configured
 
         updates = {}
         trainer = self.trainer
@@ -113,19 +155,28 @@ class HyperparameterScheduler:
         # Update only the parameters that have schedulers
         if "learning_rate" in updates:
             trainer.optimizer.param_groups[0]["lr"] = updates["learning_rate"]
-        if "ppo_clip_coef" in updates:
-            trainer.trainer_cfg.ppo.clip_coef = updates["ppo_clip_coef"]
-        if "ppo_vf_clip_coef" in updates:
-            trainer.trainer_cfg.ppo.vf_clip_coef = updates["ppo_vf_clip_coef"]
-        if "ppo_ent_coef" in updates:
-            trainer.trainer_cfg.ppo.ent_coef = updates["ppo_ent_coef"]
-        if "ppo_l2_reg_loss_coef" in updates:
-            trainer.trainer_cfg.ppo.l2_reg_loss_coef = updates["ppo_l2_reg_loss_coef"]
-        if "ppo_l2_init_loss_coef" in updates:
-            trainer.trainer_cfg.ppo.l2_init_loss_coef = updates["ppo_l2_init_loss_coef"]
+
+        # Use update_callbacks if provided, otherwise update trainer config directly
+        if update_callbacks:
+            for param_name, new_value in updates.items():
+                if param_name in update_callbacks:
+                    update_callbacks[param_name](new_value)
+        else:
+            if "ppo_clip_coef" in updates:
+                trainer.trainer_cfg.ppo.clip_coef = updates["ppo_clip_coef"]
+            if "ppo_vf_clip_coef" in updates:
+                trainer.trainer_cfg.ppo.vf_clip_coef = updates["ppo_vf_clip_coef"]
+            if "ppo_ent_coef" in updates:
+                trainer.trainer_cfg.ppo.ent_coef = updates["ppo_ent_coef"]
+            if "ppo_l2_reg_loss_coef" in updates:
+                trainer.trainer_cfg.ppo.l2_reg_loss_coef = updates["ppo_l2_reg_loss_coef"]
+            if "ppo_l2_init_loss_coef" in updates:
+                trainer.trainer_cfg.ppo.l2_init_loss_coef = updates["ppo_l2_init_loss_coef"]
 
         if current_step % 10000 == 0 and updates:
             self.logger.info(
                 f"Step {current_step}: Updated hyperparameters: "
                 + ", ".join(f"{k}={v:.6f}" for k, v in updates.items())
             )
+
+        return updates
