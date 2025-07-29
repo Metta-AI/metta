@@ -19,7 +19,6 @@ coverage.xml
 htmlcov/
 cython_debug/
 .venv/
-uv.lock
 
 # CMake FetchContent cache
 .deps/
@@ -39,6 +38,7 @@ node_modules/
 .vite/
 dist/
 *.tsbuildinfo
+.turbo/
 
 # Project-specific build outputs
 /mettagrid/dist/

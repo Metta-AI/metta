@@ -60,7 +60,7 @@ jobs:
           run_name: ${{ steps.generate_run_name_1gpu.outputs.run_name }}
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Action handles empty as current HEAD
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
-          skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+          skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
 
       - name: Print 1-GPU Run Information
@@ -102,7 +102,7 @@ jobs:
           run_name: ${{ steps.generate_run_name_4gpu.outputs.run_name }}
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }}
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
-          skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+          skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
 
       - name: Print 4-GPU Run Information

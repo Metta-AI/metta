@@ -100,6 +100,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                     if v > 0 and k in resource_name_to_id
                 },
                 max_output=object_config.max_output,
+                max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
@@ -181,7 +182,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
-    # Note: global_observations configuration is handled through the global_obs parameter
+
     # Add recipe_details_obs flag
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
 

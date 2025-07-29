@@ -1,16 +1,29 @@
-import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
-import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr } from './replay.js'
-import { PanelInfo } from './panels.js'
-import { updateStep, updateSelection } from './main.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
 import { parseHtmlColor } from './htmlutils.js'
+import { updateSelection, updateStep } from './main.js'
+import type { PanelInfo } from './panels.js'
+import { getAttr } from './replay.js'
+import { Vec2f } from './vector_math.js'
+
+// Cache tracking.
+const lastCachedState = {
+  step: -1,
+  selection: null as any,
+  zoomLevel: -1,
+  panPos: null as Vec2f | null,
+}
 
 /** Draws the trace panel. */
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
+
+  let shouldRegenerate = false
+
+  // The trace mesh should be cached and only updated when needed.
+  ctx.setCacheable(true)
 
   // Handle mouse events for the trace panel.
   if (ui.mouseTargets.includes('#trace-panel')) {
@@ -61,9 +74,33 @@ export function drawTrace(panel: PanelInfo) {
     const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2
     const y = getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
     panel.panPos = new Vec2f(-x, -y)
+    shouldRegenerate = true
+  }
+
+  // if any state has changed, we need to regenerate the trace mesh.
+  if (
+    state.step !== lastCachedState.step ||
+    state.selectedGridObject !== lastCachedState.selection ||
+    panel.zoomLevel !== lastCachedState.zoomLevel ||
+    lastCachedState.panPos === null ||
+    panel.panPos.x() !== lastCachedState.panPos.x() ||
+    panel.panPos.y() !== lastCachedState.panPos.y()
+  ) {
+    shouldRegenerate = true
+    lastCachedState.step = state.step
+    lastCachedState.selection = state.selectedGridObject
+    lastCachedState.zoomLevel = panel.zoomLevel
+    lastCachedState.panPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
+  }
+
+  // Clear and regenerate ALL content only when needed
+  if (!shouldRegenerate) {
+    return
   }
 
   ctx.save()
+  ctx.clearMesh()
+
   const rect = panel.rectInner()
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
@@ -145,14 +182,14 @@ export function drawTrace(panel: PanelInfo) {
       // Draw resource gain/loss.
       if (state.showResources && j > 0) {
         // Figure out how many resources to draw.
-        var number = 0
-        for (const [key, [image, color]] of state.replay.resource_inventory) {
+        let number = 0
+        for (const [key, [_image, _color]] of state.replay.resource_inventory) {
           number += Math.abs(getAttr(agent, key, j + 1) - getAttr(agent, key, j))
         }
         // Draw the resources.
-        var y = 32
+        let y = 32
         // Compress the resources if there are too many so that they fit.
-        var step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number)
+        const step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number)
         for (const [key, [image, color]] of state.replay.resource_inventory) {
           const prevResources = getAttr(agent, key, j - 1)
           const nextResources = getAttr(agent, key, j)

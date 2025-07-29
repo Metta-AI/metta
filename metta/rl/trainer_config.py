@@ -22,17 +22,6 @@ class OptimizerConfig(BaseModelWithForbidExtra):
     weight_decay: float = Field(default=0, ge=0)
 
 
-class LRSchedulerConfig(BaseModelWithForbidExtra):
-    # LR scheduling disabled by default: Fixed LR often works well in RL
-    enabled: bool = False
-    # Annealing disabled: Common to use fixed LR for PPO
-    anneal_lr: bool = False
-    # No warmup by default: RL typically doesn't need warmup like supervised learning
-    warmup_steps: int | None = None
-    # Schedule type unset: Various options available when enabled
-    schedule_type: Literal["linear", "cosine", "exponential"] | None = None
-
-
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
     # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
@@ -75,6 +64,9 @@ class SimulationConfig(BaseModelWithForbidExtra):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
+    evaluate_remote: bool = Field(default=False)
+    skip_git_check: bool = Field(default=False)
+    git_hash: str | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "SimulationConfig":
@@ -211,7 +203,6 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Optimizer and scheduler
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
-    lr_scheduler: LRSchedulerConfig = Field(default_factory=LRSchedulerConfig)
 
     # Experience replay
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(

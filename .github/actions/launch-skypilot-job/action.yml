@@ -24,6 +24,9 @@ inputs:
     required: true
   skypilot_api_url:
     description: "SkyPilot API URL"
+    default: "https://skypilot-api.softmax-research.net"
+  skypilot_service_account_token:
+    description: "SkyPilot service account token"
     required: true
   observatory_token:
     description: "Observatory API token"
@@ -69,11 +72,7 @@ runs:
     - name: Configure SkyPilot API server
       shell: bash
       run: |
-        mkdir -p $HOME/.sky
-        echo "api_server:" > $HOME/.sky/config.yaml
-        echo "  endpoint: ${{ inputs.skypilot_api_url }}" >> $HOME/.sky/config.yaml
-      env:
-        SKYPILOT_API_URL: ${{ inputs.skypilot_api_url }}
+        sky api login -e ${{ inputs.skypilot_api_url }} --token ${{ inputs.skypilot_service_account_token }}
 
     - name: Launch SkyPilot training job
       shell: bash

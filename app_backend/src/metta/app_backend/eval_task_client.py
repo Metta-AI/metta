@@ -7,24 +7,26 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
     TaskClaimResponse,
     TaskCreateRequest,
+    TaskFilterParams,
     TaskResponse,
     TasksResponse,
     TaskUpdateRequest,
     TaskUpdateResponse,
 )
 from metta.common.util.collections import remove_none_values
-from metta.common.util.stats_client_cfg import get_machine_token
 
 T = TypeVar("T", bound=BaseModel)
 
 
 class EvalTaskClient:
-    def __init__(self, backend_url: str) -> None:
+    def __init__(self, backend_url: str, machine_token: str | None = None) -> None:
         self._http_client = httpx.AsyncClient(
             base_url=backend_url,
             timeout=30.0,
         )
-        self._machine_token = get_machine_token(backend_url)
+        from metta.common.util.stats_client_cfg import get_machine_token
+
+        self._machine_token = machine_token or get_machine_token(backend_url)
 
     async def __aenter__(self):
         return self
@@ -61,3 +63,10 @@ class EvalTaskClient:
 
     async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse:
         return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
+
+    async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
+        if filters is None:
+            filters = TaskFilterParams()
+        return await self._make_request(
+            TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
+        )
