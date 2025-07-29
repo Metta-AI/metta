@@ -57,7 +57,8 @@ constexpr ObservationType LastActionArg = 10;
 constexpr ObservationType LastReward = 11;
 constexpr ObservationType Glyph = 12;
 constexpr ObservationType ResourceRewards = 13;
-constexpr ObservationType ObservationFeatureCount = 14;
+constexpr ObservationType VisitationCounts = 14;
+constexpr ObservationType ObservationFeatureCount = 15;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
@@ -76,7 +77,8 @@ const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::LastActionArg, "last_action_arg"},
     {ObservationFeature::LastReward, "last_reward"},
     {ObservationFeature::Glyph, "agent:glyph"},
-    {ObservationFeature::ResourceRewards, "resource_rewards"}};
+    {ObservationFeature::ResourceRewards, "resource_rewards"},
+    {ObservationFeature::VisitationCounts, "agent:visitation_counts"}};
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
@@ -97,6 +99,7 @@ const std::map<ObservationType, float> FeatureNormalizations = {
     {ObservationFeature::Swappable, 1.0},
     {ObservationFeature::Glyph, 255.0},
     {ObservationFeature::ResourceRewards, 255.0},
+    {ObservationFeature::VisitationCounts, 1000.0},
 };
 
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;

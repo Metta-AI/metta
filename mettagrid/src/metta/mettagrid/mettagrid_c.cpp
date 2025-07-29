@@ -197,6 +197,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
+        // Initialize visitation grid with grid dimensions
+        agent->init_visitation_grid(height, width);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -329,6 +331,13 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Add inventory rewards for this agent
   if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
     global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
+  }
+
+  // Add visitation counts for this agent
+  auto& agent = _agents[agent_idx];
+  auto visitation_counts = agent->get_visitation_counts();
+  for (size_t i = 0; i < 5; i++) {
+    global_tokens.push_back({ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
   }
 
   // Global tokens are always at the center of the observation.
@@ -490,6 +499,11 @@ py::tuple MettaGrid::reset() {
   ActionHandler::clear_all_tracking();
   for (auto& handler : _action_handlers) {
     handler->clear_tracking();
+  }
+
+  // Reset visitation counts for all agents
+  for (auto& agent : _agents) {
+    agent->reset_visitation_counts();
   }
 
   // Reset all buffers
