@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 
 from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget import (
     HeatmapWidget,
@@ -9,8 +9,7 @@ from metta.common.client.metta_client import MettaAPIClient
 
 async def fetch_real_heatmap_data(
     metrics: List[str],
-    training_run_names: Optional[List[str]] = None,
-    search_texts: Optional[List[str]] = None,
+    search_texts: List[str] = [],
     policy_selector: str = "best",
     api_base_url: str = "http://localhost:8000",
     max_policies: int = 30,
@@ -20,7 +19,6 @@ async def fetch_real_heatmap_data(
 
     Args:
         metrics: List of metrics to include (e.g., ["reward", "heart.get"])
-        training_run_names: List of training run names (e.g., ["daveey.arena.rnd.16x4.2"])
         search_texts: List of search texts to use to find training runs (e.g., ["relh.skypilot", "daveey.arena.rnd"])
         policy_selector: "best" or "latest" policy selection strategy
         api_base_url: Base URL for the stats server
@@ -44,21 +42,14 @@ async def fetch_real_heatmap_data(
             for policy in policies_data.policies:
                 if policy.type == "training_run" and search_text in policy.name:
                     training_run_ids.append(policy.id)
-    elif training_run_names:
-        policies_data = await client.get_policies(page_size=100)
-        for policy in policies_data.policies:
-            if policy.type == "training_run" and any(
-                run_name in policy.name for run_name in training_run_names
-            ):
-                training_run_ids.append(policy.id)
     else:
         raise Exception(
-            "No training_run_names or search_text provided. Please provide at one of these."
+            "No search_texts provided. Please provide at least one so we can search for policies."
         )
 
     if not training_run_ids:
         raise Exception(
-            f"No training runs found matching: {search_text} or {training_run_names}. This may be due to a \
+            f"No training runs found matching: {search_texts}. This may be due to a \
                 limitation in the backend. We're working on a fix!"
         )
 
@@ -136,7 +127,7 @@ async def fetch_real_heatmap_data(
         cells=cells,
         eval_names=heatmap_data.evalNames,
         policy_names=heatmap_data.policyNames,
-        metrics=[primary_metric],
+        metrics=metrics,
         selected_metric=primary_metric,
     )
 

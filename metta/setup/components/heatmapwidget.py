@@ -7,18 +7,29 @@ from metta.setup.utils import info, warning
 
 @register_module
 class HeatmapWidgetSetup(SetupModule):
-    install_once = True
-    # install_once = False
+    install_once = False
+
+    def dependencies(self) -> list[str]:
+        return ["nodejs"]
 
     @property
     def description(self) -> str:
         return "The policy <Heatmap /> component from Observatory, implemented as a Jupyter notebook widget"
 
     def is_applicable(self) -> bool:
-        return subprocess.call(["which", "npm"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+        return self.config.is_component_enabled("heatmapwidget")
 
     def check_installed(self) -> bool:
-        return (
+        has_node_modules = (
+            subprocess.call(
+                ["ls", "./experiments/notebooks/utils/heatmap_widget/node_modules"],
+                cwd=self.repo_root,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            == 0
+        )
+        has_compiled_js = (
             subprocess.call(
                 ["ls", "./experiments/notebooks/utils/heatmap_widget/heatmap_widget/static/index.js"],
                 cwd=self.repo_root,
@@ -27,19 +38,30 @@ class HeatmapWidgetSetup(SetupModule):
             )
             == 0
         )
+        should_build = (
+            subprocess.call(
+                ["bash", "-c", "./should_build.sh"],
+                cwd=self.repo_root / "experiments/notebooks/utils/heatmap_widget",
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            == 0
+        )
+        return has_node_modules and has_compiled_js and not should_build
 
     def install(self) -> None:
         info("Setting up HeatmapWidget...")
         try:
-            subprocess.run(
-                [
-                    "bash",
-                    "-c",
-                    "cd ./experiments/notebooks/utils/heatmap_widget && npm install && npm run build",
-                ],
-                check=True,
-                cwd=self.repo_root,
-            )
+            if not self.check_installed():
+                subprocess.run(
+                    [
+                        "bash",
+                        "-c",
+                        "npm install && npm run build",
+                    ],
+                    check=True,
+                    cwd=self.repo_root / "experiments/notebooks/utils/heatmap_widget",
+                )
 
             info(
                 "The HeatmapWidget is now compiled. Check out "
