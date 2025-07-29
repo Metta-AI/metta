@@ -11,6 +11,19 @@ from metta.map.utils.ascii_grid import grid_to_lines
 from tools.map.scene_params import SCENE_GENERATORS
 
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        return super(NpEncoder, self).default(obj)
+
+
 def generate_map(rng, scene_name, width, height):
     try:
         if scene_name == "random":
@@ -32,11 +45,11 @@ def generate_map(rng, scene_name, width, height):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate random maps.")
-    parser.add_argument("--num_maps", type=int, default=10)
+    parser.add_argument("--num-maps", type=int, default=10)
     parser.add_argument("--width", type=int, default=32)
     parser.add_argument("--height", type=int, default=32)
     parser.add_argument("--scene", type=str, default="random")
-    parser.add_argument("--output_dir", type=str, default="pregenerated_maps")
+    parser.add_argument("--output-dir", type=str, default="pregenerated_maps")
     args = parser.parse_args()
 
     rng = np.random.default_rng()
@@ -65,5 +78,5 @@ if __name__ == "__main__":
             pbar.update(1)
 
     with open(output_path, "w") as f:
-        json.dump(maps_data, f, indent=2)
+        json.dump(maps_data, f, indent=2, cls=NpEncoder)
     print(f"Saved {len(maps_data)} maps to {output_path}")
