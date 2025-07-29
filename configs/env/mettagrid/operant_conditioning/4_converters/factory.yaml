@@ -12,12 +12,12 @@ game:
   num_agents: 24
   max_steps: 100
   agent:
-    default_resource_limit: 1
+    default_resource_limit: 5
     rewards:
       inventory:
-        heart: 1.0
-        battery_red: 0
         ore_red: 0
+        ore_blue: 0
+        heart: 1.0
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
@@ -29,19 +29,40 @@ game:
       params:
         agents: 1
         objects:
-          altar: 1
+          factory: 1
           generator_red: 1
-          mine_red: 1
+          generator_blue: 1
+          generator_green: 1
+          altar: 1
   objects:
+    generator_red:
+      cooldown: 1
+    generator_blue:
+      cooldown: 1
+      input_resources:
+        ore_red: 1
+        ore_blue: 0
+      output_resources:
+        battery_blue: 0
+    generator_green:
+      cooldown: 1
+      input_resources:
+        ore_red: 1
+        ore_green: 0
+      output_resources:
+        battery_green: 0
+    factory:
+      cooldown: 1
+      input_resources:
+        blueprint: 0
+        ore_red: 0
+        battery_red: 0
+      output_resources:
+        battery_red: 1
+        armor: 0
     altar:
       cooldown: 1
       input_resources:
         battery_red: 1
       output_resources:
         heart: 1
-    generator_red:
-      cooldown: 1
-      input_resources:
-        ore_red: 1
-      output_resources:
-        battery_red: 1

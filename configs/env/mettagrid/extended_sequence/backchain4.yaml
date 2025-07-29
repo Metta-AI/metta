@@ -32,6 +32,7 @@ game:
           altar: 1
           generator_red: 1
           mine_red: 1
+          mine_green: 1
   objects:
     altar:
       cooldown: 1
@@ -45,3 +46,9 @@ game:
         ore_red: 1
       output_resources:
         battery_red: 1
+    mine_red:
+      cooldown: 1
+      input_resources:
+        ore_green: 1
+      output_resources:
+        ore_red: 1
