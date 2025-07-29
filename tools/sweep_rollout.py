@@ -9,6 +9,7 @@ This module replaces sweep_rollout.sh with a Python implementation that:
 """
 
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -38,16 +39,13 @@ def main(cfg: DictConfig) -> int:
 
     # Setup the sweep - only rank 0 does this, others wait
     try:
-        wandb_sweep_id = run_once(
+        run_once(
             lambda: setup_sweep(cfg, logger),
-            destroy_on_finish=False,
         )
     except Exception as e:
         logger.error(f"Sweep setup failed: {e}", exc_info=True)
         return 1
 
-    # Set the sweep ID in the config
-    cfg.sweep_id = wandb_sweep_id
     num_consecutive_failures = 0
 
     while True:
@@ -76,27 +74,30 @@ def run_single_rollout(cfg: DictConfig) -> int:
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
 
     # Master node only
-    preparation_result = run_once(lambda: prepare_sweep_run(cfg, logger), destroy_on_finish=False)
-
-    if preparation_result is None:
-        logger.error("Failed to prepare sweep rollout")
-        raise RuntimeError("Sweep preparation failed")
-
-    run_name, downstream_cfg, protein_suggestion = preparation_result
+    run_name, train_job_cfg, protein_suggestion = run_once(lambda: prepare_sweep_run(cfg, logger))
 
     # All ranks participate in training
     # The train.sh script handles distributed coordination
     train_for_run(
         run_name=run_name,
-        dist_cfg_path=downstream_cfg.dist_cfg_path,
-        data_dir=downstream_cfg.data_dir,
+        train_job_cfg=train_job_cfg,
         original_args=ORIGINAL_ARGS,
+        logger=logger,
     )
     logger.info("Training completed...")
 
+    config_path = os.path.join(train_job_cfg.run_dir, "sweep_eval_config.yaml")
+    full_train_job_cfg = OmegaConf.load(config_path)
+    assert isinstance(full_train_job_cfg, DictConfig)
     # Master node only
     eval_results = run_once(
-        lambda: evaluate_rollout(downstream_cfg, protein_suggestion, logger), destroy_on_finish=False
+        lambda: evaluate_rollout(
+            full_train_job_cfg,
+            protein_suggestion,
+            metric=cfg.sweep.metric,
+            sweep_name=cfg.sweep_name,
+            logger=logger,
+        ),
     )
 
     if eval_results is None:
@@ -109,8 +110,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
 
 def train_for_run(
     run_name: str,
-    dist_cfg_path: str,
-    data_dir: str,
+    train_job_cfg: DictConfig,
     original_args: list[str] | None = None,
     logger: logging.Logger | None = None,
 ) -> subprocess.CompletedProcess:
@@ -120,14 +120,14 @@ def train_for_run(
     cmd = [
         "./devops/train.sh",
         f"run={run_name}",
-        f"dist_cfg_path={dist_cfg_path}",
-        f"data_dir={data_dir}",
+        f"dist_cfg_path={train_job_cfg.dist_cfg_path}",
+        f"data_dir={train_job_cfg.data_dir}",
     ]
 
     # Pass through relevant arguments from the original command line
     # Filter out arguments that we're already setting explicitly
     if original_args:
-        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir="]
+        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir=", "sweep_dir="]
         for arg in original_args:
             # Skip arguments we're already setting
             if any(arg.startswith(prefix) for prefix in skip_prefixes):
