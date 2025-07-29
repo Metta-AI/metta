@@ -533,26 +533,26 @@ export class Context3d {
 
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
-      const quadCount = mesh.getQuadCount()
+      const quadCount = mesh.currentQuad
       if (quadCount === 0) {
         continue
       }
 
-      const vertexBuffer = mesh.getVertexBuffer()
-      const indexBuffer = mesh.getIndexBuffer()
+      const vertexBuffer = mesh.vertexBuffer
+      const indexBuffer = mesh.indexBuffer
 
       if (!vertexBuffer || !indexBuffer) {
         continue
       }
 
       // Calculate data sizes
-      const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
+      const vertexDataCount = mesh.currentVertex * 8 // 8 floats per vertex
       const indexDataCount = quadCount * 6 // 6 indices per quad
 
       // Update vertex buffer with current data only if dirty
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer)
       if (mesh.isDirty) {
-        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.vertexData.subarray(0, vertexDataCount))
         mesh.isDirty = false
       }
 
