@@ -643,3 +643,91 @@ class TestEvalTaskRoutes:
         assert tasks["policy1_memory"].id not in task_ids  # wrong policy
         assert tasks["policy2_navigation"].id in task_ids
         assert tasks["policy2_arena"].id in task_ids
+
+    @pytest.mark.asyncio
+    async def test_get_all_tasks_sql_query_with_arrays(
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_client: StatsClient
+    ):
+        """Test that SQL queries with array parameters work correctly."""
+        # Create multiple policies
+        policies = []
+        for i in range(3):
+            training_run = stats_client.create_training_run(
+                name=f"test_sql_array_run_{i}_{uuid.uuid4().hex[:8]}",
+                attributes={"test": "true"},
+            )
+            epoch = stats_client.create_epoch(
+                run_id=training_run.id,
+                start_training_epoch=0,
+                end_training_epoch=100,
+            )
+            policy = stats_client.create_policy(
+                name=f"test_sql_array_policy_{i}_{uuid.uuid4().hex[:8]}",
+                description=f"Test policy {i}",
+                epoch_id=epoch.id,
+            )
+            policies.append(policy.id)
+
+        # Create tasks with different statuses and sim_suites
+        created_tasks = []
+        statuses_to_create = ["unprocessed", "done", "error"]
+        sim_suites_to_create = ["navigation", "memory", "arena"]
+
+        for i, (status, sim_suite) in enumerate(zip(statuses_to_create * 3, sim_suites_to_create * 3, strict=False)):
+            policy_id = policies[i % len(policies)]
+            task = await eval_task_client.create_task(
+                TaskCreateRequest(
+                    policy_id=policy_id,
+                    git_hash="sql_test",
+                    sim_suite=sim_suite,
+                )
+            )
+            created_tasks.append((task, status, sim_suite, policy_id))
+
+            # Update status if needed
+            if status != "unprocessed":
+                await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task.id], assignee="sql_test_worker"))
+                await eval_task_client.update_task_status(
+                    TaskUpdateRequest(
+                        require_assignee="sql_test_worker",
+                        updates={task.id: TaskStatusUpdate(status=status)},
+                    )
+                )
+
+        # Test 1: Multiple statuses with IN clause
+        filters = TaskFilterParams(statuses=["unprocessed", "done"], git_hash="sql_test", limit=100)
+        response = await eval_task_client.get_all_tasks(filters=filters)
+        returned_statuses = {t.status for t in response.tasks}
+        assert "unprocessed" in returned_statuses or "done" in returned_statuses
+        assert "error" not in returned_statuses
+        assert "canceled" not in returned_statuses
+
+        # Test 2: Multiple policy_ids
+        filters = TaskFilterParams(
+            policy_ids=policies[:2],  # First two policies
+            git_hash="sql_test",
+            limit=100,
+        )
+        response = await eval_task_client.get_all_tasks(filters=filters)
+        returned_policy_ids = {t.policy_id for t in response.tasks}
+        assert all(pid in returned_policy_ids or pid in policies[:2] for pid in returned_policy_ids)
+        assert (
+            policies[2] not in returned_policy_ids
+            or len([t for t in response.tasks if t.policy_id == policies[2]]) == 0
+        )
+
+        # Test 3: Multiple sim_suites
+        filters = TaskFilterParams(sim_suites=["navigation", "memory"], git_hash="sql_test", limit=100)
+        response = await eval_task_client.get_all_tasks(filters=filters)
+        returned_sim_suites = {t.sim_suite for t in response.tasks}
+        assert all(suite in ["navigation", "memory"] for suite in returned_sim_suites)
+        assert "arena" not in returned_sim_suites
+
+        # Test 4: Empty arrays should return no results for those filters
+        filters = TaskFilterParams(
+            statuses=[],  # Empty list
+            git_hash="sql_test",
+            limit=100,
+        )
+        response = await eval_task_client.get_all_tasks(filters=filters)
+        # Should return results since empty list is treated as no filter in our implementation

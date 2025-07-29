@@ -1335,20 +1335,23 @@ class MettaRepo:
             params = []
 
             if statuses:
-                where_conditions.append("et.status = ANY(%s)")
-                params.append(statuses)
+                placeholders = ", ".join(["%s"] * len(statuses))
+                where_conditions.append(f"et.status IN ({placeholders})")
+                params.extend(statuses)
 
             if git_hash:
                 where_conditions.append("et.attributes->>'git_hash' = %s")
                 params.append(git_hash)
 
             if policy_ids:
-                where_conditions.append("et.policy_id = ANY(%s)")
-                params.append(policy_ids)
+                placeholders = ", ".join(["%s"] * len(policy_ids))
+                where_conditions.append(f"et.policy_id IN ({placeholders})")
+                params.extend(policy_ids)
 
             if sim_suites:
-                where_conditions.append("et.sim_suite = ANY(%s)")
-                params.append(sim_suites)
+                placeholders = ", ".join(["%s"] * len(sim_suites))
+                where_conditions.append(f"et.sim_suite IN ({placeholders})")
+                params.extend(sim_suites)
 
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             params.append(limit)
