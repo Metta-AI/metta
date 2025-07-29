@@ -2,8 +2,9 @@ import re
 from datetime import datetime
 from typing import Dict, List, Optional
 
-import asana
 import requests
+from asana import Client
+from asana.error import AsanaError
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
@@ -30,7 +31,7 @@ class AsanaTask:
         self._task_url = None
 
         # Initialize Asana client
-        self.client = asana.Client.access_token(asana_token)
+        self.client = Client.access_token(asana_token)
         # Configure client options for better performance
         self.client.options["client_name"] = "AsanaTask Integration"
 
@@ -160,7 +161,7 @@ class AsanaTask:
             projects = [project["gid"] for project in task.get("projects", [])]
             if self.project_id not in projects:
                 print(
-                    f"[validate] Task not in target project. Task projects {projects}, target project {self.project_id}"
+                    f"[validate] Task not in target project. Task projects: {projects}, target project: {self.project_id}"
                 )
                 return None
 
@@ -180,7 +181,7 @@ class AsanaTask:
             print("[validate] Task validation successful")
             return task
 
-        except asana.error.AsanaError as e:
+        except AsanaError as e:
             print(f"[validate] Asana API error: {e}")
             return None
         except Exception as e:
@@ -208,7 +209,7 @@ class AsanaTask:
                 return results[0]
             return None
 
-        except asana.error.AsanaError as e:
+        except AsanaError as e:
             print(f"[search] Asana API error: {e}")
             return None
         except Exception as e:
@@ -253,7 +254,7 @@ class AsanaTask:
             self.ensure_github_url_in_task(url, title, github_url)
             return url
 
-        except asana.error.AsanaError as e:
+        except AsanaError as e:
             print(f"[create] Asana API error: {e}")
             raise Exception(f"Asana API Error (create): {e}")
         except Exception as e:
@@ -290,7 +291,7 @@ class AsanaTask:
             self.client.tasks.update_task(gid, task_data)
             print("[update] Task updated successfully")
 
-        except asana.error.AsanaError as e:
+        except AsanaError as e:
             print(f"[update] Asana API error: {e}")
             raise Exception(f"Asana API Error (update): {e}")
         except Exception as e:
@@ -453,7 +454,7 @@ class AsanaTask:
             print(f"comments in asana: {ret}")
             return ret
 
-        except asana.error.AsanaError as e:
+        except AsanaError as e:
             print(f"[get_comments] Asana API error: {e}")
             return []
         except Exception as e:
@@ -520,7 +521,7 @@ class AsanaTask:
                         print(f"[s] Updating story {story_id} with data: {story_data}")
                         self.client.stories.update_story(story_id, story_data)
                         print(f"Updated Asana comment {story_id} for review {review_id}")
-                    except asana.error.AsanaError as e:
+                    except AsanaError as e:
                         print(f"Failed to update Asana comment {story_id}: {e}")
                     except Exception as e:
                         print(f"Error updating Asana comment {story_id}: {e}")
@@ -568,7 +569,7 @@ class AsanaTask:
                         print(f"[s] Creating story for task {self.task_gid} with data: {story_data}")
                         self.client.stories.create_story_for_task(self.task_gid, story_data)
                         print(f"Added new Asana comment for review {review_id}")
-                    except asana.error.AsanaError as e:
+                    except AsanaError as e:
                         print(f"Error adding Asana comment for review {review_id}: {e}")
                     except Exception as e:
                         print(f"Error adding Asana comment for review {review_id}: {e}")
