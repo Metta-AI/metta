@@ -1,10 +1,12 @@
 import argparse
+import hashlib
+import json
 import os
 
 import numpy as np
 
 from metta.map.mapgen import MapGen
-from metta.map.utils.ascii_grid import print_grid
+from metta.map.utils.ascii_grid import grid_to_lines
 
 
 def generate_random_scene_params():
@@ -75,6 +77,13 @@ def main():
     parser.add_argument("--width", type=int, default=32, help="Width of the maps.")
     parser.add_argument("--height", type=int, default=32, help="Height of the maps.")
     parser.add_argument("--save", action="store_true", help="Save the generated maps to files.")
+    parser.add_argument(
+        "--scene-type",
+        type=str,
+        choices=list(SCENE_GENERATORS.keys()),
+        default=None,
+        help="Only generate maps of a specific scene type.",
+    )
 
     args = parser.parse_args()
 
@@ -83,20 +92,48 @@ def main():
 
     scene_types = list(SCENE_GENERATORS.keys())
 
+    all_maps_data = []
+    output_path = os.path.join(args.output_dir, "maps.json")
+    if args.save and os.path.exists(output_path):
+        try:
+            with open(output_path, "r") as f:
+                all_maps_data = json.load(f)
+            if not isinstance(all_maps_data, list):
+                print(f"Warning: Existing file {output_path} is not a JSON list. Starting fresh.")
+                all_maps_data = []
+        except json.JSONDecodeError:
+            print(f"Warning: Could not decode JSON from {output_path}. Starting fresh.")
+            all_maps_data = []
+
+    start_map_id = all_maps_data[-1]["map_id"] if all_maps_data else 0
+
     for i in range(args.num_maps):
-        scene_type = np.random.choice(scene_types)
+        scene_type = args.scene_type if args.scene_type else np.random.choice(scene_types)
         print(f"Generating map {i + 1}/{args.num_maps} using '{scene_type}' scene...")
 
         grid, config = create_map(args.width, args.height, scene_type)
 
         print(f"Generated with config: {config}")
 
-        print_grid(grid)
+        map_lines = grid_to_lines(grid, border=True)
+        map_ascii = "\n".join(map_lines)
 
-        if args.save:
-            output_path = os.path.join(args.output_dir, f"map_{i}_{scene_type}.npy")
-            np.save(output_path, grid)
-            print(f"Saved map to {output_path}")
+        print(map_ascii)
+
+        map_hash = hashlib.sha256(map_ascii.encode()).hexdigest()
+        map_id = start_map_id + i + 1
+        map_data = {
+            "map_id": map_id,
+            "hash": map_hash,
+            "map": map_lines,
+            "config": config,
+        }
+        all_maps_data.append(map_data)
+
+    if args.save:
+        with open(output_path, "w") as f:
+            json.dump(all_maps_data, f, indent=2)
+        print(f"Saved all maps to {output_path}")
 
 
 if __name__ == "__main__":
