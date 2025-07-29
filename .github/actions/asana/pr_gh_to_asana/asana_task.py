@@ -2,9 +2,9 @@ import re
 from datetime import datetime
 from typing import Dict, List, Optional
 
+import asana
 import requests
-from asana import Client
-from asana.error import AsanaError
+from asana.rest import ApiException
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
@@ -30,10 +30,14 @@ class AsanaTask:
         self.attachment_secret = attachment_secret
         self._task_url = None
 
-        # Initialize Asana client
-        self.client = Client.access_token(asana_token)
-        # Configure client options for better performance
-        self.client.options["client_name"] = "AsanaTask Integration"
+        # Initialize Asana client (v5 API)
+        self.configuration = asana.Configuration()
+        self.configuration.access_token = asana_token
+        self.api_client = asana.ApiClient(self.configuration)
+
+        # Initialize API instances
+        self.tasks_api = asana.TasksApi(self.api_client)
+        self.stories_api = asana.StoriesApi(self.api_client)
 
     @property
     def task_url(self):
@@ -141,28 +145,28 @@ class AsanaTask:
         print(f"[validate] Extracted GID: {gid}")
 
         try:
-            opt_fields = [
-                "permalink_url",
-                "custom_fields",
-                "name",
-                "notes",
-                "modified_at",
-                "completed",
-                "assignee.email",
-                "followers.email",
-                "projects.gid",
-            ]
+            opts = {
+                "opt_fields": [
+                    "permalink_url",
+                    "custom_fields",
+                    "name",
+                    "notes",
+                    "modified_at",
+                    "completed",
+                    "assignee.email",
+                    "followers.email",
+                    "projects.gid",
+                ],
+            }
 
             print(f"[validate] Getting task {gid} from Asana API")
-            task = self.client.tasks.get_task(gid, opt_fields=opt_fields)
+            task = self.tasks_api.get_task(gid, opts)
             print("[validate] Successfully retrieved task")
 
             # Check if task is in the target project
             projects = [project["gid"] for project in task.get("projects", [])]
             if self.project_id not in projects:
-                print(
-                    f"[validate] Task not in target project. Task projects: {projects}, target project: {self.project_id}"
-                )
+                print(f"[v] Task not in target project. Task projects: {projects}, target project: {self.project_id}")
                 return None
 
             # Check if GitHub URL matches
@@ -181,7 +185,7 @@ class AsanaTask:
             print("[validate] Task validation successful")
             return task
 
-        except AsanaError as e:
+        except ApiException as e:
             print(f"[validate] Asana API error: {e}")
             return None
         except Exception as e:
@@ -192,16 +196,27 @@ class AsanaTask:
         print(f"[search] search() called with github_url='{github_url}'")
 
         try:
-            search_params = {
-                "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email",
+            opt_fields = [
+                "permalink_url",
+                "custom_fields",
+                "name",
+                "notes",
+                "modified_at",
+                "completed",
+                "assignee.email",
+                "followers.email",
+            ]
+
+            opts = {
+                "opt_fields": ",".join(opt_fields),
                 "limit": 100,
                 "sort_by": "created_at",
                 "projects.any": self.project_id,
                 f"custom_fields.{self.github_url_field_id}.value": github_url,
             }
 
-            print(f"[search] Making search request with params: {search_params}")
-            results = list(self.client.tasks.search_tasks_for_workspace(self.workspace_id, **search_params))
+            print(f"[search] Making search request with opts: {opts}")
+            results = list(self.tasks_api.search_tasks_for_workspace(self.workspace_id, opts))
 
             print(f"[search] Search returned {len(results)} results")
             if results:
@@ -209,7 +224,7 @@ class AsanaTask:
                 return results[0]
             return None
 
-        except AsanaError as e:
+        except ApiException as e:
             print(f"[search] Asana API error: {e}")
             return None
         except Exception as e:
@@ -229,32 +244,34 @@ class AsanaTask:
         print(f"[create] create() called with title='{title}', assignee='{assignee}', collaborators={collaborators}")
 
         try:
-            task_data = {
-                "name": title,
-                "notes": description,
-                "projects": [self.project_id],
-                "followers": collaborators,
-                "custom_fields": {
-                    self.github_url_field_id: github_url,
-                    self.pr_author_field_id: pr_author,
-                },
+            body = {
+                "data": {
+                    "name": title,
+                    "notes": description,
+                    "projects": [self.project_id],
+                    "followers": collaborators,
+                    "custom_fields": {
+                        self.github_url_field_id: github_url,
+                        self.pr_author_field_id: pr_author,
+                    },
+                }
             }
 
             if assignee:
-                task_data["assignee"] = assignee
+                body["data"]["assignee"] = assignee
 
             if completed:
-                task_data["completed"] = True
+                body["data"]["completed"] = True
 
-            print(f"[create] Creating task with data: {task_data}")
-            task = self.client.tasks.create_task(task_data)
+            print(f"[create] Creating task with body: {body}")
+            task = self.tasks_api.create_task(body)
 
             url = task["permalink_url"]
             print(f"[create] Task created successfully: {url}")
             self.ensure_github_url_in_task(url, title, github_url)
             return url
 
-        except AsanaError as e:
+        except ApiException as e:
             print(f"[create] Asana API error: {e}")
             raise Exception(f"Asana API Error (create): {e}")
         except Exception as e:
@@ -274,24 +291,26 @@ class AsanaTask:
         print(f"[update] update() called with gid='{gid}', title='{title}', completed={completed}")
 
         try:
-            task_data = {
-                "name": title,
-                "notes": description,
-                "completed": completed,
-                "custom_fields": {
-                    self.github_url_field_id: github_url,
-                    self.pr_author_field_id: pr_author,
-                },
+            body = {
+                "data": {
+                    "name": title,
+                    "notes": description,
+                    "completed": completed,
+                    "custom_fields": {
+                        self.github_url_field_id: github_url,
+                        self.pr_author_field_id: pr_author,
+                    },
+                }
             }
 
             if assignee:
-                task_data["assignee"] = assignee
+                body["data"]["assignee"] = assignee
 
-            print(f"[update] Updating task with data: {task_data}")
-            self.client.tasks.update_task(gid, task_data)
+            print(f"[update] Updating task with body: {body}")
+            self.tasks_api.update_task(gid, body)
             print("[update] Task updated successfully")
 
-        except AsanaError as e:
+        except ApiException as e:
             print(f"[update] Asana API error: {e}")
             raise Exception(f"Asana API Error (update): {e}")
         except Exception as e:
@@ -411,19 +430,21 @@ class AsanaTask:
         print(f"[get_comments] get_comments() called with task_id='{task_id}'")
 
         try:
-            opt_fields = [
-                "text",
-                "html_text",
-                "created_by.name",
-                "created_by.email",
-                "created_at",
-                "type",
-                "resource_subtype",
-                "is_pinned",
-            ]
+            opts = {
+                "opt_fields": [
+                    "text",
+                    "html_text",
+                    "created_by.name",
+                    "created_by.email",
+                    "created_at",
+                    "type",
+                    "resource_subtype",
+                    "is_pinned",
+                ],
+            }
 
             print(f"[get_comments] Getting stories for task {task_id}")
-            stories = list(self.client.stories.get_stories_for_task(task_id, opt_fields=opt_fields))
+            stories = list(self.stories_api.get_stories_for_task(task_id, opts))
 
             # Filter for comments only
             comments = [
@@ -454,7 +475,7 @@ class AsanaTask:
             print(f"comments in asana: {ret}")
             return ret
 
-        except AsanaError as e:
+        except ApiException as e:
             print(f"[get_comments] Asana API error: {e}")
             return []
         except Exception as e:
@@ -517,11 +538,11 @@ class AsanaTask:
                     story_id = existing_comment["id"]
 
                     try:
-                        story_data = {"html_text": formatted_comment}
-                        print(f"[s] Updating story {story_id} with data: {story_data}")
-                        self.client.stories.update_story(story_id, story_data)
+                        body = {"data": {"html_text": formatted_comment}}
+                        print(f"[s] Updating story {story_id} with body: {body}")
+                        self.stories_api.update_story(story_id, body)
                         print(f"Updated Asana comment {story_id} for review {review_id}")
-                    except AsanaError as e:
+                    except ApiException as e:
                         print(f"Failed to update Asana comment {story_id}: {e}")
                     except Exception as e:
                         print(f"Error updating Asana comment {story_id}: {e}")
@@ -565,11 +586,11 @@ class AsanaTask:
                     print(f"[s] Adding new comment for review {review_id}")
                     # Create new comment
                     try:
-                        story_data = {"html_text": formatted_comment, "type": "comment"}
-                        print(f"[s] Creating story for task {self.task_gid} with data: {story_data}")
-                        self.client.stories.create_story_for_task(self.task_gid, story_data)
+                        body = {"data": {"html_text": formatted_comment, "type": "comment"}}
+                        print(f"[s] Creating story for task {self.task_gid} with body: {body}")
+                        self.stories_api.create_story_for_task(self.task_gid, body)
                         print(f"Added new Asana comment for review {review_id}")
-                    except AsanaError as e:
+                    except ApiException as e:
                         print(f"Error adding Asana comment for review {review_id}: {e}")
                     except Exception as e:
                         print(f"Error adding Asana comment for review {review_id}: {e}")
