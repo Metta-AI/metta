@@ -402,13 +402,7 @@ def load_or_initialize_policy(
                 logger.info(f"Master rank: Policy saved to {saved_pr.uri}, synchronizing with other ranks")
                 torch.distributed.barrier()
 
-    # Initialize policy to environment
-    if hasattr(policy, "initialize_to_environment"):
-        features = metta_grid_env.get_observation_features()
-        policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
-    else:
-        policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
-
+    # Don't initialize policy to environment here - it should be done after distributed wrapping
     logger.info(f"Rank {rank}: USING {initial_policy_record.uri if initial_policy_record else 'new policy'}")
 
     return policy, initial_policy_record, latest_saved_policy_record
