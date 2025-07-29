@@ -80,6 +80,13 @@ releases:
           config: |
             jobs:
               bucket: s3://skypilot-jobs/
+          resources:
+            requests:
+              cpu: "8"
+              memory: "16Gi"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
         awsCredentials:
           enabled: true
         ingress:

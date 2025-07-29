@@ -14,7 +14,7 @@ export const MetricSelector: React.FC<MetricSelectorProps> = ({
   selectedMetric,
   onSelectionChange,
   loading = false,
-  disabled = false
+  disabled = false,
 }) => {
   if (loading) {
     return (
@@ -30,9 +30,7 @@ export const MetricSelector: React.FC<MetricSelectorProps> = ({
   if (disabled) {
     return (
       <div className={styles.container}>
-        <div className={styles.disabledMessage}>
-          Select policies and evaluations to see available metrics
-        </div>
+        <div className={styles.disabledMessage}>Select policies and evaluations to see available metrics</div>
       </div>
     )
   }
@@ -46,10 +44,8 @@ export const MetricSelector: React.FC<MetricSelectorProps> = ({
           disabled={metrics.length === 0}
           className={styles.select}
         >
-          <option value="">
-            {metrics.length === 0 ? 'No metrics available' : 'Select a metric'}
-          </option>
-          {metrics.map(metric => (
+          <option value="">{metrics.length === 0 ? 'No metrics available' : 'Select a metric'}</option>
+          {metrics.map((metric) => (
             <option key={metric} value={metric}>
               {metric}
             </option>
@@ -57,9 +53,7 @@ export const MetricSelector: React.FC<MetricSelectorProps> = ({
         </select>
       </div>
 
-      <div className={`${styles.infoMessage} ${
-        metrics.length > 0 ? styles.success : styles.warning
-      }`}>
+      <div className={`${styles.infoMessage} ${metrics.length > 0 ? styles.success : styles.warning}`}>
         {metrics.length > 0 ? (
           <>
             {metrics.length} metric{metrics.length !== 1 ? 's' : ''} available
