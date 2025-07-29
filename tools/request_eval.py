@@ -3,7 +3,9 @@
 
 import argparse
 import asyncio
+import concurrent.futures
 import logging
+import uuid
 
 import wandb
 from omegaconf import DictConfig
@@ -11,8 +13,8 @@ from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicySelectorType, PolicyStore
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
+from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from metta.common.util.collections import group_by, remove_none_values
 from metta.common.util.stats_client_cfg import get_stats_client_direct
 from metta.setup.utils import info, success, warning
@@ -28,12 +30,15 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    policy_select_type: PolicySelectorType = "all"
+    policy_select_type: PolicySelectorType = "latest"
     policy_select_metric: str = "score"
     policy_select_num: int = 1
 
     wandb_project: str = Field(default="")
     wandb_entity: str = Field(default="")
+
+    skip_missing_policies: bool = Field(default=False)
+    allow_duplicates: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate(self) -> "EvalRequest":
@@ -59,6 +64,30 @@ class EvalRequest(BaseModel):
         )
 
 
+def _get_policy_records_for_uri(
+    policy_store: PolicyStore,
+    policy_uri: str,
+    selector_type: PolicySelectorType,
+    select_num: int,
+    select_metric: str,
+    skip_missing: bool = False,
+) -> tuple[str, list[PolicyRecord] | None]:
+    try:
+        records = policy_store.policy_records(
+            uri_or_config=policy_uri,
+            selector_type=selector_type,
+            n=select_num,
+            metric=select_metric,
+        )
+        return policy_uri, records
+    except PolicyMissingError as e:
+        if skip_missing:
+            warning(f"Skipping missing policy: {e}")
+            return policy_uri, None
+        else:
+            raise
+
+
 async def _create_remote_eval_tasks(
     request: EvalRequest,
 ) -> None:
@@ -70,15 +99,28 @@ async def _create_remote_eval_tasks(
     stats_client.validate_authenticated()
 
     policy_store = PolicyStore(cfg=request.get_wandb_cfg(), wandb_run=None)
-    policy_records_by_uri: dict[str, list[PolicyRecord]] = {
-        policy_uri: policy_store.policy_records(
-            uri_or_config=policy_uri,
-            selector_type=request.policy_select_type,
-            n=request.policy_select_num,
-            metric=request.policy_select_metric,
-        )
-        for policy_uri in request.policies
-    }
+
+    # Parallelize policy records retrieval
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_uri = {
+            executor.submit(
+                _get_policy_records_for_uri,
+                policy_store,
+                policy_uri,
+                request.policy_select_type,
+                request.policy_select_num,
+                request.policy_select_metric,
+                request.skip_missing_policies,
+            ): policy_uri
+            for policy_uri in request.policies
+        }
+
+        policy_records_by_uri: dict[str, list[PolicyRecord]] = {}
+        for future in concurrent.futures.as_completed(future_to_uri):
+            policy_uri, records = future.result()
+            if records is not None:
+                policy_records_by_uri[policy_uri] = records
+
     all_policy_records = {pr.run_name: pr for prs in policy_records_by_uri.values() for pr in prs}
     policy_ids = get_or_create_policy_ids(
         stats_client, [(pr.run_name, pr.uri, None) for pr in all_policy_records.values() if pr.uri is not None]
@@ -87,20 +129,53 @@ async def _create_remote_eval_tasks(
         warning("No policies found")
         return
 
-    info(f"Creating {len(policy_ids)} evaluation tasks...")
-    tasks = [
-        stats_client.create_task(
-            TaskCreateRequest(
-                policy_id=policy_id,
-                git_hash=request.git_hash,
-                sim_suite=eval_name,
-            )
+    # Check for existing tasks if not allowing duplicates
+    existing_tasks: dict[tuple[uuid.UUID, str], list[TaskResponse]] = {}
+    if not request.allow_duplicates:
+        info("Checking for existing tasks...")
+        task_filters = TaskFilterParams(
+            limit=1000,
+            statuses=["unprocessed", "done"],
+            git_hash=request.git_hash,
+            sim_suites=request.evals,
         )
-        for policy_id in policy_ids.values()
-        for eval_name in request.evals
-    ]
+        all_tasks = await stats_client.get_all_tasks(filters=task_filters)
+        existing_tasks = group_by(all_tasks.tasks, lambda t: (t.policy_id, t.sim_suite))
 
-    results: list[TaskResponse] = await asyncio.gather(*tasks)
+        if existing_tasks:
+            info(f"Found {len(existing_tasks)} existing tasks that would be duplicates")
+
+    task_requests = []
+    skipped_count = 0
+    for policy_id in policy_ids.values():
+        for eval_name in request.evals:
+            if not request.allow_duplicates and (existing := existing_tasks[(policy_id, eval_name)]):
+                policy_name = policy_ids.inv[policy_id]
+                info(
+                    f"Skipping {(policy_name, eval_name)}. Job exists: {existing[0].id} (status: {existing[0].status})"
+                )
+                skipped_count += 1
+            else:
+                task_requests.append(
+                    stats_client.create_task(
+                        TaskCreateRequest(
+                            policy_id=policy_id,
+                            git_hash=request.git_hash,
+                            sim_suite=eval_name,
+                        )
+                    )
+                )
+
+    if not task_requests:
+        warning("No new tasks to create (all would be duplicates)")
+        return
+
+    if skipped_count > 0:
+        info(f"Skipped {skipped_count} duplicate tasks")
+
+    info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_ids)} policies...")
+
+    results: list[TaskResponse] = await asyncio.gather(*task_requests)
     for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
         policy_name = policy_ids.inv[policy_id]
         success(f"{policy_name}:", indent=2)
@@ -146,7 +221,7 @@ async def main() -> None:
     parser.add_argument(
         "--policy-select-type",
         type=str,
-        default="all",
+        default="latest",
         choices=PolicySelectorType.__args__,
         help="Policy selection type.",
     )
@@ -193,6 +268,18 @@ async def main() -> None:
         help="Git hash to use for the evaluation",
     )
 
+    parser.add_argument(
+        "--skip-missing-policies",
+        action="store_true",
+        help="Skip policies that cannot be found instead of erroring out",
+    )
+
+    parser.add_argument(
+        "--allow-duplicates",
+        action="store_true",
+        help="Allow scheduling duplicate policy,eval pairs that are already scheduled or running",
+    )
+
     args = parser.parse_args()
 
     # Parse arguments into Pydantic model
@@ -208,6 +295,8 @@ async def main() -> None:
                 policy_select_metric=args.policy_select_metric,
                 wandb_project=args.wandb_project,
                 wandb_entity=args.wandb_entity,
+                skip_missing_policies=args.skip_missing_policies,
+                allow_duplicates=args.allow_duplicates,
             )
         )
     )
