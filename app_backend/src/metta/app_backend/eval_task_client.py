@@ -7,6 +7,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
     TaskClaimResponse,
     TaskCreateRequest,
+    TaskFilterParams,
     TaskResponse,
     TasksResponse,
     TaskUpdateRequest,
@@ -62,3 +63,16 @@ class EvalTaskClient:
 
     async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse:
         return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
+
+    async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
+        if filters is None:
+            filters = TaskFilterParams()
+
+        # Convert the Pydantic model to dict and remove None values
+        params = filters.model_dump(exclude_none=True)
+
+        # Convert UUIDs to strings if present
+        if filters.policy_ids is not None:
+            params["policy_ids"] = [str(pid) for pid in filters.policy_ids]
+
+        return await self._make_request(TasksResponse, "GET", "/tasks/all", params=params)

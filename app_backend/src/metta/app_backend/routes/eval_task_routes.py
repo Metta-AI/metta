@@ -34,6 +34,14 @@ class TaskUpdateRequest(BaseModel):
     updates: dict[uuid.UUID, TaskStatusUpdate]
 
 
+class TaskFilterParams(BaseModel):
+    limit: int = Field(default=500, ge=1, le=1000)
+    statuses: list[str] | None = None
+    git_hash: str | None = None
+    policy_ids: list[uuid.UUID] | None = None
+    sim_suites: list[str] | None = None
+
+
 class TaskResponse(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
@@ -142,9 +150,15 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/all", response_model=TasksResponse)
     @timed_http_handler
     async def get_all_tasks(
-        limit: int = Query(default=500, ge=1, le=1000),
+        filters: TaskFilterParams = Depends(),
     ) -> TasksResponse:
-        tasks = await stats_repo.get_all_tasks(limit=limit)
+        tasks = await stats_repo.get_all_tasks(
+            limit=filters.limit,
+            statuses=filters.statuses,
+            git_hash=filters.git_hash,
+            policy_ids=filters.policy_ids,
+            sim_suites=filters.sim_suites,
+        )
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 

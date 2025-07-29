@@ -1321,19 +1321,50 @@ class MettaRepo:
                 "policy_name": row[9],
             }
 
-    async def get_all_tasks(self, limit: int = 500) -> list[dict[str, Any]]:
+    async def get_all_tasks(
+        self,
+        limit: int = 500,
+        statuses: list[str] | None = None,
+        git_hash: str | None = None,
+        policy_ids: list[uuid.UUID] | None = None,
+        sim_suites: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         async with self.connect() as con:
+            # Build the WHERE clause dynamically
+            where_conditions = []
+            params = []
+
+            if statuses:
+                where_conditions.append("et.status = ANY(%s)")
+                params.append(statuses)
+
+            if git_hash:
+                where_conditions.append("et.attributes->>'git_hash' = %s")
+                params.append(git_hash)
+
+            if policy_ids:
+                where_conditions.append("et.policy_id = ANY(%s)")
+                params.append(policy_ids)
+
+            if sim_suites:
+                where_conditions.append("et.sim_suite = ANY(%s)")
+                params.append(sim_suites)
+
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            params.append(limit)
+
             result = await con.execute(
-                """
+                f"""
                 SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                        et.assignee, et.created_at, et.attributes, et.retries,
                        p.name as policy_name
                 FROM eval_tasks et
                 LEFT JOIN policies p ON et.policy_id = p.id
+                WHERE {where_clause}
                 ORDER BY et.created_at DESC
                 LIMIT %s
                 """,
-                (limit,),
+                params,
             )
             rows = await result.fetchall()
             return [
