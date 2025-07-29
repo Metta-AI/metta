@@ -83,6 +83,8 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
+        with open(os.path.join(cfg.run_dir, "sweep_eval_config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f, resolve=True)
     train_job = TrainJob(cfg.train_job)
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
