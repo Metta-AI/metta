@@ -166,17 +166,46 @@ def make_app(cfg: DictConfig):
             for i, grid_object in enumerate(env.grid_objects.values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
-                for key, value in grid_object.items():
-                    grid_objects[i][key] = value
+                update_object = {}
+                update_object["id"] = grid_object["id"]
+                update_object["type_id"] = grid_object["type_id"]
+                location = grid_object["location"]
+                update_object["location"] = [location[1], location[0], location[2]]
+                update_object["orientation"] = grid_object.get("orientation", 0)
+                update_object["inventory"] = grid_object.get("inventory", {})
+                update_object["inventory_max"] = grid_object.get("inventory_max", 0)
+                update_object["color"] = grid_object.get("color", 0)
+                update_object["is_swappable"] = grid_object.get("is_swappable", False)
+
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
-                    grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
-                    grid_objects[i]["action"] = actions[agent_id].tolist()
-                    grid_objects[i]["reward"] = env.rewards[agent_id].item()
+                    update_object["agent_id"] = agent_id
+                    update_object["vision_size"] = 11  # TODO: Waiting for env to support this
+                    update_object["action_id"] = int(actions[agent_id][0])
+                    update_object["action_param"] = int(actions[agent_id][1])
+                    update_object["action_success"] = bool(env.action_success[agent_id])
+                    update_object["current_reward"] = env.rewards[agent_id].item()
                     total_rewards[agent_id] += env.rewards[agent_id]
-                    grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
+                    update_object["total_reward"] = total_rewards[agent_id].item()
+                    update_object["freeze_remaining"] = grid_object["freeze_remaining"]
+                    update_object["is_frozen"] = grid_object["is_frozen"]
+                    update_object["freeze_duration"] = grid_object["freeze_duration"]
+                    update_object["group_id"] = grid_object["group_id"]
 
-            await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
+                elif "input_resources" in grid_object:
+                    update_object["input_resources"] = grid_object["input_resources"]
+                    update_object["output_resources"] = grid_object["output_resources"]
+                    update_object["output_limit"] = grid_object["output_limit"]
+                    update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
+                    update_object["is_converting"] = grid_object["is_converting"]
+                    update_object["conversion_duration"] = grid_object["conversion_duration"]
+                    update_object["cooldown_remaining"] = 0  # TODO: Waiting for env to support this
+                    update_object["is_cooling_down"] = grid_object["is_cooling_down"]
+                    update_object["cooldown_duration"] = grid_object["cooldown_duration"]
+
+                grid_objects[i] = update_object
+
+            await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
 
         # Send the first replay step.
         await send_replay_step()
@@ -221,8 +250,8 @@ def make_app(cfg: DictConfig):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id][0] = action_message["action"][0]
-                    actions[agent_id][1] = action_message["action"][1]
+                    actions[agent_id][0] = action_message["action_id"]
+                    actions[agent_id][1] = action_message["action_param"]
                 sim.step_simulation(actions)
 
                 await send_replay_step()

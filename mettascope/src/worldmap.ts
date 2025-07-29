@@ -193,7 +193,7 @@ function drawObject(gridObject: any) {
 
   if (gridObject.agent_id !== undefined) {
     // Respect the orientation of an object, usually an agent.
-    const orientation = getAttr(gridObject, 'agent:orientation')
+    const orientation = getAttr(gridObject, 'orientation')
     let suffix = ''
     if (orientation === 0) {
       suffix = 'n'
@@ -274,7 +274,7 @@ function drawActions() {
       const action_success = getAttr(gridObject, 'action_success')
       if (action_success && action != null) {
         const action_name = state.replay.action_names[action[0]]
-        const orientation = getAttr(gridObject, 'agent:orientation')
+        const orientation = getAttr(gridObject, 'orientation')
         let rotation = 0
         if (orientation === 0) {
           rotation = Math.PI / 2 // North
@@ -328,7 +328,7 @@ function drawActions() {
     }
 
     // Do building actions.
-    if (getAttr(gridObject, 'converting') > 0) {
+    if (getAttr(gridObject, 'is_converting')) {
       ctx.drawSprite(
         'actions/converting.png',
         x * Common.TILE_SIZE,
@@ -341,7 +341,7 @@ function drawActions() {
     }
 
     // Do states.
-    if (getAttr(gridObject, 'agent:frozen') > 0) {
+    if (getAttr(gridObject, 'is_frozen')) {
       ctx.drawSprite('agents/frozen.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
     }
   }

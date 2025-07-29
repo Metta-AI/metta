@@ -388,7 +388,8 @@ export function sendAction(actionName: string, actionParam: number) {
       JSON.stringify({
         type: 'action',
         agent_id: agentId,
-        action: [actionId, actionParam],
+        action_id: actionId,
+        action_param: actionParam,
       })
     )
   } else {
