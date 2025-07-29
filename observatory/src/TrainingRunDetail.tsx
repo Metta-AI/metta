@@ -189,6 +189,7 @@ const getShortName = (evalName: string) => {
   return evalName.split('/').pop() || evalName
 }
 
+
 export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const { runId } = useParams<{ runId: string }>()
 
@@ -412,6 +413,14 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
     const policies = heatmapData.policyNames
     const evalNames = heatmapData.evalNames
+
+    if (policies.length === 0) {
+      return <div style={{ textAlign: 'center', padding: '20px' }}>No policies found for this training run.</div>
+    }
+
+    if (evalNames.length === 0) {
+      return <div style={{ textAlign: 'center', padding: '20px' }}>No evaluations found for selected criteria.</div>
+    }
 
     // Sort policies by version number (preserve existing logic)
     const policyVersionToPolicy = new Map<string, string>()
