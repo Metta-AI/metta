@@ -185,10 +185,10 @@ def get_git_hash_for_remote_task(
 
 
 @memoize(max_age=60 * 5)
-async def get_latest_main_commit() -> str:
+async def get_latest_commit(branch: str = "main") -> str:
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"https://api.github.com/repos/{METTA_API_REPO}/commits/main",
+            f"https://api.github.com/repos/{METTA_API_REPO}/commits/{branch}",
             headers={"Accept": "application/vnd.github.v3+json"},
         )
         response.raise_for_status()

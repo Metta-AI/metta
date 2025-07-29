@@ -8,7 +8,7 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
-def memoize(max_age: int) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
+def memoize(max_age: float) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
     def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         cache: dict[tuple[Any, ...], tuple[T, float]] = {}
 

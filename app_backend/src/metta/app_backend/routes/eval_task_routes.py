@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
-from metta.common.util.git import get_latest_main_commit
+from metta.common.util.git import get_latest_commit
 
 T = TypeVar("T")
 
@@ -92,7 +92,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         # If no git_hash provided, fetch latest commit from main branch
         git_hash = request.git_hash
         if git_hash is None:
-            git_hash = await get_latest_main_commit()
+            git_hash = await get_latest_commit(branch="main")
 
         attributes = {
             "env_overrides": request.env_overrides,
