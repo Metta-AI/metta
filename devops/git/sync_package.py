@@ -34,14 +34,13 @@ from typing import List, Dict, Optional
 
 # Add parent directories to path to import git utilities
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from common.src.metta.common.util.git_filter import (
-    filter_repo,
+from common.src.metta.common.util.git_filter import filter_repo
+from common.src.metta.common.util.git import (
+    run_git,
     get_file_list,
     get_commit_count,
-    add_remote,
-    run_git_in_repo
+    add_remote
 )
-from common.src.metta.common.util.git import run_git
 
 
 def load_config(config_name: str) -> Dict[str, any]:
@@ -127,8 +126,7 @@ def inspect_filtered_repo(filtered_path: Path):
 def get_main_repo_remote() -> str:
     """Get the remote URL of the current repository's origin."""
     try:
-        result = run_git_in_repo(Path.cwd(), "remote", "get-url", "origin")
-        return result.stdout.strip()
+        return run_git("remote", "get-url", "origin")
     except:
         return ""
 
@@ -198,11 +196,11 @@ def push_to_production(filtered_path: Path, remote_url: str, dry_run: bool = Fal
     print(f"\n{'🔔 DRY RUN: ' if dry_run else ''}Pushing...")
     
     try:
-        result = run_git_in_repo(filtered_path, *push_cmd)
-        if result.stdout:
-            print(result.stdout)
+        output = run_git(*push_cmd, cwd=str(filtered_path))
+        if output:
+            print(output)
         print(f"\n✅ {'Dry run' if dry_run else 'Push'} completed successfully!")
-    except RuntimeError as e:
+    except Exception as e:
         print(f"\n❌ Push failed: {e}")
         sys.exit(1)
 

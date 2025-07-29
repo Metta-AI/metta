@@ -74,5 +74,3 @@ def filter_repo(source_path: Path, paths: list[str]) -> Path:
     print(f"✅ Filtered: {len(files)} files, {commit_count} commits")
     
     return filtered_path
-
-
