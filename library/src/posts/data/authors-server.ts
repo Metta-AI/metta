@@ -86,54 +86,7 @@ export async function loadAuthors(): Promise<AuthorDTO[]> {
     };
   });
 
-  // Add a sample claimed author for demonstration
-  const sampleClaimedAuthor: AuthorDTO = {
-    id: 'sample-claimed-author',
-    name: 'Dr. Sarah Chen',
-    username: '@sarahchen',
-    email: 'sarah.chen@stanford.edu',
-    avatar: null,
-    institution: 'Stanford University',
-    department: 'Computer Science',
-    title: 'Associate Professor',
-    expertise: ['Machine Learning', 'Computer Vision', 'Deep Learning', 'AI Safety'],
-    hIndex: 42,
-    totalCitations: 15420,
-    claimed: true,
-    isFollowing: false, // Default to not following
-    recentActivity: new Date('2024-01-15'),
-    orcid: '0000-0001-2345-6789',
-    googleScholarId: 'sarahchen',
-    arxivId: 'sarahchen',
-    createdAt: new Date('2020-01-01'),
-    updatedAt: new Date('2024-01-15'),
-    paperCount: 15,
-    recentPapers: [
-      {
-        id: 'paper-1',
-        title: 'Advances in Multi-Modal Learning for Computer Vision',
-        link: 'https://arxiv.org/abs/2024.001',
-        createdAt: new Date('2024-01-10'),
-        stars: 45,
-      },
-      {
-        id: 'paper-2',
-        title: 'Robust Deep Learning for Autonomous Systems',
-        link: 'https://arxiv.org/abs/2023.156',
-        createdAt: new Date('2023-12-15'),
-        stars: 32,
-      },
-      {
-        id: 'paper-3',
-        title: 'Interpretable AI: Methods and Applications',
-        link: 'https://arxiv.org/abs/2023.089',
-        createdAt: new Date('2023-11-20'),
-        stars: 28,
-      },
-    ],
-  };
-
-  return [...mappedAuthors, sampleClaimedAuthor];
+  return mappedAuthors;
 }
 
 export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
