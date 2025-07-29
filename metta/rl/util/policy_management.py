@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 from typing import Any, Tuple
 
 import torch
@@ -12,6 +13,30 @@ from metta.common.util.fs import wait_for_file
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
 logger = logging.getLogger(__name__)
+
+
+def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
+    """Clean up old policy checkpoints, keeping only the most recent ones."""
+    try:
+        # Get checkpoint directory
+        checkpoint_path = Path(checkpoint_dir)
+        if not checkpoint_path.exists():
+            return
+
+        # List all policy files
+        policy_files = sorted(checkpoint_path.glob("policy_*.pt"))
+
+        # Keep only the most recent ones
+        if len(policy_files) > keep_last_n:
+            files_to_remove = policy_files[:-keep_last_n]
+            for file_path in files_to_remove:
+                try:
+                    file_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Failed to remove old policy file {file_path}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Error during policy cleanup: {e}")
 
 
 def validate_policy_environment_match(policy: Any, env: Any) -> None:
