@@ -2,17 +2,17 @@ import type { Vec2f } from './vector_math.js'
 
 /** Mesh class responsible for managing vertex data. */
 export class Mesh {
-  private name: string
-  private gl: WebGLRenderingContext
+  public name: string
+  public gl: WebGLRenderingContext
   public vertexBuffer: WebGLBuffer | null = null
   public indexBuffer: WebGLBuffer | null = null
 
   // Buffer management
-  private maxQuads: number
-  private vertexCapacity: number
-  private indexCapacity: number
+  public maxQuads: number
+  public vertexCapacity: number
+  public indexCapacity: number
   public vertexData: Float32Array
-  private indexData: Uint32Array
+  public indexData: Uint32Array
   public currentQuad = 0
   public currentVertex = 0
 
