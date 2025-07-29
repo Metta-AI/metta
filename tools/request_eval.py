@@ -190,7 +190,6 @@ async def _create_remote_eval_tasks(
         for result in policy_results:
             success(f"{result.sim_suite}: {result.id}", indent=4)
 
-    # TODO: mappings like this should determined somewhere else
     frontend_base_url = {
         PROD_STATS_SERVER_URI: PROD_OBSERVATORY_FRONTEND_URL,
         DEV_STATS_SERVER_URI: DEV_OBSERVATORY_FRONTEND_URL,

@@ -854,7 +854,10 @@ onEvent('click', '#share-button', () => {
   onShareButtonClick()
 })
 onEvent('click', '#help-button', () => {
-  window.open(`https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/blob/${METTA_GITHUB_PRIMARY_BRANCH}/mettascope/README.md`, '_blank')
+  window.open(
+    `https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/blob/${METTA_GITHUB_PRIMARY_BRANCH}/mettascope/README.md`,
+    '_blank'
+  )
 })
 
 onEvent('click', '#rewind-to-start', () => {
