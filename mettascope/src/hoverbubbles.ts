@@ -17,7 +17,7 @@
 import * as Common from './common.js'
 import { state, ui } from './common.js'
 import { find, findIn, onEvent, removeChildren } from './htmlutils.js'
-import { getAttr, getObjectConfig } from './replay.js'
+import { getAttr } from './replay.js'
 import { Vec2f } from './vector_math.js'
 
 /** An info bubble. */
@@ -141,98 +141,81 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
 
   const params = findIn(htmlBubble, '.params')
   removeChildren(params)
-  const inventory = findIn(htmlBubble, '.inventory')
-  removeChildren(inventory)
   for (const key in object) {
     let value = getAttr(object, key)
-    // if ((key.startsWith('inv:') || key.startsWith('agent:inv:')) && value > 0) {
-    //   const item = itemTemplate.cloneNode(true) as HTMLElement
-    //   item.querySelector('.amount')!.textContent = value
-    //   const resource = key.replace('inv:', '').replace('agent:', '')
-    //   item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-    //   inventory.appendChild(item)
-    // } else {
-    //   if (key === 'type') {
-    //     value = state.replay.type_names[value]
-    //   } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.size) {
-    //     const colorNames = Array.from(Common.COLORS.keys())
-    //     value = colorNames[value]
-    //   } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
-    //     // If the value is a float and not an integer, round it to three decimal places.
-    //     if (typeof value === 'number' && !Number.isInteger(value)) {
-    //       value = value.toFixed(3)
-    //     }
-    //   } else {
-    //     continue
-    //   }
-    //   const param = paramTemplate.cloneNode(true) as HTMLElement
-    //   param.querySelector('.name')!.textContent = key
-    //   param.querySelector('.value')!.textContent = value
-    //   params.appendChild(param)
-    // }
+    if (key === 'type') {
+      value = state.replay.type_names[value]
+    } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.size) {
+      const colorNames = Array.from(Common.COLORS.keys())
+      value = colorNames[value]
+    } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
+      // If the value is a float and not an integer, round it to three decimal places.
+      if (typeof value === 'number' && !Number.isInteger(value)) {
+        value = value.toFixed(3)
+      }
+    } else {
+      continue
+    }
+    const param = paramTemplate.cloneNode(true) as HTMLElement
+    param.querySelector('.name')!.textContent = key
+    param.querySelector('.value')!.textContent = value
+    params.appendChild(param)
+  }
+
+  // Populate the inventory area.
+  const inventory = findIn(htmlBubble, '.inventory')
+  removeChildren(inventory)
+  for (const inventoryPair of getAttr(object, 'inventory')) {
+    const inventoryId = inventoryPair[0]
+    const resourceAmount = inventoryPair[1]
+    const resourceName = state.replay.item_names[inventoryId]
+    const item = itemTemplate.cloneNode(true) as HTMLElement
+    item.querySelector('.amount')!.textContent = resourceAmount
+    item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
+    inventory.appendChild(item)
   }
 
   // Populate the recipe area if the object config has input_ or output_ resources.
   const recipe = findIn(htmlBubble, '.recipe')
   removeChildren(recipe)
   const recipeArea = findIn(htmlBubble, '.recipe-area')
-  const objectConfig = getObjectConfig(object)
-  let displayedResources = 0
-  if (objectConfig != null) {
-    recipeArea.classList.remove('hidden')
 
-    // If config has input_resources or output_resources use that,
-    // otherwise use input_{resource} and output_{resource}.
-    if (objectConfig.hasOwnProperty('input_resources') || objectConfig.hasOwnProperty('output_resources')) {
-      // input_resources is a object like {heart: 1, blueprint: 1}
-      for (const resource in objectConfig.input_resources) {
+  let displayedResources = 0
+
+  const inputResources = getAttr(object, 'input_resources')
+  const outputResources = getAttr(object, 'output_resources')
+
+  // If config has input_resources or output_resources use that,
+  // otherwise use input_{resource} and output_{resource}.
+  if (inputResources.length > 0 || outputResources.length > 0) {
+    // input_resources is a object like {heart: 1, blueprint: 1}
+    for (const resourcePair of inputResources) {
+      const resourceId = resourcePair[0]
+      const resourceAmount = resourcePair[1]
+      const resourceName = state.replay.item_names[resourceId]
+      const item = itemTemplate.cloneNode(true) as HTMLElement
+      item.querySelector('.amount')!.textContent = resourceAmount
+      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
+      recipe.appendChild(item)
+      displayedResources++
+    }
+    // Add the arrow.
+    recipe.appendChild(recipeArrow.cloneNode(true))
+    // Add the output.
+    if (outputResources.length > 0) {
+      for (const resourcePair of outputResources) {
+        const resourceId = resourcePair[0]
+        const resourceAmount = resourcePair[1]
+        const resourceName = state.replay.item_names[resourceId]
         const item = itemTemplate.cloneNode(true) as HTMLElement
-        item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
-        item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
+        item.querySelector('.amount')!.textContent = resourceAmount
+        item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
         recipe.appendChild(item)
         displayedResources++
       }
-      // Add the arrow.
-      recipe.appendChild(recipeArrow.cloneNode(true))
-      // Add the output.
-      if (objectConfig.hasOwnProperty('output_resources')) {
-        for (const resource in objectConfig.output_resources) {
-          const item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = objectConfig.output_resources[resource]
-          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
-    } else {
-      // Configs have input_{resource} and output_{resource}.
-      for (const key in objectConfig) {
-        if (key.startsWith('input_')) {
-          const resource = key.replace('input_', '')
-          const amount = objectConfig[key]
-          const item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
-      // Add the arrow.
-      recipe.appendChild(recipeArrow.cloneNode(true))
-      // Add the output.
-      for (const key in objectConfig) {
-        if (key.startsWith('output_')) {
-          const resource = key.replace('output_', '')
-          const amount = objectConfig[key]
-          const item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
     }
   }
+
   if (displayedResources > 0) {
     recipeArea.classList.remove('hidden')
   } else {

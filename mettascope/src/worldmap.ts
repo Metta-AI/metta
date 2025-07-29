@@ -6,7 +6,7 @@ import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
 import type { PanelInfo } from './panels.js'
-import { getAttr, getObjectConfig, sendAction } from './replay.js'
+import { getAttr, sendAction } from './replay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
 
@@ -63,12 +63,11 @@ function clampMapPan(panel: PanelInfo) {
 
 /** Checks to see if an object has any inventory. */
 function hasInventory(obj: any) {
-  for (const [key, [_icon, _color]] of state.replay.resource_inventory) {
-    if (getAttr(obj, key) > 0) {
-      return true
-    }
+  const inventory = getAttr(obj, 'inventory')
+  if (inventory === null || inventory === undefined) {
+    return false
   }
-  return false
+  return Object.keys(inventory).length > 0
 }
 
 /** Focus the screen on a specific area of the map. */
@@ -234,18 +233,18 @@ function drawObject(gridObject: any) {
     // Draw the item layer.
     if (hasInventory(gridObject)) {
       // Only render the overlay if the inventory contains output resources
-      const objectConfig = getObjectConfig(gridObject)
+
       let outputItemExists = false
 
-      if (objectConfig?.output_resources) {
-        // Check if any output resources are in the inventory
-        for (const resource in objectConfig.output_resources) {
-          if (getAttr(gridObject, `inv:${resource}`) > 0) {
-            outputItemExists = true
-            break
-          }
-        }
-      }
+      // if (objectConfig?.output_resources) {
+      //   // Check if any output resources are in the inventory
+      //   for (const resource in objectConfig.output_resources) {
+      //     if (getAttr(gridObject, `inv:${resource}`) > 0) {
+      //       outputItemExists = true
+      //       break
+      //     }
+      //   }
+      // }
       if (outputItemExists) {
         ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
@@ -270,10 +269,11 @@ function drawActions() {
     // Do agent actions.
     if (gridObject.action !== undefined) {
       // Draw the action.
-      const action = getAttr(gridObject, 'action')
-      const action_success = getAttr(gridObject, 'action_success')
-      if (action_success && action != null) {
-        const action_name = state.replay.action_names[action[0]]
+      const actionId = getAttr(gridObject, 'action_id')
+      const actionParam = getAttr(gridObject, 'action_param')
+      const actionSuccess = getAttr(gridObject, 'action_success')
+      if (actionSuccess && actionId != null) {
+        const action_name = state.replay.action_names[actionId]
         const orientation = getAttr(gridObject, 'orientation')
         let rotation = 0
         if (orientation === 0) {
@@ -285,9 +285,9 @@ function drawActions() {
         } else if (orientation === 3) {
           rotation = 0 // East
         }
-        if (action_name === 'attack' && action[1] >= 1 && action[1] <= 9) {
+        if (action_name === 'attack' && actionParam >= 1 && actionParam <= 9) {
           ctx.drawSprite(
-            `actions/attack${action[1]}.png`,
+            `actions/attack${actionParam}.png`,
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
@@ -361,17 +361,20 @@ function drawInventory(useSearch = false) {
     // Sum up the object's inventory in case we need to condense it.
     let inventoryX = Common.INVENTORY_PADDING
     let numItems = 0
-    for (const [key, [_icon, _color]] of state.replay.resource_inventory) {
-      const num = getAttr(gridObject, key)
-      if (num !== null && num !== undefined && num > 0) {
-        numItems += num
-      }
+    const inventory: [number, number][] = getAttr(gridObject, 'inventory')
+    for (const inventoryPair of inventory) {
+      const num = inventoryPair[1]
+      numItems += num
     }
     // Draw the actual inventory icons.
     const advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
-    for (const [key, [icon, color]] of state.replay.resource_inventory) {
-      const num = getAttr(gridObject, key)
-      if (num !== null && num !== undefined && num > 0) {
+    for (const inventoryPair of inventory) {
+      const inventoryId = inventoryPair[0]
+      const num = inventoryPair[1]
+      const key = state.replay.item_names[inventoryId]
+      const icon = `resources/${key}.png`
+      const color = [1, 1, 1, 1]
+      if (num > 0) {
         for (let i = 0; i < num; i++) {
           if (useSearch) {
             if (!searchMatch(key)) {
@@ -511,19 +514,20 @@ function drawThoughtBubbles() {
     let actionHasTarget = false
     const actionStepEnd = Math.min(state.replay.max_steps, state.step + 20)
     for (let actionStep = state.step; actionStep < actionStepEnd; actionStep++) {
-      const action = getAttr(state.selectedGridObject, 'action', actionStep)
-      if (action == null || action[0] == null || action[1] == null) {
+      const actionId = getAttr(state.selectedGridObject, 'action_id', actionStep)
+      const actionParam = getAttr(state.selectedGridObject, 'action_param', actionStep)
+      if (actionId == null || actionParam == null) {
         continue
       }
       const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
       if (!actionSuccess) {
         continue
       }
-      const actionName = state.replay.action_names[action[0]]
+      const actionName = state.replay.action_names[actionId]
       if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move') {
         continue
       }
-      keyAction = action
+      keyAction = [actionId, actionParam]
       keyActionStep = actionStep
       actionHasTarget = !(actionName === 'attack' || actionName === 'attack_nearest')
       break

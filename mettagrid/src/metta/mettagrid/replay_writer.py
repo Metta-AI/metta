@@ -47,13 +47,19 @@ class EpisodeReplay:
         self.replay_data = {
             "version": 2,
             "action_names": env.action_names,
-            "inventory_items": env.inventory_item_names,
+            "item_names": env.inventory_item_names,
             "type_names": env.object_type_names,
             "map_size": [env.map_width, env.map_height],
             "num_agents": env.num_agents,
             "max_steps": env.max_steps,
             "objects": self.objects,
         }
+
+    def inventory_format(self, inventory: dict) -> list:
+        result = []
+        for item_id, amount in inventory.items():
+            result.append([item_id, amount])
+        return result
 
     def log_step(self, actions: np.ndarray, rewards: np.ndarray):
         self.total_rewards += rewards
@@ -67,7 +73,7 @@ class EpisodeReplay:
             location = grid_object["location"]
             update_object["location"] = [location[1], location[0], location[2]]
             update_object["orientation"] = grid_object.get("orientation", 0)
-            update_object["inventory"] = grid_object.get("inventory", {})
+            update_object["inventory"] = self.inventory_format(grid_object.get("inventory", {}))
             update_object["inventory_max"] = grid_object.get("inventory_max", 0)
             update_object["color"] = grid_object.get("color", 0)
             update_object["is_swappable"] = grid_object.get("is_swappable", False)
@@ -87,8 +93,8 @@ class EpisodeReplay:
                 update_object["group_id"] = grid_object["group_id"]
 
             elif "input_resources" in grid_object:
-                update_object["input_resources"] = grid_object["input_resources"]
-                update_object["output_resources"] = grid_object["output_resources"]
+                update_object["input_resources"] = self.inventory_format(grid_object["input_resources"])
+                update_object["output_resources"] = self.inventory_format(grid_object["output_resources"])
                 update_object["output_limit"] = grid_object["output_limit"]
                 update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
                 update_object["is_converting"] = grid_object["is_converting"]

@@ -336,15 +336,6 @@ export function loadReplayStep(replayStep: any) {
   requestFrame()
 }
 
-/** Get object config. */
-export function getObjectConfig(object: any) {
-  const typeName = state.replay.type_names[object.type]
-  if (state.replay.config == null) {
-    return null
-  }
-  return state.replay.config.game.objects[typeName]
-}
-
 /** Initializes the WebSocket connection. */
 export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl)

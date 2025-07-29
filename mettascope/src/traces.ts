@@ -153,24 +153,25 @@ export function drawTrace(panel: PanelInfo) {
   for (let i = 0; i < state.replay.num_agents; i++) {
     const agent = state.replay.agents[i]
     for (let j = 0; j < state.replay.max_steps; j++) {
-      const action = getAttr(agent, 'action', j)
-      const action_success = getAttr(agent, 'action_success', j)
+      const actionId = getAttr(agent, 'action_id', j)
+      const actionParam = getAttr(agent, 'action_param', j)
+      const actionSuccess = getAttr(agent, 'action_success', j)
 
-      if (getAttr(agent, 'agent:frozen', j) > 0) {
+      if (getAttr(agent, 'is_frozen', j)) {
         // Draw the frozen state.
         ctx.drawSprite(
           'trace/frozen.png',
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
         )
-      } else if (action_success && action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
+      } else if (actionSuccess && actionId >= 0 && actionId < state.replay.action_images.length) {
         // Draw the action.
         ctx.drawSprite(
-          state.replay.action_images[action[0]],
+          state.replay.action_images[actionId],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
         )
-      } else if (action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
+      } else if (actionId != null && actionId >= 0 && actionId < state.replay.action_images.length) {
         // Draw the invalid action.
         ctx.drawSprite(
           'trace/invalid.png',
@@ -193,25 +194,29 @@ export function drawTrace(panel: PanelInfo) {
 
       // Draw resource gain/loss.
       if (state.showResources && j > 0) {
-        // Figure out how many resources to draw.
-        let number = 0
-        for (const [key, [_image, _color]] of state.replay.resource_inventory) {
-          number += Math.abs(getAttr(agent, key, j + 1) - getAttr(agent, key, j))
-        }
-        // Draw the resources.
-        let y = 32
-        // Compress the resources if there are too many so that they fit.
-        const step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number)
-        for (const [key, [image, color]] of state.replay.resource_inventory) {
-          const prevResources = getAttr(agent, key, j - 1)
-          const nextResources = getAttr(agent, key, j)
-          const absGain = Math.abs(nextResources - prevResources)
-          for (let k = 0; k < absGain; k++) {
+        const inventory = getAttr(agent, 'inventory', j)
+        const prevInventory = getAttr(agent, 'inventory', j - 1)
+        let y = 0
+        const step = 32
+        console.info('step', step)
+        for (const inventoryPair of inventory) {
+          const inventoryId = inventoryPair[0]
+          const inventoryAmount = inventoryPair[1]
+          let diff = inventoryAmount
+          // If the inventory has changed, draw the sprite.
+          for (const prevInventoryPair of prevInventory) {
+            if (prevInventoryPair[0] === inventoryPair[0]) {
+              diff = inventoryAmount - prevInventoryPair[1]
+            }
+          }
+          if (diff > 0) {
+            const inventoryName = state.replay.item_names[inventoryId]
+            const inventoryImage = `resources/${inventoryName}.png`
             ctx.drawSprite(
-              image,
+              inventoryImage,
               j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
               i * Common.TRACE_HEIGHT + y,
-              color,
+              [1, 1, 1, 1],
               1 / 4
             )
             y += step

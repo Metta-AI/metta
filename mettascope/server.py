@@ -161,6 +161,12 @@ def make_app(cfg: DictConfig):
         actions = np.zeros((env.num_agents, 2))
         total_rewards = np.zeros(env.num_agents)
 
+        def inventory_format(inventory: dict) -> list:
+            result = []
+            for item_id, amount in inventory.items():
+                result.append([item_id, amount])
+            return result
+
         async def send_replay_step():
             grid_objects = []
             for i, grid_object in enumerate(env.grid_objects.values()):
@@ -172,7 +178,7 @@ def make_app(cfg: DictConfig):
                 location = grid_object["location"]
                 update_object["location"] = [location[1], location[0], location[2]]
                 update_object["orientation"] = grid_object.get("orientation", 0)
-                update_object["inventory"] = grid_object.get("inventory", {})
+                update_object["inventory"] = inventory_format(grid_object.get("inventory", {}))
                 update_object["inventory_max"] = grid_object.get("inventory_max", 0)
                 update_object["color"] = grid_object.get("color", 0)
                 update_object["is_swappable"] = grid_object.get("is_swappable", False)
@@ -193,8 +199,8 @@ def make_app(cfg: DictConfig):
                     update_object["group_id"] = grid_object["group_id"]
 
                 elif "input_resources" in grid_object:
-                    update_object["input_resources"] = grid_object["input_resources"]
-                    update_object["output_resources"] = grid_object["output_resources"]
+                    update_object["input_resources"] = inventory_format(grid_object["input_resources"])
+                    update_object["output_resources"] = inventory_format(grid_object["output_resources"])
                     update_object["output_limit"] = grid_object["output_limit"]
                     update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
                     update_object["is_converting"] = grid_object["is_converting"]
