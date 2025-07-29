@@ -67,7 +67,6 @@ class EvalTaskClient:
     async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
         if filters is None:
             filters = TaskFilterParams()
-
         return await self._make_request(
             TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
         )
