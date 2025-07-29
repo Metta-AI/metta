@@ -374,21 +374,22 @@ def train(
             logger.info(f"Rank {rank}: Epoch {epoch}, should_checkpoint={should_checkpoint}, is_master={is_master}")
 
         if should_checkpoint:
-            if is_master:
-                logger.info(f"Rank {rank}: Master starting policy save at epoch {epoch}")
-                saved_record = checkpoint_manager.save_policy(
-                    policy=policy,
-                    epoch=epoch,
-                    agent_step=agent_step,
-                    evals=eval_scores,
-                    timer=timer,
-                    initial_policy_record=initial_policy_record,
-                )
-                logger.info(f"Rank {rank}: Master completed policy save, saved_record={saved_record is not None}")
-                if saved_record:
-                    latest_saved_policy_record = saved_record
+            logger.info(f"Rank {rank}: Entering checkpoint block")
+            saved_record = checkpoint_manager.save_policy(
+                policy=policy,
+                epoch=epoch,
+                agent_step=agent_step,
+                evals=eval_scores,
+                timer=timer,
+                initial_policy_record=initial_policy_record,
+            )
+            logger.info(f"Rank {rank}: Exited save_policy, saved_record={saved_record is not None}")
 
-                    # Save training state with the new policy path
+            if saved_record:
+                latest_saved_policy_record = saved_record
+
+                # Only master saves training state
+                if is_master:
                     logger.info(f"Rank {rank}: Master saving checkpoint")
                     checkpoint_manager.save_checkpoint(
                         agent_step=agent_step,
@@ -400,12 +401,6 @@ def train(
                         kickstarter=kickstarter,
                     )
                     logger.info(f"Rank {rank}: Master completed checkpoint save")
-            else:
-                # Non-master ranks must participate in the barrier
-                logger.info(f"Rank {rank}: Non-master waiting at checkpoint barrier")
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
-                logger.info(f"Rank {rank}: Non-master passed checkpoint barrier")
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
