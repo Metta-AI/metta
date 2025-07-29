@@ -72,6 +72,8 @@ def _setup_local_parser(parser: argparse.ArgumentParser) -> None:
     local_subparsers.add_parser("build-policy-evaluator-img", help="Build policy evaluator Docker image")
     local_subparsers.add_parser("build-app-backend-img", help="Build app backend Docker image")
     local_subparsers.add_parser("load-policies", help="Load W&B artifacts as policies")
+    local_subparsers.add_parser("stats-server", help="Launch Stats Server")
+    local_subparsers.add_parser("observatory", help="Launch Observatory")
 
     # Kind subcommand
     kind_parser = local_subparsers.add_parser("kind", help="Manage Kind cluster")
@@ -507,6 +509,8 @@ class MettaCLI:
                 self.local_commands.kind(args)
             elif args.local_command == "observatory":
                 self.local_commands.observatory(args, unknown_args or [])
+            elif args.local_command == "stats-server":
+                self.local_commands.stats_server(args, unknown_args or [])
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -741,12 +745,12 @@ Examples:
   metta status --non-interactive       # Show status without prompts
   metta clean                          # Clean build artifacts
   metta symlink-setup                  # Set up symlink to make metta command globally available
-  
+
   metta run githooks pre-commit        # Run component-specific commands
-  
+
   metta test ...                       # Run python unit tests
   metta test-changed ...               # Run python unit tests affected by changes
-  
+
   metta tool train run=test            # Run train.py tool with arguments
   metta tool sim policy_uri=...        # Run sim.py tool with arguments
   metta clip -e py metta               # Copy Python files to clipboard
