@@ -146,7 +146,7 @@ def upload_policy_artifact(
         wandb_run: WandB run object
         policy_store: Policy store
         policy_record: Policy record to upload
-        force: Force upload even if already uploaded
+        force: Force upload even if already uploaded (currently unused)
 
     Returns:
         WandB policy name or None if failed
@@ -155,7 +155,7 @@ def upload_policy_artifact(
         return None
 
     try:
-        wandb_policy_name = policy_store.add_to_wandb_run(wandb_run.id, policy_record, force=force)
+        wandb_policy_name = policy_store.add_to_wandb_run(wandb_run.id, policy_record)
         logger.info(f"Uploaded policy to wandb: {wandb_policy_name}")
         return wandb_policy_name
     except Exception as e:
