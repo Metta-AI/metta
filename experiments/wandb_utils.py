@@ -1,8 +1,8 @@
 """Weights & Biases utilities for experiments."""
 
-from itertools import islice
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from itertools import islice
+from typing import Any, Dict, List
 
 import pandas as pd
 import wandb
@@ -11,12 +11,12 @@ from wandb.apis.public.runs import Run
 
 def get_run(run_name: str, entity: str = "metta-research", project: str = "metta") -> Run | None:
     """Get a wandb run by name.
-    
+
     Args:
         run_name: Name of the wandb run
         entity: Wandb entity
         project: Wandb project
-        
+
     Returns:
         Run object or None if not found
     """
@@ -46,7 +46,7 @@ def find_training_jobs(
     limit: int = 50,
 ) -> list[str]:
     """Find training jobs matching criteria.
-    
+
     Args:
         wandb_tags: Filter by tags
         author: Filter by username
@@ -57,7 +57,7 @@ def find_training_jobs(
         project: Wandb project
         order_by: Sort order
         limit: Maximum number of results
-        
+
     Returns:
         List of run names
     """
@@ -76,25 +76,22 @@ def find_training_jobs(
             filters["created_at"] = {"$lte": created_before}
     if wandb_tags:
         filters["tags"] = {"$in": wandb_tags}
-    
+
     runs = islice(wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit)
     return [run.name for run in runs]
 
 
 def fetch_metrics_data(
-    run_names: list[str], 
-    samples: int = 1000,
-    entity: str = "metta-research",
-    project: str = "metta"
+    run_names: list[str], samples: int = 1000, entity: str = "metta-research", project: str = "metta"
 ) -> dict[str, pd.DataFrame]:
     """Fetch metrics data for multiple runs.
-    
+
     Args:
         run_names: List of run names to fetch
         samples: Number of samples to fetch per run
         entity: Wandb entity
         project: Wandb project
-        
+
     Returns:
         Dictionary mapping run names to dataframes
     """
@@ -122,24 +119,21 @@ def fetch_metrics_data(
 
         except Exception as e:
             print(f"  Error: {str(e)}")
-    
+
     return metrics_dfs
 
 
 def get_run_statuses(
-    run_names: list[str],
-    show_metrics: list[str] | None = None,
-    entity: str = "metta-research", 
-    project: str = "metta"
+    run_names: list[str], show_metrics: list[str] | None = None, entity: str = "metta-research", project: str = "metta"
 ) -> pd.DataFrame:
     """Get status information for multiple runs.
-    
+
     Args:
         run_names: List of run names
         show_metrics: Metrics to include in status
         entity: Wandb entity
         project: Wandb project
-        
+
     Returns:
         DataFrame with run status information
     """
@@ -160,12 +154,14 @@ def get_run_statuses(
         }
 
         if run:
-            row.update({
-                "run_name": run_name,
-                "state": run.state,
-                "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
-            })
-            
+            row.update(
+                {
+                    "run_name": run_name,
+                    "state": run.state,
+                    "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
+                }
+            )
+
             if run.summary:
                 for metric in show_metrics:
                     if metric in run.summary:
@@ -180,7 +176,7 @@ def get_run_statuses(
                 for metric in show_metrics:
                     row[metric] = "-"
             row["url"] = run.url
-            
+
         data.append(row)
 
     return pd.DataFrame(data)
@@ -188,12 +184,12 @@ def get_run_statuses(
 
 def get_run_config(run_name: str, entity: str = "metta-research", project: str = "metta") -> Dict[str, Any]:
     """Fetch full configuration from a wandb run.
-    
+
     Args:
         run_name: Name of the wandb run
         entity: Wandb entity
         project: Wandb project
-        
+
     Returns:
         Run configuration dictionary
     """
@@ -207,10 +203,7 @@ def get_run_config(run_name: str, entity: str = "metta-research", project: str =
 
 
 def get_training_logs(
-    run_name: str, 
-    log_type: str = "stdout", 
-    entity: str = "metta-research", 
-    project: str = "metta"
+    run_name: str, log_type: str = "stdout", entity: str = "metta-research", project: str = "metta"
 ) -> List[str]:
     """Fetch training logs (stdout/stderr) from a wandb run.
 
@@ -229,7 +222,7 @@ def get_training_logs(
 
         # Get log files
         files = run.files()
-        log_filename = f"output.log" if log_type == "stdout" else f"error.log"
+        log_filename = "output.log" if log_type == "stdout" else "error.log"
 
         for file in files:
             if file.name.endswith(log_filename):

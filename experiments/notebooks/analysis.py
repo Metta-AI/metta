@@ -1,21 +1,21 @@
 """Analysis and visualization utilities for experiment notebooks."""
 
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
+
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # Import data fetching functions from experiments
-from experiments.wandb_utils import fetch_metrics_data, get_run_config, get_training_logs
+from experiments.wandb_utils import fetch_metrics_data
 
 
 def fetch_metrics(wandb_run_names: list[str], samples: int = 1000) -> dict[str, pd.DataFrame]:
     """Fetch metrics for analysis (notebook-friendly wrapper).
-    
+
     Args:
         wandb_run_names: List of wandb run names
         samples: Number of samples to fetch
-        
+
     Returns:
         Dictionary mapping run names to dataframes
     """
@@ -53,6 +53,7 @@ def plot_sps(
     for idx, run_name in enumerate(wandb_run_names):
         try:
             from experiments.wandb_utils import get_run
+
             run = get_run(run_name, entity, project)
             if run is None:
                 continue
@@ -107,7 +108,10 @@ def plot_sps(
 
 
 def create_run_summary_table(
-    wandb_run_names: List[str], metrics: Optional[List[str]] = None, entity: str = "metta-research", project: str = "metta"
+    wandb_run_names: List[str],
+    metrics: Optional[List[str]] = None,
+    entity: str = "metta-research",
+    project: str = "metta",
 ) -> pd.DataFrame:
     """Create a summary table for multiple runs.
 
@@ -130,8 +134,9 @@ def create_run_summary_table(
         ]
 
     data = []
-    
+
     from experiments.wandb_utils import get_run
+
     for run_name in wandb_run_names:
         try:
             run = get_run(run_name, entity, project)

@@ -1,6 +1,7 @@
 """Display utilities for monitoring training status in notebooks."""
 
-from typing import List, Optional, Any
+from typing import Any, List, Optional
+
 import pandas as pd
 
 # Import data fetching from experiments
@@ -8,32 +9,32 @@ from experiments.monitoring import get_training_status
 from experiments.types import TrainingJob
 
 
-def job_status(training_jobs: List[TrainingJob], 
-               entity: str = "metta-research", 
-               project: str = "metta") -> pd.DataFrame:
+def job_status(
+    training_jobs: List[TrainingJob], entity: str = "metta-research", project: str = "metta"
+) -> pd.DataFrame:
     """Get status for a list of TrainingJob objects.
-    
+
     Args:
         training_jobs: List of TrainingJob objects
         entity: Wandb entity
         project: Wandb project
-        
+
     Returns:
         DataFrame with job status information
     """
     if not training_jobs:
         return pd.DataFrame()
-    
+
     # Extract run names and job IDs
     wandb_run_names = [job.wandb_run_name for job in training_jobs]
     skypilot_job_ids = [job.skypilot_job_id for job in training_jobs if job.skypilot_job_id]
-    
+
     # Get status
     return get_training_status(
         wandb_run_names=wandb_run_names,
         skypilot_job_ids=skypilot_job_ids if skypilot_job_ids else None,
         entity=entity,
-        project=project
+        project=project,
     )
 
 
@@ -46,7 +47,7 @@ def monitor_training_statuses(
     return_widget: bool = True,
 ) -> pd.DataFrame:
     """Monitor training runs with optional widget display.
-    
+
     Args:
         wandb_run_names: List of wandb run names
         skypilot_job_ids: Optional list of corresponding sky job IDs
@@ -54,34 +55,34 @@ def monitor_training_statuses(
         entity: Wandb entity
         project: Wandb project
         return_widget: If True, display HTML widget in notebook
-        
+
     Returns:
         DataFrame with status information
     """
     # Get status data
     df = get_training_status(wandb_run_names, skypilot_job_ids, show_metrics, entity, project)
-    
+
     # Display widget if requested and in notebook environment
     if not df.empty and return_widget:
         try:
-            import ipywidgets as widgets
             from IPython.display import display
+
             html_widget = create_training_table_widget(df)
             if html_widget:
                 display(html_widget)
         except ImportError:
             # Not in notebook environment
             pass
-    
+
     return df
 
 
 def create_training_table_widget(df: pd.DataFrame):
     """Create an HTML widget for displaying training status table.
-    
+
     Args:
         df: DataFrame with training status
-        
+
     Returns:
         HTML widget or None if not in notebook environment
     """
@@ -89,7 +90,7 @@ def create_training_table_widget(df: pd.DataFrame):
         import ipywidgets as widgets
     except ImportError:
         return None
-    
+
     # Create styled HTML table
     html_rows = []
 

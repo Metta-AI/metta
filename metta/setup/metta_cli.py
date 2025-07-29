@@ -318,20 +318,20 @@ class MettaCLI:
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
-    
+
     def cmd_notebook(self, args) -> None:
         """Create an experiment notebook using arena recipe."""
         # Build command for arena recipe
         cmd = [sys.executable, str(self.repo_root / "experiments" / "recipes" / "arena_experiment.py")]
-        
+
         # Pass all arguments through to arena_experiment.py
         if args.name:
             cmd.append(args.name)
-        
+
         # Pass through all unknown args
-        unknown_args = getattr(args, '_unknown_args', [])
+        unknown_args = getattr(args, "_unknown_args", [])
         cmd.extend(unknown_args)
-        
+
         try:
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
@@ -598,7 +598,7 @@ Examples:
         # Tool command
         tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
         tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
-        
+
         # Notebook command - always uses arena recipe
         notebook_parser = subparsers.add_parser("notebook", help="Create experiment notebook (uses arena recipe)")
         notebook_parser.add_argument("name", nargs="?", help="Name for the notebook")

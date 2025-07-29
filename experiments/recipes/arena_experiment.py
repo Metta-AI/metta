@@ -7,16 +7,17 @@ Based on the arena.sh recipe.
 
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import List, Optional
+
+from pydantic import Field
 
 from experiments.experiment import Experiment
-from experiments.types import TrainingJob, TrainingJobConfig, BaseExperimentConfig
-from pydantic import Field
-from typing import Optional, List
+from experiments.types import BaseExperimentConfig, TrainingJob, TrainingJobConfig
 
 
 class ArenaExperimentConfig(BaseExperimentConfig):
     """Configuration specific to Arena experiments."""
+
     # Launch configuration
     curriculum: str = Field("env/mettagrid/curriculum/arena/learning_progress", description="Path to curriculum config")
     gpus: int = Field(1, description="Number of GPUs")
@@ -49,7 +50,7 @@ class ArenaExperiment(Experiment):
         # Create config from ArenaExperimentConfig
         tags = self.config.wandb_tags or []
         tags.extend(["arena", "experiment", self.name])
-        
+
         config = TrainingJobConfig(
             curriculum=self.config.curriculum,
             gpus=self.config.gpus,
@@ -70,7 +71,6 @@ class ArenaExperiment(Experiment):
         return []  # Return empty list if launch failed
 
 
-
 def main():
     """Run arena experiment from command line."""
     import argparse
@@ -81,7 +81,7 @@ def main():
     parser.add_argument("--job-ids", nargs="+", help="Load existing SkyPilot job IDs")
     parser.add_argument("--open", action="store_true", help="Open notebook in Jupyter")
     parser.add_argument("--sections", help="Comma-separated list of notebook sections")
-    
+
     # Launch configuration
     parser.add_argument("-c", "--curriculum", help="Path to curriculum config")
     parser.add_argument("-g", "--gpus", type=int, help="Number of GPUs")
@@ -101,7 +101,7 @@ def main():
         "open_notebook": args.open,
         "sections": args.sections.split(",") if args.sections else None,
     }
-    
+
     # Add launch configuration if provided
     if args.curriculum is not None:
         config_kwargs["curriculum"] = args.curriculum
@@ -117,7 +117,7 @@ def main():
         config_kwargs["wandb_tags"] = args.wandb_tags
     if args.additional_args:
         config_kwargs["additional_args"] = args.additional_args
-    
+
     config = ArenaExperimentConfig(**config_kwargs)
 
     # Create notebook

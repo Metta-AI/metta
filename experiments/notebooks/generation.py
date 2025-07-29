@@ -3,10 +3,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Dict, Any, List, Optional
-
-from experiments.types import TrainingJob
-
+from typing import Any, Dict, List, Optional
 
 # Available sections
 AVAILABLE_SECTIONS = {
@@ -152,14 +149,14 @@ def _create_notebook_cells(
 
 **Experiment**: {name}
 **Runs**: {len(wandb_run_names)} training runs
-**Created**: {additional_metadata.get("created_at", datetime.now().strftime('%Y-%m-%d %H:%M'))}
+**Created**: {additional_metadata.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M"))}
 **User**: {additional_metadata.get("user", "Unknown")}"""
-        
+
         if skypilot_job_ids:
             summary += "\n\n**Tracked Jobs:**"
-            for i, (job_id, run_name) in enumerate(zip(skypilot_job_ids, wandb_run_names)):
+            for _i, (job_id, run_name) in enumerate(zip(skypilot_job_ids, wandb_run_names, strict=False)):
                 summary += f"\n- Job {job_id} → {run_name}"
-                    
+
         cells.append(_create_markdown_cell(summary))
 
     # Generate the notebook filename we'll use
@@ -258,7 +255,13 @@ def _get_launch_section(has_existing_jobs: bool = False) -> List[Dict[str, Any]]
     """Generate launch section cells."""
     if has_existing_jobs:
         # When loading existing jobs, show how to launch additional runs
-        cells = [_create_markdown_cell("## Relaunch Training\n\n*Note: Jobs have been preloaded from command line. Use this section to launch additional training runs.*")]
+        cells = [
+            _create_markdown_cell(
+                "## Relaunch Training\n\n"
+                "*Note: Jobs have been preloaded from command line. "
+                "Use this section to launch additional training runs.*"
+            )
+        ]
         launch_code = """# Launch additional training runs to compare with preloaded jobs
 
 # Example: Launch with different hyperparameters
@@ -315,8 +318,6 @@ job_status(state.training_jobs)"""),
     ]
 
 
-
-
 def _get_analysis_section() -> List[Dict[str, Any]]:
     """Generate analysis section cells."""
     return [
@@ -343,8 +344,6 @@ if wandb_run_names:
     for replay in replays[-10:]:  # Show last 10
         print(f"  {replay['label']} - Step {replay['step']}")"""),
     ]
-
-
 
 
 def _get_scratch_section() -> List[Dict[str, Any]]:
@@ -384,5 +383,5 @@ except FileNotFoundError:
     return [
         _create_markdown_cell("## Export Results"),
         _create_code_cell(html_export_code),
-        _create_code_cell(clean_export_code)
+        _create_code_cell(clean_export_code),
     ]
