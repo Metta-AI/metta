@@ -1,3 +1,39 @@
+.split-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.pane-container {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.splitter {
+  width: 6px;
+  background: #3c3c3c;
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.splitter:hover {
+  background: #464647;
+}
+
+.splitter::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 20px;
+  background: #666;
+  transform: translate(-50%, -50%);
+}
+
 .pane {
   height: 100%;
   display: flex;

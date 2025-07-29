@@ -48,25 +48,28 @@ export class Pane {
   private render(): void {
     this.element.innerHTML = `
             <div class="pane">
-                <div class="tab-bar">
-                    <div class="add-tab-container">
-                        <div class="add-tab-btn">+</div>
-                        <div class="panel-type-dropdown">
-                            <div class="dropdown-item" data-type="${PanelType.LOGS}">${PanelType.LOGS}</div>
-                            <div class="dropdown-item" data-type="${PanelType.METRICS}">${PanelType.METRICS}</div>
-                            <div class="dropdown-item" data-type="${PanelType.MAP_VIEW}">${PanelType.MAP_VIEW}</div>
-                            <div class="dropdown-item" data-type="${PanelType.AGENT_DETAILS}">${PanelType.AGENT_DETAILS}</div>
-                        </div>
-                    </div>
-                </div>
+                <div class="tab-bar"></div>
                 <div class="tab-content"></div>
             </div>
         `
 
     this.tabBarElement = this.element.querySelector('.tab-bar') as HTMLElement
     this.contentElement = this.element.querySelector('.tab-content') as HTMLElement
-    this.addTabContainer = this.element.querySelector('.add-tab-container') as HTMLElement
-    this.dropdown = this.element.querySelector('.panel-type-dropdown') as HTMLElement
+
+    // Create the add-tab-container separately.
+    this.addTabContainer = document.createElement('div')
+    this.addTabContainer.className = 'add-tab-container'
+    this.addTabContainer.innerHTML = `
+        <div class="add-tab-btn">+</div>
+        <div class="panel-type-dropdown">
+            <div class="dropdown-item" data-type="${PanelType.LOGS}">${PanelType.LOGS}</div>
+            <div class="dropdown-item" data-type="${PanelType.METRICS}">${PanelType.METRICS}</div>
+            <div class="dropdown-item" data-type="${PanelType.MAP_VIEW}">${PanelType.MAP_VIEW}</div>
+            <div class="dropdown-item" data-type="${PanelType.AGENT_DETAILS}">${PanelType.AGENT_DETAILS}</div>
+        </div>
+    `
+
+    this.dropdown = this.addTabContainer.querySelector('.panel-type-dropdown') as HTMLElement
   }
 
   private setupEventListeners(): void {
@@ -127,20 +130,21 @@ export class Pane {
     }
   }
 
-    private updateTabs(): void {
-    // Clear existing tabs but keep the add-tab-container.
-    const existingTabs = this.tabBarElement.querySelectorAll('.tab')
-    existingTabs.forEach(tab => tab.remove())
+  private updateTabs(): void {
+    // Clear the entire tab bar.
+    this.tabBarElement.innerHTML = ''
 
+    // Add all tabs.
     this.tabs.forEach((tab, index) => {
       const tabElement = document.createElement('div')
       tabElement.className = `tab ${tab.isActive ? 'active' : ''}`
       tabElement.textContent = tab.title
       tabElement.addEventListener('click', () => this.activateTab(index))
-
-      // Insert before the add-tab-container.
-      this.tabBarElement.insertBefore(tabElement, this.addTabContainer)
+      this.tabBarElement.appendChild(tabElement)
     })
+
+    // Add the plus button after all tabs.
+    this.tabBarElement.appendChild(this.addTabContainer)
 
     this.updateContent()
   }
@@ -158,7 +162,98 @@ export class Pane {
   }
 }
 
-// Initialize the layout system with a test tab.
+export class SplitLayout {
+  private container: HTMLElement
+  private leftPane!: Pane
+  private rightPane!: Pane
+  private splitter!: HTMLElement
+  private leftContainer!: HTMLElement
+  private rightContainer!: HTMLElement
+  private isDragging: boolean = false
+  private startX: number = 0
+  private startLeftWidth: number = 0
+
+  constructor(container: HTMLElement) {
+    this.container = container
+    this.render()
+    this.setupSplitter()
+    this.initializePanes()
+  }
+
+  private render(): void {
+    this.container.innerHTML = `
+      <div class="split-container">
+        <div class="pane-container" style="flex: 1;"></div>
+        <div class="splitter"></div>
+        <div class="pane-container" style="flex: 1;"></div>
+      </div>
+    `
+
+    this.leftContainer = this.container.querySelector('.pane-container:first-child') as HTMLElement
+    this.rightContainer = this.container.querySelector('.pane-container:last-child') as HTMLElement
+    this.splitter = this.container.querySelector('.splitter') as HTMLElement
+  }
+
+  private setupSplitter(): void {
+    this.splitter.addEventListener('mousedown', (e) => {
+      this.isDragging = true
+      this.startX = e.clientX
+      this.startLeftWidth = this.leftContainer.offsetWidth
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      e.preventDefault()
+    })
+
+    document.addEventListener('mousemove', (e) => {
+      if (!this.isDragging) return
+
+      const deltaX = e.clientX - this.startX
+      const containerWidth = this.container.offsetWidth
+      const splitterWidth = this.splitter.offsetWidth
+      const newLeftWidth = this.startLeftWidth + deltaX
+      const minWidth = 200
+      const maxWidth = containerWidth - splitterWidth - minWidth
+
+      if (newLeftWidth >= minWidth && newLeftWidth <= maxWidth) {
+        const leftFlex = newLeftWidth / (containerWidth - splitterWidth)
+        const rightFlex = 1 - leftFlex
+
+        this.leftContainer.style.flex = `${leftFlex}`
+        this.rightContainer.style.flex = `${rightFlex}`
+      }
+    })
+
+    document.addEventListener('mouseup', () => {
+      if (this.isDragging) {
+        this.isDragging = false
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+    })
+  }
+
+  private initializePanes(): void {
+    // Create left pane with initial tab.
+    this.leftPane = new Pane(this.leftContainer)
+    const leftTab = new Tab('Left Panel', 'This is the left side panel.\n\nYou can add more tabs using the + button.', PanelType.LOGS)
+    this.leftPane.addTab(leftTab)
+
+    // Create right pane with initial tab.
+    this.rightPane = new Pane(this.rightContainer)
+    const rightTab = new Tab('Right Panel', 'This is the right side panel.\n\nIt works independently from the left panel.', PanelType.MAP_VIEW)
+    this.rightPane.addTab(rightTab)
+  }
+
+  public getLeftPane(): Pane {
+    return this.leftPane
+  }
+
+  public getRightPane(): Pane {
+    return this.rightPane
+  }
+}
+
+// Initialize the layout system with split panes.
 export function initLayout(): void {
   const container = document.getElementById('layout-container')
   if (!container) {
@@ -166,11 +261,7 @@ export function initLayout(): void {
     return
   }
 
-  const pane = new Pane(container)
-
-  // Add a test tab to demonstrate the functionality.
-  const testTab = new Tab('Welcome', 'This is the content of the first tab!\n\nClick the + button to add more tabs.', PanelType.LOGS)
-  pane.addTab(testTab)
+  const splitLayout = new SplitLayout(container)
 }
 
 // Auto-initialize when the DOM is ready.
