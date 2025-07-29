@@ -14,7 +14,7 @@ set -euo pipefail
 # Configuration
 readonly MD5SUMS_FILE=".md5sums"
 readonly COMPILED_JS="heatmap_widget/static/index.js"
-readonly SOURCE_PATTERN="src/*.tsx"
+readonly SOURCE_PATTERN="src/*.tsx src/*.ts src/*.jsx src/*.js"
 
 # Get command-line arguments
 readonly SHOULD_BUILD="${1:-0}"
