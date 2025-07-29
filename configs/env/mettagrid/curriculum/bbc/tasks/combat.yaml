@@ -5,8 +5,8 @@ _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 env_cfg_template_path: /env/mettagrid/arena/combat
 env_overrides:
   game:
-    actions: { attack: { consumed_resources: { blueprint: 0 } } }
-    agent: { rewards: { heart: 1 } }
+    actions: { attack: { consumed_resources: { laser: 1 } } }
+    agent: { rewards: { inventory: { heart: 1 } } }
 
 buckets:
-  game.objects.altar.initial_resource_count: { values: [0, 1] }
+  game.objects.altar.initial_resource_count: [0, 1]

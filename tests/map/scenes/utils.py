@@ -17,19 +17,23 @@ def render_scene(
 ):
     grid = np.full(shape, "empty", dtype="<U50")
     area = Area.root_area_from_grid(grid)
-    scene = cls(area=area, params=params, children=children or [], seed=seed)
+    scene = cls(area=area, params=params, children_actions=children or [], seed=seed)
     scene.render_with_children()
     return scene
 
 
-def assert_grid(scene: Scene, ascii_grid: str):
-    grid_lines = grid_to_lines(scene.grid)
+def assert_raw_grid(grid: MapGrid, ascii_grid: str):
+    grid_lines = grid_to_lines(grid)
     expected_lines, _, _ = char_grid_to_lines(ascii_grid)
 
     if grid_lines != expected_lines:
         expected_grid = "\n".join(add_pretty_border(expected_lines))
         actual_grid = "\n".join(add_pretty_border(grid_lines))
         pytest.fail(f"Grid does not match expected:\nEXPECTED:\n{expected_grid}\n\nACTUAL:\n{actual_grid}")
+
+
+def assert_grid(scene: Scene, ascii_grid: str):
+    assert_raw_grid(scene.grid, ascii_grid)
 
 
 def is_connected(grid: MapGrid):

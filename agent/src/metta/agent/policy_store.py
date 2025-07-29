@@ -15,7 +15,7 @@ import os
 import random
 import sys
 from types import SimpleNamespace
-from typing import Any, List, Optional, Union
+from typing import Any, Literal
 
 import gymnasium as gym
 import numpy as np
@@ -34,39 +34,52 @@ from metta.rl.trainer_config import TrainerConfig, create_trainer_config
 logger = logging.getLogger("policy_store")
 
 
+PolicySelectorType = Literal["all", "top", "latest", "rand"]
+
+
 class PolicySelectorConfig:
     """Simple config class for policy selection without pydantic dependency."""
 
-    def __init__(self, type: str = "top", metric: str = "score"):
+    def __init__(self, type: PolicySelectorType = "top", metric: str = "score"):
         self.type = type
         self.metric = metric
 
 
+class PolicyMissingError(ValueError):
+    pass
+
+
 class PolicyStore:
-    def __init__(self, cfg: DictConfig, wandb_run: WandbRun | None):
+    def __init__(self, cfg: DictConfig, wandb_run: WandbRun | None, policy_cache_size: int = 10) -> None:
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run: WandbRun | None = wandb_run
-        cache_size = cfg.get("policy_cache_size", 10)  # Default to 10 if not specified
-        self._cached_prs = PolicyCache(max_size=cache_size)
+        self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._made_codebase_backwards_compatible = False
 
     def policy_record(
-        self, uri_or_config: Union[str, DictConfig], selector_type: str = "top", metric="score"
+        self,
+        uri_or_config: str | DictConfig,
+        selector_type: PolicySelectorType = "top",
+        metric: str = "score",
     ) -> PolicyRecord:
         prs = self.policy_records(uri_or_config, selector_type, 1, metric)
         assert len(prs) == 1, f"Expected 1 policy record, got {len(prs)} policy records!"
         return prs[0]
 
     def policy_records(
-        self, uri_or_config: Union[str, DictConfig], selector_type: str = "top", n=1, metric="score"
-    ) -> List[PolicyRecord]:
+        self,
+        uri_or_config: str | DictConfig,
+        selector_type: PolicySelectorType = "top",
+        n: int = 1,
+        metric: str = "score",
+    ) -> list[PolicyRecord]:
         uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
         return self._select_policy_records(uri, selector_type, n, metric)
 
     def _select_policy_records(
-        self, uri: str, selector_type: str = "top", n: int = 1, metric: str = "score"
-    ) -> List[PolicyRecord]:
+        self, uri: str, selector_type: PolicySelectorType = "top", n: int = 1, metric: str = "score"
+    ) -> list[PolicyRecord]:
         """
         Select policy records based on URI and selection criteria.
 
@@ -83,7 +96,7 @@ class PolicyStore:
         prs = self._load_policy_records_from_uri(uri)
 
         if not prs:
-            raise ValueError(f"No policy records found at {uri}")
+            raise PolicyMissingError(f"No policy records found at {uri}")
 
         logger.info(f"Found {len(prs)} policy records at {uri}")
 
@@ -107,32 +120,49 @@ class PolicyStore:
         else:
             raise ValueError(f"Invalid selector type: {selector_type}")
 
-    def _load_policy_records_from_uri(self, uri: str) -> List[PolicyRecord]:
-        """Load policy records from various URI schemes."""
+    def _prs_from_wandb(self, uri: str) -> list[PolicyRecord]:
+        """
+        Supported formats:
+        - wandb://run/<run_name>[:<version>]
+        - wandb://sweep/<sweep_name>[:<version>]
+        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]
+        """
+        wandb_uri = uri[len("wandb://") :]
+        version = None
+
+        if ":" in wandb_uri:
+            wandb_uri, version = wandb_uri.split(":", 1)
+
+        for prefix, artifact_type in [("run/", "model"), ("sweep/", "sweep_model")]:
+            if wandb_uri.startswith(prefix):
+                if not hasattr(self._cfg, "wandb") or not all(
+                    hasattr(self._cfg.wandb, attr) for attr in ["entity", "project"]
+                ):
+                    raise ValueError(
+                        "Wandb entity and project must be specified in your config to use short policy uris"
+                    )
+                name = wandb_uri[len(prefix) :]
+                return self._prs_from_wandb_artifact(
+                    f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/{artifact_type}/{name}",
+                    version,
+                )
+        else:
+            return self._prs_from_wandb_artifact(wandb_uri, version)
+
+    def _load_policy_records_from_uri(self, uri: str) -> list[PolicyRecord]:
         if uri.startswith("wandb://"):
-            wandb_uri = uri[8:]
-            version = None
-
-            if ":" in wandb_uri:
-                wandb_uri, version = wandb_uri.split(":", 1)
-
-            if wandb_uri.startswith("run/"):
-                return self._prs_from_wandb_run(wandb_uri[4:], version)
-            elif wandb_uri.startswith("sweep/"):
-                return self._prs_from_wandb_sweep(wandb_uri[6:], version)
-            else:
-                return self._prs_from_wandb_artifact(wandb_uri, version)
+            return self._prs_from_wandb(uri)
 
         elif uri.startswith("file://"):
-            return self._prs_from_path(uri[7:])
+            return self._prs_from_path(uri[len("file://") :])
 
         elif uri.startswith("pytorch://"):
-            return self._prs_from_pytorch(uri[10:])
+            return self._prs_from_pytorch(uri[len("pytorch://") :])
 
         else:
             return self._prs_from_path(uri)
 
-    def _select_top_prs_by_metric(self, prs: List[PolicyRecord], n: int, metric: str) -> List[PolicyRecord]:
+    def _select_top_prs_by_metric(self, prs: list[PolicyRecord], n: int, metric: str) -> list[PolicyRecord]:
         """Select top N policy records based on metric score."""
         # Extract scores
         policy_scores = self._get_pr_scores(prs, metric)
@@ -167,7 +197,7 @@ class PolicyStore:
 
         return selected
 
-    def _get_pr_scores(self, prs: List[PolicyRecord], metric: str) -> dict[PolicyRecord, Optional[float]]:
+    def _get_pr_scores(self, prs: list[PolicyRecord], metric: str) -> dict[PolicyRecord, float | None]:
         """Extract metric scores from policy metadata."""
         if not prs:
             return {}
@@ -214,8 +244,10 @@ class PolicyStore:
         if path is None:
             if hasattr(pr, "file_path"):
                 path = pr.file_path
-            else:
+            elif pr.uri is not None:
                 path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
+            else:
+                raise ValueError("PolicyRecord has no file_path or uri")
 
         logger.info(f"Saving policy to {path}")
 
@@ -226,7 +258,7 @@ class PolicyStore:
         temp_path = path + ".tmp"
 
         # Temporarily remove the policy store reference to avoid pickling issues
-        pr._policy_store = None
+        pr._policy_store = None  # type: ignore
         try:
             torch.save(pr, temp_path)
             # Atomically replace the file (works even if target exists)
@@ -272,7 +304,7 @@ class PolicyStore:
         self._wandb_run.log_artifact(artifact)
         return artifact.qualified_name
 
-    def _prs_from_path(self, path: str) -> List[PolicyRecord]:
+    def _prs_from_path(self, path: str) -> list[PolicyRecord]:
         paths = []
 
         if path.endswith(".pt"):
@@ -281,17 +313,10 @@ class PolicyStore:
             paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
-    def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
-        # Check if wandb is disabled before proceeding
-        if (
-            not hasattr(self._cfg, "wandb")
-            or not hasattr(self._cfg.wandb, "entity")
-            or not hasattr(self._cfg.wandb, "project")
-        ):
-            raise ValueError(
-                f"Cannot load wandb artifact '{uri}' when wandb is disabled (wandb=off). "
-                "Either enable wandb or use a local policy URI (file://) instead."
-            )
+    def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
+        """
+        Expected uri format: <entity>/<project>/<artifact_type>/<name>
+        """
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -311,17 +336,7 @@ class PolicyStore:
             for a in artifacts
         ]
 
-    def _prs_from_wandb_sweep(self, sweep_name: str, version: Optional[str] = None) -> List[PolicyRecord]:
-        return self._prs_from_wandb_artifact(
-            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}", version
-        )
-
-    def _prs_from_wandb_run(self, run_id: str, version: Optional[str] = None) -> List[PolicyRecord]:
-        return self._prs_from_wandb_artifact(
-            f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}", version
-        )
-
-    def _prs_from_pytorch(self, path: str) -> List[PolicyRecord]:
+    def _prs_from_pytorch(self, path: str) -> list[PolicyRecord]:
         return [self._load_from_pytorch(path)]
 
     def load_from_uri(self, uri: str) -> PolicyRecord:

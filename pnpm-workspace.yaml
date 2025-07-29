@@ -1,0 +1,11 @@
+packages: # these are paths - the package names are set in subdir/package.json
+  - "./gridworks" # @softmax/gridworks
+  - "./library" # @softmax/library
+  - "./mettascope" # @softmax/mettascope
+  - "./observatory" # @softmax/observatory
+onlyBuiltDependencies:
+  - "@tailwindcss/oxide"
+  - es5-ext
+  - esbuild
+  - sharp
+  - unrs-resolver

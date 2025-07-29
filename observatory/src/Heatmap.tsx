@@ -84,30 +84,53 @@ export function Heatmap({
 
   // Convert to heatmap format
   const policies = Object.keys(data.cells)
-  const shortNameToEvalName = new Map<string, string>()
+
+  // In the new system, eval names are already properly formatted (e.g. "navigation/maze1")
+  // Group them by category for better organization
+  const evalsByCategory = new Map<string, string[]>()
   data.evalNames.forEach((evalName) => {
-    shortNameToEvalName.set(getShortName(evalName), evalName)
+    const [category] = evalName.split('/')
+    if (!evalsByCategory.has(category)) {
+      evalsByCategory.set(category, [])
+    }
+    evalsByCategory.get(category)!.push(evalName)
   })
-  const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => a.localeCompare(b))
 
-  const xLabels = ['overall', ...sortedShortNames]
+  // Build x-labels: overall, then grouped by category
+  const xLabels = ['overall']
+  const shortNameToEvalName = new Map<string, string>()
+  shortNameToEvalName.set('overall', 'overall')
 
-  // Iterate over the policyEvalMap, and for each policy compute the average value of the evals
+  // Sort categories alphabetically, then envs within each category
+  const sortedCategories = Array.from(evalsByCategory.keys()).sort()
+  sortedCategories.forEach((category) => {
+    const envs = evalsByCategory.get(category)!.sort()
+    envs.forEach((evalName) => {
+      const shortName = getShortName(evalName) // Just the environment name
+      xLabels.push(shortName)
+      shortNameToEvalName.set(shortName, evalName)
+    })
+  })
+
+  // Sort policies by average score (best at bottom for better visibility)
   const sortedPolicies = policies.sort((a, b) => data.policyAverageScores[a] - data.policyAverageScores[b])
-  // take last 20 of sorted policies
+  // Take the specified number of top policies (from the end of sorted list)
   const y_labels = sortedPolicies.slice(-numPoliciesToShow)
 
-  const z = y_labels.map((policy) => [
-    data.policyAverageScores[policy],
-    ...sortedShortNames.map((shortName) => {
-      const evalName = shortNameToEvalName.get(shortName)!
-      const cell = data.cells[policy]?.[evalName]
-      if (!cell) {
-        return 0
-      }
-      return cell.value
-    }),
-  ])
+  const z = y_labels.map((policy) => {
+    const row = [data.policyAverageScores[policy]] // Overall score first
+
+    // Add scores for each evaluation in order
+    sortedCategories.forEach((category) => {
+      const envs = evalsByCategory.get(category)!.sort()
+      envs.forEach((evalName) => {
+        const cell = data.cells[policy]?.[evalName]
+        row.push(cell ? cell.value : 0)
+      })
+    })
+
+    return row
+  })
 
   const y_label_texts = y_labels.map((policy) => {
     return `<a href="${wandb_url(policy)}" target="_blank">${policy}</a>`

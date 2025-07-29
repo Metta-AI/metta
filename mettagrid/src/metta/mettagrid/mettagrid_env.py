@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import time
 import uuid
 from typing import Any, Dict, Optional, cast
@@ -104,6 +105,22 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
+            elif self._render_mode == "raylib":
+                # Only initialize raylib renderer if not in CI/Docker environment
+                is_ci_environment = bool(
+                    os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.path.exists("/.dockerenv")
+                )
+                if not is_ci_environment:
+                    try:
+                        from metta.mettagrid.renderer.raylib import RaylibRenderer
+
+                        self._renderer = RaylibRenderer(self.object_type_names, self.map_width, self.map_height)
+                    except ImportError:
+                        logger.warning("Raylib renderer requested but raylib not available")
+                        self._renderer = None
+                else:
+                    logger.info("Raylib renderer disabled in CI/Docker environment")
+                    self._renderer = None
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -218,7 +235,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
             # if self._task.env_cfg().game.diversity_bonus.enabled:
             #     self.rewards *= calculate_diversity_bonus(
             #         self._c_env.get_episode_rewards(),
-            #         self._c_env.get_agent_groups(),
             #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
             #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
             #     )
@@ -400,10 +416,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
-        if self._renderer is None:
-            return None
+        # Use the configured renderer if available
+        if self._renderer is not None and hasattr(self._renderer, "render"):
+            return self._renderer.render(self._steps, self.grid_objects)
 
-        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
+        return None
 
     @property
     @override

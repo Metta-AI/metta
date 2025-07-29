@@ -72,8 +72,6 @@ class MettaCLI:
         info("\nCustomize components:")
         # Get all registered components
         all_modules = get_all_modules(self.config)
-        # Sort by name for consistent ordering
-        all_modules.sort(key=lambda m: m.name)
 
         for module in all_modules:
             current_enabled = self.config.is_component_enabled(module.name)
@@ -194,7 +192,7 @@ class MettaCLI:
 
         success("Installation complete!")
 
-    def cmd_clean(self, args) -> None:
+    def cmd_clean(self, args, verbose: bool = False) -> None:
         build_dir = self.repo_root / "build"
         if build_dir.exists():
             info("  Removing root build directory...")
@@ -210,10 +208,24 @@ class MettaCLI:
         # Run cleanup script to remove empty directories and __pycache__
         cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
         if cleanup_script.exists():
+            cmd = [str(cleanup_script)]
+            if verbose:
+                cmd.append("--verbose")
             try:
-                subprocess.run([sys.executable, str(cleanup_script), str(self.repo_root)], check=True)
+                subprocess.run(cmd, cwd=str(self.repo_root), check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
+
+    def cmd_clip(self, args) -> None:
+        """Run the codeclip tool with provided arguments."""
+        try:
+            # Simply pass through to codeclip
+            cmd = ["codeclip"] + (args.args if args.args else ["--help"])
+            subprocess.run(cmd, check=False)
+        except FileNotFoundError:
+            error("codeclip is not installed.")
+            error("Run: metta install codeclip")
+            sys.exit(1)
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
@@ -249,6 +261,8 @@ class MettaCLI:
                 self.local_commands.load_policies(unknown_args or [])
             elif args.local_command == "kind":
                 self.local_commands.kind(args)
+            elif args.local_command == "observatory":
+                self.local_commands.observatory(args, unknown_args or [])
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -610,6 +624,13 @@ Examples:
         enter_parser = kind_subparsers.add_parser("enter", help="Enter a pod with an interactive shell")
         enter_parser.add_argument("pod_name", help="Name of the pod to enter")
 
+        # Add observatory command
+        local_subparsers.add_parser("observatory", help="Launch Observatory frontend locally")
+
+        # Add clip command
+        clip_parser = subparsers.add_parser("clip", help="copy subsets of codebase for LLM contexts", add_help=False)
+        clip_parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments to pass to the clip tool")
+
         # Store local_parser for help display
         local_parser.set_defaults(local_parser=local_parser)
 
@@ -620,11 +641,11 @@ Examples:
         if (
             args.command == "local"
             and hasattr(args, "local_command")
-            and args.local_command in ["load-policies", "build-policy-evaluator-img"]
+            and args.local_command in ["load-policies", "build-policy-evaluator-img", "observatory"]
         ):
             # These commands handle their own args
             pass
-        elif args.command not in ["test", "test-changed", "tool"]:
+        elif args.command not in ["clip", "test", "test-changed", "tool"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -656,7 +677,7 @@ Examples:
         elif args.command == "status":
             self.cmd_status(args)
         elif args.command == "clean":
-            self.cmd_clean(args)
+            self.cmd_clean(args, verbose=True)
         elif args.command == "symlink-setup":
             self.cmd_symlink_setup(args)
         elif args.command == "test":
@@ -671,6 +692,8 @@ Examples:
             self.cmd_shell()
         elif args.command == "report-env-details":
             self.cmd_report_env_details()
+        elif args.command == "clip":
+            self.cmd_clip(args)
         elif args.command == "local":
             self.cmd_local(args, unknown_args)
         else:
