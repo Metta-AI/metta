@@ -39,8 +39,10 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
+from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import (
     CheckpointConfig,
+    ContrastiveConfig,
     OptimizerConfig,
     PPOConfig,
     SimulationConfig,
@@ -97,6 +99,13 @@ trainer_config = TrainerConfig(
         gamma=0.99,
         gae_lambda=0.95,
     ),
+    contrastive=ContrastiveConfig(
+        enabled=True,
+        weight=0.1,
+        gamma=0.99,
+        temperature=0.05,
+        num_negatives=10,
+    ),
     optimizer=OptimizerConfig(
         type="adam",
         learning_rate=3e-4,
@@ -111,13 +120,18 @@ trainer_config = TrainerConfig(
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
-        interval_epochs=0,  # Disabled by default
+        interval_epochs=1,  # Profile every epoch for debugging
         profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
     grad_mean_variance_interval=150,
     forward_pass_minibatch_target_size=4096 if torch.cuda.is_available() else 2048,  # Adjust for CPU
     async_factor=2,  # Add this to match trainer.yaml
 )
+
+if trainer_config.contrastive.enabled:
+    print("Contrastive loss enabled")
+else:
+    print("Contrastive loss disabled")
 
 # Adjust batch sizes for distributed training
 if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_size:
@@ -294,6 +308,9 @@ if is_master:
         external_timer=timer,  # Pass timer for persistent elapsed time across restarts
     )
 
+# Create profiler
+torch_profiler = TorchProfiler(is_master, trainer_config.profiler, wandb_run, dirs.run_dir)
+
 # Training loop
 saved_policy_path = None
 logger.info(f"Starting training on {device}")
@@ -307,126 +324,130 @@ current_policy_generation = 0  # Track policy generation
 while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
 
-    # ===== ROLLOUT PHASE =====
-    rollout_start = time.time()
-    raw_infos = []
-    experience.reset_for_rollout()
+    with torch_profiler:
+        # ===== ROLLOUT PHASE =====
+        rollout_start = time.time()
+        raw_infos = []
+        experience.reset_for_rollout()
 
-    # Collect experience
-    while not experience.ready_for_training:
-        # Receive environment data
-        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
-        agent_step += num_steps
+        # Collect experience
+        while not experience.ready_for_training:
+            # Receive environment data
+            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
+            agent_step += num_steps
 
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            agent, o, experience, training_env_id.start, device
-        )
-
-        # Store experience
-        experience.store(
-            obs=o,
-            actions=actions,
-            logprobs=selected_action_log_probs,
-            rewards=r,
-            dones=d,
-            truncations=t,
-            values=values,
-            env_id=training_env_id,
-            mask=mask,
-            lstm_state=lstm_state_to_store,
-        )
-
-        # Send actions back to environment
-        with timer("_rollout.env"):
-            env.send(actions.cpu().numpy().astype(dtype_actions))  # type: ignore - env is vecenv wrapper
-
-        if info:
-            raw_infos.extend(info)
-
-    # Process rollout statistics
-    accumulate_rollout_stats(raw_infos, stats)
-    rollout_time = time.time() - rollout_start
-
-    # ===== TRAINING PHASE =====
-    train_start = time.time()
-    losses.zero()
-    experience.reset_importance_sampling_ratios()
-
-    # Calculate prioritized replay parameters
-    prio_cfg = trainer_config.prioritized_experience_replay
-    anneal_beta = calculate_prioritized_sampling_params(
-        epoch=epoch,
-        total_timesteps=trainer_config.total_timesteps,
-        batch_size=trainer_config.batch_size,
-        prio_alpha=prio_cfg.prio_alpha,
-        prio_beta0=prio_cfg.prio_beta0,
-    )
-
-    advantages = torch.zeros(experience.values.shape, device=device)
-    initial_importance_sampling_ratio = torch.ones_like(experience.values)
-
-    advantages = compute_advantage(
-        experience.values,
-        experience.rewards,
-        experience.dones,
-        initial_importance_sampling_ratio,
-        advantages,
-        trainer_config.ppo.gamma,
-        trainer_config.ppo.gae_lambda,
-        trainer_config.vtrace.vtrace_rho_clip,
-        trainer_config.vtrace.vtrace_c_clip,
-        device,
-    )
-
-    # Train for multiple epochs
-    total_minibatches = experience.num_minibatches * trainer_config.update_epochs
-    minibatch_idx = 0
-
-    for _update_epoch in range(trainer_config.update_epochs):
-        for _ in range(experience.num_minibatches):
-            # Sample minibatch
-            minibatch = experience.sample_minibatch(
-                advantages=advantages,
-                prio_alpha=prio_cfg.prio_alpha,
-                prio_beta=anneal_beta,
-                minibatch_idx=minibatch_idx,
-                total_minibatches=total_minibatches,
+            # Run policy inference
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                agent, o, experience, training_env_id.start, device
             )
 
-            # Train on minibatch
-            loss = process_minibatch_update(
-                policy=agent,
-                experience=experience,
-                minibatch=minibatch,
-                advantages=advantages,
-                trainer_cfg=trainer_config,
-                kickstarter=kickstarter,
-                agent_step=agent_step,
-                losses=losses,
-                device=device,
+            # Store experience
+            experience.store(
+                obs=o,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r,
+                dones=d,
+                truncations=t,
+                values=values,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
             )
 
-            optimizer.step(loss, epoch, experience.accumulate_minibatches)
-            minibatch_idx += 1
-        epoch += 1
+            # Send actions back to environment
+            with timer("_rollout.env"):
+                env.send(actions.cpu().numpy().astype(dtype_actions))  # type: ignore - env is vecenv wrapper
 
-        # Early exit if KL divergence is too high
-        if trainer_config.ppo.target_kl is not None:
-            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
-            if average_approx_kl > trainer_config.ppo.target_kl:
-                break
+            if info:
+                raw_infos.extend(info)
 
-    if minibatch_idx > 0 and str(device).startswith("cuda"):
-        torch.cuda.synchronize()
+        # Process rollout statistics
+        accumulate_rollout_stats(raw_infos, stats)
+        rollout_time = time.time() - rollout_start
 
-    if lr_scheduler is not None:
-        lr_scheduler.step()
+        # ===== TRAINING PHASE =====
+        train_start = time.time()
+        losses.zero()
+        experience.reset_importance_sampling_ratios()
 
-    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+        # Calculate prioritized replay parameters
+        prio_cfg = trainer_config.prioritized_experience_replay
+        anneal_beta = calculate_prioritized_sampling_params(
+            epoch=epoch,
+            total_timesteps=trainer_config.total_timesteps,
+            batch_size=trainer_config.batch_size,
+            prio_alpha=prio_cfg.prio_alpha,
+            prio_beta0=prio_cfg.prio_beta0,
+        )
 
-    # Calculate performance metrics
-    train_time = time.time() - train_start
+        advantages = torch.zeros(experience.values.shape, device=device)
+        initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+        advantages = compute_advantage(
+            experience.values,
+            experience.rewards,
+            experience.dones,
+            initial_importance_sampling_ratio,
+            advantages,
+            trainer_config.ppo.gamma,
+            trainer_config.ppo.gae_lambda,
+            trainer_config.vtrace.vtrace_rho_clip,
+            trainer_config.vtrace.vtrace_c_clip,
+            device,
+        )
+
+        # Train for multiple epochs
+        total_minibatches = experience.num_minibatches * trainer_config.update_epochs
+        minibatch_idx = 0
+
+        for _update_epoch in range(trainer_config.update_epochs):
+            for _ in range(experience.num_minibatches):
+                # Sample minibatch
+                minibatch = experience.sample_minibatch(
+                    advantages=advantages,
+                    prio_alpha=prio_cfg.prio_alpha,
+                    prio_beta=anneal_beta,
+                    minibatch_idx=minibatch_idx,
+                    total_minibatches=total_minibatches,
+                )
+
+                # Train on minibatch
+                loss = process_minibatch_update(
+                    policy=agent,
+                    experience=experience,
+                    minibatch=minibatch,
+                    advantages=advantages,
+                    trainer_cfg=trainer_config,
+                    kickstarter=kickstarter,
+                    agent_step=agent_step,
+                    losses=losses,
+                    device=device,
+                )
+
+                optimizer.step(loss, epoch, experience.accumulate_minibatches)
+                minibatch_idx += 1
+            epoch += 1
+
+            # Early exit if KL divergence is too high
+            if trainer_config.ppo.target_kl is not None:
+                average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
+                if average_approx_kl > trainer_config.ppo.target_kl:
+                    break
+
+        if minibatch_idx > 0 and str(device).startswith("cuda"):
+            torch.cuda.synchronize()
+
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+
+        losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+
+        # Calculate performance metrics
+        train_time = time.time() - train_start
+
+    # Call on_epoch_end after the profiling context
+    torch_profiler.on_epoch_end(epoch)
 
     # ===== STATS PROCESSING PHASE =====
     stats_start = time.time()

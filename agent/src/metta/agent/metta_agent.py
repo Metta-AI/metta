@@ -487,6 +487,10 @@ class MettaAgent(nn.Module):
         state.lstm_h = td["state"][:split_size]
         state.lstm_c = td["state"][split_size:]
 
+        # for contrastive loss implementation
+        if "_core_" in td and isinstance(td["_core_"], torch.Tensor):
+            state.hidden = td["_core_"]
+
         if action is None:
             return self.forward_inference(value, logits)
         else:
