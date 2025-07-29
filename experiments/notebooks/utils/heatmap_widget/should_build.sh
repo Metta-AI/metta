@@ -83,7 +83,7 @@ main() {
         fi
     else
         echo "Source files have changed:"
-        diff -d --color=always <(echo "$saved_md5sums") <(echo "$CURRENT_MD5SUMS") || true
+        diff -d --color=always $MD5SUMS_FILE <(echo "$CURRENT_MD5SUMS") || true
         build_and_save "Source files changed. Build needed."
         exit 0
     fi
