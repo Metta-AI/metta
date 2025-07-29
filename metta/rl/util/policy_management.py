@@ -299,8 +299,8 @@ def load_or_initialize_policy(
         default_policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
         logger.info(f"Rank {rank}: Waiting for master to create policy at {default_policy_path}")
 
-        # NOTE: No barrier here - we let the file wait handle synchronization
-        # The master will hit the barrier after saving the policy
+        # Synchronize with master before attempting to load
+        torch.distributed.barrier()
 
         def log_progress(elapsed: float, status: str) -> None:
             if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
@@ -372,6 +372,11 @@ def load_or_initialize_policy(
             initial_policy_record = saved_pr
             latest_saved_policy_record = saved_pr
 
+            # Synchronize with non-master ranks after saving
+            if torch.distributed.is_initialized():
+                logger.info(f"Master rank: Policy saved to {saved_pr.uri}, synchronizing with other ranks")
+                torch.distributed.barrier()
+
     # Initialize policy to environment
     if hasattr(policy, "initialize_to_environment"):
         features = metta_grid_env.get_observation_features()
@@ -380,11 +385,5 @@ def load_or_initialize_policy(
         policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     logger.info(f"Rank {rank}: USING {initial_policy_record.uri if initial_policy_record else 'new policy'}")
-
-    # Ensure all ranks are synchronized before returning
-    if torch.distributed.is_initialized():
-        logger.info(f"Rank {rank}: Synchronizing all ranks after policy load/create")
-        torch.distributed.barrier()
-        logger.info(f"Rank {rank}: All ranks synchronized")
 
     return policy, initial_policy_record, latest_saved_policy_record
