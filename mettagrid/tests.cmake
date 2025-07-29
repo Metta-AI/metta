@@ -85,8 +85,16 @@ if(BUILD_TESTS)
 
     # Set test environment with sanitizer options for Debug builds
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+      # Configure sanitizer options based on platform
+      # Note: detect_leaks is not supported on macOS
+      if(APPLE)
+        set(ASAN_OPTIONS_VALUE "check_initialization_order=1:strict_init_order=1")
+      else()
+        set(ASAN_OPTIONS_VALUE "detect_leaks=1:check_initialization_order=1:strict_init_order=1")
+      endif()
+
       set_tests_properties(${test_name} PROPERTIES
-        ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES};ASAN_OPTIONS=detect_leaks=1:check_initialization_order=1:strict_init_order=1;UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1"
+        ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES};ASAN_OPTIONS=${ASAN_OPTIONS_VALUE};UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1"
         LABELS "test"
       )
     else()
