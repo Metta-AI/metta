@@ -137,7 +137,7 @@
     },
     "vim.textwidth": 120,
     "eslint.useFlatConfig": true,
-    "eslint.workingDirectories": ["./mettascope", "./observatory"],
+    "eslint.workingDirectories": ["./mettascope", "./observatory", "./gridworks"],
     "[typescriptreact]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
