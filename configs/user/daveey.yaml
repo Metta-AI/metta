@@ -55,14 +55,20 @@ analyzer:
       - metric: episode_reward
       - metric: "heart.get"
 
-# replay_job:
-#   sim:
-#     env:
-#       /env/mettagrid/arena/combat
-# env_overrides:
-# game:
-#   max_steps: 5000
-#   num_agents: 36
+replay_job:
+  sim:
+    env:
+      /env/mettagrid/arena/combat
+    env_overrides:
+      game:
+        agent:
+          rewards:
+            stats:
+              action.attack.success: 1
+        objects:
+          lasery:
+            initial_resource_count: 20
+
 #   map_builder:
 #     width: 35
 #     height: 25

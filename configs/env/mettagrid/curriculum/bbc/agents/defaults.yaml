@@ -32,6 +32,8 @@ env_overrides:
           laser_max: 1
           armor_max: 1
           blueprint_max: 1
+        stats:
+          action.attack.success: 1
 
 tasks:
   /env/mettagrid/curriculum/bbc/tasks/basic: 1
