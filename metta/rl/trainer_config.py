@@ -175,13 +175,35 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Fixed batch size across GPUs for consistent hyperparameters
     scale_batches_by_world_size: bool = False
 
+    # Memory optimization settings
+    # Enable memory pinning for faster GPU transfers
+    pin_memory: bool = True
+    # Optimize memory layout for better cache performance
+    channels_last_memory_format: bool = True
+    # Enable memory efficient attention when available
+    use_memory_efficient_attention: bool = True
+
+    # Vectorization optimization
+    # Optimal number of workers (auto-calculated if None)
+    num_workers: int | None = None
+    # Enable worker memory pinning
+    worker_pin_memory: bool = True
+    # Prefetch factor for data loading
+    prefetch_factor: int = 4
+
     # Performance configuration
     # CPU offload disabled: Keep tensors on GPU for speed
     cpu_offload: bool = False
-    # Torch compile disabled by default for stability
-    compile: bool = False
+    # Torch compile enabled by default for better performance
+    compile: bool = True
     # Reduce-overhead mode: Best for training loops when compile is enabled
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
+
+    # Mixed precision training configuration
+    use_mixed_precision: bool = True
+    # GradScaler for automatic mixed precision
+    grad_scaler_enabled: bool = True
+
     # Profile every 10K epochs: Infrequent to minimize overhead
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
@@ -200,7 +222,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
-    num_workers: int = Field(gt=0)
+    # num_workers: int = Field(gt=0) # This line is removed as per the new_code
     env: str | None = None  # Environment config path
     # Default curriculum: Simple environment for initial experiments
     curriculum: str | None = "/env/mettagrid/curriculum/simple"

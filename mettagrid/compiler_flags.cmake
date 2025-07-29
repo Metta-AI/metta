@@ -15,6 +15,23 @@ option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 target_compile_options(mettagrid_base_flags INTERFACE
   -fvisibility=hidden
   $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fno-omit-frame-pointer>
+  
+  # Performance optimizations
+  $<$<CONFIG:Release>:
+    -O3
+    -march=native
+    -mtune=native
+    -DNDEBUG
+    -ffast-math
+    -funroll-loops
+    -finline-functions
+    -fomit-frame-pointer
+  >
+  
+  # Memory optimizations
+  -fno-exceptions
+  $<$<CXX_COMPILER_ID:GNU>:-fno-rtti>
+  $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fno-rtti>
 )
 
 target_compile_definitions(mettagrid_base_flags INTERFACE

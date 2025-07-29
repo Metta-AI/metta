@@ -20,3 +20,22 @@ device: cuda
 vectorization: multiprocessing
 
 stats_server_uri: https://api.observatory.softmax-research.net
+
+# Performance environment variables
+env_vars:
+  # PyTorch optimizations
+  TORCH_CUDNN_V8_API_ENABLED: "1"
+  TORCH_CUDNN_BENCHMARK: "1"
+  CUDA_LAUNCH_BLOCKING: "0"
+  
+  # Memory optimizations
+  PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:128,garbage_collection_threshold:0.8"
+  
+  # CPU optimizations
+  OMP_NUM_THREADS: "4"
+  MKL_NUM_THREADS: "4"
+  OPENBLAS_NUM_THREADS: "4"
+  
+  # Distributed training optimizations
+  NCCL_ASYNC_ERROR_HANDLING: "1"
+  NCCL_TREE_THRESHOLD: "0"

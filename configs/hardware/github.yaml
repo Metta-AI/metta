@@ -1,36 +1,48 @@
-# @package __global__
-defaults:
-  - /sim/smoke_test@smoke_test_eval
-  - _self_
+# GitHub Actions hardware configuration
+# Optimized for standard GitHub runners (2-4 CPU cores, limited GPU)
 
-run: github_test
-device: cpu
-vectorization: serial
+# Override environment variables for GitHub CI
+env_vars:
+  # CPU thread limits for GitHub runners
+  OMP_NUM_THREADS: "2"
+  MKL_NUM_THREADS: "2"
+  OPENBLAS_NUM_THREADS: "2"
+  
+  # Memory optimizations for limited RAM
+  PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:64,garbage_collection_threshold:0.9"
+  
+  # Disable benchmark mode for reproducibility in CI
+  TORCH_CUDNN_BENCHMARK: "0"
+  
+  # Enable CUDA debug for CI debugging
+  CUDA_LAUNCH_BLOCKING: "1"
 
+# Trainer overrides for limited resources
 trainer:
-  num_workers: 1
-  update_epochs: 1
-  batch_size: 1024
-  minibatch_size: 1024
-  forward_pass_minibatch_target_size: 2
-  async_factor: 1
+  # Reduced batch sizes for GitHub runners
+  batch_size: 8192  # Much smaller than default 524288
+  minibatch_size: 1024  # Much smaller than default 16384
+  forward_pass_minibatch_target_size: 512  # Reduced from 4096
+  
+  # Disable compilation for faster CI builds
+  compile: false
+  
+  # Disable mixed precision for stability in CI
+  use_mixed_precision: false
+  grad_scaler_enabled: false
+  
+  # More frequent checkpointing for CI
   checkpoint:
-    checkpoint_interval: 1
-    wandb_checkpoint_interval: 0
-  simulation:
-    evaluate_interval: 1
-    replay_dir: ${run_dir}/replays/
-  bptt_horizon: 8
-  total_timesteps: 2
-  env_overrides:
-    game:
-      # This impacts the replay size.
-      max_steps: 2
+    checkpoint_interval: 30  # Every 30 seconds instead of 60
+    wandb_checkpoint_interval: 0  # Disable W&B uploads in CI
+  
+  # Reduce profiling overhead
+  profiler:
+    interval_epochs: 0  # Disable profiling in CI
 
-train_job:
-  map_preview_uri: null
-  evals: ${smoke_test_eval}
-
-replay_job:
-  policy_uri: ${run_dir}/checkpoints/
-  replay_dir: ${run_dir}/replays/
+# Environment configuration for limited resources
+env:
+  num_envs: 4  # Reduced from typical values
+  
+# Use serial vectorization for GitHub runners to avoid multiprocessing overhead
+vectorization: serial

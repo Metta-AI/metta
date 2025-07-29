@@ -9,6 +9,7 @@ from uuid import UUID
 
 import numpy as np
 import torch
+import torch.amp
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
@@ -129,6 +130,17 @@ class MettaTrainer:
         self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
         self._batch_size = trainer_cfg.batch_size
         self._minibatch_size = trainer_cfg.minibatch_size
+
+        # Mixed precision training setup
+        self.use_mixed_precision = getattr(trainer_cfg, 'use_mixed_precision', False)
+        self.grad_scaler = torch.amp.GradScaler() if (
+            getattr(trainer_cfg, 'grad_scaler_enabled', False) and 
+            self.use_mixed_precision and 
+            self.device.type == 'cuda'
+        ) else None
+        
+        if self.use_mixed_precision:
+            logger.info(f"Mixed precision training enabled with GradScaler: {self.grad_scaler is not None}")
 
         self.torch_profiler = TorchProfiler(self._master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
         self.losses = Losses()

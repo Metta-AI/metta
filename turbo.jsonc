@@ -1,4 +1,41 @@
 {
-  "$schema": "https://turborepo.org/schema.json"
-  // TODO - define tasks
+  "$schema": "https://turborepo.org/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "build/**", "*.so", "*.pyd"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "cache": true
+    },
+    "lint": {
+      "outputs": [],
+      "cache": true
+    },
+    "format": {
+      "outputs": [],
+      "cache": true
+    },
+    "train": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    }
+  },
+  "globalDependencies": [
+    "pyproject.toml",
+    "CMakeLists.txt",
+    "**/*.cmake",
+    "uv.lock"
+  ],
+  "globalEnv": [
+    "CUDA_VISIBLE_DEVICES",
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS"
+  ]
 }

@@ -1,12 +1,57 @@
-# @package __global__
+# MacBook hardware configuration
+# Optimized for both Intel and Apple Silicon Macs
 
-device: cpu
-vectorization: serial
+# Device configuration - use MPS on Apple Silicon when available
+device: ${oc.decode:${oc.env:DEVICE,mps}}
 
+# Environment variables optimized for macOS
+env_vars:
+  # CPU optimizations - use more threads on powerful Macs
+  OMP_NUM_THREADS: "8"
+  MKL_NUM_THREADS: "8"
+  OPENBLAS_NUM_THREADS: "8"
+  
+  # Memory optimizations for macOS
+  PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:256,garbage_collection_threshold:0.7"
+  
+  # Apple Silicon optimizations
+  PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0"
+  PYTORCH_MPS_LOW_WATERMARK_RATIO: "0.0"
+  
+  # Disable CUDA-specific optimizations on macOS
+  TORCH_CUDNN_BENCHMARK: "0"
+
+# Trainer configuration optimized for MacBook
 trainer:
-  batch_size: 1024
-  minibatch_size: 1024
-  forward_pass_minibatch_target_size: 2
+  # Moderate batch sizes for local development
+  batch_size: 65536  # Smaller than production but reasonable for dev
+  minibatch_size: 4096
+  forward_pass_minibatch_target_size: 1024
+  
+  # Enable compilation for better performance
+  compile: true
+  compile_mode: "default"  # More stable than reduce-overhead on MPS
+  
+  # Conservative mixed precision settings for MPS compatibility
+  use_mixed_precision: false  # MPS doesn't fully support mixed precision yet
+  grad_scaler_enabled: false
+  
+  # Development-friendly checkpointing
   checkpoint:
-    checkpoint_interval: 10
-  bptt_horizon: 8
+    checkpoint_interval: 120  # Every 2 minutes
+    wandb_checkpoint_interval: 600  # Every 10 minutes
+  
+  # Enable profiling for development
+  profiler:
+    interval_epochs: 1000  # Profile every 1000 epochs
+
+# Environment configuration for local development
+env:
+  num_envs: 8  # Good for development testing
+
+# Use multiprocessing on macOS (works well with proper worker configuration)
+vectorization: multiprocessing
+
+# Worker configuration optimized for macOS
+trainer:
+  num_workers: 4  # Conservative for stability
