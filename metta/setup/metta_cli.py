@@ -261,6 +261,8 @@ class MettaCLI:
                 self.local_commands.load_policies(unknown_args or [])
             elif args.local_command == "kind":
                 self.local_commands.kind(args)
+            elif args.local_command == "observatory":
+                self.local_commands.observatory(args, unknown_args or [])
             else:
                 error(f"Unknown local command: {args.local_command}")
                 sys.exit(1)
@@ -622,6 +624,9 @@ Examples:
         enter_parser = kind_subparsers.add_parser("enter", help="Enter a pod with an interactive shell")
         enter_parser.add_argument("pod_name", help="Name of the pod to enter")
 
+        # Add observatory command
+        local_subparsers.add_parser("observatory", help="Launch Observatory frontend locally")
+
         # Add clip command
         clip_parser = subparsers.add_parser("clip", help="copy subsets of codebase for LLM contexts", add_help=False)
         clip_parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments to pass to the clip tool")
@@ -636,7 +641,7 @@ Examples:
         if (
             args.command == "local"
             and hasattr(args, "local_command")
-            and args.local_command in ["load-policies", "build-policy-evaluator-img"]
+            and args.local_command in ["load-policies", "build-policy-evaluator-img", "observatory"]
         ):
             # These commands handle their own args
             pass
