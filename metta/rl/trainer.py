@@ -379,11 +379,15 @@ def train(
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
+            record_heartbeat()  # Record heartbeat before potentially long wandb upload
             wandb_policy_name = upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
 
         # Evaluate policy (with remote evaluation support)
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if latest_saved_policy_record:
+                # Record heartbeat before starting evaluation
+                record_heartbeat()
+
                 # Create stats epoch if needed
                 if stats_client is not None and stats_tracker.stats_run_id is not None:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
@@ -427,6 +431,7 @@ def train(
                             logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
 
                 # Local evaluation
+                logger.info("Starting local policy evaluation")
                 eval_scores = evaluate_policy(
                     latest_saved_policy_record,
                     sim_suite_config,
@@ -445,6 +450,9 @@ def train(
                     logger,
                 )
                 stats_tracker.update_epoch_tracking(epoch + 1)
+
+                # Record heartbeat after evaluation completes
+                record_heartbeat()
 
         # Generate replay
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):

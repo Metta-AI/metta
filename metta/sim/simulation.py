@@ -27,6 +27,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
+from metta.common.util.heartbeat import record_heartbeat
 from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -360,9 +361,19 @@ class Simulation:
         """
         self.start_simulation()
 
+        # Track time for periodic heartbeats
+        last_heartbeat_time = time.time()
+        heartbeat_interval = 60.0  # Record heartbeat every 60 seconds
+
         while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
             actions_np = self.generate_actions()
             self.step_simulation(actions_np)
+
+            # Record heartbeat periodically to prevent timeout
+            current_time = time.time()
+            if current_time - last_heartbeat_time > heartbeat_interval:
+                record_heartbeat()
+                last_heartbeat_time = current_time
 
         return self.end_simulation()
 
