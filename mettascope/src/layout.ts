@@ -1,4 +1,3 @@
-
 /**
  * Custom layout system for managing tabs and panes.
  */
@@ -136,6 +135,9 @@ export class Pane {
     // Make this pane a drop target for tabs.
     this.tabBarElement.addEventListener('dragover', (e) => {
       e.preventDefault()
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move'
+      }
       this.setActiveDropZone(DropZone.TAB_BAR)
     })
 
@@ -160,11 +162,17 @@ export class Pane {
     this.dropZones.forEach((element, zone) => {
       element.addEventListener('dragover', (e) => {
         e.preventDefault()
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'move'
+        }
         this.setActiveDropZone(zone)
       })
 
       element.addEventListener('dragenter', (e) => {
         e.preventDefault()
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'move'
+        }
         this.setActiveDropZone(zone)
       })
 
@@ -403,23 +411,34 @@ export class Pane {
     this.tabs.forEach((tab, index) => {
       const tabElement = document.createElement('div')
       tabElement.className = `tab ${tab.isActive ? 'active' : ''}`
-      tabElement.draggable = true
+      tabElement.setAttribute('draggable', 'true')
 
       // Create tab content with title and close button.
       const tabTitle = document.createElement('span')
       tabTitle.className = 'tab-title'
       tabTitle.textContent = tab.title
+      tabTitle.style.pointerEvents = 'none' // Critical: prevent this from interfering with drag
 
       const closeButton = document.createElement('span')
       closeButton.className = 'tab-close'
       closeButton.textContent = '×'
+      closeButton.style.pointerEvents = 'auto' // Allow close button to be clickable
       closeButton.addEventListener('click', (e) => {
-        e.stopPropagation() // Prevent tab activation.
+        e.stopPropagation()
+        e.preventDefault()
         this.closeTab(index)
       })
 
       tabElement.appendChild(tabTitle)
       tabElement.appendChild(closeButton)
+
+      // Add mousedown to help with drag initiation in Chrome
+      tabElement.addEventListener('mousedown', (e) => {
+        // Don't interfere with close button clicks
+        if (e.target === closeButton) {
+          return
+        }
+      })
 
       // Add drag event listeners.
       tabElement.addEventListener('dragstart', (e) => {
@@ -427,12 +446,18 @@ export class Pane {
           sourceId: this.getPaneId(),
           tabIndex: index,
         }
-        e.dataTransfer?.setData('text/plain', JSON.stringify(dragData))
-        tabElement.classList.add('dragging')
+        if (e.dataTransfer) {
+          e.dataTransfer.setData('text/plain', JSON.stringify(dragData))
+          e.dataTransfer.effectAllowed = 'move'
+        }
+        // Don't add dragging class immediately - it can cancel drag in Chrome
+        setTimeout(() => {
+          tabElement.classList.add('dragging')
+        }, 10)
         this.enableGlobalDropZones()
       })
 
-      tabElement.addEventListener('dragend', () => {
+      tabElement.addEventListener('dragend', (e) => {
         tabElement.classList.remove('dragging')
         this.disableGlobalDropZones()
       })
