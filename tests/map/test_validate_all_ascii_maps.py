@@ -4,9 +4,9 @@ Test suite for validating ASCII map files.
 
 from pathlib import Path
 
-import numpy as np
 import pytest
 
+from metta.map.utils.ascii_grid import char_grid_to_lines, lines_to_grid, load_map_file, validate_map_file
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
 
 
@@ -21,10 +21,8 @@ def find_map_files(root_dir="configs") -> list[str]:
         Sorted list of relative paths for .map files
     """
     root_path = Path(root_dir).resolve()
-
     map_files = list(root_path.rglob("*.map"))
     relative_paths = [str(path.relative_to(Path.cwd())) for path in map_files]
-
     return sorted(relative_paths)
 
 
@@ -42,34 +40,37 @@ def test_map_files_discovered(map_files):
 class TestAsciiMap:
     """Test suite for ASCII map validation."""
 
-    @pytest.fixture
-    def content(self, map_file):
-        with open(map_file, "r", encoding="utf-8") as f:
-            return f.read()
+    def test_validates_successfully(self, map_file):
+        """Verify that the map file passes validation."""
+        is_valid, error_msg = validate_map_file(map_file)
+        assert is_valid, f"Map {map_file} validation failed: {error_msg}"
 
-    def test_uses_known_symbols(self, content, map_file):
-        """Verify that the map only use symbols defined in SYMBOLS mapping."""
-        all_chars = set(content)
-        unknown_chars = all_chars - set(CHAR_TO_NAME.keys()) - {"\t", "\r", "\n"}
+    def test_loads_successfully(self, map_file):
+        """Verify that the map file can be loaded."""
+        lines = load_map_file(map_file)
+        assert len(lines) > 0, f"Map {map_file} is empty"
 
-        assert not unknown_chars, f"Map {map_file} contains unknown symbols: {unknown_chars}"
-
-    def test_has_consistent_line_lengths(self, content, map_file):
-        """Verify all maps have consistent line lengths within each file."""
-        lines = content.strip().splitlines()
-
-        line_lengths = [len(line) for line in lines]
-        if len(set(line_lengths)) > 1:
-            min_len, max_len = min(line_lengths), max(line_lengths)
-            pytest.fail(f"Map has inconsistent line lengths {min_len}-{max_len}")
-
-    def test_loads_as_numpy_array(self, content, map_file):
-        """Verify that the map can be loaded as NumPy array (critical for runtime)."""
-        lines = content.strip().splitlines()
-
-        level_array = np.array([list(line) for line in lines], dtype="U6")
-        _mapped_array = np.vectorize(CHAR_TO_NAME.get)(level_array)
+    def test_converts_to_grid(self, map_file):
+        """Verify that the map can be converted to MapGrid."""
+        lines = load_map_file(map_file)
+        grid = lines_to_grid(lines)
 
         # Basic structure validation
-        assert level_array.ndim == 2, "Should be 2D array"
-        assert level_array.shape[0] == len(lines), "Should have correct row count"
+        assert grid.ndim == 2, "Should be 2D array"
+        assert grid.shape[0] == len(lines), "Should have correct row count"
+        assert grid.shape[1] == len(lines[0]), "Should have correct column count"
+
+        # Verify all cells have valid grid objects
+        for r in range(grid.shape[0]):
+            for c in range(grid.shape[1]):
+                assert grid[r, c] in CHAR_TO_NAME.values(), f"Invalid grid object at ({r}, {c}): {grid[r, c]}"
+
+    def test_char_grid_parsing(self, map_file):
+        """Verify char_grid_to_lines works correctly."""
+        with open(map_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        if content.strip():  # Only test non-empty files
+            lines, width, height = char_grid_to_lines(content)
+            assert len(lines) == height, "Height mismatch"
+            assert all(len(line) == width for line in lines), "Width inconsistency"
