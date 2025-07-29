@@ -1,0 +1,97 @@
+name: "Sync PR Task (GH to Asana)"
+description: "Ensures an Asana task exists with the given GitHub URL. Creates a new task if none is found."
+
+inputs:
+  title:
+    description: "The title of the pull request."
+    required: true
+  pr_state:
+    description: "The state of the pull request."
+    required: true
+  project_id:
+    description: "The Asana project ID where the task will be created."
+    required: true
+  workspace_id:
+    description: "The Asana workspace ID for searching tasks."
+    required: true
+  asana_token:
+    description: "The Asana personal access token."
+    required: true
+  github_url:
+    description: "The GitHub URL (PR or issue) to associate with the Asana task."
+    required: true
+  github_url_field_id:
+    description: "The Asana custom field ID for the 'GitHub URL' field."
+    required: true
+  roster_project_id:
+    description: "The Asana project ID containing the user roster."
+    required: true
+  gh_login_field_id:
+    description: "The Asana custom field ID for the 'GitHub Login' field in the roster project."
+    required: true
+  asana_email_field_id:
+    description: "The Asana custom field ID for the 'Asana Email' field in the roster project. This is used to map GitHub logins to Asana emails."
+    required: true
+  pr_author_field_id:
+    description: "The Asana custom field ID for the 'PR Author' field in the roster project."
+    required: true
+  asana_attachment_secret:
+    description: "The Asana attachment secret. This is used to authenticate the Asana attachment action."
+    required: true
+  pr_number:
+    description: "Github PR number."
+    required: true
+  github_repo:
+    description: "Github repo URL."
+    required: true
+  github_token:
+    description: "Github token."
+    required: true
+
+
+outputs:
+  task_url:
+    description: "The URL of the existing or created Asana task."
+    value: ${{ steps.ensure-task.outputs.task_url }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+
+    - name: Ensure Asana Task
+      id: ensure-task
+      run: uv run ${{ github.action_path }}/pr_gh_to_asana.py
+      shell: bash
+      env:
+        INPUT_TITLE: ${{ inputs.title }}
+        INPUT_PR_STATE: ${{ inputs.pr_state }}
+        INPUT_PROJECT_ID: ${{ inputs.project_id }}
+        INPUT_WORKSPACE_ID: ${{ inputs.workspace_id }}
+        INPUT_ASANA_TOKEN: ${{ inputs.asana_token }}
+        INPUT_GITHUB_URL: ${{ inputs.github_url }}
+        INPUT_GITHUB_URL_FIELD_ID: ${{ inputs.github_url_field_id }}
+        INPUT_ROSTER_PROJECT_ID: ${{ inputs.roster_project_id }}
+        INPUT_GH_LOGIN_FIELD_ID: ${{ inputs.gh_login_field_id }}
+        INPUT_ASANA_EMAIL_FIELD_ID: ${{ inputs.asana_email_field_id }}
+        INPUT_PR_AUTHOR_FIELD_ID: ${{ inputs.pr_author_field_id }}
+        INPUT_ASANA_ATTACHMENT_SECRET: ${{ inputs.asana_attachment_secret }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        INPUT_GITHUB_REPO: ${{ inputs.github_repo }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+
+    - name: Upload HTTP interaction logs
+      if: always()  # Runs even if the previous step fails
+      uses: actions/upload-artifact@v4
+      with:
+        name: http-interactions-${{ github.run_id }}
+        path: "http_interactions_*.yaml"
+        retention-days: 7  # Keep for 7 days
+
+
+
+
