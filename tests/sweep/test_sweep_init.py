@@ -167,8 +167,8 @@ class TestGenerateProteinSuggestion:
         with pytest.raises(ValueError, match="Batch size 1000 must be divisible by minibatch size 64"):
             generate_protein_suggestion(config, mock_protein)
 
-        # Should have recorded 10 failures
-        assert mock_protein.record_failure.call_count == 10
+        # Should have recorded 11 failures (1 initial + 10 retries)
+        assert mock_protein.record_failure.call_count == 11
 
 
 class TestApplyProteinSuggestion:

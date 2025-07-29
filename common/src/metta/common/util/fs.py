@@ -1,3 +1,4 @@
+import hashlib
 import os
 import shutil
 import tempfile
@@ -167,3 +168,11 @@ def wait_for_file(
     time.sleep(0.1)
 
     return True
+
+
+def get_file_hash(filepath: Path | str, hash_func: Callable[[], Any] = hashlib.sha256) -> str:
+    hash_obj = hash_func()
+    with open(filepath, "rb") as f:
+        while chunk := f.read(8192):
+            hash_obj.update(chunk)
+    return hash_obj.hexdigest()
