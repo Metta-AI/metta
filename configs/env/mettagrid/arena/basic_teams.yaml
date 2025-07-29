@@ -3,7 +3,7 @@
 
 defaults:
   - /env/mettagrid/mettagrid@
-  - /env/mettagrid/game/groups/teams@game.groups
+  - /env/mettagrid/game/groups/single_team@game.groups
   - /env/mettagrid/game/objects@game.objects:
       - basic
       - mines
