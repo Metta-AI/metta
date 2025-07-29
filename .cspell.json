@@ -232,6 +232,7 @@
     "vectorizer",
     "venv",
     "virtualenv",
+    "VITE",
     "vloss",
     "vtrace",
     "wandb",

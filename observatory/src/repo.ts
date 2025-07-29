@@ -230,6 +230,8 @@ export type PolicyHeatmapData = {
   evalMaxScores: Record<string, number>
 }
 
+import { config } from './config'
+
 export type TableInfo = {
   table_name: string
   column_count: number
@@ -312,19 +314,34 @@ export interface Repo {
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
 
-    // Policy-based heatmap methods
+  // Policy-based heatmap methods
   getPolicies(request: PoliciesRequest): Promise<PoliciesResponse>
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
   getAvailableMetrics(request: MetricsRequest): Promise<string[]>
   generatePolicyHeatmap(request: PolicyHeatmapRequest): Promise<PolicyHeatmapData>
-
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') { }
+  constructor(private baseUrl: string = 'http://localhost:8000') {}
+
+  private getHeaders(contentType?: string): Record<string, string> {
+    const headers: Record<string, string> = {}
+
+    if (contentType) {
+      headers['Content-Type'] = contentType
+    }
+
+    if (config.authToken) {
+      headers['X-Auth-Token'] = config.authToken
+    }
+
+    return headers
+  }
 
   private async apiCall<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`)
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      headers: this.getHeaders(),
+    })
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
@@ -334,9 +351,7 @@ export class ServerRepo implements Repo {
   private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders('application/json'),
       body: JSON.stringify(body),
     })
     if (!response.ok) {
@@ -348,9 +363,7 @@ export class ServerRepo implements Repo {
   private async apiCallWithBodyPut<T>(endpoint: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders('application/json'),
       body: JSON.stringify(body),
     })
     if (!response.ok) {
@@ -362,6 +375,7 @@ export class ServerRepo implements Repo {
   private async apiCallDelete(endpoint: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'DELETE',
+      headers: this.getHeaders(),
     })
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
@@ -519,11 +533,10 @@ export class ServerRepo implements Repo {
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
     const params = new URLSearchParams()
-    policyNames.forEach(name => params.append('policy_names', name))
+    policyNames.forEach((name) => params.append('policy_names', name))
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
     return response.policy_ids
   }
-
 
   // Policy-based heatmap methods
   async getPolicies(request: PoliciesRequest): Promise<PoliciesResponse> {

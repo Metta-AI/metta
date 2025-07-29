@@ -136,7 +136,7 @@ jobs:
           run_name: ${{ steps.generate_run_name.outputs.run_name }} # Pass the fully generated name
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Pass commit_to_run for manual, default for push
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
-          skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+          skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
 
       - name: Print Run Information
