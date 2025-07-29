@@ -49,6 +49,7 @@ export function initDemoMode() {}
 
 export function startDemoMode() {
   state.demoMode = true
+  state.isPlaying = true
   requestFrame()
 }
 
@@ -72,7 +73,6 @@ export function doDemoMode() {
   if (!state.demoMode || state.replay == null) {
     return
   }
-  state.isPlaying = true
 
   // Is the current shot over?
   if (shot == null || shot.startTime + shot.duration < epochTime()) {
