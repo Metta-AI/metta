@@ -5,7 +5,7 @@ import httpx
 from pydantic import BaseModel
 
 from metta.app_backend.eval_task_client import EvalTaskClient
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
     EpochCreate,
@@ -273,3 +273,7 @@ class StatsClient:
     async def create_task(self, request: TaskCreateRequest) -> TaskResponse:
         client = EvalTaskClient(backend_url=str(self.http_client.base_url), machine_token=self.machine_token)
         return await client.create_task(request)
+
+    async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
+        client = EvalTaskClient(backend_url=str(self.http_client.base_url), machine_token=self.machine_token)
+        return await client.get_all_tasks(filters=filters)

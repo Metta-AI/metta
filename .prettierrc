@@ -11,6 +11,13 @@
       }
     },
     {
+      "files": ["turbo.jsonc"],
+      "options": {
+        "parser": "jsonc",
+        "trailingComma": "none"
+      }
+    },
+    {
       "files": ["*.yml", "*.yaml"],
       "options": {
         "parser": "yaml",
