@@ -324,12 +324,6 @@ def load_or_initialize_policy(
 
         logger.info(f"Rank {rank}: Successfully loaded policy from {default_policy_path}")
 
-        # Synchronize after loading to ensure all non-master ranks are ready
-        if torch.distributed.is_initialized():
-            logger.info(f"Rank {rank}: Entering barrier after policy load")
-            torch.distributed.barrier()
-            logger.info(f"Rank {rank}: Barrier complete after policy load")
-
     # Master rank or single GPU
     else:
         policy_record = None
@@ -378,14 +372,6 @@ def load_or_initialize_policy(
             initial_policy_record = saved_pr
             latest_saved_policy_record = saved_pr
 
-            # Synchronize with non-master ranks after saving
-            if torch.distributed.is_initialized():
-                logger.info(
-                    f"Master rank {rank}: Policy saved to {saved_pr.uri}, entering barrier to sync with other ranks"
-                )
-                torch.distributed.barrier()
-                logger.info(f"Master rank {rank}: Barrier complete, all ranks synchronized")
-
     # Initialize policy to environment
     if hasattr(policy, "initialize_to_environment"):
         features = metta_grid_env.get_observation_features()
@@ -394,5 +380,11 @@ def load_or_initialize_policy(
         policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     logger.info(f"Rank {rank}: USING {initial_policy_record.uri if initial_policy_record else 'new policy'}")
+
+    # Ensure all ranks are synchronized before returning
+    if torch.distributed.is_initialized():
+        logger.info(f"Rank {rank}: Synchronizing all ranks after policy load/create")
+        torch.distributed.barrier()
+        logger.info(f"Rank {rank}: All ranks synchronized")
 
     return policy, initial_policy_record, latest_saved_policy_record
