@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Heatmap } from './Heatmap';
-// import { Heatmap } from '../../../../../observatory/src/Heatmap';
+
 
 interface HeatmapWidgetProps {
     model: {
@@ -12,6 +12,7 @@ interface HeatmapWidgetProps {
         save_changes: () => void;
     };
 }
+
 
 function HeatmapWidget({ model }: HeatmapWidgetProps) {
     const [heatmapData, setHeatmapData] = useState(null);
