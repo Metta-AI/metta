@@ -3,7 +3,7 @@ import argparse
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
@@ -847,11 +847,7 @@ def main():
         cmd_config = COMMAND_REGISTRY[sys.argv[1]]
 
         # Fast path for simple subprocess commands that don't need any setup
-        if (
-            cmd_config.subprocess_cmd
-            and not cmd_config.needs_config
-            and not cmd_config.needs_components
-        ):
+        if cmd_config.subprocess_cmd and not cmd_config.needs_config and not cmd_config.needs_components:
             # Direct execution without creating CLI instance
             cmd = list(cmd_config.subprocess_cmd)
 
