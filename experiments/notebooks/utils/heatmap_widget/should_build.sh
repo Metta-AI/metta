@@ -9,14 +9,15 @@ local md5sums_file=".md5sums"
 # Get the first argument (should be 0 or 1) and set a variable to it
 local build_and_save_md5sums="${1:-0}"
 
+local current_md5sums=$(md5sum src/*.tsx)
+
 
 # Build the project and save the md5sums of the src/*.tsx files.
 function build_and_save() {
-    local current_md5sum=$(md5sum src/*.tsx)
     local msg="$1"
     if [ "$build_and_save_md5sums" = "1" ]; then
         echo "$msg"
-        echo "$current_md5sum" > "$md5sums_file"
+        echo "$current_md5sums" > "$md5sums_file"
         npx vite build
     fi
 }
@@ -30,12 +31,11 @@ if [ ! -f "heatmap_widget/static/index.js" ]; then
 # If we have a md5sums file, check if the md5sums have changed, and, if so, build and save.
 elif [ -f "$md5sums_file" ]; then
     local md5sums=$(cat "$md5sums_file")
-    local current_md5sum=$(md5sum src/*.tsx)
-    if [ "$md5sums" = "$current_md5sum" ]; then
+    if [ "$md5sums" = "$current_md5sums" ]; then
         echo "src/*.tsx has not changed, skip build"
         exit 1
     else
-        diff -d --color=always <(echo "$md5sums") <(echo "$current_md5sum")
+        diff -d --color=always <(echo "$md5sums") <(echo "$current_md5sums")
         build_and_save "src/*.tsx has changed, rebuild"
         exit 0
     fi
