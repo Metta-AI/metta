@@ -1,7 +1,9 @@
-import { Vec2f, Mat3f } from './vector_math.js'
 
-// Custom layout system for managing tabs and panes.
+/**
+ * Custom layout system for managing tabs and panes.
+ */
 
+// Mock panel types for testing.
 export enum PanelType {
   LOGS = 'Logs',
   METRICS = 'Metrics',
@@ -22,6 +24,7 @@ export enum DropZone {
   BOTTOM = 'bottom',
 }
 
+/** A single tab and it's content for a pane. */
 export class Tab {
   public title: string
   public content: string
@@ -35,6 +38,11 @@ export class Tab {
   }
 }
 
+/**
+ * A pane is a single square of the layout.
+ * Panes have 1 or more tabs.
+ * Each pane has 'drop zones' to control splitting when dragging tabs onto them.
+ */
 export class Pane {
   public tabs: Tab[] = []
   public element: HTMLElement
@@ -43,7 +51,6 @@ export class Pane {
   private addTabContainer!: HTMLElement
   private dropdown!: HTMLElement
   private isDropdownVisible: boolean = false
-  private isDragTarget: boolean = false
   private dropZones: Map<DropZone, HTMLElement> = new Map()
   private activeDropZone: DropZone | null = null
 
@@ -76,13 +83,13 @@ export class Pane {
     this.tabBarElement = this.element.querySelector('.tab-bar') as HTMLElement
     this.contentElement = this.element.querySelector('.tab-content') as HTMLElement
 
-    // Set up drop zones
+    // Set up drop zones.
     this.dropZones.set(DropZone.LEFT, this.element.querySelector('.drop-zone-left') as HTMLElement)
     this.dropZones.set(DropZone.RIGHT, this.element.querySelector('.drop-zone-right') as HTMLElement)
     this.dropZones.set(DropZone.TOP, this.element.querySelector('.drop-zone-top') as HTMLElement)
     this.dropZones.set(DropZone.BOTTOM, this.element.querySelector('.drop-zone-bottom') as HTMLElement)
 
-    // Create the add-tab-container separately.
+    // setup the "New Tab" button.
     this.addTabContainer = document.createElement('div')
     this.addTabContainer.className = 'add-tab-container'
     this.addTabContainer.innerHTML = `
@@ -339,18 +346,6 @@ export class Pane {
     parentLayout.removeChild(this)
   }
 
-  private findParentLayoutOf(targetLayout: Layout): Layout | null {
-    // Walk up the DOM to find the parent of the target layout.
-    let current = targetLayout.getContainer().parentElement
-    while (current) {
-      if ((current as any).layoutInstance && (current as any).layoutInstance !== targetLayout) {
-        return (current as any).layoutInstance
-      }
-      current = current.parentElement
-    }
-    return null
-  }
-
   public getPaneId(): string {
     if (!this.element.dataset.paneId) {
       this.element.dataset.paneId = `pane-${Math.random().toString(36).substr(2, 9)}`
@@ -359,8 +354,6 @@ export class Pane {
   }
 
   private findAllPanes(): Pane[] {
-    // This is a simplified approach - in a real implementation,
-    // you might want to traverse the layout tree more systematically
     const panes: Pane[] = []
     const containers = document.querySelectorAll('.pane')
     containers.forEach((container) => {
@@ -528,6 +521,8 @@ export class Layout {
   }
 
   private checkForSimplification(): void {
+    // If this layout is now empty or has only one child, we should simplify the layout tree.
+
     // Check if this is actually the root layout by looking for layout-container ID.
     const isRootLayout = this.container.id === 'layout-container'
 
@@ -561,6 +556,7 @@ export class Layout {
   }
 
   private findParentLayoutAggressively(): Layout | null {
+    // TODO this is dumb why do we have multiple strategies?
     // Try multiple strategies to find the parent.
     let current = this.container.parentElement
     let depth = 0
