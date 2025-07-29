@@ -276,7 +276,12 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   set_buffers(observations, terminals, truncations, rewards);
 }
 
-MettaGrid::~MettaGrid() = default;
+MettaGrid::~MettaGrid() {
+  // Clean up agents to prevent memory leaks
+  for (auto* agent : _agents) {
+    delete agent;
+  }
+}
 
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
