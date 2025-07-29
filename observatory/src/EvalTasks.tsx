@@ -70,9 +70,7 @@ export function EvalTasks({ repo }: Props) {
     setPolicyIdInput(value)
     if (value.trim()) {
       const recentPolicies = getRecentPolicies()
-      const filtered = recentPolicies.filter(
-        (policy) => policy.toLowerCase().includes(value.toLowerCase())
-      )
+      const filtered = recentPolicies.filter((policy) => policy.toLowerCase().includes(value.toLowerCase()))
       setFilteredPolicies(filtered.slice(0, 10)) // Limit to 10 suggestions
       setShowPolicySuggestions(filtered.length > 0)
     } else {
@@ -259,7 +257,12 @@ export function EvalTasks({ repo }: Props) {
     label,
     isActive,
     width,
-  }: { field: SortField; label: string; isActive: boolean; width?: string }) => {
+  }: {
+    field: SortField
+    label: string
+    isActive: boolean
+    width?: string
+  }) => {
     const sortField = isActive ? activeSortField : completedSortField
     const sortDirection = isActive ? activeSortDirection : completedSortDirection
     const isCurrentSort = sortField === field
@@ -353,8 +356,23 @@ export function EvalTasks({ repo }: Props) {
     }
 
     return (
-      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderTop: '1px solid #dee2e6' }}>
-        <h4 style={{ marginTop: 0, marginBottom: '10px', fontSize: '14px', fontWeight: 600 }}>Attributes</h4>
+      <div
+        style={{
+          padding: '15px',
+          backgroundColor: '#f8f9fa',
+          borderTop: '1px solid #dee2e6',
+        }}
+      >
+        <h4
+          style={{
+            marginTop: 0,
+            marginBottom: '10px',
+            fontSize: '14px',
+            fontWeight: 600,
+          }}
+        >
+          Attributes
+        </h4>
         <div
           style={{
             fontSize: '12px',
@@ -600,7 +618,14 @@ export function EvalTasks({ repo }: Props) {
                 <SortHeader field="sim_suite" label="Suite" isActive={true} width="10%" />
                 <SortHeader field="status" label="Status" isActive={true} width="15%" />
                 <SortHeader field="assignee" label="Assignee" isActive={true} width="20%" />
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
+                <th
+                  style={{
+                    padding: '12px',
+                    textAlign: 'left',
+                    borderBottom: '2px solid #dee2e6',
+                    width: '10%',
+                  }}
+                >
                   Duration
                 </th>
                 <SortHeader field="retries" label="Retries" isActive={true} width="8%" />
