@@ -3,3 +3,9 @@ _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 tasks:
   /env/mettagrid/operant_conditioning/2_converters/mine_red: 1
   /env/mettagrid/operant_conditioning/2_converters/mine_blue: 1
+
+env_overrides:
+  game:
+    max_steps: 1000
+  termination:
+    max_reward: 1.0

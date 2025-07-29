@@ -6,3 +6,9 @@ tasks:
   /env/mettagrid/operant_conditioning/backchaining/backchain3: 1
   /env/mettagrid/operant_conditioning/backchaining/backchain4: 1
   /env/mettagrid/operant_conditioning/backchaining/backchain5: 1
+
+env_overrides:
+  game:
+    max_steps: 1000
+  termination:
+    max_reward: 1.0

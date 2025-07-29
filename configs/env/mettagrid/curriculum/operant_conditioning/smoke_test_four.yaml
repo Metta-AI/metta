@@ -5,3 +5,9 @@ tasks:
   /env/mettagrid/operant_conditioning/4_converters/mine_blue: 1
   /env/mettagrid/operant_conditioning/4_converters/mine_green: 1
   /env/mettagrid/operant_conditioning/4_converters/factory: 1
+
+env_overrides:
+  game:
+    max_steps: 1000
+  termination:
+    max_reward: 1.0
