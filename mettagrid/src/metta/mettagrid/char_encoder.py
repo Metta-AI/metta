@@ -38,8 +38,30 @@ for k, v in NAME_TO_CHAR.items():
 
 
 def grid_object_to_char(name: str) -> str:
-    if name in NAME_TO_CHAR:
-        return NAME_TO_CHAR[name][0]
+    if name.startswith("agent"):
+        if "." not in name:
+            return "@"
+        agent_name = name.split(".")[1]
+        if agent_name in NAME_TO_CHAR:
+            return NAME_TO_CHAR[agent_name][0]
+        return "@"
+
+    if name == "wall":
+        return "#"
+    if name == "empty":
+        return " "
+    if name == "altar":
+        return "A"
+    if name == "key":
+        return "K"
+    if name == "door":
+        return "D"
+    if name == "chest":
+        return "C"
+
+    # Support for colored objects, e.g. "key.red"
+    if "." in name:
+        return grid_object_to_char(name.split(".")[0])
 
     raise ValueError(f"Unknown object type: {name}")
 
