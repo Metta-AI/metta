@@ -2,14 +2,23 @@ import { Vec2f, Mat3f } from './vector_math.js'
 
 // Custom layout system for managing tabs and panes.
 
+export enum PanelType {
+  LOGS = 'Logs',
+  METRICS = 'Metrics',
+  MAP_VIEW = 'Map View',
+  AGENT_DETAILS = 'Agent Details'
+}
+
 export class Tab {
   public title: string
   public content: string
   public isActive: boolean = false
+  public panelType: PanelType
 
-  constructor(title: string, content: string) {
+  constructor(title: string, content: string, panelType: PanelType = PanelType.LOGS) {
     this.title = title
     this.content = content
+    this.panelType = panelType
   }
 }
 
@@ -18,10 +27,14 @@ export class Pane {
   public element: HTMLElement
   private tabBarElement!: HTMLElement
   private contentElement!: HTMLElement
+  private addTabContainer!: HTMLElement
+  private dropdown!: HTMLElement
+  private isDropdownVisible: boolean = false
 
   constructor(container: HTMLElement) {
     this.element = container
     this.render()
+    this.setupEventListeners()
   }
 
   public addTab(tab: Tab): void {
@@ -35,70 +48,98 @@ export class Pane {
   private render(): void {
     this.element.innerHTML = `
             <div class="pane">
-                <div class="tab-bar"></div>
+                <div class="tab-bar">
+                    <div class="add-tab-container">
+                        <div class="add-tab-btn">+</div>
+                        <div class="panel-type-dropdown">
+                            <div class="dropdown-item" data-type="${PanelType.LOGS}">${PanelType.LOGS}</div>
+                            <div class="dropdown-item" data-type="${PanelType.METRICS}">${PanelType.METRICS}</div>
+                            <div class="dropdown-item" data-type="${PanelType.MAP_VIEW}">${PanelType.MAP_VIEW}</div>
+                            <div class="dropdown-item" data-type="${PanelType.AGENT_DETAILS}">${PanelType.AGENT_DETAILS}</div>
+                        </div>
+                    </div>
+                </div>
                 <div class="tab-content"></div>
             </div>
         `
 
     this.tabBarElement = this.element.querySelector('.tab-bar') as HTMLElement
     this.contentElement = this.element.querySelector('.tab-content') as HTMLElement
-
-    this.addStyles()
+    this.addTabContainer = this.element.querySelector('.add-tab-container') as HTMLElement
+    this.dropdown = this.element.querySelector('.panel-type-dropdown') as HTMLElement
   }
 
-  private addStyles(): void {
-    const style = document.createElement('style')
-    style.textContent = `
-            .pane {
-                height: 100%;
-                display: flex;
-                flex-direction: column;
-            }
+  private setupEventListeners(): void {
+    const addBtn = this.addTabContainer.querySelector('.add-tab-btn') as HTMLElement
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this.toggleDropdown()
+    })
 
-            .tab-bar {
-                background: #2d2d30;
-                border-bottom: 1px solid #3c3c3c;
-                display: flex;
-                min-height: 32px;
-            }
+    // Handle dropdown item clicks.
+    const dropdownItems = this.addTabContainer.querySelectorAll('.dropdown-item')
+    dropdownItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        const panelType = (e.target as HTMLElement).getAttribute('data-type') as PanelType
+        this.createNewTab(panelType)
+        this.hideDropdown()
+      })
+    })
 
-            .tab {
-                padding: 8px 16px;
-                background: #2d2d30;
-                border-right: 1px solid #3c3c3c;
-                cursor: pointer;
-                user-select: none;
-                color: #cccccc;
-            }
-
-            .tab.active {
-                background: #1e1e1e;
-                color: #ffffff;
-            }
-
-            .tab:hover:not(.active) {
-                background: #37373d;
-            }
-
-            .tab-content {
-                flex: 1;
-                padding: 16px;
-                background: #1e1e1e;
-                overflow: auto;
-            }
-        `
-    document.head.appendChild(style)
+    // Close dropdown when clicking outside.
+    document.addEventListener('click', (e) => {
+      if (!this.addTabContainer.contains(e.target as Node)) {
+        this.hideDropdown()
+      }
+    })
   }
 
-  private updateTabs(): void {
-    this.tabBarElement.innerHTML = ''
+  private toggleDropdown(): void {
+    this.isDropdownVisible = !this.isDropdownVisible
+    this.dropdown.classList.toggle('visible', this.isDropdownVisible)
+  }
+
+  private hideDropdown(): void {
+    this.isDropdownVisible = false
+    this.dropdown.classList.remove('visible')
+  }
+
+  private createNewTab(panelType: PanelType): void {
+    const tabNumber = this.tabs.length + 1
+    const content = this.generateContentForPanelType(panelType)
+    const newTab = new Tab(`${panelType} ${tabNumber}`, content, panelType)
+    this.addTab(newTab)
+    this.activateTab(this.tabs.length - 1)
+  }
+
+  private generateContentForPanelType(panelType: PanelType): string {
+    switch (panelType) {
+      case PanelType.LOGS:
+        return 'Log entries will appear here...\n\n[INFO] System started\n[DEBUG] Loading configuration\n[INFO] Ready to receive data'
+      case PanelType.METRICS:
+        return 'Performance metrics and statistics will be displayed here...\n\nCPU Usage: 45%\nMemory: 2.1GB / 8GB\nNetwork I/O: 1.2MB/s'
+      case PanelType.MAP_VIEW:
+        return 'Interactive map visualization will render here...\n\nMap dimensions: 100x100\nAgents: 5 active\nObstacles: 23'
+      case PanelType.AGENT_DETAILS:
+        return 'Agent status and details will be shown here...\n\nAgent ID: 001\nStatus: Active\nPosition: (45, 23)\nHealth: 100%'
+      default:
+        return 'Panel content will appear here...'
+    }
+  }
+
+    private updateTabs(): void {
+    // Clear existing tabs but keep the add-tab-container.
+    const existingTabs = this.tabBarElement.querySelectorAll('.tab')
+    existingTabs.forEach(tab => tab.remove())
 
     this.tabs.forEach((tab, index) => {
       const tabElement = document.createElement('div')
       tabElement.className = `tab ${tab.isActive ? 'active' : ''}`
       tabElement.textContent = tab.title
       tabElement.addEventListener('click', () => this.activateTab(index))
-      this.tabBarElement.appendChild(tabElement)
+
+      // Insert before the add-tab-container.
+      this.tabBarElement.insertBefore(tabElement, this.addTabContainer)
     })
 
     this.updateContent()
@@ -128,7 +169,7 @@ export function initLayout(): void {
   const pane = new Pane(container)
 
   // Add a test tab to demonstrate the functionality.
-  const testTab = new Tab('Welcome', 'This is the content of the first tab!')
+  const testTab = new Tab('Welcome', 'This is the content of the first tab!\n\nClick the + button to add more tabs.', PanelType.LOGS)
   pane.addTab(testTab)
 }
 
