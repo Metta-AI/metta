@@ -179,3 +179,22 @@ class LocalCommands:
         except KeyboardInterrupt:
             info("\nObservatory shutdown")
             sys.exit(0)
+
+    def stats_server(self, args, unknown_args) -> None:
+        """Launch Stats Server."""
+        cmd = [
+            "uv",
+            "run",
+            "python",
+            str(self.repo_root / "app_backend" / "src" / "metta" / "app_backend" / "server.py"),
+            *unknown_args,
+        ]
+
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            error(f"Failed to launch Stats Server: {e}")
+            sys.exit(1)
+        except KeyboardInterrupt:
+            info("\nStats Server shutdown")
+            sys.exit(0)
