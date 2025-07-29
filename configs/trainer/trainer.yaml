@@ -35,12 +35,6 @@ optimizer:
   learning_rate: 0.000457
   weight_decay: 0
 
-lr_scheduler:
-  enabled: false
-  anneal_lr: false
-  warmup_steps: null
-  schedule_type: null
-
 ppo:
   # Core PPO hyperparameters
   clip_coef: 0.1

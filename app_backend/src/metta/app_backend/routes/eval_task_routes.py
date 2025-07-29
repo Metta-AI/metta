@@ -2,13 +2,13 @@ import uuid
 from datetime import datetime
 from typing import Any, TypeVar
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
+from metta.common.util.git import get_latest_commit
 
 T = TypeVar("T")
 
@@ -81,17 +81,6 @@ class TasksResponse(BaseModel):
     tasks: list[TaskResponse]
 
 
-async def _get_latest_main_commit() -> str:
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.github.com/repos/Metta-AI/metta/commits/main",
-            headers={"Accept": "application/vnd.github.v3+json"},
-        )
-        response.raise_for_status()
-        commit_data = response.json()
-        return commit_data["sha"]
-
-
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/tasks", tags=["eval_tasks"])
 
@@ -103,7 +92,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         # If no git_hash provided, fetch latest commit from main branch
         git_hash = request.git_hash
         if git_hash is None:
-            git_hash = await _get_latest_main_commit()
+            git_hash = await get_latest_commit(branch="main")
 
         attributes = {
             "env_overrides": request.env_overrides,

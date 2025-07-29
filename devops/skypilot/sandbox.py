@@ -161,6 +161,13 @@ def main():
     print("\n⏳ This will take a few minutes...")
 
     try:
+        sky_info = sky.api_info()
+        if sky_info["status"] == "healthy" and sky_info["user"] is None:
+            print(red("✗ You are not authenticated with SkyPilot."))
+            print(f"  {green('metta install skypilot')}")
+            print("to authenticate before launching a sandbox.")
+            return
+
         request_id = sky.launch(
             task,
             cluster_name=cluster_name,
