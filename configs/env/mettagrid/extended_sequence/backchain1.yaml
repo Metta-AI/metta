@@ -10,7 +10,7 @@ sampling: 1
 
 game:
   num_agents: 24
-  max_steps: 100
+  max_steps: 500
   agent:
     default_resource_limit: 1
     rewards:
@@ -31,7 +31,7 @@ game:
 
   objects:
     altar:
-      cooldown: 1
+      cooldown: 100
       input_resources:
         battery_red: 0
       output_resources:

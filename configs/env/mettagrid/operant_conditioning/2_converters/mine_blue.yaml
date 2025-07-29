@@ -1,38 +1,17 @@
 defaults:
-  - /env/mettagrid/mettagrid@
-  - /env/mettagrid/game/objects/mines@game.objects
-  - /env/mettagrid/game/objects/generators@game.objects
-  - /env/mettagrid/game/objects/combat@game.objects
-  - /env/mettagrid/game/objects/advanced@game.objects
+  - /env/mettagrid/operant_conditioning/defaults@
   - _self_
 
 sampling: 1
 
 game:
-  num_agents: 24
-  max_steps: 100
-  agent:
-    default_resource_limit: 1
-    rewards:
-      inventory:
-        ore_red: 0
-        ore_blue: 0
-        heart: 1.0
   map_builder:
-    _target_: metta.map.mapgen.MapGen
-    instances: ${..num_agents}
-    width: 10
-    height: 10
-
     root:
-      type: metta.map.scenes.random.Random
       params:
-        agents: 1
         objects:
           mine_blue: 1
           generator_red: 1
           generator_blue: 1
-
   objects:
     generator_red:
       cooldown: 1
@@ -47,4 +26,4 @@ game:
         battery_blue: 0
         heart: 1
     mine_blue:
-      cooldown: 50
+      cooldown: 100

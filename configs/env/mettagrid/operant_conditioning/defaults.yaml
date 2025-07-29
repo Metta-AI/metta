@@ -15,40 +15,21 @@ game:
     default_resource_limit: 1
     rewards:
       inventory:
-        heart: 1.0
-        battery_red: 0
         ore_red: 0
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 1.0
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
-    width: 10
-    height: 10
+    width: 6
+    height: 6
 
     root:
       type: metta.map.scenes.random.Random
       params:
         agents: 1
-        objects:
-          altar: 1
-          generator_red: 1
-          mine_red: 1
-          mine_green: 1
-  objects:
-    altar:
-      cooldown: 100
-      input_resources:
-        battery_red: 1
-      output_resources:
-        heart: 1
-    generator_red:
-      cooldown: 100
-      input_resources:
-        ore_red: 1
-      output_resources:
-        battery_red: 1
-    mine_red:
-      cooldown: 100
-      input_resources:
-        ore_green: 1
-      output_resources:
-        ore_red: 1
+        objects: ??

@@ -33,3 +33,7 @@ simulations:
     env: env/mettagrid/operantconditioning/4_converters/mine_green
   4_converters_factory:
     env: env/mettagrid/operantconditioning/4_converters/factory
+
+env_overrides:
+  game:
+    max_steps: 100
