@@ -5,13 +5,14 @@ from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget imp
     create_heatmap_widget,
 )
 from metta.common.client.metta_client import MettaAPIClient
+from metta.common.util.constants import DEV_STATS_SERVER_URI
 
 
 async def fetch_real_heatmap_data(
     metrics: List[str],
     search_texts: List[str] = [],
     policy_selector: str = "best",
-    api_base_url: str = "http://localhost:8000",
+    api_base_url: str = DEV_STATS_SERVER_URI,
     max_policies: int = 30,
 ) -> HeatmapWidget:
     """

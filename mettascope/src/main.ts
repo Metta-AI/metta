@@ -18,6 +18,7 @@ import { initObjectMenu } from './objmenu.js'
 import { fetchReplay, initWebSocket, readFile } from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
+import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO, METTA_GITHUB_PRIMARY_BRANCH } from './constants.js'
 import { drawTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
@@ -853,7 +854,7 @@ onEvent('click', '#share-button', () => {
   onShareButtonClick()
 })
 onEvent('click', '#help-button', () => {
-  window.open('https://github.com/Metta-AI/metta/blob/main/mettascope/README.md', '_blank')
+  window.open(`https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/blob/${METTA_GITHUB_PRIMARY_BRANCH}/mettascope/README.md`, '_blank')
 })
 
 onEvent('click', '#rewind-to-start', () => {

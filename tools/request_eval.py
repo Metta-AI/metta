@@ -16,6 +16,14 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from metta.common.util.collections import group_by, remove_none_values
+from metta.common.util.constants import (
+    DEV_OBSERVATORY_FRONTEND_URL,
+    DEV_STATS_SERVER_URI,
+    METTA_WANDB_ENTITY,
+    METTA_WANDB_PROJECT,
+    PROD_OBSERVATORY_FRONTEND_URL,
+    PROD_STATS_SERVER_URI,
+)
 from metta.common.util.stats_client_cfg import get_stats_client_direct
 from metta.setup.utils import info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
@@ -26,7 +34,7 @@ class EvalRequest(BaseModel):
 
     evals: list[str]
     policies: list[str]
-    stats_server_uri: str = "https://api.observatory.softmax-research.net"
+    stats_server_uri: str = PROD_STATS_SERVER_URI
 
     git_hash: str | None = None
 
@@ -47,8 +55,8 @@ class EvalRequest(BaseModel):
                 self.wandb_entity = wandb.api.default_entity
 
         if not self.wandb_project:
-            if self.wandb_entity == "metta-research":
-                self.wandb_project = "metta"
+            if self.wandb_entity == METTA_WANDB_ENTITY:
+                self.wandb_project = METTA_WANDB_PROJECT
 
         assert self.wandb_project, "wandb_project must be set"
         assert self.wandb_entity, "wandb_entity must be set"
@@ -184,8 +192,8 @@ async def _create_remote_eval_tasks(
 
     # TODO: mappings like this should determined somewhere else
     frontend_base_url = {
-        "https://api.observatory.softmax-research.net": "https://observatory.softmax-research.net",
-        "http://localhost:8000": "http://localhost:5173",
+        PROD_STATS_SERVER_URI: PROD_OBSERVATORY_FRONTEND_URL,
+        DEV_STATS_SERVER_URI: DEV_OBSERVATORY_FRONTEND_URL,
     }.get(str(stats_client.http_client.base_url))
     if frontend_base_url:
         info(f"Visit {frontend_base_url}/eval-tasks to view tasks")
@@ -243,7 +251,7 @@ async def main() -> None:
     parser.add_argument(
         "--stats-server-uri",
         type=str,
-        default="https://api.observatory.softmax-research.net",
+        default=PROD_STATS_SERVER_URI,
         help="URI for the stats server",
     )
 
