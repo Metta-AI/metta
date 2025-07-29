@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import torch
 from omegaconf import DictConfig, OmegaConf
+from tensordict import TensorDict
 
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -58,11 +59,7 @@ from metta.rl.util.optimization import (
     maybe_update_l2_weights,
 )
 from metta.rl.util.policy_management import wrap_agent_distributed
-from metta.rl.util.rollout import (
-    get_lstm_config,
-    get_observation,
-    run_policy_inference,
-)
+from metta.rl.util.rollout import get_observation
 from metta.rl.util.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
@@ -155,7 +152,6 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
 # Create agent
 agent = Agent(env, device=str(device))
-hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 # Evaluation configuration
 evaluation_config = create_evaluation_config_suite()
@@ -250,9 +246,7 @@ experience = Experience(
     obs_space=env.single_observation_space,  # type: ignore
     atn_space=env.single_action_space,  # type: ignore
     device=device,
-    hidden_size=hidden_size,
     cpu_offload=trainer_config.cpu_offload,
-    num_lstm_layers=num_lstm_layers,
     agents_per_batch=getattr(env, "agents_per_batch", None),  # type: ignore
 )
 
@@ -261,7 +255,7 @@ kickstarter = Kickstarter(
     trainer_config.kickstart,
     str(device),
     policy_store,
-    metta_grid_env,  # Pass the full environment object, not individual attributes
+    metta_grid_env,
 )
 
 # Create losses tracker
@@ -318,10 +312,18 @@ while agent_step < trainer_config.total_timesteps:
         o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
         agent_step += num_steps
 
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            agent, o, experience, training_env_id.start, device
+        # # Run policy inference
+        # actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+        #     agent, o, experience, training_env_id.start, device
+        # )
+        td = TensorDict(
+            {"env_obs": o},
+            batch_size=training_env_id.start,
         )
+        td = agent(td)
+        actions = td["actions"]
+        selected_action_log_probs = td["logprobs"]
+        values = td["values"]
 
         # Store experience
         experience.store(
@@ -334,7 +336,6 @@ while agent_step < trainer_config.total_timesteps:
             values=values,
             env_id=training_env_id,
             mask=mask,
-            lstm_state=lstm_state_to_store,
         )
 
         # Send actions back to environment
@@ -398,7 +399,7 @@ while agent_step < trainer_config.total_timesteps:
             loss = process_minibatch_update(
                 policy=agent,
                 experience=experience,
-                minibatch=minibatch,
+                td=minibatch,
                 advantages=advantages,
                 trainer_cfg=trainer_config,
                 kickstarter=kickstarter,

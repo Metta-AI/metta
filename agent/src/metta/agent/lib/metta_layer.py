@@ -121,9 +121,6 @@ class LayerBase(nn.Module):
     def clip_weights(self):
         pass
 
-    def l2_reg_loss(self):
-        pass
-
     def l2_init_loss(self):
         pass
 

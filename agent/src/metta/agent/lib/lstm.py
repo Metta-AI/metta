@@ -1,3 +1,5 @@
+from typing import Dict
+
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -33,6 +35,30 @@ class LSTM(LayerBase):
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
 
+        self.max_envs = 524288  # av hack. need a better way. don't want to get it from the env, it should just work.
+        # preallocate state buffer. [0] = hidden states, [1] = cell states
+        # self.register_buffer(
+        #     "_memory", torch.zeros(2, self.num_layers, self.max_envs, self.hidden_size), persistent=False
+        # )
+        self.lstm_h: Dict[int, torch.Tensor] = {}
+        self.lstm_c: Dict[int, torch.Tensor] = {}
+        self._memory = True
+
+    def get_memory(self):
+        return self._memory
+
+    def set_memory(self, memory):
+        self._memory = memory
+
+    def reset_memory(self):
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+
+    def setup(self, source_components):
+        """Setup the layer and create the network."""
+        super().setup(source_components)
+        self._net = self._make_net()
+
     def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
         net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
@@ -41,49 +67,45 @@ class LSTM(LayerBase):
             if "bias" in name:
                 nn.init.constant_(param, 1)  # Joseph originally had this as 0
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0)  # torch's default is uniform
+                nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
         return net
 
     @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
     def _forward(self, td: TensorDict):
-        x = td["x"]
-        hidden = td[self._sources[0]["name"]]
-        state = td["state"]
+        hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
-        if state is not None:
-            split_size = self.num_layers
-            state = (state[:split_size], state[split_size:])
-
-        x_shape, space_shape = x.shape, self._obs_shape
-        x_n, space_n = len(x_shape), len(space_shape)
-        if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError("Invalid input tensor shape", x.shape)
-
-        if x_n == space_n + 1:
-            B, TT = x_shape[0], 1
-        elif x_n == space_n + 2:
-            B, TT = x_shape[:2]
-        else:
-            raise ValueError("Invalid input tensor shape", x.shape)
-
-        if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
-        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
-            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
-        )
+        TT = td.bptt
+        B = td.batch
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        hidden, state = self._net(hidden, state)
+        # state = self._memory[:, :, td.training_env_id, :]
+        # h_0 = self._memory[0, :, td.training_env_id, :].contiguous()
+        # c_0 = self._memory[1, :, td.training_env_id, :].contiguous()
+        if hasattr(td, "training_env_id"):
+            h_0 = (
+                self.lstm_h[td.training_env_id.start]
+                if td.training_env_id.start in self.lstm_h
+                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            )
+            c_0 = (
+                self.lstm_c[td.training_env_id.start]
+                if td.training_env_id.start in self.lstm_c
+                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            )
+            state = (h_0, c_0)
+        else:
+            state = None
+
+        hidden, (h_n, c_n) = self._net(hidden, state)
+        if hasattr(td, "training_env_id"):
+            self.lstm_h[td.training_env_id.start] = h_n.detach()
+            self.lstm_c[td.training_env_id.start] = c_n.detach()
+        # self._memory[:, :, td.training_env_id, :] = torch.stack([h_n.detach(), c_n.detach()], dim=0)
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
-        if state is not None:
-            state = tuple(s.detach() for s in state)
-            state = torch.cat(state, dim=0)
-
         td[self._name] = hidden
-        td["state"] = state
 
         return td

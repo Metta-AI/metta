@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 import numpy as np
+import tensordict
 import torch
 import torch.distributed
 import wandb
@@ -45,7 +46,7 @@ from metta.rl.util.batch_utils import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
-from metta.rl.util.losses import process_minibatch_update
+from metta.rl.util.losses import get_loss_experience_spec, process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,
     compute_gradient_stats,
@@ -54,11 +55,7 @@ from metta.rl.util.policy_management import (
     cleanup_old_policies,
     validate_policy_environment_match,
 )
-from metta.rl.util.rollout import (
-    get_lstm_config,
-    get_observation,
-    run_policy_inference,
-)
+from metta.rl.util.rollout import get_observation
 from metta.rl.util.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
@@ -367,12 +364,15 @@ class MettaTrainer:
 
         self._log_master(f"Training on {self.device}")
         wandb_policy_name: str | None = None
+
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
             record_heartbeat()
 
             with self.torch_profiler:
+                self.policy.reset_memory()
                 self._rollout()
+                self.policy.reset_memory()
                 self._train()
 
             self.torch_profiler.on_epoch_end(self.epoch)
@@ -463,6 +463,10 @@ class MettaTrainer:
 
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
+        self.policy.reset_memory()
+
+        # The policy is responsible for creating a zero state if one is not available.
+        buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
@@ -474,31 +478,33 @@ class MettaTrainer:
 
             # Perform single rollout step
             # Receive environment data
-            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
+            o, r, d, t, info, training_env_id, _, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps * self._world_size
 
-            # Run policy inference
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                self.policy, o, experience, training_env_id.start, self.device
-            )
+            # Prepare the input TensorDict for the policy
+            td = buffer_step[training_env_id].clone()
+            td["env_obs"] = o
+            td.training_env_id = training_env_id
 
-            # Store experience
+            # Run policy inference
+            with torch.no_grad():
+                td = self.policy(td)
+            if str(self.device).startswith("cuda"):
+                torch.cuda.synchronize()
+
+            # Update buffer with data from the env that the policy doesn't get.
+            td["rewards"] = r
+            td["dones"] = d.float()
+            td["truncateds"] = t.float()
+
             experience.store(
-                obs=o,
-                actions=actions,
-                logprobs=selected_action_log_probs,
-                rewards=r,
-                dones=d,
-                truncations=t,
-                values=values,
+                data_td=td,
                 env_id=training_env_id,
-                mask=mask,
-                lstm_state=lstm_state_to_store,
             )
 
             # Send actions back to environment
             with self.timer("_rollout.env"):
-                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+                self.vecenv.send(td["actions"].cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:
@@ -515,7 +521,7 @@ class MettaTrainer:
         """Perform training phase."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
-
+        self.policy.reset_memory()
         self.losses.zero()
 
         prio_cfg = trainer_cfg.prioritized_experience_replay
@@ -534,15 +540,15 @@ class MettaTrainer:
         )
 
         # Compute advantages using puff_advantage
-        advantages = torch.zeros(experience.values.shape, device=self.device)
+        advantages = torch.zeros_like(experience.buffer["values"])
 
         # Initial importance sampling ratio is all ones
-        initial_importance_sampling_ratio = torch.ones_like(experience.values)
+        initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
         advantages = compute_advantage(
-            experience.values,
-            experience.rewards,
-            experience.dones,
+            experience.buffer["values"],
+            experience.buffer["rewards"],
+            experience.buffer["dones"],
             initial_importance_sampling_ratio,
             advantages,
             trainer_cfg.ppo.gamma,
@@ -553,25 +559,26 @@ class MettaTrainer:
         )
 
         # Optimizing the policy and value network
-        _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
         minibatch_idx = 0
+        policy_spec = self.policy.get_agent_experience_spec()
 
         for _epoch in range(trainer_cfg.update_epochs):
             for _ in range(experience.num_minibatches):
-                minibatch = experience.sample_minibatch(
+                minibatch, indices, prio_weights = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
-                    minibatch_idx=minibatch_idx,
-                    total_minibatches=_total_minibatches,
                 )
+                policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
                 # Use the helper function to process minibatch update
                 loss = process_minibatch_update(
                     policy=self.policy,
                     experience=experience,
                     minibatch=minibatch,
-                    advantages=advantages,
+                    td=policy_td,
+                    indices=indices,
+                    prio_weights=prio_weights,
                     trainer_cfg=trainer_cfg,
                     kickstarter=self.kickstarter,
                     agent_step=self.agent_step,
@@ -605,7 +612,7 @@ class MettaTrainer:
         # self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance using helper function
-        self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+        self.losses.explained_variance = calculate_explained_variance(experience.buffer["values"], advantages)
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
         """Check if a periodic task should run based on interval and force flag."""
@@ -741,12 +748,7 @@ class MettaTrainer:
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
         return result
 
-    def _maybe_update_l2_weights(self, force=False):
-        """Update L2 init weights if on update interval"""
-        if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
-            self.policy.update_l2_init_weight_copy()
-
-    def _maybe_evaluate_policy(self, wandb_policy_name: str | None, force: bool = False):
+    def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
         if self._should_run(self.trainer_cfg.simulation.evaluate_interval, force):
             try:
@@ -1007,15 +1009,17 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
 
         # Get environment info
-        obs_space = vecenv.single_observation_space
-        atn_space = vecenv.single_action_space
         total_agents = vecenv.num_agents
 
         # Calculate minibatch parameters
         max_minibatch_size = trainer_cfg.minibatch_size
 
-        # Get LSTM parameters using helper function
-        hidden_size, num_lstm_layers = get_lstm_config(self.policy)
+        # Get the experience buffer specification from the policy
+        policy_spec = self.policy.get_agent_experience_spec()
+        act_space = vecenv.single_action_space
+        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+        # check for dups between policy_spec and loss_spec
+        loss_spec = get_loss_experience_spec(*act_space.shape, act_dtype)
 
         # Create experience buffer
         self.experience = Experience(
@@ -1024,13 +1028,9 @@ class MettaTrainer:
             bptt_horizon=trainer_cfg.bptt_horizon,
             minibatch_size=self._minibatch_size,
             max_minibatch_size=max_minibatch_size,
-            obs_space=obs_space,
-            atn_space=atn_space,
+            experience_spec=tensordict.merge_tensordicts(policy_spec, loss_spec),
             device=self.device,
-            hidden_size=hidden_size,
             cpu_offload=trainer_cfg.cpu_offload,
-            num_lstm_layers=num_lstm_layers,
-            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
     def _make_vecenv(self):
