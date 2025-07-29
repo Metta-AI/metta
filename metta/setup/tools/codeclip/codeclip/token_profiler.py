@@ -75,9 +75,11 @@ class TokenProfiler:
         self.node_cache[str_path] = node
         return node
 
-    def process_file(self, filepath: Path, content: str) -> None:
+    def process_file(self, filepath: Path, content: str, token_count: Optional[int] = None) -> None:
         """Process single file and update relevant counts."""
-        token_count = self.count_tokens(content)
+        # Use provided token count or calculate it
+        if token_count is None:
+            token_count = self.count_tokens(content)
 
         # Track individual file tokens
         self.file_tokens[str(filepath)] = token_count
@@ -98,8 +100,13 @@ class TokenProfiler:
         self.type_counts[ext] = self.type_counts.get(ext, 0) + token_count
         self.total_tokens += token_count
 
-    def format_hierarchical_report(self, common_prefix: str) -> str:
-        """Generate hierarchical token distribution report."""
+    def format_hierarchical_report(self, common_prefix: str, requested_paths: Optional[List[Path]] = None) -> str:
+        """Generate hierarchical token distribution report.
+
+        Args:
+            common_prefix: Common path prefix to remove from display
+            requested_paths: Original paths that were requested (to filter out from display)
+        """
         lines = ["Token Distribution by Directory:"]
         lines.append("-" * 80)
         lines.append(f"{'Directory':<50} {'Tokens':>10} {'% Parent':>10} {'% Total':>10}")
@@ -111,6 +118,9 @@ class TokenProfiler:
         # Sort by path depth then alphabetically
         paths = sorted(self.node_cache.keys(), key=lambda x: (len(Path(x).parts), x))
 
+        # Convert requested paths to absolute for comparison
+        abs_requested_paths = {str(p.resolve()) for p in (requested_paths or [])}
+
         # Find the project root to use as base for display
         for path in paths:
             node = self.node_cache[path]
@@ -120,13 +130,47 @@ class TokenProfiler:
             if path == common_prefix or len(path) < prefix_len:
                 continue
 
+            # Determine if this is a file or directory
+            is_file = path in self.file_tokens
+
+            # For directories, check if they should be displayed
+            if not is_file:
+                path_obj_abs = str(path_obj.resolve())
+
+                # If only one path requested, hide the requested path itself
+                if len(abs_requested_paths) == 1 and path_obj_abs in abs_requested_paths:
+                    continue
+
+                # Check if this directory should be shown
+                should_show = False
+
+                # For multiple requested paths, show the requested paths themselves
+                if len(abs_requested_paths) > 1 and path_obj_abs in abs_requested_paths:
+                    should_show = True
+                else:
+                    # Check if this is a child of any requested path
+                    for req_path in abs_requested_paths:
+                        try:
+                            # Check if this directory is a child of a requested path
+                            Path(path_obj_abs).relative_to(req_path)
+                            # Make sure it's not the requested path itself
+                            if path_obj_abs != req_path:
+                                should_show = True
+                                break
+                        except ValueError:
+                            # Not a child of this requested path
+                            continue
+
+                # Skip directories that shouldn't be shown
+                if not should_show:
+                    continue
+
             # Remove common prefix for display
             display_path = path[prefix_len:] if prefix_len > 0 else path
 
             # Calculate indent based on path depth
             # For files, we need to count the full path including the file itself
             # For directories, we don't include the directory name in the count
-            is_file = path in self.file_tokens
             parts = [p for p in display_path.split(os.sep) if p]
             if is_file:
                 # Files should be indented one level more than their parent directory
@@ -203,25 +247,38 @@ def profile_code_context(
     Returns:
         Tuple of (formatted report, profile data)
     """
-    # Get the context first
-    context = get_context(paths=paths, raw=raw, extensions=extensions)
+    # Get the context and token info first
+    context, token_info = get_context(paths=paths, raw=raw, extensions=extensions)
 
-    # Extract files from context
-    files = extract_files_from_context(context, raw)
-
-    if not files:
+    # Use documents from token_info
+    documents = token_info.get("documents", [])
+    if not documents:
         message = "No files found to profile. Check your paths and extensions."
         return (message, {})
 
-    # Profile the files
-    profiler = TokenProfiler()
-    paths = list(files.keys())
+    # Build files dict from documents
+    files = {doc.source: doc.content for doc in documents}
 
+    # Profile the files using token counts from get_context
+    profiler = TokenProfiler()
+    file_paths = list(files.keys())
+
+    # Get per-file token counts from token_info to avoid re-tokenization
+    file_token_counts = token_info.get("file_token_counts", {})
+
+    # Resolve requested paths
+    from .file import resolve_codebase_path
+
+    requested_paths = [resolve_codebase_path(p) for p in paths]
+
+    # Process files using pre-calculated token counts
     for filepath, content in files.items():
-        profiler.process_file(Path(filepath), content)
+        # Use pre-calculated token count if available
+        token_count = file_token_counts.get(filepath)
+        profiler.process_file(Path(filepath), content, token_count=token_count)
 
     # Find common path prefix for the title
-    common_prefix = os.path.commonprefix(paths)
+    common_prefix = os.path.commonprefix(file_paths)
     base_dir = Path(common_prefix).name if common_prefix else "/"
 
     # Summary statistics
@@ -237,10 +294,17 @@ def profile_code_context(
         "",
     ]
 
+    # Resolve requested paths for filtering
+    from .file import resolve_codebase_path
+
+    requested_paths = [resolve_codebase_path(p) for p in paths]
+
     report = (
         "\n".join(summary)
         + "\n\n"
-        + "\n\n".join([profiler.format_hierarchical_report(common_prefix), profiler.format_type_report()])
+        + "\n\n".join(
+            [profiler.format_hierarchical_report(common_prefix, requested_paths), profiler.format_type_report()]
+        )
     )
 
     # Return both the formatted report and the profiler data
@@ -252,6 +316,8 @@ def profile_code_context(
         "common_prefix": common_prefix,
         "file_paths": profiler.file_paths,
         "file_tokens": profiler.file_tokens,
+        "context": context,  # Include the content we already retrieved
+        "token_info": token_info,  # Include basic token info from get_context
     }
     return report, profile_data
 
