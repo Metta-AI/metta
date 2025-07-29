@@ -82,7 +82,7 @@ class TaskResponse(BaseModel):
 
 
 class TaskUpdateResponse(BaseModel):
-    statuses: dict[uuid.UUID, str]
+    statuses: dict[uuid.UUID, TaskStatus]
 
 
 class TasksResponse(BaseModel):
@@ -151,7 +151,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_all_tasks(
         limit: int = Query(default=500, ge=1, le=1000),
-        statuses: list[str] | None = Query(default=None),
+        statuses: list[TaskStatus] | None = Query(default=None),
         git_hash: str | None = Query(default=None),
         policy_ids: list[uuid.UUID] | None = Query(default=None),
         sim_suites: list[str] | None = Query(default=None),
