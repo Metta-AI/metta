@@ -25,7 +25,7 @@ echo "[INFO] Setting up sweep: $sweep_name"
 mkdir -p "${DATA_DIR}/sweep/$sweep_name"
 
 echo "[INFO] Starting sweep: $sweep_name..."
-cmd="tools/sweep_rollout.py $args_for_rollout"
+cmd="tools/sweep_rollout.py $args_for_rollout sweep_dir=$DATA_DIR/sweep/$sweep_name"
 echo "[INFO] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Sweep rollout failed: $sweep_name"
