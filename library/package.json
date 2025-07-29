@@ -12,7 +12,10 @@
     "import-papers": "tsx scripts/import-papers.ts",
     "verify-papers": "tsx scripts/verify-papers.ts",
     "fetch-arxiv": "tsx scripts/fetch-arxiv-paper.ts",
-    "test-arxiv": "tsx scripts/test-arxiv-fetcher.ts"
+    "test-arxiv": "tsx scripts/test-arxiv-fetcher.ts",
+    "author-scraper": "tsx scripts/author-scraper.ts",
+    "enrich-authors": "tsx scripts/enrich-authors-with-papers.ts",
+    "enrich-metadata": "tsx scripts/enrich-author-metadata.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
