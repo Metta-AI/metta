@@ -271,6 +271,14 @@ export type SQLQueryResponse = {
   row_count: number
 }
 
+export type AIQueryRequest = {
+  description: string
+}
+
+export type AIQueryResponse = {
+  query: string
+}
+
 /**
  * Interface for data fetching.
  *
@@ -297,6 +305,7 @@ export interface Repo {
   listTables(): Promise<TableInfo[]>
   getTableSchema(tableName: string): Promise<TableSchema>
   executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
+  generateAIQuery(description: string): Promise<AIQueryResponse>
 
   // Training run methods
   getTrainingRuns(): Promise<TrainingRunListResponse>
@@ -439,6 +448,12 @@ export class ServerRepo implements Repo {
 
   async executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse> {
     return this.apiCallWithBody<SQLQueryResponse>('/sql/query', request)
+  }
+
+  async generateAIQuery(description: string): Promise<AIQueryResponse> {
+    return this.apiCallWithBody<AIQueryResponse>('/sql/generate-query', {
+      description,
+    })
   }
 
   // Training run methods
