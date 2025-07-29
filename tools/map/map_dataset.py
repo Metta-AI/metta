@@ -34,9 +34,9 @@ class MapDataset(Dataset):
                 if char == "#":
                     grid[r, c] = 1.0
 
-        # Add feature dimension
-        # Shape: [height, width, 1]
-        grid = np.expand_dims(grid, axis=-1)
+        # Add feature dimension for PyTorch (C, H, W)
+        # Shape: [1, height, width]
+        grid = np.expand_dims(grid, axis=0)
 
         return torch.from_numpy(grid)
 
@@ -56,7 +56,7 @@ def main():
     try:
         first_batch = next(iter(dataloader))
         print("Successfully loaded a batch of maps.")
-        print(f"Shape of the batch: {first_batch.shape}")
+        print(f"Shape of the batch (B, C, H, W): {first_batch.shape}")
 
     except StopIteration:
         print("The dataset is empty or the file path is incorrect.")

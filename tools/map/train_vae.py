@@ -10,6 +10,27 @@ from torch.utils.data import DataLoader
 from tools.map.map_dataset import MapDataset
 
 
+def tensor_to_ascii_lines(tensor):
+    """Converts a map tensor to a list of ASCII strings."""
+    lines = []
+    # Remove channel dimension
+    tensor = tensor.squeeze(0)
+    for row_tensor in tensor:
+        row = "".join(["#" if x > 0.5 else "." for x in row_tensor])
+        lines.append(row)
+    return lines
+
+
+def add_pretty_border(lines: list[str]) -> list[str]:
+    """Adds a border to a list of ASCII strings."""
+    width = len(lines[0]) if lines else 0
+    border_lines = ["┌" + "─" * width + "┐"]
+    for row in lines:
+        border_lines.append("│" + row + "│")
+    border_lines.append("└" + "─" * width + "┘")
+    return border_lines
+
+
 class VAE(nn.Module):
     def __init__(self, input_height=32, input_width=32, h_dim=400, z_dim=20):
         super(VAE, self).__init__()
@@ -85,7 +106,7 @@ def main():
         return
 
     sample = dataset[0]
-    height, width, _ = sample.shape
+    _, height, width = sample.shape
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -94,7 +115,7 @@ def main():
 
     for epoch in range(args.epochs):
         for i, data in enumerate(dataloader):
-            data = data.permute(0, 3, 1, 2).to(device)
+            data = data.to(device)
             recon, mu, logvar = model(data)
             loss = loss_function(recon, data, mu, logvar)
 
@@ -104,6 +125,20 @@ def main():
 
             if (i + 1) % 10 == 0:
                 print(f"Epoch [{epoch + 1}/{args.epochs}], Step [{i + 1}/{len(dataloader)}], Loss: {loss.item():.4f}")
+
+        print(f"--- End of Epoch {epoch + 1} ---")
+        num_samples_to_show = 5
+        for i in range(min(num_samples_to_show, data.size(0))):
+            original_lines = tensor_to_ascii_lines(data[i].cpu())
+            recon_lines = tensor_to_ascii_lines(recon[i].cpu())
+
+            original_bordered = add_pretty_border(original_lines)
+            recon_bordered = add_pretty_border(recon_lines)
+
+            print(f"Sample {i + 1}: Original vs. Reconstruction")
+            for orig_line, recon_line in zip(original_bordered, recon_bordered, strict=False):
+                print(f"{orig_line}   {recon_line}")
+            print("-" * 40)
 
     torch.save(model.state_dict(), "vae.pth")
     print("Training complete. Model saved to vae.pth")
