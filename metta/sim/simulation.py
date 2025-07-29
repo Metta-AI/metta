@@ -22,6 +22,7 @@ import numpy as np
 import torch
 from einops import rearrange
 from omegaconf import OmegaConf
+from tensordict import TensorDict
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
@@ -291,11 +292,13 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
+            my_obs = TensorDict(my_obs, batch_size=my_obs.shape[:-1])
             policy = self._policy_pr.policy
             policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
+                npc_obs = TensorDict(npc_obs, batch_size=npc_obs.shape[:-1])
                 npc_policy = self._npc_pr.policy
                 try:
                     npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)

@@ -263,7 +263,6 @@ class MettaTrainer:
         )
 
         if torch.distributed.is_initialized():
-            self.policy.flatten_parameters()  # av check
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             self.policy = DistributedMettaAgent(self.policy, self.device)
             # Ensure all ranks have initialized DDP before proceeding
