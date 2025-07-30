@@ -43,9 +43,14 @@ class ScorecardClient(BaseAppBackendClient):
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
         )
-        return list(
-            await self._make_request(ListModel, "POST", "/heatmap/metrics", json=payload.model_dump(mode="json"))
+        metrics_tuples = await self._make_request(
+            ListModel, "POST", "/heatmap/metrics", json=payload.model_dump(mode="json")
         )
+        metric_names = []
+        for metric_tuple in metrics_tuples:
+            category, metrics = metric_tuple
+            metric_names.extend(metrics)
+        return metric_names
 
     async def generate_heatmap(
         self,

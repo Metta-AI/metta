@@ -49,17 +49,23 @@ async def get_available_metrics(
         raise Exception(f"No training runs found matching: {search_texts}.")
 
     # Get available evaluations for these training runs
-    eval_names = await client.get_eval_names(training_run_ids, run_free_policy_ids)
+    eval_names_tuples = await client.get_eval_names(
+        training_run_ids, run_free_policy_ids
+    )
 
-    if not eval_names:
+    if not eval_names_tuples:
         warning("No evaluations found for selected training runs")
         return []
 
-    # Get available metrics
+    # Flatten eval_names structure - it comes as [('category', ['eval1', 'eval2', ...])]
+    flat_eval_names = []
+    for item in eval_names_tuples:
+        category, evals = item
+        flat_eval_names.extend(evals)
+
     available_metrics = await client.get_available_metrics(
-        training_run_ids, run_free_policy_ids, [x[0] for x in eval_names]
+        training_run_ids, run_free_policy_ids, flat_eval_names
     )
-    print(eval_names)
 
     return sorted(available_metrics)
 
@@ -120,11 +126,15 @@ async def fetch_real_heatmap_data(
     if not eval_names:
         warning("No evaluations found for selected training runs")
         raise Exception("No evaluations found for selected training runs")
-    info(f"Common evals: {eval_names}")
 
     # Step 3: Get available metrics
+    # Flatten eval_names structure - it comes as [('category', ['eval1', 'eval2', ...])]
+    flat_eval_names = []
+    for category, evals in eval_names:
+        flat_eval_names.extend(evals)
+
     available_metrics = await client.get_available_metrics(
-        training_run_ids, run_free_policy_ids, [x[0] for x in eval_names]
+        training_run_ids, run_free_policy_ids, flat_eval_names
     )
     if not available_metrics:
         warning("No metrics found")
@@ -142,11 +152,10 @@ async def fetch_real_heatmap_data(
 
     # Step 4: Generate heatmap for the first metric
     primary_metric = valid_metrics[0]
-    keys = [x[0] for x in eval_names]
     heatmap_data: HeatmapData = await client.generate_heatmap(
         training_run_ids=training_run_ids,
         run_free_policy_ids=[],
-        eval_names=keys,
+        eval_names=flat_eval_names,
         metric=primary_metric,
         policy_selector=policy_selector,
     )
@@ -198,7 +207,7 @@ async def fetch_real_heatmap_data(
         cells=cells,
         eval_names=heatmap_data.evalNames,
         policy_names=heatmap_data.policyNames,
-        metrics=metrics,
+        metrics=valid_metrics,  # Use only the valid metrics that were found
         selected_metric=primary_metric,
     )
 
