@@ -117,17 +117,14 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("update_saved_dashboard")
     async def update_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_id: str,
-        dashboard_data: SavedDashboardCreate,
+        dashboard_state: Dict[str, Any],
         user_or_token: str = user_or_token,
     ) -> SavedDashboardResponse:
         """Update an existing saved dashboard."""
-        success = await metta_repo.update_saved_dashboard(
+        success = await metta_repo.update_dashboard_state(
             user_id=user_or_token,
             dashboard_id=dashboard_id,
-            name=dashboard_data.name,
-            description=dashboard_data.description,
-            dashboard_type=dashboard_data.type,
-            dashboard_state=dashboard_data.dashboard_state,
+            dashboard_state=dashboard_state,
         )
 
         if not success:
