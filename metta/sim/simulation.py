@@ -419,6 +419,7 @@ class Simulation:
 
                 # Get agent metrics for this episode
                 agent_metrics_df = stats_db.query(f"SELECT * FROM agent_metrics WHERE episode_id = '{episode_id}'")
+                # agent_id -> metric_name -> metric_value
                 agent_metrics: Dict[int, Dict[str, float]] = {}
 
                 for _, metric_row in agent_metrics_df.iterrows():

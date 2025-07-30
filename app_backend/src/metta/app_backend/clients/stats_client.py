@@ -86,15 +86,15 @@ class AsyncStatsClient(BaseAppBackendClient):
         tags: list[str] | None = None,
     ) -> EpisodeResponse:
         data = EpisodeCreate(
-            agent_policies={agent_id: str(policy_id) for agent_id, policy_id in agent_policies.items()},
+            agent_policies=agent_policies,
             agent_metrics=agent_metrics,
-            primary_policy_id=str(primary_policy_id),
-            stats_epoch=str(stats_epoch) if stats_epoch else None,
+            primary_policy_id=primary_policy_id,
+            stats_epoch=stats_epoch,
             eval_name=eval_name,
             simulation_suite=simulation_suite,
             replay_url=replay_url,
             attributes=attributes or {},
-            eval_task_id=str(eval_task_id) if eval_task_id else None,
+            eval_task_id=eval_task_id,
             tags=tags,
         )
         return await self._make_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump())

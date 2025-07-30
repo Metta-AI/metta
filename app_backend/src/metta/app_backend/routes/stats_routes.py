@@ -23,7 +23,7 @@ class TrainingRunCreate(BaseModel):
 
 
 class TrainingRunResponse(BaseModel):
-    id: str
+    id: uuid.UUID
 
 
 class EpochCreate(BaseModel):
@@ -33,7 +33,7 @@ class EpochCreate(BaseModel):
 
 
 class EpochResponse(BaseModel):
-    id: str
+    id: uuid.UUID
 
 
 class PolicyCreate(BaseModel):
@@ -48,15 +48,16 @@ class PolicyResponse(BaseModel):
 
 
 class EpisodeCreate(BaseModel):
-    agent_policies: dict[int, str]
+    agent_policies: dict[int, uuid.UUID]
+    # agent_id -> metric_name -> metric_value
     agent_metrics: dict[int, dict[str, float]]
-    primary_policy_id: str
-    stats_epoch: str | None = None
+    primary_policy_id: uuid.UUID
+    stats_epoch: uuid.UUID | None = None
     eval_name: str | None = None
     simulation_suite: str | None = None
     replay_url: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
-    eval_task_id: str | None = None
+    eval_task_id: uuid.UUID | None = None
     tags: list[str] | None = None
 
 
@@ -96,7 +97,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 description=training_run.description,
                 tags=training_run.tags,
             )
-            return TrainingRunResponse(id=str(run_id))
+            return TrainingRunResponse(id=run_id)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create training run: {str(e)}") from e
 
@@ -112,7 +113,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 end_training_epoch=epoch.end_training_epoch,
                 attributes=epoch.attributes,
             )
-            return EpochResponse(id=str(epoch_id))
+            return EpochResponse(id=epoch_id)
         except ValueError as e:
             raise HTTPException(status_code=400, detail="Invalid UUID format") from e
         except Exception as e:
@@ -137,24 +138,16 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     async def record_episode(episode: EpisodeCreate, user: str = user_or_token) -> EpisodeResponse:
         """Record a new episode with agent policies and metrics."""
         try:
-            # Convert string UUIDs to UUID objects
-            agent_policies_uuid = {
-                agent_id: uuid.UUID(policy_id) for agent_id, policy_id in episode.agent_policies.items()
-            }
-            primary_policy_id_uuid = uuid.UUID(episode.primary_policy_id)
-            stats_epoch_uuid = uuid.UUID(episode.stats_epoch) if episode.stats_epoch else None
-            eval_task_id_uuid = uuid.UUID(episode.eval_task_id) if episode.eval_task_id else None
-
             episode_id = await stats_repo.record_episode(
-                agent_policies=agent_policies_uuid,
+                agent_policies=episode.agent_policies,
                 agent_metrics=episode.agent_metrics,
-                primary_policy_id=primary_policy_id_uuid,
-                stats_epoch=stats_epoch_uuid,
+                primary_policy_id=episode.primary_policy_id,
+                stats_epoch=episode.stats_epoch,
                 eval_name=episode.eval_name,
                 simulation_suite=episode.simulation_suite,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
-                eval_task_id=eval_task_id_uuid,
+                eval_task_id=episode.eval_task_id,
                 tags=episode.tags,
             )
             return EpisodeResponse(id=str(episode_id))
