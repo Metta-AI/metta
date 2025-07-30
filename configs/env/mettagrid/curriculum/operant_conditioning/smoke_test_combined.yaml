@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 tasks:
   /env/mettagrid/operant_conditioning/2_converters/mine_red: 1
