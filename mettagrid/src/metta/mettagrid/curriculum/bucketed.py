@@ -92,7 +92,7 @@ def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str,
 
             buckets_unpacked[parameter] = binned_ranges
         else:
-            assert isinstance(bucket_spec, list) or isinstance(bucket_spec, ListConfig), (
+            assert isinstance(bucket_spec, (list, ListConfig)), (
                 f"Bucket spec for {parameter} must be {{range: (lo, hi)}} or list. Got: {bucket_spec}"
             )
             buckets_unpacked[parameter] = bucket_spec
