@@ -1,0 +1,137 @@
+# Configuration Comparison: Metta vs 3rd Party Library
+
+## Command Executed
+Metta: ./tools/train.py run=relh.dummy.run
+3rd Party: (unknown command)
+
+## Key Differences and Mappings
+
+### Basic Settings
+| Parameter | Metta | 3rd Party |
+|-----------|--------|-----------|
+| name | relh.dummy.run | GDY-MettaGrid |
+| report_stats_interval | N/A | 100 |
+| normalize_rewards | N/A | false |
+| sampling | 0 (from mettagrid.yaml) | 0 |
+| desync_episodes | N/A | true |
+
+### Game Configuration
+| Parameter | Metta | 3rd Party |
+|-----------|--------|-----------|
+| num_agents | 24 (arena/basic) | 64 |
+| obs_width | 11 | 11 |
+| obs_height | 11 | 11 |
+| num_observation_tokens | 200 | 200 |
+| max_steps | 1000 | 1000 |
+
+### Agent Configuration
+| Parameter | Metta | 3rd Party |
+|-----------|--------|-----------|
+| default_resource_limit | 10 | 10 |
+| resource_limits.heart | 255 | 255 |
+| freeze_duration | 10 | 10 |
+| action_failure_penalty | 0.0 | 0.0 |
+
+### Training Parameters
+| Parameter | Metta | 3rd Party |
+|-----------|--------|-----------|
+| total_timesteps | 10,000,000,000 | 300,000,000 |
+| batch_size | 524,288 | auto |
+| minibatch_size | 16,384 | 32,768 |
+| bptt_horizon | 64 | 64 |
+| learning_rate | 0.000457 | 0.018470110879570414 |
+| adam_beta1 | 0.9 | 0.8923106632311335 |
+| adam_beta2 | 0.999 | 0.9632470625784862 |
+| adam_eps | 1.0e-12 | 1.3537431449843922e-7 |
+| clip_coef | 0.1 | 0.14919147162017737 |
+| ent_coef | 0.0021 | 0.016700174334611493 |
+| gae_lambda | 0.916 | 0.8443676864928215 |
+| gamma | 0.977 | 0.997950174315581 |
+| max_grad_norm | 0.5 | 2.572849891206465 |
+| vf_clip_coef | 0.1 | 0.1569624916309049 |
+| vf_coef | 0.44 | 3.2211333828684454 |
+| vtrace_c_clip | 1.0 | 2.134490283650365 |
+| vtrace_rho_clip | 1.0 | 2.296343917695581 |
+| prio_alpha | 0.0 | 0.7918451491719373 |
+| prio_beta0 | 0.6 | 0.5852686803034238 |
+
+### Environment/Map Configuration
+| Parameter | Metta | 3rd Party |
+|-----------|--------|-----------|
+| map width | 25 | 64 |
+| map height | 25 | 64 |
+| border_width | 6 | 6 |
+| num_rooms | N/A | 1 |
+
+### Object Counts (arena/basic vs 3rd party)
+| Object | Metta | 3rd Party |
+|--------|--------|-----------|
+| mine_red | 10 | 128 |
+| generator_red | 5 | 64 |
+| altar | 5 | 32 |
+| wall | 20 | 0 |
+| block | 20 | N/A |
+| armory | N/A | 0 |
+| lasery | N/A | 0 |
+| lab | N/A | 0 |
+| factory | N/A | 0 |
+| temple | N/A | 0 |
+
+### Reward Settings
+| Parameter | Metta | 3rd Party |
+|-----------|--------|-----------|
+| ore_reward | N/A | 0.17088483842567775 |
+| battery_reward | N/A | 0.9882859711234822 |
+| heart_reward | 1 (from agent rewards) | 1.0 |
+
+### Key Structural Differences
+
+1. **Configuration System**: 
+   - Metta uses Hydra with compositional configs
+   - 3rd party uses a single flat configuration file
+
+2. **Agent Architecture**:
+   - Metta uses a modular component system with CNN + LSTM
+   - 3rd party architecture not specified in config
+
+3. **Optimization**:
+   - Metta uses more conservative hyperparameters (lower LR, lower entropy)
+   - 3rd party uses more aggressive settings with higher learning rate
+
+4. **Map Generation**:
+   - Metta uses MapGen with instances
+   - 3rd party uses MultiRoom with single room
+
+5. **Training Duration**:
+   - Metta configured for 10B steps (33x longer)
+   - 3rd party configured for 300M steps
+
+6. **Batch Sizes**:
+   - Metta: larger batch size (524k vs auto)
+   - 3rd party: larger minibatch size (32k vs 16k)
+
+7. **Prioritized Experience Replay**:
+   - Metta: disabled (prio_alpha=0.0)
+   - 3rd party: enabled (prio_alpha=0.79)
+
+8. **V-trace Clipping**:
+   - Metta: conservative (1.0)
+   - 3rd party: more permissive (2.13, 2.29)
+
+### Notable Missing Configurations in Metta's Resolved Config
+
+1. Explicit reward values for ore and battery
+2. Recipe details for converters
+3. Cooldown values for objects
+4. Conversion tick rates
+5. Object type IDs
+6. Input/output resource specifications for converters
+
+### Recommendations for Performance Comparison
+
+1. The 3rd party config has much more aggressive hyperparameters which could lead to faster learning but potentially less stable training
+2. The prioritized experience replay is a significant difference - Metta has it disabled
+3. The map sizes are very different (25x25 vs 64x64) which affects exploration dynamics
+4. The object densities are proportionally different which could affect resource availability
+5. Consider aligning batch/minibatch sizes for fair comparison
+6. The learning rate difference is substantial (40x higher in 3rd party)

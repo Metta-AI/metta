@@ -1,0 +1,252 @@
+# Fully Resolved Metta Config
+# Command: ./tools/train.py run=relh.dummy.run
+
+name: relh.dummy.run
+
+# Training parameters
+total_timesteps: 10000000000
+batch_size: 524288
+num_workers: None
+minibatch_size: 16384
+bptt_horizon: 64
+
+
+# Full Config in YAML format:
+# ==================================================
+run: relh.dummy.run
+dist_cfg_path: null
+data_dir: ./train_dir
+run_dir: ./train_dir/relh.dummy.run
+policy_uri: file://./train_dir/relh.dummy.run/checkpoints
+torch_deterministic: true
+seed: 1
+device: cuda
+vectorization: multiprocessing
+stats_server_uri: https://api.observatory.softmax-research.net
+agent:
+  _target_: metta.agent.metta_agent.MettaAgent
+  observations:
+    obs_key: grid_obs
+  clip_range: 0
+  analyze_weights_interval: 300
+  l2_init_weight_update_interval: 0
+  components:
+    _obs_:
+      _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
+      sources: null
+    obs_normalizer:
+      _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
+      sources:
+      - name: _obs_
+    cnn1:
+      _target_: metta.agent.lib.nn_layer_library.Conv2d
+      sources:
+      - name: obs_normalizer
+      nn_params:
+        out_channels: 64
+        kernel_size: 5
+        stride: 3
+    cnn2:
+      _target_: metta.agent.lib.nn_layer_library.Conv2d
+      sources:
+      - name: cnn1
+      nn_params:
+        out_channels: 64
+        kernel_size: 3
+        stride: 1
+    obs_flattener:
+      _target_: metta.agent.lib.nn_layer_library.Flatten
+      sources:
+      - name: cnn2
+    fc1:
+      _target_: metta.agent.lib.nn_layer_library.Linear
+      sources:
+      - name: obs_flattener
+      nn_params:
+        out_features: 128
+    encoded_obs:
+      _target_: metta.agent.lib.nn_layer_library.Linear
+      sources:
+      - name: fc1
+      nn_params:
+        out_features: 128
+    _core_:
+      _target_: metta.agent.lib.lstm.LSTM
+      sources:
+      - name: encoded_obs
+      output_size: 128
+      nn_params:
+        num_layers: 2
+    critic_1:
+      _target_: metta.agent.lib.nn_layer_library.Linear
+      sources:
+      - name: _core_
+      nn_params:
+        out_features: 1024
+      nonlinearity: nn.Tanh
+      effective_rank: true
+    _value_:
+      _target_: metta.agent.lib.nn_layer_library.Linear
+      sources:
+      - name: critic_1
+      nn_params:
+        out_features: 1
+      nonlinearity: null
+    actor_1:
+      _target_: metta.agent.lib.nn_layer_library.Linear
+      sources:
+      - name: _core_
+      nn_params:
+        out_features: 512
+    _action_embeds_:
+      _target_: metta.agent.lib.action.ActionEmbedding
+      sources: null
+      nn_params:
+        num_embeddings: 100
+        embedding_dim: 16
+    _action_:
+      _target_: metta.agent.lib.actor.MettaActorSingleHead
+      sources:
+      - name: actor_1
+      - name: _action_embeds_
+trainer:
+  num_workers: null
+  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  env_overrides: {}
+  initial_policy:
+    uri: null
+    type: top
+    range: 1
+    metric: epoch
+    filters: {}
+  checkpoint:
+    checkpoint_dir: ./train_dir/relh.dummy.run/checkpoints
+    checkpoint_interval: 50
+    wandb_checkpoint_interval: 50
+  simulation:
+    evaluate_interval: 200
+    replay_dir: s3://softmax-public/replays/relh.dummy.run
+    evaluate_remote: false
+    git_hash: null
+    skip_git_check: false
+  grad_mean_variance_interval: 0
+  total_timesteps: 10000000000
+  optimizer:
+    type: adam
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-12
+    learning_rate: 0.000457
+    weight_decay: 0
+  ppo:
+    clip_coef: 0.1
+    ent_coef: 0.0021
+    gae_lambda: 0.916
+    gamma: 0.977
+    max_grad_norm: 0.5
+    vf_clip_coef: 0.1
+    vf_coef: 0.44
+    l2_reg_loss_coef: 0
+    l2_init_loss_coef: 0
+    norm_adv: true
+    clip_vloss: true
+    target_kl: null
+  prioritized_experience_replay:
+    prio_alpha: 0.0
+    prio_beta0: 0.6
+  vtrace:
+    vtrace_rho_clip: 1.0
+    vtrace_c_clip: 1.0
+  zero_copy: true
+  require_contiguous_env_ids: false
+  verbose: true
+  batch_size: 524288
+  minibatch_size: 16384
+  bptt_horizon: 64
+  update_epochs: 1
+  cpu_offload: false
+  compile: false
+  compile_mode: reduce-overhead
+  profiler:
+    interval_epochs: 10000
+    profile_dir: s3://softmax-public/torch_traces/relh.dummy.run
+  forward_pass_minibatch_target_size: 4096
+  async_factor: 2
+  scale_batches_by_world_size: false
+  hyperparameter_scheduler:
+    learning_rate_schedule:
+      _target_: metta.rl.hyperparameter_scheduler.CosineSchedule
+      min_value: 3.0e-05
+      initial_value: 0.000457
+    ppo_clip_schedule:
+      _target_: metta.rl.hyperparameter_scheduler.LogarithmicSchedule
+      min_value: 0.05
+      decay_rate: 0.1
+      initial_value: 0.1
+    ppo_ent_coef_schedule:
+      _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+      min_value: 0.0
+      initial_value: 0.0021
+    ppo_vf_clip_schedule:
+      _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+      min_value: 0.05
+      initial_value: 0.1
+    ppo_l2_reg_loss_schedule:
+      _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+      initial_value: 0
+    ppo_l2_init_loss_schedule:
+      _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+      initial_value: 0
+  kickstart:
+    teacher_uri: null
+    action_loss_coef: 1
+    value_loss_coef: 1
+    anneal_ratio: 0.65
+    kickstart_steps: 1000000000
+    additional_teachers: null
+sim:
+  num_episodes: 1
+  max_time_s: 60
+  env_overrides: {}
+  name: arena
+  simulations:
+    arena/basic:
+      env: /env/mettagrid/arena/basic
+    arena/combat:
+      env: /env/mettagrid/arena/combat
+    arena/advanced:
+      env: /env/mettagrid/arena/advanced
+    arena/tag:
+      env: /env/mettagrid/arena/tag
+    arena/advanced_poor:
+      env: /env/mettagrid/arena/advanced_poor
+wandb:
+  enabled: true
+  project: metta
+  entity: metta-research
+  group: relh.dummy.run
+  name: relh.dummy.run
+  run_id: relh.dummy.run
+  data_dir: ./train_dir/relh.dummy.run
+  job_type: train
+  tags: []
+  notes: ''
+train_job:
+  map_preview_uri: s3://softmax-public/training_runs/relh.dummy.run/map_preview.json.z
+  evals:
+    num_episodes: 1
+    max_time_s: 60
+    env_overrides: {}
+    name: arena
+    simulations:
+      arena/basic:
+        env: /env/mettagrid/arena/basic
+      arena/combat:
+        env: /env/mettagrid/arena/combat
+      arena/advanced:
+        env: /env/mettagrid/arena/advanced
+      arena/tag:
+        env: /env/mettagrid/arena/tag
+      arena/advanced_poor:
+        env: /env/mettagrid/arena/advanced_poor
+cmd: train
