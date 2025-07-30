@@ -493,6 +493,7 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
             )
 
     @router.post("/scorecard")
+    @router.post("/heatmap")
     @timed_route("generate_policy_scorecard")
     async def generate_policy_scorecard(request: ScorecardRequest) -> ScorecardData:
         """Generate scorecard data based on training run and policy selection."""
@@ -526,13 +527,6 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
                     evalAverageScores={},
                     evalMaxScores={},
                 )
-
-    # Legacy heatmap endpoint for backward compatibility
-    @router.post("/heatmap")
-    @timed_route("generate_policy_heatmap")
-    async def generate_policy_heatmap(request: ScorecardRequest) -> ScorecardData:
-        """Legacy heatmap endpoint - calls scorecard internally."""
-        return await generate_policy_scorecard(request)
 
     @router.post("/training-run/{run_id}")
     @timed_route("generate_training_run_scorecard")
