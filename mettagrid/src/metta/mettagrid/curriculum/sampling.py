@@ -1,32 +1,15 @@
 from __future__ import annotations
 
-import copy
 import logging
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
-from metta.mettagrid.util.hydra import config_from_path
 
 logger = logging.getLogger(__name__)
-
-
-class SamplingCurriculum(Curriculum):
-    def __init__(self, env_cfg_template_path: str, env_overrides: Optional[DictConfig] = None):
-        self._cfg_template = config_from_path(env_cfg_template_path, env_overrides)
-
-    def get_task(self) -> Task:
-        cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
-        OmegaConf.resolve(cfg)
-        return Task("sample", self, cfg)
-
-    def get_task_probs(self) -> dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = "sample"
-        return {task_name: 1.0}
 
 
 class SampledTaskCurriculum(Curriculum):
