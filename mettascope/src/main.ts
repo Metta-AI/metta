@@ -1,7 +1,16 @@
 import { initActionButtons, processActions, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import * as Common from './common.js'
-import { ctx, html, setFollowSelection, state, ui } from './common.js'
+import {
+  ctx,
+  html,
+  METTA_GITHUB_ORGANIZATION,
+  METTA_GITHUB_PRIMARY_BRANCH,
+  METTA_GITHUB_REPO,
+  setFollowSelection,
+  state,
+  ui,
+} from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
 import { hideGlyphEditorPanel, initGlyphTable, showGlyphEditorPanel } from './glyphtable.js'
 import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
@@ -467,8 +476,8 @@ export function updateSelection(object: any, setFollow = false) {
 }
 
 /** Handles key down events. */
-onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as KeyboardEvent
+onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as KeyboardEvent
 
   // Prevent keyboard events if we are focused on a text field, except for the Escape key
   if (
@@ -478,7 +487,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     return
   }
 
-  if (event.key == 'Escape') {
+  if (event.key === 'Escape') {
     // Close any open context or dropdown menus.
     hideMenu()
     hideDropdown()
@@ -533,56 +542,56 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   if (!state.selectedGridObject && !state.followSelection) {
     const panSpeed = 150 / ui.mapPanel.zoomLevel // Adjust speed based on zoom level
 
-    if (event.key == 'w' || event.key == 'W' || event.key == 'ArrowUp') {
+    if (event.key === 'w' || event.key === 'W' || event.key === 'ArrowUp') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
     }
-    if (event.key == 'a' || event.key == 'A' || event.key == 'ArrowLeft') {
+    if (event.key === 'a' || event.key === 'A' || event.key === 'ArrowLeft') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
     }
-    if (event.key == 's' || event.key == 'S' || event.key == 'ArrowDown') {
+    if (event.key === 's' || event.key === 'S' || event.key === 'ArrowDown') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
     }
-    if (event.key == 'd' || event.key == 'D' || event.key == 'ArrowRight') {
+    if (event.key === 'd' || event.key === 'D' || event.key === 'ArrowRight') {
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
     }
 
     // Numpad directional controls (classic 8-directional layout)
-    if (event.code == 'Numpad8') {
+    if (event.code === 'Numpad8') {
       // Up
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
     }
-    if (event.code == 'Numpad2') {
+    if (event.code === 'Numpad2') {
       // Down
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
     }
-    if (event.code == 'Numpad4') {
+    if (event.code === 'Numpad4') {
       // Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
     }
-    if (event.code == 'Numpad6') {
+    if (event.code === 'Numpad6') {
       // Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
     }
-    if (event.code == 'Numpad7') {
+    if (event.code === 'Numpad7') {
       // Up-Left
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * Math.SQRT1_2, panSpeed * Math.SQRT1_2))
     }
-    if (event.code == 'Numpad9') {
+    if (event.code === 'Numpad9') {
       // Up-Right
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * Math.SQRT1_2, panSpeed * Math.SQRT1_2))
     }
-    if (event.code == 'Numpad1') {
+    if (event.code === 'Numpad1') {
       // Down-Left
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * 0.707, -panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
     }
     if (event.code == 'Numpad3') {
       // Down-Right
-      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * 0.707, -panSpeed * 0.707))
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
     }
   }
 
   // Numpad 5 - advance simulation one frame
-  if (event.code == 'Numpad5' && state.selectedGridObject == null) {
+  if (event.code === 'Numpad5' && state.selectedGridObject == null) {
     setIsPlaying(false)
     if (state.ws !== null) {
       state.ws.send(JSON.stringify({ type: 'advance' }))
@@ -592,37 +601,37 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   }
 
   // '[' and ']' scrub forward and backward.
-  if (event.key == '[') {
+  if (event.key === '[') {
     setIsPlaying(false)
     updateStep(Math.max(state.step - 1, 0))
   }
-  if (event.key == ']') {
+  if (event.key === ']') {
     setIsPlaying(false)
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
   }
 
   // '<' and '>' for zoom out/in on keyboard
-  if (event.key == '<') {
+  if (event.key === '<') {
     const zoomSpeed = 0.06
     ui.mapPanel.zoomLevel = Math.max(ui.mapPanel.zoomLevel - zoomSpeed, Common.MIN_ZOOM_LEVEL)
   }
-  if (event.key == '>') {
+  if (event.key === '>') {
     const zoomSpeed = 0.06
     ui.mapPanel.zoomLevel = Math.min(ui.mapPanel.zoomLevel + zoomSpeed, Common.MAX_ZOOM_LEVEL)
   }
   // ',' and '.' control the playback speed.
-  if (event.key == ',') {
+  if (event.key === ',') {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
   }
-  if (event.key == '.') {
+  if (event.key === '.') {
     state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000)
   }
   // The space bar presses the play button.
-  if (event.key == ' ') {
+  if (event.key === ' ') {
     setIsPlaying(!state.isPlaying)
   }
   // Make F2 toggle the UI.
-  if (event.key == 'F2') {
+  if (event.key === 'F2') {
     state.showUi = !state.showUi
     if (state.showUi) {
       showUi()
@@ -726,7 +735,7 @@ function handleDrop(event: DragEvent) {
   event.preventDefault()
   event.stopPropagation()
   const dt = event.dataTransfer
-  if (dt && dt.files.length) {
+  if (dt?.files.length) {
     const file = dt.files[0]
     readFile(file)
   }
@@ -757,7 +766,7 @@ async function parseUrlParams() {
   if (state.replay !== null) {
     // Set the current step.
     if (urlParams.get('step') !== null) {
-      const initialStep = parseInt(urlParams.get('step') || '0')
+      const initialStep = Number.parseInt(urlParams.get('step') || '0')
       console.info('Step via query parameter:', initialStep)
       updateStep(initialStep, false)
     }
@@ -770,7 +779,7 @@ async function parseUrlParams() {
 
     // Set the selected object.
     if (urlParams.get('selectedObjectId') !== null) {
-      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || '-1') - 1
+      const selectedObjectId = Number.parseInt(urlParams.get('selectedObjectId') || '-1') - 1
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
         updateSelection(state.replay.grid_objects[selectedObjectId], true)
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
@@ -784,8 +793,8 @@ async function parseUrlParams() {
 
   // Set the map pan and zoom.
   if (urlParams.get('mapPanX') !== null && urlParams.get('mapPanY') !== null) {
-    const mapPanX = parseInt(urlParams.get('mapPanX') || '0')
-    const mapPanY = parseInt(urlParams.get('mapPanY') || '0')
+    const mapPanX = Number.parseInt(urlParams.get('mapPanX') || '0')
+    const mapPanY = Number.parseInt(urlParams.get('mapPanY') || '0')
     ui.mapPanel.panPos = new Vec2f(mapPanX, mapPanY)
   }
   if (urlParams.get('mapZoom') !== null) {
@@ -833,7 +842,7 @@ function setPlaybackSpeed(speed: number) {
 onResize()
 
 // Disable pinch-to-zoom.
-let meta = document.createElement('meta')
+const meta = document.createElement('meta')
 meta.name = 'viewport'
 meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
 document.head.appendChild(meta)
@@ -864,7 +873,10 @@ onEvent('click', '#share-button', () => {
   onShareButtonClick()
 })
 onEvent('click', '#help-button', () => {
-  window.open('https://github.com/Metta-AI/metta/blob/main/mettascope/README.md', '_blank')
+  window.open(
+    `https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/blob/${METTA_GITHUB_PRIMARY_BRANCH}/mettascope/README.md`,
+    '_blank'
+  )
 })
 
 onEvent('click', '#rewind-to-start', () => {
