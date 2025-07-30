@@ -1093,7 +1093,7 @@ class MettaRepo:
         self,
         updates: dict[uuid.UUID, TaskStatusUpdate],
         require_assignee: str | None = None,
-    ) -> dict[uuid.UUID, str]:
+    ) -> dict[uuid.UUID, TaskStatus]:
         if not updates:
             return {}
 
@@ -1324,7 +1324,7 @@ class MettaRepo:
     async def get_all_tasks(
         self,
         limit: int = 500,
-        statuses: list[str] | None = None,
+        statuses: list[TaskStatus] | None = None,
         git_hash: str | None = None,
         policy_ids: list[uuid.UUID] | None = None,
         sim_suites: list[str] | None = None,

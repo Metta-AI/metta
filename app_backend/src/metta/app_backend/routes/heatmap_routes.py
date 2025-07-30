@@ -84,15 +84,6 @@ class TrainingRunHeatmapRequest(BaseModel):
     metric: str
 
 
-class TrainingRunPolicy(BaseModel):
-    """Training run policy with epoch information."""
-
-    policy_name: str
-    policy_id: str
-    epoch_start: Optional[int]
-    epoch_end: Optional[int]
-
-
 class HeatmapCell(BaseModel):
     """Single cell in the policy heatmap grid."""
 
@@ -462,28 +453,6 @@ def build_policy_heatmap(
     )
 
 
-async def get_training_run_policies(con: AsyncConnection, training_run_id: str) -> List[TrainingRunPolicy]:
-    """Get policies for a training run with epoch information."""
-    query = """
-    SELECT
-        p.name as policy_name,
-        p.id as policy_id,
-        e.start_training_epoch as epoch_start,
-        e.end_training_epoch as epoch_end
-    FROM policies p
-    JOIN epochs e ON p.epoch_id = e.id
-    WHERE e.run_id = %s
-    ORDER BY e.start_training_epoch ASC, p.name ASC
-    """
-
-    rows = await execute_query_and_log(con, query, (training_run_id,), "get_training_run_policies")
-
-    return [
-        TrainingRunPolicy(policy_name=row[0], policy_id=str(row[1]), epoch_start=row[2], epoch_end=row[3])
-        for row in rows
-    ]
-
-
 # ============================================================================
 # API Routes
 # ============================================================================
@@ -581,12 +550,5 @@ def create_policy_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
                     evalAverageScores={},
                     evalMaxScores={},
                 )
-
-    @router.get("/training-run/{run_id}/policies")
-    @timed_route("get_training_run_policies")
-    async def get_training_run_policies_endpoint(run_id: str) -> List[TrainingRunPolicy]:
-        """Get policies for a training run with epoch information."""
-        async with metta_repo.connect() as con:
-            return await get_training_run_policies(con, run_id)
 
     return router
