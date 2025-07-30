@@ -1,0 +1,28 @@
+# @package _global_
+
+wandb:
+  enabled: false                  # never try to talk to WandB
+
+run_id: 1
+run: ${oc.env:USER}.local.${run_id}  # e.g. “brandon.local.1”
+
+environment:
+  uri: configs/env/mettagrid/maps/debug/simple_obstacles.map
+
+trainer:
+  replay_dir: ./train_dir/${run}/replays   # local replays only
+  # evaluate_interval: 100                   # how often to run eval episodes
+  # checkpoint_interval: 50                  # save model every N updates
+
+train_job:
+  map_preview_uri: null
+
+replay_job:
+  sim:
+    env: /env/mettagrid/simple             # matches the map above
+
+renderer_job:
+  environment:
+    uri: configs/env/mettagrid/maps/debug/simple_obstacles.map
+  eval_mode: true        # so you don’t need +renderer_job.eval_mode=True on the CLI
+  frame_delay: 0.2       # (optional) slow it down so you can watch
