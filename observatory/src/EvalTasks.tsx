@@ -16,7 +16,15 @@ interface EvalTask {
   user_id: string | null
 }
 
-type SortField = 'policy_name' | 'sim_suite' | 'status' | 'assignee' | 'user_id' | 'retries' | 'created_at' | 'assigned_at'
+type SortField =
+  | 'policy_name'
+  | 'sim_suite'
+  | 'status'
+  | 'assignee'
+  | 'user_id'
+  | 'retries'
+  | 'created_at'
+  | 'assigned_at'
 type SortDirection = 'asc' | 'desc'
 
 interface Props {
