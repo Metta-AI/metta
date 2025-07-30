@@ -16,14 +16,6 @@ file_mounts:
   /workspace/metta:
     source: .
     mode: COPY
-    exclude:
-      - .git
-      - "**/__pycache__"
-      - "**/*.pyc"
-      - .venv
-      - wandb
-      - "*.egg-info"
-      - .pytest_cache
 
 setup: |
   set -e
