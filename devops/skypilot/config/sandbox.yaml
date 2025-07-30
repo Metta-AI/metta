@@ -1,7 +1,7 @@
 resources:
   cloud: aws
   region: us-east-1
-  accelerators: "L4:1"
+  accelerators: "A10G:1"
   cpus: 8+
   image_id: docker:metta:latest
 
