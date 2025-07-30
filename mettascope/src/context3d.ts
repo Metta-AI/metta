@@ -54,9 +54,6 @@ export class Context3d {
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
-  private atlasTexture: WebGLTexture | null = null
-  private textureSize: Vec2f = new Vec2f(0, 0)
-  private atlasMargin = 4
 
   // Shader locations
   private positionLocation = -1
@@ -116,7 +113,6 @@ export class Context3d {
   /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number) {
     this.ensureMeshSelected()
-
     this.currentMesh!.scissorEnabled = true
     this.currentMesh!.scissorRect = [x, y, width, height]
   }
@@ -369,9 +365,10 @@ export class Context3d {
     }
 
     // Draw the rectangle with the image's texture coordinates
+    // The bounds already include margin adjustments
     this.drawRect(
-      bounds.x,
-      bounds.y,
+      x + bounds.x,
+      y + bounds.y,
       bounds.width,
       bounds.height,
       bounds.u0,
@@ -435,28 +432,28 @@ export class Context3d {
       this.rotate(rotation) // Apply rotation
       this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
-        -sw / 2 - m, // Left edge: center minus half width minus margin
-        -sh / 2 - m, // Top edge: center minus half height minus margin
-        sw + 2 * m, // Total width including margins on both sides
-        sh + 2 * m, // Total height including margins on both sides
-        u0,
-        v0,
-        u1,
-        v1,
+        -bounds.width / 2, // Left edge: center minus half width
+        -bounds.height / 2, // Top edge: center minus half height
+        bounds.width, // Total width including margins
+        bounds.height, // Total height including margins
+        bounds.u0,
+        bounds.v0,
+        bounds.u1,
+        bounds.v1,
         color
       )
       this.restore()
     } else {
       // Fast path: no transformations needed, draw centered
       this.drawRect(
-        x - sw / 2 - m, // Left edge position
-        y - sh / 2 - m, // Top edge position
-        sw + 2 * m, // Total width including margins
-        sh + 2 * m, // Total height including margins
-        u0,
-        v0,
-        u1,
-        v1,
+        x - bounds.width / 2, // Left edge position
+        y - bounds.height / 2, // Top edge position
+        bounds.width, // Total width including margins
+        bounds.height, // Total height including margins
+        bounds.u0,
+        bounds.v0,
+        bounds.u1,
+        bounds.v1,
         color
       )
     }
