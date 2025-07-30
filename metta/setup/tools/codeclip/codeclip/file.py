@@ -10,7 +10,9 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
+import tiktoken
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,9 @@ def _find_parent_readmes(path: Path) -> List[Path]:
         List of README paths from deepest to shallowest
     """
     readmes = []
-    current = path if path.is_dir() else path.parent
+    # Start from parent directory for directories, or file's parent for files
+    # This ensures we don't include README.md inside the requested directory
+    current = path.parent
 
     # Find the git root to use as our boundary
     git_root = _find_git_root(current)
@@ -491,9 +495,9 @@ def _format_document(doc: Document, raw: bool) -> str:
 
 def get_context(
     paths: Optional[List[Union[str, Path]]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None
-) -> str:
+) -> Tuple[str, Dict[str, Any]]:
     """
-    Load and format context from specified paths.
+    Load and format context from specified paths, with basic token counting.
 
     Args:
         paths: List of paths to load context from, or None for no context
@@ -501,18 +505,31 @@ def get_context(
         extensions: Optional tuple of file extensions to filter
 
     Returns:
-        Formatted context string
+        Tuple of (formatted context string, token info dict)
     """
-
     # Handle empty paths
     if not paths:
-        return "" if raw else "<documents></documents>"
+        content = "" if raw else "<documents></documents>"
+        return content, {"total_tokens": 0, "total_files": 0}
+
+    # Initialize tokenizer for counting
+    encoding = tiktoken.get_encoding("cl100k_base")
+
+    # Token tracking variables
+    total_tokens = 0
+    path_tokens = {}  # path -> {tokens, files}
+    top_level_tokens = {}  # For single-path summaries
+    file_token_counts = {}  # filepath -> token count for profiling
 
     processed_files: Set[Path] = set()
     documents = []
     next_index = 1
 
     for path_str in paths:
+        path_file_count = 0
+        path_token_count = 0
+        path_top_level = {}  # top-level items for this path
+
         try:
             # Resolve path relative to current directory
             path = resolve_codebase_path(path_str)
@@ -528,13 +545,50 @@ def get_context(
                     processed_files.add(readme_path)
                     next_index += 1
 
+                    # Count tokens
+                    tokens = len(encoding.encode(doc.content))
+                    path_token_count += tokens
+                    path_file_count += 1
+
+                    # Track per-file tokens
+                    file_token_counts[doc.source] = tokens
+
             # Process requested path
             gitignore_path = _find_gitignore(path)
             gitignore_rules = _read_gitignore(str(gitignore_path)) if gitignore_path else []
             gitignore_root = gitignore_path.parent if gitignore_path else None
             new_docs = _collect_files(path, gitignore_rules, gitignore_root, processed_files, next_index, extensions)
+
+            # Count tokens for new docs
+            for doc in new_docs:
+                tokens = len(encoding.encode(doc.content))
+                path_token_count += tokens
+                path_file_count += 1
+
+                # Track per-file tokens for profiling
+                file_token_counts[doc.source] = tokens
+
+                # Track top-level item
+                doc_path = Path(doc.source)
+                try:
+                    relative = doc_path.relative_to(path)
+                    if len(relative.parts) > 0:
+                        name = relative.parts[0]
+                        path_top_level[name] = path_top_level.get(name, 0) + tokens
+                except ValueError:
+                    pass
+
             next_index += len(new_docs)
             documents.extend(new_docs)
+
+            # Store path summary
+            if path_file_count > 0:
+                path_tokens[str(path)] = {"tokens": path_token_count, "files": path_file_count}
+                total_tokens += path_token_count
+
+                # Merge top-level tokens
+                for name, tokens in path_top_level.items():
+                    top_level_tokens[name] = top_level_tokens.get(name, 0) + tokens
 
         except Exception as e:
             print(f"Error processing path {path_str}: {e}")
@@ -557,4 +611,19 @@ def get_context(
     if not raw:
         output_lines.append("</documents>")
 
-    return "\n".join(output_lines)
+    content = "\n".join(output_lines)
+
+    # Prepare token info
+    token_info = {
+        "total_tokens": total_tokens,
+        "total_files": len(documents),
+        "path_summaries": path_tokens,
+        "file_token_counts": file_token_counts,  # Per-file token counts for profiling
+        "documents": documents,  # Include documents for profiling to avoid re-parsing
+    }
+
+    # Add top-level summary for single path
+    if len(paths) == 1 and top_level_tokens:
+        token_info["top_level_summary"] = top_level_tokens
+
+    return content, token_info

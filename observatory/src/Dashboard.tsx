@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {
-  PolicyHeatmapData,
-  Repo,
-  SavedDashboardCreate
-} from './repo'
+import { PolicyHeatmapData, Repo, SavedDashboardCreate } from './repo'
 import { PolicySelector } from './components/PolicySelector'
 import { SearchInput } from './components/SearchInput'
 import { EvalSelector } from './components/EvalSelector'
@@ -14,6 +10,7 @@ import { Heatmap } from './Heatmap'
 import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
+import { METTASCOPE_REPLAY_URL } from './constants'
 
 interface DashboardProps {
   repo: Repo
@@ -50,7 +47,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const [loading, setLoading] = useState({
     evalCategories: false,
     metrics: false,
-    heatmap: false
+    heatmap: false,
   })
   const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
@@ -63,7 +60,6 @@ export function Dashboard({ repo }: DashboardProps) {
   // Save dashboard modal state
   const [showSaveModal, setShowSaveModal] = useState(false)
 
-
   // Load eval names when training runs or policies are selected
   useEffect(() => {
     const loadEvalNames = async () => {
@@ -74,22 +70,22 @@ export function Dashboard({ repo }: DashboardProps) {
       }
 
       try {
-        setLoading(prev => ({ ...prev, evalCategories: true }))
+        setLoading((prev) => ({ ...prev, evalCategories: true }))
         setError(null)
         const evalNamesData = await repo.getEvalNames({
           training_run_ids: selectedTrainingRunIds,
-          run_free_policy_ids: selectedRunFreePolicyIds
+          run_free_policy_ids: selectedRunFreePolicyIds,
         })
         setEvalNames(evalNamesData)
 
         // Clear eval selections that are no longer valid
-        setSelectedEvalNames(new Set([...selectedEvalNames].filter(evalName => evalNamesData.has(evalName))))
+        setSelectedEvalNames(new Set([...selectedEvalNames].filter((evalName) => evalNamesData.has(evalName))))
       } catch (err) {
         setError(`Failed to load eval names: ${err instanceof Error ? err.message : 'Unknown error'}`)
         setEvalNames(new Set())
         setSelectedEvalNames(new Set())
       } finally {
-        setLoading(prev => ({ ...prev, evalCategories: false }))
+        setLoading((prev) => ({ ...prev, evalCategories: false }))
       }
     }
 
@@ -99,19 +95,22 @@ export function Dashboard({ repo }: DashboardProps) {
   // Load available metrics when training runs/policies and evaluations are selected
   useEffect(() => {
     const loadMetrics = async () => {
-      if ((selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) || selectedEvalNames.size === 0) {
+      if (
+        (selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) ||
+        selectedEvalNames.size === 0
+      ) {
         setAvailableMetrics([])
         setSelectedMetric('')
         return
       }
 
       try {
-        setLoading(prev => ({ ...prev, metrics: true }))
+        setLoading((prev) => ({ ...prev, metrics: true }))
         setError(null)
         const metricsData = await repo.getAvailableMetrics({
           training_run_ids: selectedTrainingRunIds,
           run_free_policy_ids: selectedRunFreePolicyIds,
-          eval_names: Array.from(selectedEvalNames)
+          eval_names: Array.from(selectedEvalNames),
         })
         setAvailableMetrics(metricsData)
 
@@ -124,7 +123,7 @@ export function Dashboard({ repo }: DashboardProps) {
         setAvailableMetrics([])
         setSelectedMetric('')
       } finally {
-        setLoading(prev => ({ ...prev, metrics: false }))
+        setLoading((prev) => ({ ...prev, metrics: false }))
       }
     }
 
@@ -132,7 +131,12 @@ export function Dashboard({ repo }: DashboardProps) {
   }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric])
 
   // Generate heatmap
-  const generateHeatmap = async (selectedTrainingRunIds: string[], selectedRunFreePolicyIds: string[], selectedEvalNames: Set<string>, selectedMetric: string) => {
+  const generateHeatmap = async (
+    selectedTrainingRunIds: string[],
+    selectedRunFreePolicyIds: string[],
+    selectedEvalNames: Set<string>,
+    selectedMetric: string
+  ) => {
     if (
       (selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) ||
       selectedEvalNames.size === 0 ||
@@ -143,14 +147,14 @@ export function Dashboard({ repo }: DashboardProps) {
     }
 
     try {
-      setLoading(prev => ({ ...prev, heatmap: true }))
+      setLoading((prev) => ({ ...prev, heatmap: true }))
       setError(null)
       const heatmapResult = await repo.generatePolicyHeatmap({
         training_run_ids: selectedTrainingRunIds,
         run_free_policy_ids: selectedRunFreePolicyIds,
         eval_names: Array.from(selectedEvalNames),
         training_run_policy_selector: trainingRunPolicySelector,
-        metric: selectedMetric
+        metric: selectedMetric,
       })
       setHeatmapData(heatmapResult)
       setControlsExpanded(false)
@@ -158,14 +162,13 @@ export function Dashboard({ repo }: DashboardProps) {
       setError(`Failed to generate heatmap: ${err instanceof Error ? err.message : 'Unknown error'}`)
       setHeatmapData(null)
     } finally {
-      setLoading(prev => ({ ...prev, heatmap: false }))
+      setLoading((prev) => ({ ...prev, heatmap: false }))
     }
   }
 
   const generateHeatmapCallback = async () => {
     await generateHeatmap(selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric)
   }
-
 
   // Stable handlers for PolicySelector to prevent unnecessary re-renders
   const handleSearchChange = useCallback((searchText: string) => {
@@ -186,7 +189,7 @@ export function Dashboard({ repo }: DashboardProps) {
     const cell = heatmapData?.cells[policyName]?.[evalName]
     if (!cell?.replayUrl) return
 
-    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
     window.open(replay_url_prefix + cell.replayUrl, '_blank')
   }
 
@@ -211,7 +214,7 @@ export function Dashboard({ repo }: DashboardProps) {
       selectedRunFreePolicyIds,
       selectedEvalNames: Array.from(selectedEvalNames),
       trainingRunPolicySelector,
-      selectedMetric
+      selectedMetric,
     }
   }
 
@@ -222,7 +225,12 @@ export function Dashboard({ repo }: DashboardProps) {
     setTrainingRunPolicySelector(state.trainingRunPolicySelector || 'latest')
     setSelectedMetric(state.selectedMetric || '')
 
-    await generateHeatmap(state.selectedTrainingRunIds, state.selectedRunFreePolicyIds, new Set(state.selectedEvalNames), state.selectedMetric)
+    await generateHeatmap(
+      state.selectedTrainingRunIds,
+      state.selectedRunFreePolicyIds,
+      new Set(state.selectedEvalNames),
+      state.selectedMetric
+    )
   }
 
   const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
@@ -230,7 +238,7 @@ export function Dashboard({ repo }: DashboardProps) {
       const dashboardState = getDashboardState()
       const saveData = {
         ...dashboardData,
-        dashboard_state: dashboardState
+        dashboard_state: dashboardState,
       }
 
       const savedDashboard = await repo.createSavedDashboard(saveData)
@@ -301,11 +309,7 @@ export function Dashboard({ repo }: DashboardProps) {
               <div className={styles.widget}>
                 <h3 className={styles.widgetTitle}>Policy Selection</h3>
                 <div className={styles.widgetContent}>
-                  <SearchInput
-                    searchText={policySearchText}
-                    onSearchChange={handleSearchChange}
-                    disabled={false}
-                  />
+                  <SearchInput searchText={policySearchText} onSearchChange={handleSearchChange} disabled={false} />
                   <PolicySelector
                     repo={repo}
                     searchText={policySearchText}
@@ -353,7 +357,10 @@ export function Dashboard({ repo }: DashboardProps) {
                     selectedMetric={selectedMetric}
                     onSelectionChange={setSelectedMetric}
                     loading={loading.metrics}
-                    disabled={(selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) || selectedEvalNames.size === 0}
+                    disabled={
+                      (selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) ||
+                      selectedEvalNames.size === 0
+                    }
                   />
                 </div>
               </div>
@@ -366,7 +373,7 @@ export function Dashboard({ repo }: DashboardProps) {
           <div className={styles.generateHeatmapButtonWrapper}>
             <div className={styles.dashboardActions}>
               <button
-                onClick={generateHeatmapCallback  }
+                onClick={generateHeatmapCallback}
                 disabled={!canGenerateHeatmap}
                 className={styles.generateHeatmapButton}
               >
@@ -383,20 +390,32 @@ export function Dashboard({ repo }: DashboardProps) {
                 onClick={() => setShowSaveModal(true)}
                 disabled={!heatmapData}
                 className={styles.saveDashboardButton}
-                title={heatmapData ? 'Save current dashboard configuration' : 'Generate a heatmap first to save the dashboard'}
+                title={
+                  heatmapData
+                    ? 'Save current dashboard configuration'
+                    : 'Generate a heatmap first to save the dashboard'
+                }
               >
                 Save Dashboard
               </button>
             </div>
             <div className={styles.buttonHelpText}>
-              {selectedTrainingRunIds.length + selectedRunFreePolicyIds.length} policies, {selectedEvalNames.size} evaluations
+              {selectedTrainingRunIds.length + selectedRunFreePolicyIds.length} policies, {selectedEvalNames.size}{' '}
+              evaluations
               {selectedMetric && `, using ${selectedMetric} metric`}
             </div>
             {!canGenerateHeatmap && (
               <div className={styles.validationMessage}>
-                {(selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) && 'Please select training runs or policies'}
-                {(selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) && selectedEvalNames.size === 0 && 'Please select evaluations'}
-                {(selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) && selectedEvalNames.size > 0 && !selectedMetric && 'Please select a metric'}
+                {selectedTrainingRunIds.length === 0 &&
+                  selectedRunFreePolicyIds.length === 0 &&
+                  'Please select training runs or policies'}
+                {(selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
+                  selectedEvalNames.size === 0 &&
+                  'Please select evaluations'}
+                {(selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
+                  selectedEvalNames.size > 0 &&
+                  !selectedMetric &&
+                  'Please select a metric'}
                 {Object.values(loading).some(Boolean) && 'Loading...'}
               </div>
             )}
@@ -414,13 +433,13 @@ export function Dashboard({ repo }: DashboardProps) {
               numPoliciesToShow={heatmapData.policyNames.length} // Show all policies
             />
 
-          <MapViewer
-            selectedEval={selectedEval}
-            isViewLocked={isViewLocked}
-            selectedReplayUrl={selectedReplayUrl}
-            onToggleLock={toggleLock}
-            onReplayClick={handleReplayClick}
-          />
+            <MapViewer
+              selectedEval={selectedEval}
+              isViewLocked={isViewLocked}
+              selectedReplayUrl={selectedReplayUrl}
+              onToggleLock={toggleLock}
+              onReplayClick={handleReplayClick}
+            />
           </div>
         )}
 

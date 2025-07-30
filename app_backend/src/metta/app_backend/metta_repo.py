@@ -376,6 +376,22 @@ MIGRATIONS = [
             """,
         ],
     ),
+    SqlMigration(
+        version=20,
+        description="Add user_id to eval_tasks",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN user_id TEXT""",
+            """CREATE INDEX idx_eval_tasks_user_id ON eval_tasks(user_id)""",
+        ],
+    ),
+    SqlMigration(
+        version=21,
+        description="Add updated_at to eval_tasks",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP""",
+            """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
+        ],
+    ),
 ]
 
 
@@ -966,16 +982,17 @@ class MettaRepo:
         policy_id: uuid.UUID,
         sim_suite: str,
         attributes: dict[str, Any],
+        user_id: str | None = None,
     ) -> dict[str, Any]:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                INSERT INTO eval_tasks (policy_id, sim_suite, attributes)
-                VALUES (%s, %s, %s)
+                INSERT INTO eval_tasks (policy_id, sim_suite, attributes, user_id)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id, policy_id, sim_suite, status, assigned_at,
-                         assignee, created_at, attributes, retries
+                         assignee, created_at, attributes, retries, user_id, updated_at
                 """,
-                (policy_id, sim_suite, Jsonb(attributes)),
+                (policy_id, sim_suite, Jsonb(attributes), user_id),
             )
             row = await result.fetchone()
             if row is None:
@@ -990,6 +1007,8 @@ class MettaRepo:
                 "created_at": row[6],
                 "attributes": row[7],
                 "retries": row[8],
+                "user_id": row[9],
+                "updated_at": row[10],
             }
 
     async def get_available_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
@@ -997,7 +1016,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name
+                       assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 JOIN policies p ON et.policy_id = p.id
                 WHERE status = 'unprocessed'
@@ -1020,6 +1039,8 @@ class MettaRepo:
                     "attributes": row[7],
                     "retries": row[8],
                     "policy_name": row[9],
+                    "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]
@@ -1053,7 +1074,7 @@ class MettaRepo:
                 result = await con.execute(
                     """
                     SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name
+                            assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE assignee = %s AND status = 'unprocessed'
@@ -1065,7 +1086,7 @@ class MettaRepo:
                 result = await con.execute(
                     """
                     SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name
+                            assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE status = 'unprocessed' AND assignee IS NOT NULL
@@ -1085,6 +1106,8 @@ class MettaRepo:
                     "attributes": row[7],
                     "retries": row[8],
                     "policy_name": row[9],
+                    "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]
@@ -1093,7 +1116,7 @@ class MettaRepo:
         self,
         updates: dict[uuid.UUID, TaskStatusUpdate],
         require_assignee: str | None = None,
-    ) -> dict[uuid.UUID, str]:
+    ) -> dict[uuid.UUID, TaskStatus]:
         if not updates:
             return {}
 
@@ -1295,7 +1318,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name
+                       assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 JOIN policies p ON et.policy_id = p.id
                 WHERE assignee = %s
@@ -1319,21 +1342,57 @@ class MettaRepo:
                 "attributes": row[7],
                 "retries": row[8],
                 "policy_name": row[9],
+                "user_id": row[10],
+                "updated_at": row[11],
             }
 
-    async def get_all_tasks(self, limit: int = 500) -> list[dict[str, Any]]:
+    async def get_all_tasks(
+        self,
+        limit: int = 500,
+        statuses: list[TaskStatus] | None = None,
+        git_hash: str | None = None,
+        policy_ids: list[uuid.UUID] | None = None,
+        sim_suites: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         async with self.connect() as con:
+            # Build the WHERE clause dynamically
+            where_conditions = []
+            params = []
+
+            if statuses:
+                placeholders = ", ".join(["%s"] * len(statuses))
+                where_conditions.append(f"et.status IN ({placeholders})")
+                params.extend(statuses)
+
+            if git_hash:
+                where_conditions.append("et.attributes->>'git_hash' = %s")
+                params.append(git_hash)
+
+            if policy_ids:
+                placeholders = ", ".join(["%s"] * len(policy_ids))
+                where_conditions.append(f"et.policy_id IN ({placeholders})")
+                params.extend(policy_ids)
+
+            if sim_suites:
+                placeholders = ", ".join(["%s"] * len(sim_suites))
+                where_conditions.append(f"et.sim_suite IN ({placeholders})")
+                params.extend(sim_suites)
+
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            params.append(limit)
+
             result = await con.execute(
-                """
+                f"""
                 SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                        et.assignee, et.created_at, et.attributes, et.retries,
-                       p.name as policy_name
+                       p.name as policy_name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 LEFT JOIN policies p ON et.policy_id = p.id
+                WHERE {where_clause}
                 ORDER BY et.created_at DESC
                 LIMIT %s
                 """,
-                (limit,),
+                params,
             )
             rows = await result.fetchall()
             return [
@@ -1348,6 +1407,8 @@ class MettaRepo:
                     "attributes": row[7],
                     "retries": row[8],
                     "policy_name": row[9],
+                    "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]

@@ -1,6 +1,5 @@
 import datetime
 import logging
-import random
 from typing import Any, TypeVar, Union
 
 import numpy as np
@@ -13,14 +12,6 @@ Numeric = Union[int, float]  # Type alias for numeric types
 
 def oc_if(condition: bool, true_value: T, false_value: T) -> T:
     return true_value if condition else false_value
-
-
-def oc_uniform(min_val: Numeric, max_val: Numeric) -> float:
-    return float(np.random.uniform(min_val, max_val))
-
-
-def oc_choose(*args: Any) -> Any:
-    return random.choice(args)
 
 
 def oc_divide(a: Numeric, b: Numeric) -> Numeric:
@@ -253,10 +244,6 @@ class ResolverRegistrar(Callback):
 
         # Register all your resolvers
         OmegaConf.register_new_resolver("if", oc_if, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("div", oc_divide, replace=True)
         self.resolver_count += 1

@@ -11,6 +11,7 @@ from devops.skypilot.utils import (
     check_git_state,
     display_job_summary,
     launch_task,
+    set_task_secrets,
 )
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
@@ -159,6 +160,7 @@ def main():
         no_spot=args.no_spot,
         timeout_hours=args.max_runtime_hours,
     )
+    set_task_secrets(task)
 
     if args.confirm:
         extra_details = {}

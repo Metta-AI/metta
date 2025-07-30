@@ -3,27 +3,217 @@ import argparse
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
+# Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
-from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
-from metta.setup.local_commands import LocalCommands
-from metta.setup.registry import get_all_modules, get_applicable_modules
-from metta.setup.symlink_setup import PathSetup
-from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success, warning
+from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 
-# Import all component modules to register them with the registry
-import_all_modules_from_subpackage("metta.setup", "components")
+# Type hints only
+if TYPE_CHECKING:
+    from metta.setup.config import SetupConfig
+    from metta.setup.local_commands import LocalCommands
+    from metta.setup.symlink_setup import PathSetup
+
+
+@dataclass
+class CommandConfig:
+    """Configuration for a single command."""
+
+    help: str  # Help text shown in 'metta --help'
+    handler: Optional[str] = None  # Method name in MettaCLI
+    needs_config: bool = False
+    needs_components: bool = False
+    pass_unknown_args: bool = False
+    subprocess_cmd: Optional[List[str]] = None  # For simple subprocess commands
+    add_help: bool = True  # Whether subcommand accepts --help
+    parser_setup: Optional[Callable[[argparse.ArgumentParser], None]] = None  # Parser setup function
+
+
+# Parser setup functions for commands
+def _setup_configure_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("component", nargs="?", help="Specific component to configure. If omitted, runs setup wizard.")
+    # Profile choices will be added dynamically in _build_parser
+
+
+def _setup_run_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("component", help="Component to run command for")
+    parser.add_argument("args", nargs="*", help="Arguments to pass to the component")
+
+
+def _setup_install_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("components", nargs="*", help="Components to install")
+    parser.add_argument("--force", action="store_true", help="Force reinstall")
+    parser.add_argument("--no-clean", action="store_true", help="Skip cleaning before install")
+
+
+def _setup_status_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--components", help="Comma-separated list of components")
+    parser.add_argument("-n", "--non-interactive", action="store_true", help="Non-interactive mode")
+
+
+def _setup_symlink_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--force", action="store_true", help="Replace existing metta command")
+
+
+def _setup_lint_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--fix", action="store_true", help="Apply fixes automatically")
+    parser.add_argument("--staged", action="store_true", help="Only lint staged files")
+
+
+def _setup_tool_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("tool_name", help="Name of the tool to run")
+
+
+# Command registry with all command definitions
+COMMAND_REGISTRY: Dict[str, CommandConfig] = {
+    # Simple subprocess commands
+    "clip": CommandConfig(
+        help="Copy subsets of codebase for LLM contexts",
+        subprocess_cmd=["codeclip"],
+        pass_unknown_args=True,
+        add_help=False,  # codeclip handles its own --help
+    ),
+    "test": CommandConfig(
+        help="Run Python unit tests",
+        subprocess_cmd=["pytest"],
+        pass_unknown_args=True,
+    ),
+    "test-changed": CommandConfig(
+        help="Run Python unit tests affected by changes",
+        subprocess_cmd=["pytest", "--testmon"],
+        pass_unknown_args=True,
+    ),
+    "tool": CommandConfig(
+        help="Run a tool from the tools/ directory",
+        handler="cmd_tool",
+        pass_unknown_args=True,
+        parser_setup=_setup_tool_parser,
+    ),
+    "shell": CommandConfig(
+        help="Start an IPython shell with Metta imports",
+        subprocess_cmd=["uv", "run", "metta/setup/shell.py"],
+        needs_config=True,  # Needs repo_root
+    ),
+    "report-env-details": CommandConfig(
+        help="Report environment details including UV project directory",
+        handler="cmd_report_env_details",
+    ),
+    "lint": CommandConfig(
+        help="Run linting and formatting",
+        handler="cmd_lint",
+        parser_setup=_setup_lint_parser,
+    ),
+    "clean": CommandConfig(
+        help="Clean build artifacts and temporary files",
+        handler="cmd_clean",
+    ),
+    # Commands that need config but not components
+    "local": CommandConfig(
+        help="Local development commands",
+        handler="cmd_local",
+        needs_config=True,
+        pass_unknown_args=True,
+        add_help=False,  # Let LocalCommands handle its own help
+        parser_setup=None,
+    ),
+    "symlink-setup": CommandConfig(
+        help="Create symlink to make metta command globally available",
+        handler="cmd_symlink_setup",
+        needs_config=True,
+        parser_setup=_setup_symlink_parser,
+    ),
+    # Commands that need full setup with components
+    "configure": CommandConfig(
+        help="Configure Metta settings",
+        handler="cmd_configure",
+        needs_config=True,
+        needs_components=True,
+        parser_setup=_setup_configure_parser,
+    ),
+    "install": CommandConfig(
+        help="Install or update components",
+        handler="cmd_install",
+        needs_config=True,
+        needs_components=True,
+        parser_setup=_setup_install_parser,
+    ),
+    "status": CommandConfig(
+        help="Show status of all components",
+        handler="cmd_status",
+        needs_config=True,
+        needs_components=True,
+        parser_setup=_setup_status_parser,
+    ),
+    "run": CommandConfig(
+        help="Run component-specific commands",
+        handler="cmd_run",
+        needs_config=True,
+        needs_components=True,
+        pass_unknown_args=True,
+        parser_setup=_setup_run_parser,
+    ),
+}
 
 
 class MettaCLI:
     def __init__(self):
         self.repo_root: Path = get_repo_root()
-        self.config: SetupConfig = SetupConfig()
-        self.path_setup: PathSetup = PathSetup(self.repo_root)
-        self.local_commands: LocalCommands = LocalCommands()
+        self._config: Optional[SetupConfig] = None
+        self._path_setup: Optional[PathSetup] = None
+        self._local_commands: Optional[LocalCommands] = None
+        self._components_initialized = False
+
+    def _init_all(self):
+        """Initialize all components - used by commands that need everything."""
+        if self._components_initialized:
+            return
+
+        # Import all component modules to register them with the registry
+        from metta.setup.utils import import_all_modules_from_subpackage
+
+        import_all_modules_from_subpackage("metta.setup", "components")
+
+        # Initialize core objects
+        from metta.setup.config import SetupConfig
+        from metta.setup.local_commands import LocalCommands
+        from metta.setup.symlink_setup import PathSetup
+
+        self._config = SetupConfig()
+        self._path_setup = PathSetup(self.repo_root)
+        self._local_commands = LocalCommands()
+        self._components_initialized = True
+
+    @property
+    def config(self):
+        if self._config is None:
+            from metta.setup.config import SetupConfig
+
+            self._config = SetupConfig()
+        return self._config
+
+    @property
+    def path_setup(self):
+        if self._path_setup is None:
+            from metta.setup.symlink_setup import PathSetup
+
+            self._path_setup = PathSetup(self.repo_root)
+        return self._path_setup
+
+    @property
+    def local_commands(self):
+        if self._local_commands is None:
+            from metta.setup.local_commands import LocalCommands
+
+            self._local_commands = LocalCommands()
+        return self._local_commands
 
     def setup_wizard(self) -> None:
+        from metta.setup.config import UserType
+        from metta.setup.utils import header, info, prompt_choice, success
+
         header("Welcome to Metta!\n\n")
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
@@ -61,6 +251,9 @@ class MettaCLI:
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import info, prompt_choice, success
+
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
             [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
@@ -94,10 +287,12 @@ class MettaCLI:
         success("\nCustom configuration saved.")
         info("\nRun 'metta install' to set up your environment.")
 
-    def cmd_configure(self, args) -> None:
+    def cmd_configure(self, args, unknown_args=None) -> None:
         if args.component:
             self.configure_component(args.component)
         elif args.profile:
+            from metta.setup.utils import error, info, success
+
             selected_user_type = UserType(args.profile)
             if selected_user_type in PROFILE_DEFINITIONS:
                 self.config.apply_profile(selected_user_type)
@@ -110,6 +305,9 @@ class MettaCLI:
             self.setup_wizard()
 
     def configure_component(self, component_name: str) -> None:
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import error, info
+
         modules = get_all_modules(self.config)
         module_map = {m.name: m for m in modules}
 
@@ -124,8 +322,10 @@ class MettaCLI:
             return
         module.configure()
 
-    def cmd_run(self, args) -> None:
-        """Run component-specific commands."""
+    def cmd_run(self, args, unknown_args=None) -> None:
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import error, info
+
         modules = get_all_modules(self.config)
         module_map = {m.name: m for m in modules}
 
@@ -137,7 +337,10 @@ class MettaCLI:
         # Run the component's command
         module.run(args.args)
 
-    def cmd_install(self, args) -> None:
+    def cmd_install(self, args, unknown_args=None) -> None:
+        from metta.setup.registry import get_all_modules, get_applicable_modules
+        from metta.setup.utils import error, info, success, warning
+
         if not self.config.config_path.exists():
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
@@ -192,7 +395,9 @@ class MettaCLI:
 
         success("Installation complete!")
 
-    def cmd_clean(self, args, verbose: bool = False) -> None:
+    def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
+        from metta.setup.utils import info, warning
+
         build_dir = self.repo_root / "build"
         if build_dir.exists():
             info("  Removing root build directory...")
@@ -216,61 +421,56 @@ class MettaCLI:
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
 
-    def cmd_clip(self, args) -> None:
-        """Run the codeclip tool with provided arguments."""
-        try:
-            # Simply pass through to codeclip
-            cmd = ["codeclip"] + (args.args if args.args else ["--help"])
-            subprocess.run(cmd, check=False)
-        except FileNotFoundError:
-            error("codeclip is not installed.")
-            error("Run: metta install codeclip")
-            sys.exit(1)
-
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_symlink_setup(self, args) -> None:
+    def cmd_symlink_setup(self, args, unknown_args=None) -> None:
         self.path_setup.setup_path(force=args.force)
 
-    def cmd_pytest(self, args) -> None:
-        cmd = ["pytest"] + args
+    def _run_subprocess_command(self, command: str, args, unknown_args=None) -> None:
+        """Run a subprocess command from the registry."""
+        cmd_config = COMMAND_REGISTRY[command]
+        if not cmd_config.subprocess_cmd:
+            raise ValueError(f"Command {command} has no subprocess_cmd")
+
+        cmd = list(cmd_config.subprocess_cmd)  # Copy to avoid mutation
+
+        # For commands that pass unknown args, use sys.argv directly
+        # to preserve exact argument order and avoid argparse interpretation
+        if cmd_config.pass_unknown_args:
+            try:
+                cmd_index = sys.argv.index(command)
+                remaining_args = sys.argv[cmd_index + 1 :] if cmd_index + 1 < len(sys.argv) else []
+                if remaining_args:
+                    cmd.extend(remaining_args)
+            except ValueError:
+                # Fallback to unknown_args
+                if unknown_args:
+                    cmd.extend(unknown_args)
+
         try:
-            subprocess.run(cmd, cwd=self.repo_root, check=True)
+            # Use check=False for commands like clip that handle their own exit codes
+            check = command != "clip"
+            subprocess.run(cmd, cwd=self.repo_root, check=check)
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
+        except FileNotFoundError:
+            print(f"Error: Command not found: {cmd[0]}", file=sys.stderr)
+            if command == "clip":
+                print("Run: metta install codeclip", file=sys.stderr)
+            sys.exit(1)
 
-    def cmd_shell(self) -> None:
-        subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
-
-    def cmd_report_env_details(self) -> None:
-        info(f"UV Project Directory: {self.repo_root}")
-        info(f"Metta CLI Working Directory: {Path.cwd()}")
+    def cmd_report_env_details(self, args, unknown_args=None) -> None:
+        print(f"UV Project Directory: {self.repo_root}")
+        print(f"Metta CLI Working Directory: {Path.cwd()}")
 
     def cmd_local(self, args, unknown_args=None) -> None:
-        """Handle local development commands."""
-        if hasattr(args, "local_command") and args.local_command:
-            if args.local_command == "build-policy-evaluator-img":
-                self.local_commands.build_policy_evaluator_img(build_args=unknown_args)
-            elif args.local_command == "build-app-backend-img":
-                self.local_commands.build_app_backend_img()
-            elif args.local_command == "load-policies":
-                self.local_commands.load_policies(unknown_args or [])
-            elif args.local_command == "kind":
-                self.local_commands.kind(args)
-            elif args.local_command == "observatory":
-                self.local_commands.observatory(args, unknown_args or [])
-            else:
-                error(f"Unknown local command: {args.local_command}")
-                sys.exit(1)
-        else:
-            # Show help for local subcommand
-            args.local_parser.print_help()
+        self.local_commands.main(unknown_args)
 
-    def cmd_lint(self, args) -> None:
+    def cmd_lint(self, args, unknown_args=None) -> None:
         files = []
         if args.staged:
             result = subprocess.run(
@@ -303,27 +503,27 @@ class MettaCLI:
 
         for cmd in cmds:
             try:
-                info(f"Running: {' '.join(cmd)}")
+                print(f"Running: {' '.join(cmd)}")
                 subprocess.run(cmd, cwd=self.repo_root, check=True)
             except subprocess.CalledProcessError as e:
                 sys.exit(e.returncode)
 
-    def cmd_tool(self, tool_name: str, args: list[str]) -> None:
-        tool_path = self.repo_root / "tools" / f"{tool_name}.py"
+    def cmd_tool(self, args, unknown_args=None) -> None:
+        tool_path = self.repo_root / "tools" / f"{args.tool_name}.py"
         if not tool_path.exists():
-            error(f"Tool '{tool_name}' not found at {tool_path}")
+            print(f"Error: Tool '{args.tool_name}' not found at {tool_path}", file=sys.stderr)
             sys.exit(1)
 
-        cmd = [str(tool_path)] + args
+        cmd = [str(tool_path)] + (unknown_args or [])
         try:
-            # Prefixing with `uv run` should not be necessary
-            # because PATH is inherited and tools have uv shebangs
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
 
-    def cmd_status(self, args) -> None:
-        """Show status of all components."""
+    def cmd_status(self, args, unknown_args=None) -> None:
+        from metta.setup.registry import get_all_modules
+        from metta.setup.utils import error, info, success, warning
+
         # Get all modules first
         all_modules = get_all_modules(self.config)
 
@@ -481,7 +681,8 @@ class MettaCLI:
                     info(f"\nRunning: metta install {' '.join(not_installed)}")
                     subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=self.repo_root)
 
-    def main(self) -> None:
+    def _build_parser(self) -> argparse.ArgumentParser:
+        """Build argument parser from command registry."""
         parser = argparse.ArgumentParser(
             description="Metta Setup Tool - Configure and install development environment",
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -493,7 +694,6 @@ Examples:
   metta install                        # Install all configured components
   metta install aws wandb              # Install specific components
   metta status                         # Show status of all components
-  metta status --components=aws,wandb  # Show status of specific components
   metta status --non-interactive       # Show status without prompts
   metta clean                          # Clean build artifacts
   metta symlink-setup                  # Set up symlink to make metta command globally available
@@ -505,202 +705,130 @@ Examples:
 
   metta tool train run=test            # Run train.py tool with arguments
   metta tool sim policy_uri=...        # Run sim.py tool with arguments
+  metta clip -e py metta               # Copy Python files to clipboard
+
+  metta local ...                      # Commands for local development
             """,
         )
 
         subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-        # Configure command
-        configure_parser = subparsers.add_parser("configure", help="Configure Metta for your environment")
-        configure_parser.add_argument(
-            "component",
-            nargs="?",
-            help="Specific component to configure (e.g., githooks). If omitted, runs the setup wizard.",
-        )
-        available_preset_profiles = [u.value for u in list(PROFILE_DEFINITIONS.keys())]
-        configure_parser.add_argument(
-            "--profile",
-            choices=available_preset_profiles,
-            help=f"Set user profile (available: {', '.join(available_preset_profiles)})",
-        )
+        # Create subparser for each command from registry
+        for cmd_name, cmd_config in COMMAND_REGISTRY.items():
+            cmd_parser = subparsers.add_parser(cmd_name, help=cmd_config.help, add_help=cmd_config.add_help)
 
-        # Run command
-        run_parser = subparsers.add_parser("run", help="Run component-specific commands")
-        run_parser.add_argument("component", help="Component to run command for (e.g., githooks)")
-        run_parser.add_argument("args", nargs="*", help="Arguments to pass to the component")
+            # Apply parser setup if provided
+            if cmd_config.parser_setup:
+                cmd_config.parser_setup(cmd_parser)
+            elif cmd_name == "local":
+                from metta.setup.local_commands import setup_local_parser
 
-        # Install command
-        install_parser = subparsers.add_parser("install", help="Install configured components")
-        install_parser.add_argument(
-            "components",
-            nargs="*",
-            help=(
-                "Specific components to install (e.g., mettascope aws). "
-                "If omitted, installs all configured components. "
-                "Note: 'system' and 'core' are always included as they are essential."
-            ),
-        )
-        install_parser.add_argument("--force", action="store_true", help="Force reinstall even if already installed")
-        install_parser.add_argument(
-            "--no-clean", action="store_true", help="Skip cleaning build artifacts before installation"
-        )
+                setup_local_parser(cmd_parser)
 
-        # Status command
-        status_parser = subparsers.add_parser(
-            "status", help="Show installation and authentication status of all components"
-        )
-        status_parser.add_argument(
-            "--components", help="Comma-separated list of components to check (e.g., --components=aws,wandb,core)"
-        )
-        status_parser.add_argument(
-            "--non-interactive",
-            "-n",
-            action="store_true",
-            help="Non-interactive mode - prints actions instead of prompting",
-        )
+            # Special handling for configure --profile
+            if cmd_name == "configure":
+                available_preset_profiles = [u.value for u in list(PROFILE_DEFINITIONS.keys())]
+                cmd_parser.add_argument("--profile", choices=available_preset_profiles, help="Set user profile")
 
-        # Clean command
-        subparsers.add_parser("clean", help="Clean build artifacts and temporary files")
-        # Symlink setup command
-        symlink_parser = subparsers.add_parser(
-            "symlink-setup", help="Create symlink to make metta command globally available"
-        )
-        symlink_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
+        return parser
 
-        # Test commands
-        subparsers.add_parser("test", help="Run python unit tests")
-        subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
+    def main(self) -> None:
+        # Build parser from registry
+        parser = self._build_parser()
 
-        # Lint command
-        lint_parser = subparsers.add_parser("lint", help="Run linting and formatting")
-        lint_parser.add_argument(
-            "--fix",
-            action="store_true",
-            help="Apply fixes automatically. If not specified, just checks for issues.",
-        )
-        lint_parser.add_argument("--staged", action="store_true", help="Only lint staged files")
+        # Determine which commands support unknown args
+        pass_unknown_cmds = {cmd for cmd, cfg in COMMAND_REGISTRY.items() if cfg.pass_unknown_args}
 
-        # Tool command
-        tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
-        tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
+        # Use parse_known_args for commands that accept unknown args
+        if len(sys.argv) > 1 and sys.argv[1] in pass_unknown_cmds:
+            args, unknown_args = parser.parse_known_args()
+        else:
+            args = parser.parse_args()
+            unknown_args = []
 
-        # Shell command
-        subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
-
-        # Report Environment Details command
-        subparsers.add_parser(
-            "report-env-details", help="Report environment details including which UV project directory is being used"
-        )
-
-        # Local command
-        local_parser = subparsers.add_parser("local", help="Local development commands")
-        local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
-
-        # Local subcommands
-        local_subparsers.add_parser(
-            "build-policy-evaluator-img", help="Build local development policy evaluator Docker image"
-        )
-        local_subparsers.add_parser("build-app-backend-img", help="Build local development app_backend Docker image")
-
-        # Add load-policies command
-        local_subparsers.add_parser("load-policies", help="Load W&B artifacts as policies into stats database")
-
-        # Add kind command for Kubernetes local testing
-        kind_parser = local_subparsers.add_parser("kind", help="Manage Kind cluster for Kubernetes testing")
-        kind_subparsers = kind_parser.add_subparsers(dest="action", help="Kind actions")
-
-        # Add subcommands for kind
-        kind_subparsers.add_parser("build", help="Create Kind cluster and set up for Metta")
-        kind_subparsers.add_parser("up", help="Start orchestrator in Kind cluster")
-        kind_subparsers.add_parser("down", help="Stop orchestrator and worker pods")
-        kind_subparsers.add_parser("clean", help="Delete the Kind cluster")
-        kind_subparsers.add_parser("get-pods", help="Get list of pods in the cluster")
-
-        # Add logs subcommand with pod_name argument
-        logs_parser = kind_subparsers.add_parser("logs", help="Follow logs for a specific pod")
-        logs_parser.add_argument("pod_name", help="Name of the pod to get logs from")
-
-        # Add enter subcommand with pod_name argument
-        enter_parser = kind_subparsers.add_parser("enter", help="Enter a pod with an interactive shell")
-        enter_parser.add_argument("pod_name", help="Name of the pod to enter")
-
-        # Add observatory command
-        local_subparsers.add_parser("observatory", help="Launch Observatory frontend locally")
-
-        # Add clip command
-        clip_parser = subparsers.add_parser("clip", help="copy subsets of codebase for LLM contexts", add_help=False)
-        clip_parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments to pass to the clip tool")
-
-        # Store local_parser for help display
-        local_parser.set_defaults(local_parser=local_parser)
-
-        # Use parse_known_args to handle unknown arguments for test commands
-        args, unknown_args = parser.parse_known_args()
-
-        # Allow unknown args for certain commands
-        if (
-            args.command == "local"
-            and hasattr(args, "local_command")
-            and args.local_command in ["load-policies", "build-policy-evaluator-img", "observatory"]
-        ):
-            # These commands handle their own args
-            pass
-        elif args.command not in ["clip", "test", "test-changed", "tool"]:
-            if unknown_args:
-                parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
-
-        # Auto-run configure if no config exists and no command given
-        if not args.command and not self.config.config_path.exists():
-            info("No configuration found. Running setup wizard...\n")
-            self.setup_wizard()
-            return
-
-        # Check if configuration is required for this command
-        # Allow configure, symlink-setup, report-env-details, and local to run without config
-        if args.command not in ["configure", "symlink-setup", "report-env-details", "local"]:
+        # Handle no command
+        if not args.command:
             if not self.config.config_path.exists():
-                error("No configuration found. Please run 'metta configure' first.")
-                sys.exit(1)
-            elif self.config.config_version < CURRENT_CONFIG_VERSION:
-                # Old config format detected
-                warning(f"Your configuration is from an older version (v{self.config.config_version}).")
-                info("Please run 'metta configure' to update your configuration.")
-                sys.exit(1)
+                print("No configuration found. Running setup wizard...\n")
+                self.setup_wizard()
+                return
+            else:
+                parser.print_help()
+                return
+
+        # Check configuration requirements based on command registry
+        if args.command in COMMAND_REGISTRY:
+            cmd_config = COMMAND_REGISTRY[args.command]
+            if cmd_config.needs_config and args.command not in ["configure", "symlink-setup"]:
+                if not self.config.config_path.exists():
+                    print("Error: No configuration found. Please run 'metta configure' first.", file=sys.stderr)
+                    sys.exit(1)
+                else:
+                    from metta.setup.config import CURRENT_CONFIG_VERSION
+
+                    if self.config.config_version < CURRENT_CONFIG_VERSION:
+                        print(
+                            f"Warning: Your configuration is from an older version (v{self.config.config_version}).",
+                            file=sys.stderr,
+                        )
+                        print("Please run 'metta configure' to update your configuration.", file=sys.stderr)
+                        sys.exit(1)
 
         # Dispatch to command handler
-        if args.command == "configure":
-            self.cmd_configure(args)
-        elif args.command == "run":
-            self.cmd_run(args)
-        elif args.command == "install":
-            self.cmd_install(args)
-        elif args.command == "status":
-            self.cmd_status(args)
-        elif args.command == "clean":
-            self.cmd_clean(args, verbose=True)
-        elif args.command == "symlink-setup":
-            self.cmd_symlink_setup(args)
-        elif args.command == "test":
-            self.cmd_pytest(unknown_args)
-        elif args.command == "test-changed":
-            self.cmd_pytest(unknown_args + ["--testmon"])
-        elif args.command == "tool":
-            self.cmd_tool(args.tool_name, unknown_args)
-        elif args.command == "lint":
-            self.cmd_lint(args)
-        elif args.command == "shell":
-            self.cmd_shell()
-        elif args.command == "report-env-details":
-            self.cmd_report_env_details()
-        elif args.command == "clip":
-            self.cmd_clip(args)
-        elif args.command == "local":
-            self.cmd_local(args, unknown_args)
+        if args.command in COMMAND_REGISTRY:
+            cmd_config = COMMAND_REGISTRY[args.command]
+
+            # Initialize components if needed
+            if cmd_config.needs_components:
+                self._init_all()
+
+            # Handle subprocess commands
+            if cmd_config.subprocess_cmd:
+                self._run_subprocess_command(args.command, args, unknown_args)
+            # Handle method handlers
+            elif cmd_config.handler:
+                handler = getattr(self, cmd_config.handler)
+                # Always pass both args and unknown_args for consistency
+                handler(args, unknown_args)
+            else:
+                print(f"Error: Command {args.command} has no handler or subprocess_cmd", file=sys.stderr)
+                sys.exit(1)
         else:
             parser.print_help()
 
 
 def main():
+    # Quick check for commands that can use fast path
+    if len(sys.argv) > 1 and sys.argv[1] in COMMAND_REGISTRY:
+        cmd_config = COMMAND_REGISTRY[sys.argv[1]]
+
+        # Fast path for simple subprocess commands that don't need any setup
+        if cmd_config.subprocess_cmd and not cmd_config.needs_config and not cmd_config.needs_components:
+            # Direct execution without creating CLI instance
+            cmd = list(cmd_config.subprocess_cmd)
+
+            # For commands that pass unknown args, get all args after the command
+            if cmd_config.pass_unknown_args:
+                try:
+                    cmd_index = sys.argv.index(sys.argv[1])
+                    remaining_args = sys.argv[cmd_index + 1 :] if cmd_index + 1 < len(sys.argv) else []
+                    if remaining_args:
+                        cmd.extend(remaining_args)
+                except ValueError:
+                    pass
+
+            try:
+                subprocess.run(cmd, cwd=get_repo_root(), check=True)
+            except subprocess.CalledProcessError as e:
+                sys.exit(e.returncode)
+            except FileNotFoundError:
+                print(f"Command not found: {cmd[0]}", file=sys.stderr)
+                if sys.argv[1] == "clip":
+                    print("Run: metta install codeclip", file=sys.stderr)
+                sys.exit(1)
+            return
+
+    # All commands use the same initialization
     cli = MettaCLI()
     cli.main()
 

@@ -21,6 +21,11 @@ export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0]
 
+// GitHub constants - keep in sync with metta/common/src/metta/common/util/constants.py
+export const METTA_GITHUB_ORGANIZATION = 'Metta-AI'
+export const METTA_GITHUB_REPO = 'metta'
+export const METTA_GITHUB_PRIMARY_BRANCH = 'main'
+
 // Map constants
 export const TILE_SIZE = 200
 export const INVENTORY_PADDING = 16

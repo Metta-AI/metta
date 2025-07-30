@@ -22,17 +22,6 @@ class OptimizerConfig(BaseModelWithForbidExtra):
     weight_decay: float = Field(default=0, ge=0)
 
 
-class LRSchedulerConfig(BaseModelWithForbidExtra):
-    # LR scheduling disabled by default: Fixed LR often works well in RL
-    enabled: bool = False
-    # Annealing disabled: Common to use fixed LR for PPO
-    anneal_lr: bool = False
-    # No warmup by default: RL typically doesn't need warmup like supervised learning
-    warmup_steps: int | None = None
-    # Schedule type unset: Various options available when enabled
-    schedule_type: Literal["linear", "cosine", "exponential"] | None = None
-
-
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
     # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
@@ -145,7 +134,6 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Optimizer and scheduler
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
-    lr_scheduler: LRSchedulerConfig = Field(default_factory=LRSchedulerConfig)
 
     # Experience replay
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(

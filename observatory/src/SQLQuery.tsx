@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Repo, TableInfo, TableSchema, SQLQueryResponse } from './repo'
+import { AIQueryBuilder } from './AIQueryBuilder'
 
 interface QueryHistoryItem {
   query: string
@@ -477,11 +478,13 @@ export function SQLQuery({ repo }: Props) {
       query: queryText,
       timestamp: Date.now(),
       rowCount: result?.row_count,
-      error
+      error,
     }
 
-    const updatedHistory = [newItem, ...queryHistory.filter(item => item.query !== queryText)]
-      .slice(0, MAX_HISTORY_ITEMS)
+    const updatedHistory = [newItem, ...queryHistory.filter((item) => item.query !== queryText)].slice(
+      0,
+      MAX_HISTORY_ITEMS
+    )
 
     setQueryHistory(updatedHistory)
     try {
@@ -603,10 +606,7 @@ export function SQLQuery({ repo }: Props) {
             <div className="query-history-section">
               <h3>
                 Query History
-                <button
-                  className="btn clear-history-btn"
-                  onClick={clearHistory}
-                >
+                <button className="btn clear-history-btn" onClick={clearHistory}>
                   Clear
                 </button>
               </h3>
@@ -618,23 +618,12 @@ export function SQLQuery({ repo }: Props) {
                   const isToday = new Date().toDateString() === date.toDateString()
 
                   return (
-                    <li
-                      key={index}
-                      className="history-item"
-                      onClick={() => setQuery(item.query)}
-                      title={item.query}
-                    >
+                    <li key={index} className="history-item" onClick={() => setQuery(item.query)} title={item.query}>
                       <div className="history-query">{item.query}</div>
                       <div className="history-meta">
                         <span>{isToday ? timeStr : dateStr}</span>
                         <span className={`history-status ${item.error ? 'error' : 'success'}`}>
-                          {item.error ? (
-                            'Error'
-                          ) : item.rowCount !== undefined ? (
-                            `${item.rowCount} rows`
-                          ) : (
-                            ''
-                          )}
+                          {item.error ? 'Error' : item.rowCount !== undefined ? `${item.rowCount} rows` : ''}
                         </span>
                       </div>
                     </li>
@@ -668,6 +657,8 @@ export function SQLQuery({ repo }: Props) {
                 </div>
               </div>
             )}
+
+            <AIQueryBuilder repo={repo} onQueryGenerated={setQuery} />
 
             <div className="query-input-wrapper">
               <textarea
