@@ -48,7 +48,7 @@ public:
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
-    // Check if agent moved
+    // Check if agent moved in the last step - we check here to increment when frozen
     if (actor->location == actor->prev_location) {
       actor->stats.incr("status.stationary.ticks");
     } else {
