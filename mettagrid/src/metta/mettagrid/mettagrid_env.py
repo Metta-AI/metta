@@ -122,6 +122,28 @@ class MettaGridEnv(PufferEnv, GymEnv):
                     logger.info("Raylib renderer disabled in CI/Docker environment")
                     self._renderer = None
 
+    def _check_reward_termination(self) -> bool:
+        """Check if episode should terminate based on total reward threshold."""
+        if self._task.env_cfg().game.termination.max_reward:
+            # Check if any agent has reached the reward threshold
+            per_agent_rewards = self._c_env.get_episode_rewards()
+            termination_condition = self._task.env_cfg().game.termination.condition
+
+            if termination_condition == "any":
+                return any(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+            elif termination_condition == "all":
+                return all(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+            # percent of agents that got all the reward
+            elif isinstance(termination_condition, float):
+                return (
+                    sum(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+                    >= termination_condition * self._c_env.num_agents
+                )
+            else:
+                raise ValueError(f"Invalid termination condition: {termination_condition}")
+
+        return False
+
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
@@ -224,6 +246,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         with self.timer("_c_env.step"):
             self._c_env.step(actions)
             self._steps += 1
+
+        if self._check_reward_termination():
+            # Set all terminals to True to trigger episode termination
+            self.terminals.fill(True)
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
