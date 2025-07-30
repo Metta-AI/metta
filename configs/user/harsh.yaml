@@ -1,0 +1,51 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  # - override /env/mettagrid@env: simple
+  # - override /agent: non_robust_puffer
+  - _self_
+
+run: eval.metta.new
+run_dir: ${data_dir}/${run}
+
+
+policy_uri: pytorch://checkpoints/metta-new/metta.pt
+npc_policy_uri: null
+
+pytorch:
+ _target_: metta.agent.external.example.Recurrent
+ hidden_size: 512
+ cnn_channels: 128
+
+#run: andre_local_2025_05_26_a
+#policy_uri: wandb://run/andre_local_2025_05_26_a
+
+trainer:
+  checkpoint:
+    checkpoint_interval: 300
+    wandb_checkpoint_interval: 300
+  simulation:
+    evaluate_interval: 300
+    #env: /env/mettagrid/navigation/training/multienv
+  #initial_policy:
+  #  uri: pytorch://checkpoints/metta-example/model_019074.pt
+  #  #uri: pytorch://checkpoints/metta-example/model_019074.pt
+  #env: /env/mettagrid//training/multienv_nc
+
+replay_job:
+  sim:
+    env: /env/mettagrid/laser_tag
+
+eval:
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  eval_db_uri: ${run_dir}/stats.db
+
+analysis:
+  policy_uri: ${..policy_uri}
+  eval_db_uri: ${run_dir}/stats.db
+
+#run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: pytorch://checkpoints/metta-new/metta.pt
