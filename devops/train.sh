@@ -45,7 +45,7 @@ echo "  - Master port: $MASTER_PORT"
 echo "  - Node index: $NODE_INDEX"
 echo "  - Arguments: $args"
 
-echo "[INFO] Starting distributed training..."
+echo "[INFO] Starting training..."
 
 set +e
 PYTHONPATH=$PYTHONPATH:. uv run torchrun \
