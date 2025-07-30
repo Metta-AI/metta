@@ -158,6 +158,8 @@ def sample_task_factory():
             attributes={"git_hash": git_hash, "workers_spawned": workers_spawned},
             policy_name="test_policy",
             retries=retries if retries is not None else workers_spawned,
+            user_id=None,
+            updated_at=datetime.now(timezone.utc),
         )
 
     return create_task
@@ -307,6 +309,8 @@ class TestEvalTaskOrchestratorIntegration:
             attributes={},
             policy_name="test",
             retries=0,
+            user_id=None,
+            updated_at=datetime.now(timezone.utc),
         )
         mock_task_client.tasks[task.id] = task
 
@@ -593,6 +597,8 @@ class TestEvalTaskOrchestratorIntegration:
             attributes={},
             policy_name="test",
             retries=0,
+            user_id=None,
+            updated_at=datetime.now(timezone.utc),
         )
 
         for task in [timeout_task, new_task, spawn_task, no_hash_task]:

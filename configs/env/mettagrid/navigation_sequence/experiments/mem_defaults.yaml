@@ -9,7 +9,6 @@ defaults:
   - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
-sampling: 1
 labels:
   - memory
 game:
@@ -32,7 +31,7 @@ game:
       _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
       agents: 1
-      dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small,varied_terrain/maze_small}
+      dir: ???
       objects:
         mine_red: 5
         generator_red: 5
@@ -41,10 +40,10 @@ game:
     altar:
       input_resources:
         battery_red: 1
-      initial_resource_count: ${choose:0,0,0,1}
+      initial_resource_count: ???
       cooldown: 10
     generator_red:
-      initial_resource_count: ${choose:0,0,0,1}
+      initial_resource_count: ???
       cooldown: 10
     mine_red:
       cooldown: 10
