@@ -8,9 +8,8 @@ from typing import Optional
 import wandb
 from wandb.sdk import wandb_run
 
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)
@@ -83,7 +82,7 @@ def upload_map_preview(
     try:
         # If upload was successful, log the link to WandB
         if wandb_run:
-            player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={s3_path}"
+            player_url = f"https://metta-ai.github.io/metta/?replayUrl={s3_path}"
             link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Map Preview</a>')}
             wandb_run.log(link_summary)
             logger.info(f"Preview map available at: {player_url}")

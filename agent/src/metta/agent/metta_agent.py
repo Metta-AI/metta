@@ -15,7 +15,7 @@ from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.instantiate import instantiate
 
 if TYPE_CHECKING:
-    from metta.mettagrid import MettaGridEnv
+    from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
 

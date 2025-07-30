@@ -5,7 +5,7 @@ from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.mettagrid import MettaGridEnv
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
 
 

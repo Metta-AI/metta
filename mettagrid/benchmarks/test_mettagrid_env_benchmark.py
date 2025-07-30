@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
-from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.mettagrid.util.hydra import get_cfg
 

@@ -12,7 +12,7 @@ import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent
-from metta.mettagrid import MettaGridEnv
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 if TYPE_CHECKING:
     from .environment import Environment
