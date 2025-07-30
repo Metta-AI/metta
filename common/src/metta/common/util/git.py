@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 
+from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from metta.common.util.memoization import memoize
 
 
@@ -12,7 +13,7 @@ class GitError(Exception):
     """Custom exception for git-related errors."""
 
 
-METTA_API_REPO = "Metta-AI/metta"
+METTA_API_REPO = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
 METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
 
 
@@ -143,7 +144,7 @@ def is_metta_ai_repo() -> bool:
     remote_url = get_remote_url()
     if not remote_url:
         return False
-    return remote_url in ("git@github.com:Metta-AI/metta.git", "https://github.com/Metta-AI/metta.git")
+    return remote_url in (f"git@github.com:{METTA_API_REPO}.git", f"https://github.com/{METTA_API_REPO}.git")
 
 
 def get_git_hash_for_remote_task(

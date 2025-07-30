@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
-# Minimal imports needed for all commands
+# Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
+from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
 
 # Type hints only
 if TYPE_CHECKING:
@@ -66,34 +67,6 @@ def _setup_tool_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("tool_name", help="Name of the tool to run")
 
 
-def _setup_local_parser(parser: argparse.ArgumentParser) -> None:
-    """Setup local subcommands."""
-    local_subparsers = parser.add_subparsers(dest="local_command", help="Available local commands")
-    local_subparsers.add_parser("build-policy-evaluator-img", help="Build policy evaluator Docker image")
-    local_subparsers.add_parser("build-app-backend-img", help="Build app backend Docker image")
-    local_subparsers.add_parser("load-policies", help="Load W&B artifacts as policies")
-    local_subparsers.add_parser("stats-server", help="Launch Stats Server")
-    local_subparsers.add_parser("observatory", help="Launch Observatory")
-
-    # Kind subcommand
-    kind_parser = local_subparsers.add_parser("kind", help="Manage Kind cluster")
-    kind_subparsers = kind_parser.add_subparsers(dest="action", help="Kind actions")
-    kind_subparsers.add_parser("build", help="Create Kind cluster")
-    kind_subparsers.add_parser("up", help="Start orchestrator")
-    kind_subparsers.add_parser("down", help="Stop orchestrator")
-    kind_subparsers.add_parser("clean", help="Delete cluster")
-    kind_subparsers.add_parser("get-pods", help="List pods")
-
-    logs_parser = kind_subparsers.add_parser("logs", help="Follow pod logs")
-    logs_parser.add_argument("pod_name", help="Pod name")
-
-    enter_parser = kind_subparsers.add_parser("enter", help="Enter pod shell")
-    enter_parser.add_argument("pod_name", help="Pod name")
-
-    # Store parser for help display
-    parser.set_defaults(local_parser=parser)
-
-
 # Command registry with all command definitions
 COMMAND_REGISTRY: Dict[str, CommandConfig] = {
     # Simple subprocess commands
@@ -143,7 +116,8 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         handler="cmd_local",
         needs_config=True,
         pass_unknown_args=True,
-        parser_setup=_setup_local_parser,
+        add_help=False,  # Let LocalCommands handle its own help
+        parser_setup=None,
     ),
     "symlink-setup": CommandConfig(
         help="Create symlink to make metta command globally available",
@@ -277,7 +251,6 @@ class MettaCLI:
             info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
-        from metta.setup.config import PROFILE_DEFINITIONS, UserType
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import info, prompt_choice, success
 
@@ -314,11 +287,10 @@ class MettaCLI:
         success("\nCustom configuration saved.")
         info("\nRun 'metta install' to set up your environment.")
 
-    def cmd_configure(self, args) -> None:
+    def cmd_configure(self, args, unknown_args=None) -> None:
         if args.component:
             self.configure_component(args.component)
         elif args.profile:
-            from metta.setup.config import PROFILE_DEFINITIONS, UserType
             from metta.setup.utils import error, info, success
 
             selected_user_type = UserType(args.profile)
@@ -365,7 +337,7 @@ class MettaCLI:
         # Run the component's command
         module.run(args.args)
 
-    def cmd_install(self, args) -> None:
+    def cmd_install(self, args, unknown_args=None) -> None:
         from metta.setup.registry import get_all_modules, get_applicable_modules
         from metta.setup.utils import error, info, success, warning
 
@@ -423,7 +395,7 @@ class MettaCLI:
 
         success("Installation complete!")
 
-    def cmd_clean(self, args, verbose: bool = False) -> None:
+    def cmd_clean(self, args, unknown_args=None, verbose: bool = False) -> None:
         from metta.setup.utils import info, warning
 
         build_dir = self.repo_root / "build"
@@ -455,7 +427,7 @@ class MettaCLI:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_symlink_setup(self, args) -> None:
+    def cmd_symlink_setup(self, args, unknown_args=None) -> None:
         self.path_setup.setup_path(force=args.force)
 
     def _run_subprocess_command(self, command: str, args, unknown_args=None) -> None:
@@ -491,34 +463,14 @@ class MettaCLI:
                 print("Run: metta install codeclip", file=sys.stderr)
             sys.exit(1)
 
-    def cmd_report_env_details(self, args) -> None:
+    def cmd_report_env_details(self, args, unknown_args=None) -> None:
         print(f"UV Project Directory: {self.repo_root}")
         print(f"Metta CLI Working Directory: {Path.cwd()}")
 
     def cmd_local(self, args, unknown_args=None) -> None:
-        from metta.setup.utils import error
+        self.local_commands.main(unknown_args)
 
-        if hasattr(args, "local_command") and args.local_command:
-            if args.local_command == "build-policy-evaluator-img":
-                self.local_commands.build_policy_evaluator_img(build_args=unknown_args)
-            elif args.local_command == "build-app-backend-img":
-                self.local_commands.build_app_backend_img()
-            elif args.local_command == "load-policies":
-                self.local_commands.load_policies(unknown_args or [])
-            elif args.local_command == "kind":
-                self.local_commands.kind(args)
-            elif args.local_command == "observatory":
-                self.local_commands.observatory(args, unknown_args or [])
-            elif args.local_command == "stats-server":
-                self.local_commands.stats_server(args, unknown_args or [])
-            else:
-                error(f"Unknown local command: {args.local_command}")
-                sys.exit(1)
-        else:
-            # Show help for local subcommand
-            args.local_parser.print_help()
-
-    def cmd_lint(self, args) -> None:
+    def cmd_lint(self, args, unknown_args=None) -> None:
         files = []
         if args.staged:
             result = subprocess.run(
@@ -568,7 +520,7 @@ class MettaCLI:
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
 
-    def cmd_status(self, args) -> None:
+    def cmd_status(self, args, unknown_args=None) -> None:
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info, success, warning
 
@@ -754,6 +706,8 @@ Examples:
   metta tool train run=test            # Run train.py tool with arguments
   metta tool sim policy_uri=...        # Run sim.py tool with arguments
   metta clip -e py metta               # Copy Python files to clipboard
+
+  metta local ...                      # Commands for local development
             """,
         )
 
@@ -766,12 +720,13 @@ Examples:
             # Apply parser setup if provided
             if cmd_config.parser_setup:
                 cmd_config.parser_setup(cmd_parser)
+            elif cmd_name == "local":
+                from metta.setup.local_commands import setup_local_parser
+
+                setup_local_parser(cmd_parser)
 
             # Special handling for configure --profile
             if cmd_name == "configure":
-                # Import PROFILE_DEFINITIONS locally
-                from metta.setup.config import PROFILE_DEFINITIONS
-
                 available_preset_profiles = [u.value for u in list(PROFILE_DEFINITIONS.keys())]
                 cmd_parser.add_argument("--profile", choices=available_preset_profiles, help="Set user profile")
 
@@ -833,11 +788,8 @@ Examples:
             # Handle method handlers
             elif cmd_config.handler:
                 handler = getattr(self, cmd_config.handler)
-
-                if cmd_config.pass_unknown_args:
-                    handler(args, unknown_args)
-                else:
-                    handler(args)
+                # Always pass both args and unknown_args for consistency
+                handler(args, unknown_args)
             else:
                 print(f"Error: Command {args.command} has no handler or subprocess_cmd", file=sys.stderr)
                 sys.exit(1)

@@ -3,9 +3,8 @@ env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_def
 
 buckets:
   game.map_builder.room.dir:
-    values:
-      - varied_terrain/dense_large
-      - varied_terrain/dense_medium
-      - varied_terrain/dense_small
+    - varied_terrain/dense_large
+    - varied_terrain/dense_medium
+    - varied_terrain/dense_small
   game.map_builder.room.objects.altar:
     range: [3, 50]
