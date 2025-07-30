@@ -395,10 +395,9 @@ def train(
                     )
 
             # All ranks must synchronize after checkpoint operations
+            # This barrier must be outside the if saved_record block so all ranks hit it
             if torch.distributed.is_initialized():
-                logger.info(f"Rank {rank}: Entering post-checkpoint barrier")
                 torch.distributed.barrier()
-                logger.info(f"Rank {rank}: Exited post-checkpoint barrier")
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):

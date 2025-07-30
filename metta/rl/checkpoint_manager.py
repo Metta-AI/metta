@@ -196,10 +196,6 @@ class CheckpointManager:
         # Cleanup old policies
         cleanup_old_policies(self.checkpoint_dir)
 
-        # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
         return True
 
     def save_policy(
@@ -315,10 +311,7 @@ class CheckpointManager:
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
-            rank = torch.distributed.get_rank()
-            logger.info(f"Rank {rank}: Master entering barrier after policy save")
             torch.distributed.barrier()
-            logger.info(f"Rank {rank}: Master passed barrier after policy save")
 
         return saved_policy_record
 
