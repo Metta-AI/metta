@@ -1,26 +1,18 @@
 #!/usr/bin/env -S uv run
 import argparse
 import logging
-import os
-import signal
 from typing import cast, get_args
 
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.utils.show import ShowMode, show_map
-from metta.util.resolvers import register_resolvers
-from tools.map.gen import map_builder_cfg_to_storable_map
-
-# Aggressively exit on ctrl+c
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+from metta.map.utils.storable_map import StorableMap
+from metta.util.metta_script import hydraless_metta_script
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | None = None):
-    register_resolvers()
-
     cfg: DictConfig = cast(DictConfig, OmegaConf.merge(OmegaConf.load(cfg_path), overrides))
 
     if not OmegaConf.is_dict(cfg):
@@ -37,7 +29,7 @@ def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | Non
         }
     )
 
-    return map_builder_cfg_to_storable_map(mapgen_cfg, recursive=False)
+    return StorableMap.from_cfg(mapgen_cfg)
 
 
 def main():
@@ -62,5 +54,4 @@ def main():
     show_map(storable_map, show_mode)
 
 
-if __name__ == "__main__":
-    main()
+hydraless_metta_script(main)

@@ -1,12 +1,10 @@
-
-_target_: mettagrid.curriculum.RandomCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/curriculum/simple: 5
-  /env/mettagrid/curriculum/navigation: 3
+  /env/mettagrid/curriculum/arena/learning_progress: 5
+  /env/mettagrid/curriculum/navigation/learning_progress: 3
   /env/mettagrid/curriculum/object_use: 2
 
 env_overrides:
   game:
     num_agents: 24
-

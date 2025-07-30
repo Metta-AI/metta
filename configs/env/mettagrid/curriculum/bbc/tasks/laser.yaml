@@ -1,0 +1,13 @@
+# BBC Learning Progress Curriculum
+
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/arena/combat
+
+buckets:
+  game.objects.lasery.input_resources.ore_red: [0, 1, 2]
+  game.objects.lasery.input_resources.battery_red: [0, 1, 2]
+  game.agent.rewards.inventory.laser: [0, 1]
+
+  # game.map_builder.width: [5, 10, 25]
+  # game.map_builder.height: [5, 10, 25]

@@ -8,13 +8,12 @@ defaults:
   - _self_
 
 run: eval.metta.new
-data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 
-policy_uri: puffer://checkpoints/metta-new/metta.pt
+policy_uri: pytorch://checkpoints/metta-new/metta.pt
 npc_policy_uri: null
 
-puffer:
+pytorch:
  _target_: metta.agent.external.example.Recurrent
  hidden_size: 512
  cnn_channels: 128
@@ -23,12 +22,15 @@ puffer:
 #policy_uri: wandb://run/andre_local_2025_05_26_a
 
 trainer:
-  checkpoint_interval: 100
-  evaluate_interval: 100
+  checkpoint:
+    checkpoint_interval: 300
+    wandb_checkpoint_interval: 300
+  simulation:
+    evaluate_interval: 300
     #env: /env/mettagrid/navigation/training/multienv
   #initial_policy:
-  #  uri: puffer://checkpoints/metta-example/model_019074.pt
-  #  #uri: puffer://checkpoints/metta-example/model_019074.pt
+  #  uri: pytorch://checkpoints/metta-example/model_019074.pt
+  #  #uri: pytorch://checkpoints/metta-example/model_019074.pt
   #env: /env/mettagrid//training/multienv_nc
 
 replay_job:
@@ -45,4 +47,4 @@ analysis:
   eval_db_uri: ${run_dir}/stats.db
 
 #run: ${oc.env:USER}.local.${run_id}
-trained_policy_uri: puffer://checkpoints/metta-new/metta.pt
+trained_policy_uri: pytorch://checkpoints/metta-new/metta.pt

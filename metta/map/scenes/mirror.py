@@ -1,49 +1,119 @@
 from typing import Literal
 
-from metta.map.scene import Scene, make_scene
-from metta.map.types import SceneCfg
-from metta.util.config import Config
+from pydantic import ConfigDict, Field
+
+from metta.common.util.config import Config
+from metta.map.scene import Scene
+from metta.map.types import AreaWhere, ChildrenAction, SceneCfg
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 
 
 class MirrorParams(Config):
-    scene: SceneCfg
+    scene: SceneCfg = Field(exclude=True)
     symmetry: Symmetry = "horizontal"
 
 
+class InnerMirrorParams(Config):
+    scene: SceneCfg = Field(exclude=True)
+
+
 class Mirror(Scene[MirrorParams]):
+    def get_children(self) -> list[ChildrenAction]:
+        symmetry_to_child_class = {
+            "horizontal": HorizontalMirror,
+            "vertical": VerticalMirror,
+            "x4": X4Mirror,
+        }
+        params = InnerMirrorParams(scene=self.params.scene)
+
+        return [
+            ChildrenAction(
+                scene=symmetry_to_child_class[self.params.symmetry].factory(params),
+                where="full",
+            ),
+        ]
+
     def render(self):
-        symmetry = self.params.symmetry
-        scene = self.params.scene
+        pass
 
-        if symmetry == "horizontal":
-            left_width = (self.width + 1) // 2  # take half, plus one for odd width
-            left_grid = self.grid[:, :left_width]
-            child_scene = make_scene(scene, left_grid)
-            child_scene.render_with_children()
 
-            self.grid[:, self.width - left_width :] = child_scene.grid[:, ::-1]
+class HorizontalMirror(Scene[InnerMirrorParams]):
+    def get_children(self) -> list[ChildrenAction]:
+        return [
+            ChildrenAction(
+                scene=self.params.scene,
+                where=AreaWhere(tags=["original"]),
+            ),
+            ChildrenAction(
+                scene=Mirrored.factory(params={"parent": self, "flip_x": True}),
+                where=AreaWhere(tags=["mirrored"]),
+            ),
+        ]
 
-        elif symmetry == "vertical":
-            top_height = (self.height + 1) // 2  # take half, plus one for odd width
-            top_grid = self.grid[:top_height, :]
-            child_scene = make_scene(scene, top_grid)
-            child_scene.render_with_children()
+    def render(self):
+        left_width = (self.width + 1) // 2  # take half, plus one for odd width
+        self._original_mirror_area = self.make_area(0, 0, left_width, self.height, tags=["original"])
+        self.make_area(left_width, 0, self.width - left_width, self.height, tags=["mirrored"])
 
-            self.grid[self.height - top_height :, :] = child_scene.grid[::-1, :]
 
-        elif symmetry == "x4":
-            # fill top left quadrant
-            sub_width = (self.width + 1) // 2  # take half, plus one for odd width
-            sub_height = (self.height + 1) // 2  # take half, plus one for odd width
+class VerticalMirror(Scene[InnerMirrorParams]):
+    def get_children(self) -> list[ChildrenAction]:
+        return [
+            ChildrenAction(
+                scene=self.params.scene,
+                where=AreaWhere(tags=["original"]),
+            ),
+            ChildrenAction(
+                scene=Mirrored.factory(params={"parent": self, "flip_y": True}),
+                where=AreaWhere(tags=["mirrored"]),
+            ),
+        ]
 
-            sub_grid = self.grid[:sub_height, :sub_width]
-            child_scene = make_scene(scene, sub_grid)
-            child_scene.render_with_children()
+    def render(self):
+        top_height = (self.height + 1) // 2  # take half, plus one for odd width
+        self._original_mirror_area = self.make_area(0, 0, self.width, top_height, tags=["original"])
+        self.make_area(0, top_height, self.width, self.height - top_height, tags=["mirrored"])
 
-            # reflect to the right
-            self.grid[:sub_height, self.width - sub_width :] = child_scene.grid[:, ::-1]
 
-            # reflect to the bottom
-            self.grid[self.height - sub_height :, :] = self.grid[:sub_height, :][::-1, :]
+class X4Mirror(Scene[InnerMirrorParams]):
+    def get_children(self) -> list[ChildrenAction]:
+        return [
+            ChildrenAction(scene=self.params.scene, where=AreaWhere(tags=["original"])),
+            ChildrenAction(
+                scene=Mirrored.factory(params={"parent": self, "flip_x": True}),
+                where=AreaWhere(tags=["mirrored_x"]),
+            ),
+            ChildrenAction(
+                scene=Mirrored.factory(params={"parent": self, "flip_y": True}),
+                where=AreaWhere(tags=["mirrored_y"]),
+            ),
+            ChildrenAction(
+                scene=Mirrored.factory(params={"parent": self, "flip_x": True, "flip_y": True}),
+                where=AreaWhere(tags=["mirrored_xy"]),
+            ),
+        ]
+
+    def render(self):
+        sub_width = (self.width + 1) // 2  # take half, plus one for odd width
+        sub_height = (self.height + 1) // 2  # take half, plus one for odd width
+        self._original_mirror_area = self.make_area(0, 0, sub_width, sub_height, tags=["original"])
+        self.make_area(sub_width, 0, self.width - sub_width, sub_height, tags=["mirrored_x"])
+        self.make_area(0, sub_height, sub_width, self.height - sub_height, tags=["mirrored_y"])
+        self.make_area(sub_width, sub_height, self.width - sub_width, self.height - sub_height, tags=["mirrored_xy"])
+
+
+class MirroredParams(Config):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    parent: VerticalMirror | HorizontalMirror | X4Mirror = Field(exclude=True)
+    flip_x: bool = False
+    flip_y: bool = False
+
+
+class Mirrored(Scene[MirroredParams]):
+    def render(self):
+        original_grid = self.params.parent._original_mirror_area.grid
+        slice_x = slice(self.width - 1, None, -1) if self.params.flip_x else slice(self.width)
+        slice_y = slice(self.height - 1, None, -1) if self.params.flip_y else slice(self.height)
+
+        self.grid[:] = original_grid[slice_y, slice_x]

@@ -404,7 +404,8 @@ for COMMIT in $COMMITS; do
     --timeout-minutes=30 \
     --skip-validation \
     --skip-push-check \
-    trainer.env=env/mettagrid/simple
+    --force \
+    trainer.env=env/mettagrid/arena/advanced
 
   # Log job details
   echo "Job submitted for commit: $COMMIT_SHORT" | tee -a "$LOG_FILE"

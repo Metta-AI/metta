@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)",
+      "Bash(./build_with_bazel.sh:*)",
+      "Bash(cat:*)",
+      "Bash(pytest:*)",
+      "Bash(./devops/test_uv_setup.sh:*)",
+      "Bash(rm:*)",
+      "WebFetch(domain:docs.astral.sh)",
+      "Bash(ruff check:*)",
+      "Bash(metta configure:*)",
+      "Bash(metta status:*)",
+      "Bash(metta install:*)",
+      "Bash(metta test:*)",
+      "Bash(./install.sh:*)"
+    ],
+    "deny": []
+  }
+}

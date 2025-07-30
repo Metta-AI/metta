@@ -42,7 +42,7 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 
 components:
   _obs_:
-    _target_: metta.agent.lib.obs_shaper.ObsShaper
+    _target_: metta.agent.lib.obs_token_to_boxshaper.ObsTokenToBoxShaper
     sources:
       null
 
@@ -151,7 +151,6 @@ components:
       - name: _core_
     nonlinearity: nn.Tanh
     analyze_weights: true
-    l2_norm_scale: 0 # turn off l2 norm loss for this layer
     l2_init_scale: 1.5 # increase l2 init loss by 50% for this layer
     clip_scale: 1.0
     initialization: xavier

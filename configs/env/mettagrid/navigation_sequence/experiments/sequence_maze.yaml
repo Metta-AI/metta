@@ -1,8 +1,8 @@
 defaults:
-  - /env/mettagrid/navigation_sequence/training/sequence_defaults@
+  - /env/mettagrid/navigation_sequence/experiments/sequence_defaults@
   - _self_
 
 game:
   map_builder:
     room:
-      style: maze
+      dir: ${choose:varied_terrain/maze_small,varied_terrain/maze_medium,varied_terrain/maze_large}

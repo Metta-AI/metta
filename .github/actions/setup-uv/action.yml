@@ -1,5 +1,10 @@
 name: "Setup uv"
 description: "Set up uv and activate the environment"
+inputs:
+  install-mode:
+    description: "Installation mode: 'full' (default), 'testing', 'minimal', or 'linting'"
+    required: false
+    default: "full"
 
 runs:
   using: "composite"
@@ -9,11 +14,41 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
+        cache-local-path: "${{ github.workspace }}/.uv-cache"
+        prune-cache: true
+        cache-suffix: "${{ inputs.install-mode }}-${{ hashFiles('.github/actions/setup-uv/action.yml') }}"
+      env:
+        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
 
     - name: Create virtual environment with uv
       shell: bash
+      env:
+        UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
       run: |
         uv venv
-        uv sync
+
+        # Export environment variables
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+
+        # Handle different installation modes
+        case "${{ inputs.install-mode }}" in
+
+          "minimal")
+            # don't install any packages
+            ;;
+
+          "testing")
+            uv sync --no-default-groups
+            uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
+            ;;
+
+          "linting")
+            uv pip install ruff cpplint
+            ;;
+
+          "full"|*)
+            uv sync
+            ;;
+
+        esac

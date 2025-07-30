@@ -3,7 +3,7 @@
 defaults:
   - _self_
 
-run_id: 1
+run_id: 2
 run: ${oc.env:USER}.local.${run_id}
 
 policy_uri: wandb://run/${run}
@@ -12,10 +12,10 @@ eval:
   num_episodes: 16
   max_time_s: 600
   policy_uri: ${..policy_uri}
-  env: /env/mettagrid/school
+  env: /env/mettagrid/arena/advanced
 
 trainer:
-  env: /env/mettagrid/school
+  env: /env/mettagrid/arena/advanced
   total_timesteps: 1000000
 
   # env_overrides:

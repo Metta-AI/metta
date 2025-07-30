@@ -39,28 +39,25 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
       with:
-        python-version: "3.x"
+        version: "0.7.3"
+        enable-cache: true
 
     - name: Assign and request reviews for PR
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        POSSIBLE_ASSIGNEES: ${{ inputs.possible-assignees }}
+        POSSIBLE_REVIEWERS: ${{ inputs.possible-reviewers }}
+        FORCED_ASSIGNEES: ${{ inputs.forced-assignees }}
+        FORCED_REVIEWERS: ${{ inputs.forced-reviewers }}
+        FORCED_LABELS: ${{ inputs.forced-labels }}
+        CLEAR_EXISTING_ASSIGNEES: ${{ inputs.clear-existing-assignees }}
+        CLEAR_EXISTING_REVIEWERS: ${{ inputs.clear-existing-reviewers }}
+        CLEAR_EXISTING_LABELS: ${{ inputs.clear-existing-labels }}
       run: |
-        # Make the script executable
-        chmod +x ${{ github.action_path }}/run.py
-
-        # Execute the PR assignment script
-        python3 ${{ github.action_path }}/run.py \
-          "${{ inputs.pr-number }}" \
-          "${{ inputs.possible-assignees }}" \
-          "${{ inputs.possible-reviewers }}" \
-          "${{ inputs.forced-assignees }}" \
-          "${{ inputs.forced-reviewers }}" \
-          "${{ inputs.forced-labels }}" \
-          "${{ inputs.clear-existing-assignees }}" \
-          "${{ inputs.clear-existing-reviewers }}" \
-          "${{ inputs.clear-existing-labels }}"
+        uv run ${{ github.action_path }}/pr_assignment.py

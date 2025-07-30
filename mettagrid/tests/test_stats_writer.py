@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from mettagrid.episode_stats_db import EpisodeStatsDB
-from mettagrid.stats_writer import StatsWriter
+from metta.mettagrid.episode_stats_db import EpisodeStatsDB
+from metta.mettagrid.stats_writer import StatsWriter
 
 
 @pytest.fixture

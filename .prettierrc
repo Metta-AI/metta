@@ -1,51 +1,59 @@
 {
+  "trailingComma": "es5",
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 120,
   "overrides": [
-  {
-    "files": ["*.yml", "*.yaml"],
-    "options": {
-      "parser": "yaml",
-      "singleQuote": false,
-      "printWidth": 100,
-      "tabWidth": 2,
-      "useTabs": false,
-      "trailingComma": "none",
-      "bracketSpacing": true,
-      "proseWrap": "preserve",
-      "endOfLine": "lf",
-      "arrowParens": "avoid"
+    {
+      "files": [".vscode/*.json", "*.code-workspace"],
+      "options": {
+        "parser": "jsonc"
+      }
+    },
+    {
+      "files": ["turbo.jsonc"],
+      "options": {
+        "parser": "jsonc",
+        "trailingComma": "none"
+      }
+    },
+    {
+      "files": ["*.yml", "*.yaml"],
+      "options": {
+        "parser": "yaml",
+        "printWidth": 100,
+        "singleQuote": false
+      }
+    },
+    {
+      "files": ["*.sh"],
+      "options": {
+        "parser": "sh",
+        "plugins": ["prettier-plugin-sh"],
+        "printWidth": 100,
+        "singleQuote": true,
+        "functionNextLine": false,
+        "switchCaseIndent": true,
+        "spaceRedirects": true
+      }
+    },
+    {
+      "files": ["*.toml"],
+      "options": {
+        "parser": "toml",
+        "plugins": ["prettier-plugin-toml"],
+        "printWidth": 100,
+        "singleQuote": true
+      }
+    },
+    {
+      "files": ["*.md"],
+      "options": {
+        "parser": "markdown",
+        "printWidth": 120,
+        "proseWrap": "always",
+        "tabWidth": 2
+      }
     }
-  },
-  {
-    "files": ["*.sh"],
-    "options": {
-      "parser": "sh",
-      "plugins": ["prettier-plugin-sh"],
-      "printWidth": 100,
-      "tabWidth": 2,
-      "useTabs": false,
-      "singleQuote": true,
-      "bracketSpacing": true,
-      "endOfLine": "lf",
-      "indent": 2,
-      "keepComments": true,
-      "keepPadding": false,
-      "functionNextLine": false,
-      "switchCaseIndent": true,
-      "spaceRedirects": true
-    }
-  },
-  {
-    "files": ["*.toml"],
-    "options": {
-      "parser": "toml",
-      "plugins": ["prettier-plugin-toml"],
-      "printWidth": 100,
-      "tabWidth": 2,
-      "useTabs": false,
-      "singleQuote": true,
-      "bracketSpacing": true,
-      "endOfLine": "lf"
-    }
-  }
   ]
- }
+}

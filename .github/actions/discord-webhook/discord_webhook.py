@@ -1,18 +1,26 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "requests>=2.31.0",
+# ]
+# ///
 """Discord webhook posting utility with automatic message splitting."""
 
 import os
 import sys
 import time
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any
 
 import requests
 
 DISCORD_MESSAGE_CHARACTER_LIMIT = 2000
 RATE_LIMIT_DELAY = 0.5  # Delay between messages to avoid rate limiting
+MESSAGE_PREFIX = "...\r\n   \r\n"  # Prefix added to each chunk
 
 
-def split_content(content: str, max_len: int = DISCORD_MESSAGE_CHARACTER_LIMIT) -> List[str]:
+def split_content(content: str, max_len: int = DISCORD_MESSAGE_CHARACTER_LIMIT) -> list[str]:
     """Split content into chunks that fit Discord's message limit.
 
     Attempts to split at natural boundaries (paragraphs, lines, words) to maintain readability.
@@ -20,7 +28,7 @@ def split_content(content: str, max_len: int = DISCORD_MESSAGE_CHARACTER_LIMIT) 
     if not content:
         return []
 
-    chunks: List[str] = []
+    chunks: list[str] = []
     remaining_content = content.strip()
 
     while remaining_content:
@@ -85,7 +93,10 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
     # Sanitize content before splitting
     content = sanitize_discord_content(content)
 
-    chunks = split_content(content)
+    # Calculate effective max length accounting for prefix
+    effective_max_len = DISCORD_MESSAGE_CHARACTER_LIMIT - len(MESSAGE_PREFIX)
+
+    chunks = split_content(content, max_len=effective_max_len)
 
     if not chunks:
         print("No content to send to Discord.")
@@ -94,7 +105,18 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
     print(f"Splitting message into {len(chunks)} chunk(s)...")
 
     for i, chunk in enumerate(chunks):
-        payload: Dict[str, Any] = {"content": chunk}
+        # Prefix each chunk
+        prefixed_chunk = MESSAGE_PREFIX + chunk
+
+        # Safety check: ensure we don't exceed Discord's limit
+        if len(prefixed_chunk) > DISCORD_MESSAGE_CHARACTER_LIMIT:
+            print(f"Warning: Chunk {i + 1} exceeds Discord limit after prefix. Truncating...", file=sys.stderr)
+            # Truncate to fit
+            max_chunk_len = DISCORD_MESSAGE_CHARACTER_LIMIT - len(MESSAGE_PREFIX)
+            chunk = chunk[:max_chunk_len]
+            prefixed_chunk = MESSAGE_PREFIX + chunk
+
+        payload: dict[str, Any] = {"content": prefixed_chunk}
         if suppress_embeds:
             payload["flags"] = 4  # SUPPRESS_EMBEDS flag
 
@@ -123,18 +145,45 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
     return True
 
 
+def get_content() -> str:
+    """Get content from either direct input or file."""
+    # Try direct content first
+    content = os.getenv("DISCORD_CONTENT")
+    if content:
+        return content
+
+    # Try content file
+    content_file = os.getenv("DISCORD_CONTENT_FILE")
+    if content_file:
+        content_path = Path(content_file)
+        if content_path.exists():
+            try:
+                return content_path.read_text(encoding="utf-8")
+            except Exception as e:
+                print(f"Error reading content file '{content_file}': {e}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            print(f"Error: Content file '{content_file}' does not exist", file=sys.stderr)
+            sys.exit(1)
+
+    print("Error: Neither DISCORD_CONTENT nor DISCORD_CONTENT_FILE provided", file=sys.stderr)
+    sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the Discord posting action."""
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-    content = os.getenv("DISCORD_CONTENT")
     suppress_embeds = os.getenv("DISCORD_SUPPRESS_EMBEDS", "true").lower() == "true"
 
     if not webhook_url:
         print("Error: DISCORD_WEBHOOK_URL not provided", file=sys.stderr)
         sys.exit(1)
 
-    if not content:
-        print("Error: DISCORD_CONTENT not provided", file=sys.stderr)
+    # Get content from either direct input or file
+    content = get_content()
+
+    if not content.strip():
+        print("Error: Content is empty", file=sys.stderr)
         sys.exit(1)
 
     # Validate webhook URL format

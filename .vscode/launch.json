@@ -1,132 +1,197 @@
 {
-    "version": "0.2.0",
-    // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
-    "configurations": [
-        {
-            "name": "Train Metta",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.train",
-            "args": [
-                "+hardware=macbook",
-                "+user=${env:USER}"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Sweep: Init",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.sweep_init",
-            "args": [
-                "+hardware=macbook",
-                "+user=${env:USER}",
-                "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Sweep: Eval",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.sweep_eval",
-            "args": [
-                "+hardware=macbook",
-                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
-                "+user=${env:USER}"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Sweep: Train",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.train",
-            "args": [
-                "+hardware=macbook",
-                "+user=${env:USER}",
-                "data_dir=./train_dir/sweep/${sweep_name}/runs",
-                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Evaluate",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.sim",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook",
-                "cmd=sim"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Dashboard",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.dashboard",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Analyze",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.analyze",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook",
-                "cmd=analyze"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Generate Replay",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.replay",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Play Metta",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "tools.play",
-            "args": [
-                "+user=${env:USER}",
-                "+hardware=macbook"
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "Test",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "-v",
-                "-s",
-                "./tests",
-            ],
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
-            "name": "MettaGridTest",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [],
-            "cwd": "${workspaceFolder}/mettagrid",
-            "preLaunchTask": "${defaultBuildTask}"
-        }
-    ]
+  "version": "0.2.0",
+  // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
+  "configurations": [
+    {
+      "name": "Train Metta",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.train",
+      "args": [
+        "+hardware=macbook",
+        "+user=${env:USER}"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Sweep: Init",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.sweep_init",
+      "args": [
+        "+hardware=macbook",
+        "+user=${env:USER}",
+        "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Sweep: Eval",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.sweep_eval",
+      "args": [
+        "+hardware=macbook",
+        "+user=${env:USER}",
+        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Sweep: Train",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.train",
+      "args": [
+        "+hardware=macbook",
+        "+user=${env:USER}",
+        "data_dir=./train_dir/sweep/${sweep_name}/runs",
+        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Evaluate",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.sim",
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook",
+        "cmd=sim"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Dashboard",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.dashboard",
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Analyze",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.analyze",
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook",
+        "cmd=analyze"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Generate Replay",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.replay",
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Play Metta",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tools.play",
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Test",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "-v",
+        "-s",
+        "./tests"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "MettaGridTest",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [],
+      "cwd": "${workspaceFolder}/mettagrid",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}"
+    }
+  ]
 }

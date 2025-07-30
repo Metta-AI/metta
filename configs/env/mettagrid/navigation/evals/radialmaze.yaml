@@ -6,11 +6,32 @@ game:
   max_steps: 200
 
   map_builder:
-    _target_: mettagrid.room.cognitive_evals.radial_maze.RadialMaze
+    _target_: metta.map.mapgen.MapGen
     width: 20
     height: 20
-    radial_params:
-      num_arms: 4
-      arm_length: 8
-      center_radius: 3
-    onlyhearts: true
+    border_width: 1
+
+    root:
+      type: metta.map.scenes.radial_maze.RadialMaze
+      params:
+        arms: 4
+        arm_length: 8
+
+      children:
+        # put agent at the center
+        - where:
+            tags: [center]
+          scene:
+            type: metta.map.scenes.inline_ascii.InlineAscii
+            params:
+              data: "@"
+
+        # put altars at the first 3 endpoints
+        - where:
+            tags: [endpoint]
+          limit: 3
+          order_by: first # TODO - randomize?
+          scene:
+            type: metta.map.scenes.inline_ascii.InlineAscii
+            params:
+              data: "_"

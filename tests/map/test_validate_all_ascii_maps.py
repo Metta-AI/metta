@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from mettagrid.char_encoder import CHAR_TO_NAME
+from metta.mettagrid.char_encoder import CHAR_TO_NAME
 
 
 def find_map_files(root_dir="configs") -> list[str]:

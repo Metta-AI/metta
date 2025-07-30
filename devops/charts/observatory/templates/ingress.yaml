@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-oauth2-proxy
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "{{ .Values.host | required "host is required" }}"
+    http:
+      paths:
+      - path: /oauth2
+        pathType: Prefix
+        backend:
+          service:
+            name: "{{ .Release.Name }}-oauth2-proxy"
+            port:
+              number: 4180
+  tls:
+  - hosts:
+    - {{ .Values.host | required "host is required" }}
+    secretName: {{ .Release.Name }}-tls
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: |
+      X-Auth-Request-User, X-Auth-Request-Email
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
+    # needed for /api rewrites
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "{{ .Values.host | required "host is required" }}"
+    http:
+      paths:
+      # /api –> backend, drop the prefix
+      - path: /api(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: "{{ .Release.Name }}-backend"
+            port:
+              number: 8000
+      # / –> frontend
+      - path: /()(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ .Release.Name }}
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - {{ .Values.host | required "host is required" }}
+    secretName: {{ .Release.Name }}-tls

@@ -1,14 +1,14 @@
 defaults:
-  - /env/mettagrid/multiagent/training/defaults@
+  - /env/mettagrid/multiagent/experiments/defaults@
   - _self_
 
 game:
   map_builder:
-    _target_: mettagrid.room.multi_agent.boxshare.BoxShare
+    _target_: metta.mettagrid.room.multi_agent.boxshare.BoxShare
     border_width: 0
-    width: ${sampling:40,60,45}
-    height: ${sampling:40,60,45}
+    width: 45
+    height: 45
     objects:
-      altar: ${sampling:7,14,10}
-      mine.red: ${sampling:7,14,10}
-      generator.red: ${sampling:8,16,12}
+      altar: 10
+      mine_red: 10
+      generator_red: 12

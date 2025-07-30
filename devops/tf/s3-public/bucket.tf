@@ -1,6 +1,5 @@
 locals {
   bucket_name              = "softmax-public"
-  david_bloomin_account_id = "767406518141"
 }
 
 resource "aws_s3_bucket" "softmax_public" {
@@ -18,23 +17,7 @@ resource "aws_s3_bucket_policy" "softmax_public" {
           Principal = "*"
           Resource  = "${aws_s3_bucket.softmax_public.arn}/*"
           Sid       = "AllowPublicRead"
-        },
-        {
-          Action = "s3:*"
-          Effect = "Allow"
-          Principal = {
-            AWS = [
-              "arn:aws:iam::${local.david_bloomin_account_id}:role/ecsTaskExecutionRole",
-              "arn:aws:iam::${local.david_bloomin_account_id}:role/s3_sync",
-              "arn:aws:iam::${local.david_bloomin_account_id}:root",
-            ]
-          }
-          Resource = [
-            aws_s3_bucket.softmax_public.arn,
-            "${aws_s3_bucket.softmax_public.arn}/*",
-          ]
-          Sid = "FullAccessFromDavidBloominAccount"
-        },
+        }
       ]
       Version = "2012-10-17"
     }

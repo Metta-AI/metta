@@ -1,0 +1,42 @@
+# BBC Learning Progress Curriculum
+
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+env_overrides:
+  game:
+    global_obs:
+      resource_rewards: true
+    recipe_details_obs: true
+
+    actions:
+      attack: { consumed_resources: { laser: 100 } }
+      change_color: { enabled: false }
+      swap: { enabled: false }
+
+    map_builder:
+      instances: 24
+      instance_border_width: 6
+      root:
+        params:
+          agents: 1
+          objects:
+            mine_red: 3
+            generator_red: 3
+            altar: 3
+
+    agent:
+      rewards:
+        inventory:
+          ore_red_max: 1
+          battery_red_max: 1
+          laser_max: 1
+          armor_max: 1
+          blueprint_max: 1
+
+tasks:
+  /env/mettagrid/curriculum/bbc/tasks/basic: 1
+  /env/mettagrid/curriculum/bbc/tasks/altar: 1
+  /env/mettagrid/curriculum/bbc/tasks/laser: 1
+  /env/mettagrid/curriculum/bbc/tasks/armor: 1
+  /env/mettagrid/curriculum/bbc/tasks/combat: 1
+  /env/mettagrid/curriculum/bbc/tasks/tag: 1

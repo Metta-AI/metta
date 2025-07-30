@@ -1,0 +1,110 @@
+# Codecov configuration for Metta-AI
+# Documentation: https://docs.codecov.com/docs/codecov-yaml
+
+# Wait for all CI jobs to complete before posting results
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+# Coverage settings
+coverage:
+  # Round coverage to 2 decimal places
+  precision: 2
+  round: down
+
+  # Status checks configuration
+  status:
+    # Project-wide coverage
+    project:
+      default:
+        target: auto # Compare against base branch
+        threshold: 1% # Allow 1% coverage drop
+        informational: true # Won't fail PR, just inform
+
+    # Coverage for changed lines only
+    patch:
+      default:
+      informational:
+        target: 80% # Ideal target
+        threshold: 0%
+        informational: true # Won't fail, just shows as warning
+
+# Pull request comment configuration
+comment:
+  layout: "header, diff, flags, components, files"
+  behavior: default
+  require_changes: false # Post comment even if no coverage change
+  require_base: false # Don't require base coverage
+  require_head: true # Must have head coverage to post
+  hide_project_coverage: false # Show overall project coverage
+
+# Flag configuration for different test suites
+flags:
+  core:
+    paths:
+      - "!app_backend/"
+      - "!agent/"
+      - "!mettagrid/"
+      - "!common/"
+    carryforward: true
+
+  app_backend:
+    paths:
+      - app_backend/
+    carryforward: true
+
+  agent:
+    paths:
+      - agent/
+    carryforward: true
+
+  mettagrid:
+    paths:
+      - mettagrid/
+    carryforward: true
+
+  mettagrid_cpp:
+    paths:
+      - "**/*.cpp"
+      - "**/*.cc"
+      - "**/*.cxx"
+      - "**/*.c++"
+      - "**/*.h"
+      - "**/*.hpp"
+      - "**/*.hh"
+      - "**/*.hxx"
+      - "**/*.h++"
+    carryforward: true
+
+  common:
+    paths:
+      - common/
+    carryforward: true
+
+# Ignore certain paths from coverage
+ignore:
+  - "**/tests/"
+  - "**/test_*.*" # ignore py and cpp tests
+  - "**/*_test.*"
+  - "**/conftest.py"
+  - "setup.py"
+  - "**/migrations/"
+  - "**/__pycache__/"
+  - "**/node_modules/"
+  - "**/*.pb.py" # Generated protobuf files
+  - "**/*.pyi" # Type stub files
+  - "**/fixtures/"
+  - "**/mocks/"
+  - "**/build/" # C++ build directories
+  - "**/cmake-build-*/" # CLion/CMake build directories
+  - "**/CMakeFiles/" # CMake generated files
+  - "**/*.o" # Object files
+  - "**/*.a" # Static libraries
+  - "**/*.so" # Shared libraries
+  - "**/*.dylib" # macOS dynamic libraries
+  - "**/*.dll" # Windows dynamic libraries
+
+# GitHub integration settings
+github_checks:
+  annotations: false # hide coverage annotations in PR files view

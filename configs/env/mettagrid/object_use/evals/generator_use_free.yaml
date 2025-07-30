@@ -5,12 +5,15 @@ defaults:
 game:
   max_steps: 80
   objects:
-    generator.red:
-      initial_items: 1
+    generator_red:
+      initial_resource_count: 1
       cooldown: 255
   agent:
     rewards:
-      battery.red: 1
+      inventory:
+        battery_red: 1
   map_builder:
-    objects:
-      generator: 1
+    root:
+      params:
+        objects:
+          generator_red: 1

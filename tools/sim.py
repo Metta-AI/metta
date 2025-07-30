@@ -12,17 +12,22 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List
+import sys
+import uuid
+from datetime import datetime
+from pathlib import Path
 
-import hydra
+import torch
 from omegaconf import DictConfig, OmegaConf
 
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicySelectorType, PolicyStore
+from metta.app_backend.stats_client import StatsClient
+from metta.common.util.config import Config
+from metta.common.util.stats_client_cfg import get_stats_client
+from metta.eval.eval_service import evaluate_policy
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.sim.simulation_suite import SimulationSuite
-from metta.util.config import Config
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.metta_script import metta_script
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -32,73 +37,27 @@ from metta.util.runtime_configuration import setup_mettagrid_environment
 class SimJob(Config):
     __init__ = Config.__init__
     simulation_suite: SimulationSuiteConfig
-    policy_uris: List[str]
-    selector_type: str = "top"
+    policy_uris: list[str]
+    selector_type: PolicySelectorType = "top"
     stats_db_uri: str
+    register_missing_policies: bool = False
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
 
 
-# --------------------------------------------------------------------------- #
-# Helpers                                                                     #
-# --------------------------------------------------------------------------- #
-
-
-def simulate_policy(
-    sim_job: SimJob,
-    policy_uri: str,
-    cfg: DictConfig,
-    logger: logging.Logger,
-) -> Dict[str, Any]:
-    """
-    Evaluate **one** policy URI (may expand to several checkpoints).
-    All simulations belonging to a single checkpoint are merged into one
-    *StatsDB* which is optionally exported.
-
-    Returns:
-        Dictionary containing simulation results and metrics
-    """
-    results = {"policy_uri": policy_uri, "checkpoints": []}
-
-    policy_store = PolicyStore(cfg, None)
-    # TODO: institutionalize this better?
-    metric = sim_job.simulation_suite.name + "_score"
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
-
-    # For each checkpoint of the policy, simulate
-    for pr in policy_prs:
-        logger.info(f"Evaluating policy {pr.uri}")
-        replay_dir = f"{sim_job.replay_dir}/{pr.name}"
-        sim = SimulationSuite(
-            config=sim_job.simulation_suite,
-            policy_pr=pr,
-            policy_store=policy_store,
-            replay_dir=replay_dir,
-            stats_dir=sim_job.stats_dir,
-            device=cfg.device,
-            vectorization=cfg.vectorization,
-        )
-        sim_results = sim.simulate()
-
-        # Collect metrics from the results
-        checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
-
-        # Get average reward
-        rewards_df = sim_results.stats_db.query(
-            "SELECT AVG(value) AS reward_avg FROM agent_metrics WHERE metric = 'reward'"
-        )
-        if len(rewards_df) > 0 and rewards_df.iloc[0]["reward_avg"] is not None:
-            checkpoint_data["metrics"]["reward_avg"] = float(rewards_df.iloc[0]["reward_avg"])
-
-        results["checkpoints"].append(checkpoint_data)
-
-        # Export the stats DB
-        logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
-        sim_results.stats_db.export(sim_job.stats_db_uri)
-
-        logger.info("Evaluation complete for policy %s", pr.uri)
-
-    return results
+def _determine_run_name(policy_uri: str) -> str:
+    if policy_uri.startswith("file://"):
+        # Extract checkpoint name from file path
+        checkpoint_path = Path(policy_uri.replace("file://", ""))
+        return f"eval_{checkpoint_path.stem}"
+    elif policy_uri.startswith("wandb://"):
+        # Extract artifact name from wandb URI
+        # Format: wandb://entity/project/artifact:version
+        artifact_part = policy_uri.split("/")[-1]
+        return f"eval_{artifact_part.replace(':', '_')}"
+    else:
+        # Fallback to timestamp
+        return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
 # --------------------------------------------------------------------------- #
@@ -106,24 +65,71 @@ def simulate_policy(
 # --------------------------------------------------------------------------- #
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 def main(cfg: DictConfig) -> None:
-    setup_mettagrid_environment(cfg)
+    logger = logging.getLogger("tools.sim")
+    if not cfg.get("run"):
+        cfg.run = _determine_run_name(cfg.policy_uri)
+        logger.info(f"Auto-generated run name: {cfg.run}")
 
-    logger = setup_mettagrid_logger("metta.tools.sim")
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
-
     sim_job = SimJob(cfg.sim_job)
 
-    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
+    policy_store = PolicyStore(cfg, None)
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client:
+        stats_client.validate_authenticated()
 
-    for policy_uri in sim_job.policy_uris:
-        policy_results = simulate_policy(sim_job, policy_uri, cfg, logger)
-        all_results["policies"].append(policy_results)
+    policy_records_by_uri: dict[str, list[PolicyRecord]] = {
+        policy_uri: policy_store.policy_records(
+            uri_or_config=policy_uri,
+            selector_type=sim_job.selector_type,
+            n=1,
+            metric=sim_job.simulation_suite.name + "_score",
+        )
+        for policy_uri in sim_job.policy_uris
+    }
+
+    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
+    device = torch.device(cfg.device)
+
+    # Get eval_task_id from config if provided
+    eval_task_id = None
+    if cfg.get("eval_task_id"):
+        eval_task_id = uuid.UUID(cfg.eval_task_id)
+    for policy_uri, policy_prs in policy_records_by_uri.items():
+        results = {"policy_uri": policy_uri, "checkpoints": []}
+        for pr in policy_prs:
+            policy_results = evaluate_policy(
+                policy_record=pr,
+                simulation_suite=sim_job.simulation_suite,
+                stats_dir=sim_job.stats_dir,
+                replay_dir=f"{sim_job.replay_dir}/{pr.run_name}",
+                device=device,
+                vectorization=cfg.vectorization,
+                export_stats_db_uri=sim_job.stats_db_uri,
+                policy_store=policy_store,
+                stats_client=stats_client,
+                logger=logger,
+                eval_task_id=eval_task_id,
+            )
+            results["checkpoints"].append(
+                {
+                    "name": pr.run_name,
+                    "uri": pr.uri,
+                    "metrics": {
+                        "reward_avg": policy_results.scores.avg_simulation_score,
+                        "reward_avg_category_normalized": policy_results.scores.avg_category_score,
+                        "detailed": policy_results.scores.to_wandb_metrics_format(),
+                    },
+                    "replay_url": next(iter(policy_results.replay_urls.values()))
+                    if policy_results.replay_urls
+                    else None,
+                }
+            )
+        all_results["policies"].append(results)
 
     # Always output JSON results to stdout
     # Ensure all logging is flushed before printing JSON
-    import sys
 
     sys.stderr.flush()
     sys.stdout.flush()
@@ -134,5 +140,4 @@ def main(cfg: DictConfig) -> None:
     print("===JSON_OUTPUT_END===")
 
 
-if __name__ == "__main__":
-    main()
+metta_script(main, "sim_job")

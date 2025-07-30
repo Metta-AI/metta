@@ -1,0 +1,11 @@
+defaults:
+  - defaults
+  - _self_
+
+env_overrides:
+  game:
+    map_builder:
+      instances: 12
+      root:
+        params:
+          agents: 2

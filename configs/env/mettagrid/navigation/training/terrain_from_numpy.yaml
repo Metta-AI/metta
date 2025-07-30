@@ -1,27 +1,8 @@
-defaults:
-  - /env/mettagrid/mettagrid@
-  - _self_
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_defaults
 
-sampling: 1
-
-game:
-  num_agents: 4
-  map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
-
-    room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: ${sampling:1,6,3}
-      agents: 1
-      objects:
-        altar: ${sampling:30,75,50}
-  objects:
-    altar:
-      cooldown: 1000
-      input_battery.red: 3
-      output_heart: 1
-      max_output: 5
-      conversion_ticks: 1
-      initial_items: 1
+buckets:
+  game.map_builder.room.dir:
+    - terrain_maps_nohearts
+  game.map_builder.room.objects.altar:
+    range: [3, 50]

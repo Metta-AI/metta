@@ -1,0 +1,16 @@
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+
+tasks:
+  /env/mettagrid/memory/training/easy: 1
+  /env/mettagrid/memory/training/medium: 1
+  /env/mettagrid/memory/training/hard: 1
+  /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
+  /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
+  /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
+  /env/mettagrid/navigation_sequence/experiments/hard_mem_balanced: 1
+  /env/mettagrid/navigation_sequence/experiments/hard_mem_dense: 1
+  /env/mettagrid/navigation_sequence/experiments/hard_mem_sparse: 1
+
+env_overrides:
+  game:
+    num_agents: 16

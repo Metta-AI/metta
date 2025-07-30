@@ -1,3 +1,5 @@
-_target_: mettagrid.curriculum.SamplingCurriculum
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
 
-env_cfg_template: /env/mettagrid/object_use/training/easy_all_objects
+tasks:
+  /env/mettagrid/curriculum/objects/all_objects: 2
+  /env/mettagrid/curriculum/objects/sequence: 1

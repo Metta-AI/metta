@@ -4,10 +4,10 @@ from typing import Dict, List, Optional
 
 from tabulate import tabulate
 
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_record import PolicyRecord
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
-from mettagrid.util.file import local_copy
+from metta.mettagrid.util.file import local_copy
 
 
 def analyze(policy_record: PolicyRecord, config: AnalysisConfig) -> None:
@@ -20,7 +20,8 @@ def analyze(policy_record: PolicyRecord, config: AnalysisConfig) -> None:
 
         sample_count = stats_db.sample_count(policy_record, config.suite)
         if sample_count == 0:
-            logger.warning(f"No samples found for policy: {policy_record.key}:v{policy_record.version}")
+            pk, pv = stats_db.key_and_version(policy_record)
+            logger.warning(f"No samples found for key, version = {pk}, {pv}")
             return
         logger.info(f"Total sample count for specified policy/suite: {sample_count}")
 
@@ -34,20 +35,20 @@ def analyze(policy_record: PolicyRecord, config: AnalysisConfig) -> None:
         logger.info(f"Selected metrics: {selected_metrics}")
 
         metrics_data = get_metrics_data(stats_db, policy_record, selected_metrics, config.suite)
-        print_metrics_table(metrics_data, policy_record)
+        print_metrics_table(stats_db, metrics_data, policy_record)
 
 
 # --------------------------------------------------------------------------- #
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
 def get_available_metrics(stats_db: EvalStatsDB, policy_record: PolicyRecord) -> List[str]:
-    policy_key, policy_version = policy_record.key_and_version()
+    pk, pv = stats_db.key_and_version(policy_record)
     result = stats_db.query(
         f"""
         SELECT DISTINCT metric
           FROM policy_simulation_agent_metrics
-         WHERE policy_key     = '{policy_key}'
-           AND policy_version =  {policy_version}
+         WHERE policy_key     = '{pk}'
+           AND policy_version =  {pv}
          ORDER BY metric
         """
     )
@@ -73,11 +74,11 @@ def get_metrics_data(
     Return {metric: {"mean": μ, "std": σ,
                      "count": K_recorded,
                      "samples": N_potential}}
-        • μ, σ are normalised (missing values = 0).
+        • μ, σ are normalized (missing values = 0).
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    policy_key, policy_version = policy_record.key_and_version()
+    pk, pv = stats_db.key_and_version(policy_record)
     filter_condition = f"sim_suite = '{suite}'" if suite else None
 
     data: Dict[str, Dict[str, float]] = {}
@@ -87,8 +88,8 @@ def get_metrics_data(
             continue
         std = stats_db.get_std_metric_by_filter(m, policy_record, filter_condition) or 0.0
 
-        k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
-        n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
+        k_recorded = stats_db.count_metric_agents(pk, pv, m, filter_condition)
+        n_potential = stats_db.potential_samples_for_metric(pk, pv, filter_condition)
 
         data[m] = {
             "mean": mean,
@@ -99,10 +100,13 @@ def get_metrics_data(
     return data
 
 
-def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_record: PolicyRecord) -> None:
+def print_metrics_table(
+    stats_db: EvalStatsDB, metrics_data: Dict[str, Dict[str, float]], policy_record: PolicyRecord
+) -> None:
     logger = logging.getLogger(__name__)
     if not metrics_data:
-        logger.warning(f"No metrics data available for {policy_record.key}:v{policy_record.version}")
+        pk, pv = stats_db.key_and_version(policy_record)
+        logger.warning(f"No metrics data available for key, version = {pk}, {pv}")
         return
 
     headers = ["Metric", "Average", "Std Dev", "Metric Samples", "Agent Samples"]

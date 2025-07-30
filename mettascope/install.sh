@@ -5,11 +5,14 @@
 # Fail on errors:
 set -e
 
+# Determine base dir
+if [[ $(basename "$PWD") != "mettascope" ]]; then
+  cd mettascope
+fi
+
 # Install dependencies
-cd mettascope
-npm install --force -g typescript
-npm install --force
-tsc
+pnpm install
+pnpm run build
 
 # Generate atlas
 ./tools/gen_atlas.py

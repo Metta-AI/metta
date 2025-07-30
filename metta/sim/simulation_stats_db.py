@@ -15,9 +15,9 @@ from typing import Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.agent.policy_store import PolicyRecord
-from mettagrid.episode_stats_db import EpisodeStatsDB
-from mettagrid.util.file import exists, local_copy, write_file
+from metta.agent.policy_record import PolicyRecord
+from metta.mettagrid.episode_stats_db import EpisodeStatsDB
+from metta.mettagrid.util.file import exists, local_copy, write_file
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -103,7 +103,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = policy_record.key_and_version()
+        policy_key, policy_version = merged.key_and_version(policy_record)
         merged._insert_simulation(sim_id, sim_name, sim_suite, env, policy_key, policy_version)
 
         # Merge each shard
@@ -117,7 +117,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         if all_episode_ids:
             # Convert agent_map with PolicyRecord to agent_map with (key, version) tuples
-            agent_tuple_map = {agent_id: record.key_and_version() for agent_id, record in agent_map.items()}
+            agent_tuple_map = {agent_id: merged.key_and_version(record) for agent_id, record in agent_map.items()}
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -155,7 +155,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         self, policy_key: str | None = None, policy_version: int | None = None, env: str | None = None
     ) -> List[str]:
         query = """
-        SELECT e.replay_url 
+        SELECT e.replay_url
         FROM episodes e
         JOIN simulations s ON e.simulation_id = s.id
         WHERE e.replay_url IS NOT NULL
@@ -182,7 +182,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
     def _insert_simulation(
         self, sim_id: str, name: str, suite: str, env: str, policy_key: str, policy_version: int
-    ) -> str:
+    ) -> None:
         self.con.execute(
             """
             INSERT OR REPLACE INTO simulations (id, name, suite, env, policy_key, policy_version)
@@ -222,7 +222,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         if not episode_ids:
             return
         self.con.executemany(
-            """ 
+            """
             UPDATE episodes
                SET simulation_id = ?
              WHERE id = ?
@@ -240,15 +240,20 @@ class SimulationStatsDB(EpisodeStatsDB):
         if Path(self.path).samefile(other_path):
             return
 
+        def select_count() -> int:
+            result = self.con.execute("SELECT COUNT(*) FROM episodes").fetchone()
+            assert result is not None
+            return result[0]
+
         # Merge
-        logger.debug(f"Before merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+        logger.debug(f"Before merge: {select_count()} episodes")
         self._merge_db(other.path)
-        logger.debug(f"After merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+        logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    # ------------------------------------------------------------------ #
-    #   internal: merge one external DB into this DB                      #
-    # ------------------------------------------------------------------ #
+    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
+        return pr.uri, pr.metadata.epoch
+
     def _merge_db(self, other_path: Path) -> None:
         """
         Merge the database at `other_path` into **self**.

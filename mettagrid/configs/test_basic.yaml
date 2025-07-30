@@ -1,21 +1,30 @@
-_target_: mettagrid.mettagrid_env.MettaGridEnv
-
-sampling: 0
-
 game:
+  num_observation_tokens: 100
+
+  inventory_item_names:
+    - ore_red
+    - ore_blue
+    - ore_green
+    - battery_red
+    - battery_blue
+    - battery_green
+    - heart
+    - armor
+    - laser
+    - blueprint
+
   map_builder:
-    _target_: mettagrid.room.random.Random
+    _target_: metta.mettagrid.room.random.Random
     width: 25
     height: 25
     border_width: 0
     agents: 5
+    seed: 42
 
     objects:
       altar: 1
-      converter: 3
-      generator: 15
+      generator_red: 15
       wall: 40
-
 
   num_agents: 5
   obs_width: 11
@@ -29,36 +38,31 @@ game:
       props: {}
 
   agent:
-    default_item_max: 5
-    heart_max: 255
+    default_resource_limit: 5
+    resource_limits:
+      heart: 255
     freeze_duration: 10
-    energy_reward: 0
-    hp: 1
-    use_cost: 0
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
 
   objects:
     altar:
-      hp: 30
+      type_id: 8
       cooldown: 2
-      use_cost: 100
+      max_output: 100
+      conversion_ticks: 1
+      initial_resource_count: 100
 
-    converter:
-      hp: 30
-      cooldown: 2
-      energy_output.r1: 100
-      energy_output.r2: 10
-      energy_output.r3: 1
-
-    generator.red:
-      hp: 30
+    generator_red:
+      type_id: 2
       cooldown: 5
-      initial_resources: 30
-      use_cost: 0
+      max_output: 100
+      conversion_ticks: 1
+      initial_resource_count: 30
 
     wall:
-      hp: 10
+      type_id: 1
 
   actions:
     noop:
@@ -73,7 +77,14 @@ game:
       enabled: true
     attack:
       enabled: true
+      consumed_resources:
+        laser: 1
+      defense_resources:
+        armor: 1
     swap:
       enabled: true
     change_color:
       enabled: true
+    change_glyph:
+      enabled: true
+      number_of_glyphs: 4

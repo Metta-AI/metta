@@ -1,14 +1,18 @@
 from typing import Optional
 
+from metta.common.util.config import Config
 from metta.map.scene import Scene
-from metta.util.config import Config
 
 
 class RoomGridParams(Config):
     rows: Optional[int] = None
     columns: Optional[int] = None
     layout: Optional[list[list[str]]] = None
-    border_width: int = 1
+
+    # Default value guarantees that agents don't see beyond the walls.
+    # Usually shouldn't be changed.
+    border_width: int = 5
+
     border_object: str = "wall"
 
 
@@ -71,3 +75,19 @@ class RoomGrid(Scene[RoomGridParams]):
                 y = row * (room_height + params.border_width)
                 self.grid[y : y + room_height, x : x + room_width] = "empty"
                 self.make_area(x, y, room_width, room_height, tags=self._tags(row, col))
+
+    def get_labels(self) -> list[str]:
+        # Note: this code is from `metta.mettagrid.room.room_list`.
+        # In case of mapgen, it's not very reliable, because any new child
+        # scene, e.g. `make_connected`, would lead to zero common labels.
+        room_labels: list[list[str]] = []
+
+        for child_scene in self.children:
+            # how do we want to account for room lists with different labels?
+            room_labels.append(child_scene.get_labels())
+
+        if not room_labels:
+            return []
+
+        common_labels = set.intersection(*[set(labels) for labels in room_labels])
+        return list(common_labels)

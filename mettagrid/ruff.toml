@@ -1,9 +1,0 @@
-extend = "../ruff.toml"
-
-[lint.flake8-tidy-imports.banned-api]
-"metta.agent".msg = "Mettagrid shouldn't import metta.agent"
-"metta.env".msg = "Mettagrid shouldn't import metta.env"
-"metta.eval".msg = "Mettagrid shouldn't import metta.eval"
-"metta.map".msg = "Mettagrid shouldn't import metta.map"
-"metta.rl".msg = "Mettagrid shouldn't import metta.rl"
-"metta.sim".msg = "Mettagrid shouldn't import metta.sim"

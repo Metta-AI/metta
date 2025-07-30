@@ -1,8 +1,8 @@
 defaults:
-  - /env/mettagrid/navigation_sequence/training/mem_defaults@
+  - /env/mettagrid/navigation_sequence/experiments/mem_defaults@
   - _self_
 
 game:
   map_builder:
     room:
-      style: balanced
+      dir: varied_terrain/balanced_small

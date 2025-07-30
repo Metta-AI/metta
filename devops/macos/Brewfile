@@ -1,7 +1,8 @@
 # Developer tools
 tap "withgraphite/tap"
 tap "aws/homebrew-aws"
-brew "amazon-efs-utils"
+tap "spacelift-io/spacelift"
+brew "aws/aws/amazon-efs-utils"
 brew "awscli"
 brew "bazelisk"
 brew "clang-format"
@@ -12,8 +13,9 @@ cask "session-manager-plugin"
 brew "withgraphite/tap/graphite"
 brew "spacelift-io/spacelift/spacectl"
 brew "uv"
-brew "npm"
+brew "node@24"
+brew "gh"
 
-# Applications
-cask "cursor"
-cask "discord"
+# Kubernetes local testing tools
+brew "kubectl"
+brew "kind"

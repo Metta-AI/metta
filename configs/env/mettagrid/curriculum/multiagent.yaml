@@ -1,9 +1,9 @@
-_target_: mettagrid.curriculum.LowRewardCurriculum
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
 
 tasks:
   /env/mettagrid/multiagent/experiments/boxshare: 1
   /env/mettagrid/multiagent/experiments/boxy: 1
-  /env/mettagrid/multiagent/experiments/cylinder_world: 1
+  # /env/mettagrid/multiagent/experiments/cylinder_world: 1
   /env/mettagrid/multiagent/experiments/manhatten: 1
   /env/mettagrid/multiagent/experiments/narrow_world: 1
   /env/mettagrid/multiagent/experiments/varied_terrain_sparse: 1

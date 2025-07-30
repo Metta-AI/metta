@@ -22,9 +22,9 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_record import PolicyRecord
+from metta.mettagrid.util.file import local_copy
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.file import local_copy
 
 # --------------------------------------------------------------------------- #
 #   Views                                                                     #
@@ -67,9 +67,6 @@ EVAL_DB_VIEWS: Dict[str, str] = {
 
 
 class EvalStatsDB(SimulationStatsDB):
-    # ------------------------------------------------------------------ #
-    #   Construction / schema                                            #
-    # ------------------------------------------------------------------ #
     def __init__(self, path: Path) -> None:
         super().__init__(path)
 
@@ -90,9 +87,6 @@ class EvalStatsDB(SimulationStatsDB):
     def tables(self) -> Dict[str, str]:
         return {**super().tables(), **EVAL_DB_VIEWS}
 
-    # ------------------------------------------------------------------ #
-    #   Potential / recorded sample counters                             #
-    # ------------------------------------------------------------------ #
     def _count_agent_samples(
         self,
         policy_key: str,
@@ -100,16 +94,24 @@ class EvalStatsDB(SimulationStatsDB):
         filter_condition: str | None = None,
     ) -> int:
         """Internal helper: number of agent‑episode pairs (possible samples)."""
+        # Only count episodes that actually have metrics recorded
+        # This prevents counting "ghost" episodes that were requested but never completed
         q = f"""
         SELECT COUNT(*) AS cnt
-          FROM policy_simulation_agent_samples
-         WHERE policy_key     = '{policy_key}'
-           AND policy_version = {policy_version}
+          FROM policy_simulation_agent_samples ps
+         WHERE ps.policy_key     = '{policy_key}'
+           AND ps.policy_version = {policy_version}
+           -- Only count samples that have at least one metric recorded
+           AND EXISTS (
+               SELECT 1 FROM agent_metrics am
+               WHERE am.episode_id = ps.episode_id
+                 AND am.agent_id = ps.agent_id
+           )
         """
         if filter_condition:
             q += f" AND {filter_condition}"
         res = self.query(q)
-        return int(res["cnt"][0]) if not res.empty else 0
+        return int(res["cnt"].iloc[0]) if not res.empty else 0
 
     # Public alias (referenced by downstream code/tests)
     def potential_samples_for_metric(
@@ -138,12 +140,9 @@ class EvalStatsDB(SimulationStatsDB):
         if filter_condition:
             q += f" AND {filter_condition}"
         res = self.query(q)
-        return int(res["cnt"][0]) if not res.empty else 0
+        return int(res["cnt"].iloc[0]) if not res.empty else 0
 
-    # ------------------------------------------------------------------ #
-    #   Normalised aggregations                                          #
-    # ------------------------------------------------------------------ #
-    def _normalised_value(
+    def _normalized_value(
         self,
         policy_key: str,
         policy_version: int,
@@ -189,15 +188,14 @@ class EvalStatsDB(SimulationStatsDB):
             return math.sqrt(max(var, 0.0))
         raise ValueError(f"Unknown aggregation {agg}")
 
-    # Convenience wrappers ------------------------------------------------
     def get_average_metric_by_filter(
         self,
         metric: str,
         policy_record: PolicyRecord,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = policy_record.key_and_version()
-        return self._normalised_value(pk, pv, metric, "AVG", filter_condition)
+        pk, pv = self.key_and_version(policy_record)
+        return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
     def get_sum_metric_by_filter(
         self,
@@ -205,8 +203,8 @@ class EvalStatsDB(SimulationStatsDB):
         policy_record: PolicyRecord,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = policy_record.key_and_version()
-        return self._normalised_value(pk, pv, metric, "SUM", filter_condition)
+        pk, pv = self.key_and_version(policy_record)
+        return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
 
     def get_std_metric_by_filter(
         self,
@@ -214,12 +212,9 @@ class EvalStatsDB(SimulationStatsDB):
         policy_record: PolicyRecord,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = policy_record.key_and_version()
-        return self._normalised_value(pk, pv, metric, "STD", filter_condition)
+        pk, pv = self.key_and_version(policy_record)
+        return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
-    # ------------------------------------------------------------------ #
-    #   Utilities                                                        #
-    # ------------------------------------------------------------------ #
     def sample_count(
         self,
         policy_record: Optional[PolicyRecord] = None,
@@ -230,7 +225,7 @@ class EvalStatsDB(SimulationStatsDB):
         """Return potential‑sample count for arbitrary filters."""
         q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
         if policy_record:
-            pk, pv = policy_record.key_and_version()
+            pk, pv = self.key_and_version(policy_record)
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
         if sim_suite:
             q += f" AND sim_suite = '{sim_suite}'"
@@ -238,24 +233,21 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_name  = '{sim_name}'"
         if sim_env:
             q += f" AND sim_env   = '{sim_env}'"
-        return int(self.query(q)["cnt"][0])
+        return int(self.query(q)["cnt"].iloc[0])
 
-    # ------------------------------------------------------------------ #
-    #   Per‑simulation breakdown                                         #
-    # ------------------------------------------------------------------ #
-    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple, float]:
-        """Return { (suite,name,env) : normalised mean(metric) }."""
-        pk, pv = policy_record.key_and_version()
+    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str, str], float]:
+        """Return { (suite,name,env) : normalized mean(metric) }."""
+        pk, pv = self.key_and_version(policy_record)
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_suite, sim_name, sim_env
               FROM policy_simulation_agent_samples
              WHERE policy_key     = '{pk}'
                AND policy_version =  {pv}
         """)
-        scores: Dict[tuple, float] = {}
+        scores: Dict[tuple[str, str, str], float] = {}
         for _, row in sim_rows.iterrows():
             cond = f"sim_suite = '{row.sim_suite}' AND sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
-            val = self._normalised_value(pk, pv, metric, "AVG", cond)
+            val = self._normalized_value(pk, pv, metric, "AVG", cond)
             if val is not None:
                 scores[(row.sim_suite, row.sim_name, row.sim_env)] = val
         return scores
@@ -271,11 +263,11 @@ class EvalStatsDB(SimulationStatsDB):
 
         * `policy_uri` →  "key:v<version>"
         * `eval_name`  →  `sim_env`
-        * `value`      →  normalised mean of *metric*
+        * `value`      →  normalized mean of *metric*
         """
         if policy_record is not None:
-            policy_key, policy_version = policy_record.key_and_version()
-            policy_clause = f"policy_key = '{policy_key}' AND policy_version = {policy_version}"
+            pk, pv = self.key_and_version(policy_record)
+            policy_clause = f"policy_key = '{pk}' AND policy_version = {pv}"
         else:
             # All policies
             policy_clause = "1=1"
@@ -308,3 +300,8 @@ class EvalStatsDB(SimulationStatsDB):
         ORDER BY policy_uri, eval_name
         """
         return self.query(sql)
+
+    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
+        if pr.uri is None:
+            raise ValueError("PolicyRecord must have a URI to be used in EvalStatsDB queries.")
+        return pr.uri, pr.metadata.epoch

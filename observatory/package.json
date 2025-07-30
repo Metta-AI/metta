@@ -1,25 +1,35 @@
 {
-  "name": "metta-eval",
+  "name": "@softmax/observatory",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build --base=./",
-    "preview": "vite preview"
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "pnpm run lint:eslint && pnpm run lint:prettier",
+    "lint:eslint": "eslint .",
+    "lint:prettier": "prettier --check .",
+    "format": "prettier --write ."
   },
   "dependencies": {
+    "@types/react-router-dom": "^5.3.3",
     "plotly.js": "^2.29.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-plotly.js": "^2.6.0"
+    "react-plotly.js": "^2.6.0",
+    "react-router-dom": "^7.6.2"
   },
   "devDependencies": {
+    "@eslint/css": "^0.10.0",
+    "@eslint/js": "^9.32.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/react-plotly.js": "^2.6.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^9.32.0",
     "typescript": "^5.2.2",
+    "typescript-eslint": "^8.38.0",
     "vite": "^6.0.0"
   }
 }

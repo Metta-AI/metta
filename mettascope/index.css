@@ -1,1950 +1,3031 @@
 /* Generated CSS from Figma file: https://www.figma.com/design/WeQldl3PsqFIpDnTka5Kd3 by tools/gen_html.py */
 
-
-*, *::before, *::after {
-    margin: 0;
-    padding: 0;
-    border: none;
-    box-sizing: border-box;
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-sizing: border-box;
 }
-html, body {
-    font-family: sans-serif;
+
+html,
+body {
+  font-family: sans-serif;
 }
 
 body {
-    background-color: rgba(0, 0, 0, 1.00);
-    min-width: 100vw;
-    min-height: 100vh;
+  background-color: rgba(0, 0, 0, 1);
+  min-width: 100vw;
+  min-height: 100vh;
 }
 
 canvas#global-canvas {
-    position: absolute;
-    display: block;
-    left: 0px;
-    right: -3px;
-    top: 0px;
-    bottom: 0px;
-    background-color: rgba(0, 0, 0, 1.00);
+  position: absolute;
+  display: block;
+  left: 0px;
+  right: -3px;
+  top: 0px;
+  bottom: 0px;
+  background-color: rgba(0, 0, 0, 1);
 }
 
 #footer {
-    position: absolute;
-    display: block;
-    height: 64px;
-    left: 0px;
-    right: 0px;
-    bottom: 0px;
-    background-color: rgba(45, 52, 61, 1.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  height: 64px;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  background-color: rgba(45, 52, 61, 1);
+  overflow: hidden;
 }
 
 #footer .left {
-    position: absolute;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    left: 20px;
-    top: 50%;
-    transform: translate(0, -16px);
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 5px;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 20px;
+  top: 50%;
+  transform: translate(0, -16px);
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 5px;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .left #rewind-to-start.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .left #step-back.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .left #play.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .left #step-forward.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .left #rewind-to-end.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.left .sep1 {
+  position: relative;
+  display: block;
+  width: 1px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.left #demo-mode-toggle.hover-icon {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.left #full-screen-toggle.hover-icon {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #footer .center {
-    position: absolute;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    left: 50%;
-    top: 50%;
-    transform: translate(-78.50px, -16px);
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 5px;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 50%;
+  top: 50%;
+  transform: translate(-78.5px, -16px);
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 5px;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .center #speed1.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .center #speed2.hover-icon {
-    position: relative;
-    display: block;
-    width: 17px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .center #speed3.hover-icon {
-    position: relative;
-    display: block;
-    width: 17px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .center #speed4.hover-icon {
-    position: relative;
-    display: block;
-    width: 17px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .center #speed5.hover-icon {
-    position: relative;
-    display: block;
-    width: 17px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 17px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .center #speed6.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #footer .right {
-    position: absolute;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    right: 20px;
-    top: 50%;
-    transform: translate(0, -16px);
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 5px;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  right: 20px;
+  top: 50%;
+  transform: translate(0, -16px);
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 5px;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right #focus-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right .sep1 {
-    position: relative;
-    display: block;
-    width: 1px;
-    height: 16px;
-    background-color: rgba(255, 255, 255, 0.10);
+  position: relative;
+  display: block;
+  width: 1px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .right #minimap-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right #controls-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right #info-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right #agent-panel-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.right #traces-toggle.hover-icon {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right .sep2 {
-    position: relative;
-    display: block;
-    width: 1px;
-    height: 16px;
-    background-color: rgba(255, 255, 255, 0.10);
+  position: relative;
+  display: block;
+  width: 1px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .right #resources-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right #grid-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right #visual-range-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .right #fog-of-war-toggle.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
-#time-panel {
-    position: absolute;
-    display: flex;
-    height: fit-content;
-    left: 0px;
-    right: 0px;
-    bottom: 64px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 16px;
-    padding: 16px 32px 16px 32px;
-    background-color: rgba(29, 29, 29, 1.00);
-    overflow: hidden;
+#timeline-panel {
+  position: absolute;
+  display: block;
+  height: 64px;
+  left: 0px;
+  right: 0px;
+  bottom: 64px;
+  background-color: rgba(29, 29, 29, 1);
+  overflow: hidden;
 }
 
-#time-panel input#main-scrubber {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 32px;
-    align-self: stretch;
-    background-color: rgba(217, 217, 217, 1.00);
+#timeline-panel #timeline-redout {
+  position: absolute;
+  display: block;
+  width: 46px;
+  height: 22px;
+  left: 851px;
+  top: 5px;
+  background-color: rgba(0, 0, 0, 1);
+  border-radius: 8px;
+  overflow: hidden;
+  border-color: rgba(85, 85, 85, 1);
+  border-width: 1px;
+  border-style: solid;
+}
+
+#timeline-redout #step-counter {
+  position: absolute;
+  display: inline-block;
+  left: 0px;
+  right: 0px;
+  top: 1px;
+  bottom: 0px;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 #trace-panel {
-    position: absolute;
-    display: block;
-    height: 64px;
-    left: 0px;
-    right: 0px;
-    bottom: 128px;
-    background-color: rgba(20, 20, 20, 1.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  height: 64px;
+  left: 0px;
+  right: 0px;
+  bottom: 128px;
+  background-color: rgba(20, 20, 20, 1);
+  overflow: hidden;
+}
+
+#trace-panel .close.hover-icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #worldmap-panel {
-    position: absolute;
-    display: block;
-    left: 0px;
-    right: -1px;
-    top: 64px;
-    bottom: 192px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  left: 0px;
+  right: -1px;
+  top: 64px;
+  bottom: 192px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #header {
-    position: absolute;
-    display: block;
-    height: 64px;
-    left: 0px;
-    right: -1px;
-    top: 0px;
-    background-color: rgba(39, 54, 70, 1.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  height: 64px;
+  left: 0px;
+  right: -1px;
+  top: 0px;
+  background-color: rgba(39, 54, 70, 1);
+  overflow: hidden;
 }
 
-#header .ui/header-bg {
-    position: absolute;
-    display: block;
-    width: 327px;
-    height: 64px;
-    left: 0px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+#header .ui-header-bg {
+  position: absolute;
+  display: block;
+  width: 327px;
+  height: 64px;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #header #file-name {
-    position: absolute;
-    display: inline-block;
-    width: 701px;
-    height: 31px;
-    left: 85px;
-    top: 18px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 24px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 31.20px;
+  position: absolute;
+  display: inline-block;
+  width: 652px;
+  height: 31px;
+  left: 85px;
+  top: 18px;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 24px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 31.2px;
 }
 
 #header #logo {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 0px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #header button#share-button.hover-icon {
-    position: absolute;
-    display: block;
-    width: 32px;
-    height: 32px;
-    right: 15px;
-    top: 15px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 15px;
+  top: 15px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 button#share-button.hover-icon .icon {
-    position: absolute;
-    display: block;
-    width: 32px;
-    height: 32px;
-    left: 0px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #header button#help-button.hover-icon {
-    position: absolute;
-    display: block;
-    width: 32px;
-    height: 32px;
-    right: 58px;
-    top: 15px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 58px;
+  top: 15px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 button#help-button.hover-icon .icon {
-    position: absolute;
-    display: block;
-    width: 32px;
-    height: 32px;
-    left: 0px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+#header input#search-input::placeholder {
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 20.8px;
+}
+
+#header input#search-input {
+  position: absolute;
+  display: flex;
+  width: 336px;
+  height: 41px;
+  right: 106px;
+  top: 11px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 11px 18px 11px 48px;
+  background-color: rgba(28, 29, 30, 1);
+  border-radius: 10px;
+  border-color: rgba(53, 53, 53, 1);
+  border-width: 1px;
+  border-style: solid;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 20.8px;
+}
+
+#header #search-icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 401px;
+  top: 16px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #modal {
-    position: absolute;
-    display: flex;
-    width: 616px;
-    height: fit-content;
-    left: 50%;
-    top: 50%;
-    transform: translate(-307.50px, -137px);
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 32px;
-    padding: 64px 64px 64px 64px;
-    align-items: flex-end;
-    background-color: rgba(39, 54, 70, 1.00);
-    border-radius: 20px;
-    overflow: hidden;
-    border-color: rgba(255, 255, 255, 1.00);
-    border-width: 3px;
-    border-style: solid;
+  position: absolute;
+  display: flex;
+  width: 616px;
+  height: fit-content;
+  left: 50%;
+  top: 50%;
+  transform: translate(-307.5px, -137px);
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 32px;
+  padding: 64px 64px 64px 64px;
+  align-items: flex-end;
+  background-color: rgba(39, 54, 70, 1);
+  border-radius: 20px;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 1);
+  border-width: 3px;
+  border-style: solid;
 }
 
 #modal .header {
-    position: relative;
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    align-self: stretch;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 40px;
-    text-align: center;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 52px;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: fit-content;
+  align-self: stretch;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 40px;
+  text-align: center;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 52px;
 }
 
 #modal .message {
-    position: relative;
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    align-self: stretch;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 24px;
-    text-align: center;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 31.20px;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: fit-content;
+  align-self: stretch;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 24px;
+  text-align: center;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 31.2px;
 }
 
 #toast {
-    position: absolute;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    left: 50%;
-    bottom: 23px;
-    transform: translate(-158.50px, 0);
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 11px;
-    padding: 10px 20px 10px 20px;
-    background-color: rgba(33, 150, 83, 1.00);
-    border-radius: 20px;
-    overflow: hidden;
-    border-color: rgba(255, 255, 255, 1.00);
-    border-width: 3px;
-    border-style: solid;
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 50%;
+  bottom: 23px;
+  transform: translate(-158.5px, 0);
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 11px;
+  padding: 10px 20px 10px 20px;
+  background-color: rgba(33, 150, 83, 1);
+  border-radius: 20px;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 1);
+  border-width: 3px;
+  border-style: solid;
 }
 
 #toast .message {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 24px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 31.20px;
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 24px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 31.2px;
 }
 
 #info-panel {
-    position: absolute;
-    display: flex;
-    width: 377px;
-    height: 381px;
-    right: 0px;
-    bottom: 192px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 16px 16px 16px 16px;
-    background-color: rgba(0, 0, 0, 0.75);
-    overflow: hidden;
+  position: absolute;
+  display: flex;
+  width: 377px;
+  height: 381px;
+  right: 0px;
+  bottom: 192px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 16px 16px 16px 16px;
+  background-color: rgba(0, 0, 0, 0.75);
+  overflow: hidden;
 }
 
 #info-panel .info {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Mono;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 10px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 13px;
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 10px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 13px;
+}
+
+#info-panel .close.hover-icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #minimap-panel {
-    position: absolute;
-    display: block;
-    width: 202px;
-    height: 178px;
-    left: 0px;
-    top: 849px;
-    background-color: rgba(0, 0, 0, 1.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 202px;
+  height: 178px;
+  left: 0px;
+  top: 849px;
+  background-color: rgba(0, 0, 0, 1);
+}
+
+#minimap-panel .close.hover-icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: -16px;
+  top: -16px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #action-buttons {
-    position: absolute;
-    display: block;
-    width: 638px;
-    height: 128px;
-    left: 50%;
-    bottom: 204px;
-    transform: translate(-318.50px, 0);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 638px;
+  height: 128px;
+  left: 50%;
+  bottom: 204px;
+  transform: translate(-318.5px, 0);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #action-buttons .west {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 0px;
-    top: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 0px;
+  top: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .west .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .west .west-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 3px;
-    top: 3px;
-    transform-origin: center;
-    transform: rotate(1.5707963705062848rad);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 3px;
+  top: 3px;
+  transform-origin: center;
+  transform: rotate(1.5707963705062848rad);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.west .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .a {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .north {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 64px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 64px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .north .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .north .north-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 3px;
-    top: 3px;
-    transform-origin: center;
-    transform: rotate(-3.1415925661670165rad);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 3px;
+  top: 3px;
+  transform-origin: center;
+  transform: rotate(-3.1415925661670165rad);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.north .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .w {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .forward {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 192px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 192px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .forward .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .forward .forward-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 3px;
-    top: 3px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 3px;
+  top: 3px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.forward .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .f {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .attack-nearest {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 384px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 384px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .attack-nearest .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .attack-nearest .attack-nearest-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-29px, -29px);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-29px, -29px);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.attack-nearest .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .z {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .south {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 64px;
-    top: 64px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 64px;
+  top: 64px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .south .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .south .south-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 3px;
-    top: 3px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 3px;
+  top: 3px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.south .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .s {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .backward {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 192px;
-    top: 64px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 192px;
+  top: 64px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .backward .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .backward .backward-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 3px;
-    top: 3px;
-    transform-origin: center;
-    transform: rotate(-3.141592653589793rad);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 3px;
+  top: 3px;
+  transform-origin: center;
+  transform: rotate(-3.141592653589793rad);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.backward .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .r {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .attack {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 383px;
-    top: 64px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 383px;
+  top: 64px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .attack .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .attack .attack-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-29px, -29px);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-29px, -29px);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.attack .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 44px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .z {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .east {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 128px;
-    top: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 128px;
+  top: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .east .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .east .east-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 3px;
-    top: 3px;
-    transform-origin: center;
-    transform: rotate(-1.570796314870016rad);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 3px;
+  top: 3px;
+  transform-origin: center;
+  transform: rotate(-1.570796314870016rad);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.east .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .d {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .put-recipe-items {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 256px;
-    top: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 256px;
+  top: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .put-recipe-items .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .put-recipe-items .put-recipe-items-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-29px, -29px);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-29px, -29px);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.put-recipe-items .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .q {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .swap {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 447px;
-    top: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 447px;
+  top: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .swap .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .swap .swap-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-29px, -29px);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-29px, -29px);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.swap .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .g {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .get-output {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 320px;
-    top: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 320px;
+  top: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .get-output .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .get-output .get-output-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-29px, -29px);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-29px, -29px);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.get-output .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .e {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .change-color {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 511px;
-    top: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 511px;
+  top: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .change-color .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .change-color .change-color-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-29px, -29px);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-29px, -29px);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.change-color .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .c {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
 }
 
 #action-buttons .noop {
-    position: absolute;
-    display: block;
-    width: 64px;
-    height: 64px;
-    left: 574px;
-    top: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 64px;
+  height: 64px;
+  left: 574px;
+  top: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .noop .bg {
-    position: absolute;
-    display: block;
-    width: 62px;
-    height: 62px;
-    left: 1px;
-    top: 1px;
-    background-color: rgba(0, 0, 0, 0.80);
-    border-radius: 10px;
-    border-color: rgba(62, 62, 62, 1.00);
-    border-width: 2px;
-    border-style: solid;
+  position: absolute;
+  display: block;
+  width: 62px;
+  height: 62px;
+  left: 1px;
+  top: 1px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  border-color: rgba(62, 62, 62, 1);
+  border-width: 2px;
+  border-style: solid;
 }
 
 .noop .noop-image {
-    position: absolute;
-    display: block;
-    width: 58px;
-    height: 58px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-29px, -29px);
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-29px, -29px);
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.noop .key {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  left: 0px;
+  top: 0px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 5px 2px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(226, 116, 45, 1);
+  border-radius: 3px;
+}
+
+.key .x {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Mono;
+  font-style: bold;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 15.6px;
+}
+
+#action-buttons .close.hover-icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #agent-panel {
-    position: absolute;
-    display: flex;
-    width: 1600px;
-    height: 582px;
-    left: 0px;
-    top: 64px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 10px 10px 10px 10px;
-    background-color: rgba(28, 29, 30, 0.65);
-    border-radius: 2px;
-    overflow: hidden;
+  position: absolute;
+  display: flex;
+  width: 1600px;
+  height: 582px;
+  left: 0px;
+  top: 64px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 10px 10px 10px 10px;
+  background-color: rgba(28, 29, 30, 0.65);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
 #agent-panel .table {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 1px;
-    padding: 1px 1px 1px 1px;
-    background-color: rgba(51, 51, 51, 1.00);
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 1px;
+  padding: 1px 1px 1px 1px;
+  background-color: rgba(51, 51, 51, 1);
 }
 
 .table .column {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 1px;
-    background-color: rgba(0, 0, 0, 0.00);
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 1px;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .column .header-cell {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: 38px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    background-color: rgba(28, 29, 30, 1.00);
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: 38px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 4px 4px 4px 4px;
+  align-items: center;
+  background-color: rgba(28, 29, 30, 1);
 }
 
 .header-cell .icon {
-    position: relative;
-    display: block;
-    width: 17px;
-    height: 20px;
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .header-cell .name {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(130, 130, 130, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .header-cell .sort-icon {
-    position: relative;
-    display: block;
-    width: 20px;
-    height: 20px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .header-cell .dropdown.show-on-hover {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 4px 4px 4px 4px;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(79, 79, 79, 1.00);
-    border-radius: 6px;
-    overflow: hidden;
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 4px 4px 4px 4px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(79, 79, 79, 1);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .dropdown.show-on-hover .drop-down-icon {
-    position: relative;
-    display: block;
-    width: 20px;
-    height: 20px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .column .data-cell {
-    position: relative;
-    display: flex;
-    width: 100%;
-    height: 38px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 38px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 4px 4px 4px 4px;
+  align-items: center;
+  align-self: stretch;
+  background-color: rgba(28, 29, 30, 1);
 }
 
 .data-cell .name {
-    position: relative;
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Mono;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: fit-content;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: auto;
+  color: rgba(130, 130, 130, 1);
+  font-family: IBM Plex Mono;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: right;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .table .new-column {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 1px;
-    background-color: rgba(0, 0, 0, 0.00);
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 1px;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .new-column .header-cell {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: 38px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    background-color: rgba(28, 29, 30, 1.00);
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: 38px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 4px 4px 4px 4px;
+  align-items: center;
+  background-color: rgba(28, 29, 30, 1);
 }
 
 .header-cell input#new-column-input::placeholder {
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .header-cell input#new-column-input {
-    position: relative;
-    display: flex;
-    width: 303px;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 6px 5px 6px 5px;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    border-radius: 2px;
-    overflow: hidden;
-    border-color: rgba(255, 255, 255, 1.00);
-    border-width: 1px;
-    border-style: solid;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: relative;
+  display: flex;
+  width: 303px;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 6px 5px 6px 5px;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0);
+  border-radius: 2px;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 1);
+  border-width: 1px;
+  border-style: solid;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .new-column .data-cell {
-    position: relative;
-    display: flex;
-    width: 100%;
-    height: 38px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 38px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 4px 4px 4px 4px;
+  align-items: center;
+  align-self: stretch;
+  background-color: rgba(28, 29, 30, 1);
+}
+
+#agent-panel .close.hover-icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #scrim {
-    position: absolute;
-    display: block;
-    width: 1747px;
-    height: 1219px;
-    left: 0px;
-    top: 0px;
-    background-color: rgba(255, 255, 255, 0.01);
+  position: absolute;
+  display: block;
+  width: 1747px;
+  height: 1219px;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(255, 255, 255, 0.01);
 }
 
 #new-column-dropdown {
-    position: absolute;
-    display: flex;
-    width: 313px;
-    height: fit-content;
-    left: 155px;
-    top: 121px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    padding: 0px 0px 10px 0px;
-    background-color: rgba(28, 29, 30, 1.00);
-    border-radius: 10px;
-    border-color: rgba(79, 79, 79, 1.00);
-    border-width: 1px;
-    border-style: solid;
+  position: absolute;
+  display: flex;
+  width: 313px;
+  height: fit-content;
+  left: 155px;
+  top: 121px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  padding: 0px 0px 10px 0px;
+  background-color: rgba(28, 29, 30, 1);
+  border-radius: 10px;
+  border-color: rgba(79, 79, 79, 1);
+  border-width: 1px;
+  border-style: solid;
 }
 
 #new-column-dropdown .title-area {
-    position: relative;
-    display: flex;
-    width: 100%;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 6px 10px 6px 10px;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 6px 10px 6px 10px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .title-area .title {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(189, 189, 189, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(189, 189, 189, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 20.8px;
 }
 
 #new-column-dropdown .explain {
-    position: relative;
-    display: block;
-    width: 312px;
-    height: 40px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 312px;
+  height: 40px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .explain .at_the_current_time_stamp {
-    position: absolute;
-    display: inline-block;
-    width: 116px;
-    height: 13px;
-    left: 33px;
-    top: 0px;
-    color: rgba(79, 79, 79, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 10px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 13px;
+  position: absolute;
+  display: inline-block;
+  width: 116px;
+  height: 13px;
+  left: 33px;
+  top: 0px;
+  color: rgba(79, 79, 79, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 10px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 13px;
 }
 
 .explain .final_result_at_the_end_of_the_run {
-    position: absolute;
-    display: inline-block;
-    width: 144px;
-    height: 13px;
-    left: 55px;
-    top: 15px;
-    color: rgba(79, 79, 79, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 10px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 13px;
+  position: absolute;
+  display: inline-block;
+  width: 144px;
+  height: 13px;
+  left: 55px;
+  top: 15px;
+  color: rgba(79, 79, 79, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 10px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 13px;
 }
 
 .explain .rectangle_346 {
-    position: absolute;
-    display: block;
-    width: 11px;
-    height: 2px;
-    left: 19px;
-    top: 6px;
-    background-color: rgba(79, 79, 79, 1.00);
+  position: absolute;
+  display: block;
+  width: 11px;
+  height: 2px;
+  left: 19px;
+  top: 6px;
+  background-color: rgba(79, 79, 79, 1);
 }
 
 .explain .rectangle_348 {
-    position: absolute;
-    display: block;
-    width: 11px;
-    height: 2px;
-    left: 42px;
-    top: 21px;
-    background-color: rgba(79, 79, 79, 1.00);
+  position: absolute;
+  display: block;
+  width: 11px;
+  height: 2px;
+  left: 42px;
+  top: 21px;
+  background-color: rgba(79, 79, 79, 1);
 }
 
 .explain .rectangle_347 {
-    position: absolute;
-    display: block;
-    width: 2px;
-    height: 33px;
-    left: 19px;
-    top: 7px;
-    background-color: rgba(79, 79, 79, 1.00);
+  position: absolute;
+  display: block;
+  width: 2px;
+  height: 33px;
+  left: 19px;
+  top: 7px;
+  background-color: rgba(79, 79, 79, 1);
 }
 
 .explain .rectangle_349 {
-    position: absolute;
-    display: block;
-    width: 2px;
-    height: 19px;
-    left: 42px;
-    top: 21px;
-    background-color: rgba(79, 79, 79, 1.00);
+  position: absolute;
+  display: block;
+  width: 2px;
+  height: 19px;
+  left: 42px;
+  top: 21px;
+  background-color: rgba(79, 79, 79, 1);
 }
 
 #new-column-dropdown .column-options {
-    position: relative;
-    display: flex;
-    width: 312px;
-    height: fit-content;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 10px 10px 10px 10px;
-    background-color: rgba(0, 0, 0, 0.00);
+  position: relative;
+  display: flex;
+  width: 312px;
+  height: fit-content;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 10px 10px 10px 10px;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .column-options .column-option {
-    position: relative;
-    display: block;
-    width: 306px;
-    height: 20px;
-    background-color: rgba(0, 0, 0, 0.00);
+  position: relative;
+  display: block;
+  width: 306px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .column-option .step-check {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 0px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .column-option .final-check {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 24px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 24px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .column-option .icon {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 48px;
-    top: 0px;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 48px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .column-option .name {
-    position: absolute;
-    display: inline-block;
-    width: 234px;
-    height: 20px;
-    left: 72px;
-    top: 0px;
-    color: rgba(224, 224, 224, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: left;
-    vertical-align: center;
-    letter-spacing: 0px;
-    line-height: 20.80px;
+  position: absolute;
+  display: inline-block;
+  width: 234px;
+  height: 20px;
+  left: 72px;
+  top: 0px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 20.8px;
 }
 
 #new-column-dropdown .sep {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 1px;
-    align-self: stretch;
-    background-color: rgba(42, 43, 43, 1.00);
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 1px;
+  align-self: stretch;
+  background-color: rgba(42, 43, 43, 1);
 }
 
 #new-column-dropdown .no-match-found {
-    position: relative;
-    display: block;
-    width: 312px;
-    height: 40px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 312px;
+  height: 40px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .no-match-found .message {
-    position: absolute;
-    display: inline-block;
-    width: 72px;
-    height: 13px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-36px, -6px);
-    color: rgba(79, 79, 79, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 10px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 13px;
+  position: absolute;
+  display: inline-block;
+  width: 72px;
+  height: 13px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-36px, -6px);
+  color: rgba(79, 79, 79, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 10px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 13px;
 }
 
 #column-menu {
-    position: absolute;
-    display: flex;
-    width: 162px;
-    height: fit-content;
-    left: 509px;
-    top: 244px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 5px 0px 5px 0px;
-    background-color: rgba(28, 29, 30, 1.00);
-    border-radius: 4px;
-    overflow: hidden;
-    border-color: rgba(79, 79, 79, 1.00);
-    border-width: 1px;
-    border-style: solid;
+  position: absolute;
+  display: flex;
+  width: 162px;
+  height: fit-content;
+  left: 509px;
+  top: 244px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 5px 0px 5px 0px;
+  background-color: rgba(28, 29, 30, 1);
+  border-radius: 4px;
+  overflow: hidden;
+  border-color: rgba(79, 79, 79, 1);
+  border-width: 1px;
+  border-style: solid;
 }
 
 #column-menu .sort-up.hover {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 36px;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .sort-up.hover .text {
-    position: absolute;
-    display: inline-block;
-    width: 124px;
-    height: 18px;
-    left: 36px;
-    top: 9px;
-    color: rgba(224, 224, 224, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .sort-up.hover .icon {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 8px;
-    top: 8px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #column-menu .sort-down.hover {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 36px;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .sort-down.hover .text {
-    position: absolute;
-    display: inline-block;
-    width: 124px;
-    height: 18px;
-    left: 36px;
-    top: 9px;
-    color: rgba(224, 224, 224, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .sort-down.hover .icon {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 8px;
-    top: 8px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #column-menu .sep {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 1px;
-    align-self: stretch;
-    background-color: rgba(53, 54, 55, 1.00);
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 1px;
+  align-self: stretch;
+  background-color: rgba(53, 54, 55, 1);
 }
 
 #column-menu .move-left.hover {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 36px;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .move-left.hover .text {
-    position: absolute;
-    display: inline-block;
-    width: 124px;
-    height: 18px;
-    left: 36px;
-    top: 9px;
-    color: rgba(224, 224, 224, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .move-left.hover .icon {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 8px;
-    top: 8px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #column-menu .move-right.hover {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 36px;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .move-right.hover .text {
-    position: absolute;
-    display: inline-block;
-    width: 124px;
-    height: 18px;
-    left: 36px;
-    top: 9px;
-    color: rgba(224, 224, 224, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .move-right.hover .icon {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 8px;
-    top: 8px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 #column-menu .sep {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 1px;
-    align-self: stretch;
-    background-color: rgba(53, 54, 55, 1.00);
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 1px;
+  align-self: stretch;
+  background-color: rgba(53, 54, 55, 1);
 }
 
 #column-menu .hide-column.hover {
-    position: relative;
-    display: block;
-    width: 100%;
-    height: 36px;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .hide-column.hover .text {
-    position: absolute;
-    display: inline-block;
-    width: 124px;
-    height: 18px;
-    left: 36px;
-    top: 9px;
-    color: rgba(224, 224, 224, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
 }
 
 .hide-column.hover .icon {
-    position: absolute;
-    display: block;
-    width: 20px;
-    height: 20px;
-    left: 8px;
-    top: 8px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
-.infopanel {
-    position: absolute;
-    display: flex;
-    height: fit-content;
-    left: 40px;
-    top: 730px;
-    min-width: 300px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: center;
-    width: fit-content;
-    background-color: rgba(0, 0, 0, 0.00);
-    border-radius: 20px;
-    overflow: hidden;
+.hover-panel {
+  position: absolute;
+  display: flex;
+  height: fit-content;
+  left: 226px;
+  top: 600px;
+  min-width: 300px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: fit-content;
+  background-color: rgba(0, 0, 0, 0);
+  border-radius: 20px;
+  overflow: hidden;
 }
 
-.infopanel .panel-body {
-    position: relative;
-    display: flex;
-    height: fit-content;
-    min-width: 300px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 20px 20px 20px 20px;
-    width: fit-content;
-    background-color: rgba(20, 20, 20, 0.90);
-    border-radius: 20px;
-    overflow: hidden;
+.hover-panel .panel-body {
+  position: relative;
+  display: flex;
+  height: fit-content;
+  min-width: 300px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 20px 20px 20px 20px;
+  width: fit-content;
+  background-color: rgba(20, 20, 20, 0.9);
+  border-radius: 20px;
+  overflow: hidden;
 }
 
-.panel-body .top {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 0px 10px 0px 0px;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+.panel-body .params {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 0px 10px 0px 0px;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
-.top .pin-info-panel.hover-icon {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 32px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+.params .pin-info-panel.hover-icon {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
-.top .param {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    background-color: rgba(0, 0, 0, 0.00);
+.params .param {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .param .name {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 20.8px;
 }
 
 .param .value {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 22px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 28.60px;
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 22px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 28.6px;
 }
 
-.panel-body .bottom {
-    position: relative;
-    display: flex;
-    width: 100%;
-    height: fit-content;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 2px 1px 2px 1px;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+.panel-body .inventory-area {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: fit-content;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 1px 2px 1px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
-.bottom .label {
-    position: relative;
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    align-self: stretch;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: left;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
+.inventory-area .label {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: fit-content;
+  align-self: stretch;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 20.8px;
 }
 
-.bottom .inventory {
-    position: relative;
-    display: flex;
-    width: 100%;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 8px;
-    padding: 4px 1px 4px 1px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+.inventory-area .inventory {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 4px 1px 4px 1px;
+  align-items: center;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
 .inventory .item {
-    position: relative;
-    display: block;
-    width: 40px;
-    height: 64px;
-    background-color: rgba(20, 27, 35, 1.00);
-    border-radius: 5px;
-    overflow: hidden;
-    border-color: rgba(53, 53, 53, 1.00);
-    border-width: 1px;
-    border-style: solid;
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 64px;
+  background-color: rgba(20, 27, 35, 1);
+  border-radius: 5px;
+  overflow: hidden;
+  border-color: rgba(53, 53, 53, 1);
+  border-width: 1px;
+  border-style: solid;
 }
 
 .item .amount {
-    position: absolute;
-    display: inline-block;
-    width: 40px;
-    height: 25px;
-    left: 0px;
-    top: 36px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 20px;
-    text-align: center;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 26px;
+  position: absolute;
+  display: inline-block;
+  width: 40px;
+  height: 25px;
+  left: 0px;
+  top: 36px;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 20px;
+  text-align: center;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 26px;
 }
 
 .item .icon {
-    position: absolute;
-    display: block;
-    width: 32px;
-    height: 32px;
-    left: 4px;
-    top: 4px;
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  left: 4px;
+  top: 4px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
-.infopanel .tip {
-    position: relative;
-    display: block;
-    width: 32px;
-    height: 16px;
-    background-color: rgba(0, 0, 0, 0.00);
+.panel-body .recipe-area {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: fit-content;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 1px 2px 1px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
 }
 
-.infopanel .close.hover-icon {
-    position: absolute;
-    display: block;
-    width: 32px;
-    height: 32px;
-    right: 0px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
+.recipe-area .label {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  height: fit-content;
+  align-self: stretch;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 20.8px;
+}
+
+.recipe-area .recipe {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 4px 1px 4px 1px;
+  align-items: center;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.recipe .item {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 64px;
+  background-color: rgba(20, 27, 35, 1);
+  border-radius: 5px;
+  overflow: hidden;
+  border-color: rgba(53, 53, 53, 1);
+  border-width: 1px;
+  border-style: solid;
+}
+
+.item .amount {
+  position: absolute;
+  display: inline-block;
+  width: 40px;
+  height: 25px;
+  left: 0px;
+  top: 36px;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 20px;
+  text-align: center;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 26px;
+}
+
+.item .icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  left: 4px;
+  top: 4px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.recipe .arrow {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.recipe .item {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 64px;
+  background-color: rgba(20, 27, 35, 1);
+  border-radius: 5px;
+  overflow: hidden;
+  border-color: rgba(53, 53, 53, 1);
+  border-width: 1px;
+  border-style: solid;
+}
+
+.item .amount {
+  position: absolute;
+  display: inline-block;
+  width: 40px;
+  height: 25px;
+  left: 0px;
+  top: 36px;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 20px;
+  text-align: center;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 26px;
+}
+
+.item .icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  left: 4px;
+  top: 4px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.panel-body .actions {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 10px;
+  padding: 2px 1px 2px 1px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.actions button.memory {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 8px 12px 8px 12px;
+  align-items: center;
+  background-color: rgba(20, 27, 35, 1);
+  border-radius: 5px;
+  overflow: hidden;
+  border-color: rgba(53, 53, 53, 1);
+  border-width: 1px;
+  border-style: solid;
+}
+
+button.memory .ui-brain {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+button.memory .text {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
+  height: fit-content;
+  color: rgba(255, 255, 255, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 20px;
+  text-align: center;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 26px;
+}
+
+.hover-panel .tip {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 16px;
+  background-color: rgba(0, 0, 0, 0);
+}
+
+.hover-panel .close.hover-icon {
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  right: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+#object-menu {
+  position: absolute;
+  display: flex;
+  width: 162px;
+  height: fit-content;
+  left: 1196px;
+  top: 662px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 5px 0px 5px 0px;
+  background-color: rgba(28, 29, 30, 1);
+  border-radius: 4px;
+  overflow: hidden;
+  border-color: rgba(79, 79, 79, 1);
+  border-width: 1px;
+  border-style: solid;
+}
+
+#object-menu .set-memory-to-0.hover {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.set-memory-to-0.hover .text {
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
+}
+
+.set-memory-to-0.hover .icon {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+#object-menu .set-memory-to-1.hover {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.set-memory-to-1.hover .text {
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
+}
+
+.set-memory-to-1.hover .icon {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+#object-menu .set-memory-to-random.hover {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.set-memory-to-random.hover .text {
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
+}
+
+.set-memory-to-random.hover .icon {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+#object-menu .sep {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 1px;
+  align-self: stretch;
+  background-color: rgba(53, 54, 55, 1);
+}
+
+#object-menu .copy-memory.hover {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.copy-memory.hover .text {
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
+}
+
+.copy-memory.hover .icon {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+#object-menu .paste-memory.hover {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 36px;
+  align-self: stretch;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.paste-memory.hover .text {
+  position: absolute;
+  display: inline-block;
+  width: 124px;
+  height: 18px;
+  left: 36px;
+  top: 9px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 14px;
+  text-align: left;
+  vertical-align: top;
+  letter-spacing: 0px;
+  line-height: 18.2px;
+}
+
+.paste-memory.hover .icon {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 8px;
+  top: 8px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+#search-dropdown {
+  position: absolute;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  right: 105px;
+  top: 56px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 10px 10px 10px 10px;
+  background-color: rgba(28, 29, 30, 1);
+  border-radius: 10px;
+  border-color: rgba(79, 79, 79, 1);
+  border-width: 1px;
+  border-style: solid;
+}
+
+#search-dropdown .search-item {
+  position: relative;
+  display: block;
+  width: 316px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0);
+}
+
+.search-item .filter {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 0px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.search-item .icon {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  left: 24px;
+  top: 0px;
+  background-color: rgba(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.search-item .name {
+  position: absolute;
+  display: inline-block;
+  width: 234px;
+  height: 20px;
+  left: 48px;
+  top: 0px;
+  color: rgba(224, 224, 224, 1);
+  font-family: IBM Plex Sans;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  text-align: left;
+  vertical-align: middle;
+  letter-spacing: 0px;
+  line-height: 20.8px;
 }

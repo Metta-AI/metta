@@ -1,0 +1,18 @@
+_target_: metta.mettagrid.curriculum.progressive.ProgressiveMultiTaskCurriculum
+
+# Base progressive curriculum configuration with default parameters
+# Specific configs should inherit from this and override the tasks field
+
+# Default progressive parameters
+performance_threshold: 0.8
+smoothing: 0.1
+progression_rate: 0.001
+progression_mode: "perf" # 'time' or 'perf'
+blending_smoothness: 0.5
+blending_mode: "logistic" # 'logistic' or 'linear'
+
+# Placeholder tasks - should be overridden by specific configs
+tasks: ???
+
+# Default env_overrides - can be overridden by specific configs
+env_overrides: {}

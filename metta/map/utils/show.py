@@ -7,10 +7,10 @@ from omegaconf.omegaconf import OmegaConf
 
 import mettascope.server
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.level_builder import Level
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.sim.map_preview import write_local_map_preview
-from mettagrid.curriculum import SingleTaskCurriculum
-from mettagrid.level_builder import Level
-from mettagrid.mettagrid_env import MettaGridEnv
 
 ShowMode = Literal["mettascope", "ascii", "ascii_border", "none"]
 
@@ -22,7 +22,7 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
     if mode == "mettascope":
         num_agents = np.count_nonzero(np.char.startswith(storable_map.grid, "agent"))
 
-        env_cfg = OmegaConf.load("./configs/env/mettagrid/mettagrid.yaml")
+        env_cfg = OmegaConf.load("./configs/env/mettagrid/full.yaml")
         env_cfg.game.num_agents = int(num_agents)
         OmegaConf.resolve(env_cfg)
         assert isinstance(env_cfg, DictConfig)
@@ -31,11 +31,10 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         env = MettaGridEnv(SingleTaskCurriculum("show_map", env_cfg), level=level, render_mode="none")
 
         file_path = write_local_map_preview(env)
-        url_path = file_path.split("mettascope/")[-1]
 
         with hydra.initialize(version_base=None, config_path="../../../configs"):
             cfg = hydra.compose(config_name="replay_job")
-            mettascope.server.run(cfg, open_url=f"?replayUrl={url_path}")
+            mettascope.server.run(cfg, open_url=f"?replayUrl=local/{file_path}")
 
     elif mode == "ascii":
         ascii_lines = grid_to_lines(storable_map.grid)

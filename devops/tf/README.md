@@ -2,13 +2,16 @@
 
 OpenTofu (Terraform) configs are managed by [Spacelift](https://spacelift.io/).
 
-This directory contains [stacks](https://docs.spacelift.io/concepts/stack/creating-a-stack): Terraform configurations for different parts of the infrastructure.
+This directory contains [stacks](https://docs.spacelift.io/concepts/stack/creating-a-stack): Terraform configurations
+for different parts of the infrastructure.
 
-Note that `spacelift` stack configures Spacelift, but not the individual stacks in it (see `spacelift/README.md` for details).
+Note that `spacelift` stack configures Spacelift, but not the individual stacks in it (see `spacelift/README.md` for
+details).
 
 ## Common workflow
 
-Terraform works in two stages: first, `plan`, and then `apply`. Planning is relatively safe, so it can be done automatically, or even locally without pushing to the repo.
+Terraform works in two stages: first, `plan`, and then `apply`. Planning is relatively safe, so it can be done
+automatically, or even locally without pushing to the repo.
 
 Applying should ideally happen only from the `main` branch, but see below for the possible loopholes.
 
@@ -24,10 +27,12 @@ General workflow:
 
 - Read **Creating a stack** in the [Spacelift docs](https://docs.spacelift.io/concepts/stack/creating-a-stack).
 - Use the latest OpenTofu instead of Terraform.
-- If the stack includes AWS resources, don't forget to "Attach cloud" during stack creation, or later in **Stack Settings → Integrations**.
+- If the stack includes AWS resources, don't forget to "Attach cloud" during stack creation, or later in **Stack
+  Settings → Integrations**.
 - (Optional) Enable **Local Preview** under **Stack Settings → Behavior** for faster iteration.
 
-When working on a PR that adds a new stack, you can enable **Run Promotion** (see [Applying without merging](#applying-without-merging) below) and iterate on it before the PR is merged.
+When working on a PR that adds a new stack, you can enable **Run Promotion** (see
+[Applying without merging](#applying-without-merging) below) and iterate on it before the PR is merged.
 
 ## Previewing plans without pushing to GitHub
 

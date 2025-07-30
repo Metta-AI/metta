@@ -1,8 +1,0 @@
-defaults:
-  - /env/mettagrid/navigation_sequence/training/triplets_defaults@
-  - _self_
-
-game:
-  map_builder:
-    room:
-      style: maze

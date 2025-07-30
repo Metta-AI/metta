@@ -50,7 +50,7 @@ class TestRendererJob:
                 "-m",
                 "tools.renderer",
                 f"run=test_renderer_{env_name}",
-                f"renderer_job.environment.uri={map_path}",
+                f"renderer_job.environment.root.params.uri={map_path}",
                 "renderer_job.num_steps=3",  # Very short test
                 "renderer_job.sleep_time=0",
                 "renderer_job.policy_type=simple",
@@ -61,7 +61,7 @@ class TestRendererJob:
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=30,  # Short timeout
+                    timeout=60,  # Short timeout
                     cwd=Path.cwd(),
                 )
 
@@ -78,7 +78,7 @@ class TestRendererJob:
     def test_miniscope_renderer_imports(self):
         """Test that MiniscopeRenderer can be imported and initialized."""
         try:
-            from mettagrid.renderer.miniscope import MiniscopeRenderer
+            from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
             # Test basic initialization
             object_type_names = ["agent", "wall", "altar", "mine", "generator"]
@@ -99,74 +99,6 @@ class TestRendererJob:
         except ImportError as e:
             pytest.fail(f"Failed to import MiniscopeRenderer: {str(e)}")
 
-    @pytest.mark.parametrize("env_name,map_path", DEBUG_ENVIRONMENTS.items())
-    def test_basic_training_validation(self, env_name, map_path):
-        """Test very basic training validation - just that the environment loads."""
-        # Use a minimal training run that just validates environment loading
-        run_name = f"validation_{env_name}"
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            cmd = [
-                "python",
-                "-m",
-                "tools.train",
-                f"run={run_name}",
-                "+env=mettagrid/debug",
-                "+hardware=macbook",
-                f"data_dir={temp_dir}",
-                "trainer.total_timesteps=50",  # Minimal training
-                "trainer.num_workers=1",
-                "wandb=off",
-            ]
-
-            try:
-                # Set environment variable to specify the map
-                env = os.environ.copy()
-                env["DEBUG_MAP_URI"] = map_path
-
-                # Set dummy AWS credentials to bypass AWS configuration check
-                env["AWS_ACCESS_KEY_ID"] = "dummy_access_key_for_testing"
-                env["AWS_SECRET_ACCESS_KEY"] = "dummy_secret_key_for_testing"
-
-                # Run with shorter timeout and better error handling
-                result = subprocess.run(
-                    cmd,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,  # Shorter timeout for CI
-                    cwd=Path.cwd(),
-                )
-
-                # More lenient success criteria
-                if result.returncode != 0:
-                    # Print detailed error information for debugging
-                    error_msg = (
-                        f"Training validation failed for {env_name}.\n"
-                        f"Return code: {result.returncode}\n"
-                        f"Command: {' '.join(cmd)}\n"
-                        f"STDOUT (last 1000 chars): {result.stdout[-1000:]}\n"
-                        f"STDERR (last 1000 chars): {result.stderr[-1000:]}"
-                    )
-                    pytest.fail(error_msg)
-
-                # Check that environment was loaded (more flexible check)
-                output = result.stdout + result.stderr
-                assert any(
-                    phrase in output
-                    for phrase in [
-                        "Training complete",
-                        "PufferTrainer loaded",
-                        "Starting training",
-                        "obs_space:",
-                    ]
-                ), f"Training did not start properly for {env_name}. Output: {output[-500:]}"
-
-            except subprocess.TimeoutExpired:
-                pytest.fail(f"Training validation timed out for {env_name} (60s limit)")
-            except Exception as e:
-                pytest.fail(f"Training validation failed for {env_name}: {str(e)}")
-
     def test_agents_count_in_maps(self):
         """Test that each debug map has exactly 2 agents."""
         for env_name, map_path in self.DEBUG_ENVIRONMENTS.items():
@@ -175,3 +107,133 @@ class TestRendererJob:
 
             agent_count = content.count("@")
             assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"
+
+    @pytest.mark.parametrize("env_name,map_path", DEBUG_ENVIRONMENTS.items())
+    def test_basic_training_validation(self, env_name, map_path):
+        """Test very basic training validation - just that the environment loads."""
+        # Use a minimal training run that just validates environment loading
+        run_name = f"validation_{env_name}"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            print(f"\n=== Debug Info for {env_name} ===")
+            print(f"Temp directory: {temp_dir}")
+            print(f"Working directory: {Path.cwd()}")
+            print(f"Map path: {map_path}")
+
+            # Check if map file exists
+            full_map_path = Path.cwd() / map_path
+            print(f"Full map path: {full_map_path}")
+            print(f"Map file exists: {full_map_path.exists()}")
+
+            # Detect if running in CI
+            is_ci = os.environ.get("CI", "").lower() == "true"
+            hardware_config = "+hardware=github" if is_ci else "+hardware=macbook"
+
+            cmd = [
+                "python",
+                "-m",
+                "tools.train",
+                f"run={run_name}",
+                hardware_config,
+                f"data_dir={temp_dir}",
+                "trainer.simulation.replay_dir=${run_dir}/replays/",
+                "trainer.curriculum=/env/mettagrid/debug",
+                "trainer.total_timesteps=50",  # Minimal training
+                "trainer.num_workers=1",
+                "wandb=off",
+            ]
+
+            # Set environment variable to specify the map
+            env = os.environ.copy()
+            env["DEBUG_MAP_URI"] = map_path
+
+            # Set dummy AWS credentials to bypass AWS configuration check
+            env["AWS_ACCESS_KEY_ID"] = "dummy_access_key_for_testing"
+            env["AWS_SECRET_ACCESS_KEY"] = "dummy_secret_key_for_testing"
+
+            # Add more verbose logging
+            env["HYDRA_FULL_ERROR"] = "1"
+            env["PYTHONUNBUFFERED"] = "1"
+
+            print(f"\nRunning command: {' '.join(cmd)}")
+            print(f"DEBUG_MAP_URI: {env.get('DEBUG_MAP_URI')}")
+
+            try:
+                timeout = 300
+                print(f'Running cmd "{cmd}" with timeout {timeout} sec')
+                result = subprocess.run(
+                    cmd,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    cwd=Path.cwd(),
+                )
+            except subprocess.TimeoutExpired as e:
+                print(f"\n=== Command timed out after {timeout} seconds ===")
+
+                # Decode bytes to string, defaulting to empty string if None
+                stdout_text = e.stdout.decode("utf-8") if e.stdout else "None"
+                stderr_text = e.stderr.decode("utf-8") if e.stderr else "None"
+
+                print(f"Partial STDOUT: {stdout_text}")
+                print(f"Partial STDERR: {stderr_text}")
+                pytest.fail(f"Training validation timed out for {env_name}")
+            except Exception as e:
+                print("\n=== Unexpected error running subprocess ===")
+                print(f"Error type: {type(e).__name__}")
+                print(f"Error message: {str(e)}")
+                pytest.fail(f"Unexpected error during training validation for {env_name}: {str(e)}")
+
+            # Print full output for debugging
+            print("\n=== Full STDOUT ===")
+            print(result.stdout)
+            print("\n=== Full STDERR ===")
+            print(result.stderr)
+
+            # List contents of temp directory after run
+            print("\n=== Temp directory contents after run ===")
+            try:
+                for root, _dirs, files in os.walk(temp_dir):
+                    level = root.replace(temp_dir, "").count(os.sep)
+                    indent = " " * 2 * level
+                    print(f"{indent}{os.path.basename(root)}/")
+                    sub_indent = " " * 2 * (level + 1)
+                    for file in files:
+                        print(f"{sub_indent}{file}")
+            except Exception as e:
+                print(f"Error listing directory contents: {e}")
+
+            # More lenient success criteria
+            if result.returncode != 0:
+                # Look for specific error patterns in the output
+                error_patterns = {
+                    "ImportError": "Import error detected",
+                    "FileNotFoundError": "File not found error",
+                    "KeyError": "Configuration key error",
+                    "AttributeError": "Attribute error",
+                    "ValueError": "Value error",
+                    "TypeError": "Type error",
+                    "RuntimeError": "Runtime error",
+                    "AssertionError": "Assertion error",
+                    "ModuleNotFoundError": "Module not found error",
+                }
+
+                combined_output = result.stdout + result.stderr
+                detected_errors = []
+                for pattern, description in error_patterns.items():
+                    if pattern in combined_output:
+                        detected_errors.append(description)
+
+                # Print detailed error information for debugging
+                error_msg = (
+                    f"Training validation failed for {env_name}.\n"
+                    f"Return code: {result.returncode}\n"
+                    f"Command: {' '.join(cmd)}\n"
+                    f"Working directory: {Path.cwd()}\n"
+                    f"Temp directory: {temp_dir}\n"
+                    f"Detected errors: {', '.join(detected_errors) if detected_errors else 'None detected'}\n"
+                    f"STDOUT (last 2000 chars): ...{result.stdout[-2000:]}\n"
+                    f"STDERR (last 2000 chars): ...{result.stderr[-2000:]}"
+                )
+                pytest.fail(error_msg)

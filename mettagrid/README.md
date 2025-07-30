@@ -1,17 +1,24 @@
 # MettaGrid Environment
 
-MettaGrid is a multi-agent gridworld environment for studying the emergence of cooperation and social behaviors in reinforcement learning agents. The environment features a variety of objects and actions that agents can interact with to manage resources, engage in combat, share with others, and optimize their rewards.
+MettaGrid is a multi-agent gridworld environment for studying the emergence of cooperation and social behaviors in
+reinforcement learning agents. The environment features a variety of objects and actions that agents can interact with
+to manage resources, engage in combat, share with others, and optimize their rewards.
 
 ## Overview
 
-In MettaGrid, agents navigate a gridworld and interact with various objects to manage their energy, harvest resources, engage in combat, and cooperate with other agents. The key dynamics include:
+In MettaGrid, agents navigate a gridworld and interact with various objects to manage their energy, harvest resources,
+engage in combat, and cooperate with other agents. The key dynamics include:
 
-- **Energy Management**: Agents must efficiently manage their energy, which is required for all actions. They can harvest resources and convert them to energy at charger stations.
+- **Energy Management**: Agents must efficiently manage their energy, which is required for all actions. They can
+  harvest resources and convert them to energy at charger stations.
 - **Resource Gathering**: Agents can gather resources from generator objects scattered throughout the environment.
-- **Cooperation and Sharing**: Agents have the ability to share resources with other agents and use energy to power the heart altar, which provides rewards.
-- **Combat**: Agents can attack other agents to temporarily freeze them and steal their resources. They can also use shields to defend against attacks.
+- **Cooperation and Sharing**: Agents have the ability to share resources with other agents and use energy to power the
+  heart altar, which provides rewards.
+- **Combat**: Agents can attack other agents to temporarily freeze them and steal their resources. They can also use
+  shields to defend against attacks.
 
-The environment is highly configurable, allowing for experimentation with different world layouts, object placements, and agent capabilities.
+The environment is highly configurable, allowing for experimentation with different world layouts, object placements,
+and agent capabilities.
 
 ## Objects
 
@@ -19,25 +26,29 @@ The environment is highly configurable, allowing for experimentation with differ
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_monsters/tg_monsters_astronaut_u1.png?raw=true" width="32"/>
 
-The `Agent` object represents an individual agent in the environment. Agents can move, rotate, attack, and interact with other objects. Each agent has energy, resources, and shield properties that govern its abilities and interactions.
+The `Agent` object represents an individual agent in the environment. Agents can move, rotate, attack, and interact with
+other objects. Each agent has energy, resources, and shield properties that govern its abilities and interactions.
 
 ### Altar
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_heart_full.png?raw=true" width="32"/>
 
-The `Altar` object allows agents to spend energy to gain rewards. Agents can power the altar by using the `use` action when near it. The altar has a cooldown period between uses.
+The `Altar` object allows agents to spend energy to gain rewards. Agents can power the altar by using the `use` action
+when near it. The altar has a cooldown period between uses.
 
-- Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping the same amount of energy in it and getting the same amount of reward.
+- Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping
+  the same amount of energy in it and getting the same amount of reward.
 - After the heart altar is used, it is unable to be used for altar.cooldown timesteps.
-- A single use of the heart altar gives you a single unit of reward:
-  if `target._type_id == ObjectType.AltarT:
-self.env._rewards[actor_id] += 1`
+- A single use of the heart altar gives you a single unit of reward: if
+  `target._type_id == ObjectType.AltarT: self.env._rewards[actor_id] += 1`
 
 ### Converter
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_pda_A.png?raw=true" width="32"/>
 
-The `Converter` object allows agents to convert their harvested resources into energy. Agents can use converters by moving to them and taking the `use` action. Each use of a converter provides a specified amount of energy and has a cooldown period.
+The `Converter` object allows agents to convert their harvested resources into energy. Agents can use converters by
+moving to them and taking the `use` action. Each use of a converter provides a specified amount of energy and has a
+cooldown period.
 
 - Using the converter does not cost any energy.
 - Using the converter outputs `converter.energy_output.r1` energy
@@ -50,9 +61,9 @@ The `Converter` object allows agents to convert their harvested resources into e
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_fantasy/ore-0.png?raw=true" width="32"/>
 
-The `Generator` object produces resources that agents can harvest. Agents can gather resources from generators by moving to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
+The `Generator` object produces resources that agents can harvest. Agents can gather resources from generators by moving
+to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
 
-- Using the generator costs `generator.use_cost` (currently 0) energy
 - Using the generator once gives one resource 1
 - After the generator is used, it is unable to be used for `generator.cooldown` timesteps
 
@@ -70,25 +81,35 @@ The `cooldown` property determines how long before objects can be used again.
 
 ### Move / Rotate
 
-The `move` action allows agents to move to an adjacent cell in the gridworld. The action has two modes: moving forward and moving backward relative to the agent's current orientation.
+The `move` action allows agents to move to an adjacent cell in the gridworld. The action has two modes: moving forward
+and moving backward relative to the agent's current orientation.
 
-The `rotate` action enables agents to change their orientation within the gridworld. Agents can rotate to face in four directions: down, left, right, and up.
+The `rotate` action enables agents to change their orientation within the gridworld. Agents can rotate to face in four
+directions: down, left, right, and up.
 
 ### Attack
 
-The `attack` action allows agents to attack other agents or objects within their attack range. Successful attacks freeze the target for `freeze_duration` timesteps and allow the attacker to steal resources. Further, the attacked agent's energy is set to `0`. Attacks have a cost and inflict a damage value. The agent selects from one of nine coordinates within its attack range.
+The `attack` action allows agents to attack other agents or objects within their attack range. Successful attacks freeze
+the target for `freeze_duration` timesteps and allow the attacker to steal resources. Further, the attacked agent's
+energy is set to `0`. Attacks have a cost and inflict a damage value. The agent selects from one of nine coordinates
+within its attack range.
 
 ### Shield (Toggle)
 
-The `shield` action turns on a shield. When the shield is active, the agent is protected from attacks by other agents. The shield consumes energy defined by `upkeep.shield` while active. Attack damage is subtracted from the agent's energy, rather than freezing the agent.
+The `shield` action turns on a shield. When the shield is active, the agent is protected from attacks by other agents.
+The shield consumes energy defined by `upkeep.shield` while active. Attack damage is subtracted from the agent's energy,
+rather than freezing the agent.
 
 ### Transfer
 
-The `transfer` action enables agents to share resources with other agents. Agents can choose to transfer specific resources to another agent in an adjacent cell. It is currently not implemented.
+The `transfer` action enables agents to share resources with other agents. Agents can choose to transfer specific
+resources to another agent in an adjacent cell. It is currently not implemented.
 
 ### Use
 
-The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects of the `use` action depend on the target object and can include converting resources to energy, powering the altar for rewards, or harvesting resources from generators.
+The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects
+of the `use` action depend on the target object and can include converting resources to energy, powering the altar for
+rewards, or harvesting resources from generators.
 
 ### Swap
 
@@ -96,33 +117,81 @@ The `swap` action allows agents to swap positions with other agents. It is curre
 
 ## Configuration
 
-The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the layout of the gridworld, the placement of objects, and various properties of the objects and agents.
+The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the
+layout of the gridworld, the placement of objects, and various properties of the objects and agents.
 
 **Current settings:**
 
-1. Ore
-     - Base resource obtained from mines. Mines produce one ore when used. No resource requirements for use.
-     - Reward value: 0.005 per unit (max 2)
-     - Used to create batteries and lasers
-2. Battery
-     - Intermediate resource created from ore at a generator. Generator turns one ore into one battery.
-     - Reward value: 0.01 per unit (max 2)
-     - Used to create hearts and lasers
-3. Heart / heart altar
-     - High value reward, requires 3 batteries to be converted into a heart at a heart altar.
-4. Laser
-     - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
+1. Ore   - Base resource obtained from mines. Mines produce one ore when used. No resource requirements for use.   -
+   Reward value: 0.005 per unit (max 2)   - Used to create batteries and lasers
+2. Battery   - Intermediate resource created from ore at a generator. Generator turns one ore into one battery.   -
+   Reward value: 0.01 per unit (max 2)   - Used to create hearts and lasers
+3. Heart / heart altar   - High value reward, requires 3 batteries to be converted into a heart at a heart altar.
+4. Laser   - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
 
-- Consumed on use. When hitting an unarmored agent: freezes them and steals their whole inventory. When hitting an armoured agent, destroys their armor.
-  **Inventory System**
+- Consumed on use. When hitting an unarmored agent: freezes them and steals their whole inventory. When hitting an
+  armoured agent, destroys their armor. **Inventory System**
 - Agents have limited inventory space (default max: 50 items)
 - Resources provide rewards just by being in inventory (up to their max reward value)
-- Resources can be stolen through attacks
-  Objects
-  Various buildings: Mine, Generator, Armory, Lasery, Altar, Lab, Factory, Temple.
+- Resources can be stolen through attacks Objects Various buildings: Mine, Generator, Armory, Lasery, Altar, Lab,
+  Factory, Temple.
 - HP — hitpoints, the number of times something can be hit before destruction.
 - Cooldown between uses (varies by building)
 - Can be damaged and destroyed by attacks
+
+## Environment Architecture
+
+MettaGrid uses a modular architecture designed primarily for the Softmax Studio ML project, with lightweight adapters to maintain compatibility with external RL frameworks:
+
+### Primary Training Environment
+
+**`MettaGridEnv`** - The main environment actively developed for Softmax Studio training systems
+- Full-featured environment with comprehensive stats collection, replay recording, and curriculum support
+- Inherits from `MettaGridCore` for C++ environment implementation  
+- **Exclusively used** by `metta.rl.trainer` and `metta.sim.simulation`
+- Continuously developed and optimized for Softmax Studio use cases
+- Backward compatible with existing training code
+
+### Core Infrastructure  
+
+**`MettaGridCore`** - Low-level C++ environment wrapper
+- Foundation that provides the core game mechanics and performance
+- **Not used directly** for training - serves as implementation detail for `MettaGridEnv`
+- Provides the base functionality that external adapters wrap
+
+### External Framework Compatibility Adapters
+
+Lightweight wrappers around `MettaGridCore` to maintain compatibility with other training systems:
+
+- **`MettaGridGymEnv`** - Gymnasium compatibility for research workflows
+- **`MettaGridPettingZooEnv`** - PettingZoo compatibility for multi-agent research  
+- **`MettaGridPufferEnv`** - PufferLib compatibility for high-performance external training
+
+**Important**: These adapters are **only used with their respective training systems**, not with the Metta trainer.
+
+### Design Philosophy
+
+- **Primary Focus**: `MettaGridEnv` receives active development and new features for Softmax Studio
+- **Compatibility Maintenance**: External adapters ensure other frameworks continue working as the core evolves  
+- **Testing for Compatibility**: Demos verify external frameworks remain functional during core development
+- **Clear Separation**: Each environment type serves its specific training system - no mixing between systems
+
+### Compatibility Testing Demos
+
+These demos ensure external framework adapters remain functional as the core environment evolves:
+
+```bash
+# Verify PettingZoo compatibility
+python -m mettagrid.demos.demo_train_pettingzoo
+
+# Verify PufferLib compatibility  
+python -m mettagrid.demos.demo_train_puffer
+
+# Verify Gymnasium compatibility
+python -m mettagrid.demos.demo_train_gym
+```
+
+The demos serve as regression tests to catch compatibility issues during core development, ensuring external users can continue using their preferred frameworks.
 
 ## Building and testing
 
@@ -130,7 +199,8 @@ For local development, refer to the top-level [README.md](../README.md) in this 
 
 ### CMake
 
-By default, `uv sync` will run the CMake build in an isolated environment, so if you need to run C++ tests and benchmarks, you'll need to invoke `cmake` directly.
+By default, `uv sync` will run the CMake build in an isolated environment, so if you need to run C++ tests and
+benchmarks, you'll need to invoke `cmake` directly.
 
 Build C++ tests and benchmarks in debug mode:
 

@@ -1,6 +1,7 @@
-num_workers: ???
+_target_: metta.rl.trainer.MettaTrainer
+num_workers: null  # determined by train.py if not specified
 
-curriculum: /env/mettagrid/curriculum/simple
+curriculum: ???
 env_overrides: {}
 
 initial_policy:
@@ -10,15 +11,118 @@ initial_policy:
   metric: epoch
   filters: {}
 
-checkpoint_dir: ${run_dir}/checkpoints
+checkpoint:
+  checkpoint_dir: ${run_dir}/checkpoints
+  checkpoint_interval: 50
+  wandb_checkpoint_interval: 50
 
-evaluate_interval: 300
-checkpoint_interval: 60
-wandb_checkpoint_interval: 300
-replay_interval: ${trainer.evaluate_interval}
-replay_dir: s3://softmax-public/replays/${run}
+simulation:
+  evaluate_interval: 200
+  replay_dir: s3://softmax-public/replays/${run}
+  evaluate_remote: false
+  git_hash: null
+  skip_git_check: false
 
-# Average reward settings
-average_reward: false # Set to true to use average reward optimization
-average_reward_alpha: 0.01 # Smoothing factor for 100k step average (ln(2)/100000)
+grad_mean_variance_interval: 0 # 0 to disable
 
+total_timesteps: 10_000_000_000
+
+optimizer:
+  type: adam
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-12
+  learning_rate: 0.000457
+  weight_decay: 0
+
+ppo:
+  # Core PPO hyperparameters
+  clip_coef: 0.1
+  ent_coef: 0.0021
+  gae_lambda: 0.916
+  gamma: 0.977
+
+  # Training parameters
+  max_grad_norm: 0.5
+  vf_clip_coef: 0.1
+  vf_coef: 0.44
+  l2_reg_loss_coef: 0
+  l2_init_loss_coef: 0
+  norm_adv: true
+  clip_vloss: true
+  target_kl: null
+
+# Prioritized experience replay parameters
+prioritized_experience_replay:
+  prio_alpha: 0.0 # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+  prio_beta0: 0.6 # Initial importance sampling correction
+
+# V-trace clipping parameters (for off-policy corrections)
+vtrace:
+  vtrace_rho_clip: 1.0 # Default: on-policy (no off-policy correction)
+  vtrace_c_clip: 1.0 # Default: on-policy bootstrapping
+
+zero_copy: true
+require_contiguous_env_ids: false
+verbose: true
+
+batch_size: 524288
+minibatch_size: 16384
+bptt_horizon: 64
+update_epochs: 1
+
+cpu_offload: false
+compile: false
+compile_mode: reduce-overhead
+profiler:
+  interval_epochs: 10000
+  profile_dir: s3://softmax-public/torch_traces/${run}
+
+forward_pass_minibatch_target_size: 4096
+async_factor: 2
+scale_batches_by_world_size: false
+
+# Hyperparameter scheduler configuration
+hyperparameter_scheduler:
+  learning_rate_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.CosineSchedule
+    min_value: 0.00003
+    initial_value: ${...optimizer.learning_rate}
+
+  ppo_clip_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LogarithmicSchedule
+    min_value: 0.05
+    decay_rate: 0.1
+    initial_value: ${...ppo.clip_coef}
+
+  ppo_ent_coef_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+    min_value: 0.0
+    initial_value: ${...ppo.ent_coef}
+
+  ppo_vf_clip_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
+    min_value: 0.05
+    initial_value: ${...ppo.vf_clip_coef}
+
+  ppo_l2_reg_loss_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+    initial_value: ${...ppo.l2_reg_loss_coef}
+
+  ppo_l2_init_loss_schedule:
+    _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
+    initial_value: ${...ppo.l2_init_loss_coef}
+
+kickstart:
+  teacher_uri: null
+  action_loss_coef: 1
+  value_loss_coef: 1
+  anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
+  kickstart_steps: 1_000_000_000
+  additional_teachers:
+    # - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
+    #   action_loss_coef: 0.5
+    #   value_loss_coef: 0.6
+    #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
+    #    action_loss_coef: 1
+    #    value_loss_coef: 1

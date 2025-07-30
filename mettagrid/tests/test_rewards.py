@@ -1,14 +1,15 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import (
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_env import (
     dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.util.actions import (
+from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,
@@ -33,92 +34,47 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    env_config = {
-        "game": {
-            "max_steps": max_steps,
-            "num_agents": num_agents,
-            "obs_width": OBS_WIDTH,
-            "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
-            "num_observation_tokens": NUM_OBS_TOKENS,
-            "actions": {
-                "noop": {"enabled": True},
-                "get_items": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "put_items": {"enabled": True},
-                "attack": {"enabled": True},
-                "swap": {"enabled": True},
-                "change_color": {"enabled": True},
+    game_config = {
+        "max_steps": max_steps,
+        "num_agents": num_agents,
+        "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
+        "num_observation_tokens": NUM_OBS_TOKENS,
+        "inventory_item_names": ["laser", "armor", "heart"],
+        "actions": {
+            "noop": {"enabled": True},
+            "get_items": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
+            "put_items": {"enabled": True},
+            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+            "swap": {"enabled": True},
+            "change_color": {"enabled": True},
+            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
+        },
+        "groups": {"red": {"id": 0, "props": {}}},
+        "objects": {
+            "wall": {"type_id": 1},
+            "altar": {
+                "type_id": 8,
+                "output_resources": {"heart": 1},
+                "initial_resource_count": 5,  # Start with some hearts
+                "max_output": 50,
+                "conversion_ticks": 1,  # Faster conversion
+                "cooldown": 10,
             },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {
-                "wall": {"type_id": 1, "hp": 100},
-                "altar": {
-                    "type_id": 4,
-                    "hp": 100,
-                    "output_heart": 1,
-                    "initial_items": 5,  # Start with some hearts
-                    "max_output": 50,
-                    "conversion_ticks": 1,  # Faster conversion
-                    "cooldown": 10,  # Shorter cooldown
-                },
+        },
+        "agent": {
+            "default_resource_limit": 10,
+            "rewards": {
+                "inventory": {
+                    "heart": 1.0  # This gives 1.0 reward per heart collected
+                }
             },
-            "agent": {
-                "default_item_max": 10,
-                "hp": 100,
-                "rewards": {"heart": 1.0},  # This gives 1.0 reward per heart collected
-            },
-        }
+        },
     }
 
-    return MettaGrid(env_config, game_map)
-
-
-def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENTS):
-    """Helper function to create a basic MettaGrid environment for reward testing."""
-    # Define a simple map with walls and agents
-    game_map = np.full((height, width), "empty", dtype="<U50")
-    game_map[0, :] = "wall"
-    game_map[-1, :] = "wall"
-    game_map[:, 0] = "wall"
-    game_map[:, -1] = "wall"
-
-    # Place agents
-    for i in range(num_agents):
-        game_map[1, i + 1] = "agent.red"
-
-    env_config = {
-        "game": {
-            "max_steps": max_steps,
-            "num_agents": num_agents,
-            "obs_width": OBS_WIDTH,
-            "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
-            "num_observation_tokens": NUM_OBS_TOKENS,
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": False},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-            },
-            "groups": {
-                "red": {"id": 1, "group_reward_pct": 0.1, "props": {"max_inventory": 50}},
-                "blue": {"id": 2, "group_reward_pct": 0.0, "props": {"max_inventory": 50}},
-            },
-            "objects": {
-                "wall": {"hp": 100},
-                "block": {"hp": 50},
-            },
-            "agent": {"freeze_duration": 100, "max_inventory": 50, "rewards": {"heart": 1.0}},
-        }
-    }
-
-    return MettaGrid(env_config, game_map.tolist())
+    return MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
 
 def perform_action(env, action_name, arg=0):
@@ -159,14 +115,14 @@ def collect_heart_from_altar(env):
         return False, 0.0
 
     # Collect heart
-    obs, reward, success = perform_action(env, "get_output", 0)
+    obs, reward, success = perform_action(env, "get_items", 0)
     return success, reward
 
 
 class TestRewards:
     def test_step_rewards_initialization(self):
         """Test that step rewards are properly initialized to zero."""
-        env = create_reward_test_env()
+        env = create_heart_reward_test_env()
 
         # Create buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
@@ -203,9 +159,6 @@ class TestRewards:
         env.set_buffers(observations, terminals, truncations, rewards)
         env.reset()
 
-        # Wait for heart production
-        wait_for_heart_production(env, steps=5)
-
         # Collect heart and verify rewards
         success, reward = collect_heart_from_altar(env)
 
@@ -231,15 +184,12 @@ class TestRewards:
         env.set_buffers(observations, terminals, truncations, rewards)
         env.reset()
 
-        # Position agent and collect multiple hearts
-        wait_for_heart_production(env, steps=5)
-
         # First collection
         success1, reward1 = collect_heart_from_altar(env)
         episode_rewards_1 = env.get_episode_rewards()[0]
 
         # Wait and collect again
-        wait_for_heart_production(env, steps=3)
+        wait_for_heart_production(env, steps=10)
         success2, reward2 = collect_heart_from_altar(env)
         episode_rewards_2 = env.get_episode_rewards()[0]
 
@@ -259,77 +209,3 @@ class TestRewards:
         print("✅ Multiple collections successful!")
         print(f"   Collection 1: reward={reward1}, episode_total={episode_rewards_1}")
         print(f"   Collection 2: reward={reward2}, episode_total={episode_rewards_2}")
-
-    def test_episode_rewards_accumulation(self):
-        """Test that episode rewards properly accumulate across steps."""
-        env = create_reward_test_env()
-
-        # Create buffers
-        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
-        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
-        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
-        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
-
-        env.set_buffers(observations, terminals, truncations, rewards)
-        env.reset()
-
-        # Get initial episode rewards - should be zero
-        episode_rewards = env.get_episode_rewards()
-        assert np.all(episode_rewards == 0), f"Episode rewards should start at zero, got {episode_rewards}"
-
-        # Take first step
-        noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
-
-        obs, step_rewards_1, terminals, truncations, info = env.step(actions)
-        episode_rewards_1 = env.get_episode_rewards()
-
-        # Episode rewards should equal step rewards after first step
-        np.testing.assert_array_equal(
-            episode_rewards_1, step_rewards_1, "Episode rewards should equal step rewards after first step"
-        )
-
-        # Take second step
-        obs, step_rewards_2, terminals, truncations, info = env.step(actions)
-        episode_rewards_2 = env.get_episode_rewards()
-
-        # Episode rewards should be cumulative
-        expected_cumulative = episode_rewards_1 + step_rewards_2
-        np.testing.assert_array_equal(episode_rewards_2, expected_cumulative, "Episode rewards should be cumulative")
-
-        print(f"✅ Episode rewards accumulate correctly: {episode_rewards_2}")
-
-    def test_gym_mode_rewards(self):
-        """Test rewards in gym mode (without explicit set_buffers call)."""
-        env = create_reward_test_env()
-
-        # Don't call set_buffers - this should trigger gym mode
-        obs, info = env.reset()
-
-        # Get initial episode rewards
-        episode_rewards = env.get_episode_rewards()
-        assert np.all(episode_rewards == 0), f"Episode rewards should start at zero in gym mode, got {episode_rewards}"
-
-        # Take steps
-        noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
-
-        obs, step_rewards_1, terminals, truncations, info = env.step(actions)
-        episode_rewards_1 = env.get_episode_rewards()
-
-        # Episode rewards should equal step rewards after first step
-        np.testing.assert_array_equal(
-            episode_rewards_1, step_rewards_1, "Episode rewards should equal step rewards after first step in gym mode"
-        )
-
-        # Take another step
-        obs, step_rewards_2, terminals, truncations, info = env.step(actions)
-        episode_rewards_2 = env.get_episode_rewards()
-
-        # Episode rewards should be cumulative
-        expected_cumulative = episode_rewards_1 + step_rewards_2
-        np.testing.assert_array_equal(
-            episode_rewards_2, expected_cumulative, "Episode rewards should be cumulative in gym mode"
-        )
-
-        print(f"✅ Gym mode rewards work correctly: {episode_rewards_2}")

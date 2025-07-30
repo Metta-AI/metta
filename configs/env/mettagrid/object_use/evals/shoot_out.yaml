@@ -1,5 +1,6 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/combat@game.objects
   - _self_
 
 game:
@@ -7,15 +8,15 @@ game:
   max_steps: 400
   agent:
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
   objects:
     altar:
       cooldown: 255
-    wall:
-      hp: 1
+
     lasery:
-      initial_items: 20
+      initial_resource_count: 20
   map_builder:
-    _target_: mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1
     uri: "configs/env/mettagrid/maps/object_use/shoot_out.map"

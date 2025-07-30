@@ -8,7 +8,10 @@ inputs:
     required: true
   content:
     description: "Content to post to Discord"
-    required: true
+    required: false
+  content-file:
+    description: "Path to file containing content to post to Discord"
+    required: false
   suppress-embeds:
     description: "Whether to suppress embeds in Discord messages"
     required: false
@@ -20,17 +23,20 @@ runs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
+        python-version: "3.11.7"
 
-    - name: Install dependencies
-      run: pip install requests
-      shell: bash
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
 
     - name: Post to Discord
       run: |
-        python ${{ github.action_path }}/discord_webhook.py
+        uv run ${{ github.action_path }}/discord_webhook.py
       shell: bash
       env:
         DISCORD_WEBHOOK_URL: ${{ inputs.webhook-url }}
         DISCORD_CONTENT: ${{ inputs.content }}
+        DISCORD_CONTENT_FILE: ${{ inputs.content-file }}
         DISCORD_SUPPRESS_EMBEDS: ${{ inputs.suppress-embeds }}

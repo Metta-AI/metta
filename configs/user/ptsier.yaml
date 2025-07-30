@@ -3,9 +3,14 @@
 defaults:
   - _self_
 
-eval_db_uri: train_dir/pasha_sim/stats.db
-run: pasha_sim
-policy_uri: wandb://run/sasmith.flattened_layers.baseline.2
+run: pasha_test_run_5
+policy_uri: wandb://run/daphne.nav_memory_sequence.baseline.06-20
 
-dashboard:
-  output_path: /tmp/dashboard_data.json
+stats_server_uri: https://api.observatory.softmax-research.net
+
+trainer:
+  checkpoint:
+    checkpoint_interval: 50
+    wandb_checkpoint_interval: 50
+  simulation:
+    evaluate_interval: 50

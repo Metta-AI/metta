@@ -1,15 +1,28 @@
 #!/usr/bin/env -S uv run
 # Starts a websocket server that allows you to play as a metta agent.
 
-import hydra
+import logging
+
+from omegaconf import DictConfig, OmegaConf
 
 import mettascope.server as server
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
+from metta.util.metta_script import metta_script
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
-def main(cfg):
-    server.run(cfg, open_url="?wsUrl=%2Fws")
+def main(cfg: DictConfig):
+    logger = logging.getLogger("tools.play")
+    logger.info(f"tools.play job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
+
+    open_browser = OmegaConf.select(cfg, "replay_job.open_browser_on_start", default=True)
+
+    ws_url = "%2Fws"
+
+    if open_browser:
+        server.run(cfg, open_url=f"?wsUrl={ws_url}")
+    else:
+        logger.info(f"Enter MettaGrid @ {DEV_METTASCOPE_FRONTEND_URL}?wsUrl={ws_url}")
+        server.run(cfg)
 
 
-if __name__ == "__main__":
-    main()
+metta_script(main, "replay_job")

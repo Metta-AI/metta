@@ -1,0 +1,5 @@
+# @package __global__
+
+run: test_test
+trainer:
+  env: /env/mettagrid/arena/advanced

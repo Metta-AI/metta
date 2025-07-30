@@ -1,0 +1,57 @@
+#!/usr/bin/env -S uv run
+"""
+Push the local mettaai/metta:latest image to an ECR registry.
+"""
+
+import argparse
+import subprocess
+import sys
+
+from metta.common.util.cli import get_user_confirmation, sh
+from metta.common.util.fs import cd_repo_root
+from metta.common.util.text_styles import bold
+
+
+def main():
+    cd_repo_root()
+
+    parser = argparse.ArgumentParser(description="Upload metta image to ECR")
+    parser.add_argument("--local-image-name", default="mettaai/metta:latest")
+    parser.add_argument("--remote-image-name", default="metta:latest")
+    parser.add_argument("--region", default="us-east-1")
+    parser.add_argument("--account-id", type=int, help="AWS account ID. If omitted, current account is used.")
+    args = parser.parse_args()
+
+    account_id = args.account_id or sh(["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"])
+    if not account_id:
+        sys.exit("ERROR: Failed to determine ACCOUNT_ID")
+
+    print(f"Uploading {bold(args.local_image_name)} to {bold(args.remote_image_name)}")
+    print(f"Region: {bold(args.region)}")
+    print(f"Account ID: {bold(account_id)}")
+    print("")
+    if not get_user_confirmation("Images should normally be uploaded by CI. Do you want to proceed?"):
+        sys.exit(0)
+
+    push_image(args.local_image_name, args.remote_image_name, args.region, account_id)
+
+
+def push_image(local_image_name: str, remote_image_name: str, region: str, account_id: str) -> None:
+    docker_pwd = sh(["aws", "ecr", "get-login-password", "--region", region])
+    host = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
+
+    subprocess.run(
+        ["docker", "login", "--username", "AWS", "--password-stdin", host],
+        input=docker_pwd,
+        text=True,
+        check=True,
+    )
+
+    subprocess.check_call(["docker", "tag", local_image_name, f"{host}/{remote_image_name}"])
+    subprocess.check_call(["docker", "push", f"{host}/{remote_image_name}"])
+
+    print("✓ Push complete")
+
+
+if __name__ == "__main__":
+    main()

@@ -9,10 +9,10 @@ def make_grid(height: int, width: int) -> np.ndarray:
 
 
 def test_objects():
-    scene = render_scene(Random, {"objects": {"mine": 3, "generator": 2}}, (3, 3))
+    scene = render_scene(Random, {"objects": {"altar": 3, "temple": 2}}, (3, 3))
 
-    assert (scene.grid == "mine").sum() == 3
-    assert (scene.grid == "generator").sum() == 2
+    assert (scene.grid == "altar").sum() == 3
+    assert (scene.grid == "temple").sum() == 2
 
 
 def test_agents():

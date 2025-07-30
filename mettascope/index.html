@@ -18,6 +18,9 @@
         <img src="data/ui/play.png" alt="#play.hover-icon" id="play" class="hover-icon">
         <img src="data/ui/stepForward.png" alt="#step-forward.hover-icon" id="step-forward" class="hover-icon">
         <img src="data/ui/rewindToEnd.png" alt="#rewind-to-end.hover-icon" id="rewind-to-end" class="hover-icon">
+        <div class="sep1"></div>
+        <img src="data/ui/demoMode.png" alt="#demo-mode-toggle.hover-icon" id="demo-mode-toggle" class="hover-icon">
+        <img src="data/ui/fullScreen.png" alt="#full-screen-toggle.hover-icon" id="full-screen-toggle" class="hover-icon">
       </div>
       <div class="center">
         <img src="data/ui/turtle.png" alt="#speed1.hover-icon" id="speed1" class="hover-icon">
@@ -34,6 +37,7 @@
         <img src="data/ui/controls.png" alt="#controls-toggle.hover-icon" id="controls-toggle" class="hover-icon">
         <img src="data/ui/info.png" alt="#info-toggle.hover-icon" id="info-toggle" class="hover-icon">
         <img src="data/ui/table.png" alt="#agent-panel-toggle.hover-icon" id="agent-panel-toggle" class="hover-icon">
+        <img src="data/ui/traces.png" alt="#traces-toggle.hover-icon" id="traces-toggle" class="hover-icon">
         <div class="sep2"></div>
         <img src="data/ui/heart.png" alt="#resources-toggle.hover-icon" id="resources-toggle" class="hover-icon">
         <img src="data/ui/grid.png" alt="#grid-toggle.hover-icon" id="grid-toggle" class="hover-icon">
@@ -41,10 +45,14 @@
         <img src="data/ui/cloud.png" alt="#fog-of-war-toggle.hover-icon" id="fog-of-war-toggle" class="hover-icon">
       </div>
     </div>
-    <div id="time-panel">
-      <input id="main-scrubber">
+    <div id="timeline-panel">
+      <div id="timeline-redout">
+        <span id="step-counter">1999</span>
+      </div>
     </div>
-    <div id="trace-panel"></div>
+    <div id="trace-panel">
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
+    </div>
     <div id="worldmap-panel"></div>
     <div id="header">
       <img src="data/ui/header-bg.png" alt="ui/header-bg" class="ui/header-bg">
@@ -56,6 +64,8 @@
       <button id="help-button" class="hover-icon">
         <img src="data/ui/help.png" alt="icon" class="icon">
       </button>
+      <input placeholder="Search..." id="search-input">
+      <img src="data/ui/search.png" alt="#search-icon" id="search-icon">
     </div>
     <div id="modal">
       <span class="header">Welcome to Mettascope</span>
@@ -66,67 +76,110 @@
     </div>
     <div id="info-panel">
       <span class="info">Starting MettaScope ...</span>
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
     </div>
-    <div id="minimap-panel"></div>
+    <div id="minimap-panel">
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
+    </div>
     <div id="action-buttons">
       <div class="west">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="west-image" class="west-image">
+        <div class="key">
+          <span class="a">A</span>
+        </div>
       </div>
       <div class="north">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="north-image" class="north-image">
+        <div class="key">
+          <span class="w">W</span>
+        </div>
       </div>
       <div class="forward">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/move.png" alt="forward-image" class="forward-image">
+        <div class="key">
+          <span class="f">F</span>
+        </div>
       </div>
       <div class="attack-nearest">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/attack_nearest.png" alt="attack-nearest-image" class="attack-nearest-image">
+        <div class="key">
+          <span class="z">Z</span>
+        </div>
       </div>
       <div class="south">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="south-image" class="south-image">
+        <div class="key">
+          <span class="s">S</span>
+        </div>
       </div>
       <div class="backward">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/move.png" alt="backward-image" class="backward-image">
+        <div class="key">
+          <span class="r">R</span>
+        </div>
       </div>
       <div class="attack">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/attack.png" alt="attack-image" class="attack-image">
+        <div class="key">
+          <span class="z">Shift+Z</span>
+        </div>
       </div>
       <div class="east">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="east-image" class="east-image">
+        <div class="key">
+          <span class="d">D</span>
+        </div>
       </div>
       <div class="put-recipe-items">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/put_recipe_items.png" alt="put-recipe-items-image" class="put-recipe-items-image">
+        <div class="key">
+          <span class="q">Q</span>
+        </div>
       </div>
       <div class="swap">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/swap.png" alt="swap-image" class="swap-image">
+        <div class="key">
+          <span class="g">G</span>
+        </div>
       </div>
       <div class="get-output">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/get_output.png" alt="get-output-image" class="get-output-image">
+        <div class="key">
+          <span class="e">E</span>
+        </div>
       </div>
       <div class="change-color">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/change_color.png" alt="change-color-image" class="change-color-image">
+        <div class="key">
+          <span class="c">C</span>
+        </div>
       </div>
       <div class="noop">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/noop.png" alt="noop-image" class="noop-image">
+        <div class="key">
+          <span class="x">X</span>
+        </div>
       </div>
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
     </div>
     <div id="agent-panel">
       <div class="table">
         <div class="column">
           <div class="header-cell">
-            <img src="data/icon.png" alt="icon" class="icon">
+            <img src="data/ui/table/agent_id.png" alt="icon" class="icon">
             <span class="name">Agent Id</span>
             <img src="data/ui/sort-up.png" alt="sort-icon" class="sort-icon">
             <div class="dropdown show-on-hover">
@@ -144,6 +197,7 @@
           <div class="data-cell"></div>
         </div>
       </div>
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
     </div>
     <div id="scrim"></div>
     <div id="new-column-dropdown">
@@ -162,7 +216,7 @@
         <div class="column-option">
           <img src="data/ui/check-on.png" alt="step-check" class="step-check">
           <img src="data/ui/check-off.png" alt="final-check" class="final-check">
-          <img src="data/icon.png" alt="icon" class="icon">
+          <img src="data/ui/table/total_reward.png" alt="icon" class="icon">
           <span class="name">Total Reward</span>
         </div>
       </div>
@@ -195,27 +249,77 @@
         <img src="data/ui/hide.png" alt="icon" class="icon">
       </div>
     </div>
-    <div class="infopanel">
+    <div class="hover-panel">
       <div class="panel-body">
-        <div class="top">
+        <div class="params">
           <img src="data/ui/tack.png" alt="pin-info-panel.hover-icon" class="pin-info-panel hover-icon">
           <div class="param">
             <span class="name">agent:really_long_name</span>
             <span class="value">Agent</span>
           </div>
         </div>
-        <div class="bottom">
+        <div class="inventory-area">
           <span class="label">Inventory</span>
           <div class="inventory">
             <div class="item">
               <span class="amount">20</span>
-              <img src="data/icon.png" alt="icon" class="icon">
+              <img src="data/ui/generic_resource.png" alt="icon" class="icon">
             </div>
           </div>
+        </div>
+        <div class="recipe-area">
+          <span class="label">Recipe</span>
+          <div class="recipe">
+            <div class="item">
+              <span class="amount">20</span>
+              <img src="data/ui/generic_resource.png" alt="icon" class="icon">
+            </div>
+            <img src="data/ui/right-arrow.png" alt="arrow" class="arrow">
+            <div class="item">
+              <span class="amount">20</span>
+              <img src="data/ui/generic_resource.png" alt="icon" class="icon">
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="memory">
+            <img src="data/ui/brain.png" alt="ui/brain" class="ui/brain">
+            <span class="text">Memory</span>
+          </button>
         </div>
       </div>
       <img src="data/ui/panel-tip.png" alt="tip" class="tip">
       <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
+    </div>
+    <div id="object-menu">
+      <div class="set-memory-to-0 hover">
+        <span class="text">Set Memory to 0</span>
+        <img src="data/ui/brain0.png" alt="icon" class="icon">
+      </div>
+      <div class="set-memory-to-1 hover">
+        <span class="text">Set Memory to 1</span>
+        <img src="data/ui/brain1.png" alt="icon" class="icon">
+      </div>
+      <div class="set-memory-to-random hover">
+        <span class="text">Scramble Memory</span>
+        <img src="data/ui/brainr.png" alt="icon" class="icon">
+      </div>
+      <div class="sep"></div>
+      <div class="copy-memory hover">
+        <span class="text">Copy Memory</span>
+        <img src="data/ui/copy.png" alt="icon" class="icon">
+      </div>
+      <div class="paste-memory hover">
+        <span class="text">Paste Memory</span>
+        <img src="data/ui/paste.png" alt="icon" class="icon">
+      </div>
+    </div>
+    <div id="search-dropdown">
+      <div class="search-item">
+        <img src="data/ui/check-on.png" alt="filter" class="filter">
+        <img src="data/ui/generic_resource.png" alt="icon" class="icon">
+        <span class="name">Diamond</span>
+      </div>
     </div>
   </body>
 </html>

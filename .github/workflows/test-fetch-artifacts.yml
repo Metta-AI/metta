@@ -1,0 +1,142 @@
+name: "Test Fetch Artifacts"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/actions/fetch-artifacts/**"
+      - ".github/workflows/test-fetch-artifacts.yml"
+
+jobs:
+  test-fetch-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch newsletter artifacts
+        uses: ./.github/actions/fetch-artifacts
+        with:
+          workflow-name: "generate-newsletter.yml"
+          artifact-name-pattern: "newsletter-*"
+          num-artifacts: "2"
+          output-directory: "newsletter-artifacts"
+
+      - name: List downloaded artifacts
+        run: |
+          echo "📦 Downloaded artifacts:"
+          if [ -d "newsletter-artifacts" ]; then
+            ls -la newsletter-artifacts/
+          else
+            echo "No artifacts directory found"
+          fi
+          echo ""
+
+      - name: Extract and concatenate discord summaries
+        run: |
+          echo "🔍 Extracting discord_summary_output.txt files..."
+
+          # Create array to store artifacts with timestamps
+          declare -a artifacts_with_timestamps=()
+
+          for zip_file in newsletter-artifacts/*.zip; do
+            if [ -f "$zip_file" ]; then
+              artifact_name=$(basename "$zip_file" .zip)
+              artifact_dir="unzipped/$artifact_name"
+              mkdir -p "$artifact_dir"
+
+              # Unzip the artifact
+              unzip -q "$zip_file" -d "$artifact_dir"
+
+              # Check if discord_summary_output.txt exists
+              discord_file="$artifact_dir/discord_summary_output.txt"
+              if [ -f "$discord_file" ]; then
+                # Extract run ID from filename (format: newsletter-X_RUNID.zip)
+                run_id=$(echo "$artifact_name" | sed 's/.*_//')
+
+                # Get file modification time as timestamp for sorting
+                timestamp=$(stat -c %Y "$discord_file")
+
+                echo "✅ Found discord summary in $artifact_name (run: $run_id, timestamp: $timestamp)"
+                artifacts_with_timestamps+=("$timestamp:$discord_file:$run_id")
+              else
+                echo "⚠️  No discord_summary_output.txt found in $artifact_name"
+              fi
+            fi
+          done
+
+          # Sort by timestamp (oldest first) if we have any artifacts
+          if [ ${#artifacts_with_timestamps[@]} -gt 0 ]; then
+            IFS=$'\n' sorted_artifacts=($(sort <<<"${artifacts_with_timestamps[*]}"))
+            unset IFS
+
+            echo ""
+            echo "📄 Concatenating discord summaries in chronological order..."
+            echo "============================================================"
+
+            # Create the concatenated output
+            output_file="concatenated_discord_summaries.txt"
+            > "$output_file"  # Clear the file
+
+            for item in "${sorted_artifacts[@]}"; do
+              timestamp=$(echo "$item" | cut -d: -f1)
+              file_path=$(echo "$item" | cut -d: -f2)
+              run_id=$(echo "$item" | cut -d: -f3)
+
+              # Convert timestamp to readable date
+              readable_date=$(date -d "@$timestamp" '+%Y-%m-%d %H:%M:%S')
+
+              echo "Processing run $run_id ($readable_date)"
+
+              # Add separator and content to output file
+              echo "" >> "$output_file"
+              echo "===========================================" >> "$output_file"
+              echo "Discord Summary from Run $run_id" >> "$output_file"
+              echo "Date: $readable_date" >> "$output_file"
+              echo "===========================================" >> "$output_file"
+              echo "" >> "$output_file"
+
+              # Append the actual content
+              cat "$file_path" >> "$output_file"
+              echo "" >> "$output_file"
+            done
+
+            echo ""
+            echo "✅ Concatenation complete!"
+            echo "📊 Summary:"
+            echo "  • Discord summaries processed: ${#sorted_artifacts[@]}"
+            echo "  • Output file: $output_file"
+            echo "  • Total lines: $(wc -l < "$output_file")"
+          else
+            echo "❌ No discord summary files found"
+          fi
+
+      - name: Show concatenated result
+        run: |
+          if [ -f "concatenated_discord_summaries.txt" ]; then
+            echo "📖 First 50 lines of concatenated discord summaries:"
+            echo "=================================================="
+            head -50 concatenated_discord_summaries.txt
+            echo ""
+            echo "..."
+            echo ""
+            echo "📖 Last 20 lines:"
+            echo "=================="
+            tail -20 concatenated_discord_summaries.txt
+          else
+            echo "❌ No concatenated file found"
+          fi
+
+      - name: Summary
+        run: |
+          echo "✅ Test completed!"
+          echo "📊 Summary:"
+          echo "  • Artifacts downloaded: $(ls newsletter-artifacts/*.zip 2>/dev/null | wc -l)"
+          echo "  • Total artifact size: $(du -sh newsletter-artifacts/ 2>/dev/null | cut -f1 || echo '0')"
+          if [ -f "concatenated_discord_summaries.txt" ]; then
+            echo "  • Discord summaries found and concatenated: ✅"
+            echo "  • Final output size: $(du -sh concatenated_discord_summaries.txt | cut -f1)"
+          else
+            echo "  • Discord summaries found: ❌"
+          fi

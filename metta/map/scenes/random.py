@@ -1,12 +1,12 @@
 import numpy as np
 
+from metta.common.util.config import Config
 from metta.map.scene import Scene
-from metta.util.config import Config
 
 
 class RandomParams(Config):
-    objects: dict = {}
-    agents: int | dict = 0
+    objects: dict[str, int] = {}
+    agents: int | dict[str, int] = 0
     too_many_is_ok: bool = True
 
 

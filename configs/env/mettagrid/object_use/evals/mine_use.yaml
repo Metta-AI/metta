@@ -5,12 +5,15 @@ defaults:
 game:
   max_steps: 80
   objects:
-    mine.red:
-      initial_items: 0
+    mine_red:
+      initial_resource_count: 0
       cooldown: 255
   agent:
     rewards:
-      ore.red: 1
+      inventory:
+        ore_red: 1
   map_builder:
-    objects:
-      mine: 1
+    root:
+      params:
+        objects:
+          mine_red: 1

@@ -1,0 +1,8 @@
+# Employee-specific applications and tools
+cask "discord"
+cask "cursor"
+
+
+brew "kubernetes-cli"
+brew "helm"
+brew "helmfile"

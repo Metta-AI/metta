@@ -1,0 +1,4 @@
+cert-manager:
+  installCRDs: true
+
+acmeEmail: "daveey@stem.ai"

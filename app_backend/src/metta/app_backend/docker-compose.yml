@@ -1,0 +1,16 @@
+services:
+  orchestrator:
+    image: metta-policy-evaluator-local:latest # metta local build-policy-evaluator-img
+    environment:
+      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
+      - POLL_INTERVAL=${POLL_INTERVAL:-20}
+      - CONTAINER_RUNTIME=${CONTAINER_RUNTIME:-docker}
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - DOCKER_IMAGE=${DOCKER_IMAGE:-metta-policy-evaluator-local:latest}
+    volumes:
+      - ../../../:/workspace/metta/app_backend
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["uv", "run", "python", "-m", "metta.app_backend.eval_task_orchestrator"]
+    restart: unless-stopped
+    # Run as root to access Docker socket - in production, use a proper docker group
+    user: root

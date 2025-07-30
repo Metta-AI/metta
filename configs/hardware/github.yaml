@@ -14,13 +14,14 @@ trainer:
   minibatch_size: 1024
   forward_pass_minibatch_target_size: 2
   async_factor: 1
-  checkpoint_interval: 1
+  checkpoint:
+    checkpoint_interval: 1
+    wandb_checkpoint_interval: 0
+  simulation:
+    evaluate_interval: 1
+    replay_dir: ${run_dir}/replays/
   bptt_horizon: 8
-  num_steps: 32
   total_timesteps: 2
-  evaluate_interval: 1
-  replay_interval: 1
-  replay_dir: ${run_dir}/replays/
   env_overrides:
     game:
       # This impacts the replay size.

@@ -3,8 +3,8 @@ from omegaconf import OmegaConf
 from omegaconf.errors import ConfigAttributeError
 from pydantic import ValidationError
 
-from mettagrid.curriculum import SingleTaskCurriculum
-from mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 def test_invalid_env_map_type_raises():

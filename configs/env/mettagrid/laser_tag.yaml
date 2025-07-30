@@ -1,15 +1,19 @@
 defaults:
   - mettagrid
+  - game/objects:
+      - combat
+  - override game/groups: teams
   - _self_
 
+group_reward_pct: 0
+
 game:
-  group_reward_pct: 0
   num_agents: 36
   map_builder:
     _target_: metta.map.mapgen.MapGen
 
-    width: ${sampling:20,50,25}
-    height: ${sampling:20,50,25}
+    width: 25
+    height: 25
 
     border_width: 6
 
@@ -41,7 +45,7 @@ game:
             params:
               objects:
                 altar: 1
-                mine.red: 10
+                mine_red: 10
         - where:
             tags:
               - room_0_2
@@ -55,27 +59,28 @@ game:
                 team_2: 18
 
   agent:
-    default_item_max: ${sampling:1,10,5}
-    rewards:
-      heart: 1
+    default_resource_limit: 5
 
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1
 
     lasery:
-      input_ore.red: 0
-      input_battery: 0
-      cooldown: ${sampling:1,10,5}
-      initial_items: 5
+      input_resources:
+        ore_red: 0
+        battery_red: 0
+      cooldown: 5
+      initial_resource_count: 5
 
     armory:
-      input_ore.red: 0
-      initial_items: 5
-      cooldown: ${sampling:1,10,5}
+      input_resources:
+        ore_red: 0
+        battery_red: 0
+      initial_resource_count: 5
+      cooldown: 5
 
   groups:
     team_1:
-      group_reward_pct: ${...group_reward_pct}
+      group_reward_pct: ${....group_reward_pct}
     team_2:
-      group_reward_pct: ${...group_reward_pct}
+      group_reward_pct: ${....group_reward_pct}

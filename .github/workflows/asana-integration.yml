@@ -1,0 +1,66 @@
+name: Asana Integration
+
+on:
+  pull_request:
+    types:
+      [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+jobs:
+  check-context:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    outputs:
+      is_external: ${{ steps.detect-pr.outputs.is_external }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect PR context
+        id: detect-pr
+        uses: ./.github/actions/detect-external-pr
+
+  asana_integration:
+    needs: check-context
+    runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.draft == false &&
+      needs.check-context.outputs.is_external != 'true'
+    concurrency: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync PR Task (GH to Asana)
+        id: ensure-asana-task
+        uses: ./.github/actions/asana/pr_gh_to_asana
+        with:
+          title: ${{ github.event.pull_request.title }}
+          pr_state: ${{ github.event.pull_request.state }}
+          project_id: ${{ vars.ASANA_PROJECT_GID }}
+          workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
+          asana_token: ${{ secrets.ASANA_API_KEY }}
+          github_url: ${{ github.event.pull_request.html_url }}
+          github_url_field_id: ${{ vars.ASANA_GITHUB_URL_FIELD_GID }}
+          roster_project_id: ${{ vars.ASANA_ROSTER_PROJECT_GID }}
+          gh_login_field_id: ${{ vars.ASANA_GH_LOGIN_FIELD_GID }}
+          asana_email_field_id: ${{ vars.ASANA_EMAIL_FIELD_GID }}
+          pr_author_field_id: ${{ vars.ASANA_PR_AUTHOR_FIELD_GID }}
+          asana_attachment_secret: ${{ secrets.ASANA_ATTACHMENT_SECRET }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_repo: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync PR Description (Asana to GH)
+        uses: ./.github/actions/asana/pr_description_asana_to_gh
+        with:
+          pr_number: ${{ github.event.pull_request.number }}
+          repo: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          task_url: ${{ steps.ensure-asana-task.outputs.task_url }}

@@ -1,0 +1,101 @@
+name: "Launch SkyPilot Job"
+description: "Sets up and launches a SkyPilot job with necessary configurations."
+
+inputs:
+  trainer_env:
+    description: "Training environment configuration (e.g., env/mettagrid/arena/advanced)"
+    required: true
+  timeout_hours:
+    description: "Job timeout in hours"
+    required: true
+  run_name:
+    description: "The unique name for the W&B run and SkyPilot job."
+    required: true
+  num_gpus:
+    description: "Number of GPUs to request. If empty, uses SkyPilot task default."
+    required: false
+    default: ""
+  git_ref_override: # Allow overriding the git ref for specific cases, normally determined automatically
+    description: "Specific git ref (commit/branch/tag) to use. If empty, uses current HEAD."
+    required: false
+    default: ""
+  wandb_api_key:
+    description: "Weights & Biases API Key"
+    required: true
+  skypilot_api_url:
+    description: "SkyPilot API URL"
+    default: "https://skypilot-api.softmax-research.net"
+  skypilot_service_account_token:
+    description: "SkyPilot service account token"
+    required: true
+  observatory_token:
+    description: "Observatory API token"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup uv
+      uses: ./.github/actions/setup-uv
+
+    - name: Determine Git Ref
+      id: determine_git_ref
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.git_ref_override }}" ]; then
+          echo "Using provided git_ref_override: ${{ inputs.git_ref_override }}"
+          GIT_REF_TO_USE="${{ inputs.git_ref_override }}"
+        else
+          echo "Determining current git ref..."
+          GIT_REF_TO_USE=$(git rev-parse HEAD)
+        fi
+        echo "GIT_REF_TO_USE=$GIT_REF_TO_USE" >> $GITHUB_OUTPUT
+        echo "Using Git Ref: $GIT_REF_TO_USE"
+
+    - name: Set up Weights & Biases credentials
+      shell: bash
+      run: |
+        echo "machine api.wandb.ai" > $HOME/.netrc
+        echo "login user" >> $HOME/.netrc
+        echo "password ${{ inputs.wandb_api_key }}" >> $HOME/.netrc
+        chmod 600 $HOME/.netrc
+      env:
+        WANDB_API_KEY: ${{ inputs.wandb_api_key }}
+
+    - name: Set up Metta observatory
+      shell: bash
+      run: |
+        mkdir -p $HOME/.metta
+        echo "${{ inputs.observatory_token }}" > $HOME/.metta/observatory_token
+        echo "Created ~/.metta directory with observatory token for SkyPilot file mount"
+
+    - name: Configure SkyPilot API server
+      shell: bash
+      run: |
+        sky api login -e ${{ inputs.skypilot_api_url }} --token ${{ inputs.skypilot_service_account_token }}
+
+    - name: Launch SkyPilot training job
+      shell: bash
+      run: |
+        set -x # Enable command printing for debugging
+
+        chmod +x ./devops/skypilot/launch.py
+
+        LAUNCH_ARGS=(
+          "--max-runtime-hours=${{ inputs.timeout_hours }}"
+        )
+
+        if [ -n "${{ inputs.num_gpus }}" ]; then
+          LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
+        fi
+
+        LAUNCH_ARGS+=(
+          "--git-ref=${{ steps.determine_git_ref.outputs.GIT_REF_TO_USE }}"
+          "train"
+          "run=${{ inputs.run_name }}"
+          "trainer.curriculum=${{ inputs.trainer_env }}"
+        )
+
+        ./devops/skypilot/launch.py "${LAUNCH_ARGS[@]}"
+
+        set +x # Disable command printing

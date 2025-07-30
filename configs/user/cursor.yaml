@@ -2,17 +2,19 @@
 # This config is used by the AI assistant when running test commands
 
 # Essential configuration
-policy_uri: puffer:///tmp/puffer_metta_cursor.pt
+policy_uri: pytorch:///tmp/puffer_metta_cursor.pt
 
 # Analysis settings
 analysis:
   policy_uri: ${..policy_uri}
-  eval_db_uri: ./train_dir/${run}/stats.db
+  eval_db_uri: ./${..data_dir}/${run}/stats.db
 
 # Training settings optimized for quick testing
 trainer:
-  checkpoint_interval: 50      # Save frequently for testing
-  evaluate_interval: 0         # Skip evaluation during quick tests
+  checkpoint:
+    checkpoint_interval: 50      # Save frequently for testing
+  simulation:
+    evaluate_interval: 0         # Skip evaluation during quick tests
   total_timesteps: 100000     # Stop after 100k steps for quick tests
 
 # Hardware - assume CPU for compatibility

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metta-common"
+version = "0.1.0"
+description = "Common utilities for metta packages"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
+requires-python = "==3.11.7"
+license = "MIT"
+readme = "README.md"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.401",
+  "pytest-xdist>=3.8.0",
+  "pytest>=8.3.3",
+  "pytest-cov>=6.1.1",
+  "pytest-benchmark>=5.1.0",
+  "ruff>=0.11.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["metta.common", "metta.common.*"]
+
+[tool.setuptools.package-data]
+"metta" = ["__init__.py"]
+"metta.common" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["metta.common"]

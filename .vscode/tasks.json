@@ -1,14 +1,29 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"type": "shell",
-			"command": "uv sync",
-			"label": "uv sync",
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			}
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "command": "uv sync --inexact",
+      "label": "uv sync",
+      "group": "build"
+    },
+    {
+      "type": "shell",
+      "command": "bash ./mettascope/install.sh",
+      "label": "build frontend",
+      "group": "build"
+    },
+    {
+      "label": "build all",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "uv sync",
+        "build frontend"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
 }

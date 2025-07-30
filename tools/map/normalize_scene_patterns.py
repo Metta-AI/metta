@@ -6,7 +6,7 @@ import yaml
 from omegaconf import OmegaConf
 
 from metta.map.utils.ascii_grid import char_grid_to_lines
-from mettagrid.char_encoder import normalize_grid_char
+from metta.mettagrid.char_encoder import normalize_grid_char
 
 
 # OmegaConf has an ugly default formatter for multiline strings, so we use a custom yaml formatter.

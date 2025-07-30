@@ -1,28 +1,44 @@
 defaults:
   - common
   - wandb: metta_research
-  - agent: simple
+  - agent: fast
   - sim: sweep_eval
-  - trainer: puffer
+  - trainer: trainer
+  - sweep: full
   - _self_
 
 cmd: sweep
-sweep_name: ???
-sweep_params: "sweep/full"
-sweep_params_override: {}
-sweep: ???
-
-metric: reward
-num_random_samples: 10
+sweep_name: ???  # Will be set via command line override
 
 trainer:
-  evaluate_interval: 300
+  total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
+  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  simulation:
+    evaluate_interval: 0  # No evaluation during training for speed
+    replay_dir: "" # No replays for sweeps
 
 sim:
+  name: sweep_eval  # Required field
   num_episodes: 5
+  max_time_s: 240
+  env_overrides: {}
+  simulations:
+    simple:
+      env: /env/mettagrid/arena/basic_easy_shaped
+
+wandb:
+  group: ${sweep_name}
 
 sweep_job:
-  evals: ${sim}
+  sim: ${sim}
+  trainer: ${trainer}
+  agent: ${agent}
+  wandb: ${wandb}
+  run: ???  # Will be set via command line override
+  runs_dir: "${sweep_dir}/runs"
+  seed: null  # Will be randomly generated for each run if not specified
+  stats_server_uri: null # No logging to observatory for sweeps
 
+# TODO: Remove and update references.
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"

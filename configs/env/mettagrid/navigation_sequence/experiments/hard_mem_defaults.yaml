@@ -1,0 +1,51 @@
+#This config is the defaults for training environments focused on
+#learning the sequence and remembering where objects are located.
+#So, rooms are small, and there are a very few number of each object.
+#Currently objects are only altars, mines, and generators, of single color.
+
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - _self_
+
+sampling: 1
+labels:
+  - memory
+game:
+  num_agents: 4
+  max_steps: 2000
+  agent:
+    resource_limits:
+      ore_red: 5
+      battery_red: 5
+    rewards:
+      inventory:
+        ore_red: 0.01
+        battery_red: 0.1
+        heart: 1
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 3
+    room:
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
+      agents: 1
+      dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small,varied_terrain/maze_small}
+      objects:
+        mine_red: 2
+        generator_red: 2
+        altar: 5
+
+  objects:
+    altar:
+      input_resources:
+        battery_red: 1
+      initial_resource_count: ${choose:0,0,0,1}
+      cooldown: 10
+    generator_red:
+      initial_resource_count: ${choose:0,0,0,1}
+      cooldown: 40
+    mine_red:
+      cooldown: 10

@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/navigation_sequence/experiments/hard_mem_defaults@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      dir: varied_terrain/dense_small

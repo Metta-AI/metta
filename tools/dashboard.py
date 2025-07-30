@@ -1,22 +1,22 @@
 #!/usr/bin/env -S uv run
 """Generate dashboard data."""
 
-import hydra
+import logging
+
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.eval.dashboard_data import DashboardConfig, write_dashboard_data
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from mettagrid.util.file import http_url
+from metta.mettagrid.util.file import http_url
+from metta.util.metta_script import metta_script
 
-DASHBOARD_URL = "https://metta-ai.github.io/metta/observatory/"
+DASHBOARD_URL = f"{METTASCOPE_REPLAY_URL}/observatory/"
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="dashboard_job")
+logger = logging.getLogger("dashboard")
+
+
 def main(cfg: DictConfig) -> None:
-    setup_mettagrid_environment(cfg)
-    logger = setup_mettagrid_logger("dashboard")
-
     logger.info(f"Dashboard job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
     logger.info("Generating dashboard")
 
@@ -34,5 +34,4 @@ def main(cfg: DictConfig) -> None:
         )
 
 
-if __name__ == "__main__":
-    main()
+metta_script(main, "dashboard_job")

@@ -1,24 +1,10 @@
-# Config: choose any style, including the new "cylinder_world"
-defaults:
-  - /env/mettagrid/mettagrid@
-  - _self_
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_defaults
 
-sampling: 1
-
-game:
-  num_agents: 4
-  map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
-
-    room:
-      _target_: mettagrid.room.navigation.cylinder_world.CylinderWorld
-      width: ${sampling:75,120,60}
-      height: ${sampling:75,120,60}
-      border_width: 1
-      agents: 1
-
-  objects:
-    altar:
-      cooldown: 255
+buckets:
+  game.map_builder.room.dir:
+    - varied_terrain/cylinder-world_large
+    - varied_terrain/cylinder-world_medium
+    - varied_terrain/cylinder-world_small
+  game.map_builder.room.objects.altar:
+    range: [3, 50]

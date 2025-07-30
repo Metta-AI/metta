@@ -1,15 +1,16 @@
 defaults:
   - /env/mettagrid/memory/evals/defaults@
+  - _self_
 
 game:
   num_agents: 2
   max_steps: 70
   agent:
     rewards:
-      heart: 0.333
+      inventory:
+        heart: 0.333
   map_builder:
-    _target_: mettagrid.room.ascii.Ascii
     uri: "configs/env/mettagrid/maps/memory/hard.map"
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1

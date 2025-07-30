@@ -1,0 +1,56 @@
+name: "Fetch Artifacts"
+description: "Downloads zipped artifacts from previous successful workflow runs"
+inputs:
+  github-token:
+    description: "GitHub token for API access"
+    required: false
+    default: ${{ github.token }}
+  workflow-name:
+    description: 'Name of the workflow file to search (e.g., "build.yml")'
+    required: true
+  artifact-name-pattern:
+    description: 'Pattern to match artifact names (supports wildcards like "build-*" or exact names)'
+    required: true
+  num-artifacts:
+    description: "Number of artifacts to collect"
+    required: false
+    default: "5"
+  output-directory:
+    description: "Directory to save downloaded artifacts"
+    required: false
+    default: "downloaded-artifacts"
+outputs:
+  artifacts-found:
+    description: "Number of artifacts found and downloaded"
+    value: ${{ steps.fetch-artifacts.outputs.artifacts-found }}
+  success:
+    description: "Whether the operation completed successfully"
+    value: ${{ steps.fetch-artifacts.outputs.success }}
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11.7"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+
+    - name: Fetch Artifacts
+      id: fetch-artifacts
+      shell: bash
+      env:
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_WORKFLOW_NAME: ${{ inputs.workflow-name }}
+        INPUT_ARTIFACT_NAME_PATTERN: ${{ inputs.artifact-name-pattern }}
+        INPUT_NUM_ARTIFACTS: ${{ inputs.num-artifacts }}
+        INPUT_OUTPUT_DIRECTORY: ${{ inputs.output-directory }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+      run: |
+        uv run ${{ github.action_path }}/fetch_artifacts.py

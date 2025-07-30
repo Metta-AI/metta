@@ -6,11 +6,12 @@ import zlib
 from typing import Optional
 
 import wandb
-from omegaconf import DictConfig
 from wandb.sdk import wandb_run
 
-from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.util.file import write_file
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,11 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
 
 
 def write_local_map_preview(env: MettaGridEnv):
-    with tempfile.NamedTemporaryFile(delete=False, dir="./mettascope/local/", suffix=".json") as temp_file:
-        # Create directory and save compressed file
-        preview_path = temp_file.name
-        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+    maps_dir = "./outputs/maps"
+    os.makedirs(maps_dir, exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(delete=False, dir=maps_dir, suffix=".json") as temp_file:
+        preview_path = os.path.relpath(temp_file.name)
 
         # no gzip locally - fastapi doesn't recognize .json.z files
         write_map_preview_file(preview_path, env, gzipped=False)
@@ -51,7 +53,7 @@ def write_local_map_preview(env: MettaGridEnv):
 
 
 def upload_map_preview(
-    env_config: DictConfig,
+    curriculum: Curriculum,
     s3_path: str,
     wandb_run: Optional[wandb_run.Run] = None,
 ):
@@ -64,7 +66,7 @@ def upload_map_preview(
         wandb_run: Weights & Biases run object for logging
     """
 
-    env = MettaGridEnv(env_config, render_mode=None)
+    env = MettaGridEnv(curriculum, render_mode=None)
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         # Create directory and save compressed file
@@ -81,7 +83,7 @@ def upload_map_preview(
     try:
         # If upload was successful, log the link to WandB
         if wandb_run:
-            player_url = f"https://metta-ai.github.io/metta/?replayUrl={s3_path}"
+            player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={s3_path}"
             link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Map Preview</a>')}
             wandb_run.log(link_summary)
             logger.info(f"Preview map available at: {player_url}")

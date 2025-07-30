@@ -1,0 +1,243 @@
+name: Generate Newsletter
+
+on:
+  schedule:
+    - cron: "0 1 * * 2,4,6" # M/W/F at 1 AM GMT (5 PM PST)
+  workflow_dispatch:
+    inputs:
+      days_to_scan:
+        description: "Number of days to scan"
+        required: false
+        default: "1"
+        type: choice
+        options: ["1", "7", "14", "30"]
+      force_refresh:
+        description: "Force cache refresh"
+        required: false
+        default: false
+        type: boolean
+      skip_discord:
+        description: "Skip Discord posting (test mode)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  generate-newsletter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set days to scan
+        id: set-days
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Get current day of week (0=Sunday, 1=Monday, etc.)
+            DAY_OF_WEEK=$(date +%w)
+
+            # Set days based on day of week (in GMT)
+            # Remember: this runs Tue/Thu/Sat GMT = Mon/Wed/Fri PST
+            case $DAY_OF_WEEK in
+              2) # Tuesday GMT = Monday PST
+                DAYS=3
+                echo "Monday run: using 3 days of history"
+                ;;
+              4) # Thursday GMT = Wednesday PST
+                DAYS=2
+                echo "Wednesday run: using 2 days of history"
+                ;;
+              6) # Saturday GMT = Friday PST
+                DAYS=2
+                echo "Friday run: using 2 days of history"
+                ;;
+              *) # Fallback (shouldn't happen with your cron schedule)
+                DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '1' }}"
+                echo "Unexpected day, using default: $DAYS days"
+                ;;
+            esac
+          else
+            # Use workflow input for manual runs, fallback to 1 if not provided
+            DAYS="${{ inputs.days_to_scan || '1' }}"
+            echo "Using workflow input: $DAYS days"
+          fi
+          echo "days=$DAYS" >> $GITHUB_OUTPUT
+          echo "Selected days to scan: $DAYS"
+
+      - name: Restore PR Summaries Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            pr-summaries/
+          key: pr-summaries-${{ github.repository }}-${{ github.run_number }}
+          restore-keys: |
+            pr-summaries-${{ github.repository }}-
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Create PR Digest
+        id: pr-digest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DAYS_TO_SCAN: ${{ steps.set-days.outputs.days }}
+          PR_DIGEST_FILE: "pr_digest_output.json"
+        run: |
+          echo "Creating PR digest for last ${{ steps.set-days.outputs.days }} days..."
+
+          # Show cache status before running
+          if [ -d "pr-summaries" ]; then
+            CACHED_COUNT=$(find pr-summaries -name "pr_*.txt" | wc -l)
+            echo "📁 Found existing pr-summaries directory with $CACHED_COUNT cached PRs"
+          else
+            echo "📁 No pr-summaries directory found, starting fresh"
+          fi
+
+          uv run .github/scripts/create_pr_digest.py
+
+          # Output digest info for next step with error handling
+          if [ -f "pr_digest_output.json" ]; then
+            # Extract PR counts with error handling
+            if ! TOTAL_PR_COUNT=$(jq length pr_digest_output.json); then
+              echo "❌ Failed to parse PR digest JSON"
+              exit 1
+            fi
+
+            # Count new PRs (those without _from_cache flag)
+            if ! NEW_PR_COUNT=$(jq '[.[] | select(._from_cache != true)] | length' pr_digest_output.json); then
+              echo "❌ Failed to count new PRs"
+              exit 1
+            fi
+
+            # Validate counts are numbers
+            if ! [[ "$TOTAL_PR_COUNT" =~ ^[0-9]+$ ]] || ! [[ "$NEW_PR_COUNT" =~ ^[0-9]+$ ]]; then
+              echo "❌ Invalid PR counts: total=$TOTAL_PR_COUNT, new=$NEW_PR_COUNT"
+              exit 1
+            fi
+
+            # Note: The Python script already sets all the GitHub outputs we need, including:
+            # - new_pr_count, total_pr_count, cached_pr_count
+            # - digest_file, stats_file
+            # - has_prs_in_range, has_new_prs
+            # - date_range_display (formatted date range)
+
+            # We don't need to duplicate them here, just log what was found
+
+            echo "✅ Created PR digest:"
+            echo "   - Total PRs in period: $TOTAL_PR_COUNT"
+            echo "   - New PRs to cache: $NEW_PR_COUNT"
+            echo "   - PRs from cache: $((TOTAL_PR_COUNT - NEW_PR_COUNT))"
+            echo "   - Date range: ${{ steps.pr-digest.outputs.date_range_display }}"
+
+            # Show basic digest info
+            echo "PR digest summary:"
+            echo "- File size: $(stat -f%z pr_digest_output.json 2>/dev/null || stat -c%s pr_digest_output.json) bytes"
+          else
+            echo "❌ Failed to create PR digest - pr_digest_output.json not found"
+            exit 1
+          fi
+
+      - name: Fetch previous newsletters
+        uses: ./.github/actions/fetch-artifacts
+        with:
+          workflow-name: "generate-newsletter.yml"
+          artifact-name-pattern: "newsletter-*"
+          num-artifacts: "3"
+          output-directory: "previous-newsletters"
+        continue-on-error: true
+
+      - name: Generate Newsletter
+        id: summary
+        if: ${{ steps.pr-digest.outputs.has_prs_in_range == 'true' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest_file }}
+          PR_DIGEST_STATS_FILE: ${{ steps.pr-digest.outputs.stats_file }}
+          REPORT_PERIOD: ${{ steps.pr-digest.outputs.date_range_display }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
+          PREVIOUS_NEWSLETTERS_DIR: "previous-newsletters"
+        run: |
+          echo "Analyzing ${{ steps.pr-digest.outputs.total_pr_count }} PRs with AI..."
+          echo "(${{ steps.pr-digest.outputs.new_pr_count }} new, rest from cache)"
+          uv run .github/scripts/gemini_analyze_pr_digest.py
+
+          # Verify outputs were created with detailed checking
+          MISSING_FILES=()
+
+          if [ ! -f "discord_summary_output.txt" ]; then
+            MISSING_FILES+=("discord_summary_output.txt")
+          fi
+
+          if [ ! -f "collection_summary_output.txt" ]; then
+            MISSING_FILES+=("collection_summary_output.txt")
+          fi
+
+          if [ ${#MISSING_FILES[@]} -eq 0 ]; then
+            echo "✅ Newsletter generation completed successfully"
+            echo ""
+            echo "Generated files:"
+            for file in discord_summary_output.txt collection_summary_output.txt pr_summary_data.json; do
+              if [ -f "$file" ]; then
+                SIZE=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file")
+                echo "- $file (${SIZE} bytes)"
+              fi
+            done
+
+            if [ -d "pr-summaries" ]; then
+              SUMMARY_COUNT=$(find pr-summaries -name "*.txt" | wc -l)
+              echo "- pr-summaries/ directory (${SUMMARY_COUNT} files)"
+            fi
+          else
+            echo "❌ Newsletter generation failed - missing required files:"
+            for file in "${MISSING_FILES[@]}"; do
+              echo "  - $file"
+            done
+            exit 1
+          fi
+
+      - name: Handle No PRs Case
+        if: ${{ steps.pr-digest.outputs.has_prs_in_range == 'false' }}
+        run: |
+          echo "ℹ️  No PRs found in the time period, creating minimal newsletter..."
+
+          cat > discord_summary_output.txt << EOF
+          📊 **PR Summary Report** • ${{ steps.pr-digest.outputs.date_range_display }}
+
+          ℹ️ No PRs were merged during this period.
+          EOF
+
+          echo "No PRs to summarize in this period." > collection_summary_output.txt
+          echo "[]" > pr_summary_data.json
+
+      - name: Post to Discord
+        if: ${{ !inputs.skip_discord }}
+        uses: ./.github/actions/discord-webhook
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content-file: discord_summary_output.txt
+
+      - name: Save PR Summaries Cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            pr-summaries/
+          key: pr-summaries-${{ github.repository }}-${{ github.run_number }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: newsletter-${{ github.run_number }}
+          path: |
+            discord_summary_output.txt
+            collection_summary_output.txt
+            pr_summary_data.json
+            pr-summaries/
+            pr_digest_output.json

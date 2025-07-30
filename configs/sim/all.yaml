@@ -5,12 +5,20 @@ defaults:
 name: all
 
 simulations:
+  arena/basic:
+    env: env/mettagrid/arena/basic
+  arena/combat:
+    env: env/mettagrid/arena/combat
+  arena/advanced:
+    env: env/mettagrid/arena/advanced
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
   navigation/emptyspace_outofsight:
     env: env/mettagrid/navigation/evals/emptyspace_outofsight
   navigation/emptyspace_sparse:
     env: env/mettagrid/navigation/evals/emptyspace_sparse
+  navigation/emptyspace_sparse_medium:
+    env: env/mettagrid/navigation/evals/emptyspace_sparse_medium
   navigation/walls_withinsight:
     env: env/mettagrid/navigation/evals/walls_withinsight
   navigation/walls_outofsight:
@@ -33,11 +41,32 @@ simulations:
     env: env/mettagrid/navigation/evals/labyrinth
   navigation/radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
-    policy_agents_pct: 1.0
-  npc/simple:
-    env: env/mettagrid/simple
-    policy_agents_pct: 0.5
-    npc_policy_uri: wandb://run/b.daphne.npc_simple
+  navigation/cylinder_easy:
+    env: env/mettagrid/navigation/evals/cylinder_easy
+  navigation/honeypot:
+    env: env/mettagrid/navigation/evals/honeypot
+  navigation/knotty:
+    env: env/mettagrid/navigation/evals/knotty
+  navigation/memory_palace:
+    env: env/mettagrid/navigation/evals/memory_palace
+  navigation/radial_large:
+    env: env/mettagrid/navigation/evals/radial_large
+  navigation/radial_mini:
+    env: env/mettagrid/navigation/evals/radial_mini
+  navigation/radial_small:
+    env: env/mettagrid/navigation/evals/radial_small
+  navigation/swirls:
+    env: env/mettagrid/navigation/evals/swirls
+  navigation/thecube:
+    env: env/mettagrid/navigation/evals/thecube
+  navigation/walkaround:
+    env: env/mettagrid/navigation/evals/walkaround
+  navigation/wanderout:
+    env: env/mettagrid/navigation/evals/wanderout
+  # npc/simple:
+  #   env: env/mettagrid/arena/advanced
+  #   policy_agents_pct: 0.5
+  #   npc_policy_uri: wandb://run/georgedeane.nav_scratch
   objectuse/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
@@ -108,14 +137,14 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/thecube
   navsequence/walkaround:
     env: env/mettagrid/navigation_sequence/evals/walkaround
+  memory/access_cross:
+    env: env/mettagrid/memory/evals/access_cross
   memory/easy:
     env: env/mettagrid/memory/evals/easy
   memory/medium:
     env: env/mettagrid/memory/evals/medium
   memory/hard:
     env: env/mettagrid/memory/evals/hard
-  memory/access_cross:
-    env: env/mettagrid/memory/evals/access_cross
   memory/boxout:
     env: env/mettagrid/memory/evals/boxout
   memory/choose_wisely:
@@ -158,6 +187,35 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
-# env_overrides:
-#   game:
-#     use_observation_tokens: true
+  systematic_exploration_memory/boxout:
+    env: env/mettagrid/systematic_exploration_memory/evals/boxout
+  systematic_exploration_memory/choose_wisely:
+    env: env/mettagrid/systematic_exploration_memory/evals/choose_wisely
+  systematic_exploration_memory/corners:
+    env: env/mettagrid/systematic_exploration_memory/evals/corners
+  systematic_exploration_memory/hall_of_mirrors:
+    env: env/mettagrid/systematic_exploration_memory/evals/hall_of_mirrors
+  systematic_exploration_memory/journey_home:
+    env: env/mettagrid/systematic_exploration_memory/evals/journey_home
+  systematic_exploration_memory/little_landmark_hard:
+    env: env/mettagrid/systematic_exploration_memory/evals/little_landmark_hard
+  systematic_exploration_memory/lobster_legs_cues:
+    env: env/mettagrid/systematic_exploration_memory/evals/lobster_legs_cues
+  systematic_exploration_memory/lobster_legs:
+    env: env/mettagrid/systematic_exploration_memory/evals/lobster_legs
+  systematic_exploration_memory/memory_swirls_hard:
+    env: env/mettagrid/systematic_exploration_memory/evals/memory_swirls_hard
+  systematic_exploration_memory/memory_swirls:
+    env: env/mettagrid/systematic_exploration_memory/evals/memory_swirls
+  systematic_exploration_memory/passing_things:
+    env: env/mettagrid/systematic_exploration_memory/evals/passing_things
+  systematic_exploration_memory/rooms:
+    env: env/mettagrid/systematic_exploration_memory/evals/rooms
+  systematic_exploration_memory/spacey_memory:
+    env: env/mettagrid/systematic_exploration_memory/evals/spacey_memory
+  systematic_exploration_memory/tease:
+    env: env/mettagrid/systematic_exploration_memory/evals/tease
+  systematic_exploration_memory/venture_out:
+    env: env/mettagrid/systematic_exploration_memory/evals/venture_out
+  systematic_exploration_memory/you_shall_not_pass:
+    env: env/mettagrid/systematic_exploration_memory/evals/you_shall_not_pass

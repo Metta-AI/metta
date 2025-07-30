@@ -1,10 +1,10 @@
 from numpy import random
 
+from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere, ChildrenAction
-from metta.util.config import Config
 
 
 class MultiLeftAndRightParams(Config):
@@ -48,17 +48,15 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
         return [
             ChildrenAction(
                 where="full",
-                scene=lambda grid: RoomGrid(
-                    grid=grid,
+                scene=RoomGrid.factory(
                     params=dict(
                         rows=rows,
                         columns=columns,
                         border_width=6,
                     ),
-                    children=[
+                    children_actions=[
                         ChildrenAction(
-                            scene=lambda grid, agent_group=agent_group: RoomGrid(
-                                grid=grid,
+                            scene=RoomGrid.factory(
                                 params=dict(
                                     border_width=0,
                                     layout=[
@@ -73,10 +71,9 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                                         ],
                                     ],
                                 ),
-                                children=[
+                                children_actions=[
                                     ChildrenAction(
-                                        scene=lambda grid: Random(
-                                            grid=grid,
+                                        scene=Random.factory(
                                             params={
                                                 "agents": {
                                                     agent_group: 1,
@@ -87,8 +84,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                                         where=AreaWhere(tags=["agents"]),
                                     ),
                                     ChildrenAction(
-                                        scene=lambda grid: Random(
-                                            grid=grid,
+                                        scene=Random.factory(
                                             params={
                                                 "objects": {"altar": left_altars},
                                             },
@@ -97,8 +93,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                                         where=AreaWhere(tags=["maybe_altars_left"]),
                                     ),
                                     ChildrenAction(
-                                        scene=lambda grid: Random(
-                                            grid=grid,
+                                        scene=Random.factory(
                                             params={
                                                 "objects": {"altar": right_altars},
                                             },
@@ -115,7 +110,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                     ],
                 ),
             ),
-            *self.children,
+            *self.children_actions,
         ]
 
     def render(self):

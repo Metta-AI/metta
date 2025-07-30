@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/navigation/evals/defaults@
   - _self_
 
 game:
@@ -7,14 +7,12 @@ game:
   max_steps: 300
   agent:
     rewards:
-      heart: 0.333
+      inventory:
+        heart: 0.333
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 1
-    room:
-      _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/navigation/obstacles1.map"
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/navigation/obstacles1.map"
 
   objects:
     altar:

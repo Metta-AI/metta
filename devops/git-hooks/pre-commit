@@ -1,29 +1,30 @@
 #!/bin/bash
 set -e
 
-# Get all staged Python files
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-if [ -z "$STAGED_FILES" ]; then
-    # Silent exit when no Python files are staged
-    exit 0
+# Check commit hook mode early to avoid unnecessary setup
+CONFIG_FILE="$HOME/.metta/config.yaml"
+
+if [ -f "$CONFIG_FILE" ]; then
+    # Extract commit_hook_mode from YAML
+    MODE=$(grep -A1 "githooks:" "$CONFIG_FILE" 2>/dev/null | grep "commit_hook_mode:" | awk '{print $2}' || echo "check")
+
+    if [ "$MODE" = "none" ]; then
+        # Exit silently for 'none' mode
+        exit 0
+    fi
 fi
 
-# Check if ruff is installed
-if ! command -v ruff &> /dev/null; then
-    echo "Error: ruff is not installed. Please install it with 'uv tool install ruff'."
-    exit 1
-fi
+# Source common functions
+source "$REPO_ROOT/devops/tools/common.sh"
 
-# Run ruff check on staged files - output will only show if there are errors
-if ! echo "$STAGED_FILES" | xargs ruff check; then
-    echo "❌ Ruff checks failed. Please fix the issues before committing."
-    exit 1
-fi
+ensure_uv_setup
 
-# Run ruff format on staged files
-if ! echo "$STAGED_FILES" | xargs ruff format --check; then
-    echo "❌ Ruff format failed. Please fix the issues before committing."
+
+if ! uv run metta run githooks pre-commit; then
     exit 1
 fi
 

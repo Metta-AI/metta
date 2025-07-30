@@ -5,7 +5,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_zone
+  region = "us-east-1"
 }
 
 provider "tailscale" {

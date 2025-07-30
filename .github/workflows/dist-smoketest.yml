@@ -1,0 +1,122 @@
+name: "Distributed Training Smoke Test"
+
+on:
+  schedule:
+    # Example: Run every Sunday at 03:00 UTC
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      timeout_hours:
+        description: "Job timeout in hours for each run (auto-termination)"
+        required: false
+        default: "3"
+        type: string
+      trainer_env:
+        description: "Training environment configuration (e.g., env/mettagrid/arena/advanced)"
+        required: false
+        default: "env/mettagrid/arena/advanced"
+        type: string
+      commit_to_run:
+        description: "Optional: Full commit hash to run the job against. If empty, uses default branch HEAD."
+        required: false
+        type: string
+
+env:
+  RUN_NAME_PREFIX: "dist_smoke_test" # Prefix for these validation runs
+
+jobs:
+  launch-1-gpu-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      run_name: ${{ steps.generate_run_name_1gpu.outputs.run_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Checkout specific commit if provided via dispatch, else default branch HEAD
+          ref: ${{ github.event.inputs.commit_to_run || '' }}
+          fetch-depth: 1 # Only need the specified commit or HEAD
+
+      - name: Generate Run Name (1 GPU)
+        id: generate_run_name_1gpu
+        shell: bash
+        run: |
+          set -eo pipefail
+          SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          FINAL_RUN_NAME="${{ env.RUN_NAME_PREFIX }}.1gpu.$SHORT_COMMIT_HASH.$TIMESTAMP"
+          echo "Generated 1-GPU run name: $FINAL_RUN_NAME"
+          echo "run_name=$FINAL_RUN_NAME" >> $GITHUB_OUTPUT
+
+      - name: Launch 1-GPU SkyPilot Job
+        id: skylaunch_1gpu
+        uses: ./.github/actions/launch-skypilot-job
+        with:
+          trainer_env: ${{ github.event.inputs.trainer_env || 'env/mettagrid/arena/advanced' }}
+          timeout_hours: ${{ github.event.inputs.timeout_hours || '1.5' }}
+          num_gpus: "1"
+          run_name: ${{ steps.generate_run_name_1gpu.outputs.run_name }}
+          git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Action handles empty as current HEAD
+          wandb_api_key: ${{ secrets.WANDB_API_KEY }}
+          skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
+          observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
+
+      - name: Print 1-GPU Run Information
+        shell: bash
+        run: |
+          echo "Launched 1-GPU Run: ${{ steps.skylaunch_1gpu.outputs.run_name }}"
+
+  launch-4-gpu-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      run_name: ${{ steps.generate_run_name_4gpu.outputs.run_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit_to_run || '' }}
+          fetch-depth: 1
+
+      - name: Generate Run Name (4 GPUs)
+        id: generate_run_name_4gpu
+        shell: bash
+        run: |
+          set -eo pipefail
+          SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          FINAL_RUN_NAME="${{ env.RUN_NAME_PREFIX }}.4gpu.$SHORT_COMMIT_HASH.$TIMESTAMP"
+          echo "Generated 4-GPU run name: $FINAL_RUN_NAME"
+          echo "run_name=$FINAL_RUN_NAME" >> $GITHUB_OUTPUT
+
+      - name: Launch 4-GPU SkyPilot Job
+        id: skylaunch_4gpu
+        uses: ./.github/actions/launch-skypilot-job
+        with:
+          trainer_env: ${{ github.event.inputs.trainer_env || 'env/mettagrid/arena/advanced' }}
+          timeout_hours: ${{ github.event.inputs.timeout_hours || '1.5' }}
+          num_gpus: "4"
+          run_name: ${{ steps.generate_run_name_4gpu.outputs.run_name }}
+          git_ref_override: ${{ github.event.inputs.commit_to_run || '' }}
+          wandb_api_key: ${{ secrets.WANDB_API_KEY }}
+          skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
+          observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
+
+      - name: Print 4-GPU Run Information
+        shell: bash
+        run: |
+          echo "Launched 4-GPU Run: ${{ steps.skylaunch_4gpu.outputs.run_name }}"
+
+  # Placeholder for future job that depends on the two launch jobs
+  # compare-and-log-results:
+  #   needs: [launch-1-gpu-run, launch-4-gpu-run]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Display Run Names
+  #       run: |
+  #         echo "1-GPU Run was: ${{needs.launch-1-gpu-run.outputs.run_name}}"
+  #         echo "4-GPU Run was: ${{needs.launch-4-gpu-run.outputs.run_name}}"
+  #         # Add steps here to wait, fetch W&B stats, compare, and log to Bencher

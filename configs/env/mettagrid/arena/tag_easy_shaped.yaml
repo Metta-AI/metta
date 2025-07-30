@@ -1,0 +1,4 @@
+defaults:
+  - tag_easy
+  - /env/mettagrid/game/agent/rewards/shaped@game.agent.rewards
+  - _self_

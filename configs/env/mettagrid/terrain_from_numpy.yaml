@@ -1,7 +1,0 @@
-defaults:
-  - mettagrid
-  - game/map_builder: terrain
-  - _self_
-
-game:
-  num_agents: 24

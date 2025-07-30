@@ -1,452 +1,484 @@
-import { Vec2f } from './vector_math.js';
-import { Grid } from './grid.js';
-import * as Common from './common.js';
-import { ui, state, ctx, setFollowSelection } from './common.js';
-import { getAttr, sendAction } from './replay.js';
-import { PanelInfo } from './panels.js';
-import { onFrame, updateSelection } from './main.js';
-import { parseHtmlColor, find } from './htmlutils.js';
-import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
+import * as Common from './common.js'
+import { ctx, setFollowSelection, state, ui } from './common.js'
+import { Grid } from './grid.js'
+import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
+import { parseHtmlColor } from './htmlutils.js'
+import { updateSelection } from './main.js'
+import { renderMinimapObjects } from './minimap.js'
+import type { PanelInfo } from './panels.js'
+import { getAttr, getObjectConfig, sendAction } from './replay.js'
+import { search, searchMatch } from './search.js'
+import { Vec2f } from './vector_math.js'
 
-/** Flag to prevent multiple calls to requestAnimationFrame */
-let frameRequested = false;
-
-/** Function to safely request animation frame */
-export function requestFrame() {
-  if (!frameRequested) {
-    frameRequested = true;
-    requestAnimationFrame((time) => {
-      frameRequested = false;
-      onFrame();
-    });
+/**
+ * Clamps the map panel's pan position so that the world map always remains at
+ * least partially visible within the panel.
+ */
+function clampMapPan(panel: PanelInfo) {
+  if (state.replay === null) {
+    return
   }
+
+  // The bounds of the world map in world-space coordinates. Tiles are drawn
+  // starting at (−TILE_SIZE/2, −TILE_SIZE/2).
+  const mapMinX = -Common.TILE_SIZE / 2
+  const mapMinY = -Common.TILE_SIZE / 2
+  const mapMaxX = state.replay.map_size[0] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+  const mapMaxY = state.replay.map_size[1] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+
+  // Dimensions of the visible area in world-space coordinates.
+  const rect = panel.rectInner()
+  const viewHalfWidth = rect.width / (2 * panel.zoomLevel)
+  const viewHalfHeight = rect.height / (2 * panel.zoomLevel)
+
+  // Current viewport centre in world-space.
+  let cx = -panel.panPos.x()
+  let cy = -panel.panPos.y()
+
+  const mapWidth = mapMaxX - mapMinX
+  const mapHeight = mapMaxY - mapMinY
+
+  // Minimum number of pixels of the map that must remain visible.
+  const minVisiblePixels = 500
+
+  // Convert to world coordinates based on current zoom level.
+  const minVisibleWorldUnits = minVisiblePixels / panel.zoomLevel
+
+  // Ensure the required visible area doesn't exceed the actual map size.
+  const maxVisibleUnitsX = Math.min(minVisibleWorldUnits, mapWidth / 2)
+  const maxVisibleUnitsY = Math.min(minVisibleWorldUnits, mapHeight / 2)
+
+  // Clamp horizontally.
+  const minCenterX = mapMinX + maxVisibleUnitsX - viewHalfWidth
+  const maxCenterX = mapMaxX - maxVisibleUnitsX + viewHalfWidth
+  cx = Math.max(minCenterX, Math.min(cx, maxCenterX))
+
+  // Clamp vertically.
+  const minCenterY = mapMinY + maxVisibleUnitsY - viewHalfHeight
+  const maxCenterY = mapMaxY - maxVisibleUnitsY + viewHalfHeight
+  cy = Math.max(minCenterY, Math.min(cy, maxCenterY))
+
+  panel.panPos = new Vec2f(-cx, -cy)
 }
 
-/** Generate a color from an agent id. */
-function colorFromId(agentId: number) {
-  let n = agentId + Math.PI + Math.E + Math.SQRT2;
-  return [
-    n * Math.PI % 1.0,
-    n * Math.E % 1.0,
-    n * Math.SQRT2 % 1.0,
-    1.0
-  ]
-}
-
-/** Checks to see of object has any inventory. */
+/** Checks to see if an object has any inventory. */
 function hasInventory(obj: any) {
-  for (const [key, [icon, color]] of state.replay.resource_inventory) {
+  for (const [key, [_icon, _color]] of state.replay.resource_inventory) {
     if (getAttr(obj, key) > 0) {
-      return true;
+      return true
     }
   }
-  return false;
+  return false
 }
 
-/** Make the panel focus on the full map, used at the start of the replay. */
-export function focusFullMap(panel: PanelInfo) {
+/** Focus the screen on a specific area of the map. */
+export function focusMap(x: number, y: number, w: number, h: number) {
+  ui.mapPanel.focusPos(x, y, Math.min(ui.mapPanel.width / w, ui.mapPanel.height / h))
+}
+
+/** Makes the panel focus on the full map; used at the start of the replay. */
+export function focusFullMap(_panel: PanelInfo) {
   if (state.replay === null) {
-    return;
+    return
   }
-  const width = state.replay.map_size[0] * Common.TILE_SIZE;
-  const height = state.replay.map_size[1] * Common.TILE_SIZE;
-  panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
+  const width = state.replay.map_size[0] * Common.TILE_SIZE
+  const height = state.replay.map_size[1] * Common.TILE_SIZE
+  focusMap(width / 2, height / 2, width, height)
 }
 
-/** Draw the floor. */
+/** Draws the floor. */
 function drawFloor() {
-  const floorColor = parseHtmlColor("#CFA970");
+  const floorColor = parseHtmlColor('#CFA970')
   ctx.drawSolidRect(
     -Common.TILE_SIZE / 2,
     -Common.TILE_SIZE / 2,
     state.replay.map_size[0] * Common.TILE_SIZE,
     state.replay.map_size[1] * Common.TILE_SIZE,
     floorColor
-  );
+  )
 }
 
-/** Draw the walls, based on the adjacency map, and fill any holes. */
+/** Draws the walls, based on the adjacency map, and fills any holes. */
 function drawWalls() {
-  // Construct wall adjacency map.
-  var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
+  // Construct a wall adjacency map.
+  const wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
   for (const gridObject of state.replay.grid_objects) {
-    const type = getAttr(gridObject, "type");
-    const typeName = state.replay.object_types[type];
-    if (typeName !== "wall") {
-      continue;
+    const type = getAttr(gridObject, 'type')
+    const typeName = state.replay.object_types[type]
+    if (typeName !== 'wall') {
+      continue
     }
-    const x = getAttr(gridObject, "c");
-    const y = getAttr(gridObject, "r");
-    wallMap.set(x, y, true);
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
+    wallMap.set(x, y, true)
   }
 
-  // Draw the walls following the adjacency map.
+  // Draw the walls, following the adjacency map.
   for (const gridObject of state.replay.grid_objects) {
-    const type = getAttr(gridObject, "type");
-    const typeName = state.replay.object_types[type];
-    if (typeName !== "wall") {
-      continue;
+    const type = getAttr(gridObject, 'type')
+    const typeName = state.replay.object_types[type]
+    if (typeName !== 'wall') {
+      continue
     }
-    const x = getAttr(gridObject, "c");
-    const y = getAttr(gridObject, "r");
-    var suffix = "0";
-    var n = false, w = false, e = false, s = false;
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
+    let suffix = '0'
+    let n = false
+    let w = false
+    let e = false
+    let s = false
     if (wallMap.get(x, y - 1)) {
-      n = true;
+      n = true
     }
     if (wallMap.get(x - 1, y)) {
-      w = true;
+      w = true
     }
     if (wallMap.get(x, y + 1)) {
-      s = true;
+      s = true
     }
     if (wallMap.get(x + 1, y)) {
-      e = true;
+      e = true
     }
     if (n || w || e || s) {
-      suffix = (n ? "n" : "") + (w ? "w" : "") + (s ? "s" : "") + (e ? "e" : "");
+      suffix = (n ? 'n' : '') + (w ? 'w' : '') + (s ? 's' : '') + (e ? 'e' : '')
     }
-    ctx.drawSprite('objects/wall.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+    ctx.drawSprite(`objects/wall.${suffix}.png`, x * Common.TILE_SIZE, y * Common.TILE_SIZE)
   }
 
-  // Draw the wall in-fill following the adjacency map.
+  // Draw the wall infill, following the adjacency map.
   for (const gridObject of state.replay.grid_objects) {
-    const type = getAttr(gridObject, "type");
-    const typeName = state.replay.object_types[type];
-    if (typeName !== "wall") {
-      continue;
+    const type = getAttr(gridObject, 'type')
+    const typeName = state.replay.object_types[type]
+    if (typeName !== 'wall') {
+      continue
     }
-    const x = getAttr(gridObject, "c");
-    const y = getAttr(gridObject, "r");
-    // If walls to E, S and SE is filled, draw a wall fill.
-    var s = false, e = false, se = false;
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
+    // If walls to the E, S, and SE are filled, draw a wall fill.
+    let s = false
+    let e = false
+    let se = false
     if (wallMap.get(x + 1, y)) {
-      e = true;
+      e = true
     }
     if (wallMap.get(x, y + 1)) {
-      s = true;
+      s = true
     }
     if (wallMap.get(x + 1, y + 1)) {
-      se = true;
+      se = true
     }
     if (e && s && se) {
       ctx.drawSprite(
         'objects/wall.fill.png',
         x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
         y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 42
-      );
+      )
     }
   }
 }
 
-/** Draw all objects on the map (that are not walls). */
-function drawObjects() {
-  for (const gridObject of state.replay.grid_objects) {
-    const type: number = getAttr(gridObject, "type");
-    const typeName: string = state.replay.object_types[type];
-    if (typeName === "wall") {
-      // Walls are drawn in a different way.
-      continue;
+function drawObject(gridObject: any) {
+  const type: number = getAttr(gridObject, 'type')
+  const typeName: string = state.replay.object_types[type]
+  if (typeName === 'wall') {
+    // Walls are drawn in a different way.
+    return
+  }
+  const x = getAttr(gridObject, 'c')
+  const y = getAttr(gridObject, 'r')
+
+  if (gridObject.agent_id !== undefined) {
+    // Respect the orientation of an object, usually an agent.
+    const orientation = getAttr(gridObject, 'agent:orientation')
+    let suffix = ''
+    if (orientation === 0) {
+      suffix = 'n'
+    } else if (orientation === 1) {
+      suffix = 's'
+    } else if (orientation === 2) {
+      suffix = 'w'
+    } else if (orientation === 3) {
+      suffix = 'e'
     }
-    const x = getAttr(gridObject, "c")
-    const y = getAttr(gridObject, "r")
 
-    if (gridObject["agent_id"] !== undefined) {
-      // Respect orientation of an object usually an agent.
-      const orientation = getAttr(gridObject, "agent:orientation");
-      var suffix = "";
-      if (orientation == 0) {
-        suffix = "n";
-      } else if (orientation == 1) {
-        suffix = "s";
-      } else if (orientation == 2) {
-        suffix = "w";
-      } else if (orientation == 3) {
-        suffix = "e";
-      }
+    const agent_id = getAttr(gridObject, 'agent_id')
 
-      const agent_id = getAttr(gridObject, "agent_id");
+    ctx.drawSprite(
+      `agents/agent.${suffix}.png`,
+      x * Common.TILE_SIZE,
+      y * Common.TILE_SIZE,
+      Common.colorFromId(agent_id)
+    )
+  } else {
+    // Draw regular objects.
 
+    // Draw the base layer.
+    ctx.drawSprite(state.replay.object_images[type][0], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+
+    // Draw the color layer.
+    const colorIdx = getAttr(gridObject, 'color')
+    if (colorIdx >= 0 && colorIdx < Common.COLORS.size) {
+      const colorValues = Array.from(Common.COLORS.values())
       ctx.drawSprite(
-        "agents/agent." + suffix + ".png",
+        state.replay.object_images[type][2],
         x * Common.TILE_SIZE,
         y * Common.TILE_SIZE,
-        colorFromId(agent_id)
-      );
-    } else {
-      // Draw regular objects.
+        colorValues[colorIdx]
+      )
+    }
 
-      // Draw the base layer.
-      ctx.drawSprite(
-        state.replay.object_images[type][0],
-        x * Common.TILE_SIZE,
-        y * Common.TILE_SIZE
-      );
+    // Draw the item layer.
+    if (hasInventory(gridObject)) {
+      // Only render the overlay if the inventory contains output resources
+      const objectConfig = getObjectConfig(gridObject)
+      let outputItemExists = false
 
-      // Draw the color layer.
-      var colorIdx = getAttr(gridObject, "color");
-      if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
-        ctx.drawSprite(
-          state.replay.object_images[type][2],
-          x * Common.TILE_SIZE,
-          y * Common.TILE_SIZE,
-          Common.COLORS[colorIdx][1]
-        );
+      if (objectConfig?.output_resources) {
+        // Check if any output resources are in the inventory
+        for (const resource in objectConfig.output_resources) {
+          if (getAttr(gridObject, `inv:${resource}`) > 0) {
+            outputItemExists = true
+            break
+          }
+        }
       }
-
-      // Draw the item layer.
-      if (hasInventory(gridObject)) {
-        ctx.drawSprite(
-          state.replay.object_images[type][1],
-          x * Common.TILE_SIZE,
-          y * Common.TILE_SIZE
-        );
+      if (outputItemExists) {
+        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
     }
   }
 }
 
-/** Draw actions above the objects. */
+/** Draws all objects on the map (that are not walls). */
+function drawObjects() {
+  for (const gridObject of state.replay.grid_objects) {
+    drawObject(gridObject)
+  }
+}
+
+/** Draws actions above the objects. */
 function drawActions() {
   for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, "c")
-    const y = getAttr(gridObject, "r")
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
 
     // Do agent actions.
-    if (gridObject["action"] !== undefined) {
-      // Draw the action:
-      const action = getAttr(gridObject, "action");
-      const action_success = getAttr(gridObject, "action_success");
+    if (gridObject.action !== undefined) {
+      // Draw the action.
+      const action = getAttr(gridObject, 'action')
+      const action_success = getAttr(gridObject, 'action_success')
       if (action_success && action != null) {
-        const action_name = state.replay.action_names[action[0]];
-        const orientation = getAttr(gridObject, "agent:orientation");
-        var rotation = 0;
-        if (orientation == 0) {
-          rotation = Math.PI / 2; // North
-        } else if (orientation == 1) {
-          rotation = -Math.PI / 2; // South
-        } else if (orientation == 2) {
-          rotation = Math.PI; // West
-        } else if (orientation == 3) {
-          rotation = 0; // East
+        const action_name = state.replay.action_names[action[0]]
+        const orientation = getAttr(gridObject, 'agent:orientation')
+        let rotation = 0
+        if (orientation === 0) {
+          rotation = Math.PI / 2 // North
+        } else if (orientation === 1) {
+          rotation = -Math.PI / 2 // South
+        } else if (orientation === 2) {
+          rotation = Math.PI // West
+        } else if (orientation === 3) {
+          rotation = 0 // East
         }
-        if (action_name == "attack" && action[1] >= 1 && action[1] <= 9) {
+        if (action_name === 'attack' && action[1] >= 1 && action[1] <= 9) {
           ctx.drawSprite(
-            "actions/attack" + action[1] + ".png",
+            `actions/attack${action[1]}.png`,
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
-          );
-        } else if (action_name == "attack_nearest") {
+          )
+        } else if (action_name === 'attack_nearest') {
           ctx.drawSprite(
-            "actions/attack_nearest.png",
+            'actions/attack_nearest.png',
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
-          );
-        } else if (action_name == "put_recipe_items") {
+          )
+        } else if (action_name === 'put_items') {
           ctx.drawSprite(
-            "actions/put_recipe_items.png",
+            'actions/put_recipe_items.png',
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
-          );
-        } else if (action_name == "get_output") {
+          )
+        } else if (action_name === 'get_items') {
           ctx.drawSprite(
-            "actions/get_output.png",
+            'actions/get_output.png',
             x * Common.TILE_SIZE,
             y * Common.TILE_SIZE,
             [1, 1, 1, 1],
             1,
             rotation
-          );
-        } else if (action_name == "swap") {
-          ctx.drawSprite(
-            "actions/swap.png",
-            x * Common.TILE_SIZE,
-            y * Common.TILE_SIZE,
-            [1, 1, 1, 1],
-            1,
-            rotation
-          );
+          )
+        } else if (action_name === 'swap') {
+          ctx.drawSprite('actions/swap.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1, rotation)
         }
       }
     }
 
     // Do building actions.
-    if (getAttr(gridObject, "converting") > 0) {
+    if (getAttr(gridObject, 'converting') > 0) {
       ctx.drawSprite(
-        "actions/converting.png",
+        'actions/converting.png',
         x * Common.TILE_SIZE,
         y * Common.TILE_SIZE - 100,
         [1, 1, 1, 1],
         1,
-        // Apply the gentle rotation.
+        // Apply a gentle rotation.
         -state.step * 0.1
-      );
+      )
     }
 
-    // Do states
-    if (getAttr(gridObject, "agent:frozen") > 0) {
-      ctx.drawSprite(
-        "agents/frozen.png",
-        x * Common.TILE_SIZE,
-        y * Common.TILE_SIZE,
-      );
+    // Do states.
+    if (getAttr(gridObject, 'agent:frozen') > 0) {
+      ctx.drawSprite('agents/frozen.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
     }
   }
 }
 
-/** Draw the object's inventory. */
-function drawInventory() {
-
+/** Draws the object's inventory. */
+function drawInventory(useSearch = false) {
   if (!state.showResources) {
-    return;
+    return
   }
 
   for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, "c")
-    const y = getAttr(gridObject, "r")
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
 
-    // Sum up the objects inventory, in case we need to condense it.
-    let inventoryX = Common.INVENTORY_PADDING;
-    let numItems = 0;
-    for (const [key, [icon, color]] of state.replay.resource_inventory) {
-      const num = getAttr(gridObject, key);
-      numItems += num;
+    // Sum up the object's inventory in case we need to condense it.
+    let inventoryX = Common.INVENTORY_PADDING
+    let numItems = 0
+    for (const [key, [_icon, _color]] of state.replay.resource_inventory) {
+      const num = getAttr(gridObject, key)
+      if (num !== null && num !== undefined && num > 0) {
+        numItems += num
+      }
     }
     // Draw the actual inventory icons.
-    let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems);
+    const advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
-      const num = getAttr(gridObject, key);
-      for (let i = 0; i < num; i++) {
-        ctx.drawSprite(
-          icon,
-          x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
-          color,
-          1 / 8,
-          0
-        );
-        inventoryX += advanceX;
+      const num = getAttr(gridObject, key)
+      if (num !== null && num !== undefined && num > 0) {
+        for (let i = 0; i < num; i++) {
+          if (useSearch) {
+            if (!searchMatch(key)) {
+              inventoryX += advanceX
+              continue
+            }
+            // Draw halo behind the icon.
+            ctx.drawSprite(
+              'effects/halo.png',
+              x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
+              y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
+              [1, 1, 1, 1],
+              0.25,
+              0
+            )
+          }
+          ctx.drawSprite(
+            icon,
+            x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
+            y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
+            color,
+            1 / 8,
+            0
+          )
+          inventoryX += advanceX
+        }
       }
     }
   }
 }
 
-/** Draw the rewards on the bottom of the object. */
+/** Draws the rewards on the bottom of the object. */
 function drawRewards() {
   for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, "c")
-    const y = getAttr(gridObject, "r")
-    if (gridObject["total_reward"] !== undefined) {
-      const totalReward = getAttr(gridObject, "total_reward");
-      let rewardX = 0;
-      let advanceX = Math.min(32, Common.TILE_SIZE / totalReward);
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
+    if (gridObject.total_reward !== undefined) {
+      const totalReward = getAttr(gridObject, 'total_reward')
+      let rewardX = 0
+      const advanceX = Math.min(32, Common.TILE_SIZE / totalReward)
       for (let i = 0; i < totalReward; i++) {
         ctx.save()
         ctx.translate(
           x * Common.TILE_SIZE + rewardX - Common.TILE_SIZE / 2,
           y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 16
-        );
-        ctx.scale(1 / 8, 1 / 8);
-        ctx.drawSprite("resources/reward.png", 0, 0);
+        )
+        ctx.scale(1 / 8, 1 / 8)
+        ctx.drawSprite('resources/reward.png', 0, 0)
         ctx.restore()
-        rewardX += advanceX;
+        rewardX += advanceX
       }
     }
   }
 }
 
-/** Draw the selection of the selected object. */
+/** Draws the selection of the selected object. */
 function drawSelection() {
   if (state.selectedGridObject === null) {
-    return;
+    return
   }
 
-  const x = getAttr(state.selectedGridObject, "c")
-  const y = getAttr(state.selectedGridObject, "r")
-  ctx.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+  const x = getAttr(state.selectedGridObject, 'c')
+  const y = getAttr(state.selectedGridObject, 'r')
+  ctx.drawSprite('selection.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 }
 
-/** Draw the trajectory of the selected object, footprints or future arrow. */
+/** Draws the trajectory of the selected object, with footprints or a future arrow. */
 function drawTrajectory() {
   if (state.selectedGridObject === null) {
-    return;
+    return
   }
   if (state.selectedGridObject.c.length > 0 || state.selectedGridObject.r.length > 0) {
-
     // Draw both past and future trajectories.
     for (let i = 1; i < state.replay.max_steps; i++) {
-      const cx0 = getAttr(state.selectedGridObject, "c", i - 1);
-      const cy0 = getAttr(state.selectedGridObject, "r", i - 1);
-      const cx1 = getAttr(state.selectedGridObject, "c", i);
-      const cy1 = getAttr(state.selectedGridObject, "r", i);
+      const cx0 = getAttr(state.selectedGridObject, 'c', i - 1)
+      const cy0 = getAttr(state.selectedGridObject, 'r', i - 1)
+      const cx1 = getAttr(state.selectedGridObject, 'c', i)
+      const cy1 = getAttr(state.selectedGridObject, 'r', i)
       if (cx0 !== cx1 || cy0 !== cy1) {
-        const a = 1 - Math.abs(i - state.step) / 200;
+        const a = 1 - Math.abs(i - state.step) / 200
         if (a > 0) {
-          let color = [0, 0, 0, a];
-          let image = "";
+          let color = [0, 0, 0, a]
+          let image = ''
           if (state.step >= i) {
-            // Past trajectory is black.
-            color = [0, 0, 0, a];
+            // The past trajectory is black.
+            color = [0, 0, 0, a]
             if (state.selectedGridObject.agent_id !== undefined) {
-              image = "agents/footprints.png";
+              image = 'agents/footprints.png'
             } else {
-              image = "agents/past_arrow.png";
+              image = 'agents/past_arrow.png'
             }
           } else {
-            // Future trajectory is white.
-            color = [a, a, a, a];
+            // The future trajectory is white.
+            color = [a, a, a, a]
             if (state.selectedGridObject.agent_id !== undefined) {
-              image = "agents/path.png";
+              image = 'agents/path.png'
             } else {
-              image = "agents/future_arrow.png";
+              image = 'agents/future_arrow.png'
             }
           }
 
-          if (cx1 > cx0) { // east
-            ctx.drawSprite(
-              image,
-              cx0 * Common.TILE_SIZE,
-              cy0 * Common.TILE_SIZE + 60,
-              color,
-              1,
-              0
-            );
-          } else if (cx1 < cx0) { // west
-            ctx.drawSprite(
-              image,
-              cx0 * Common.TILE_SIZE,
-              cy0 * Common.TILE_SIZE + 60,
-              color,
-              1,
-              Math.PI
-            );
-          } else if (cy1 > cy0) { // south
-            ctx.drawSprite(
-              image,
-              cx0 * Common.TILE_SIZE,
-              cy0 * Common.TILE_SIZE + 60,
-              color,
-              1,
-              -Math.PI / 2
-            );
-          } else if (cy1 < cy0) { // north
-            ctx.drawSprite(
-              image,
-              cx0 * Common.TILE_SIZE,
-              cy0 * Common.TILE_SIZE + 60,
-              color,
-              1,
-              Math.PI / 2
-            );
+          if (cx1 > cx0) {
+            // East
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, 0)
+          } else if (cx1 < cx0) {
+            // West
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, Math.PI)
+          } else if (cy1 > cy0) {
+            // South
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, -Math.PI / 2)
+          } else if (cy1 < cy0) {
+            // North
+            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, Math.PI / 2)
           }
         }
       }
@@ -454,100 +486,90 @@ function drawTrajectory() {
   }
 }
 
-/** Draw the thought bubbles of the selected agent. */
+/** Draws the thought bubbles of the selected agent. */
 function drawThoughtBubbles() {
-  // The idea behind thought bubbles is to show what the agent is thinking.
-  // We don't have this directly from the policy yet,
-  // so the next best thing is to show future "key action".
+  // The idea behind thought bubbles is to show what an agent is thinking.
+  // We don't have this directly from the policy yet, so the next best thing
+  // is to show a future "key action."
   // It should be a good proxy for what the agent is thinking about.
   if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
     // We need to find a key action in the future.
-    // A key action is a successful action that is not a noop, rotate or move.
-    // Must not be more then 20 steps in the future.
-    var keyAction = null;
-    var keyActionStep = null;
-    for (var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
-      const action = getAttr(state.selectedGridObject, "action", actionStep);
+    // A key action is a successful action that is not a no-op, rotate, or move.
+    // It must not be more than 20 steps in the future.
+    let keyAction = null
+    let keyActionStep = null
+    let actionHasTarget = false
+    const actionStepEnd = Math.min(state.replay.max_steps, state.step + 20)
+    for (let actionStep = state.step; actionStep < actionStepEnd; actionStep++) {
+      const action = getAttr(state.selectedGridObject, 'action', actionStep)
       if (action == null || action[0] == null || action[1] == null) {
-        continue;
+        continue
       }
-      const actionName = state.replay.action_names[action[0]];
-      const actionSuccess = getAttr(state.selectedGridObject, "action_success", actionStep);
-      if (actionName == "noop" || actionName == "rotate" || actionName == "move") {
-        continue;
+      const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
+      if (!actionSuccess) {
+        continue
       }
-      if (actionSuccess) {
-        keyAction = action;
-        keyActionStep = actionStep;
-        break;
+      const actionName = state.replay.action_names[action[0]]
+      if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move') {
+        continue
       }
+      keyAction = action
+      keyActionStep = actionStep
+      actionHasTarget = !(actionName === 'attack' || actionName === 'attack_nearest')
+      break
     }
 
-    if (keyAction != null) {
-      // We have a key action, draw the thought bubble.
+    if (keyAction != null && keyActionStep != null) {
+      const x = (getAttr(state.selectedGridObject, 'c') + 0.5) * Common.TILE_SIZE
+      const y = (getAttr(state.selectedGridObject, 'r') - 0.5) * Common.TILE_SIZE
+      if (actionHasTarget && keyActionStep !== state.step) {
+        // Draw an arrow on a circle around the target, pointing at it.
+        const [targetGridX, targetGridY] = applyOrientationOffset(
+          getAttr(state.selectedGridObject, 'c', keyActionStep),
+          getAttr(state.selectedGridObject, 'r', keyActionStep),
+          getAttr(state.selectedGridObject, 'agent:orientation', keyActionStep)
+        )
+        const targetX = (targetGridX + 0.5) * Common.TILE_SIZE
+        const targetY = (targetGridY - 0.5) * Common.TILE_SIZE
+        const angle = Math.atan2(targetX - x, targetY - y)
+        const r = Common.TILE_SIZE / 3
+        const tX = targetX - Math.sin(angle) * r - Common.TILE_SIZE / 2
+        const tY = targetY - Math.cos(angle) * r + Common.TILE_SIZE / 2
+        ctx.drawSprite('actions/arrow.png', tX, tY, undefined, undefined, angle + Math.PI)
+      }
+      // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
-      const x = getAttr(state.selectedGridObject, "c");
-      const y = getAttr(state.selectedGridObject, "r");
-      if (state.step == keyActionStep) {
-        ctx.drawSprite(
-          "actions/thoughts_lightning.png",
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-        );
+      if (state.step === keyActionStep) {
+        ctx.drawSprite('actions/thoughts_lightning.png', x, y)
       } else {
-        ctx.drawSprite(
-          "actions/thoughts.png",
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-        );
+        ctx.drawSprite('actions/thoughts.png', x, y)
       }
       // Draw the action icon.
-      var iconName = "actions/icons/" + state.replay.action_names[keyAction[0]] + ".png";
+      const iconName = `actions/icons/${state.replay.action_names[keyAction[0]]}.png`
       if (ctx.hasImage(iconName)) {
-        ctx.drawSprite(
-          iconName,
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
-          [1, 1, 1, 1],
-          1 / 4,
-          0
-        );
+        ctx.drawSprite(iconName, x, y, [1, 1, 1, 1], 1 / 4, 0)
       } else {
-        ctx.drawSprite(
-          "actions/icons/unknown.png",
-          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
-          [1, 1, 1, 1],
-          1 / 4,
-          0
-        );
+        ctx.drawSprite('actions/icons/unknown.png', x, y, [1, 1, 1, 1], 1 / 4, 0)
       }
 
-      // Draw resources lost on the left and gained on the right.
+      // Draw the resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1);
-        const nextResources = getAttr(state.selectedGridObject, key, actionStep);
-        const gained = nextResources - prevResources;
-        var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2;
-        var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2;
+        const prevResources = getAttr(state.selectedGridObject, key, keyActionStep - 1)
+        const nextResources = getAttr(state.selectedGridObject, key, keyActionStep)
+        const gained = nextResources - prevResources
+        let resourceX = x
+        const resourceY = y
         if (gained > 0) {
-          resourceX += 32;
+          resourceX += 32
         } else {
-          resourceX -= 32;
+          resourceX -= 32
         }
         for (let i = 0; i < Math.abs(gained); i++) {
-          ctx.drawSprite(
-            image,
-            resourceX,
-            resourceY,
-            color,
-            1 / 8,
-            0
-          );
+          ctx.drawSprite(image, resourceX, resourceY, color, 1 / 8, 0)
           if (gained > 0) {
-            resourceX += 8;
+            resourceX += 8
           } else {
-            resourceX -= 8;
+            resourceX -= 8
           }
         }
       }
@@ -555,51 +577,43 @@ function drawThoughtBubbles() {
   }
 }
 
-/** Draw the visibility map either agent view ranges or fog of war. */
+/** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {
-
   if (state.showVisualRanges || state.showFogOfWar) {
-    // Compute the visibility map, each agent contributes to the visibility map.
-    const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
+    // Compute the visibility map; each agent contributes to the visibility map.
+    const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
 
     // Update the visibility map for a grid object.
     function updateVisibilityMap(gridObject: any) {
-      const x = getAttr(gridObject, "c");
-      const y = getAttr(gridObject, "r");
-      var visionSize = Math.floor(getAttr(
-        gridObject,
-        "agent:vision_size",
-        state.step,
-        Common.DEFAULT_VISION_SIZE
-      ) / 2);
+      const x = getAttr(gridObject, 'c')
+      const y = getAttr(gridObject, 'r')
+      const visionSize = Math.floor(
+        getAttr(gridObject, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2
+      )
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
-          visibilityMap.set(
-            x + dx,
-            y + dy,
-            true
-          );
+          visibilityMap.set(x + dx, y + dy, true)
         }
       }
     }
 
     if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-      // When there is a selected grid object only update its visibility.
-      updateVisibilityMap(state.selectedGridObject);
+      // When there is a selected grid object, only update its visibility.
+      updateVisibilityMap(state.selectedGridObject)
     } else {
-      // When there is no selected grid object update the visibility map for all agents.
+      // When there is no selected grid object, update the visibility map for all agents.
       for (const gridObject of state.replay.grid_objects) {
-        const type = getAttr(gridObject, "type");
-        const typeName = state.replay.object_types[type];
-        if (typeName == "agent") {
-          updateVisibilityMap(gridObject);
+        const type = getAttr(gridObject, 'type')
+        const typeName = state.replay.object_types[type]
+        if (typeName === 'agent') {
+          updateVisibilityMap(gridObject)
         }
       }
     }
 
-    var color = [0, 0, 0, 0.25];
+    let color = [0, 0, 0, 0.25]
     if (state.showFogOfWar) {
-      color = [0, 0, 0, 1];
+      color = [0, 0, 0, 1]
     }
     for (let x = 0; x < state.replay.map_size[0]; x++) {
       for (let y = 0; y < state.replay.map_size[1]; y++) {
@@ -610,25 +624,41 @@ function drawVisibility() {
             Common.TILE_SIZE,
             Common.TILE_SIZE,
             color
-          );
+          )
         }
       }
     }
   }
 }
 
-/** Draw the grid. */
+/** Draws the grid. */
 function drawGrid() {
   if (state.showGrid) {
     for (let x = 0; x < state.replay.map_size[0]; x++) {
       for (let y = 0; y < state.replay.map_size[1]; y++) {
-        ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+        ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
     }
   }
 }
 
-/** Given an orientation and an index, return the grid position. */
+/** Given a position and an orientation, returns the position offset by the orientation. */
+function applyOrientationOffset(x: number, y: number, orientation: number) {
+  switch (orientation) {
+    case 0:
+      return [x, y - 1]
+    case 1:
+      return [x, y + 1]
+    case 2:
+      return [x - 1, y]
+    case 3:
+      return [x + 1, y]
+    default:
+      return [x, y]
+  }
+}
+
+/** Given an orientation and an index, returns the grid position. */
 function attackGrid(orientation: number, idx: number) {
   //                           North\0
   //                       +---+---+---+
@@ -659,189 +689,243 @@ function attackGrid(orientation: number, idx: number) {
 
   // Modulo operation.
   function mod(a: number, b: number) {
-    return ((a % b) + b) % b;
+    return ((a % b) + b) % b
   }
 
   // Integer division.
   function div(a: number, b: number) {
-    return Math.floor(a / b);
+    return Math.floor(a / b)
   }
-  const i = idx - 1;
-  let dx, dy;
+
+  const i = idx - 1
+  let dx: number
+  let dy: number
   if (orientation === 0) {
-    dx = mod(i, 3) - 1;
-    dy = -div(i, 3) - 1;
+    dx = mod(i, 3) - 1
+    dy = -div(i, 3) - 1
   } else if (orientation === 1) {
-    dx = -mod(i, 3) + 1;
-    dy = div(i, 3) + 1;
+    dx = -mod(i, 3) + 1
+    dy = div(i, 3) + 1
   } else if (orientation === 2) {
-    dx = -div(i, 3) - 1;
-    dy = -mod(i, 3) + 1;
+    dx = -div(i, 3) - 1
+    dy = -mod(i, 3) + 1
   } else if (orientation === 3) {
-    dx = div(i, 3) + 1;
-    dy = mod(i, 3) - 1;
+    dx = div(i, 3) + 1
+    dy = mod(i, 3) - 1
+  } else {
+    throw new Error(`Invalid orientation: ${orientation}`)
   }
-  return [dx, dy];
+  return [dx, dy]
 }
 
 /** Draw the attack mode. */
 function drawAttackMode() {
   // We might be clicking on the map to attack something.
-  var gridMousePos: Vec2f | null = null;
-  if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
-    state.showAttackMode = false;
-    const localMousePos = ui.mapPanel.transformOuter(ui.mousePos);
+  let gridMousePos: Vec2f | null = null
+  if (ui.mouseUp && ui.mouseTargets.includes('#worldmap-panel') && state.showAttackMode) {
+    state.showAttackMode = false
+    const localMousePos = ui.mapPanel.transformOuter(ui.mousePos)
     if (localMousePos != null) {
       gridMousePos = new Vec2f(
         Math.round(localMousePos.x() / Common.TILE_SIZE),
         Math.round(localMousePos.y() / Common.TILE_SIZE)
-      );
+      )
     }
   }
 
   // Draw a selection of 3x3 grid of targets in the direction of the selected agent.
   if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-    const x = getAttr(state.selectedGridObject, "c");
-    const y = getAttr(state.selectedGridObject, "r");
-    const orientation = getAttr(state.selectedGridObject, "agent:orientation");
+    const x = getAttr(state.selectedGridObject, 'c')
+    const y = getAttr(state.selectedGridObject, 'r')
+    const orientation = getAttr(state.selectedGridObject, 'agent:orientation')
 
     // Draw a 3x3 grid of targets in the direction of the selected agent.
     for (let attackIndex = 1; attackIndex <= 9; attackIndex++) {
-      const [dx, dy] = attackGrid(orientation, attackIndex);
-      const targetX = x + dx;
-      const targetY = y + dy;
-      ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE);
-      if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
+      const [dx, dy] = attackGrid(orientation, attackIndex)
+      const targetX = x + dx
+      const targetY = y + dy
+      ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE)
+      if (gridMousePos != null && targetX === gridMousePos.x() && targetY === gridMousePos.y()) {
         // Check if we are clicking this specific tile.
-        console.log("Attack mode clicked on:", targetX, targetY);
-        sendAction("attack", attackIndex)
+        console.info('Attack mode clicked on:', targetX, targetY)
+        sendAction('attack', attackIndex)
       }
     }
   }
 }
 
 /** Draw the info line from the object to the info panel. */
-function drawInfoLine(panel: InfoPanel) {
-  const x = getAttr(panel.object, "c");
-  const y = getAttr(panel.object, "r");
-  ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+function drawInfoLine(bubble: HoverBubble) {
+  const x = getAttr(bubble.object, 'c')
+  const y = getAttr(bubble.object, 'r')
+  ctx.drawSprite('info.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
-  // Compute the panel position in the world map coordinates.
-  const panelBounds = panel.div.getBoundingClientRect();
-  const panelScreenPos = new Vec2f(panelBounds.left + 20, panelBounds.top + 20);
-  const panelWorldPos = ui.mapPanel.transformOuter(panelScreenPos);
+  // Compute the bubble position in the world map coordinates.
+  const bubbleBounds = bubble.div.getBoundingClientRect()
+  const bubbleScreenPos = new Vec2f(bubbleBounds.left + 20, bubbleBounds.top + 20)
+  const bubbleWorldPos = ui.mapPanel.transformOuter(bubbleScreenPos)
 
-  // Draw a line from the object to the panel.
+  // Draw a line from the object to the bubble.
   ctx.drawSpriteLine(
-    "dash.png",
+    'dash.png',
     x * Common.TILE_SIZE,
     y * Common.TILE_SIZE,
-    panelWorldPos.x(),
-    panelWorldPos.y(),
+    bubbleWorldPos.x(),
+    bubbleWorldPos.y(),
     60,
     [1, 1, 1, 1],
     2
-  );
+  )
 }
 
-/** Draw the world map. */
+/** Draws the world map. */
 export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
-    return;
+    return
   }
-
+  let objectUnderMouse = null
   // Handle mouse events for the map panel.
-  if (ui.mouseTarget == "worldmap-panel" && ui.dragging == "" && !state.showAttackMode) {
-    // Find object under the mouse:
-    var objectUnderMouse = null;
-    const localMousePos = panel.transformOuter(ui.mousePos);
-    if (localMousePos != null) {
-      const gridMousePos = new Vec2f(
-        Math.round(localMousePos.x() / Common.TILE_SIZE),
-        Math.round(localMousePos.y() / Common.TILE_SIZE)
-      );
-      objectUnderMouse = state.replay.grid_objects.find((obj: any) => {
-        const x: number = getAttr(obj, "c");
-        const y: number = getAttr(obj, "r");
-        return x === gridMousePos.x() && y === gridMousePos.y();
-      });
+  if (ui.mouseTargets.includes('#worldmap-panel')) {
+    if (ui.dragging === '' && !state.showAttackMode) {
+      // Find the object under the mouse.
+
+      const localMousePos = panel.transformOuter(ui.mousePos)
+      if (localMousePos != null) {
+        const gridMousePos = new Vec2f(
+          Math.round(localMousePos.x() / Common.TILE_SIZE),
+          Math.round(localMousePos.y() / Common.TILE_SIZE)
+        )
+        objectUnderMouse = state.replay.grid_objects.find((obj: any) => {
+          const x: number = getAttr(obj, 'c')
+          const y: number = getAttr(obj, 'r')
+          return x === gridMousePos.x() && y === gridMousePos.y()
+        })
+      }
+    }
+
+    if (ui.mouseDoubleClick) {
+      // Toggle followSelection on double-click.
+      console.info('Map double click - following selection', ui.mouseTargets)
+      setFollowSelection(true)
+      panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
+      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
+    } else if (ui.mouseClick) {
+      // A map click is likely a drag/pan.
+      console.info('Map click - clearing follow selection')
+      setFollowSelection(false)
+    } else if (ui.mouseUp && ui.mouseDownPos.sub(ui.mousePos).length() < 10) {
+      // Check if we are clicking on an object.
+      if (objectUnderMouse !== undefined) {
+        updateSelection(objectUnderMouse)
+        console.info('Selected object on the map:', state.selectedGridObject)
+        if (state.selectedGridObject.agent_id !== undefined) {
+          // If selecting an agent, focus the trace panel on the agent.
+          ui.tracePanel.focusPos(
+            state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+            getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+            Common.DEFAULT_TRACE_ZOOM_LEVEL
+          )
+        }
+      }
+    } else {
+      // Only reset the hover timer if we moved onto a different object (or off of an object).
+      if (objectUnderMouse && ui.hoverObject !== objectUnderMouse) {
+        ui.hoverObject = objectUnderMouse
+        clearTimeout(ui.hoverTimer)
+        ui.hoverTimer = setTimeout(() => {
+          if (ui.mouseTargets.includes('#worldmap-panel')) {
+            ui.delayedHoverObject = ui.hoverObject
+            updateHoverBubble(ui.delayedHoverObject)
+          }
+        }, Common.INFO_PANEL_POP_TIME)
+      } else if (!objectUnderMouse && ui.hoverObject !== null) {
+        // Reset hover state when moving to empty space.
+        ui.hoverObject = null
+        clearTimeout(ui.hoverTimer)
+      }
     }
   }
 
-  if (ui.mouseDoubleClick) {
-    // Toggle followSelection on double-click
-    console.log("Map double click - following selection");
-    setFollowSelection(true);
-    panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
-    ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
-  } else if (ui.mouseClick) {
-    // Map click - likely a drag/pan
-    console.log("Map click - clearing follow selection");
-    setFollowSelection(false);
-  } else if (ui.mouseUp &&
-    ui.mouseDownPos.sub(ui.mousePos).length() < 10
-  ) {
-    // Check if we are clicking on an object.
-    if (objectUnderMouse !== undefined) {
-      updateSelection(objectUnderMouse)
-      console.log("Selected object on the map:", state.selectedGridObject);
-      if (state.selectedGridObject.agent_id !== undefined) {
-        // If selecting an agent, focus the trace panel on the agent.
-        ui.tracePanel.focusPos(
-          state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-          getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-          Common.DEFAULT_TRACE_ZOOM_LEVEL
-        );
-      }
-    }
-  } else {
-    ui.hoverObject = objectUnderMouse;
-    clearTimeout(ui.hoverTimer);
-    ui.hoverTimer = setTimeout(() => {
-      if (ui.mouseTarget == "worldmap-panel") {
-        ui.delayedHoverObject = ui.hoverObject;
-        updateHoverPanel(ui.delayedHoverObject)
-      }
-    }, Common.INFO_PANEL_POP_TIME);
-
-  }
-
-
-  // If we're following a selection, center the map on it
+  // If we're following a selection, center the map on it.
   if (state.followSelection && state.selectedGridObject !== null) {
-    const x = getAttr(state.selectedGridObject, "c");
-    const y = getAttr(state.selectedGridObject, "r");
-    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE);
+    const x = getAttr(state.selectedGridObject, 'c')
+    const y = getAttr(state.selectedGridObject, 'r')
+    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
   }
 
-  ctx.save();
-  ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height);
+  // Ensure that at least a portion of the map remains visible.
+  clampMapPan(panel)
 
-  ctx.translate(panel.x + panel.width / 2, panel.y + panel.height / 2);
-  ctx.scale(panel.zoomLevel, panel.zoomLevel);
-  ctx.translate(panel.panPos.x(), panel.panPos.y());
+  ctx.save()
+  const rect = panel.rectInner()
+  ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
-  drawFloor();
-  drawWalls();
-  drawTrajectory();
-  drawObjects();
-  drawSelection();
-  drawActions();
-  drawInventory();
-  drawRewards();
-  drawVisibility();
-  drawGrid();
-  drawThoughtBubbles();
+  ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
+  ctx.scale(panel.zoomLevel, panel.zoomLevel)
+  ctx.translate(panel.panPos.x(), panel.panPos.y())
+
+  if (panel.zoomLevel < Common.MACROMAP_ZOOM_THRESHOLD) {
+    /** Draw the Macromap of the world map instead of objects.
+     * The user has zoomed out so far that we should switch to a minimap-style rendering.
+     * This is used when the user zooms out far enough that normal
+     * sprites would be unreadable. */
+    ctx.save()
+    ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
+    renderMinimapObjects(new Vec2f(-0.5, -0.5))
+    ctx.restore()
+    drawSelection()
+  } else {
+    drawFloor()
+    drawWalls()
+    drawTrajectory()
+    drawObjects()
+    drawActions()
+    drawSelection()
+    drawInventory()
+    drawRewards()
+    drawVisibility()
+    drawGrid()
+    drawThoughtBubbles()
+  }
+
+  if (search.active) {
+    // Draw the black overlay over the map.
+    ctx.drawSolidRect(
+      -Common.TILE_SIZE / 2,
+      -Common.TILE_SIZE / 2,
+      state.replay.map_size[0] * Common.TILE_SIZE,
+      state.replay.map_size[1] * Common.TILE_SIZE,
+      [0, 0, 0, 0.8]
+    )
+
+    drawSelection()
+
+    // Draw matching objects on top of the overlay.
+    for (const gridObject of state.replay.grid_objects) {
+      const typeName = state.replay.object_types[getAttr(gridObject, 'type')]
+      const x = getAttr(gridObject, 'c')
+      const y = getAttr(gridObject, 'r')
+      if (searchMatch(typeName)) {
+        // Draw halo behind the object.
+        ctx.drawSprite('effects/halo.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1.5, 0)
+        drawObject(gridObject)
+      }
+    }
+
+    drawInventory(true)
+  }
+
   if (state.showAttackMode) {
-    drawAttackMode();
+    drawAttackMode()
   }
 
-  updateHoverPanel(ui.delayedHoverObject)
+  updateHoverBubble(ui.delayedHoverObject)
   updateReadout()
-  for (const panel of ui.infoPanels) {
-    panel.update();
-    drawInfoLine(panel);
+
+  for (const bubble of ui.hoverBubbles) {
+    bubble.update()
+    drawInfoLine(bubble)
   }
 
-  ctx.restore();
+  ctx.restore()
 }

@@ -6,10 +6,6 @@ _target_: metta.map.mapgen.MapGen
 width: 50
 height: 40
 
-# Outer border width. Defaults to 1.
-# This border will be added outside of width and height.
-border_width: 2
-
 # MapGen level is a tree of scenes, instantiated from scene classes.
 # You can think of scenes as modules that are responsible for drawing or updating some part of the map.
 # The term "scene" is borrowed from Godot.
@@ -24,7 +20,6 @@ root:
   params:
     rows: 2
     columns: 3
-    border_width: 1
 
   # Most scenes can have children definitions.
   # Each child is created in the areas (slots) defined by the parent scene, so the specific areas are determined by the parent scene.
@@ -49,14 +44,14 @@ root:
 
       # Scene will be instantiated for each matched area.
       scene:
-        type: metta.map.scenes.maze.MazeKruskal
+        type: metta.map.scenes.maze.Maze
 
         # Scenes can be nested arbitrarily.
-        # MazeKruskal defines a 1x1 area at each of the four corners, so we can use these to place an agent and an altar.
+        # Maze scene defines a 1x1 area at each of the four corners, so we can use these to place an agent and an altar.
         children:
           - where: # similar to SQL "WHERE" clause; selects areas based on their tags.
               # Each corner is tagged, so we can select them individually.
-              # These tags are specific for MazeKruskal scene. Other scenes might have different tags.
+              # These tags are specific for Maze scene. Other scenes might have different tags.
               tags:
                 - top-left
             scene:
@@ -79,8 +74,8 @@ root:
         # Note that for the maze rooms, Random scene will take existing walls into account.
         params:
           objects:
-            mine: 1
-            generator: 2
+            mine_red: 1
+            generator_red: 2
 
     # What if we want to draw a custom scene in one room, but that room shouldn't have a maze? Let's use a lock.
     #

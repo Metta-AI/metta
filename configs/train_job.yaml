@@ -1,8 +1,8 @@
 defaults:
   - common
-  - agent: simple
-  - trainer: puffer
-  - sim: all
+  - agent: fast
+  - trainer: trainer
+  - sim: arena
   - wandb: metta_research
   - _self_
 
@@ -11,5 +11,8 @@ seed: 1
 train_job:
   map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
   evals: ${sim}
+
+trainer:
+  curriculum: /env/mettagrid/arena/basic_easy_shaped
 
 cmd: train

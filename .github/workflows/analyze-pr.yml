@@ -1,0 +1,238 @@
+name: Analyze Single PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to analyze"
+        required: true
+        type: string
+      model_tier:
+        description: "AI model tier to use"
+        required: false
+        default: "default"
+        type: choice
+        options: ["fast", "default", "best"]
+      update_cache:
+        description: "Update PR analysis cache?"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  analyze-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate PR number
+        id: validate
+        run: |
+          PR_NUM="${{ inputs.pr_number }}"
+          if ! [[ "$PR_NUM" =~ ^[0-9]+$ ]]; then
+            echo "❌ Invalid PR number: $PR_NUM (must be numeric)"
+            exit 1
+          fi
+          echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+          echo "✅ Analyzing PR #$PR_NUM"
+
+      - name: Restore PR Summary Cache
+        if: ${{ inputs.update_cache }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pr-digest-cache/
+          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
+          restore-keys: |
+            pr-cache-${{ github.repository }}-
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Fetch PR Data
+        id: fetch-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.validate.outputs.pr_number }}
+        run: |
+          echo "Fetching PR #$PR_NUMBER data..."
+
+          # Fetch basic PR info
+          PR_DATA=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER)
+
+          # Check if PR is merged
+          MERGED_AT=$(echo "$PR_DATA" | jq -r '.merged_at')
+          if [ "$MERGED_AT" = "null" ]; then
+            echo "❌ PR #$PR_NUMBER is not merged yet"
+            exit 1
+          fi
+
+          # Fetch PR diff
+          echo "Fetching diff for PR #$PR_NUMBER..."
+          gh api repos/${{ github.repository }}/pulls/$PR_NUMBER.diff > pr_${PR_NUMBER}.diff
+
+          # Create PR data JSON with all required fields
+          echo "$PR_DATA" | jq --rawfile diff pr_${PR_NUMBER}.diff '{
+            number: .number,
+            title: .title,
+            body: (.body // ""),
+            author: .user.login,
+            merged_at: .merged_at,
+            html_url: .html_url,
+            labels: [.labels[]?.name // empty],
+            diff: $diff,
+            additions: .additions,
+            deletions: .deletions,
+            changed_files: .changed_files
+          }' > pr_data.json
+
+          echo "✅ Fetched PR data for #$PR_NUMBER"
+          echo "Title: $(echo "$PR_DATA" | jq -r '.title')"
+          echo "Author: $(echo "$PR_DATA" | jq -r '.user.login')"
+          echo "Merged: $MERGED_AT"
+
+      - name: Analyze PR
+        id: analyze
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MODEL_TIER: ${{ inputs.model_tier }}
+          UPDATE_CACHE: ${{ inputs.update_cache }}
+        run: |
+          echo "Analyzing PR #${{ steps.validate.outputs.pr_number }} with $MODEL_TIER model..."
+
+          # Analyze the PR
+          if [ "$UPDATE_CACHE" = "true" ]; then
+            echo "🔄 Using cache-aware analysis (will update cache)"
+
+            # Use the digest analyzer to update cache
+            echo '[' > temp_digest.json
+            cat pr_data.json >> temp_digest.json
+            echo ']' >> temp_digest.json
+
+            export PR_DIGEST_FILE=temp_digest.json
+            export DATE_RANGE="Single PR Analysis"
+            export GITHUB_REPOSITORY=${{ github.repository }}
+            export GITHUB_SERVER_URL=${{ github.server_url }}
+            export GITHUB_RUN_ID=${{ github.run_id }}
+
+            uv run .github/scripts/gemini_analyze_pr_digest.py
+
+            # Extract single PR result
+            jq '.[0]' pr_summary_data.json > single_pr_result.json
+          else
+            echo "⚡ Using standalone analysis (no cache interaction)"
+
+            # Use standalone analyzer (no cache update)
+            uv run .github/scripts/gemini_analyze_pr.py "$GEMINI_API_KEY" "$(cat pr_data.json)" > single_pr_result.json
+          fi
+
+          if [ -f "single_pr_result.json" ]; then
+            echo "✅ Analysis completed successfully"
+
+            # Show summary
+            TITLE=$(jq -r '.title' single_pr_result.json)
+            CATEGORY=$(jq -r '.category' single_pr_result.json)
+            IMPACT=$(jq -r '.impact_level' single_pr_result.json)
+            SUMMARY=$(jq -r '.summary' single_pr_result.json)
+
+            echo "## Analysis Results"
+            echo "**Title:** $TITLE"
+            echo "**Category:** $CATEGORY"
+            echo "**Impact:** $IMPACT"
+            echo "**Summary:** $SUMMARY"
+          else
+            echo "❌ Analysis failed"
+            exit 1
+          fi
+
+      - name: Create Individual PR File
+        run: |
+          mkdir -p pr-analysis
+
+          # Extract analysis data with error handling
+          if ! ANALYSIS_DATA=$(cat single_pr_result.json | jq -r '
+            "TITLE: " + .title + "\n" +
+            "AUTHOR: " + .author + "\n" +
+            "CATEGORY: " + (.category | ascii_upcase) + "\n" +
+            "IMPACT: " + (.impact_level | ascii_upcase) + "\n" +
+            "MERGED: " + .merged_at + "\n" +
+            "URL: " + .html_url + "\n\n" +
+            "SUMMARY\n" + .summary + "\n\n" +
+            "KEY CHANGES\n" + (.key_changes | map("• " + .) | join("\n")) + "\n\n" +
+            "DEVELOPER IMPACT\n" + .developer_impact + "\n\n" +
+            "TECHNICAL NOTES\n" + (.technical_notes // "No additional technical notes")
+          '); then
+            echo "❌ Failed to extract analysis data"
+            exit 1
+          fi
+
+          # Create detailed text file (no indentation for clean output)
+          cat > pr-analysis/pr_${{ steps.validate.outputs.pr_number }}_analysis.txt <<EOF
+          PR #${{ steps.validate.outputs.pr_number }} Analysis Report
+          Generated: $(date -u)
+          Model: ${{ inputs.model_tier }}
+          Repository: ${{ github.repository }}
+
+          ================================================================================
+
+          ${ANALYSIS_DATA}
+
+          ================================================================================
+          EOF
+
+          echo "✅ Created detailed analysis file"
+
+      - name: Save Cache
+        if: ${{ inputs.update_cache }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .pr-digest-cache/
+          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
+
+      - name: Create Summary
+        run: |
+          # Extract summary JSON with error handling and pretty formatting
+          if ! SUMMARY_JSON=$(cat single_pr_result.json | jq --indent 2 '{
+            title,
+            category,
+            impact_level,
+            summary: (.summary | split(" ") | .[0:20] | join(" ") + "...")
+          }'); then
+            echo "❌ Failed to extract summary JSON"
+            exit 1
+          fi
+
+          cat > analysis_summary.md <<EOF
+          # Single PR Analysis Results
+
+          **PR:** #${{ steps.validate.outputs.pr_number }}
+          **Model:** ${{ inputs.model_tier }}
+          **Cache Updated:** ${{ inputs.update_cache }}
+
+          ## Quick Summary
+          \`\`\`json
+          ${SUMMARY_JSON}
+          \`\`\`
+
+          See artifacts for complete analysis.
+          EOF
+
+          echo "## Analysis Complete! 🎉"
+          cat analysis_summary.md
+
+      - name: Upload Analysis Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr-${{ steps.validate.outputs.pr_number }}-analysis
+          path: |
+            single_pr_result.json
+            pr-analysis/
+            analysis_summary.md
+            pr_data.json
+          retention-days: 30

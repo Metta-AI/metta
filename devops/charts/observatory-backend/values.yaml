@@ -1,0 +1,19 @@
+# This host is used by scripts that authenticate with API tokens.
+# Backend server will be mounted under /
+#
+# Note that another chart, `observatory`, creates another endpoint for browser access, `https://observatory.softmax-research.net/api`.
+# That endpoint is protected by oauth2-proxy.
+host: api.observatory.softmax-research.net
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-app-backend
+  tag: "" # will be set by CI/CD pipeline
+
+# created by terraform
+secret_name: observatory-backend-env
+
+cert_manager_issuer: letsencrypt
+
+secrets:
+  anthropic: "anthropic-api-key"

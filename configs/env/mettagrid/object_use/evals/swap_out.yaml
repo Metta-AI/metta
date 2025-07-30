@@ -7,8 +7,9 @@ game:
   max_steps: 150
   agent:
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
   map_builder:
-    _target_: mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1
     uri: "configs/env/mettagrid/maps/object_use/swap_out.map"

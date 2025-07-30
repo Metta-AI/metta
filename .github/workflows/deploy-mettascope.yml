@@ -32,45 +32,35 @@ jobs:
         with:
           fetch-depth: 0 # Get all history to ensure we don't hit caching issues
 
+      - uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: |
-            mettascope/package-lock.json
-            observatory/package-lock.json
+          node-version: 24
+          cache: pnpm
 
-      - name: Build Mettascope
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "minimal"
+
+      - name: Install Mettascope
         run: |
-          cd mettascope
-          npm ci
-          npx tsc
+          ./mettascope/install.sh
 
       - name: Build Observatory
         run: |
           cd observatory
-          npm ci
-          npm run build
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
-          cache: "pip"
-
-      - name: Install Python dependencies
-        run: |
-          pip install pixie-python
+          pnpm install
+          pnpm run build
 
       - name: Debug Output
         if: github.event_name == 'workflow_dispatch'
         run: |
-          echo "=== Python Environment ==="
-          which python3
-          python3 --version
-          pip --version
-          pip list
+          echo "=== UV Environment ==="
+          which uv
+          uv --version
 
           echo "=== Directory Structure ==="
           echo "Current directory: $(pwd)"
@@ -84,7 +74,7 @@ jobs:
       - name: Generate Atlas
         run: |
           cd mettascope
-          python3 tools/gen_atlas.py
+          uv run tools/gen_atlas.py
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

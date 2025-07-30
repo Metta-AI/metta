@@ -1,0 +1,58 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+  max_steps: 200
+  agent:
+    resource_limits:
+      ore_red: 1
+      ore_blue: 1
+      ore_green: 1
+      battery_red: 1
+      battery_blue: 1
+      battery_green: 1
+    rewards:
+      inventory:
+        ore_red: 0.01
+        battery_red: 0.1
+        ore_blue: 0.01
+        battery_blue: 0.1
+        ore_green: 0.01
+        battery_green: 0.1
+        heart: 1
+
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 6
+
+    room:
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: 15
+      height: 15
+      border_width: 3
+      agents: 1
+      style: all-sparse
+
+      objects:
+        altar: 2
+        mine_red: 0
+        generator_red: 0
+        mine_blue: 0
+        generator_blue: 0
+        mine_green: 0
+        generator_green: 0
+  objects:
+    altar:
+      cooldown: 10
+      input_resources:
+        battery_red: 3
+      output_resources:
+        heart: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_resource_count: 1

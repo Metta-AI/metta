@@ -1,26 +1,102 @@
-trainer:
-  gamma: ${ss:logit, 0.0, 1.0}
-  gae_lambda: ${ss:logit, 0.0, 1.0}
-  update_epochs: ${ss:int, 1, 16}
-  clip_coef: ${ss:logit, 0.0, 1.0}
-  vf_coef: ${ss:logit, 0.0, 1.0}
-  vf_clip_coef: ${ss:logit, 0.0, 1.0}
-  # max_grad_norm: ${ss:linear, 0.0, 6.0}
-  ent_coef: ${ss:log, 1e-5, 1e-1}
-  batch_size: ${ss:pow2, 131072, 524288, 131072}
-  minibatch_size: ${ss:pow2, 1024, 131072}
-  forward_pass_minibatch_target_size: $pow2(1024, 32768)
-  bptt_horizon: ${ss:pow2, 1, 128}
-  total_timesteps: ${ss:log, 1e7, 1e9, 5e8}
-  # compile: ${ss:int, 0, 1}
+protein:
+  num_random_samples: 5  # First 5 runs are random exploration
+  max_suggestion_cost: 3600  # Increased max cost for longer training (1 hour)
+  resample_frequency: 0
+  global_search_scale: 1
+  random_suggestions: 1024
+  suggestions_per_pareto: 256
 
-  optimizer:
-    learning_rate: ${ss:log, 1e-5, 1e-1}
-    beta1: ${ss:logit, 0.0, 1.0}
-    beta2: ${ss:logit, 0.0, 1.0}
-    eps: ${ss:log, 1e-14, 1e-6}
+metric: reward
+goal: maximize
+method: bayes
 
-agent:
-  components:
-    _obs_:
-      atr_embed_dim: ${ss:pow2, 16, 128}
+parameters:
+  trainer:
+    ppo:
+      gamma:
+        distribution: logit_normal
+        min: 0.001
+        max: 0.999
+        mean: 0.99
+        scale: auto
+
+      gae_lambda:
+        distribution: logit_normal
+        min: 0.001
+        max: 0.999
+        mean: 0.95
+        scale: auto
+
+      clip_coef:
+        distribution: logit_normal
+        min: 0.001
+        max: 0.999
+        mean: 0.2
+        scale: auto
+
+      vf_coef:
+        distribution: logit_normal
+        min: 0.001
+        max: 0.999
+        mean: 0.5
+        scale: auto
+
+      vf_clip_coef:
+        distribution: logit_normal
+        min: 0.001
+        max: 0.999
+        mean: 0.2
+        scale: auto
+
+      ent_coef:
+        distribution: log_normal
+        min: 1e-5
+        max: 1e-1
+        mean: 1e-3
+        scale: auto
+
+    update_epochs:
+      distribution: int_uniform
+      min: 1
+      max: 16
+      mean: 4
+      scale: auto
+
+    # total_timesteps:
+    #   distribution: int_uniform
+    #   min: 10000000
+    #   max: 1000000000
+    #   mean: 500000000
+    #   scale: auto
+
+    # compile: ${ss:int, 0, 1}
+
+    optimizer:
+      learning_rate:
+        distribution: log_normal
+        min: 1e-5
+        max: 1e-1
+        mean: 1e-3
+        scale: auto
+
+      beta1:
+        distribution: logit_normal
+        min: 0.1
+        max: 0.999
+        mean: 0.9
+        scale: auto
+
+      beta2:
+        distribution: logit_normal
+        min: 0.8
+        max: 0.999
+        mean: 0.999
+        scale: auto
+
+      eps:
+        distribution: log_normal
+
+        min: 1e-12
+        max: 1e-6
+        mean: 1e-8
+        scale: auto

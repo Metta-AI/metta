@@ -1,13 +1,14 @@
 from typing import cast
 
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import make_scene
 from metta.map.utils.storable_map import StorableMap
-from mettagrid.level_builder import Level
-from mettagrid.room.room import Room
+from metta.mettagrid.level_builder import Level
+from metta.mettagrid.room.room import Room
 
-from .types import SceneCfg
+from .types import Area, SceneCfg
 
 
 # Note that this class can't be a scene, because the width and height come from the stored data.
@@ -34,8 +35,10 @@ class Load(Room):
     def build(self):
         grid = self._storable_map.grid
 
+        area = Area.root_area_from_grid(grid)
+
         if self._extra_root is not None:
-            root_scene = make_scene(self._extra_root, grid)
+            root_scene = make_scene(self._extra_root, area, rng=np.random.default_rng())
             root_scene.render_with_children()
 
         return Level(grid=grid, labels=[])

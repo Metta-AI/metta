@@ -1,11 +1,11 @@
 defaults:
-  - /env/mettagrid/multiagent/training/defaults@
+  - /env/mettagrid/multiagent/experiments/defaults@
   - _self_
 
 game:
   map_builder:
-    _target_: mettagrid.room.multi_agent.boxy.Boxy
+    _target_: metta.mettagrid.room.multi_agent.boxy.Boxy
     objects:
-      altar: ${sampling:10,14,12}
-      mine.red: ${sampling:30,60,45}
-      generator.red: ${sampling:30,60,45}
+      altar: 12
+      mine_red: 45
+      generator_red: 45

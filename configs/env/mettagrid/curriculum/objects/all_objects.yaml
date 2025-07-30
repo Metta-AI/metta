@@ -1,0 +1,39 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/object_use/training/easy_all_objects
+
+buckets:
+  game.map_builder.width:
+    range: [15, 50]
+    bins: 2
+  game.map_builder.height:
+    range: [15, 50]
+    bins: 2
+  game.map_builder.root.params.objects.altar:
+    range: [1, 3]
+  game.map_builder.root.params.objects.generator_red:
+    range: [1, 3]
+  game.map_builder.root.params.objects.mine_red:
+    range: [1, 3]
+  game.map_builder.root.params.objects.wall:
+    range: [1, 3]
+  game.map_builder.root.params.objects.block:
+    range: [1, 3]
+  game.map_builder.root.params.objects.armory:
+    range: [1, 3]
+  game.map_builder.root.params.objects.lasery:
+    range: [1, 3]
+  game.map_builder.root.params.objects.lab:
+    range: [1, 3]
+  game.map_builder.root.params.objects.factory:
+    range: [1, 3]
+  game.map_builder.root.params.objects.temple:
+    range: [1, 3]
+  game.objects.altar.initial_resource_count: [0, 1]
+  game.objects.altar.cooldown:
+    range: [10, 60]
+  game.objects.generator_red.initial_resource_count: [0, 1]
+  game.objects.generator_red.cooldown:
+    range: [10, 60]
+  game.objects.mine_red.cooldown:
+    range: [10, 60]

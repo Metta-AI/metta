@@ -1,0 +1,70 @@
+name: "Build Observatory Frontend Docker Image"
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "observatory/**"
+      - ".github/workflows/**"
+  workflow_dispatch: {}
+
+env:
+  IMAGE_NAME: metta-app-frontend
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long,priority=1000
+            type=sha,priority=999
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: observatory/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # GitHub cache is too slow and has 10Gb limit so it's harmful to use it
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+
+      - name: Deploy helm chart
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws eks update-kubeconfig --name main --region us-east-1
+          helm upgrade -n observatory observatory ./devops/charts/observatory \
+            --set image.tag=${{ steps.meta.outputs.version }}

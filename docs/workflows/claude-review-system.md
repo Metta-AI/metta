@@ -2,9 +2,9 @@
 
 ## Overview
 
-The Claude Review System is a suite of AI-powered code review workflows that automatically analyze pull
-requests for specific improvements. Built on Anthropic's Claude AI, these workflows provide targeted,
-actionable feedback without the noise of traditional linters.
+The Claude Review System is a suite of AI-powered code review workflows that automatically analyze pull requests for
+specific improvements. Built on Anthropic's Claude AI, these workflows provide targeted, actionable feedback without the
+noise of traditional linters.
 
 **Key Philosophy**: Only comment when there are genuine improvements to suggest. If everything looks good, stay silent.
 
@@ -45,6 +45,7 @@ actionable feedback without the noise of traditional linters.
 ### 1. Orchestrator Workflow (`claude-review-orchestrator.yml`)
 
 The main entry point that:
+
 - Validates PR context (fails fast if no valid PR number)
 - Runs all review types in parallel
 - Consolidates results into a single GitHub review
@@ -53,6 +54,7 @@ The main entry point that:
 ### 2. Base Workflow (`claude-review-base.yml`)
 
 Shared foundation for all review types:
+
 - Handles PR checkout and file filtering
 - Sets up optional Python environment
 - Runs Claude analysis with specialized prompts
@@ -61,14 +63,16 @@ Shared foundation for all review types:
 ### 3. Individual Review Workflows
 
 Four specialized review types, each a thin wrapper around the base:
+
 - `claude-review-readme.yml` - Documentation accuracy
 - `claude-review-comments.yml` - Comment cleanup
 - `claude-review-einops.yml` - Tensor operation improvements
-- `claude-review-typing.yml` - Type annotation coverage
+- `claude-review-types.yml` - Type annotation coverage
 
 ### 4. Consolidation Script (`claude_review.py`)
 
 Single Python script that:
+
 - Downloads all review artifacts
 - Merges suggestions
 - Creates unified GitHub review with inline comments
@@ -81,10 +85,12 @@ Single Python script that:
 **Purpose**: Ensures documentation stays accurate when code changes.
 
 **Triggers**:
+
 - Pull request opened or reopened
 - Manual workflow dispatch
 
 **What it checks**:
+
 - Commands or CLI usage that no longer work
 - Installation instructions that are now incorrect
 - Removed dependencies still documented
@@ -93,6 +99,7 @@ Single Python script that:
 - Examples that would throw errors
 
 **What it ignores**:
+
 - Missing documentation (doesn't suggest additions)
 - Style or formatting issues
 - Opportunities for better documentation
@@ -102,10 +109,12 @@ Single Python script that:
 **Purpose**: Identifies and removes unnecessary comments that clutter code.
 
 **Triggers**:
+
 - Pull request opened or reopened
 - Manual workflow dispatch
 
 **Comments flagged for removal**:
+
 - Restating obvious code (e.g., `# increment counter` before `counter += 1`)
 - Explaining self-evident operations
 - Outdated comments that don't match implementation
@@ -113,6 +122,7 @@ Single Python script that:
 - Stating obvious commands
 
 **Comments preserved**:
+
 - Explaining WHY something is done
 - Important context or warnings
 - TODO/FIXME comments (unless obsolete)
@@ -124,10 +134,12 @@ Single Python script that:
 **Purpose**: Suggests using `einops.rearrange` for complex tensor operations.
 
 **Triggers**:
+
 - Pull request opened or reopened (Python files only)
 - Manual workflow dispatch
 
 **Good candidates for einops**:
+
 ```python
 # Complex and unclear:
 x = x.permute(0, 2, 1).reshape(batch_size, -1)
@@ -136,6 +148,7 @@ x = rearrange(x, 'b h w -> b (w h)')
 ```
 
 **Ignored operations**:
+
 - Simple, clear operations (`x.transpose(0, 1)`)
 - When existing code is already readable
 - Performance-critical sections
@@ -146,15 +159,18 @@ x = rearrange(x, 'b h w -> b (w h)')
 **Purpose**: Identifies missing type annotations that would improve code quality.
 
 **Triggers**:
+
 - Pull request opened or reopened (Python files only)
 - Manual workflow dispatch
 
 **Priority levels**:
+
 - **High**: Missing parameter types, public API return types, Optional returns
 - **Medium**: Complex functions, non-obvious returns, empty collections
 - **Ignored**: Private methods, obvious getters, simple functions, clear inference
 
 **Modern syntax preferred**:
+
 - `list[str]` over `List[str]`
 - `type | None` over `Optional[type]`
 - `dict[str, int]` over `Dict[str, int]`
@@ -164,6 +180,7 @@ x = rearrange(x, 'b h w -> b (w h)')
 ### 1. PR Validation
 
 The orchestrator first validates that a PR number exists:
+
 ```yaml
 validate-pr:
   steps:
@@ -179,6 +196,7 @@ validate-pr:
 ### 2. Parallel Review Execution
 
 All review types run simultaneously for efficiency:
+
 - Each review only processes relevant files (based on file patterns)
 - Reviews that find no issues create no artifacts
 - Claude is instructed to respond with "No issues found" when appropriate
@@ -186,6 +204,7 @@ All review types run simultaneously for efficiency:
 ### 3. Artifact-Based Communication
 
 Reviews communicate through artifacts:
+
 - Only created when issues are found
 - Contains `claude-review-analysis.json` with suggestions
 - Artifacts are downloaded and consolidated by the Python script
@@ -193,6 +212,7 @@ Reviews communicate through artifacts:
 ### 4. Unified Review Creation
 
 The consolidation script:
+
 1. Downloads all artifacts from the workflow run
 2. Merges suggestions from all review types
 3. Creates a single GitHub review with inline comments
@@ -218,9 +238,7 @@ When issues are found, Claude creates:
       "suggested_code": "improved code"
     }
   ],
-  "tldr": [
-    "Quick summary of changes"
-  ]
+  "tldr": ["Quick summary of changes"]
 }
 ```
 
@@ -229,7 +247,7 @@ When issues are found, Claude creates:
 ### Required Secrets
 
 ```yaml
-ANTHROPIC_API_KEY  # Claude API access key
+ANTHROPIC_API_KEY # Claude API access key
 ```
 
 ### Required Python Dependencies
@@ -242,19 +260,19 @@ requests>=2.31.0
 ### Base Workflow Inputs
 
 ```yaml
-review_name: string        # Display name for the review
-review_type: string        # Unique identifier for artifact naming
-file_pattern: string       # Regex for file filtering (default: ".*")
-setup_python: boolean      # Whether to setup Python (default: false)
-install_packages: string   # Space-separated packages to install
-tools: string             # Comma-separated Claude tools
-prompt: string            # Review-specific instructions
-pr_number: string         # PR number to review
+review_name: string # Display name for the review
+review_type: string # Unique identifier for artifact naming
+file_pattern: string # Regex for file filtering (default: ".*")
+setup_python: boolean # Whether to setup Python (default: false)
+tools: string # Comma-separated Claude tools
+prompt: string # Review-specific instructions
+pr_number: string # PR number to review
 ```
 
 ## Usage Examples
 
 ### Manual Trigger
+
 ```bash
 # Using GitHub CLI
 gh workflow run "Claude Review: Orchestrator" -f pr_number=123
@@ -264,6 +282,7 @@ gh workflow run "Claude Review: Orchestrator" -f pr_number=123
 ```
 
 ### Direct Review Type Trigger
+
 ```bash
 # Run only the type annotations review
 gh workflow run "Claude Review: Types" -f pr_number=123
@@ -272,8 +291,9 @@ gh workflow run "Claude Review: Types" -f pr_number=123
 ### Creating a Custom Review
 
 1. Create workflow file: `.github/workflows/claude-review-security.yml`
+
 ```yaml
-name: "Claude Review: Security"
+name: 'Claude Review: Security'
 on:
   workflow_call:
     inputs:
@@ -285,10 +305,10 @@ jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
     with:
-      review_name: "Security Analysis"
-      review_type: "security"
+      review_name: 'Security Analysis'
+      review_type: 'security'
       file_pattern: "\\.(py|js|ts)$"
-      tools: "Edit,Replace,Bash(git diff HEAD~1)"
+      tools: 'Edit,Replace,Bash(git diff HEAD~1)'
       pr_number: ${{ inputs.pr_number }}
       prompt: |
         Review code for security vulnerabilities.
@@ -320,6 +340,7 @@ jobs:
 ### 1. Writing Review Prompts
 
 **DO:**
+
 - Start with clear "no issues found" instructions
 - Define specific criteria for flagging issues
 - Provide concrete examples of patterns to find
@@ -327,6 +348,7 @@ jobs:
 - Use severity levels appropriately
 
 **DON'T:**
+
 - Ask for general "improvements"
 - Flag style preferences
 - Suggest additions (only fixes)
@@ -336,6 +358,7 @@ jobs:
 ### 2. File Pattern Strategy
 
 Use specific patterns to reduce analysis time:
+
 ```yaml
 file_pattern: "\\.py$"           # Python files only
 file_pattern: "\\.(js|ts)$"      # JavaScript and TypeScript
@@ -345,6 +368,7 @@ file_pattern: "^src/.*\\.py$"    # Python files in src/ directory
 ### 3. Tool Selection
 
 **Common tool combinations:**
+
 ```yaml
 # Basic code review
 tools: "Edit,Replace,Bash(git diff HEAD~1)"
@@ -369,10 +393,12 @@ tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
 ### No Review Appearing
 
 1. **Check PR validation**:
+
    - Ensure PR number is valid
    - Check orchestrator logs for validation errors
 
 2. **Verify issues were found**:
+
    - Check individual review job logs
    - Look for "No issues found" responses
    - Verify artifacts were created
@@ -385,11 +411,13 @@ tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
 ### Suggestions Not Inline
 
 Common causes:
+
 - File not in PR diff
 - Incorrect line numbers
 - GitHub API validation failure
 
 Debug by checking:
+
 - Skipped suggestions in review body
 - Script output for specific errors
 - PR file list vs suggestion files
@@ -432,14 +460,16 @@ Potential improvements:
 ### Updating Claude Model
 
 Change in `claude-review-base.yml`:
+
 ```yaml
 env:
-  CLAUDE_MODEL: "claude-sonnet-4-20250514"
+  CLAUDE_MODEL: 'claude-sonnet-4-20250514'
 ```
 
 ### Monitoring Usage
 
 Track in GitHub Actions:
+
 - Review frequency per type
 - Issues found vs PRs reviewed
 - Time to complete reviews

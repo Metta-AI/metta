@@ -3,29 +3,21 @@ import argparse
 import logging
 import os
 import random
-import signal
 import string
 from typing import cast, get_args
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.config import config_from_path
 from metta.map.utils.show import ShowMode, show_map
-from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
-from metta.util.config import config_from_path
-from metta.util.resolvers import register_resolvers
-
-# Aggressively exit on ctrl+c
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+from metta.map.utils.storable_map import StorableMap
+from metta.util.metta_script import hydraless_metta_script
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def make_map(cfg_path: str, overrides: DictConfig | None = None):
-    # since we are not using hydra here we can't rely on the callback that normally sets up our custom resolvers
-    register_resolvers()
-
     with hydra.initialize(config_path="../../configs", version_base=None):
         hydra_cfg_path = os.path.relpath(cfg_path, "./configs")
         if "../" in hydra_cfg_path:
@@ -46,7 +38,7 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
         # features, but it has a decent chance of working.
         cfg = cfg.game.map_builder
 
-    return map_builder_cfg_to_storable_map(cfg)
+    return StorableMap.from_cfg(cfg)
 
 
 # Based on heuristics, see https://github.com/Metta-AI/mettagrid/pull/108#discussion_r2054699842
@@ -56,7 +48,6 @@ def uri_is_file(uri: str) -> bool:
 
 
 def main():
-    register_resolvers()
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-uri", type=str, help="Output URI")
     parser.add_argument("--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode")
@@ -117,5 +108,4 @@ def main():
         show_map(storable_map, show_mode)
 
 
-if __name__ == "__main__":
-    main()
+hydraless_metta_script(main)

@@ -1,35 +1,35 @@
 # Deals with full and partial replays.
 
 import json
+import logging
 import time
 
-import hydra
+from omegaconf import DictConfig
 
+from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.config import setup_metta_environment
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
+from metta.util.metta_script import metta_script
+
+logger = logging.getLogger(__name__)
 
 
 def create_simulation(cfg):
-    setup_metta_environment(cfg)
-    setup_mettagrid_environment(cfg)
-
-    logger = setup_mettagrid_logger("replay")
     logger.info(f"Replaying {cfg.run}")
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policy_record = policy_store.policy(cfg.replay_job.policy_uri)
+        if cfg.replay_job.policy_uri is not None:
+            policy_record = policy_store.policy_record(cfg.replay_job.policy_uri)
+        else:
+            # Set the policy_uri to None to run play without a policy.
+            policy_record = MockPolicyRecord(run_name="replay_run", uri=None)
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
         replay_dir = f"{cfg.replay_job.replay_dir}/{cfg.run}"
-        if cfg.trainer.get("replay_dry_run", False):
-            replay_dir = None
 
         sim = Simulation(
             sim_name,
@@ -44,7 +44,7 @@ def create_simulation(cfg):
     return sim
 
 
-def generate_replay(sim) -> dict:
+def generate_replay(sim: Simulation) -> dict:
     assert len(sim._vecenv.envs) == 1, "Replay generation requires a single environment"
     start = time.time()
     sim.simulate()
@@ -56,18 +56,16 @@ def generate_replay(sim) -> dict:
     return {}
 
 
-if __name__ == "__main__":
+def main(cfg: DictConfig) -> None:
+    start = time.time()
+    sim = create_simulation(cfg)
+    end = time.time()
+    print("Create simulation time", end - start)
+    start = time.time()
+    replay = generate_replay(sim)
+    end = time.time()
+    print("replay: ", len(json.dumps(replay)), "bytes")
+    print("Generate replay time", end - start)
 
-    @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
-    def main(cfg):
-        start = time.time()
-        sim = create_simulation(cfg)
-        end = time.time()
-        print("Create simulation time", end - start)
-        start = time.time()
-        replay = generate_replay(sim)
-        end = time.time()
-        print("replay: ", len(json.dumps(replay)), "bytes")
-        print("Generate replay time", end - start)
 
-    main()
+metta_script(main, "replay_job")

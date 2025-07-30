@@ -3,71 +3,99 @@ requires = ["scikit-build-core", "pybind11==2.10.4"]
 build-backend = "scikit_build_core.build"
 
 [project]
+dependencies = [
+  "boto3>=1.38.32",
+  "colorama>=0.4.6",
+  "cpplint>=2.0.2",
+  "duckdb>=1.3.0",
+  "einops>=0.8.1",
+  "fastapi>=0.115.5",
+  "gymnasium==0.29.1",
+  "heavyball>=1.7.2",
+  "httpx>=0.28.1",
+  "hydra-core>=1.4.0.dev1",
+  "imageio>=2.37.0",
+  "jmespath>=1.0.1",
+  "matplotlib>=3.10.3",
+  "metta-app-backend",
+  "metta-mettagrid",
+  "metta-agent",
+  "metta-common",
+  "numpy>=1.26.4,<2",
+  "omegaconf>=2.4.0.dev3",
+  "pandas>=2.3.0",
+  "pettingzoo>=1.24.1,<1.25",
+  "pixie-python>=4.3.0",
+  "plotly>=6.1.1",
+  "psycopg[binary]>=3.2.9",
+  "pufferlib @ git+https://github.com/PufferAI/PufferLib.git",
+  "pybind11>=2.10.4",
+  "pydantic>=2.11.5",
+  "pynvml>=11.5.3",
+  "python-dotenv>=1.1.0",
+  "pyyaml>=6.0.2",
+  "pyro-ppl>=1.9.1",
+  "rich>=13.9.4",
+  "scipy>=1.15.3",
+  "setuptools>=80.9.0",
+  "shimmy>=1.3.0,<2.0",
+  "sympy>=1.13.3",
+  "tabulate>=0.9.0",
+  "tensordict>=0.8.3",
+  "termcolor>=2.4.0",
+  "testcontainers>=4.10.0",
+  "torch>=2.7.1",
+  "torchrl>=0.8.1",
+  "tqdm>=4.67.1",
+  "uvicorn[standard]>=0.34.2",
+  "wandb>=0.19.11",
+  "wandb-core>=0.17.0b11",
+  "ipywidgets>=8.1.7",
+  "notebook>=7.4.4",
+  "jupyterlab>=4.4.4",
+  "widgetsnbextension>=4.0.14",
+  "anywidget>=0.9.18",
+  "traitlets>=5.14.3",
+  "tiktoken>=0.9.0",
+  "raylib>=5.5.0.0",
+  "bidict>=0.23.1",
+]
 name = "metta"
 version = "0.1"
 description = "Metta AI framework"
 readme = "README.md"
 requires-python = "==3.11.7"
 license = "MIT"
-dependencies = [
-    "boto3>=1.38.32",
-    "carbs",
-    "colorama>=0.4.6",
-    "cpplint>=2.0.2",
-    "duckdb>=1.3.0",
-    "einops>=0.8.1",
-    "fastapi>=0.115.5",
-    "gymnasium>=1.1.1",
-    "heavyball>=1.7.2",
-    "hydra-core>=1.4.0.dev1",
-    "imageio>=2.37.0",
-    "jmespath>=1.0.1",
-    "matplotlib>=3.10.3",
-    "mettagrid",
-    "numpy>=2.2.6",
-    "omegaconf>=2.4.0.dev3",
-    "pandas>=2.3.0",
-    "pettingzoo>=1.25.0",
-    "pixie-python>=4.3.0",
-    "plotly>=6.1.1",
-    "pufferlib",
-    "pybind11>=2.10.4",
-    "pydantic>=2.11.5",
-    "pynvml>=11.5.3",
-    "pyright>=1.1.401",
-    "pytest>=8.3.3",
-    "pytest-benchmark>=5.1.0",
-    "pytest-cov>=6.1.1",
-    "python-dotenv>=1.1.0",
-    "pyyaml>=6.0.2",
-    "rich>=13.9.4",
-    "ruff>=0.11.13",
-    "scipy>=1.15.3",
-    "setuptools>=80.9.0",
-    "shimmy>=2.0.0",
-    "sympy>=1.13.3",
-    "tabulate>=0.9.0",
-    "tensordict>=0.8.3",
-    "termcolor>=2.4.0",
-    "torchrl>=0.8.1",
-    "tqdm>=4.67.1",
-    "uvicorn[standard]>=0.34.2",
-    "wandb>=0.19.11",
-    "wandb-carbs",
-    "wandb-core>=0.17.0b11",
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.3",
+  "pytest-benchmark>=5.1.0",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "pyright>=1.1.401",
+  "ruff>=0.11.13",
+  "skypilot==0.10.0",
+  "pytest-testmon>=2.1.3",
+  "ipython>=9.4.0",
+  "ipykernel>=6.29.5",
 ]
 
-[project.optional-dependencies]
-dev = ["skypilot==0.9.3"]
-
 [project.scripts]
+metta = "metta.setup.metta_cli:main"
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
 mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
-source = ["mettagrid", "metta"]
+source = [
+  "metta",
+  "metta.mettagrid",
+  "metta.common",
+  "metta.agent",
+  "metta.app_backend",
+]
 
 [tool.scikit-build.cmake.define]
 CMAKE_BUILD_TYPE = "Release"
@@ -78,23 +106,26 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.uv]
 cache-keys = [
-    { file = "pyproject.toml" },
-    { file = "CMakeLists.txt" },
-    { file = "metta/**/*.{cpp,hpp}" },
+  { file = "pyproject.toml" },
+  { file = "CMakeLists.txt" },
+  { file = "metta/**/*.{cpp,hpp}" },
 ]
+default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "wandb_carbs"]
+members = ["mettagrid", "app_backend", "common", "agent", "experiments"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
-carbs = { git = "https://github.com/imbue-ai/carbs.git" }
-wandb_carbs = { workspace = true }
-mettagrid = { workspace = true }
+metta-app-backend = { workspace = true }
+metta-mettagrid = { workspace = true }
+metta-common = { workspace = true }
+metta-agent = { workspace = true }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 
-[tool.pyright]
-# Suppress warnings on editable C++ sources, see https://github.com/Metta-AI/metta/pull/852
-reportMissingModuleSource = false
+[tool.ruff]
+exclude = ["*.ipynb"]
+

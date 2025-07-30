@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: server
+          image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+          imagePullPolicy: Always
+          envFrom:
+          - secretRef:
+              name: {{ .Values.secret_name }}
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.anthropic }}
+                  key: api-key
+          resources:
+            requests:
+              memory: "1Gi"
+            limits:
+              memory: "4Gi"
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /whoami
+              port: 8000
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /whoami
+              port: 8000
+            timeoutSeconds: 3
+            periodSeconds: 1

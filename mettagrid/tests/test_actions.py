@@ -1,14 +1,15 @@
 import numpy as np
 import pytest
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import (
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_env import (
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.util.actions import (
+from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,
@@ -28,21 +29,31 @@ def base_config():
         "num_agents": 1,
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
-        "use_observation_tokens": True,
         "num_observation_tokens": NUM_OBS_TOKENS,
+        "inventory_item_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "get_items": {"enabled": True},  # maps to get_output
-            "attack": {"enabled": True},
+            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},  # maps to get_recipe_items
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
+            "change_glyph": {"enabled": True, "number_of_glyphs": 4},
         },
         "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {"type_id": 1, "hp": 100}, "altar": {"type_id": 4, "hp": 100}},
-        "agent": {"inventory_size": 10, "hp": 100},
+        "objects": {
+            "wall": {"type_id": 1},
+            "altar": {
+                "type_id": 8,
+                "max_output": -1,
+                "conversion_ticks": 1,
+                "cooldown": 10,
+                "initial_resource_count": 0,
+            },
+        },
+        "agent": {"rewards": {}},
     }
 
 
@@ -85,12 +96,11 @@ def configured_env(base_config):
     """Factory fixture that creates a configured MettaGrid environment."""
 
     def _create_env(game_map, config_overrides=None):
-        config = base_config.copy()
+        game_config = base_config.copy()
         if config_overrides:
-            config.update(config_overrides)
+            game_config.update(config_overrides)
 
-        env_config = {"game": config}
-        env = MettaGrid(env_config, game_map)
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
