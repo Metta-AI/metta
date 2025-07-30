@@ -1,0 +1,30 @@
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+
+tasks:
+  # 6-tick timing tests
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_6_1024: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_6_1024: 1
+
+  # 8-tick timing tests
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_8_1024: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_8_1024: 1
+
+  # 10-tick timing tests
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_10_1024: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_10_1024: 1
+
+  # 16-tick timing tests
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_16_1024: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_16_1024: 1
+
+  # 20-tick timing tests
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_20_1024: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_20_1024: 1
+
+  # 50-tick timing tests
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_50_1024: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_50_1024: 1
+
+  # 100-tick timing tests
+  /env/mettagrid/cyclical/cyclical_horizontal_timing_100_1024: 1
+  /env/mettagrid/cyclical/cyclical_vertical_timing_100_1024: 1
