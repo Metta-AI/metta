@@ -4,7 +4,7 @@ import logging
 from itertools import product
 from typing import Any, Dict, Optional
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from tqdm import tqdm
 
 from metta.common.util.config import copy_omegaconf_config
@@ -92,5 +92,8 @@ def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str,
 
             buckets_unpacked[parameter] = binned_ranges
         else:
+            assert isinstance(bucket_spec, list) or isinstance(bucket_spec, ListConfig), (
+                f"Bucket spec for {parameter} must be {{range: (lo, hi)}} or list. Got: {bucket_spec}"
+            )
             buckets_unpacked[parameter] = bucket_spec
     return buckets_unpacked

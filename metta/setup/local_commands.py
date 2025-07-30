@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from metta.common.util.constants import METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info
 
@@ -187,8 +188,7 @@ class LocalCommands:
                 error("No W&B entity found. Please login with 'wandb login'")
                 sys.exit(1)
 
-        # Use provided project or default to 'metta'
-        project = args.project if args.project else "metta"
+        project = args.project if args.project else METTA_WANDB_PROJECT
 
         info(f"Using entity: {entity}, project: {project}")
         if not args.stats_db_uri:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 import os
 import time
 import weakref
@@ -203,13 +204,13 @@ def upload_replay_html(
         for name, urls in replay_groups.items():
             if len(urls) == 1:
                 # Single episode - just show the name
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={urls[0]}"
                 links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
             else:
                 # Multiple episodes - show with numbers
                 episode_links = []
                 for i, url in enumerate(urls, 1):
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                    player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={url}"
                     episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
                 links.append(f"{name} [{' '.join(episode_links)}]")
 

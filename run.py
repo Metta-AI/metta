@@ -13,6 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbContext
@@ -847,19 +848,14 @@ while agent_step < trainer_config.total_timesteps:
         if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
 
-            # Generate replay using curriculum already in environment
-            curr_obj = getattr(metta_grid_env, "_curriculum", None)
-            if curr_obj is not None:
-                generate_replay(
-                    policy_record=latest_saved_policy_record,
-                    policy_store=policy_store,
-                    curriculum=curr_obj,
-                    epoch=epoch,
-                    device=device,
-                    vectorization="serial",
-                    replay_dir=trainer_config.simulation.replay_dir,
-                    wandb_run=wandb_run,
-                )
+            # Get replay URLs from the database
+            replay_urls = results.stats_db.get_replay_urls()
+            if replay_urls:
+                replay_url = replay_urls[0]
+                player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={replay_url}"
+                logger.info(f"Replay available at: {player_url}")
+
+            results.stats_db.close()
 
 # Training complete
 total_elapsed = time.time() - training_start_time
