@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 import torch
 from omegaconf import DictConfig
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 from .environment import _get_default_env_config
@@ -229,7 +230,7 @@ def generate_replay_simple(
     player_url = None
     if replay_urls:
         replay_url = replay_urls[0]
-        player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+        player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={replay_url}"
         logger.info(f"Replay available at: {player_url}")
 
     results.stats_db.close()

@@ -6,6 +6,7 @@ from httpx import Client
 from omegaconf import DictConfig, ListConfig
 
 from metta.app_backend.stats_client import StatsClient
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 
 def get_machine_token(stats_server_uri: str | None = None) -> str | None:
@@ -28,7 +29,7 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
             return None
     elif stats_server_uri is None or stats_server_uri in (
         "https://observatory.softmax-research.net/api",
-        "https://api.observatory.softmax-research.net",
+        PROD_STATS_SERVER_URI,
     ):
         # Fall back to legacy token file, which is assumed to contain production
         # server tokens if it exists

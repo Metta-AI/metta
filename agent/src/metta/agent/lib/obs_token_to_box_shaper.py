@@ -33,8 +33,6 @@ class ObsTokenToBoxShaper(LayerBase):
         self.out_height = obs_height
         self.num_layers = max(feature_normalizations.keys()) + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
-        # Track which invalid indices we've already warned about
-        self._warned_about_invalid_indices = set()
 
     def _forward(self, td: TensorDict):
         token_observations = td["x"]
@@ -73,20 +71,16 @@ class ObsTokenToBoxShaper(LayerBase):
         valid_atr = atr_indices < self.num_layers
         valid_mask = valid_tokens & valid_atr
 
-        # Log warning for out-of-bounds indices (only once per unique index)
+        # Log warning for out-of-bounds indices
         invalid_atr_mask = valid_tokens & ~valid_atr
         if invalid_atr_mask.any():
             invalid_indices = atr_indices[invalid_atr_mask].unique()
-            new_invalid = set(invalid_indices.tolist()) - self._warned_about_invalid_indices
-
-            if new_invalid:
-                self._warned_about_invalid_indices.update(new_invalid)
-                warnings.warn(
-                    f"Found observation attribute indices {sorted(new_invalid)} >= num_layers ({self.num_layers}). "
-                    f"These tokens will be ignored. This may indicate the policy was trained with fewer",
-                    "observation channels.",
-                    stacklevel=2,
-                )
+            warnings.warn(
+                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
+                f">= num_layers ({self.num_layers}). These tokens will be ignored. "
+                f"This may indicate the policy was trained with fewer observation channels.",
+                stacklevel=2,
+            )
 
         box_obs[
             batch_indices[valid_mask],

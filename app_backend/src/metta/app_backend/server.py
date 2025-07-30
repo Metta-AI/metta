@@ -11,6 +11,7 @@ from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     dashboard_routes,
+    entity_routes,
     episode_routes,
     eval_task_routes,
     heatmap_routes,
@@ -103,6 +104,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     token_router = token_routes.create_token_router(stats_repo)
     policy_heatmap_router = heatmap_routes.create_policy_heatmap_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
+    entity_router = entity_routes.create_entity_router(stats_repo)
 
     app.include_router(dashboard_router)
     app.include_router(episode_router)
@@ -112,6 +114,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(token_router)
     app.include_router(policy_heatmap_router)
     app.include_router(sweep_router)
+    app.include_router(entity_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request):  # type: ignore

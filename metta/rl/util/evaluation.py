@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import wandb
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,7 +120,7 @@ def generate_replay(
         replay_urls = results.stats_db.get_replay_urls(key, version)
         if len(replay_urls) > 0:
             replay_url = replay_urls[0]
-            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+            player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={replay_url}"
             link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
             wandb_run.log(link_summary)
 

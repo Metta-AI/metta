@@ -1,110 +1,13 @@
-from enum import Enum
 from pathlib import Path
 from typing import TypeVar, cast
 
 import yaml
-from typing_extensions import NotRequired, TypedDict
 
-
-class UserType(Enum):
-    EXTERNAL = "external"
-    CLOUD = "cloud"
-    SOFTMAX = "softmax"
-    SOFTMAX_DOCKER = "softmax-docker"
-    CUSTOM = "custom"
-
-    @property
-    def is_softmax(self) -> bool:
-        return self in (UserType.SOFTMAX, UserType.SOFTMAX_DOCKER)
-
-    def get_description(self) -> str:
-        descriptions = {
-            UserType.EXTERNAL: "External contributor",
-            UserType.CLOUD: "User with own cloud account",
-            UserType.SOFTMAX: "Softmax employee",
-            UserType.SOFTMAX_DOCKER: "Softmax (Docker)",
-            UserType.CUSTOM: "Custom configuration",
-        }
-        return descriptions.get(self, self.value)
-
-
-class ComponentConfig(TypedDict):
-    enabled: bool
-    expected_connection: NotRequired[str | None]
-
-
-class ProfileConfig(TypedDict):
-    components: dict[str, ComponentConfig]
-
-
-CURRENT_CONFIG_VERSION = 1
-
-
-PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
-    UserType.EXTERNAL: {
-        "components": {
-            "system": {"enabled": True},
-            "core": {"enabled": True},
-            "nodejs": {"enabled": True},
-            "githooks": {"enabled": True},
-            "mettascope": {"enabled": True},
-            "observatory-key": {"enabled": False},
-            "aws": {"enabled": False},
-            "wandb": {"enabled": False},
-            "skypilot": {"enabled": False},
-            "tailscale": {"enabled": False},
-            "heatmapwidget": {"enabled": True},
-        }
-    },
-    UserType.CLOUD: {
-        "components": {
-            "system": {"enabled": True},
-            "core": {"enabled": True},
-            "nodejs": {"enabled": True},
-            "githooks": {"enabled": True},
-            "mettascope": {"enabled": True},
-            "observatory-key": {"enabled": False},
-            "aws": {"enabled": True},
-            "wandb": {"enabled": True},
-            "skypilot": {"enabled": True},
-            "tailscale": {"enabled": False},
-            "heatmapwidget": {"enabled": False},
-        }
-    },
-    UserType.SOFTMAX_DOCKER: {
-        "components": {
-            "system": {"enabled": True},
-            "core": {"enabled": True},
-            "nodejs": {"enabled": False},
-            "githooks": {"enabled": True},
-            "mettascope": {"enabled": False},
-            "observatory-key": {"enabled": False},
-            "aws": {"enabled": True, "expected_connection": "751442549699"},
-            "wandb": {"enabled": True, "expected_connection": "metta-research"},
-            "skypilot": {"enabled": False},
-            "tailscale": {"enabled": False},
-            "heatmapwidget": {"enabled": False},
-        }
-    },
-    UserType.SOFTMAX: {
-        "components": {
-            "system": {"enabled": True},
-            "core": {"enabled": True},
-            "codeclip": {"enabled": True},
-            "nodejs": {"enabled": True},
-            "githooks": {"enabled": True},
-            "mettascope": {"enabled": True},
-            "observatory-key": {"enabled": True, "expected_connection": "@stem.ai"},
-            "aws": {"enabled": True, "expected_connection": "751442549699"},
-            "wandb": {"enabled": True, "expected_connection": "metta-research"},
-            "skypilot": {"enabled": True, "expected_connection": "skypilot-api.softmax-research.net"},
-            "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
-            "heatmapwidget": {"enabled": True},
-        }
-    },
-}
+from metta.setup.profiles import PROFILE_DEFINITIONS, ComponentConfig, UserType
 
 T = TypeVar("T")
+
+CURRENT_CONFIG_VERSION = 1
 
 
 class SetupConfig:
