@@ -2,68 +2,15 @@ import time
 from typing import Any, Dict, List
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
 
 
 class TestPolicyHeatmapRoutes:
     """Integration tests for policy-based heatmap routes."""
 
-    @pytest.fixture(scope="class")
-    def postgres_container(self):
-        """Create a PostgreSQL container for testing."""
-        try:
-            container = PostgresContainer(
-                image="postgres:17",
-                username="test_user",
-                password="test_password",
-                dbname="test_db",
-                driver=None,
-            )
-            container.start()
-            yield container
-            container.stop()
-        except Exception as e:
-            pytest.skip(f"Failed to start PostgreSQL container: {e}")
-
-    @pytest.fixture(scope="class")
-    def db_uri(self, postgres_container: PostgresContainer) -> str:
-        """Get the database URI for the test container."""
-        return postgres_container.get_connection_url()
-
-    @pytest.fixture(scope="class")
-    def stats_repo(self, db_uri: str) -> MettaRepo:
-        """Create a MettaRepo instance with the test database."""
-        return MettaRepo(db_uri)
-
-    @pytest.fixture(scope="class")
-    def test_app(self, stats_repo: MettaRepo) -> FastAPI:
-        """Create a test FastAPI app with dependency injection."""
-        return create_app(stats_repo)
-
-    @pytest.fixture(scope="class")
-    def test_client(self, test_app: FastAPI) -> TestClient:
-        """Create a test client."""
-        return TestClient(test_app)
-
-    @pytest.fixture(scope="class")
-    def stats_client(self, test_client: TestClient) -> StatsClient:
-        """Create a stats client for testing."""
-        # First create a machine token
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "test_policy_heatmap_client_token"},
-            headers={"X-Auth-Request-Email": "test_user"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-
-        return StatsClient(test_client, machine_token=token)
+    # All fixtures are inherited from conftest.py
 
     def _create_test_data(
         self, stats_client: StatsClient, run_name: str, num_policies: int = 2, create_run_free_policies: int = 0

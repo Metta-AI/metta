@@ -62,7 +62,7 @@ class EpisodeCreate(BaseModel):
 
 
 class EpisodeResponse(BaseModel):
-    id: str
+    id: uuid.UUID
 
 
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
@@ -150,7 +150,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 eval_task_id=episode.eval_task_id,
                 tags=episode.tags,
             )
-            return EpisodeResponse(id=str(episode_id))
+            return EpisodeResponse(id=episode_id)
         except ValueError as e:
             raise HTTPException(status_code=400, detail="Invalid UUID format") from e
         except Exception as e:

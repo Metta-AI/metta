@@ -39,7 +39,9 @@ class AsyncStatsClient(BaseAppBackendClient):
             description=description,
             tags=tags,
         )
-        return await self._make_request(TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump())
+        return await self._make_request(
+            TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump(mode="json")
+        )
 
     async def create_epoch(
         self,
@@ -54,7 +56,7 @@ class AsyncStatsClient(BaseAppBackendClient):
             attributes=attributes or {},
         )
         return await self._make_request(
-            EpochResponse, "POST", f"/stats/training-runs/{run_id}/epochs", json=data.model_dump()
+            EpochResponse, "POST", f"/stats/training-runs/{run_id}/epochs", json=data.model_dump(mode="json")
         )
 
     async def create_policy(
@@ -70,7 +72,7 @@ class AsyncStatsClient(BaseAppBackendClient):
             url=url,
             epoch_id=epoch_id,
         )
-        return await self._make_request(PolicyResponse, "POST", "/stats/policies", json=data.model_dump())
+        return await self._make_request(PolicyResponse, "POST", "/stats/policies", json=data.model_dump(mode="json"))
 
     async def record_episode(
         self,
@@ -97,7 +99,7 @@ class AsyncStatsClient(BaseAppBackendClient):
             eval_task_id=eval_task_id,
             tags=tags,
         )
-        return await self._make_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump())
+        return await self._make_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
 
 
 class StatsClient:
