@@ -6,6 +6,11 @@ sampling: 1
 game:
   num_agents: 4
   max_steps: 1000
+  inventory_item_names:
+    - battery_blue
+  agent:
+    starting_inventory:
+      battery_blue: 1
   actions:
     attack:
       enabled: false
