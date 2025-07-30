@@ -35,17 +35,16 @@ file_mounts:
     name: softmax-train-dir
     store: s3
     mode: MOUNT_CACHED
-  /workspace/metta:
-    source: .
+  /tmp/setup-scripts:
+    source: ./devops/skypilot/config
     mode: COPY
 
 setup: |
   set -e
   echo "[SETUP] Starting setup..."
 
-  bash /workspace/metta/devops/skypilot/config/setup-common.sh
-
-  bash /workspace/metta/devops/skypilot/config/gpu-troubleshoot.sh || true
+  bash /tmp/setup-scripts/setup-common.sh
+  bash /tmp/setup-scripts/gpu-troubleshoot.sh || true
 
   echo "[SETUP] Setup complete."
 

@@ -4,10 +4,6 @@ echo "[SETUP] Running common setup..."
 
 cd /workspace/metta
 
-# Initialize git and point to remote
-git init
-git remote add origin https://github.com/Metta-AI/metta/
-
 # Git setup
 echo "[SETUP] Git operations..."
 git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
