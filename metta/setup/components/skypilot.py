@@ -1,5 +1,6 @@
 import subprocess
 
+from metta.common.util.constants import METTA_SKYPILOT_URL
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success
@@ -9,7 +10,7 @@ from metta.setup.utils import info, success
 class SkypilotSetup(SetupModule):
     install_once = False
 
-    softmax_url = "skypilot-api.softmax-research.net"
+    softmax_url = METTA_SKYPILOT_URL
 
     def dependencies(self) -> list[str]:
         return ["aws"]
@@ -30,7 +31,12 @@ class SkypilotSetup(SetupModule):
 
     def _check_gh_auth(self) -> bool:
         try:
-            result = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, timeout=2)
+            result = subprocess.run(
+                ["gh", "auth", "status"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
