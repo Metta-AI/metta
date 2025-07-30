@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 1
+  num_agents: 12
   obs_width: 11
   obs_height: 11
   max_steps: ???
