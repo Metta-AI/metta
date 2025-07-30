@@ -25,12 +25,21 @@ class TestSweepScriptIntegration:
         self.data_dir = os.path.join(self.temp_dir, "data")
         os.makedirs(self.data_dir, exist_ok=True)
 
+        # Store original DATA_DIR value for restoration
+        self.original_data_dir = os.environ.get("DATA_DIR")
+
         # Set environment for testing
         os.environ["DATA_DIR"] = self.data_dir
 
         yield
 
-        # Cleanup
+        # Cleanup environment variable
+        if self.original_data_dir is not None:
+            os.environ["DATA_DIR"] = self.original_data_dir
+        else:
+            os.environ.pop("DATA_DIR", None)
+
+        # Cleanup filesystem
         import shutil
 
         if hasattr(self, "temp_dir"):
