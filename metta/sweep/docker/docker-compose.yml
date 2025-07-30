@@ -25,9 +25,23 @@ services:
       - ~/.config:/home/metta/.config:ro
       - ~/.ssh:/home/metta/.ssh:ro
       - ~/.aws:/home/metta/.aws:ro
-      # Code and data mounts
-      - ../../../:/home/metta/metta-src:rw
-      - ../../../:/home/metta/metta:rw
+      # Code mounts - selective to avoid overriding .venv
+      # Removed full repo mount to prevent container from modifying host .venv
+      - ../../../metta:/home/metta/metta/metta:rw
+      - ../../../common:/home/metta/metta/common:rw
+      - ../../../agent:/home/metta/metta/agent:rw
+      - ../../../app_backend:/home/metta/metta/app_backend:rw
+      - ../../../mettagrid:/home/metta/metta/mettagrid:rw
+      - ../../../experiments:/home/metta/metta/experiments:rw
+      - ../../../tools:/home/metta/metta/tools:rw
+      - ../../../devops:/home/metta/metta/devops:rw
+      - ../../../configs:/home/metta/metta/configs:rw
+      - ../../../tests:/home/metta/metta/tests:rw
+      - ../../../scripts:/home/metta/metta/scripts:rw
+      - ../../../pyproject.toml:/home/metta/metta/pyproject.toml:ro
+      - ../../../uv.lock:/home/metta/metta/uv.lock:ro
+      - ../../../.python-version:/home/metta/metta/.python-version:ro
+      # Data mounts
       - sweep-test-results:/home/metta/test-results
       - sweep-test-cache:/home/metta/.cache
     ports:
@@ -70,9 +84,23 @@ services:
       - ~/.config:/home/metta/.config:ro
       - ~/.ssh:/home/metta/.ssh:ro
       - ~/.aws:/home/metta/.aws:ro
-      # Code and data mounts
-      - ../../../:/home/metta/metta-src:rw
-      - ../../../:/home/metta/metta:rw
+      # Code mounts - selective to avoid overriding .venv
+      # Removed full repo mount to prevent container from modifying host .venv
+      - ../../../metta:/home/metta/metta/metta:rw
+      - ../../../common:/home/metta/metta/common:rw
+      - ../../../agent:/home/metta/metta/agent:rw
+      - ../../../app_backend:/home/metta/metta/app_backend:rw
+      - ../../../mettagrid:/home/metta/metta/mettagrid:rw
+      - ../../../experiments:/home/metta/metta/experiments:rw
+      - ../../../tools:/home/metta/metta/tools:rw
+      - ../../../devops:/home/metta/metta/devops:rw
+      - ../../../configs:/home/metta/metta/configs:rw
+      - ../../../tests:/home/metta/metta/tests:rw
+      - ../../../scripts:/home/metta/metta/scripts:rw
+      - ../../../pyproject.toml:/home/metta/metta/pyproject.toml:ro
+      - ../../../uv.lock:/home/metta/metta/uv.lock:ro
+      - ../../../.python-version:/home/metta/metta/.python-version:ro
+      # Data mounts
       - sweep-test-results:/home/metta/test-results
       - sweep-test-cache:/home/metta/.cache
     ports:
@@ -87,31 +115,6 @@ services:
         "/bin/bash",
         "-c",
         "/home/metta/metta/metta/sweep/docker/scripts/start-test-env.sh && tail -f /dev/null",
-      ]
-
-  # Dummy API server for testing
-  dummy-api:
-    build:
-      context: ../../../
-      dockerfile: metta/sweep/docker/Dockerfile
-      target: test
-    hostname: dummy-api
-    container_name: metta-dummy-api
-    user: metta
-    environment:
-      - PYTHONPATH=/home/metta/metta
-    volumes:
-      - ../../../:/home/metta/metta:rw
-    ports:
-      - "8080:8080" # Observatory API
-      - "8081:8081" # Cogweb API
-    networks:
-      - sweep-test-net
-    command:
-      [
-        "/bin/bash",
-        "-c",
-        "cd /home/metta/metta && source .venv/bin/activate && python /home/metta/metta/metta/sweep/docker/scripts/dummy-api-server.py",
       ]
 
 volumes:
