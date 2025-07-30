@@ -12,9 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gymnasium import spaces
-from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
@@ -33,43 +31,43 @@ class MettaGridCore:
 
     def __init__(
         self,
-        curriculum: Curriculum,
+        level: Level,
+        game_config_dict: Dict[str, Any],
         render_mode: Optional[str] = None,
-        level: Optional[Level] = None,
         **kwargs: Any,
     ):
         """
         Initialize core MettaGrid functionality.
 
         Args:
-            curriculum: Curriculum for task management
+            level: Level to use for the environment
+            game_config_dict: Game configuration dictionary
             render_mode: Rendering mode (None, "human", "miniscope")
-            level: Optional pre-built level
             **kwargs: Additional arguments passed to subclasses
         """
         self._render_mode = render_mode
-
-        # Validate curriculum type
-        if not isinstance(curriculum, Curriculum):
-            raise ValueError("curriculum must be a Curriculum instance")
-
-        self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
         self._level = level
         self._renderer = None
-        self._map_labels: List[str] = []
+        self._map_labels: List[str] = level.labels
         self._current_seed: int = 0
 
         # Environment metadata
-        self.labels: List[str] = self._task.env_cfg().get("labels", [])
+        self.labels: List[str] = []
         self._should_reset = False
 
         # Initialize renderer class if needed (before C++ env creation)
         if self._render_mode is not None:
             self._initialize_renderer()
 
-        # Create C++ environment immediately (eager initialization)
-        self._c_env: Optional[MettaGridCpp] = self._create_c_env()
+        # Create C++ environment immediately
+        self._c_env_instance: Optional[MettaGridCpp] = self._create_c_env(game_config_dict)
+
+    @property
+    def c_env(self) -> MettaGridCpp:
+        """Get core environment instance, raising error if not initialized."""
+        if self._c_env_instance is None:
+            raise RuntimeError("Environment not initialized")
+        return self._c_env_instance
 
     def _initialize_renderer(self) -> None:
         """Initialize renderer class based on render mode."""
@@ -85,37 +83,28 @@ class MettaGridCore:
 
             self._renderer_class = MiniscopeRenderer
 
-    def _create_c_env(self, seed: Optional[int] = None) -> MettaGridCpp:
+    def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
         """
         Create a new MettaGridCpp instance.
 
         Args:
+            game_config_dict: Game configuration dictionary
             seed: Random seed for environment
 
         Returns:
             New MettaGridCpp instance
         """
-        task = self._task
-        task_cfg = task.env_cfg()
         level = self._level
-
-        if level is None:
-            level = task_cfg.game.map_builder.build()
 
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task_cfg.game.num_agents == level_agents, (
-            f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
+        assert game_config_dict["num_agents"] == level_agents, (
+            f"Number of agents {game_config_dict['num_agents']} does not match number of agents in map {level_agents}"
         )
-
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
 
         # Ensure we have a dict
         if not isinstance(game_config_dict, dict):
             raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
-
-        self._map_labels = level.labels
 
         # Create C++ config
         try:
@@ -140,21 +129,19 @@ class MettaGridCore:
 
         return c_env
 
-    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def reset(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Reset the environment.
 
         Args:
+            game_config_dict: Game configuration dictionary
             seed: Random seed
 
         Returns:
             Tuple of (observations, info)
         """
-        # Get new task from curriculum
-        self._task = self._curriculum.get_task()
-
-        # Recreate C++ environment for new task
-        self._c_env = self._create_c_env(seed)
+        # Recreate C++ environment with new config
+        self._c_env_instance = self._create_c_env(game_config_dict, seed)
 
         # Update seed
         self._current_seed = seed or 0
@@ -163,9 +150,7 @@ class MettaGridCore:
         self._should_reset = False
 
         # Get initial observations from core environment
-        if self._c_env is None:
-            raise RuntimeError("Core environment not initialized")
-        obs, infos = self._c_env.reset()
+        obs, infos = self.c_env.reset()
 
         return obs, infos
 
@@ -179,11 +164,8 @@ class MettaGridCore:
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized. Call reset() first.")
-
         # Execute step in core environment
-        obs, rewards, terminals, truncations, _ = self._c_env.step(actions)
+        obs, rewards, terminals, truncations, _ = self.c_env.step(actions)
 
         # Check for episode completion
         infos = {}
@@ -194,16 +176,16 @@ class MettaGridCore:
 
     def render(self) -> Optional[str]:
         """Render the environment."""
-        if self._renderer is None or self._c_env is None:
+        if self._renderer is None or self._c_env_instance is None:
             return None
 
-        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
+        return self._renderer.render(self.c_env.current_step, self.c_env.grid_objects())
 
     def close(self) -> None:
         """Close the environment."""
-        if self._c_env is not None:
+        if self._c_env_instance is not None:
             # Clean up any resources if needed
-            self._c_env = None
+            self._c_env_instance = None
 
     # Properties that expose C++ environment functionality
     @property
@@ -219,101 +201,71 @@ class MettaGridCore:
     @property
     def core_env(self) -> Optional[MettaGridCpp]:
         """Get core environment instance."""
-        return self._c_env
+        return self._c_env_instance
 
     # Properties that delegate to core environment
     @property
     def max_steps(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.max_steps
+        return self.c_env.max_steps
 
     @property
     def num_agents(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.num_agents
+        return self.c_env.num_agents
 
     @property
     def obs_width(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.obs_width
+        return self.c_env.obs_width
 
     @property
     def obs_height(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.obs_height
+        return self.c_env.obs_height
 
     @property
     def map_width(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.map_width
+        return self.c_env.map_width
 
     @property
     def map_height(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.map_height
+        return self.c_env.map_height
 
     @property
     def _observation_space(self) -> spaces.Box:
         """Internal observation space - use single_observation_space for PufferEnv compatibility."""
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.observation_space
+        return self.c_env.observation_space
 
     @property
     def _action_space(self) -> spaces.MultiDiscrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.action_space
+        return self.c_env.action_space
 
     @property
     def action_names(self) -> List[str]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.action_names()
+        return self.c_env.action_names()
 
     @property
     def max_action_args(self) -> List[int]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        action_args_array = self._c_env.max_action_args()
+        action_args_array = self.c_env.max_action_args()
         return [int(x) for x in action_args_array]
 
     @property
     def object_type_names(self) -> List[str]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.object_type_names()
+        return self.c_env.object_type_names()
 
     @property
     def inventory_item_names(self) -> List[str]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.inventory_item_names()
+        return self.c_env.inventory_item_names()
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.feature_normalizations()
+        return self.c_env.feature_normalizations()
 
     @property
     def initial_grid_hash(self) -> int:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.initial_grid_hash
+        return self.c_env.initial_grid_hash
 
     @property
     def action_success(self) -> List[bool]:
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.action_success()
+        return self.c_env.action_success()
 
     @property
     def global_features(self) -> List[Any]:
@@ -327,11 +279,8 @@ class MettaGridCore:
         Returns:
             Dictionary mapping feature names to their properties
         """
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-
         # Get feature spec from C++ environment
-        feature_spec = self._c_env.feature_spec()
+        feature_spec = self.c_env.feature_spec()
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
@@ -348,6 +297,4 @@ class MettaGridCore:
     @property
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
-        if self._c_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._c_env.grid_objects()
+        return self.c_env.grid_objects()

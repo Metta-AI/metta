@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from gymnasium import Env as GymEnv
+from omegaconf import OmegaConf
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
@@ -20,6 +21,10 @@ from metta.mettagrid.level_builder import Level
 # Data types for Gymnasium - import from C++ module
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
 )
 
 
@@ -50,12 +55,29 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
             single_agent: Whether to use single-agent mode
             **kwargs: Additional arguments
         """
-        # Initialize core environment (no training features)
+        # Get level from curriculum if not provided
+        if level is None:
+            task = curriculum.get_task()
+            level = task.env_cfg().game.map_builder.build()
+
+        # Ensure we have a level
+        assert level is not None, "Level must be provided or generated from curriculum"
+
+        # Store curriculum for reset operations
+        self._curriculum = curriculum
+        self._task = self._curriculum.get_task()
+
+        # Get game config for core initialization
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        # Initialize core functionality
         MettaGridCore.__init__(
             self,
-            curriculum=curriculum,
-            render_mode=render_mode,
             level=level,
+            game_config_dict=game_config_dict,
+            render_mode=render_mode,
             **kwargs,
         )
 
@@ -63,6 +85,29 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         GymEnv.__init__(self)
 
         self._single_agent = single_agent
+
+        # Initialize buffer attributes for memory management
+        self._observations: Optional[np.ndarray] = None
+        self._terminals: Optional[np.ndarray] = None
+        self._truncations: Optional[np.ndarray] = None
+        self._rewards: Optional[np.ndarray] = None
+
+        # Allocate buffers for C++ environment
+        self._allocate_buffers()
+
+    def _allocate_buffers(self) -> None:
+        """Allocate numpy arrays for C++ environment shared memory."""
+        # Allocate observation buffer
+        obs_shape = (self.num_agents, *self._observation_space.shape)
+        self._observations = np.zeros(obs_shape, dtype=dtype_observations)
+
+        # Allocate terminal/truncation/reward buffers
+        self._terminals = np.zeros(self.num_agents, dtype=dtype_terminals)
+        self._truncations = np.zeros(self.num_agents, dtype=dtype_truncations)
+        self._rewards = np.zeros(self.num_agents, dtype=dtype_rewards)
+
+        # Set buffers in C++ environment for direct writes
+        self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
 
     @override
     def reset(
@@ -78,8 +123,14 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         Returns:
             Tuple of (observations, info)
         """
-        # Call the base reset method from MettaGridEnv
-        obs, info = super().reset(seed)
+        # Get new task from curriculum and its config
+        self._task = self._curriculum.get_task()
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        # Call the base reset method
+        obs, info = super().reset(game_config_dict, seed)
 
         # Handle single-agent return format
         if self._single_agent and obs is not None:

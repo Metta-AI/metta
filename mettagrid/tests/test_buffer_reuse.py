@@ -25,7 +25,7 @@ def test_buffer_reuse_across_resets():
     env = MettaGridEnv(curriculum=curriculum, render_mode=None)
 
     # Get initial C++ environment reference
-    initial_cpp_env = env._c_env
+    initial_cpp_env = env.c_env
     assert initial_cpp_env is not None, "C++ environment should be initialized"
 
     # First reset to get buffers allocated by PufferLib
@@ -53,7 +53,7 @@ def test_buffer_reuse_across_resets():
     obs2, info2 = env.reset(seed=123)
 
     # Verify we have a new C++ environment (it gets recreated on reset)
-    second_cpp_env = env._c_env
+    second_cpp_env = env.c_env
     assert second_cpp_env is not None, "C++ environment should still be initialized"
     # Note: The C++ env gets recreated on reset in our implementation for new tasks
 
