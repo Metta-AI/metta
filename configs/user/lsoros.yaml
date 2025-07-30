@@ -1,5 +1,5 @@
 # @package __global__
 
-run: test-inv0
+run: test-props1
 trainer:
   env: /env/mettagrid/debug
