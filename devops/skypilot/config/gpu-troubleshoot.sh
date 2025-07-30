@@ -1,226 +1,204 @@
 #!/bin/bash
 
-echo "=== GPU DIAGNOSTICS AND RECOVERY ==="
+echo "=== GPU DIAGNOSTICS ==="
 echo "Timestamp: $(date)"
-echo "Hostname: $(hostname)"
+echo "Container Hostname: $(hostname)"
 
 # Function to run a quick GPU health check
 quick_gpu_check() {
-    docker run --rm --gpus all metta:latest python -c "
+    python3 -c "
 import torch
 import sys
 if torch.cuda.is_available():
-    print(f'✅ GPU Check Passed - PyTorch {torch.__version__}, CUDA {torch.version.cuda}, Device: {torch.cuda.get_device_name(0)}')
+    print(f'✅ GPU Check Passed - PyTorch {torch.__version__}, CUDA {torch.version.cuda}')
+    print(f'   Device: {torch.cuda.get_device_name(0)}')
+    print(f'   Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB')
     sys.exit(0)
 else:
     print('❌ GPU Check Failed - CUDA not available')
     sys.exit(1)
-" 2>/dev/null
+" 2>&1
 }
 
 # FAST PATH: Try the end-to-end test first
 echo -e "\n--- Quick GPU Health Check ---"
 if quick_gpu_check; then
-    echo "✅ GPU is fully functional! Skipping detailed diagnostics."
+    echo "✅ GPU is fully functional!"
     exit 0
 fi
 
-# If we get here, something is wrong, so run full diagnostics
-echo "⚠️  Quick check failed. Running detailed diagnostics..."
+# If we get here, something is wrong, so run diagnostics
+echo "⚠️  Quick check failed. Running diagnostics..."
 
-# Collect system information
-echo -e "\n--- System Information ---"
-echo "Instance type: $(ec2-metadata --instance-type 2>/dev/null || echo 'Unknown')"
-echo "AMI ID: $(ec2-metadata --ami-id 2>/dev/null || echo 'Unknown')"
-echo "Region: $(ec2-metadata --availability-zone 2>/dev/null || echo 'Unknown')"
-echo "Kernel: $(uname -r)"
+# Check environment variables
+echo -e "\n--- GPU Environment Variables ---"
+echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<not set>}"
+echo "NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-<not set>}"
+echo "NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-<not set>}"
 
-# Check if GPU is visible to the system
-echo -e "\n--- PCI Devices ---"
-GPU_PCI=$(lspci | grep -i nvidia)
-if [ -n "$GPU_PCI" ]; then
-    echo "$GPU_PCI"
-    GPU_VISIBLE=true
+# Check if nvidia-smi is available (should be if nvidia runtime is configured)
+echo -e "\n--- NVIDIA-SMI Test ---"
+if command -v nvidia-smi &> /dev/null; then
+    if nvidia-smi &> /dev/null; then
+        echo "✅ nvidia-smi command works"
+        # Show GPU info
+        nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader || true
+    else
+        echo "❌ nvidia-smi command exists but failed to run"
+        echo "Exit code: $?"
+    fi
 else
-    echo "⚠️  No NVIDIA devices found in lspci"
-    GPU_VISIBLE=false
-    # No point continuing if GPU isn't visible at hardware level
-    echo -e "\n❌ GPU not visible at hardware level. This requires a different instance or AMI."
-    echo "Recommendation: Try a different region or verify the instance type supports GPUs."
-    exit 1
+    echo "❌ nvidia-smi command not found"
+    echo "This suggests the container wasn't started with GPU support (--gpus flag)"
 fi
 
-# Check if basic nvidia-smi works (faster than docker test)
-echo -e "\n--- Host NVIDIA-SMI Test ---"
-if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
-    echo "✅ Host nvidia-smi works"
+# Check CUDA libraries
+echo -e "\n--- CUDA Libraries Check ---"
+if [ -d "/usr/local/cuda" ]; then
+    echo "✅ CUDA directory found at /usr/local/cuda"
+    if [ -f "/usr/local/cuda/version.txt" ]; then
+        echo "CUDA Version: $(cat /usr/local/cuda/version.txt)"
+    elif [ -f "/usr/local/cuda/version.json" ]; then
+        echo "CUDA Version: $(cat /usr/local/cuda/version.json | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)"
+    fi
+else
+    echo "⚠️  /usr/local/cuda not found"
+fi
 
-    # If host nvidia-smi works, just test docker
-    echo -e "\n--- Docker GPU Test ---"
-    if docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi &> /dev/null; then
-        echo "✅ Docker GPU access works"
+# Check for NVIDIA libraries in standard locations
+echo -e "\n--- NVIDIA Library Check ---"
+FOUND_LIBS=0
+for lib in libcuda.so libnvidia-ml.so libcudart.so; do
+    if find /usr/lib* /usr/local/lib* -name "$lib*" 2>/dev/null | head -1 | grep -q .; then
+        echo "✅ Found $lib"
+        ((FOUND_LIBS++))
+    else
+        echo "❌ Missing $lib"
+    fi
+done
 
-        # Docker works, so the issue must be with the metta container
-        echo -e "\n--- Retrying Python CUDA Check ---"
-        if quick_gpu_check; then
-            echo "✅ GPU is now functional after retry!"
-            exit 0
-        else
-            echo "⚠️  metta container CUDA issue - checking PyTorch installation..."
-            docker run --rm --gpus all metta:latest python -c "
-import subprocess
+if [ $FOUND_LIBS -eq 0 ]; then
+    echo "⚠️  No NVIDIA libraries found - container may not have GPU support"
+fi
+
+# Check device files (these should be mounted by nvidia-container-runtime)
+echo -e "\n--- Device Files Check ---"
+if ls /dev/nvidia* 2>/dev/null | head -5 | grep -q .; then
+    DEVICE_COUNT=$(ls /dev/nvidia* 2>/dev/null | wc -l)
+    echo "✅ Found $DEVICE_COUNT NVIDIA device files"
+else
+    echo "❌ No /dev/nvidia* files found"
+    echo "This indicates the container wasn't started with proper GPU support"
+fi
+
+# Python-specific diagnostics
+echo -e "\n--- Python Environment Diagnostics ---"
+python3 -c "
 import sys
+import os
+import subprocess
+
+print(f'Python: {sys.version.split()[0]}')
+print(f'Python executable: {sys.executable}')
+
+# Check if torch is installed
 try:
     import torch
-    print(f'PyTorch version: {torch.__version__}')
+    print(f'PyTorch: {torch.__version__}')
     print(f'PyTorch CUDA built: {torch.cuda.is_built()}')
     print(f'PyTorch CUDA available: {torch.cuda.is_available()}')
-    # Check if this is a CPU-only PyTorch build
-    if not torch.cuda.is_built():
+
+    if torch.cuda.is_built():
+        print(f'PyTorch CUDA version: {torch.version.cuda}')
+        # Check if this matches system CUDA
+        try:
+            result = subprocess.run(['nvcc', '--version'], capture_output=True, text=True)
+            if result.returncode == 0:
+                import re
+                match = re.search(r'release (\d+\.\d+)', result.stdout)
+                if match:
+                    system_cuda = match.group(1)
+                    torch_cuda = '.'.join(torch.version.cuda.split('.')[:2])
+                    if system_cuda == torch_cuda:
+                        print(f'✅ PyTorch CUDA ({torch_cuda}) matches system CUDA ({system_cuda})')
+                    else:
+                        print(f'⚠️  PyTorch CUDA ({torch_cuda}) differs from system CUDA ({system_cuda})')
+        except:
+            pass
+    else:
         print('❌ PyTorch is CPU-only build!')
+        print('You need to install GPU-enabled PyTorch:')
+        print('  pip install torch --index-url https://download.pytorch.org/whl/cu118')
+
+except ImportError:
+    print('❌ PyTorch not installed')
 except Exception as e:
-    print(f'Error importing torch: {e}')
+    print(f'Error checking PyTorch: {e}')
+
+# Check LD_LIBRARY_PATH
+print(f'\\nLD_LIBRARY_PATH: {os.environ.get(\"LD_LIBRARY_PATH\", \"<not set>\")}')
 "
-            echo "This appears to be a PyTorch/CUDA compatibility issue in the metta container."
-            exit 1
-        fi
-    else
-        echo "⚠️  Docker GPU test failed - checking Docker configuration..."
-    fi
+
+# Attempt recovery for common issues
+echo -e "\n=== ATTEMPTING RECOVERY ==="
+
+# 1. Check if this is a PyTorch issue
+if python3 -c "import torch; exit(0 if torch.cuda.is_built() else 1)" 2>/dev/null; then
+    echo "PyTorch has CUDA support built-in"
 else
-    echo "⚠️  Host nvidia-smi not working - will attempt driver recovery"
+    echo "⚠️  PyTorch is CPU-only. To fix inside container:"
+    echo "  pip install torch --index-url https://download.pytorch.org/whl/cu118"
+    echo "  or for CUDA 12.1:"
+    echo "  pip install torch --index-url https://download.pytorch.org/whl/cu121"
 fi
 
-# If we get here, we need to do deeper diagnostics and recovery
-echo -e "\n--- Detailed Diagnostics ---"
-
-# Check NVIDIA kernel modules
-NVIDIA_MODULES=$(lsmod | grep nvidia)
-if [ -n "$NVIDIA_MODULES" ]; then
-    echo "Kernel modules loaded:"
-    echo "$NVIDIA_MODULES"
-    MODULES_LOADED=true
-else
-    echo "⚠️  No NVIDIA kernel modules loaded"
-    MODULES_LOADED=false
+# 2. Check LD_LIBRARY_PATH
+if [ -z "$LD_LIBRARY_PATH" ] || [[ ! "$LD_LIBRARY_PATH" =~ cuda ]]; then
+    echo -e "\n⚠️  LD_LIBRARY_PATH may need CUDA paths. Try:"
+    echo "  export LD_LIBRARY_PATH=/usr/local/cuda/lib64:\$LD_LIBRARY_PATH"
 fi
 
-# Check NVIDIA device files
-if ls /dev/nvidia* 2>/dev/null > /dev/null; then
-    echo "Device files present: $(ls /dev/nvidia* 2>/dev/null | wc -l) files"
-    DEVICE_FILES=true
-else
-    echo "⚠️  No /dev/nvidia* files found"
-    DEVICE_FILES=false
+# 3. Final recommendations
+echo -e "\n--- Recommendations ---"
+if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
+    echo "❌ Container doesn't have GPU access. Ensure:"
+    echo "  1. The host has working GPU drivers (test nvidia-smi on host)"
+    echo "  2. Docker/container runtime has nvidia-container-toolkit installed"
+    echo "  3. Container was started with GPU support:"
+    echo "     - Docker: docker run --gpus all ..."
+    echo "     - Kubernetes: proper GPU resource requests"
+    echo "     - SkyPilot: accelerators configured in task YAML"
+elif ! quick_gpu_check; then
+    echo "⚠️  GPU is accessible but PyTorch can't use it. Check:"
+    echo "  1. PyTorch has GPU support (not CPU-only build)"
+    echo "  2. PyTorch CUDA version matches system CUDA version"
+    echo "  3. All required libraries are accessible"
 fi
 
-# Check Docker GPU runtime configuration
-DOCKER_GPU_RUNTIME=false
-if [ -f /etc/docker/daemon.json ]; then
-    if grep -qE "nvidia|gpu" /etc/docker/daemon.json 2>/dev/null; then
-        echo "Docker GPU runtime is configured"
-        DOCKER_GPU_RUNTIME=true
-    else
-        echo "⚠️  No GPU runtime in Docker config"
-    fi
-fi
+# Final test with more details
+echo -e "\n--- Final Test ---"
+python3 -c "
+import torch
+import sys
 
-# Check for NVIDIA driver packages
-NVIDIA_PACKAGES=$(dpkg -l 2>/dev/null | grep -c nvidia || rpm -qa 2>/dev/null | grep -c nvidia)
-if [ "$NVIDIA_PACKAGES" -gt 0 ]; then
-    echo "NVIDIA packages installed: $NVIDIA_PACKAGES packages found"
-else
-    echo "⚠️  No NVIDIA packages found"
-fi
+print('Checking CUDA...')
+if not torch.cuda.is_available():
+    # Try to get more specific error
+    try:
+        torch.cuda.init()
+    except Exception as e:
+        print(f'CUDA initialization error: {e}')
 
-# Check dmesg for errors
-DMESG_ERRORS=$(sudo dmesg | grep -i "nvidia.*error" | tail -5)
-if [ -n "$DMESG_ERRORS" ]; then
-    echo -e "\nRecent NVIDIA errors in dmesg:"
-    echo "$DMESG_ERRORS"
-fi
+    # Check if this is a driver/library issue
+    try:
+        import ctypes
+        ctypes.CDLL('libcuda.so.1')
+        print('libcuda.so.1 is loadable')
+    except Exception as e:
+        print(f'Cannot load libcuda.so.1: {e}')
+else:
+    print('✅ CUDA is available and working!')
+    print(f'GPU: {torch.cuda.get_device_name(0)}')
+"
 
-echo -e "\n=== ATTEMPTING GPU RECOVERY ==="
-
-# Detect OS
-if command -v apt-get &> /dev/null; then
-    OS="ubuntu"
-elif command -v yum &> /dev/null; then
-    OS="amazon-linux"
-else
-    echo "⚠️  Unsupported OS for automatic recovery"
-    exit 1
-fi
-
-# Try simple fixes first
-if [ "$MODULES_LOADED" = false ]; then
-    echo "Loading NVIDIA kernel modules..."
-    sudo modprobe nvidia 2>&1 || echo "Failed to load nvidia module"
-    sudo modprobe nvidia_uvm 2>&1 || echo "Failed to load nvidia_uvm module"
-    sudo modprobe nvidia_drm 2>&1 || echo "Failed to load nvidia_drm module"
-
-    # Quick test after module loading
-    if nvidia-smi &> /dev/null; then
-        echo "✅ nvidia-smi working after module load"
-        if quick_gpu_check; then
-            echo "✅ GPU recovered after loading modules!"
-            exit 0
-        fi
-    fi
-fi
-
-# If still not working, try driver installation
-if ! nvidia-smi &> /dev/null; then
-    echo "Installing/repairing NVIDIA drivers..."
-
-    if [ "$OS" = "ubuntu" ]; then
-        sudo apt-get update
-        sudo apt-get install -y linux-headers-$(uname -r)
-
-        # Try driver installation
-        for driver_version in 535 525 470; do
-            echo "Trying nvidia-driver-${driver_version}..."
-            if sudo apt-get install -y nvidia-driver-${driver_version}; then
-                echo "✅ Installed nvidia-driver-${driver_version}"
-                break
-            fi
-        done
-    elif [ "$OS" = "amazon-linux" ]; then
-        sudo yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r)
-        sudo yum install -y nvidia-driver-latest-dkms
-    fi
-
-    # Reload modules
-    sudo rmmod nvidia_uvm nvidia_drm nvidia_modeset nvidia 2>/dev/null || true
-    sudo modprobe nvidia nvidia_uvm nvidia_drm
-fi
-
-# Fix Docker runtime if needed
-if [ "$DOCKER_GPU_RUNTIME" = false ] && command -v nvidia-ctk &> /dev/null; then
-    echo "Configuring Docker GPU runtime..."
-    sudo nvidia-ctk runtime configure --runtime=docker
-    sudo systemctl restart docker
-    sleep 3
-fi
-
-# Create device files if missing
-if [ "$DEVICE_FILES" = false ]; then
-    echo "Creating NVIDIA device files..."
-    sudo nvidia-modprobe -u -c=0 || true
-fi
-
-# Restart services
-sudo systemctl restart nvidia-persistenced 2>/dev/null || true
-
-# Final test
-echo -e "\n--- Final GPU Test ---"
-sleep 3
-
-if quick_gpu_check; then
-    echo "✅ GPU recovery successful!"
-    exit 0
-else
-    echo "❌ GPU recovery failed. Manual intervention required."
-    echo "Please check the diagnostics above or try a different AMI/region."
-    exit 1
-fi
+exit 0
