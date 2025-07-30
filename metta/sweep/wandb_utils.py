@@ -3,7 +3,7 @@ import logging
 from typing import Any, List
 
 import wandb
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.wandb.wandb_context import WandbContext
@@ -15,15 +15,16 @@ def create_wandb_run_for_sweep(
     sweep_name: str,
     protein_suggestion: dict[str, Any],
     train_job_cfg: DictConfig,
-) -> None:
+) -> str | None:
     """
     Create a new wandb run for a sweep using groups instead of W&B sweeps.
+    Returns the wandb run ID, or None if WandB initialization failed.
     """
 
     with WandbContext(train_job_cfg.wandb, train_job_cfg) as wandb_run:
         if wandb_run is None:
             logger.error("Failed to initialize WandB run - WandB may be disabled or connection failed")
-            return
+            return None
 
         # Add tags for easy filtering
         if not wandb_run.tags:
@@ -36,13 +37,8 @@ def create_wandb_run_for_sweep(
             }
         )
 
-        OmegaConf.save(
-            {
-                "run": train_job_cfg.run,  # Your custom name
-                "wandb_run_id": wandb_run.id,  # The WandB run ID
-            },
-            train_job_cfg.dist_cfg_path,
-        )
+        # Return the wandb run ID instead of creating dist_cfg.yaml file
+        return wandb_run.id
 
 
 # 2 - Protein Integration Utilities.
