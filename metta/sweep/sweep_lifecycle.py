@@ -67,7 +67,9 @@ def setup_sweep(sweep_job_cfg: DictConfig, logger: logging.Logger) -> str:
 
 
 # Expects sweep_job configuration.
-def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tuple[str, DictConfig, dict[str, Any]]:
+def prepare_sweep_run(
+    sweep_job_cfg: DictConfig, logger: logging.Logger
+) -> tuple[str, DictConfig, dict[str, Any], str | None]:
     """Prepare a sweep rollout - only runs on rank 0."""
     # Load previous protein suggestions from WandB
     protein = MettaProtein(sweep_job_cfg.sweep)
@@ -96,8 +98,8 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
     os.makedirs(train_job_cfg.run_dir, exist_ok=True)
 
     # Create a new run in WandB
-    # side-effect: writes dist_cfg.yaml to the run directory
-    create_wandb_run_for_sweep(
+    # Returns wandb_run_id instead of creating dist_cfg.yaml file
+    wandb_run_id = create_wandb_run_for_sweep(
         train_job_cfg=train_job_cfg,
         protein_suggestion=protein_suggestion,
         sweep_name=sweep_job_cfg.sweep_name,
@@ -110,7 +112,7 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
     OmegaConf.save(train_job_cfg, trainer_cfg_override_path)
     logger.info(f"Wrote trainer overrides to {trainer_cfg_override_path}")
 
-    return run_name, train_job_cfg, protein_suggestion
+    return run_name, train_job_cfg, protein_suggestion, wandb_run_id
 
 
 def evaluate_rollout(
