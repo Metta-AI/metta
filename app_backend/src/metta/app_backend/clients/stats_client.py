@@ -68,7 +68,7 @@ class AsyncStatsClient(BaseAppBackendClient):
             name=name,
             description=description,
             url=url,
-            epoch_id=str(epoch_id) if epoch_id else None,
+            epoch_id=epoch_id,
         )
         return await self._make_request(PolicyResponse, "POST", "/stats/policies", json=data.model_dump())
 
