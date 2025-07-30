@@ -16,9 +16,9 @@ const lastCachedState = {
   height: -1,
 }
 
-/** Forces the trace to redraw on next call to drawTrace. */
+/** Invalidate the trace cache to force regeneration on next call to drawTrace. */
 export function invalidateTrace() {
-  lastCachedState.step = -1 // Just invalidate one key field to force regeneration
+  lastCachedState.step = -1
 }
 
 /** Draws the trace panel. */
