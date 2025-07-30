@@ -25,7 +25,7 @@ def _init_process_group() -> bool:
     return True
 
 
-def run_once(fn: Callable[[], T]) -> T:
+def run_once(fn: Callable[[], T], use_distributed: bool = True) -> T:
     """Run ``fn`` only on rank 0 and broadcast the result.
 
     If ``torch.distributed`` is not initialized, this function will attempt to
@@ -35,7 +35,13 @@ def run_once(fn: Callable[[], T]) -> T:
 
     Args:
         fn: Function to run only on rank 0
+        use_distributed: Whether to initialize/use distributed coordination.
+                       If False, just runs fn() directly without any distributed logic.
     """
+    if not use_distributed:
+        # Skip all distributed logic - just run the function
+        return fn()
+
     group_initialized = _init_process_group()
     if dist.is_initialized():
         rank = dist.get_rank()

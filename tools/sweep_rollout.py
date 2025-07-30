@@ -41,12 +41,14 @@ def main(cfg: DictConfig) -> int:
     try:
         run_once(
             lambda: setup_sweep(cfg, logger),
+            use_distributed=False,  # Don't initialize process group for sweep orchestration
         )
     except Exception as e:
         logger.error(f"Sweep setup failed: {e}", exc_info=True)
         return 1
 
     num_consecutive_failures = 0
+    exit_code = 0
 
     while True:
         err_occurred = False
@@ -58,15 +60,17 @@ def main(cfg: DictConfig) -> int:
             err_occurred = True
             logger.info(f"Waiting {cfg.rollout_retry_delay} seconds before retry...")
             time.sleep(cfg.rollout_retry_delay)
+
         if err_occurred:
             num_consecutive_failures += 1
             if num_consecutive_failures > cfg.max_consecutive_failures:
                 logger.error(f"Max consecutive failures reached: {cfg.max_consecutive_failures}")
+                exit_code = 1
                 break
         else:
             num_consecutive_failures = 0
 
-    return 0
+    return exit_code
 
 
 def run_single_rollout(cfg: DictConfig) -> int:
@@ -74,13 +78,17 @@ def run_single_rollout(cfg: DictConfig) -> int:
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
 
     # Master node only
-    run_name, train_job_cfg, protein_suggestion = run_once(lambda: prepare_sweep_run(cfg, logger))
+    run_name, train_job_cfg, protein_suggestion, wandb_run_id = run_once(
+        lambda: prepare_sweep_run(cfg, logger),
+        use_distributed=False,  # Don't initialize process group for sweep orchestration
+    )
 
     # All ranks participate in training
     # The train.sh script handles distributed coordination
     train_for_run(
         run_name=run_name,
         train_job_cfg=train_job_cfg,
+        wandb_run_id=wandb_run_id,
         original_args=ORIGINAL_ARGS,
         logger=logger,
     )
@@ -98,6 +106,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
             sweep_name=cfg.sweep_name,
             logger=logger,
         ),
+        use_distributed=False,  # Don't initialize process group for sweep orchestration
     )
 
     if eval_results is None:
@@ -111,6 +120,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
 def train_for_run(
     run_name: str,
     train_job_cfg: DictConfig,
+    wandb_run_id: str | None = None,
     original_args: list[str] | None = None,
     logger: logging.Logger | None = None,
 ) -> subprocess.CompletedProcess:
@@ -120,14 +130,18 @@ def train_for_run(
     cmd = [
         "./devops/train.sh",
         f"run={run_name}",
-        f"dist_cfg_path={train_job_cfg.dist_cfg_path}",
         f"data_dir={train_job_cfg.data_dir}",
     ]
+
+    # Pass wandb.run_id directly if available
+    if wandb_run_id:
+        cmd.append(f"wandb.run_id={wandb_run_id}")
 
     # Pass through relevant arguments from the original command line
     # Filter out arguments that we're already setting explicitly
     if original_args:
-        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir=", "sweep_dir="]
+        # TODO: Skim those keys
+        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir=", "sweep_dir=", "wandb.run_id="]
         for arg in original_args:
             # Skip arguments we're already setting
             if any(arg.startswith(prefix) for prefix in skip_prefixes):
