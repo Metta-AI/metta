@@ -1,6 +1,6 @@
 diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 --- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-07-30 02:28:44
++++ sky-patched/provision/docker_utils.py	2025-07-30 14:55:58
 @@ -221,0 +222,22 @@
 +        def is_ecr_server(server: str):
 +            return server.endswith(".amazonaws.com") and ".ecr." in server
@@ -41,15 +41,6 @@ diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 +                import json
 +                self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
 +                            f'mv /tmp/docker_config.json ~/.docker/config.json')
-@@ -413,0 +452 @@
-+        logger.info("Detecting GPUs...")
-@@ -419,0 +459 @@
-+            logger.info("nvidia-container-runtime detected")
-@@ -421,0 +462 @@
-+                logger.info("Returning configuration with nvidia runtime")
-@@ -424 +465 @@
--                logger.debug(
-+                logger.warning(
 diff -U0 -r sky/resources.py sky-patched/resources.py
 --- sky/resources.py	2025-07-28 13:24:57
 +++ sky-patched/resources.py	2025-07-28 13:26:34
