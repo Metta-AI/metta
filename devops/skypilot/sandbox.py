@@ -8,6 +8,7 @@ import sky
 import sky.exceptions
 import yaml
 
+from devops.skypilot.utils import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.cost_monitor import get_instance_cost
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
@@ -72,9 +73,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     else:
         estimated_multiplier = 1
 
-    # Calculate cost (using spot pricing as indicated in the original code)
+    # Calculate cost for on-demand instances, since sandboxes don't use spot.
     with spinner(f"Calculating cost for {instance_type}", style=cyan):
-        hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=True)
+        hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
 
     if hourly_cost is not None:
         hourly_cost *= estimated_multiplier
@@ -139,7 +140,7 @@ def main():
     region = resources.get("region", "us-east-1")
 
     # Parse GPU type from the config (e.g., "L4:1" -> "L4")
-    accelerators_str = resources.get("accelerators", "L4:1")
+    accelerators_str = resources.get("accelerators", "A10G:1")
     gpu_type = accelerators_str.split(":")[0]
 
     # Get instance type and calculate cost
@@ -147,20 +148,28 @@ def main():
 
     if hourly_cost is not None:
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
-        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (spot pricing)")
+        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
     else:
-        print("Unable to determine exact cost, but typical L4 spot instances cost ~$0.50-$1.50/hour per GPU")
+        print("Unable to determine exact cost, but typical L4 on-demand instances cost ~$0.70-$2.00/hour per GPU")
 
     autostop_hours = 48
 
     with spinner("Preparing task configuration", style=cyan):
         task = sky.Task.from_yaml(config_path)
+        set_task_secrets(task)
         task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
         time.sleep(1)
 
     print("\n⏳ This will take a few minutes...")
 
     try:
+        sky_info = sky.api_info()
+        if sky_info["status"] == "healthy" and sky_info["user"] is None:
+            print(red("✗ You are not authenticated with SkyPilot."))
+            print(f"  {green('metta install skypilot')}")
+            print("to authenticate before launching a sandbox.")
+            return
+
         request_id = sky.launch(
             task,
             cluster_name=cluster_name,

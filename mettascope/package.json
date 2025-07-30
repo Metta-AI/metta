@@ -1,24 +1,28 @@
 {
-  "name": "metta-scope",
+  "name": "@softmax/mettascope",
   "version": "1.0.0",
   "description": "MettaScope - a tool for visualizing and analyzing Metta AI's environments",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "lint": "biome lint .",
-    "format": "biome format --write .",
-    "check": "biome check .",
-    "check:fix": "biome check --write .",
-    "ci": "biome ci .",
+    "lint": "pnpm run lint:eslint && pnpm run lint:prettier",
+    "lint:eslint": "eslint .",
+    "lint:prettier": "prettier --check .",
+    "format": "prettier --write .",
+    "server": "python -m http.server 8000",
     "playwright:install": "playwright install --with-deps",
     "test": "playwright test tests/*.test.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@playwright/test": "^1.53.2",
-    "@webgpu/types": "^0.1.38",
-    "playwright": "^1.53.2",
-    "typescript": "^5.2.2"
-  },
-  "packageManager": "pnpm@10.11.0+sha512.6540583f41cc5f628eb3d9773ecee802f4f9ef9923cc45b69890fb47991d4b092964694ec3a4f738a420c918a333062c8b925d312f42e4f0c263eb603551f977"
+    "@eslint/css": "^0.10.0",
+    "@eslint/js": "^9.32.0",
+    "@playwright/test": "1.54.1",
+    "@webgpu/types": "0.1.38",
+    "eslint": "^9.32.0",
+    "globals": "^16.3.0",
+    "jiti": "^2.5.1",
+    "playwright": "1.54.1",
+    "typescript": "5.2.2",
+    "typescript-eslint": "^8.38.0"
+  }
 }

@@ -9,12 +9,13 @@ from metta.app_backend.routes.sweep_routes import (
     SweepCreateResponse,
     SweepInfo,
 )
+from metta.common.util.constants import DEV_STATS_SERVER_URI
 
 
 class SweepClient:
     """Client for interacting with the sweep coordination API."""
 
-    def __init__(self, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None):
+    def __init__(self, base_url: str = DEV_STATS_SERVER_URI, auth_token: Optional[str] = None):
         """
         Initialize the sweep client.
 
@@ -63,7 +64,7 @@ class SweepClient:
 
 # Example usage for generate_run_id_for_sweep():
 def generate_run_id_for_sweep(
-    sweep_name: str, api_url: str = "http://localhost:8000", auth_token: Optional[str] = None
+    sweep_name: str, api_url: str = DEV_STATS_SERVER_URI, auth_token: Optional[str] = None
 ) -> str:
     """Generate a unique run ID for a sweep using the coordination API."""
     client = SweepClient(api_url, auth_token)

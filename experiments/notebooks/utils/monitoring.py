@@ -7,6 +7,7 @@ import pandas as pd
 import wandb
 from IPython.display import display
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 
 
@@ -44,17 +45,33 @@ def get_sky_jobs_data() -> pd.DataFrame:
             "TASK": (header_line.find("TASK"), header_line.find("NAME")),
             "NAME": (header_line.find("NAME"), header_line.find("RESOURCES")),
             "RESOURCES": (header_line.find("RESOURCES"), header_line.find("SUBMITTED")),
-            "SUBMITTED": (header_line.find("SUBMITTED"), header_line.find("TOT. DURATION")),
-            "TOT. DURATION": (header_line.find("TOT. DURATION"), header_line.find("JOB DURATION")),
-            "JOB DURATION": (header_line.find("JOB DURATION"), header_line.find("#RECOVERIES")),
-            "#RECOVERIES": (header_line.find("#RECOVERIES"), header_line.find("STATUS")),
+            "SUBMITTED": (
+                header_line.find("SUBMITTED"),
+                header_line.find("TOT. DURATION"),
+            ),
+            "TOT. DURATION": (
+                header_line.find("TOT. DURATION"),
+                header_line.find("JOB DURATION"),
+            ),
+            "JOB DURATION": (
+                header_line.find("JOB DURATION"),
+                header_line.find("#RECOVERIES"),
+            ),
+            "#RECOVERIES": (
+                header_line.find("#RECOVERIES"),
+                header_line.find("STATUS"),
+            ),
             "STATUS": (header_line.find("STATUS"), None),
         }
 
         # Parse data rows
         data_rows = []
         for line in lines[header_idx + 1 :]:
-            if not line.strip() or line.startswith("No ") or line.startswith("Fetching"):
+            if (
+                not line.strip()
+                or line.startswith("No ")
+                or line.startswith("Fetching")
+            ):
                 continue
 
             row_data = {}
@@ -78,8 +95,8 @@ def get_sky_jobs_data() -> pd.DataFrame:
 def monitor_training_statuses(
     run_names: list[str],
     show_metrics: list[str] | None = None,
-    entity: str = "metta-research",
-    project: str = "metta",
+    entity: str = METTA_WANDB_ENTITY,
+    project: str = METTA_WANDB_PROJECT,
 ) -> pd.DataFrame:
     if show_metrics is None:
         show_metrics = ["_step", "overview/reward"]
@@ -102,7 +119,9 @@ def monitor_training_statuses(
                 {
                     "name": run_name,
                     "state": run.state,
-                    "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
+                    "created": datetime.fromisoformat(run.created_at).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
                 }
             )
             if run.summary:
@@ -133,12 +152,19 @@ def display_training_table_widget(df: pd.DataFrame) -> None:
     # Create styled HTML table
     html_rows = []
 
-    def wrap_with_component(component: str, value: Any, additional_style: str = "") -> str:
+    def wrap_with_component(
+        component: str, value: Any, additional_style: str = ""
+    ) -> str:
         return f"<{component} style='padding: 8px; text-align: right; {additional_style}'>{value}</{component}>"
 
     # Header
     header_html = (
-        "<tr>" + "".join(wrap_with_component("th", h, "background-color: #f0f0f0;") for h in df.columns) + "</tr>"
+        "<tr>"
+        + "".join(
+            wrap_with_component("th", h, "background-color: #f0f0f0;")
+            for h in df.columns
+        )
+        + "</tr>"
     )
 
     # Rows with styling
@@ -156,7 +182,9 @@ def display_training_table_widget(df: pd.DataFrame) -> None:
                     "crashed": "#dc3545",
                     "NOT FOUND": "#ffc107",
                 }.get(str(value), "#000")
-                cell_html = wrap_with_component("td", value, f"color: {color}; font-weight: bold;")
+                cell_html = wrap_with_component(
+                    "td", value, f"color: {color}; font-weight: bold;"
+                )
             elif col == "sky_status":
                 color = {
                     "RUNNING": "#28a745",
@@ -167,17 +195,23 @@ def display_training_table_widget(df: pd.DataFrame) -> None:
                     "CANCELLED": "#6c757d",
                     "-": "#6c757d",
                 }.get(str(value), "#000")
-                cell_html = wrap_with_component("td", value, f"color: {color}; font-weight: bold;")
+                cell_html = wrap_with_component(
+                    "td", value, f"color: {color}; font-weight: bold;"
+                )
             elif col == "url" and bool(value):
                 cell_html = wrap_with_component(
                     "td",
                     f"<a href='{value}' target='_blank' style='text-decoration: none;'>wandb link</a>",
                 )
             else:
-                cell_html = wrap_with_component("td", value if value is not None else "-")
+                cell_html = wrap_with_component(
+                    "td", value if value is not None else "-"
+                )
             cells.append(cell_html)
 
-        html_rows.append("<tr style='border-bottom: 1px solid #ddd;'>" + "".join(cells) + "</tr>")
+        html_rows.append(
+            "<tr style='border-bottom: 1px solid #ddd;'>" + "".join(cells) + "</tr>"
+        )
 
     # Create complete table HTML
     table_html = f"""

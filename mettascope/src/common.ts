@@ -1,8 +1,8 @@
-import { Vec2f } from './vector_math.js'
 import { Context3d } from './context3d.js'
-import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
+import type { HoverBubble } from './hoverbubbles.js'
+import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
-import { HoverBubble } from './hoverbubbles.js'
+import { Vec2f } from './vector_math.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
@@ -21,6 +21,11 @@ export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0]
 
+// GitHub constants - keep in sync with metta/common/src/metta/common/util/constants.py
+export const METTA_GITHUB_ORGANIZATION = 'Metta-AI'
+export const METTA_GITHUB_REPO = 'metta'
+export const METTA_GITHUB_PRIMARY_BRANCH = 'main'
+
 // Map constants
 export const TILE_SIZE = 200
 export const INVENTORY_PADDING = 16
@@ -37,11 +42,11 @@ export const TRACE_WIDTH = 54
 export const INFO_PANEL_POP_TIME = 300 // ms
 
 // Colors for resources
-export const COLORS: [string, [number, number, number, number]][] = [
+export const COLORS = new Map([
   ['red', parseHtmlColor('#E4433A')],
   ['green', parseHtmlColor('#66BB6A')],
   ['blue', parseHtmlColor('#3498DB')],
-]
+] as const)
 
 export const ui = {
   // Mouse events
@@ -168,7 +173,7 @@ export const html = {
 
 /** Generates a color from an agent ID. */
 export function colorFromId(agentId: number) {
-  let n = agentId + Math.PI + Math.E + Math.SQRT2
+  const n = agentId + Math.PI + Math.E + Math.SQRT2
   return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }
 
@@ -205,7 +210,7 @@ export function closeModal() {
 /** Functions to show and hide toast notifications. */
 export function showToast(message: string, duration = 3000) {
   // Set the message
-  let msg = html.toast.querySelector('.message')
+  const msg = html.toast.querySelector('.message')
   if (msg != null) {
     msg.textContent = message
   }

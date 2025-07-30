@@ -8,6 +8,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbContext
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.util.policy_management import cleanup_old_policies, save_policy_with_metadata
@@ -77,8 +78,8 @@ def initialize_wandb(
     if enabled:
         wandb_config = {
             "enabled": True,
-            "project": project or os.environ.get("WANDB_PROJECT", "metta"),
-            "entity": entity or os.environ.get("WANDB_ENTITY", "metta-research"),
+            "project": project or os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
+            "entity": entity or os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
             "group": run_name,
             "name": run_name,
             "run_id": run_name,

@@ -13,7 +13,7 @@ env:
   BACKEND_URL: "https://api.observatory.softmax-research.net"
   CONTAINER_RUNTIME: "k8s"
   POLL_INTERVAL: "5"
-  WORKER_IDLE_TIMEOUT: "600"
+  WORKER_IDLE_TIMEOUT: "1200"
 
 secrets:
   wandb: "wandb-api-secret"
@@ -21,8 +21,8 @@ secrets:
 
 resources:
   requests:
-    cpu: 1000m
-    memory: 2Gi
+    cpu: 100m
+    memory: 1Gi
   limits:
-    cpu: 2000m
-    memory: 10Gi
+    cpu: 1000m
+    memory: 4Gi

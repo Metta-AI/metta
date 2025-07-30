@@ -2,9 +2,10 @@ name: Asana Integration
 
 on:
   pull_request:
-    # TODO: also handle reviews and comments
     types:
       [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
 
 jobs:
   check-context:
@@ -36,24 +37,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract Assignees and Reviewers
-        id: extract-assignees-reviewers
-        run: |
-          assignees=$(echo '${{ toJSON(github.event.pull_request.assignees) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-          reviewers=$(echo '${{ toJSON(github.event.pull_request.requested_reviewers) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-          echo "assignees=$assignees" >> $GITHUB_OUTPUT
-          echo "reviewers=$reviewers" >> $GITHUB_OUTPUT
-
-      - name: Ensure Asana Task
+      - name: Sync PR Task (GH to Asana)
         id: ensure-asana-task
-        uses: ./.github/actions/asana/ensure-task
+        uses: ./.github/actions/asana/pr_gh_to_asana
         with:
           title: ${{ github.event.pull_request.title }}
-          description: ${{ github.event.pull_request.body }}
           pr_state: ${{ github.event.pull_request.state }}
-          author: ${{ github.event.pull_request.user.login }}
-          assignees: ${{ steps.extract-assignees-reviewers.outputs.assignees }}
-          reviewers: ${{ steps.extract-assignees-reviewers.outputs.reviewers }}
           project_id: ${{ vars.ASANA_PROJECT_GID }}
           workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
           asana_token: ${{ secrets.ASANA_API_KEY }}
@@ -64,9 +53,12 @@ jobs:
           asana_email_field_id: ${{ vars.ASANA_EMAIL_FIELD_GID }}
           pr_author_field_id: ${{ vars.ASANA_PR_AUTHOR_FIELD_GID }}
           asana_attachment_secret: ${{ secrets.ASANA_ATTACHMENT_SECRET }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_repo: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update PR Description
-        uses: ./.github/actions/asana/update-pr-description
+      - name: Sync PR Description (Asana to GH)
+        uses: ./.github/actions/asana/pr_description_asana_to_gh
         with:
           pr_number: ${{ github.event.pull_request.number }}
           repo: ${{ github.repository }}

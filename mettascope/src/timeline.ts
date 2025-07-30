@@ -7,12 +7,12 @@
  * minimap for the traces.
  */
 
-import { PanelInfo } from './panels.js'
 import * as Common from './common.js'
-import { ui, state, html, ctx, setFollowSelection } from './common.js'
-import { onEvent } from './htmlutils.js'
-import { updateStep, requestFrame } from './main.js'
+import { ctx, html, state, ui } from './common.js'
 import { clamp } from './context3d.js'
+import { onEvent } from './htmlutils.js'
+import { requestFrame, updateStep } from './main.js'
+import type { PanelInfo } from './panels.js'
 import { getAttr } from './replay.js'
 
 /** Initializes the timeline. */
@@ -23,30 +23,30 @@ export function initTimeline() {
 }
 
 function getStepFromX(x: number) {
-  let scrubberWidth = ui.timelinePanel.width - 32
-  let s = Math.floor(((x - 16) / scrubberWidth) * state.replay.max_steps)
+  const scrubberWidth = ui.timelinePanel.width - 32
+  const s = Math.floor(((x - 16) / scrubberWidth) * state.replay.max_steps)
   return clamp(s, 0, state.replay.max_steps - 1)
 }
 
 /** Updates the scrubber. */
 export function onScrubberChange(event: PointerEvent) {
-  let mouseX = event.clientX
-  let step = getStepFromX(mouseX)
+  const mouseX = event.clientX
+  const step = getStepFromX(mouseX)
   updateStep(step)
 }
 
 export function onTraceMinimapChange(event: PointerEvent) {
-  let mouseX = event.clientX
-  let step = getStepFromX(mouseX)
+  const mouseX = event.clientX
+  const step = getStepFromX(mouseX)
   ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
 }
 
 /** Handles a pointer down on the timeline, which updates the step. */
 onEvent('pointerdown', '#timeline-panel', (target: HTMLElement, e: Event) => {
   // Are we clicking on the scrubber or behind it (trace window) or event?
-  let event = e as PointerEvent
-  let mouseY = event.clientY - target.getBoundingClientRect().top
-  let mouseX = event.clientX
+  const event = e as PointerEvent
+  const mouseY = event.clientY - target.getBoundingClientRect().top
+  const _mouseX = event.clientX
   if (mouseY > 34 && mouseY < 51) {
     ui.mainScrubberDown = true
     onScrubberChange(event)
@@ -63,11 +63,10 @@ export function updateTimeline() {
     return
   }
 
-  let scrubberWidth = ui.timelinePanel.width - 32
-  let fullSteps = state.replay.max_steps - 1
+  const scrubberWidth = ui.timelinePanel.width - 32
+  const fullSteps = state.replay.max_steps - 1
   html.stepCounter.textContent = state.step.toString()
-  html.stepCounter.parentElement!.style.left =
-    (16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString() + 'px'
+  html.stepCounter.parentElement!.style.left = `${(16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString()}px`
 }
 
 /** Draws the timeline. */
@@ -77,7 +76,7 @@ export function drawTimeline(panel: PanelInfo) {
   }
 
   if (ui.mouseDoubleClick) {
-    let step = getStepFromX(ui.mousePos.x())
+    const step = getStepFromX(ui.mousePos.x())
     ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
     requestFrame()
   }
@@ -88,8 +87,8 @@ export function drawTimeline(panel: PanelInfo) {
   ctx.translate(rect.x, rect.y)
   ctx.scale(ui.dpr, ui.dpr)
 
-  let scrubberWidth = rect.width - 32
-  let fullSteps = state.replay.max_steps - 1
+  const scrubberWidth = rect.width - 32
+  const fullSteps = state.replay.max_steps - 1
 
   // Draw the background of the scrubber.
   ctx.drawSolidRect(
@@ -105,21 +104,21 @@ export function drawTimeline(panel: PanelInfo) {
 
   if (state.showTraces) {
     // Draw the position of the traces view.
-    let scrubberTileSize = scrubberWidth / fullSteps
-    let tracesX = (-ui.tracePanel.panPos.x() / Common.TRACE_WIDTH) * scrubberTileSize
-    let zoomLevel = ui.tracePanel.zoomLevel
-    let tracesW = (ui.tracePanel.width / zoomLevel / Common.TRACE_WIDTH) * scrubberTileSize
+    const scrubberTileSize = scrubberWidth / fullSteps
+    const tracesX = (-ui.tracePanel.panPos.x() / Common.TRACE_WIDTH) * scrubberTileSize
+    const zoomLevel = ui.tracePanel.zoomLevel
+    const tracesW = (ui.tracePanel.width / zoomLevel / Common.TRACE_WIDTH) * scrubberTileSize
     ctx.drawStrokeRect(16 + (tracesX - tracesW / 2) / ui.dpr - 1, 0, tracesW, 64, 1, [1, 1, 1, 1])
   }
 
   // Draw key actions on the timeline.
-  for (let agent of state.replay.agents) {
+  for (const agent of state.replay.agents) {
     let prevFrozen = 0
     for (let j = 0; j < state.replay.max_steps; j++) {
       // Draw the frozen state.
-      let frozen = getAttr(agent, 'agent:frozen', j)
-      if (frozen > 0 && prevFrozen == 0) {
-        let x = 16 + (j / fullSteps) * scrubberWidth
+      const frozen = getAttr(agent, 'agent:frozen', j)
+      if (frozen > 0 && prevFrozen === 0) {
+        const x = 16 + (j / fullSteps) * scrubberWidth
         ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
         ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
       }

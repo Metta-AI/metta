@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 game:
   num_agents: 4
-  max_steps: 1000
+  max_steps: 2000
   actions:
     attack:
       enabled: false
@@ -30,6 +30,7 @@ game:
     altar:
       cooldown: 1000
       initial_resource_count: 1
-
   termination:
     max_reward: ${game.map_builder.room.objects.altar}
+    condition: any
+    end_of_episode_boost: 5.0

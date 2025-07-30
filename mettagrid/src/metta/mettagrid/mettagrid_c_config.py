@@ -100,6 +100,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                     if v > 0 and k in resource_name_to_id
                 },
                 max_output=object_config.max_output,
+                max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
@@ -178,6 +179,9 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**action_cpp_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
+    # Termination is handled in Python, so we don't need to pass it to C++
+    del game_cpp_params["termination"]
+
     # Termination is handled in Python, so we don't need to pass it to C++
     del game_cpp_params["termination"]
 

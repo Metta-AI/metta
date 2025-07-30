@@ -1,7 +1,7 @@
 import { state } from './common.js'
-import { getAttr, sendAction } from './replay.js'
 import { find } from './htmlutils.js'
 import { requestFrame } from './main.js'
+import { getAttr, sendAction } from './replay.js'
 
 /** Initializes the action buttons. */
 export function initActionButtons() {
@@ -71,8 +71,8 @@ export function processActions(event: KeyboardEvent) {
     const key = event.key
     const code = event.code
 
-    if (key == 'w' || key == 'ArrowUp' || code == 'Numpad8') {
-      if (orientation != 0) {
+    if (key === 'w' || key === 'ArrowUp' || code === 'Numpad8') {
+      if (orientation !== 0) {
         // Rotate up.
         sendAction('rotate', 0)
       } else {
@@ -80,8 +80,8 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move', 0)
       }
     }
-    if (key == 'a' || key == 'ArrowLeft' || code == 'Numpad4') {
-      if (orientation != 2) {
+    if (key === 'a' || key === 'ArrowLeft' || code === 'Numpad4') {
+      if (orientation !== 2) {
         // Rotate left.
         sendAction('rotate', 2)
       } else {
@@ -89,8 +89,8 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move', 0)
       }
     }
-    if (key == 's' || key == 'ArrowDown' || code == 'Numpad2') {
-      if (orientation != 1) {
+    if (key === 's' || key === 'ArrowDown' || code === 'Numpad2') {
+      if (orientation !== 1) {
         // Rotate down.
         sendAction('rotate', 1)
       } else {
@@ -98,8 +98,8 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move', 0)
       }
     }
-    if (key == 'd' || key == 'ArrowRight' || code == 'Numpad6') {
-      if (orientation != 3) {
+    if (key === 'd' || key === 'ArrowRight' || code === 'Numpad6') {
+      if (orientation !== 3) {
         // Rotate right.
         sendAction('rotate', 3)
       } else {
@@ -107,65 +107,69 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move', 0)
       }
     }
-    if (event.key == 'f') {
+    if (event.key === 'f') {
       // Just move forward.
       sendAction('move', 0)
     }
-    if (event.key == 'r') {
+    if (event.key === 'r') {
       // Just move backward/reverse.
       sendAction('move', 1)
     }
-    if (event.key == 'q') {
+    if (event.key === 'q') {
       // Put recipe items.
       sendAction('put_items', 0)
     }
-    if (event.key == 'e') {
+    if (event.key === 'e') {
       // Get the output.
       sendAction('get_items', 0)
     }
     // Diagonal movement with numpad (4-action approach for true diagonal in one press)
-    if (event.code == 'Numpad7') { // Up-Left
-      sendAction('rotate', 0)  // Rotate up
-      sendAction('move', 0)    // Move up
-      sendAction('rotate', 2)  // Rotate left
-      sendAction('move', 0)    // Move left
+    if (event.code === 'Numpad7') {
+      // Up-Left
+      sendAction('rotate', 0) // Rotate up
+      sendAction('move', 0) // Move up
+      sendAction('rotate', 2) // Rotate left
+      sendAction('move', 0) // Move left
     }
-    if (event.code == 'Numpad9') { // Up-Right
-      sendAction('rotate', 0)  // Rotate up
-      sendAction('move', 0)    // Move up
-      sendAction('rotate', 3)  // Rotate right
-      sendAction('move', 0)    // Move right
+    if (event.code === 'Numpad9') {
+      // Up-Right
+      sendAction('rotate', 0) // Rotate up
+      sendAction('move', 0) // Move up
+      sendAction('rotate', 3) // Rotate right
+      sendAction('move', 0) // Move right
     }
-    if (event.code == 'Numpad1') { // Down-Left
-      sendAction('rotate', 1)  // Rotate down
-      sendAction('move', 0)    // Move down
-      sendAction('rotate', 2)  // Rotate left
-      sendAction('move', 0)    // Move left
+    if (event.code === 'Numpad1') {
+      // Down-Left
+      sendAction('rotate', 1) // Rotate down
+      sendAction('move', 0) // Move down
+      sendAction('rotate', 2) // Rotate left
+      sendAction('move', 0) // Move left
     }
-    if (event.code == 'Numpad3') { // Down-Right
-      sendAction('rotate', 1)  // Rotate down
-      sendAction('move', 0)    // Move down
-      sendAction('rotate', 3)  // Rotate right
-      sendAction('move', 0)    // Move right
+    if (event.code === 'Numpad3') {
+      // Down-Right
+      sendAction('rotate', 1) // Rotate down
+      sendAction('move', 0) // Move down
+      sendAction('rotate', 3) // Rotate right
+      sendAction('move', 0) // Move right
     }
 
-    if (event.key == 'x' || event.code == 'Numpad5') {
+    if (event.key === 'x' || event.code === 'Numpad5') {
       // No-op / wait.
       sendAction('noop', 0)
     }
     if (event.key >= '1' && event.key <= '9') {
       // Keys 1-9 are the attack matrix.
-      sendAction('attack', parseInt(event.key) - 1)
+      sendAction('attack', Number.parseInt(event.key) - 1)
     }
-    if (event.key == 'Z') {
+    if (event.key === 'Z') {
       // Show attack mode menu (a bunch of little circles that you can click on).
       state.showAttackMode = !state.showAttackMode
     }
-    if (event.key == 'c') {
+    if (event.key === 'c') {
       // Change color.
       sendAction('change_color', 0)
     }
-    if (event.key == 'g') {
+    if (event.key === 'g') {
       // Swap.
       sendAction('swap', 0)
     }
@@ -254,19 +258,35 @@ export function processGamepad() {
   }
 
   // Set from D-pad buttons.
-  if (gp.buttons[12]?.pressed) directionActives['w'] = true
-  if (gp.buttons[13]?.pressed) directionActives['s'] = true
-  if (gp.buttons[14]?.pressed) directionActives['a'] = true
-  if (gp.buttons[15]?.pressed) directionActives['d'] = true
+  if (gp.buttons[12]?.pressed) {
+    directionActives.w = true
+  }
+  if (gp.buttons[13]?.pressed) {
+    directionActives.s = true
+  }
+  if (gp.buttons[14]?.pressed) {
+    directionActives.a = true
+  }
+  if (gp.buttons[15]?.pressed) {
+    directionActives.d = true
+  }
 
   // Set from left stick axes.
   if (gp.axes.length >= 2) {
     const x = gp.axes[0]
     const y = gp.axes[1]
-    if (y < -axisThreshold) directionActives['w'] = true
-    if (y > axisThreshold) directionActives['s'] = true
-    if (x < -axisThreshold) directionActives['a'] = true
-    if (x > axisThreshold) directionActives['d'] = true
+    if (y < -axisThreshold) {
+      directionActives.w = true
+    }
+    if (y > axisThreshold) {
+      directionActives.s = true
+    }
+    if (x < -axisThreshold) {
+      directionActives.a = true
+    }
+    if (x > axisThreshold) {
+      directionActives.d = true
+    }
   }
 
   // Trigger key events for newly active directions.

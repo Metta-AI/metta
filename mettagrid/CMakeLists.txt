@@ -5,21 +5,23 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# ========================= OPTIONS =========================
+option(BUILD_TESTS "Build unit tests" OFF)
+option(BUILD_BENCHMARKS "Build benchmarks" OFF)
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+
 # ========================= FETCHCONTENT CACHING =========================
 # Configure FetchContent to use a shared directory for all builds
 set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.deps" CACHE PATH "FetchContent base directory")
 set(FETCHCONTENT_QUIET OFF)
-# This tells FetchContent to check if the content is already populated
 set(FETCHCONTENT_UPDATES_DISCONNECTED TRUE CACHE BOOL "Disable updates for FetchContent packages")
 
 include(FetchContent)
 
-option(BUILD_TESTS "Build C++ unit tests and benchmarks" OFF)
-
 # Include centralized compiler flags
 include(${CMAKE_CURRENT_LIST_DIR}/compiler_flags.cmake)
 
-# ========================= METTAGRID =========================
+# ========================= PYTHON SETUP =========================
 # Force CMake to use virtual environment Python first
 set(Python3_FIND_VIRTUALENV FIRST)
 set(Python3_FIND_STRATEGY LOCATION)
@@ -39,6 +41,7 @@ find_package(
 
 set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 
+# ========================= METTAGRID LIBRARY =========================
 file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.hpp
@@ -64,7 +67,8 @@ target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers)
 
 install(TARGETS mettagrid_c DESTINATION "metta/mettagrid")
 
-# ========================= TESTS =========================
-if(BUILD_TESTS)
+# ========================= TESTS & BENCHMARKS =========================
+if(BUILD_TESTS OR BUILD_BENCHMARKS)
+  enable_testing()
   include(${CMAKE_CURRENT_LIST_DIR}/tests.cmake)
 endif()

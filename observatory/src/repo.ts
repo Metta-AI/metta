@@ -215,6 +215,18 @@ export type PolicyHeatmapRequest = {
   metric: string
 }
 
+export type TrainingRunHeatmapRequest = {
+  eval_names: string[]
+  metric: string
+}
+
+export type TrainingRunPolicy = {
+  policy_name: string
+  policy_id: string
+  epoch_start: number | null
+  epoch_end: number | null
+}
+
 export type PolicyHeatmapCell = {
   evalName: string
   replayUrl: string | null
@@ -229,6 +241,8 @@ export type PolicyHeatmapData = {
   evalAverageScores: Record<string, number>
   evalMaxScores: Record<string, number>
 }
+
+import { config } from './config'
 
 export type TableInfo = {
   table_name: string
@@ -257,6 +271,14 @@ export type SQLQueryResponse = {
   row_count: number
 }
 
+export type AIQueryRequest = {
+  description: string
+}
+
+export type AIQueryResponse = {
+  query: string
+}
+
 /**
  * Interface for data fetching.
  *
@@ -264,12 +286,6 @@ export type SQLQueryResponse = {
  * In the future, we will fetch the data from an API.
  */
 export interface Repo {
-  getSuites(): Promise<string[]>
-  getAllMetrics(): Promise<string[]>
-  getGroupIds(suite: string): Promise<string[]>
-
-  getHeatmapData(metric: string, suite: string, policySelector?: PolicySelector): Promise<HeatmapData>
-
   // Token management methods
   createToken(tokenData: TokenCreate): Promise<TokenResponse>
   listTokens(): Promise<TokenListResponse>
@@ -289,13 +305,15 @@ export interface Repo {
   listTables(): Promise<TableInfo[]>
   getTableSchema(tableName: string): Promise<TableSchema>
   executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
+  generateAIQuery(description: string): Promise<AIQueryResponse>
 
   // Training run methods
   getTrainingRuns(): Promise<TrainingRunListResponse>
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
   updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData>
+  generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData>
+  getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
 
   // Episode methods
   filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse>
@@ -312,19 +330,34 @@ export interface Repo {
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
 
-    // Policy-based heatmap methods
+  // Policy-based heatmap methods
   getPolicies(request: PoliciesRequest): Promise<PoliciesResponse>
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
   getAvailableMetrics(request: MetricsRequest): Promise<string[]>
   generatePolicyHeatmap(request: PolicyHeatmapRequest): Promise<PolicyHeatmapData>
-
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') { }
+  constructor(private baseUrl: string = 'http://localhost:8000') {}
+
+  private getHeaders(contentType?: string): Record<string, string> {
+    const headers: Record<string, string> = {}
+
+    if (contentType) {
+      headers['Content-Type'] = contentType
+    }
+
+    if (config.authToken) {
+      headers['X-Auth-Token'] = config.authToken
+    }
+
+    return headers
+  }
 
   private async apiCall<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`)
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      headers: this.getHeaders(),
+    })
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
@@ -334,9 +367,7 @@ export class ServerRepo implements Repo {
   private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders('application/json'),
       body: JSON.stringify(body),
     })
     if (!response.ok) {
@@ -348,9 +379,7 @@ export class ServerRepo implements Repo {
   private async apiCallWithBodyPut<T>(endpoint: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders('application/json'),
       body: JSON.stringify(body),
     })
     if (!response.ok) {
@@ -362,31 +391,11 @@ export class ServerRepo implements Repo {
   private async apiCallDelete(endpoint: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'DELETE',
+      headers: this.getHeaders(),
     })
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status} ${response.statusText}`)
     }
-  }
-
-  async getSuites(): Promise<string[]> {
-    return this.apiCall<string[]>('/dashboard/suites')
-  }
-
-  async getAllMetrics(): Promise<string[]> {
-    return this.apiCall<string[]>('/dashboard/metrics')
-  }
-
-  async getGroupIds(suite: string): Promise<string[]> {
-    return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`)
-  }
-
-  async getHeatmapData(metric: string, suite: string, policySelector: PolicySelector = 'latest'): Promise<HeatmapData> {
-    // Use POST endpoint for GroupDiff
-    const apiData = await this.apiCallWithBody<HeatmapData>(
-      `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
-      { policy_selector: policySelector }
-    )
-    return apiData
   }
 
   // Token management methods
@@ -441,29 +450,37 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBody<SQLQueryResponse>('/sql/query', request)
   }
 
+  async generateAIQuery(description: string): Promise<AIQueryResponse> {
+    return this.apiCallWithBody<AIQueryResponse>('/sql/generate-query', {
+      description,
+    })
+  }
+
   // Training run methods
   async getTrainingRuns(): Promise<TrainingRunListResponse> {
-    return this.apiCall<TrainingRunListResponse>('/dashboard/training-runs')
+    return this.apiCall<TrainingRunListResponse>('/training-runs')
   }
 
   async getTrainingRun(runId: string): Promise<TrainingRun> {
-    return this.apiCall<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}`)
+    return this.apiCall<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}`)
   }
 
   async updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun> {
-    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/description`, {
+    return this.apiCallWithBodyPut<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}/description`, {
       description,
     })
   }
 
   async updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun> {
-    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
+    return this.apiCallWithBodyPut<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
-  async getTrainingRunHeatmapData(runId: string, metric: string, suite: string): Promise<HeatmapData> {
-    return this.apiCall<HeatmapData>(
-      `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`
-    )
+  async generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData> {
+    return this.apiCallWithBody<PolicyHeatmapData>(`/heatmap/training-run/${encodeURIComponent(runId)}`, request)
+  }
+
+  async getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]> {
+    return this.apiCall<TrainingRunPolicy[]>(`/training-runs/${encodeURIComponent(runId)}/policies`)
   }
 
   // Episode methods
@@ -519,11 +536,10 @@ export class ServerRepo implements Repo {
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {
     const params = new URLSearchParams()
-    policyNames.forEach(name => params.append('policy_names', name))
+    policyNames.forEach((name) => params.append('policy_names', name))
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
     return response.policy_ids
   }
-
 
   // Policy-based heatmap methods
   async getPolicies(request: PoliciesRequest): Promise<PoliciesResponse> {

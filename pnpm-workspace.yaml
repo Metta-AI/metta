@@ -1,11 +1,13 @@
 packages:
-  - gridworks
-  - library
-  - mettascope
-  - observatory
+  # These are filesystem paths - the package names are set in subdir/package.json.
+  # It's important not to have `./` prefix here for turbo to work,
+  # see https://github.com/vercel/turborepo/discussions/8514#discussioncomment-9786742
+  - "gridworks" # @softmax/gridworks
+  - "library" # @softmax/library
+  - "mettascope" # @softmax/mettascope
+  - "observatory" # @softmax/observatory
 onlyBuiltDependencies:
-  - '@biomejs/biome'
-  - '@tailwindcss/oxide'
+  - "@tailwindcss/oxide"
   - es5-ext
   - esbuild
   - sharp

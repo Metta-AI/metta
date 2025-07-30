@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import time
 import uuid
 from typing import Any, Dict, Optional, cast
@@ -104,6 +105,44 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
+            elif self._render_mode == "raylib":
+                # Only initialize raylib renderer if not in CI/Docker environment
+                is_ci_environment = bool(
+                    os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.path.exists("/.dockerenv")
+                )
+                if not is_ci_environment:
+                    try:
+                        from metta.mettagrid.renderer.raylib import RaylibRenderer
+
+                        self._renderer = RaylibRenderer(self.object_type_names, self.map_width, self.map_height)
+                    except ImportError:
+                        logger.warning("Raylib renderer requested but raylib not available")
+                        self._renderer = None
+                else:
+                    logger.info("Raylib renderer disabled in CI/Docker environment")
+                    self._renderer = None
+
+    def _check_reward_termination(self) -> bool:
+        """Check if episode should terminate based on total reward threshold."""
+        if self._task.env_cfg().game.termination.max_reward:
+            # Check if any agent has reached the reward threshold
+            per_agent_rewards = self._c_env.get_episode_rewards()
+            termination_condition = self._task.env_cfg().game.termination.condition
+
+            if termination_condition == "any":
+                return any(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+            elif termination_condition == "all":
+                return all(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+            # percent of agents that got all the reward
+            elif isinstance(termination_condition, float):
+                return (
+                    sum(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+                    >= termination_condition * self._c_env.num_agents
+                )
+            else:
+                raise ValueError(f"Invalid termination condition: {termination_condition}")
+
+        return False
 
     def _check_reward_termination(self) -> bool:
         """Check if episode should terminate based on total reward threshold."""
@@ -224,6 +263,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         with self.timer("_c_env.step"):
             self._c_env.step(actions)
             self._steps += 1
+
+        if self._check_reward_termination():
+            # Set all terminals to True to trigger episode termination
+            self.terminals.fill(True)
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
@@ -420,19 +463,23 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
-        if self._renderer is None:
-            return None
+        # Use the configured renderer if available
+        if self._renderer is not None and hasattr(self._renderer, "render"):
+            return self._renderer.render(self._steps, self.grid_objects)
 
-        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
+        return None
 
     @property
     @override
     def done(self):
         return self._should_reset
 
+    # TODO: we should eliminate this and use feature spec instead
     @property
     def feature_normalizations(self) -> dict[int, float]:
-        return self._c_env.feature_normalizations()
+        # Get feature spec from C++ environment
+        feature_spec = self._c_env.feature_spec()
+        return {spec["id"]: spec["normalization"] for spec in feature_spec.values()}
 
     def get_observation_features(self) -> dict[str, dict[str, int | float]]:
         """

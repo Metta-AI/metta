@@ -73,6 +73,8 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
+  // Visitation count grid: tracks how many times the agent has visited each position
+  std::vector<std::vector<unsigned int>> visitation_grid;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -98,6 +100,37 @@ public:
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+  }
+
+  void init_visitation_grid(GridCoord height, GridCoord width) {
+    visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
+  }
+
+  void reset_visitation_counts() {
+    for (auto& row : visitation_grid) {
+      for (auto& count : row) {
+        count = 0;
+      }
+    }
+  }
+
+  void increment_visitation_count(GridCoord r, GridCoord c) {
+    if (r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) &&
+        c >= 0 && c < static_cast<GridCoord>(visitation_grid[0].size())) {
+      visitation_grid[r][c]++;
+    }
+  }
+
+  std::vector<unsigned int> get_visitation_counts() const {
+    std::vector<unsigned int> counts(5, 0);
+    if (!visitation_grid.empty()) {
+      counts[0] = get_visitation_count(location.r, location.c);  // center
+      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+      counts[2] = get_visitation_count(location.r + 1, location.c);  // down
+      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+      counts[4] = get_visitation_count(location.r, location.c + 1);  // right
+    }
+    return counts;
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
@@ -168,7 +201,7 @@ public:
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
-    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
+    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);  // Removed +5 for visitation counts
 
     std::vector<PartialObservationToken> features;
     features.reserve(num_tokens);
@@ -179,6 +212,8 @@ public:
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
     if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
+
+    // Removed visitation count features - now added as global tokens
 
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
@@ -214,6 +249,14 @@ private:
     // Update both the current resource reward and the total reward
     float reward_delta = new_contribution - old_contribution;
     *this->reward += reward_delta;
+  }
+
+  unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
+    if (r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) ||
+        c < 0 || c >= static_cast<GridCoord>(visitation_grid[0].size())) {
+      return 0;  // Return 0 for out-of-bounds positions
+    }
+    return visitation_grid[r][c];
   }
 };
 

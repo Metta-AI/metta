@@ -2,7 +2,7 @@
   description = "Metta development environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-python.url = "github:cachix/nixpkgs-python";
   };
 
@@ -10,7 +10,7 @@
     extra-substituters = [
       "https://nixpkgs-python.cachix.org"
     ];
-    trusted-public-keys = [
+    extra-trusted-public-keys = [
       "nixpkgs-python.cachix.org-1:hxjI7pFxTyuTHn2NkvWCrAUcNZLNS3ZAvfYNuYifcEU="
     ];
   };
@@ -33,6 +33,7 @@
           uv
           cmake
           stdenv.cc.cc.lib
+          pnpm
           nodejs_22
           typescript
         ];

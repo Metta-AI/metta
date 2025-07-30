@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Plot from 'react-plotly.js'
 import { HeatmapData } from './repo'
+import { METTA_WANDB_ENTITY, METTA_WANDB_PROJECT } from './constants'
 
 interface HeatmapProps {
   data: HeatmapData
@@ -61,8 +62,8 @@ const getShortName = (evalName: string) => {
 }
 
 const wandb_url = (policyName: string) => {
-  const entity = 'metta-research'
-  const project = 'metta'
+  const entity = METTA_WANDB_ENTITY
+  const project = METTA_WANDB_PROJECT
   let policyKey = policyName
   if (policyName.includes(':v')) {
     policyKey = policyName.split(':v')[0]
@@ -84,7 +85,7 @@ export function Heatmap({
 
   // Convert to heatmap format
   const policies = Object.keys(data.cells)
-  
+
   // In the new system, eval names are already properly formatted (e.g. "navigation/maze1")
   // Group them by category for better organization
   const evalsByCategory = new Map<string, string[]>()
@@ -95,17 +96,17 @@ export function Heatmap({
     }
     evalsByCategory.get(category)!.push(evalName)
   })
-  
+
   // Build x-labels: overall, then grouped by category
   const xLabels = ['overall']
   const shortNameToEvalName = new Map<string, string>()
   shortNameToEvalName.set('overall', 'overall')
-  
+
   // Sort categories alphabetically, then envs within each category
   const sortedCategories = Array.from(evalsByCategory.keys()).sort()
-  sortedCategories.forEach(category => {
+  sortedCategories.forEach((category) => {
     const envs = evalsByCategory.get(category)!.sort()
-    envs.forEach(evalName => {
+    envs.forEach((evalName) => {
       const shortName = getShortName(evalName) // Just the environment name
       xLabels.push(shortName)
       shortNameToEvalName.set(shortName, evalName)
@@ -119,16 +120,16 @@ export function Heatmap({
 
   const z = y_labels.map((policy) => {
     const row = [data.policyAverageScores[policy]] // Overall score first
-    
+
     // Add scores for each evaluation in order
-    sortedCategories.forEach(category => {
+    sortedCategories.forEach((category) => {
       const envs = evalsByCategory.get(category)!.sort()
-      envs.forEach(evalName => {
+      envs.forEach((evalName) => {
         const cell = data.cells[policy]?.[evalName]
         row.push(cell ? cell.value : 0)
       })
     })
-    
+
     return row
   })
 

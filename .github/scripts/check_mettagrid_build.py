@@ -55,27 +55,62 @@ class BuildChecker:
         self.repo_root = self.project_root.parent.resolve()
         self.messages: list[CompilerMessage] = []
         self.build_failed = False
+        self.runtime_issues = []  # Simple list for runtime problems
 
     def parse_build_output(self, output: str) -> None:
         """Parse build output and extract warnings/errors."""
         parsed_count = 0
+        total_lines = 0
 
         for line in output.splitlines():
+            total_lines += 1
             line_stripped = line.strip()
             if not line_stripped:
                 continue
 
-            # Try GCC/Clang pattern
+            # Check for runtime issues (simple patterns)
+            if any(
+                pattern in line_stripped
+                for pattern in [
+                    "AddressSanitizer: SEGV",
+                    "AddressSanitizer:DEADLYSIGNAL",
+                    "SUMMARY: AddressSanitizer:",
+                    "==ABORTING",
+                    "Segmentation fault",
+                    "Assertion failed",
+                    "Errors while running CTest",
+                    "Aborted",
+                    "core dumped",
+                ]
+            ):
+                self.runtime_issues.append(line_stripped)
+                self.build_failed = True
+
             match = self.GCC_CLANG_PATTERN.match(line_stripped)
             if match:
                 parsed_count += 1
+                groups = match.groupdict()
+
+                # Handle different match types
+                if "severity" in groups and groups["severity"]:
+                    severity = groups["severity"]
+                    message_text = groups.get("message", "")
+                    flag = groups.get("flag")
+                elif "In file included from" in line_stripped:
+                    # This is an include chain, treat as note
+                    severity = "note"
+                    message_text = line_stripped
+                    flag = None
+                else:
+                    continue
+
                 message = CompilerMessage(
-                    file_path=match.group("file"),
-                    line_number=int(match.group("line")),
-                    severity=match.group("severity"),
-                    message=match.group("message"),
-                    flag=match.group("flag"),
-                    raw_line=line,  # Store original line
+                    file_path=groups.get("file", ""),
+                    line_number=int(groups["line"]) if groups.get("line") else None,
+                    severity=severity,
+                    message=message_text,
+                    flag=flag,
+                    raw_line=line,
                 )
 
                 # Make paths relative to repo root for cleaner output
@@ -85,7 +120,11 @@ class BuildChecker:
                     try:
                         message.file_path = str(abs_path.relative_to(self.project_root))
                     except ValueError:
-                        message.file_path = str(abs_path.relative_to(self.repo_root))
+                        try:
+                            message.file_path = str(abs_path.relative_to(self.repo_root))
+                        except ValueError:
+                            # Keep absolute path if we can't make it relative
+                            pass
                 except (ValueError, OSError):
                     pass
 
@@ -94,7 +133,9 @@ class BuildChecker:
                 if message.severity == "error":
                     self.build_failed = True
 
-        print(f"🔍 Parsed {parsed_count} compiler messages from output")
+        print(f"🔍 Parsed {parsed_count} compiler messages from {total_lines} lines of output")
+        if self.runtime_issues:
+            print(f"💥 Found {len(self.runtime_issues)} runtime issue(s)")
 
     def get_errors(self) -> list[CompilerMessage]:
         """Get all error messages."""
@@ -138,6 +179,7 @@ class BuildChecker:
             "errors": len(by_severity["error"]),
             "warnings": len(by_severity["warning"]),
             "notes": len(by_severity["note"]),
+            "runtime_issues": len(self.runtime_issues),  # Add runtime issues count
             "files_with_issues": len(by_file),
             "warnings_by_flag": dict(
                 sorted([(flag, len(msgs)) for flag, msgs in warnings_by_flag.items()], key=lambda x: x[1], reverse=True)
@@ -166,6 +208,9 @@ class BuildChecker:
         print(f"  - Warnings: {summary['warnings']}")
         print(f"  - Notes:    {summary['notes']}")
 
+        if summary["runtime_issues"] > 0:
+            print(f"  - Runtime issues: {summary['runtime_issues']}")
+
         # Print all errors with details
         errors = self.get_errors()
         if errors:
@@ -178,6 +223,14 @@ class BuildChecker:
                 if error.flag:
                     print(f"Flag: {error.flag}")
                 print(f"Raw: {error.raw_line}")
+            print("-" * 80)
+
+        # Print runtime issues
+        if self.runtime_issues:
+            print(f"\n💥 RUNTIME ISSUES ({len(self.runtime_issues)}):")
+            print("-" * 80)
+            for i, issue in enumerate(self.runtime_issues, 1):
+                print(f"[{i}] {issue}")
             print("-" * 80)
 
         if summary["warnings"] > 0:
@@ -214,6 +267,7 @@ class BuildChecker:
         lines.append(f"- **Total Messages:** {summary['total_messages']}")
         lines.append(f"- **Errors:** {summary['errors']}")
         lines.append(f"- **Warnings:** {summary['warnings']}")
+        lines.append(f"- **Runtime Issues:** {summary['runtime_issues']}")
         lines.append(f"- **Files with Issues:** {summary['files_with_issues']}")
 
         # Add detailed error section
@@ -246,6 +300,14 @@ class BuildChecker:
                 if i < len(errors):
                     lines.append("\n---\n")
 
+        # Add runtime issues section
+        if self.runtime_issues:
+            lines.append("\n### 💥 Runtime Issues\n")
+            lines.append("The following runtime issues occurred:\n")
+            for i, issue in enumerate(self.runtime_issues, 1):
+                lines.append(f"{i}. `{issue}`")
+            lines.append("")
+
         if summary["warnings"] > 0:
             lines.append("\n### ⚠️ Warnings by Type")
             lines.append("| Flag | Count |")
@@ -266,7 +328,7 @@ class BuildChecker:
         return "\n".join(lines)
 
 
-def run_build(project_root: Path) -> tuple[bool, str]:
+def run_build(project_root: Path, with_coverage: bool = False) -> tuple[bool, str]:
     """Run the build process and capture output."""
     env = os.environ.copy()
 
@@ -292,19 +354,39 @@ def run_build(project_root: Path) -> tuple[bool, str]:
     if clean_result.returncode != 0:
         print(f"Warning: 'make clean' failed: {clean_result.stderr}")
 
-    print("🔨 Building project...")
+    # Choose build target based on coverage requirement
+    if with_coverage:
+        print("🔨 Building project with coverage...")
+        build_target = "coverage"
+    else:
+        print("🔨 Building project...")
+        build_target = "build"
+
     print(f"Working directory: {project_root}")
 
-    build_result = subprocess.run(["make", "build"], cwd=project_root, capture_output=True, text=True, env=env)
+    # Force verbose output to capture compiler messages
+    # Many build systems suppress compiler output by default
+    build_cmd = ["make", build_target]
+
+    # Always use VERBOSE=1 to ensure we capture compiler output
+    build_cmd.append("VERBOSE=1")
+    env["VERBOSE"] = "1"  # Another common variable
+
+    build_result = subprocess.run(build_cmd, cwd=project_root, capture_output=True, text=True, env=env)
 
     # Combine stdout and stderr for analysis
     full_output = build_result.stdout + "\n" + build_result.stderr
 
-    # Debug output
     if not build_result.stdout and not build_result.stderr:
         print("⚠️  No output captured from build command")
     else:
-        print(f"📝 Captured {len(full_output.splitlines())} lines of build output")
+        stdout_lines = len(build_result.stdout.splitlines()) if build_result.stdout else 0
+        stderr_lines = len(build_result.stderr.splitlines()) if build_result.stderr else 0
+        total_lines = len(full_output.splitlines())
+
+        print(f"📝 Captured {total_lines} total lines of build output")
+        print(f"📝   - stdout: {stdout_lines} lines")
+        print(f"📝   - stderr: {stderr_lines} lines")
 
     return build_result.returncode == 0, full_output
 
@@ -312,7 +394,7 @@ def run_build(project_root: Path) -> tuple[bool, str]:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Check mettagrid build for compiler warnings and errors")
-    parser.add_argument("-d", "--debug", action="store_true", help="Show raw build output for debugging")
+    parser.add_argument("-c", "--with-coverage", action="store_true", help="Build with coverage enabled")
 
     args = parser.parse_args()
 
@@ -333,15 +415,14 @@ def main():
         sys.exit(1)
 
     # Run the build
-    build_success, build_output = run_build(project_root)
+    build_success, build_output = run_build(project_root, args.with_coverage)
 
     # Debug mode: show raw output
-    if args.debug:
-        print("\n" + "=" * 80)
-        print("RAW BUILD OUTPUT")
-        print("=" * 80)
-        print(build_output)
-        print("=" * 80 + "\n")
+    print("\n" + "=" * 80)
+    print("RAW BUILD OUTPUT")
+    print("=" * 80)
+    print(build_output)
+    print("=" * 80 + "\n")
 
     # Analyze the build output
     checker = BuildChecker(project_root)
@@ -367,6 +448,14 @@ def main():
             f.write(f"total_warnings={summary['warnings']}\n")
             f.write(f"total_errors={summary['errors']}\n")
             f.write(f"total_messages={summary['total_messages']}\n")
+            f.write(f"runtime_issues={summary['runtime_issues']}\n")
+
+            # Add the full build output (escaped for multiline)
+            # GitHub Actions requires special handling for multiline outputs
+            delimiter = "EOF_BUILD_OUTPUT"
+            f.write(f"full_output<<{delimiter}\n")
+            f.write(build_output)
+            f.write(f"\n{delimiter}\n")
 
     # Exit with appropriate code - only fail on actual build failure or errors
     if not build_success:

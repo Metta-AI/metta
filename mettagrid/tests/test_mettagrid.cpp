@@ -376,6 +376,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 {{TestItems::ORE, 1}},    // input_resources
                                 {{TestItems::ARMOR, 1}},  // output_resources
                                 0,                        // max_output
+                                -1,                       // max_conversions
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 0,                        // initial_resource_count
@@ -427,6 +428,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
                                 {{TestItems::ORE, 1}},    // input_resources
                                 {{TestItems::ARMOR, 1}},  // output_resources
                                 1,                        // max_output
+                                -1,                       // max_conversions
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
                                 1,                        // initial_items

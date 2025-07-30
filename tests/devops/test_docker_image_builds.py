@@ -6,8 +6,8 @@ class TestDockerImagesBuilds:
         project_root = get_repo_root()
         client = docker_client
         image, build_logs = client.images.build(
-            path=str(project_root / "observatory"),
-            dockerfile="Dockerfile",
+            path=str(project_root),
+            dockerfile="observatory/Dockerfile",
             tag="test-observatory-frontend:latest",
             rm=True,
         )

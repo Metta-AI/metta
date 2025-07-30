@@ -2,13 +2,13 @@ import uuid
 from datetime import datetime
 from typing import Any, TypeVar
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
+from metta.common.util.git import get_latest_commit
 
 T = TypeVar("T")
 
@@ -32,6 +32,14 @@ class TaskClaimResponse(BaseModel):
 class TaskUpdateRequest(BaseModel):
     require_assignee: str | None = None  # If supplied, the action only happens if the task is assigned to this worker
     updates: dict[uuid.UUID, TaskStatusUpdate]
+
+
+class TaskFilterParams(BaseModel):
+    limit: int = Field(default=500, ge=1, le=1000)
+    statuses: list[str] | None = None
+    git_hash: str | None = None
+    policy_ids: list[uuid.UUID] | None = None
+    sim_suites: list[str] | None = None
 
 
 class TaskResponse(BaseModel):
@@ -74,22 +82,11 @@ class TaskResponse(BaseModel):
 
 
 class TaskUpdateResponse(BaseModel):
-    statuses: dict[uuid.UUID, str]
+    statuses: dict[uuid.UUID, TaskStatus]
 
 
 class TasksResponse(BaseModel):
     tasks: list[TaskResponse]
-
-
-async def _get_latest_main_commit() -> str:
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.github.com/repos/Metta-AI/metta/commits/main",
-            headers={"Accept": "application/vnd.github.v3+json"},
-        )
-        response.raise_for_status()
-        commit_data = response.json()
-        return commit_data["sha"]
 
 
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
@@ -103,7 +100,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         # If no git_hash provided, fetch latest commit from main branch
         git_hash = request.git_hash
         if git_hash is None:
-            git_hash = await _get_latest_main_commit()
+            git_hash = await get_latest_commit(branch="main")
 
         attributes = {
             "env_overrides": request.env_overrides,
@@ -154,8 +151,18 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_all_tasks(
         limit: int = Query(default=500, ge=1, le=1000),
+        statuses: list[TaskStatus] | None = Query(default=None),
+        git_hash: str | None = Query(default=None),
+        policy_ids: list[uuid.UUID] | None = Query(default=None),
+        sim_suites: list[str] | None = Query(default=None),
     ) -> TasksResponse:
-        tasks = await stats_repo.get_all_tasks(limit=limit)
+        tasks = await stats_repo.get_all_tasks(
+            limit=limit,
+            statuses=statuses,
+            git_hash=git_hash,
+            policy_ids=policy_ids,
+            sim_suites=sim_suites,
+        )
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
