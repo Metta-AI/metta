@@ -16,8 +16,16 @@ def _init_process_group() -> bool:
         return False
 
     rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
+    # Auto-detect backend: use nccl for CUDA, gloo for CPU
+    try:
+        import torch
+
+        backend = "nccl" if torch.cuda.is_available() else "gloo"
+    except ImportError:
+        backend = "gloo"  # fallback to gloo if torch not available
+
     dist.init_process_group(
-        backend="nccl",
+        backend=backend,
         init_method=os.environ.get("DIST_URL", "env://"),
         world_size=world_size,
         rank=rank,
@@ -25,7 +33,7 @@ def _init_process_group() -> bool:
     return True
 
 
-def run_once(fn: Callable[[], T], use_distributed: bool = True) -> T:
+def run_once(fn: Callable[[], T]) -> T:
     """Run ``fn`` only on rank 0 and broadcast the result.
 
     If ``torch.distributed`` is not initialized, this function will attempt to
@@ -35,13 +43,7 @@ def run_once(fn: Callable[[], T], use_distributed: bool = True) -> T:
 
     Args:
         fn: Function to run only on rank 0
-        use_distributed: Whether to initialize/use distributed coordination.
-                       If False, just runs fn() directly without any distributed logic.
     """
-    if not use_distributed:
-        # Skip all distributed logic - just run the function
-        return fn()
-
     group_initialized = _init_process_group()
     if dist.is_initialized():
         rank = dist.get_rank()
