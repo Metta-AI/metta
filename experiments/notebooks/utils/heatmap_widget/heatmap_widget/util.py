@@ -5,17 +5,16 @@ from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget imp
     create_heatmap_widget,
 )
 from metta.app_backend.routes.heatmap_routes import HeatmapData
-from metta.common.client.metta_client import MettaAPIClient
-from metta.common.util.constants import DEV_STATS_SERVER_URI
+from metta.app_backend.scorecard_client import ScorecardClient
 from metta.setup.utils import info, warning
 from typing_extensions import Literal
 
 
 async def fetch_real_heatmap_data(
+    client: ScorecardClient,
     metrics: List[str],
     search_texts: List[str] = [],
     policy_selector: Literal["best", "latest"] = "best",
-    api_base_url: str = DEV_STATS_SERVER_URI,
     max_policies: int = 30,
     include_run_free_policies: bool = False,
 ) -> HeatmapWidget:
@@ -32,8 +31,6 @@ async def fetch_real_heatmap_data(
     Returns:
         HeatmapWidget with real data
     """
-    client = MettaAPIClient(api_base_url)
-
     # Step 1: Get available policies to find training run IDs
     # TODO: backend should be doing the filtering, not frontend
 

@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import RootModel
 
-from metta.app_backend.eval_task_client import EvalTaskClient
+from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.heatmap_routes import (
     EvalsRequest,
     HeatmapData,
@@ -18,7 +18,7 @@ class ListModel(RootModel[list]):
     pass
 
 
-class MettaAPIClient(EvalTaskClient):
+class ScorecardClient(BaseAppBackendClient):
     async def get_policies(self, search_text: str | None = None, page_size: int = 50):
         payload = PoliciesRequest(
             search_text=search_text,
