@@ -51,8 +51,6 @@ if [ -f ./devops/skypilot/create_job_secrets.py ]; then
     # Add observatory-token only if it's set
     if [ -n "$OBSERVATORY_TOKEN" ]; then
         CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
-    else
-        echo "[SETUP] Note: OBSERVATORY_TOKEN not set, skipping observatory configuration"
     fi
 
     # Execute the command
