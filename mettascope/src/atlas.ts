@@ -3,18 +3,14 @@ import { Vec2f } from './vector_math.js'
 /**
  * Type definition for atlas data loaded from JSON.
  *
- * Contains sprite definitions as [x, y, width, height] arrays, where:
- * - x, y: Top-left corner position in the atlas texture
- * - width, height: Dimensions of the sprite in pixels
- *
- * The optional metadata field can contain additional data like font information.
- *
  * @example
  * {
  *   "player.png": [0, 0, 32, 32],
  *   "enemy.png": [32, 0, 32, 32],
  *   "metadata": { "version": "1.0" }
  * }
+ *
+ * The optional metadata field can contain additional data like font information.
  */
 export type SpriteBounds = [x: number, y: number, width: number, height: number]
 
@@ -46,7 +42,6 @@ export interface Atlas {
   margin: number
 }
 
-
 export function validateAtlas(atlas: Atlas): boolean {
   return (
     typeof atlas.margin === 'number' &&
@@ -57,7 +52,6 @@ export function validateAtlas(atlas: Atlas): boolean {
     )
   )
 }
-
 
 export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, AtlasMetadata] | null> {
   try {
@@ -81,7 +75,6 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
   }
 }
 
-
 export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   try {
     const res = await fetch(url)
@@ -99,7 +92,6 @@ export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
     return null
   }
 }
-
 
 export function createTexture(
   gl: WebGLRenderingContext,
@@ -159,7 +151,6 @@ export async function loadAtlas(
     margin: 4, // Default margin
   }
 }
-
 
 export function getSpriteBounds(
   atlas: Atlas,

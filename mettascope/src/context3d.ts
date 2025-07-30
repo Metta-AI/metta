@@ -205,7 +205,7 @@ export class Context3d {
       wrapS: this.gl.REPEAT,
       wrapT: this.gl.REPEAT,
       minFilter: this.gl.LINEAR_MIPMAP_LINEAR,
-      magFilter: this.gl.LINEAR
+      magFilter: this.gl.LINEAR,
     })
 
     if (!this.atlas) {
@@ -379,33 +379,11 @@ export class Context3d {
     )
   }
 
-  /*
-   * Draws a sprite from the texture atlas centered at the specified position.
-   *
-   * @param imageName - Name of the image in the atlas (e.g., 'player.png')
-   * @param x - X coordinate of the sprite's center
-   * @param y - Y coordinate of the sprite's center
-   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
-   * @param scale - Uniform scale (number) or non-uniform scale [scaleX, scaleY]
-   * @param rotation - Rotation angle in radians (positive = clockwise)
-   *
-   * @example
-   * // Draw at original size
-   * ctx.drawSprite('player.png', 100, 200)
-   *
-   * // Draw with uniform scale
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 2)
-   *
-   * // Draw mirrored horizontally
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], [-1, 1])
-   *
-   * // Draw with rotation (45 degrees)
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 1, Math.PI / 4)
-   */
+  /* Draws a sprite from the texture atlas with its center at (centerX, centerY). */
   drawSprite(
     imageName: string,
-    x: number,
-    y: number,
+    centerX: number,
+    centerY: number,
     color: number[] = [1, 1, 1, 1],
     scale: number | [number, number] = 1,
     rotation = 0
@@ -428,7 +406,7 @@ export class Context3d {
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y) // Move origin to sprite center
+      this.translate(centerX, centerY) // Move origin to sprite center
       this.rotate(rotation) // Apply rotation
       this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
@@ -446,8 +424,8 @@ export class Context3d {
     } else {
       // Fast path: no transformations needed, draw centered
       this.drawRect(
-        x - bounds.width / 2, // Left edge position
-        y - bounds.height / 2, // Top edge position
+        centerX - bounds.width / 2, // Left edge position
+        centerY - bounds.height / 2, // Top edge position
         bounds.width, // Total width including margins
         bounds.height, // Total height including margins
         bounds.u0,
