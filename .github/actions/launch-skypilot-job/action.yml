@@ -81,6 +81,9 @@ runs:
 
         chmod +x ./devops/skypilot/launch.py
 
+        ls -l $HOME/.metta
+        cat $HOME/.metta/observatory_token
+
         LAUNCH_ARGS=(
           "--max-runtime-hours=${{ inputs.timeout_hours }}"
         )
