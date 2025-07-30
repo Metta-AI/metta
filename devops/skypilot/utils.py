@@ -225,7 +225,7 @@ def set_task_secrets(task: sky.Task) -> None:
         "https://observatory.softmax-research.net/api"
     )
     if not observatory_token:
-        raise ValueError("Failed to get observatory token, run 'metta install' to fix")
+        observatory_token = ""  # we don't have a token in CI
 
     task.update_envs(
         dict(
