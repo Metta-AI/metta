@@ -65,9 +65,8 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
         # Process potential initial inventory
         initial_inventory = {}
-        for k, v in agent_group_props["initial_inventory"].items():  # sus as hell
-            if v is not None and k in resource_name_to_id:
-                initial_inventory[resource_name_to_id[k]] = v
+        for k, v in agent_group_props["initial_inventory"].items():
+            initial_inventory[resource_name_to_id[k]] = v
 
         agent_cpp_params = {
             "freeze_duration": agent_group_props["freeze_duration"],
