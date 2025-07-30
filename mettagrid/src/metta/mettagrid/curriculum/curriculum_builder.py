@@ -118,7 +118,7 @@ def task_set(
     return Curriculum(name, curriculum_algorithm, tasks)
 
 
-def parameter_grid_task_set(
+def bucketed_task_set(
     name: str,
     env_cfg_template: Union[str, DictConfig],
     buckets: Dict[str, Dict[str, Any]],

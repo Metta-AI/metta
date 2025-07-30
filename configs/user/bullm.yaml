@@ -1,6 +1,6 @@
 # @package __global__
 
-# User config for running progressive curriculum on navigation tasks
+# User config for running learning progress curriculum on navigation tasks
 
 defaults:
   - /common
@@ -17,7 +17,7 @@ data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/progressive
+  curriculum: /env/mettagrid/curriculum/navigation/learning_progress
   num_workers: 4
   simulation:
     evaluate_interval: 100

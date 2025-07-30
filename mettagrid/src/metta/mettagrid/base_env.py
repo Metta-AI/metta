@@ -129,7 +129,10 @@ class MettaGridEnv(ABC):
 
         if level is None:
             with self.timer("_create_core_env.build_map"):
-                level = task_cfg.game.map_builder.build()
+                # Instantiate the map_builder if it has a _target_ field
+                import hydra.utils
+                map_builder = hydra.utils.instantiate(task_cfg.game.map_builder)
+                level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))

@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum import (
     Curriculum,
-    parameter_grid_task_set,
+    bucketed_task_set,
     single_task,
 )
 from metta.rl.vecenv import make_vecenv
@@ -164,12 +164,12 @@ def navigation_bucketed_task_set(
         "game.map_builder.room.objects.altar": {"values": altar_values},
     }
 
-    # Create the task set using parameter_grid_task_set
-    return parameter_grid_task_set(
+    # Create the task set using bucketed_task_set
+    return bucketed_task_set(
         name=name,
         env_cfg_template=DictConfig(base_config),
         buckets=buckets,
-    )
+
 
 
 # ============================================================================

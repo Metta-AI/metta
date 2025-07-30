@@ -27,7 +27,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
-from metta.mettagrid.curriculum import single_task
+from metta.mettagrid.curriculum import curriculum_from_config_path, single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter

@@ -44,6 +44,11 @@ class Task:
 
     def __init__(self, name: str):
         self._name = name
+    
+    @property
+    def name(self) -> str:
+        """The name of this task."""
+        return self._name
 
     #
     # Primary API
@@ -101,14 +106,15 @@ class MettaGridTask(Task):
         super().__init__(name)
         self._unresolved_env_config = env_config
 
+    @property
     def env_config(self) -> DictConfig:
         """
-        Provide a new env config with all OmegaConf-included randomness resolved.
+        Provide the environment config. Randomness will be resolved when accessed.
         """
-        resolved_env_config = copy.copy(self._unresolved_env_config)
-        OmegaConf.resolve(resolved_env_config)
-        assert resolved_env_config is not None, "Env config is None"
-        return resolved_env_config
+        # Return a copy to avoid modifications to the original
+        env_config_copy = copy.deepcopy(self._unresolved_env_config)
+        assert env_config_copy is not None, "Env config is None"
+        return env_config_copy
 
 
 class Curriculum(Task):
@@ -140,6 +146,11 @@ class Curriculum(Task):
 
     def is_leaf(self) -> bool:
         return False
+    
+    @property
+    def num_tasks(self) -> int:
+        """Number of direct child tasks in this curriculum."""
+        return len(self._tasks)
 
     #
     # Primary API

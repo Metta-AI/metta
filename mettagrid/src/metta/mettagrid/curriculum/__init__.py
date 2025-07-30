@@ -11,9 +11,9 @@ from metta.mettagrid.curriculum.curriculum_algorithm import (
     DiscreteRandomHypers,
 )
 from metta.mettagrid.curriculum.curriculum_builder import (
+    bucketed_task_set,
     curriculum_config_from_path,
     curriculum_from_config_path,
-    parameter_grid_task_set,
     single_task,
     task_set,
 )
@@ -38,7 +38,7 @@ __all__ = [
     "SimpleProgressiveHypers",
     # Curriculum Creation API
     "task_set",
-    "parameter_grid_task_set",
+    "bucketed_task_set",
     "single_task",
     "curriculum_config_from_path",
     "curriculum_from_config_path",

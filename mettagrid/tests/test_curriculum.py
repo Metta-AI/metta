@@ -1,14 +1,16 @@
 """Tests for Curriculum curriculum structure."""
 
 import random
+from abc import ABC, abstractmethod
 from collections import Counter
+from typing import Any, Dict, Set
 
 import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum import (
-    parameter_grid_task_set,
+    bucketed_task_set,
     single_task,
     task_set,
 )
@@ -438,7 +440,7 @@ def test_probability_updates_after_weight_change(dummy_config):
 def test_discrete_value_buckets_create_cartesian_product(dummy_config):
     """Test that discrete value buckets generate all combinations via Cartesian product.
 
-    When using parameter_grid_task_set with:
+    When using bucketed_task_set with:
     - One parameter with 3 discrete string values
     - Another parameter with 2 discrete integer values
     - Expect 3×2 = 6 distinct tasks with all combinations
@@ -450,7 +452,7 @@ def test_discrete_value_buckets_create_cartesian_product(dummy_config):
     }
 
     # Create bucketed task set
-    tree = parameter_grid_task_set(
+    tree = bucketed_task_set(
         name="test_discrete_buckets",
         env_cfg_template=dummy_config,
         buckets=buckets,
@@ -498,28 +500,22 @@ def test_discrete_value_buckets_create_cartesian_product(dummy_config):
 def test_range_buckets_divide_into_discrete_bins():
     """Test that continuous range buckets are divided into discrete bins.
 
-    When using parameter_grid_task_set with:
+    When using bucketed_task_set with:
     - One parameter with range [2, 10] divided into 4 bins
     - Another parameter with range [0.5, 2.0] divided into 3 bins
     - Expect 4×3 = 12 tasks with values sampled from bin ranges
     """
     base_config = OmegaConf.create({"robot": {"gripper_size": 10}, "task": {"object_size": 5, "distance": 1.0}})
     buckets = {
-<<<<<<< HEAD
-        "param1": [1, 2, 3],
-        "param2": {"range": (0, 10), "bins": 2},
+        "task.object_size": {
+            "range": [2, 10],
+            "bins": 4,  # Creates [2,4), [4,6), [6,8), [8,10]
+        },
+        "task.distance": {
+            "range": [0.5, 2.0],
+            "bins": 3,  # Creates [0.5,1.0), [1.0,1.5), [1.5,2.0]
+        },
     }
-    expanded = _expand_buckets(buckets)
-    # param1 should be a direct list
-    assert expanded["param1"] == [1, 2, 3]
-    # param2 should be a list of 2 bins, each a dict with 'range' and 'want_int'
-    assert len(expanded["param2"]) == 2
-    assert expanded["param2"][0]["range"] == (0, 5)
-    assert expanded["param2"][1]["range"] == (5, 10)
-    assert all(isinstance(b, dict) and "range" in b for b in expanded["param2"])
-
-
-def test_expand_buckets_choice():
     buckets = {
         "param1": ["red", "blue", "green"],
         "param2": [1, 2, 3, 4],
@@ -532,64 +528,8 @@ def test_expand_buckets_choice():
     assert expanded["param3"] == [True, False]
 
 
-def test_expand_buckets_mixed_types():
-    buckets = {
-        "param1": [1, 2, 3],
-        "param2": {"range": (0, 10), "bins": 2},
-        "param3": ["a", "b", "c"],
-    }
-    expanded = _expand_buckets(buckets)
-    # Test all three types together
-    assert expanded["param1"] == [1, 2, 3]
-    assert len(expanded["param2"]) == 2
-    assert expanded["param2"][0]["range"] == (0, 5)
-    assert expanded["param2"][1]["range"] == (5, 10)
-    assert expanded["param3"] == ["a", "b", "c"]
-
-
-def test_sampled_task_curriculum():
-    # Setup: one value bucket, one range bucket (int), one range bucket (float)
-    task_id = "test_task"
-    task_cfg_template = OmegaConf.create({"param1": None, "param2": None, "param3": None})
-    sampling_parameters = {
-        "param1": 42,
-        "param2": {"range": (0, 10), "want_int": True},
-        "param3": {"range": (0.0, 1.0)},
-    }
-    curr = SampledTaskCurriculum(task_id, task_cfg_template, sampling_parameters)
-    task = curr.get_task()
-    assert task.id() == task_id
-    cfg = task.env_cfg()
-    assert set(cfg.keys()) == {"param1", "param2", "param3"}
-    assert cfg["param1"] == 42
-    assert 0 <= cfg["param2"] < 10 and isinstance(cfg["param2"], int)
-    assert 0.0 <= cfg["param3"] < 1.0 and isinstance(cfg["param3"], float)
-
-
-def test_multi_task_curriculum_completion_rates(env_cfg):
-    # Dummy curriculum that returns a task with env_cfg
-    class DummyCurriculum:
-        def get_task(self):
-            class DummyTask:
-                def env_cfg(self):
-                    return env_cfg
-
-            return DummyTask()
-
-        def complete_task(self, id, score):
-            pass
-
-    curricula = {"a": DummyCurriculum(), "b": DummyCurriculum(), "c": DummyCurriculum()}
-    curr = MultiTaskCurriculum(curricula)
-    # Simulate completions: a, a, b
-    curr.complete_task("a", 1.0)
-    curr.complete_task("a", 1.0)
-    curr.complete_task("b", 1.0)
-    rates = curr.get_completion_rates()
-    # There are 3 completions, so a:2/3, b:1/3, c:0/3
-    assert abs(rates["task_completions/a"] - 2 / 3) < 1e-6
-    assert abs(rates["task_completions/b"] - 1 / 3) < 1e-6
-    assert abs(rates["task_completions/c"] - 0.0) < 1e-6
+# Removed obsolete tests for _expand_buckets, SampledTaskCurriculum, and MultiTaskCurriculum
+# These were removed in the curriculum refactoring that separated TaskTrees from CurriculumAlgorithms
 
 
 # ============================================================================
@@ -805,7 +745,22 @@ def run_curriculum_simulation(
         "final_weights": final_weights,
         "curriculum_stats": curriculum_stats,
         "total_steps": num_steps,
-=======
+        "completion_rates": curriculum.stats().get_total_completions(),
+        "sample_rates": curriculum.stats().get_sample_rates(),
+        "task_probabilities": curriculum.stats().get_task_probabilities(),
+    }
+
+
+def test_range_buckets_divide_into_discrete_bins():
+    """Test that continuous range buckets are divided into discrete bins.
+
+    When using bucketed_task_set with:
+    - One parameter with range [2, 10] divided into 4 bins
+    - Another parameter with range [0.5, 2.0] divided into 3 bins
+    - Expect 4×3 = 12 tasks with values sampled from bin ranges
+    """
+    base_config = OmegaConf.create({"robot": {"gripper_size": 10}, "task": {"object_size": 5, "distance": 1.0}})
+    buckets = {
         "task.object_size": {
             "range": [2, 10],
             "bins": 4,  # Creates [2,4), [4,6), [6,8), [8,10]
@@ -814,10 +769,9 @@ def run_curriculum_simulation(
             "range": [0.5, 2.0],
             "bins": 3,  # Creates [0.5,1.0), [1.0,1.5), [1.5,2.0]
         },
->>>>>>> d980b0cc3 (Make metta clean only operates on files within repo root (#1558))
     }
 
-    tree = parameter_grid_task_set(
+    tree = bucketed_task_set(
         name="test_range_buckets",
         env_cfg_template=base_config,
         buckets=buckets,
@@ -863,7 +817,7 @@ def run_curriculum_simulation(
 def test_env_overrides_apply_uniformly_across_bucketed_tasks():
     """Test that env_overrides parameter applies uniformly to all generated tasks.
 
-    When using parameter_grid_task_set with:
+    When using bucketed_task_set with:
     - Buckets that vary two parameters
     - An env_override that sets a third parameter to a fixed value
     - Expect all tasks to have the override applied while bucketed params vary
@@ -883,7 +837,7 @@ def test_env_overrides_apply_uniformly_across_bucketed_tasks():
     # Override to set episode_length to 60 for all tasks
     env_overrides = OmegaConf.create({"game": {"episode_length": 60}})
 
-    tree = parameter_grid_task_set(
+    tree = bucketed_task_set(
         name="test_overrides",
         env_cfg_template=base_config,
         buckets=buckets,

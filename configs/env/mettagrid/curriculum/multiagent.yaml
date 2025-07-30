@@ -2,11 +2,11 @@ name: multiagent_curriculum
 algorithm: prioritize_regressed
 
 env_paths:
-  /env/mettagrid/multiagent/experiments/boxshare
-  /env/mettagrid/multiagent/experiments/boxy
-  /env/mettagrid/multiagent/experiments/manhatten
-  /env/mettagrid/multiagent/experiments/narrow_world
-  /env/mettagrid/multiagent/experiments/varied_terrain_sparse
-  /env/mettagrid/multiagent/experiments/varied_terrain_balanced
-  /env/mettagrid/multiagent/experiments/varied_terrain_maze
-  /env/mettagrid/multiagent/experiments/varied_terrain_dense
+  - /env/mettagrid/multiagent/experiments/boxshare
+  - /env/mettagrid/multiagent/experiments/boxy
+  - /env/mettagrid/multiagent/experiments/manhatten
+  - /env/mettagrid/multiagent/experiments/narrow_world
+  - /env/mettagrid/multiagent/experiments/varied_terrain_sparse
+  - /env/mettagrid/multiagent/experiments/varied_terrain_balanced
+  - /env/mettagrid/multiagent/experiments/varied_terrain_maze
+  - /env/mettagrid/multiagent/experiments/varied_terrain_dense

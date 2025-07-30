@@ -155,20 +155,17 @@ class MettaTrainer:
         if trainer_cfg.curriculum:
             env_overrides_cfg = DictConfig(trainer_cfg.env_overrides)
             self._curriculum = trainer_cfg.curriculum.create(env_overrides_cfg)
-        elif trainer_cfg.env:
-            # Single env mode - create a simple Curriculum
-            from metta.mettagrid.curriculum import curriculum_from_config_path
-
-            env_overrides_cfg = DictConfig(trainer_cfg.env_overrides)
-            self._curriculum = curriculum_from_config_path(trainer_cfg.env, env_overrides_cfg)
         else:
-            raise ValueError("Either curriculum or env must be set")
+            raise ValueError("Curriculum must be set")
 
         # Add training task to the suite
+        task_config = self._curriculum.sample().env_config
+        # Convert DictConfig to dict for SingleEnvSimulationConfig
+        env_overrides_dict = OmegaConf.to_container(task_config, resolve=False)
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
             num_episodes=1,
-            env_overrides=self._curriculum.sample().env_config,
+            env_overrides=env_overrides_dict,
         )
 
         self._make_vecenv()
@@ -1067,10 +1064,20 @@ class MettaTrainer:
 
         # TODO: relax someday when we support other observation shapes
         try:
-            game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=True)
-
+            # Convert game config to dict, but handle map_builder specially
+            # since it's a Hydra instantiation target that will have methods
+            game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=False)
+            
             if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
                 raise TypeError("env_cfg.game must be a dict with string keys")
+            
+            # Resolve only the fields that PyPolicyGameConfig needs
+            # We don't need map_builder for the policy config
+            if "map_builder" in game_cfg_dict:
+                del game_cfg_dict["map_builder"]
+            
+            # Now resolve the remaining config
+            game_cfg_dict = OmegaConf.to_container(OmegaConf.create(game_cfg_dict), resolve=True)
 
             game_cfg = PyPolicyGameConfig(**game_cfg_dict)  # type: ignore[arg-type]
 

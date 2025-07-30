@@ -164,6 +164,17 @@ class CurriculumConfig(BaseModelWithForbidExtra):
 
         return self
 
+    def to_serializable_dict(self) -> dict:
+        """Convert to a dict suitable for serialization, handling algorithm field specially."""
+        data = self.model_dump(exclude={"algorithm"})
+        
+        # Handle algorithm serialization
+        if self.algorithm is not None:
+            # Use the algorithm_type() method for clean string representation
+            data["algorithm"] = self.algorithm.algorithm_type()
+        
+        return data
+
     def create(self, env_overrides: DictConfig | None = None) -> Curriculum:
         """Create the Curriculum from this configuration.
 

@@ -17,7 +17,7 @@ Contains the base `Curriculum` and `MettaGridTask` classes. MettaGridEnv is the 
 Provides helper functions to construct curricula:
 - `single_task()`: Creates a curriculum with one task
 - `task_set()`: Creates a flat curriculum from multiple tasks
-- `parameter_grid_task_set()`: Generates tasks by varying parameters across a grid
+- `bucketed_task_set()`: Generates tasks by varying parameters across a grid
 
 Typically, we build maps where style and resource density are preserved within tasks, while terrain and placement vary randomly. You can also create highly specific tasks using parameter grids.
 
