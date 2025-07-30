@@ -48,13 +48,6 @@ public:
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
-    // Check if agent moved in the last step - we check here to increment when frozen
-    if (actor->location == actor->prev_location) {
-      actor->stats.incr("status.stationary.ticks");
-    } else {
-      actor->stats.set("status.stationary.ticks", 0.0);
-    }
-
     // Handle frozen status
     if (actor->frozen != 0) {
       actor->stats.incr("status.frozen.ticks");
@@ -76,8 +69,19 @@ public:
     // Execute the action
     bool success = has_needed_resources && _handle_action(actor, arg);
 
+    // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
+    // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
+    if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
+      actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+    }
+    if (actor->location == actor->prev_location) {
+      actor->steps_without_motion += 1;
+    } else {
+      actor->steps_without_motion = 0;
+    }
+
     // Update tracking for this agent
-    actor->prev_action = _action_name;
+    actor->prev_action_name = _action_name;
     actor->prev_location = actor->location;
 
     // Track success/failure
@@ -85,9 +89,8 @@ public:
       actor->stats.incr("action." + _action_name + ".success");
       for (const auto& [item, amount] : _consumed_resources) {
         InventoryDelta delta = actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
-        // We consume resources after the action succeeds, but in the future
-        // we might have an action that uses the resource. This check will
-        // catch that.
+        // We consume resources after the action succeeds, but in the future we might have an action that uses the
+        // resource. This check will catch that.
         assert(delta == -amount);
       }
     } else {
