@@ -221,24 +221,58 @@ function fixReplay() {
     }
   }
 
-  // // The map size is not to be trusted. Recompute the map size just in case.
-  // const oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]]
-  // state.replay.map_size[0] = 1
-  // state.replay.map_size[1] = 1
-  // for (const gridObject of state.replay.objects) {
-  //   const location = getAttr(gridObject, 'location')
-  //   const x = location[0] + 1
-  //   const y = location[1] + 1
-  //   state.replay.map_size[0] = Math.max(state.replay.map_size[0], x)
-  //   state.replay.map_size[1] = Math.max(state.replay.map_size[1], y)
-  // }
-  // if (oldMapSize[0] !== state.replay.map_size[0] || oldMapSize[1] !== state.replay.map_size[1]) {
-  //   // The map size changed, so update the map.
-  //   console.info('Map size changed to: ', state.replay.map_size[0], 'x', state.replay.map_size[1])
-  //   focusFullMap(ui.mapPanel)
-  //   // Force a resize to update the minimap panel.
-  //   onResize()
-  // }
+
+  // Compute gain/loss of for agents.
+  for (const agent of state.replay.agents) {
+    // Gain map exists for the duration of the replay.
+    agent.gainMap = []
+    // Gain map for step 0 is empty.
+    {
+      const inventory = getAttr(agent, 'inventory', 0)
+      const gainMap = new Map<number, number>()
+      if (inventory != null && inventory != 0) {
+        for (const inventoryPair of inventory) {
+          const inventoryId = inventoryPair[0]
+          const inventoryAmount = inventoryPair[1]
+          gainMap.set(inventoryId, inventoryAmount)
+        }
+      }
+      agent.gainMap.push(gainMap)
+    }
+    // We compute the gain map for each step > 1.
+    for (let step = 1; step < state.replay.max_steps; step++) {
+      const inventory = getAttr(agent, 'inventory', step)
+      const prevInventory = getAttr(agent, 'inventory', step - 1)
+      const gainMap = new Map<number, number>()
+      // We add current's frame inventory to the gain map.
+      for (const inventoryPair of inventory) {
+        const inventoryId = inventoryPair[0]
+        const inventoryAmount = inventoryPair[1]
+        if (gainMap.has(inventoryId)) {
+          gainMap.set(inventoryId, gainMap.get(inventoryId)! + inventoryAmount)
+        } else {
+          gainMap.set(inventoryId, inventoryAmount)
+        }
+      }
+      // We subtract previous frame's inventory from the gain map.
+      for (const inventoryPair of prevInventory) {
+        const inventoryId = inventoryPair[0]
+        const inventoryAmount = inventoryPair[1]
+        if (gainMap.has(inventoryId)) {
+          gainMap.set(inventoryId, gainMap.get(inventoryId)! - inventoryAmount)
+        } else {
+          gainMap.set(inventoryId, -inventoryAmount)
+        }
+      }
+      // Clean zeros out of the gain map.
+      for (const [inventoryId, inventoryAmount] of gainMap) {
+        if (inventoryAmount === 0) {
+          gainMap.delete(inventoryId)
+        }
+      }
+      agent.gainMap.push(gainMap)
+    }
+  }
 }
 
 /** Loads a replay from a JSON object. */

@@ -569,24 +569,18 @@ function drawThoughtBubbles() {
       }
 
       // Draw the resources lost on the left and gained on the right.
-      for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, keyActionStep - 1)
-        const nextResources = getAttr(state.selectedGridObject, key, keyActionStep)
-        const gained = nextResources - prevResources
-        let resourceX = x
-        const resourceY = y
-        if (gained > 0) {
-          resourceX += 32
+      let gainX = x + 32
+      let lossX = x - 32
+      const gainMap = getAttr(state.selectedGridObject, 'gainMap', keyActionStep)
+      for (const [inventoryId, inventoryAmount] of gainMap) {
+        const inventoryName = state.replay.item_names[inventoryId]
+        const inventoryImage = `resources/${inventoryName}.png`
+        if (inventoryAmount > 0) {
+          ctx.drawSprite(inventoryImage, gainX, y, [1, 1, 1, 1], 1 / 8, 0)
+          gainX += 8
         } else {
-          resourceX -= 32
-        }
-        for (let i = 0; i < Math.abs(gained); i++) {
-          ctx.drawSprite(image, resourceX, resourceY, color, 1 / 8, 0)
-          if (gained > 0) {
-            resourceX += 8
-          } else {
-            resourceX -= 8
-          }
+          ctx.drawSprite(inventoryImage, lossX, y, [1, 1, 1, 1], 1 / 8, 0)
+          lossX -= 8
         }
       }
     }
