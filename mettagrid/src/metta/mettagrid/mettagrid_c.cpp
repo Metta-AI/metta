@@ -511,9 +511,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   // IMPLEMENT BATTERY HOLDING COUNTER AS WELL AS MAKING SURE PENALTY FOR HOLDING IS UP
   // Go through all agents and increment how_long_blue_battery_held for those holding a blue_battery
   // Check if agent holds at least one blue_battery using the blue_battery_item index
-  if(true){
 
-  }
   if (_blue_battery_item != -1) {
     for (auto& agent : _agents) {
       auto it = agent->inventory.find(_blue_battery_item);
