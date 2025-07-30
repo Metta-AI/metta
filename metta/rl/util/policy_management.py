@@ -350,7 +350,6 @@ def load_or_initialize_policy(
         initial_policy_record = policy_record
         latest_saved_policy_record = policy_record
 
-        logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
         return policy, initial_policy_record, latest_saved_policy_record
 
     # No existing policy found - need to create one with distributed coordination
@@ -395,8 +394,6 @@ def load_or_initialize_policy(
 
         # Synchronize with non-master ranks after saving
         if torch.distributed.is_initialized():
-            logger.info(f"Master rank: Policy saved to {saved_pr.uri}, synchronizing with other ranks")
             torch.distributed.barrier()
 
-    logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
     return policy, initial_policy_record, latest_saved_policy_record
