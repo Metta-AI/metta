@@ -7,6 +7,7 @@ import pandas as pd
 import wandb
 from IPython.display import display
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 
 
@@ -94,8 +95,8 @@ def get_sky_jobs_data() -> pd.DataFrame:
 def monitor_training_statuses(
     run_names: list[str],
     show_metrics: list[str] | None = None,
-    entity: str = "metta-research",
-    project: str = "metta",
+    entity: str = METTA_WANDB_ENTITY,
+    project: str = METTA_WANDB_PROJECT,
 ) -> pd.DataFrame:
     if show_metrics is None:
         show_metrics = ["_step", "overview/reward"]

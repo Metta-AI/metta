@@ -5,11 +5,12 @@ import logging
 
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.eval.dashboard_data import DashboardConfig, write_dashboard_data
 from metta.mettagrid.util.file import http_url
 from metta.util.metta_script import metta_script
 
-DASHBOARD_URL = "https://metta-ai.github.io/metta/observatory/"
+DASHBOARD_URL = f"{METTASCOPE_REPLAY_URL}/observatory/"
 
 
 logger = logging.getLogger("dashboard")

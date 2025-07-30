@@ -73,22 +73,36 @@ releases:
   ########## Skypilot ##########
   - name: skypilot
     chart: ./skypilot
-    version: 0.0.7
+    version: 0.0.8
     namespace: skypilot
     values:
       - apiService:
           config: |
             jobs:
               bucket: s3://skypilot-jobs/
+          resources:
+            requests:
+              cpu: "8"
+              memory: "16Gi"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
         awsCredentials:
           enabled: true
         ingress:
-          # created by terraform
-          authSecret: skypilot-basic-auth
           certManager:
             clusterIssuer: letsencrypt
             enabled: true
           host: skypilot-api.softmax-research.net
+          oauth2-proxy:
+            enabled: true
+            oidc-issuer-url: https://accounts.google.com
+            use-https: true
+            email-domain: stem.ai,softmax.com
+            # This secret must be created manually.
+            # (it's not possible to automate it because it's not possible to terraform oauth clients in GCP)
+            client-details-from-secret: skypilot-oauth2-proxy-details
+        # managed as a separate chart, see above
         ingress-nginx:
           enabled: false
         lambdaCredentials:

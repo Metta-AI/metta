@@ -8,6 +8,7 @@ import sky
 import sky.exceptions
 import yaml
 
+from devops.skypilot.utils import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.cost_monitor import get_instance_cost
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
@@ -139,7 +140,7 @@ def main():
     region = resources.get("region", "us-east-1")
 
     # Parse GPU type from the config (e.g., "L4:1" -> "L4")
-    accelerators_str = resources.get("accelerators", "L4:1")
+    accelerators_str = resources.get("accelerators", "A10G:1")
     gpu_type = accelerators_str.split(":")[0]
 
     # Get instance type and calculate cost
@@ -155,12 +156,20 @@ def main():
 
     with spinner("Preparing task configuration", style=cyan):
         task = sky.Task.from_yaml(config_path)
+        set_task_secrets(task)
         task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
         time.sleep(1)
 
     print("\n⏳ This will take a few minutes...")
 
     try:
+        sky_info = sky.api_info()
+        if sky_info["status"] == "healthy" and sky_info["user"] is None:
+            print(red("✗ You are not authenticated with SkyPilot."))
+            print(f"  {green('metta install skypilot')}")
+            print("to authenticate before launching a sandbox.")
+            return
+
         request_id = sky.launch(
             task,
             cluster_name=cluster_name,

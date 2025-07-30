@@ -77,6 +77,13 @@ class HeatmapRequest(BaseModel):
     metric: str
 
 
+class TrainingRunHeatmapRequest(BaseModel):
+    """Request body for generating training run heatmap with ALL policies."""
+
+    eval_names: List[str]
+    metric: str
+
+
 class HeatmapCell(BaseModel):
     """Single cell in the policy heatmap grid."""
 
@@ -510,6 +517,31 @@ def create_policy_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
                 return build_policy_heatmap(selected_evaluations, request.eval_names)
             else:
                 # No evaluations found at all - return empty heatmap
+                return HeatmapData(
+                    evalNames=[],
+                    policyNames=[],
+                    cells={},
+                    policyAverageScores={},
+                    evalAverageScores={},
+                    evalMaxScores={},
+                )
+
+    @router.post("/training-run/{run_id}")
+    @timed_route("generate_training_run_heatmap")
+    async def generate_training_run_heatmap(run_id: str, request: TrainingRunHeatmapRequest) -> HeatmapData:
+        """Generate heatmap data for a specific training run showing ALL policies."""
+        if not request.eval_names or not request.metric:
+            raise HTTPException(status_code=400, detail="Missing required parameters")
+
+        async with metta_repo.connect() as con:
+            # Fetch evaluation data for this specific training run
+            evaluations = await fetch_policy_heatmap_data(con, [run_id], [], request.eval_names, request.metric)
+
+            # Build heatmap with ALL policies (no policy selection)
+            if evaluations:
+                return build_policy_heatmap(evaluations, request.eval_names)
+            else:
+                # No evaluations found - return empty heatmap
                 return HeatmapData(
                     evalNames=[],
                     policyNames=[],

@@ -78,7 +78,7 @@ jobs:
       - name: Check format and lint
         run: |
           cd mettascope
-          pnpm run check
+          pnpm run lint
 
       - name: Run training
         run: |
