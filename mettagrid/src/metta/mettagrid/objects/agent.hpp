@@ -95,7 +95,7 @@ public:
         stats(),  // default constructor
         current_stat_reward(0),
         reward(nullptr),
-        prev_location(),
+        prev_location(r, c, GridLayer::AgentLayer),
         prev_action("") {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
