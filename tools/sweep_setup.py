@@ -1,5 +1,26 @@
 #!/usr/bin/env -S uv run
 
+"""Setup and initialize a hyperparameter optimization sweep.
+
+This tool sets up the initial state for a distributed hyperparameter sweep:
+1. Creates or verifies WandB sweep exists
+2. Registers sweep in centralized coordination database
+3. Creates local directory structure and metadata files
+
+Backend URL Configuration:
+- By default, uses stats_server_uri from your Hydra config (e.g., from common.yaml)
+- Production: stats_server_uri: https://api.observatory.softmax-research.net
+- Local development: stats_server_uri: http://localhost:8000
+- Authentication uses machine tokens from ~/.metta/observatory_tokens.yaml
+
+Example usage:
+  # Use production backend (default from common.yaml)
+  uv run python tools/sweep_setup.py sweep_name=my_sweep
+
+  # Override to use local backend
+  uv run python tools/sweep_setup.py sweep_name=my_sweep stats_server_uri=http://localhost:8000
+"""
+
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
 import logging
 import sys
@@ -15,8 +36,9 @@ from logging import Logger
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from cogweb.cogweb_client import CogwebClient
 from metta.common.util.lock import run_once
-from metta.sweep.wandb_utils import create_wandb_sweep, sweep_id_from_name
+from metta.sweep.wandb_utils import create_wandb_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -35,22 +57,27 @@ def main(cfg: DictConfig) -> int:
 def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     Create a new sweep with the given name. If the sweep already exists, skip creation.
-    Save the sweep configuration to sweep_dir/config.yaml.
+    Save the sweep configuration to sweep_dir/metadata.yaml.
     """
     # Check if sweep already exists
-    wandb_sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, cfg.sweep_name)
+    backend_url = cfg.sweep_server_uri
+    cogweb_client = CogwebClient.get_client(base_url=backend_url)
+    sweep_client = cogweb_client.sweep_client()
 
-    if wandb_sweep_id is not None:
-        logger.info(f"Sweep already exists in WandB, skipping creation for: {cfg.sweep_name}")
+    # Get sweep info and extract wandb_sweep_id if it exists
+    sweep_info = sweep_client.get_sweep(cfg.sweep_name)
+    wandb_sweep_id = sweep_info.wandb_sweep_id if sweep_info.exists else None
 
-    else:
-        logger.info(f"Creating new WandB sweep: {cfg.sweep_name}: {cfg.sweep_dir}")
-
-        # Create sweep using static methods from protein_wandb (Protein will control all parameters)
+    # The sweep hasn't been registered with the centralized DB
+    if wandb_sweep_id is None:
+        # Create the sweep in WandB
         wandb_sweep_id = create_wandb_sweep(cfg.sweep_name, cfg.wandb.entity, cfg.wandb.project)
+        # Register the sweep in the centralized DB
+        sweep_client.create_sweep(cfg.sweep_name, cfg.wandb.project, cfg.wandb.entity, wandb_sweep_id)
 
     # Save sweep metadata locally
     # in join(cfg.sweep_dir, "metadata.yaml"
+    # Creating runs_dir creates the sweep_dir
     os.makedirs(cfg.runs_dir, exist_ok=True)
     OmegaConf.save(
         {
