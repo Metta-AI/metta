@@ -55,6 +55,12 @@ class K8sPodManager(AbstractContainerManager):
                             {"name": "WANDB_API_KEY", "value": self._wandb_api_key},
                             {"name": "MACHINE_TOKEN", "value": machine_token},
                         ],
+                        "resources": {
+                            "requests": {
+                                "cpu": "3",
+                                "memory": "1Gi",
+                            },
+                        },
                     }
                 ],
             },
