@@ -3,6 +3,7 @@ import type { HoverBubble } from './hoverbubbles.js'
 import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
+import { Heatmap } from './heatmap.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
@@ -101,6 +102,7 @@ export const state = {
   replay: null as any,
   selectedGridObject: null as any,
   followSelection: false, // Flag to follow the selected entity.
+  heatmap: null as Heatmap | null,
 
   // Playback state
   step: 0,

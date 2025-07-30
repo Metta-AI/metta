@@ -30,6 +30,7 @@ import { initializeTooltips } from './tooltips.js'
 import { drawTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
+import { Heatmap } from './heatmap.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
@@ -454,6 +455,12 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
     updateTimeline()
   }
   updateAgentTable()
+
+  // Update heatmap for the current step.
+  if (state.heatmap && state.replay) {
+    state.heatmap.updateFromGameState(state.step, state.replay.grid_objects)
+  }
+
   requestFrame()
 }
 
@@ -744,6 +751,19 @@ async function parseUrlParams() {
   if (replayUrl) {
     console.info('Loading replay from URL: ', replayUrl)
     await fetchReplay(replayUrl)
+
+        // Initialize heatmap after replay is loaded.
+    if (state.replay) {
+      state.heatmap = new Heatmap(
+        state.replay.map_size[0],
+        state.replay.map_size[1],
+        state.replay.max_steps
+      )
+      if (state.heatmap) {
+        console.info('Heatmap initialized:', state.heatmap.getDimensions())
+      }
+    }
+
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
     Common.showModal('info', 'Connecting to a websocket', 'Please wait a few seconds for the environment to load.')
