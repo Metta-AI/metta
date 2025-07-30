@@ -386,48 +386,6 @@ class SkypilotService:
 
         return total_hours
 
-    def _estimate_job_cost(
-        self, resources: str, duration_hours: float, spot: bool = True
-    ) -> float:
-        """Estimate job cost based on resources and duration."""
-        if not resources or resources == "-":
-            return 0.0
-
-        # Basic GPU pricing (rough estimates in $/hour)
-        gpu_prices = {
-            "V100": 3.06,
-            "A100": 5.12,
-            "A100-40GB": 5.12,
-            "A100-80GB": 8.00,
-            "T4": 0.526,
-            "A10G": 1.212,
-            "H100": 10.00,
-        }
-
-        # Apply spot discount
-        spot_discount = 0.5 if spot else 1.0
-
-        # Parse resource string (e.g., "1x A100:8" means 1 node with 8 A100s)
-        match = re.match(r"(\d+)x\s*([^:]+):(\d+)", resources)
-        if match:
-            nodes = int(match.group(1))
-            gpu_type = match.group(2).strip()
-            gpus_per_node = int(match.group(3))
-
-            # Find matching GPU price
-            gpu_price = 0.0
-            for gpu_name, price in gpu_prices.items():
-                if gpu_name in gpu_type:
-                    gpu_price = price
-                    break
-
-            # Calculate total cost
-            total_gpus = nodes * gpus_per_node
-            cost_per_hour = total_gpus * gpu_price * spot_discount
-            return cost_per_hour * duration_hours
-
-        return 0.0
-
     def get_job_status_by_name(self, run_name: str) -> Optional[str]:
         """Get the sky job status for a run by name.
 
@@ -519,7 +477,6 @@ class SkypilotService:
         show_metrics: Optional[List[str]] = None,
         entity: str = "metta-research",
         project: str = "metta",
-        include_costs: bool = True,
     ) -> pd.DataFrame:
         """Get combined status for training runs.
 
@@ -529,7 +486,6 @@ class SkypilotService:
             show_metrics: Metrics to include in status
             entity: Wandb entity
             project: Wandb project
-            include_costs: Whether to include cost information
 
         Returns:
             DataFrame with combined status information
@@ -555,8 +511,6 @@ class SkypilotService:
             if not sky_status.empty:
                 # Select columns to merge
                 merge_cols = ["ID", "STATUS", "JOB DURATION"]
-                if include_costs and "EST_COST" in sky_status.columns:
-                    merge_cols.append("EST_COST")
 
                 # Merge on job ID
                 wandb_status = wandb_status.merge(
@@ -568,13 +522,9 @@ class SkypilotService:
                 )
                 wandb_status["sky_status"] = wandb_status["STATUS"]
                 wandb_status["sky_duration"] = wandb_status["JOB DURATION"]
-                if include_costs and "EST_COST" in wandb_status.columns:
-                    wandb_status["cost"] = wandb_status["EST_COST"]
 
                 # Drop merged columns
                 cols_to_drop = ["ID", "STATUS", "JOB DURATION"]
-                if "EST_COST" in wandb_status.columns:
-                    cols_to_drop.append("EST_COST")
                 wandb_status = wandb_status.drop(columns=cols_to_drop)
 
         return wandb_status

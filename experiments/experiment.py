@@ -9,7 +9,6 @@ import logging
 
 from experiments.skypilot_service import get_skypilot_service
 from experiments.training_job import TrainingJob, TrainingJobConfig
-from experiments.notebooks.notebook import write_notebook, NotebookConfig
 from metta.common.util.config import Config
 from pydantic import Field
 
@@ -21,13 +20,10 @@ class ExperimentConfig(Config):
     user: Optional[str] = None
     launch: bool = False
     previous_job_ids: Optional[List[str]] = None
-    output_dir: Optional[str] = Field(
-        default=None,
-        description="Directory to save notebook, None to skip notebook generation",
-    )
-    notebook: Optional[NotebookConfig] = Field(
-        default_factory=lambda: NotebookConfig(simplified=True)
-    )
+    # output_dir: Optional[str] = Field(
+    #     default=None,
+    #     description="Directory to save notebook, None to skip notebook generation",
+    # )
 
 
 class SingleJobExperimentConfig(ExperimentConfig, TrainingJobConfig):
@@ -64,13 +60,8 @@ class Experiment(ABC):
         """Run the experiment and return the notebook path if generated."""
         self.load_or_launch_training_jobs()
 
-        # Only generate notebook if output_dir is specified
-        if self.config.output_dir is not None:
-            return self.generate_notebook()
-        else:
-            log = logging.getLogger(__name__)
-            log.info("Skipping notebook generation (output_dir is None)")
-            return None
+        # TODO: Generate notebook
+        return None
 
     def load_training_jobs(self) -> List[TrainingJob]:
         """Load training jobs from previous job IDs."""
@@ -138,47 +129,6 @@ class Experiment(ABC):
             self._training_job_configs = list(self.training_job_configs)
             self.launched_training_jobs = []
 
-    def generate_notebook(self) -> str:
-        """Generate a notebook and return its path."""
-        log = logging.getLogger(__name__)
-
-        # Convert NotebookConfig to sections list
-        sections = []
-        if self.config.notebook:
-            nb_config = self.config.notebook
-            if nb_config.simplified:
-                # Simplified notebook with just config & monitor
-                sections = ["setup", "state", "config", "monitor"]
-            else:
-                # Full notebook with all requested sections
-                if nb_config.setup:
-                    sections.append("setup")
-                if nb_config.state:
-                    sections.append("state")
-                if nb_config.launch:
-                    sections.append("launch")
-                if nb_config.monitor:
-                    sections.append("monitor")
-                if nb_config.analysis:
-                    sections.append("analysis")
-                if nb_config.replays:
-                    sections.append("replays")
-                if nb_config.scratch:
-                    sections.append("scratch")
-                if nb_config.export:
-                    sections.append("export")
-
-        notebook_path = write_notebook(
-            user=self.user,
-            name=self.name,
-            launched_jobs=self.launched_training_jobs,
-            training_job_configs=self._training_job_configs,
-            output_dir=self.config.output_dir,
-            sections=sections if sections else None,
-        )
-
-        print(f"Notebook saved to: {notebook_path}")
-        return notebook_path
 
 
 class SingleJobExperiment(Experiment):

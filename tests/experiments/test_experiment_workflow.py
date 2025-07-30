@@ -3,7 +3,6 @@
 from unittest.mock import Mock, patch
 
 from experiments.experiment import SingleJobExperiment, SingleJobExperimentConfig
-from experiments.notebooks.notebook import NotebookConfig, AnalysisConfig
 from experiments.training_job import TrainingJob, TrainingJobConfig
 
 
@@ -130,31 +129,6 @@ class TestExperimentWorkflow:
         assert job.job_id == "sky-previous-123"
         assert job.name == "user.loaded.run"
 
-    @patch("experiments.experiment.write_notebook")
-    def test_notebook_generation(self, mock_write_notebook):
-        """Test that notebook generation is called with correct parameters."""
-        mock_write_notebook.return_value = "/tmp/test_notebook.ipynb"
-
-        config = SingleJobExperimentConfig(
-            name="notebook_test", launch=False, previous_job_ids=["sky-123"], output_dir="/tmp/notebooks"
-        )
-
-        experiment = SingleJobExperiment(config)
-        experiment.unlaunched_training_jobs = []
-        experiment.launched_training_jobs = [TrainingJob(name="test.run", config=TrainingJobConfig())]
-
-        experiment.generate_notebook()
-
-        # Just verify the key parameters without being too specific about section order
-        mock_write_notebook.assert_called_once()
-        call_args = mock_write_notebook.call_args[1]
-        assert call_args["user"] == experiment.user
-        assert call_args["name"] == "notebook_test"
-        assert call_args["launched_jobs"] == experiment.launched_training_jobs
-        assert call_args["training_job_configs"] == []
-        assert call_args["output_dir"] == "/tmp/notebooks"
-        # Don't test exact section order - that's an implementation detail
-
     def test_training_job_config_additional_args(self):
         """Test that additional args are properly passed to launch command."""
         job = TrainingJob(
@@ -169,41 +143,3 @@ class TestExperimentWorkflow:
         assert job.config.get_arg_value("trainer.batch_size") == "32"
         assert job.config.get_arg_value("nonexistent") is None
 
-    @patch("experiments.experiment.write_notebook")
-    def test_notebook_config_sections(self, mock_write_notebook):
-        """Test that NotebookConfig correctly controls which sections are included."""
-        mock_write_notebook.return_value = "/tmp/test_notebook.ipynb"
-
-        # Create config with specific notebook sections enabled
-        notebook_config = NotebookConfig(
-            setup=True,
-            state=False,
-            launch=True,
-            monitor=False,
-            analysis=True,
-            analysis_config=AnalysisConfig(sps=True),
-            replays=False,
-            scratch=False,
-            export=True,
-        )
-
-        config = SingleJobExperimentConfig(
-            name="notebook_config_test", launch=False, previous_job_ids=["sky-123"], notebook=notebook_config
-        )
-
-        experiment = SingleJobExperiment(config)
-        experiment.unlaunched_training_jobs = []
-        experiment.launched_training_jobs = []
-
-        experiment.generate_notebook()
-
-        # Verify write_notebook was called with correct sections
-        mock_write_notebook.assert_called_once()
-        call_args = mock_write_notebook.call_args
-        sections = call_args.kwargs["sections"]
-
-        assert sections == ["setup", "launch", "analysis", "export"]
-        assert "state" not in sections
-        assert "monitor" not in sections
-        assert "replays" not in sections
-        assert "scratch" not in sections

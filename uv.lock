@@ -671,6 +671,12 @@ wheels = [
 name = "experiments"
 version = "0.1.0"
 source = { editable = "experiments" }
+dependencies = [
+    { name = "pydantic-settings" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic-settings", specifier = ">=2.6.1" }]
 
 [[package]]
 name = "farama-notifications"
