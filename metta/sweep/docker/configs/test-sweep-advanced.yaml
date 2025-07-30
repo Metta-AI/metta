@@ -1,0 +1,72 @@
+# Advanced distributed sweep test configuration with stress testing
+defaults:
+  - test-sweep-intermediate
+
+# Override for advanced testing
+sweep_name: test_advanced_distributed
+
+# Complex trainer settings that stress the system
+trainer:
+  total_timesteps: 10000
+  batch_size: 2048
+  minibatch_size: 256
+  bptt_horizon: 32
+  checkpoint_interval: 1000
+
+sim:
+  num_envs: 16
+  num_episodes: 5
+  max_time_s: 300
+
+sweep:
+  parameters:
+    trainer:
+      learning_rate:
+        min: 0.00001
+        max: 0.1
+      batch_size:
+        values: [512, 1024, 2048, 4096]
+      minibatch_size:
+        values: [64, 128, 256, 512]
+      bptt_horizon:
+        values: [16, 32, 64]
+
+# Test configuration - stress testing
+test:
+  max_rollouts: 10
+  timeout_per_rollout: 1200 # 20 minutes
+  expected_success_rate: 0.6
+  test_protein_optimization: true
+  test_checkpoint_recovery: true
+  test_failure_recovery: true
+  test_concurrent_rollouts: true
+  stress_test_ports: true
+  stress_test_memory: true
+
+# Distributed stress test settings
+distributed:
+  world_size: 2
+  expected_ranks: [0, 1]
+  sync_timeout: 120
+  port_range: [29500, 29520]
+  test_port_conflicts: true
+  test_process_group_recovery: true
+
+# Success criteria - more lenient for stress testing
+success_criteria:
+  min_rollouts_completed: 5
+  max_failures_allowed: 5
+  max_hang_time_seconds: 600
+  allow_some_failures: true
+  required_log_patterns:
+    - "Training completed"
+    - "Evaluation results"
+    - "Rollout completed successfully"
+    - "Protein suggestion applied"
+    - "Checkpoint saved"
+    - "Process group cleanup"
+  # More tolerant of stress test artifacts
+  warning_log_patterns:
+    - "Retrying after failure"
+    - "Port conflict detected"
+    - "Process group reinitialized"

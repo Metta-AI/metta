@@ -1,0 +1,128 @@
+services:
+  # Master node (rank 0)
+  sweep-master:
+    build:
+      context: ../../../
+      dockerfile: metta/sweep/docker/Dockerfile
+      target: test
+    hostname: sweep-master
+    container_name: metta-sweep-master
+    user: metta
+    environment:
+      - WORLD_SIZE=2
+      - RANK=0
+      - LOCAL_RANK=0
+      - MASTER_ADDR=sweep-master
+      - MASTER_PORT=29500
+      - NODE_INDEX=0
+      - DIST_URL=tcp://sweep-master:29500
+      - PYTHONPATH=/home/metta/metta
+      - TEST_MODE=master
+    volumes:
+      # SkyPilot-style credential mounting
+      - ~/.netrc:/home/metta/.netrc:ro
+      - ~/.metta:/home/metta/.metta:ro
+      - ~/.config:/home/metta/.config:ro
+      - ~/.ssh:/home/metta/.ssh:ro
+      - ~/.aws:/home/metta/.aws:ro
+      # Code and data mounts
+      - ../../../:/home/metta/metta-src:rw
+      - ../../../:/home/metta/metta:rw
+      - sweep-test-results:/home/metta/test-results
+      - sweep-test-cache:/home/metta/.cache
+    ports:
+      - "29500:29500" # PyTorch distributed
+      - "8008:8008" # Training port
+      - "2222:22" # SSH
+    networks:
+      - sweep-test-net
+    shm_size: "2gb"
+    command:
+      [
+        "/bin/bash",
+        "-c",
+        "/home/metta/metta/metta/sweep/docker/scripts/start-test-env.sh && tail -f /dev/null",
+      ]
+
+  # Worker node (rank 1)
+  sweep-worker:
+    build:
+      context: ../../../
+      dockerfile: metta/sweep/docker/Dockerfile
+      target: test
+    hostname: sweep-worker
+    container_name: metta-sweep-worker
+    user: metta
+    environment:
+      - WORLD_SIZE=2
+      - RANK=1
+      - LOCAL_RANK=0
+      - MASTER_ADDR=sweep-master
+      - MASTER_PORT=29500
+      - NODE_INDEX=1
+      - DIST_URL=tcp://sweep-master:29500
+      - PYTHONPATH=/home/metta/metta
+      - TEST_MODE=worker
+    volumes:
+      # SkyPilot-style credential mounting
+      - ~/.netrc:/home/metta/.netrc:ro
+      - ~/.metta:/home/metta/.metta:ro
+      - ~/.config:/home/metta/.config:ro
+      - ~/.ssh:/home/metta/.ssh:ro
+      - ~/.aws:/home/metta/.aws:ro
+      # Code and data mounts
+      - ../../../:/home/metta/metta-src:rw
+      - ../../../:/home/metta/metta:rw
+      - sweep-test-results:/home/metta/test-results
+      - sweep-test-cache:/home/metta/.cache
+    ports:
+      - "2223:22" # SSH
+    networks:
+      - sweep-test-net
+    depends_on:
+      - sweep-master
+    shm_size: "2gb"
+    command:
+      [
+        "/bin/bash",
+        "-c",
+        "/home/metta/metta/metta/sweep/docker/scripts/start-test-env.sh && tail -f /dev/null",
+      ]
+
+  # Dummy API server for testing
+  dummy-api:
+    build:
+      context: ../../../
+      dockerfile: metta/sweep/docker/Dockerfile
+      target: test
+    hostname: dummy-api
+    container_name: metta-dummy-api
+    user: metta
+    environment:
+      - PYTHONPATH=/home/metta/metta
+    volumes:
+      - ../../../:/home/metta/metta:rw
+    ports:
+      - "8080:8080" # Observatory API
+      - "8081:8081" # Cogweb API
+    networks:
+      - sweep-test-net
+    command:
+      [
+        "/bin/bash",
+        "-c",
+        "cd /home/metta/metta && source .venv/bin/activate && python /home/metta/metta/metta/sweep/docker/scripts/dummy-api-server.py",
+      ]
+
+volumes:
+  sweep-test-results:
+    driver: local
+  sweep-test-cache:
+    driver: local
+
+networks:
+  sweep-test-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

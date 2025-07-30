@@ -1,0 +1,50 @@
+# Intermediate distributed sweep test configuration
+defaults:
+  - test-sweep-basic
+
+# Override for intermediate testing
+sweep_name: test_intermediate_distributed
+
+# More complex trainer settings
+trainer:
+  total_timesteps: 5000 # Longer training
+  batch_size: 512
+  minibatch_size: 64
+  bptt_horizon: 16
+  checkpoint_interval: 500
+
+sim:
+  num_envs: 8
+  num_episodes: 3
+  max_time_s: 120
+
+sweep:
+  parameters:
+    trainer:
+      learning_rate:
+        min: 0.0001
+        max: 0.01
+      batch_size:
+        values: [256, 512, 1024]
+      minibatch_size:
+        values: [32, 64, 128]
+
+# Test configuration
+test:
+  max_rollouts: 5
+  timeout_per_rollout: 600 # 10 minutes
+  expected_success_rate: 0.7
+  test_protein_optimization: true
+  test_checkpoint_recovery: true
+
+# Success criteria
+success_criteria:
+  min_rollouts_completed: 3
+  max_failures_allowed: 2
+  max_hang_time_seconds: 300
+  required_log_patterns:
+    - "Training completed"
+    - "Evaluation results"
+    - "Rollout completed successfully"
+    - "Protein suggestion applied"
+    - "Checkpoint saved"
