@@ -102,7 +102,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       // }
       // const std::string& box_type_name = "box";
 
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config)); //, box_type_id, box_type_name, _blue_battery_item
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config, _blue_battery_item)); //, box_type_id, box_type_name, _blue_battery_item
     } else if (action_name_str == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config, _blue_battery_item));
     } else if (action_name_str == "noop") {
