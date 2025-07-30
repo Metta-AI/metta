@@ -6,13 +6,13 @@ from typing import Any, Dict, Tuple
 import torch
 
 from metta.common.profiling.stopwatch import Stopwatch
+from metta.rich_progress import log_rich_progress, should_use_rich_console
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
+from metta.rl.ppo import ppo
 from metta.rl.rollout import rollout
-from metta.rl.train import train_ppo
 from metta.rl.trainer_config import TrainerConfig
-from metta.rich_progress import log_rich_progress, should_use_rich_console
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ def run_training_epoch(
 
     # Training phase
     with timer("_train"):
-        epochs_trained = train_ppo(
+        epochs_trained = ppo(
             policy=policy,
             optimizer=optimizer,
             experience=experience,
