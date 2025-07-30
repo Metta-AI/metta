@@ -4,10 +4,64 @@ from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget imp
     HeatmapWidget,
     create_heatmap_widget,
 )
+from metta.app_backend.clients.scorecard_client import ScorecardClient
 from metta.app_backend.routes.heatmap_routes import HeatmapData
-from metta.app_backend.scorecard_client import ScorecardClient
 from metta.setup.utils import info, warning
 from typing_extensions import Literal
+
+
+async def get_available_metrics(
+    client: ScorecardClient,
+    search_texts: List[str] = [],
+    include_run_free_policies: bool = False,
+) -> List[str]:
+    """
+    Get available metrics for the given search texts without generating a heatmap.
+    Useful for exploring what metrics are available before calling fetch_real_heatmap_data.
+
+    Args:
+        client: ScorecardClient instance
+        search_texts: List of search texts to use to find training runs
+        include_run_free_policies: Whether to include run-free policies
+
+    Returns:
+        List of available metric names
+    """
+    # Find training run IDs that match our training run names
+    training_run_ids = []
+    run_free_policy_ids = []
+    if search_texts:
+        for search_text in search_texts:
+            policies_data = await client.get_policies(
+                search_text=search_text, page_size=100
+            )
+            for policy in policies_data.policies:
+                if policy.type == "training_run" and search_text in policy.name:
+                    training_run_ids.append(policy.id)
+                elif policy.type == "policy" and include_run_free_policies:
+                    run_free_policy_ids.append(policy.id)
+    else:
+        raise Exception(
+            "No search_texts provided. Please provide at least one so we can search for policies."
+        )
+
+    if not training_run_ids:
+        raise Exception(f"No training runs found matching: {search_texts}.")
+
+    # Get available evaluations for these training runs
+    eval_names = await client.get_eval_names(training_run_ids, run_free_policy_ids)
+
+    if not eval_names:
+        warning("No evaluations found for selected training runs")
+        return []
+
+    # Get available metrics
+    available_metrics = await client.get_available_metrics(
+        training_run_ids, run_free_policy_ids, [x[0] for x in eval_names]
+    )
+    print(eval_names)
+
+    return sorted(available_metrics)
 
 
 async def fetch_real_heatmap_data(
@@ -62,6 +116,7 @@ async def fetch_real_heatmap_data(
 
     # Step 2: Get available evaluations for these training runs
     eval_names = await client.get_eval_names(training_run_ids, run_free_policy_ids)
+
     if not eval_names:
         warning("No evaluations found for selected training runs")
         raise Exception("No evaluations found for selected training runs")
@@ -69,7 +124,7 @@ async def fetch_real_heatmap_data(
 
     # Step 3: Get available metrics
     available_metrics = await client.get_available_metrics(
-        training_run_ids, run_free_policy_ids, list(eval_names.keys())
+        training_run_ids, run_free_policy_ids, [x[0] for x in eval_names]
     )
     if not available_metrics:
         warning("No metrics found")
@@ -78,16 +133,20 @@ async def fetch_real_heatmap_data(
     # Filter to requested metrics that actually exist
     valid_metrics = [m for m in metrics if m in available_metrics]
     if not valid_metrics:
+        info(f"Available metrics: {sorted(available_metrics)}")
         warning(f"None of the requested metrics {metrics} are available")
-        raise Exception(f"None of the requested metrics {metrics} are available")
+        warning(f"Available metrics are: {sorted(available_metrics)}")
+        raise Exception(
+            f"None of the requested metrics {metrics} are available. Available metrics: {sorted(available_metrics)}"
+        )
 
     # Step 4: Generate heatmap for the first metric
     primary_metric = valid_metrics[0]
-    keys = eval_names
+    keys = [x[0] for x in eval_names]
     heatmap_data: HeatmapData = await client.generate_heatmap(
         training_run_ids=training_run_ids,
         run_free_policy_ids=[],
-        eval_names=list(keys),
+        eval_names=keys,
         metric=primary_metric,
         policy_selector=policy_selector,
     )
