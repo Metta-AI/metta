@@ -10,7 +10,7 @@ sampling: 1
 
 game:
   num_agents: 24
-  max_steps: 500
+  max_steps: 50
   agent:
     default_resource_limit: 1
     rewards:
@@ -25,8 +25,8 @@ game:
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
-    width: 6
-    height: 6
+    width: 8
+    height: 8
 
     root:
       type: metta.map.scenes.random.Random
