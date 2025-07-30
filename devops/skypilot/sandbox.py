@@ -162,7 +162,7 @@ def main():
     region = resources.get("region", "us-east-1")
 
     # Parse GPU type from the config (e.g., "L4:1" -> "L4")
-    accelerators_str = resources.get("accelerators", "A10G:1")
+    accelerators_str = resources.get("accelerators", "L4:1")
     gpu_type = accelerators_str.split(":")[0]
 
     # Get instance type and calculate cost

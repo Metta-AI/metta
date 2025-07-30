@@ -227,7 +227,7 @@ def set_task_secrets(task: sky.Task) -> None:
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
-    task.update_envs(
+    task.update_secrets(
         dict(
             WANDB_PASSWORD=wandb_password,
             OBSERVATORY_TOKEN=observatory_token,
