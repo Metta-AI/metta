@@ -152,13 +152,10 @@ class CheckpointManager:
         Returns:
             True if checkpoint was saved, False otherwise
         """
-        # Check if we should save based on interval
+        # Combined check: save only if (forced OR at interval) AND is master
         checkpoint_interval = self.trainer_cfg.checkpoint.checkpoint_interval
-        if not force and checkpoint_interval and epoch % checkpoint_interval != 0:
-            return False
-
-        # Only master saves checkpoint state
-        if not self.is_master:
+        should_save = force or (checkpoint_interval and epoch % checkpoint_interval == 0)
+        if not should_save or not self.is_master:
             return False
 
         logger.info(f"Saving checkpoint at epoch {epoch}")
