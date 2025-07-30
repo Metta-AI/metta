@@ -40,7 +40,7 @@ from .policy_management import (
 from .rollout import get_lstm_config, get_observation, run_policy_inference
 
 # Statistics and metrics
-from .stats import (
+from metta.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
     compute_timing_stats,
