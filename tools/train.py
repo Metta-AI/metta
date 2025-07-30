@@ -79,7 +79,9 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     cfg = validate_train_job_config(cfg)
     logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
-    if os.environ.get("RANK", "0") == "0":
+    is_master = os.environ.get("RANK", "0") == "0"
+
+    if is_master:
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
     train_job = TrainJob(cfg.train_job)
@@ -91,7 +93,11 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
+    if is_master:
+        policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
+    else:
+        policy_store = None
+
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client is not None:
         stats_client.validate_authenticated()

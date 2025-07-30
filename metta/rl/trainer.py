@@ -21,11 +21,11 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
@@ -35,7 +35,6 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
@@ -91,7 +90,7 @@ class MettaTrainer:
         self,
         cfg: DictConfig,
         wandb_run: WandbRun | None,
-        policy_store: PolicyStore,
+        policy_store: PolicyStore | None,
         sim_suite_config: SimulationSuiteConfig,
         stats_client: StatsClient | None,
         **kwargs: Any,
@@ -182,15 +181,22 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        self.policy, self.initial_policy_record, self.latest_saved_policy_record = load_or_initialize_policy(
-            self.cfg,
-            checkpoint,
-            policy_store,
-            metta_grid_env,
-            self.device,
-            self._master,
-            self._rank,
-        )
+        # At this point we want to load the policy on the master rank and just initialize a random policy
+        # on the other ranks.
+        self.policy, self.initial_policy_record, self.latest_saved_policy_record = None, None, None
+        if self._master:
+            # we only load all these things on master
+            self.policy, self.initial_policy_record, self.latest_saved_policy_record = load_or_initialize_policy(
+                self.cfg,
+                self.policy_store,
+                metta_grid_env,
+                self.device,
+            )
+
+        # We have to make sure the initial and latest saved policy records are the same on all ranks.
+        self.policy = get_from_master(self.policy)
+        self.initial_policy_record = get_from_master(self.initial_policy_record)
+        self.latest_saved_policy_record = get_from_master(self.latest_saved_policy_record)
 
         if self._master:
             self._log_master(f"MettaTrainer loaded: {self.policy}")
@@ -199,12 +205,14 @@ class MettaTrainer:
             self._log_master("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(
-            trainer_cfg.kickstart,
-            self.device,
-            policy_store,
-            metta_grid_env,
-        )
+        # FIX BEFORE MERGE
+        # if self._master and self.policy_store is not None:
+        #     self.kickstarter = Kickstarter(
+        #         trainer_cfg.kickstart,
+        #         self.device,
+        #         self.policy_store,
+        #         metta_grid_env,
+        #     )
 
         if torch.distributed.is_initialized():
             logger.debug(f"Initializing DistributedDataParallel on device {self.device}")
@@ -795,13 +803,13 @@ class MettaTrainer:
             for name, urls in replay_groups.items():
                 if len(urls) == 1:
                     # Single episode - just show the name
-                    player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={urls[0]}"
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
                     links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
                 else:
                     # Multiple episodes - show with numbers
                     episode_links = []
                     for i, url in enumerate(urls, 1):
-                        player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={url}"
+                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
                         episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
                     links.append(f"{name} [{' '.join(episode_links)}]")
 
@@ -817,7 +825,7 @@ class MettaTrainer:
         # Also log individual link for backward compatibility
         if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
             training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-            player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={training_url}"
+            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
             link_summary = {
                 "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
             }

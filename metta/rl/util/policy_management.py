@@ -8,8 +8,6 @@ from typing import Any, Optional, Tuple
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
-from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_record import PolicyRecord
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
 logger = logging.getLogger(__name__)
@@ -291,63 +289,36 @@ def maybe_load_checkpoint(
 
 def load_or_initialize_policy(
     cfg: Any,
-    checkpoint: Optional[Any],
     policy_store: Any,
     metta_grid_env: Any,
     device: torch.device,
-    is_master: bool,
-    rank: int,
 ) -> Tuple[Any, Any, Any]:
     """
-    Load or initialize policy with distributed coordination.
-    The master should load the policy in a distributed enviroment while the other ranks keep a random policy.
-    PyTorch DDP then later distributes the policy from the master to all other ranks.
+    Load or initialize policy. This is only called on the master rank.
     """
     # Use existing maybe_load_checkpoint to handle core loading/creation
-    checkpoint, policy_record, _, _ = maybe_load_checkpoint(
+    _, policy_record, _, _ = maybe_load_checkpoint(
         run_dir=cfg.run_dir,
         policy_store=policy_store,
         trainer_cfg=cfg.trainer,
         metta_grid_env=metta_grid_env,
         cfg=cfg,
         device=device,
-        is_master=is_master,
-        rank=rank,
+        is_master=True,
+        rank=0,
     )
 
-    if policy_record:
-        policy = policy_record.policy
-    else:
-        # On non-master ranks, create a policy from scratch. It will be overwritten by DDP.
-        policy = make_policy(metta_grid_env, cfg)
+    if not policy_record:
+        # This should not happen on master, as maybe_load_checkpoint will create a policy if none exists
+        raise ValueError("policy_record cannot be None on master rank")
 
-    # Broadcast metadata from master to workers
-    if torch.distributed.is_initialized():
-        broadcast_obj = [None, None, None]
-        if is_master:
-            if not policy_record:
-                raise ValueError("policy_record cannot be None on master rank")
-            broadcast_obj = [dict(policy_record.metadata), policy_record.uri, policy_record.run_name]
-        torch.distributed.broadcast_object_list(broadcast_obj, src=0)
-        metadata_dict, uri, run_name = broadcast_obj
+    policy = policy_record.policy
 
-        if run_name is None:
-            raise RuntimeError("Failed to receive run_name from master broadcast")
-        if uri is None:
-            raise RuntimeError("Failed to receive uri from master broadcast")
-
-        metadata = PolicyMetadata.from_dict(metadata_dict) if metadata_dict else PolicyMetadata()
-        if not is_master:
-            policy_record = PolicyRecord(policy_store, run_name, uri, metadata)
-            # Attach the newly created policy to the record to prevent reloading
-            policy_record.policy = policy
-    else:
-        metadata = policy_record.metadata if policy_record else PolicyMetadata()
-
-    # Restore feature mapping
-    mapping = metadata.get("original_feature_mapping")
+    # Restore feature mapping if it exists in metadata
+    mapping = policy_record.metadata.get("original_feature_mapping")
     if mapping and hasattr(policy, "restore_original_feature_mapping"):
         policy.restore_original_feature_mapping(mapping)
+        logger.info("Restored original_feature_mapping from policy metadata")
 
     # Initialize policy to environment
     _initialize_policy_to_environment(policy, metta_grid_env, device)
@@ -355,10 +326,7 @@ def load_or_initialize_policy(
     initial_policy_record = policy_record
     latest_saved_policy_record = policy_record
 
-    if initial_policy_record:
-        logger.info(f"Rank {rank}: USING {initial_policy_record.uri}")
-    else:
-        logger.info(f"Rank {rank}: No initial policy record found, using new policy")
+    logger.info(f"USING {initial_policy_record.uri}")
 
     return policy, initial_policy_record, latest_saved_policy_record
 

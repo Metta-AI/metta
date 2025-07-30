@@ -1,6 +1,7 @@
-from typing import Tuple
+from typing import Any, Tuple
 
 import torch
+import torch.distributed as dist
 import torch.jit
 import torch.nn.functional as F
 from torch import Tensor
@@ -77,3 +78,29 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
 
     return log_probs, entropy, action_log_probs
+
+
+def get_from_master(obj: Any) -> Any:
+    """
+    Broadcasts the object from the master rank (rank 0) to all other ranks.
+
+    Args:
+        obj: An arbitrary picklable object. On non-master ranks, this is overwritten
+             with the master's object, so its value is ignored there.
+
+    Returns:
+        The object from the master rank.
+
+    Notes:
+        - Requires a distributed environment initialized with dist.init_process_group().
+        - The object must be picklable (serializable via Python's pickle module).
+        - For large objects or GPU tensors, this may have performance overhead due to
+          serialization; consider tensor-specific ops like dist.broadcast() for tensors.
+    """
+    # Wrap in a list as required by the API
+    obj_list = [obj]
+
+    # Broadcast from rank 0; overwrites obj_list on all ranks with master's content
+    dist.broadcast_object_list(obj_list, src=0)
+
+    return obj_list[0]
