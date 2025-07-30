@@ -9,7 +9,6 @@
     },
   ],
   "settings": {
-    "html.format.enable": false,
     "yaml.schemas": {
       "envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml",
     },
