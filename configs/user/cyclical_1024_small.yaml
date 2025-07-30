@@ -1,0 +1,20 @@
+# Configuration for training with 1024-agent cyclical environments
+# This config uses fewer workers to reduce memory requirements
+
+defaults:
+  - override /trainer: trainer
+
+trainer:
+  # Reduce workers to lower memory requirements
+  num_workers: 4  # 4 workers × 1024 agents = 4,096 agents
+  batch_size: 262_144  # Minimum: 4,096 agents × 64 bptt = 262,144
+  
+  # Standard settings
+  total_timesteps: 10_000_000
+  learning_rate: 5e-5
+  
+  # Use the 1024-agent curriculum
+  curriculum: /env/mettagrid/curriculum/cyclical_converter_timing_study_1024
+  
+  # Optional: If you still have memory issues, you can also reduce num_envs per worker
+  # num_envs: 1  # Default is usually 1 already
