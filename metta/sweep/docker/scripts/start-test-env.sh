@@ -30,26 +30,11 @@ else
     echo "   ✅ Virtual environment already exists"
 fi
 
-# Activate virtual environment and setup
-echo "🐍 Activating environment..."
-source .venv/bin/activate
+# Setup environment (venv already active via Dockerfile ENV)
+echo "🐍 Setting up environment..."
 source devops/setup.env
 
-# Start dummy API server in background if we're the master node or standalone
-if [ "${TEST_MODE:-standalone}" = "master" ] || [ "${RANK:-0}" = "0" ] || [ "${TEST_MODE:-standalone}" = "standalone" ]; then
-    echo "🤖 Starting dummy API server..."
-            python /home/metta/metta/test-scripts/dummy-api-server.py &
-
-    # Wait a moment for the server to start
-    sleep 2
-
-    # Test the dummy API
-    if curl -s http://localhost:8080/health > /dev/null 2>&1; then
-        echo "✅ Dummy API server is running"
-    else
-        echo "⚠️  Dummy API server may not be responding"
-    fi
-fi
+# Note: Dummy API removed - using real APIs or disabling API calls for testing
 
 # Configure environment based on test mode
 case "${TEST_MODE:-standalone}" in
@@ -67,17 +52,12 @@ case "${TEST_MODE:-standalone}" in
 
     "worker")
         echo "👷 Configuring as worker node (rank ${RANK})"
+        echo "✅ Worker node ready for distributed training!"
+        echo ""
+        echo "🔥 Ready to receive commands via docker exec"
+        echo ""
 
-        # Wait for master to be ready
-        echo "⏳ Waiting for master node..."
-        until ping -c 1 sweep-master > /dev/null 2>&1; do
-            echo "   Waiting for master node..."
-            sleep 2
-        done
-        echo "✅ Master node is reachable"
-
-        # Keep container running and wait for distributed commands
-        echo "✅ Worker node ready!"
+        # Keep container running and ready for commands
         tail -f /dev/null
         ;;
 

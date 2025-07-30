@@ -29,7 +29,7 @@ sim:
   env_overrides: {}
   simulations:
     simple:
-      env: /env/mettagrid/curriculum/arena/random
+      env: /env/mettagrid/arena/basic_easy_shaped
 
 sweep_train_job:
   sim: ${sim}
