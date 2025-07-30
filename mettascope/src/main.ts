@@ -584,7 +584,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
       // Down-Left
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
     }
-    if (event.code == 'Numpad3') {
+    if (event.code === 'Numpad3') {
       // Down-Right
       ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
     }
@@ -798,7 +798,7 @@ async function parseUrlParams() {
     ui.mapPanel.panPos = new Vec2f(mapPanX, mapPanY)
   }
   if (urlParams.get('mapZoom') !== null) {
-    ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || '1')
+    ui.mapPanel.zoomLevel = Number.parseFloat(urlParams.get('mapZoom') || '1')
   }
 
   if (urlParams.get('demo') !== null) {

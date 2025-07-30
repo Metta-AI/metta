@@ -466,6 +466,44 @@ export class Context3d {
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
   }
 
+  drawText(text: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, spacing = 0, center = false) {
+    if (!this.ready) throw new Error('Context not ready')
+    if (!this.fontAtlasData || !this.fontAtlasTexture) {
+      console.error('Font atlas not loaded')
+      return
+    }
+    this.ensureMeshSelected()
+    // Compute total width (for centering)
+    let totalWidth = 0
+    for (const char of text) {
+      const frame = this.fontAtlasData[char]
+      if (!frame) continue
+      totalWidth += frame[2] * scale + spacing
+    }
+    let cursorX = x
+    if (center) {
+      cursorX -= totalWidth / 2
+    }
+    // Switch to font texture
+    this.gl.activeTexture(this.gl.TEXTURE0)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.fontAtlasTexture)
+    this.gl.uniform1i(this.samplerLocation, 0)
+    // Draw each character
+    for (const char of text) {
+      const frame = this.fontAtlasData[char]
+      if (!frame) continue
+      const [sx, sy, sw, sh] = frame
+      const u0 = sx / this.fontTextureSize.x()
+      const v0 = sy / this.fontTextureSize.y()
+      const u1 = (sx + sw) / this.fontTextureSize.x()
+      const v1 = (sy + sh) / this.fontTextureSize.y()
+      this.drawRect(cursorX, y, sw * scale, sh * scale, u0, v0, u1, v1, color)
+      cursorX += sw * scale + spacing
+    }
+    // Re-bind main texture for other draw calls
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.mainAtlasTexture)
+  }
+
   /** Flushes all non-empty meshes to the screen. */
   flush() {
     if (!this.ready || !this.gl || !this.shaderProgram || !this.atlas) {

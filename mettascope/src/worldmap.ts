@@ -1,5 +1,6 @@
 import * as Common from './common.js'
 import { ctx, setFollowSelection, state, ui } from './common.js'
+import { glyphAssociations } from './glyphtable.js'
 import { Grid } from './grid.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
 import { parseHtmlColor } from './htmlutils.js'
@@ -577,6 +578,85 @@ function drawThoughtBubbles() {
   }
 }
 
+/** Draws a glyph bubble if the selected agent has a recent change_glyph action. */
+function drawGlyphBubbles() {
+  if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
+    let glyphActionStep: number | null = null
+    let glyphId: number | null = null
+
+    for (let actionStep = state.step; actionStep >= 0; actionStep--) {
+      const action = getAttr(state.selectedGridObject, 'action', actionStep)
+      if (!action || action[0] == null || action[1] == null) continue
+
+      const actionName = state.replay.action_names[action[0]]
+      if (actionName !== 'change_glyph') continue
+
+      const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
+      if (!actionSuccess) continue
+
+      glyphId = action[1]
+      glyphActionStep = actionStep
+      break
+    }
+
+    if (glyphId != null && glyphActionStep != null) {
+      const x = getAttr(state.selectedGridObject, 'c')
+      const y = getAttr(state.selectedGridObject, 'r')
+      const centerX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
+      const centerY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+
+      const bubbleX = centerX - Common.TILE_SIZE * 0.6
+      const bubbleY = centerY - Common.TILE_SIZE / 2
+
+      const glyphString = glyphAssociations[glyphId] || ''
+
+      if (ctx.fontAtlasData) {
+        for (const char of glyphString) {
+          console.log(`Char '${char}':`, ctx.fontAtlasData[char])
+        }
+      }
+
+      if (glyphString !== '') {
+        ctx.drawSprite(
+          'actions/thoughts.png',
+          bubbleX,
+          bubbleY,
+          [1, 1, 1, 1], // color (white)
+          -2, // scale x - make it 50% bigger and mirror
+          2, // scale y - make it 50% bigger
+          0 // rotation
+        )
+
+        // Draw debug rectangle where text should be
+        let text_width = Common.TILE_SIZE * 0.8
+        let text_height = Common.TILE_SIZE * 0.3
+        let boxX = bubbleX - text_width / 2
+        let boxY = bubbleY - text_height / 2
+
+        // ctx.drawSprite(
+        //   'white.png', // 32x32 pixels
+        //   boxX + text_width / 2,
+        //   boxY + text_height / 2,
+        //   [1, 0, 0, 1], // RED tint
+        //   text_width / 64, // scale x
+        //   text_height / 64, // scale y
+        //   0             // no rotation
+        // )
+
+        ctx.drawText(
+          glyphString,
+          boxX + text_width / 2,
+          boxY + text_height / 2,
+          [0, 0, 0, 1], // fill black
+          text_height / 8, // scale
+          0, // spacing
+          true // center horizontally
+        )
+      }
+    }
+  }
+}
+
 /** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {
   if (state.showVisualRanges || state.showFogOfWar) {
@@ -886,6 +966,7 @@ export function drawMap(panel: PanelInfo) {
     drawVisibility()
     drawGrid()
     drawThoughtBubbles()
+    drawGlyphBubbles()
   }
 
   if (search.active) {
