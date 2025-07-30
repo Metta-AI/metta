@@ -26,20 +26,13 @@ export interface AtlasMetadata {
   [key: string]: unknown
 }
 
-/**
- * Complete atlas bundle containing both the texture and sprite data.
- *
- * @property data - The atlas JSON data with sprite definitions
- * @property texture - The WebGL texture containing all sprites
- * @property size - Dimensions of the texture in pixels
- * @property margin - Pixel margin added around sprites to prevent texture bleeding
- */
+/* Complete atlas bundle containing both the texture and sprite data. */
 export interface Atlas {
-  data: AtlasSpriteMap
-  metadata: AtlasMetadata
-  texture: WebGLTexture
-  size: Vec2f
-  margin: number
+  data: AtlasSpriteMap // The atlas JSON data with sprite definitions
+  metadata: AtlasMetadata // Atlas metadata
+  texture: WebGLTexture // The WebGL texture containing all sprites
+  size: Vec2f // Dimensions of the texture in pixels
+  margin: number // Pixel margin added around sprites to prevent texture bleeding
 }
 
 export function validateAtlas(atlas: Atlas): boolean {
@@ -209,13 +202,6 @@ export function hasSprite(atlas: Atlas, spriteName: string): boolean {
 
 /**
  * Get UV coordinates for a solid color pixel.
- *
- * This looks for 'white.png' in the atlas and returns the UV coordinates
- * of its center pixel. Used for drawing solid color rectangles with the
- * same shader/texture as sprites.
- *
- * @param atlas - The atlas containing white.png
- * @returns UV coordinates of the white pixel center, or null if white.png not found
  *
  * @example
  * const whiteUV = getWhiteUV(atlas)
