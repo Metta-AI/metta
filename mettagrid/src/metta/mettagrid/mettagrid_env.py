@@ -247,6 +247,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._c_env.step(actions)
             self._steps += 1
 
+        if self._check_reward_termination():
+            # Set all terminals to True to trigger episode termination
+            self.terminals.fill(True)
+
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
                 self._replay_writer.log_step(self._episode_id, actions, self.rewards)
