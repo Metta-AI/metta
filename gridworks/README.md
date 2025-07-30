@@ -22,6 +22,17 @@ pnpm run gen:encoding
 
 `gen:encoding` calls a small Python snippet in the `mettagrid` package and writes the resulting JSON file to `src/lib/encoding.json`. Run it again whenever you change the encoder definitions.
 
+## File System Access
+
+Gridworks accesses your local file system through the FastAPI backend server (`metta/metta/gridworks/server.py`). The backend:
+
+- Scans the `configs/env/mettagrid/` directory for YAML configuration files
+- Categorizes files as "env", "curriculum", "map", or "unknown" based on their content and path
+- Provides REST API endpoints that the Next.js frontend calls to display and interact with these files
+- Can read and parse YAML files to extract map configurations and generate previews
+
+The backend runs on port 8001 and communicates with the frontend running on port 3000.
+
 ## Running the app
 
 From the repository root run:

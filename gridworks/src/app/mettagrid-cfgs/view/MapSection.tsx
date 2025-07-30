@@ -45,9 +45,12 @@ export const MapSection: FC<{ cfg: MettagridCfgFile }> = ({ cfg }) => {
       )}
       {map.type === "map" && <StorableMapViewer map={map.map} />}
       {map.type === "error" && (
-        <pre className="text-sm text-red-500">
-          Error loading map: {map.error.message}
-        </pre>
+        <div className="rounded-md border border-red-200 bg-red-50 p-4">
+          <h3 className="mb-2 text-sm font-medium text-red-800">
+            Error loading map
+          </h3>
+          <p className="text-sm text-red-700">{map.error.message}</p>
+        </div>
       )}
     </section>
   );
