@@ -115,13 +115,14 @@ public:
 
   // Get the last action name for an agent across all handlers
   static std::string get_last_action_name(size_t agent_id) {
-    auto it = _global_last_actions.find(agent_id);
-    return it != _global_last_actions.end() ? it->second : "";
+    auto& actions = get_global_last_actions();
+    auto it = actions.find(agent_id);
+    return it != actions.end() ? it->second : "";
   }
 
   // Clear all tracking data (useful for reset)
   static void clear_all_tracking() {
-    _global_last_actions.clear();
+    get_global_last_actions().clear();
   }
 
   // Clear tracking for this handler
@@ -139,15 +140,21 @@ protected:
   // Per-agent tracking state for this handler
   std::map<size_t, ActionTrackingState> _agent_tracking;
 
-  // Global tracking of last action names across all handlers
-  static std::map<size_t, std::string> _global_last_actions;
+  // REMOVED: static std::map<size_t, std::string> _global_last_actions;
 
 private:
+  // Use function-local static to avoid global destructor
+  static std::map<size_t, std::string>& get_global_last_actions() {
+    static std::map<size_t, std::string> global_last_actions;
+    return global_last_actions;
+  }
+
   void update_tracking(size_t agent_id, bool success) {
     auto& state = _agent_tracking[agent_id];
+    auto& global_actions = get_global_last_actions();
 
     // Check if this is consecutive
-    if (_global_last_actions[agent_id] == _action_name && success) {
+    if (global_actions[agent_id] == _action_name && success) {
       state.consecutive_count++;
     } else {
       state.consecutive_count = success ? 1 : 0;
@@ -161,7 +168,7 @@ private:
 
     // Update global tracking
     if (success) {
-      _global_last_actions[agent_id] = _action_name;
+      global_actions[agent_id] = _action_name;
     }
   }
 };
