@@ -31,5 +31,5 @@ game:
       initial_resource_count: 1
   termination:
     max_reward: ${game.map_builder.room.objects.altar}
-    condition: 0.5
+    condition: any
     end_of_episode_boost: 5.0
