@@ -34,6 +34,14 @@ class TaskUpdateRequest(BaseModel):
     updates: dict[uuid.UUID, TaskStatusUpdate]
 
 
+class TaskFilterParams(BaseModel):
+    limit: int = Field(default=500, ge=1, le=1000)
+    statuses: list[str] | None = None
+    git_hash: str | None = None
+    policy_ids: list[uuid.UUID] | None = None
+    sim_suites: list[str] | None = None
+
+
 class TaskResponse(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
@@ -45,6 +53,8 @@ class TaskResponse(BaseModel):
     attributes: dict[str, Any]
     policy_name: str | None = None
     retries: int
+    user_id: str | None = None
+    updated_at: datetime
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
@@ -70,11 +80,13 @@ class TaskResponse(BaseModel):
             attributes=task["attributes"] or {},
             policy_name=task.get("policy_name"),
             retries=task["retries"],
+            user_id=task.get("user_id"),
+            updated_at=task["updated_at"],
         )
 
 
 class TaskUpdateResponse(BaseModel):
-    statuses: dict[uuid.UUID, str]
+    statuses: dict[uuid.UUID, TaskStatus]
 
 
 class TasksResponse(BaseModel):
@@ -105,6 +117,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             policy_id=request.policy_id,
             sim_suite=request.sim_suite,
             attributes=attributes,
+            user_id=user,
         )
         return TaskResponse.from_db(task)
 
@@ -143,8 +156,18 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_all_tasks(
         limit: int = Query(default=500, ge=1, le=1000),
+        statuses: list[TaskStatus] | None = Query(default=None),
+        git_hash: str | None = Query(default=None),
+        policy_ids: list[uuid.UUID] | None = Query(default=None),
+        sim_suites: list[str] | None = Query(default=None),
     ) -> TasksResponse:
-        tasks = await stats_repo.get_all_tasks(limit=limit)
+        tasks = await stats_repo.get_all_tasks(
+            limit=limit,
+            statuses=statuses,
+            git_hash=git_hash,
+            policy_ids=policy_ids,
+            sim_suites=sim_suites,
+        )
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 

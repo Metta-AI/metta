@@ -7,6 +7,7 @@ import { EvalSelector } from './components/EvalSelector'
 import { MetricSelector } from './components/MetricSelector'
 import { TagEditor } from './TagEditor'
 import { DescriptionEditor } from './DescriptionEditor'
+import { METTASCOPE_REPLAY_URL } from './constants'
 
 const TRAINING_RUN_DETAIL_CSS = `
 .training-run-detail-container {
@@ -189,7 +190,6 @@ const getShortName = (evalName: string) => {
   return evalName.split('/').pop() || evalName
 }
 
-
 export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const { runId } = useParams<{ runId: string }>()
 
@@ -210,7 +210,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     policies: false,
     evalNames: false,
     metrics: false,
-    heatmap: false
+    heatmap: false,
   })
   const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
@@ -231,7 +231,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!runId) return
 
       try {
-        setLoading(prev => ({ ...prev, initial: true }))
+        setLoading((prev) => ({ ...prev, initial: true }))
         const [runData, userResponse] = await Promise.all([
           repo.getTrainingRun(runId),
           repo.whoami().catch(() => ({ user_email: '' })),
@@ -243,7 +243,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       } catch (err: any) {
         setError(`Failed to load training run: ${err.message}`)
       } finally {
-        setLoading(prev => ({ ...prev, initial: false }))
+        setLoading((prev) => ({ ...prev, initial: false }))
       }
     }
 
@@ -256,7 +256,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!runId) return
 
       try {
-        setLoading(prev => ({ ...prev, policies: true }))
+        setLoading((prev) => ({ ...prev, policies: true }))
         setError(null)
         const policiesData = await repo.getTrainingRunPolicies(runId)
         setTrainingRunPolicies(policiesData)
@@ -264,7 +264,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
         setError(`Failed to load policies: ${err instanceof Error ? err.message : 'Unknown error'}`)
         setTrainingRunPolicies([])
       } finally {
-        setLoading(prev => ({ ...prev, policies: false }))
+        setLoading((prev) => ({ ...prev, policies: false }))
       }
     }
 
@@ -277,22 +277,22 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!runId) return
 
       try {
-        setLoading(prev => ({ ...prev, evalNames: true }))
+        setLoading((prev) => ({ ...prev, evalNames: true }))
         setError(null)
         const evalNamesData = await repo.getEvalNames({
           training_run_ids: [runId],
-          run_free_policy_ids: []
+          run_free_policy_ids: [],
         })
         setEvalNames(evalNamesData)
 
         // Clear eval selections that are no longer valid
-        setSelectedEvalNames(prev => new Set([...prev].filter(evalName => evalNamesData.has(evalName))))
+        setSelectedEvalNames((prev) => new Set([...prev].filter((evalName) => evalNamesData.has(evalName))))
       } catch (err) {
         setError(`Failed to load eval names: ${err instanceof Error ? err.message : 'Unknown error'}`)
         setEvalNames(new Set())
         setSelectedEvalNames(new Set())
       } finally {
-        setLoading(prev => ({ ...prev, evalNames: false }))
+        setLoading((prev) => ({ ...prev, evalNames: false }))
       }
     }
 
@@ -309,12 +309,12 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       }
 
       try {
-        setLoading(prev => ({ ...prev, metrics: true }))
+        setLoading((prev) => ({ ...prev, metrics: true }))
         setError(null)
         const metricsData = await repo.getAvailableMetrics({
           training_run_ids: [runId],
           run_free_policy_ids: [],
-          eval_names: Array.from(selectedEvalNames)
+          eval_names: Array.from(selectedEvalNames),
         })
         setAvailableMetrics(metricsData)
 
@@ -327,7 +327,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
         setAvailableMetrics([])
         setSelectedMetric('')
       } finally {
-        setLoading(prev => ({ ...prev, metrics: false }))
+        setLoading((prev) => ({ ...prev, metrics: false }))
       }
     }
 
@@ -340,18 +340,18 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!runId || selectedEvalNames.size === 0 || !selectedMetric) return
 
       try {
-        setLoading(prev => ({ ...prev, heatmap: true }))
+        setLoading((prev) => ({ ...prev, heatmap: true }))
         setError(null)
         const heatmapData = await repo.generateTrainingRunHeatmap(runId, {
           eval_names: Array.from(selectedEvalNames),
-          metric: selectedMetric
+          metric: selectedMetric,
         })
         setHeatmapData(heatmapData)
       } catch (err: any) {
         setError(`Failed to load heatmap data: ${err instanceof Error ? err.message : 'Unknown error'}`)
         setHeatmapData(null)
       } finally {
-        setLoading(prev => ({ ...prev, heatmap: false }))
+        setLoading((prev) => ({ ...prev, heatmap: false }))
       }
     }
 
@@ -368,7 +368,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     const evalData = heatmapData?.cells[policyUri]?.[evalName]
     if (!evalData?.replayUrl) return
 
-    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
     window.open(replay_url_prefix + evalData.replayUrl, '_blank')
   }
 
@@ -455,7 +455,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
     // Sort policies by epoch_start, then by name for consistent ordering
     const sortedPolicies = policies
-      .filter(policy => policyNameToEpoch.has(policy)) // Only include policies we have epoch data for
+      .filter((policy) => policyNameToEpoch.has(policy)) // Only include policies we have epoch data for
       .sort((a, b) => {
         const epochA = policyNameToEpoch.get(a) ?? 0
         const epochB = policyNameToEpoch.get(b) ?? 0
@@ -471,7 +471,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     })
     const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => b.localeCompare(a))
 
-    const xLabels = sortedPolicies.map(policy => {
+    const xLabels = sortedPolicies.map((policy) => {
       const epoch = policyNameToEpoch.get(policy) ?? 0
       return `Step ${epoch}` // Use epoch as the label
     })

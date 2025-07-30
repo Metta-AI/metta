@@ -89,7 +89,7 @@ def update_training_run_metadata(
 
         # Update description
         desc_response = client.put(
-            f"/dashboard/training-runs/{run_id}/description",
+            f"/training-runs/{run_id}/description",
             json={"description": description},
             headers=headers,
         )
@@ -97,7 +97,7 @@ def update_training_run_metadata(
 
         # Update tags
         tags_response = client.put(
-            f"/dashboard/training-runs/{run_id}/tags",
+            f"/training-runs/{run_id}/tags",
             json={"tags": tags},
             headers=headers,
         )

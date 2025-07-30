@@ -1,14 +1,15 @@
 defaults:
-  - /env/mettagrid/multiagent/experiments/defaults@
+  - /env/mettagrid/multiagent/experiments/defaults_bucketed@
   - _self_
 
-game:
-  map_builder:
-    _target_: metta.mettagrid.room.multi_agent.boxshare.BoxShare
-    border_width: 0
-    width: 45
-    height: 45
-    objects:
-      altar: 10
-      mine_red: 10
-      generator_red: 12
+env_overrides:
+  game:
+    map_builder:
+      _target_: metta.mettagrid.room.multi_agent.boxshare.BoxShare
+      border_width: 0
+      width: 45
+      height: 45
+      objects:
+        altar: 10
+        mine_red: 10
+        generator_red: 12

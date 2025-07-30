@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
 import mettascope.replays as replays
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.util.metta_script import metta_script
 
 # Set up logging
@@ -239,7 +240,7 @@ def run(cfg: DictConfig, open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
-        server_url = "http://localhost:8000"
+        server_url = DEV_METTASCOPE_FRONTEND_URL
 
         @app.on_event("startup")
         async def _open_browser():

@@ -10,6 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
@@ -627,7 +628,7 @@ while agent_step < trainer_config.total_timesteps:
             replay_urls = results.stats_db.get_replay_urls()
             if replay_urls:
                 replay_url = replay_urls[0]
-                player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+                player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={replay_url}"
                 logger.info(f"Replay available at: {player_url}")
 
             results.stats_db.close()

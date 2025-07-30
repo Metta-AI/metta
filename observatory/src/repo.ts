@@ -148,6 +148,8 @@ export type EvalTask = {
   attributes: Record<string, any>
   policy_name: string | null
   retries: number
+  updated_at: string
+  user_id: string | null
 }
 
 export type EvalTasksResponse = {
@@ -458,21 +460,21 @@ export class ServerRepo implements Repo {
 
   // Training run methods
   async getTrainingRuns(): Promise<TrainingRunListResponse> {
-    return this.apiCall<TrainingRunListResponse>('/dashboard/training-runs')
+    return this.apiCall<TrainingRunListResponse>('/training-runs')
   }
 
   async getTrainingRun(runId: string): Promise<TrainingRun> {
-    return this.apiCall<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}`)
+    return this.apiCall<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}`)
   }
 
   async updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun> {
-    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/description`, {
+    return this.apiCallWithBodyPut<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}/description`, {
       description,
     })
   }
 
   async updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun> {
-    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
+    return this.apiCallWithBodyPut<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
   async generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData> {
@@ -480,7 +482,7 @@ export class ServerRepo implements Repo {
   }
 
   async getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]> {
-    return this.apiCall<TrainingRunPolicy[]>(`/heatmap/training-run/${encodeURIComponent(runId)}/policies`)
+    return this.apiCall<TrainingRunPolicy[]>(`/training-runs/${encodeURIComponent(runId)}/policies`)
   }
 
   // Episode methods
