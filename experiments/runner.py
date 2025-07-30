@@ -107,28 +107,29 @@ def runner(
             # Patch in the computed default for output_dir
             patched_defaults = {}
 
-            # Check if the config class has an explicit default for output_dir
-            has_explicit_default = False
+            # Only handle output_dir if it's a field in the config class
             if (
                 hasattr(config_class, "model_fields")
                 and "output_dir" in config_class.model_fields
             ):
+                # Check if the config class has an explicit default for output_dir
+                has_explicit_default = False
                 field_info = config_class.model_fields["output_dir"]
                 if field_info.default is not None and field_info.default != "":
                     # Use the explicit default from the config class
                     patched_defaults["output_dir"] = field_info.default
                     has_explicit_default = True
 
-            if not has_explicit_default:
-                try:
-                    from metta.common.util.fs import get_repo_root
+                if not has_explicit_default:
+                    try:
+                        from metta.common.util.fs import get_repo_root
 
-                    repo_root = get_repo_root()
-                    patched_defaults["output_dir"] = str(
-                        repo_root / "experiments" / "scratch"
-                    )
-                except:
-                    patched_defaults["output_dir"] = "experiments/scratch"
+                        repo_root = get_repo_root()
+                        patched_defaults["output_dir"] = str(
+                            repo_root / "experiments" / "scratch"
+                        )
+                    except:
+                        patched_defaults["output_dir"] = "experiments/scratch"
 
             # Default is expanded, use --help-compact for collapsed view
             collapse = "--help-compact" in args_to_parse
@@ -160,36 +161,37 @@ def runner(
         config_dict = cli_config.model_dump()
         config_dict["name"] = name  # Override with our determined name
 
-        # Handle string "None" -> actual None conversion
-        if "output_dir" in config_dict and config_dict["output_dir"] == "None":
-            config_dict["output_dir"] = None
+        # Only handle output_dir if it's a field in the config class
+        if (
+            hasattr(config_class, "model_fields")
+            and "output_dir" in config_class.model_fields
+        ):
+            # Handle string "None" -> actual None conversion
+            if "output_dir" in config_dict and config_dict["output_dir"] == "None":
+                config_dict["output_dir"] = None
 
-        # Set default output_dir if not specified
-        if "output_dir" not in config_dict or config_dict["output_dir"] is None:
-            # Check if the config class has a non-None default for output_dir
-            has_explicit_default = False
-            if (
-                hasattr(config_class, "model_fields")
-                and "output_dir" in config_class.model_fields
-            ):
+            # Set default output_dir if not specified
+            if "output_dir" not in config_dict or config_dict["output_dir"] is None:
+                # Check if the config class has a non-None default for output_dir
+                has_explicit_default = False
                 field_info = config_class.model_fields["output_dir"]
                 if field_info.default is not None and field_info.default != "":
                     # Use the explicit default from the config class
                     config_dict["output_dir"] = field_info.default
                     has_explicit_default = True
 
-            if not has_explicit_default:
-                # Try to find repo root for a more stable path
-                try:
-                    from metta.common.util.fs import get_repo_root
+                if not has_explicit_default:
+                    # Try to find repo root for a more stable path
+                    try:
+                        from metta.common.util.fs import get_repo_root
 
-                    repo_root = get_repo_root()
-                    config_dict["output_dir"] = str(
-                        repo_root / "experiments" / "scratch"
-                    )
-                except:
-                    # Fallback to relative path if we can't find repo root
-                    config_dict["output_dir"] = "experiments/scratch"
+                        repo_root = get_repo_root()
+                        config_dict["output_dir"] = str(
+                            repo_root / "experiments" / "scratch"
+                        )
+                    except:
+                        # Fallback to relative path if we can't find repo root
+                        config_dict["output_dir"] = "experiments/scratch"
 
         config = config_class(**config_dict)
 
