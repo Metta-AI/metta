@@ -477,7 +477,7 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   EXPECT_EQ(agent->location.c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
   EXPECT_EQ(agent->prev_location.c, 5);
-  EXPECT_EQ(agent->prev_action, "noop");
+  EXPECT_EQ(agent->prev_action_name, "noop");
   EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 1.0f);
   agent->location.r = 6;
   agent->location.c = 6;
