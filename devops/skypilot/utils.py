@@ -218,11 +218,14 @@ def set_task_secrets(task: sky.Task) -> None:
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
 
     wandb_password = netrc.netrc(os.path.expanduser("~/.netrc")).hosts["api.wandb.ai"][2]
+    if not wandb_password:
+        raise ValueError("Failed to get wandb password, run 'metta install' to fix")
+
     observatory_token = metta.common.util.stats_client_cfg.get_machine_token(
         "https://observatory.softmax-research.net/api"
     )
-    if not wandb_password or not observatory_token:
-        raise ValueError("Failed to get wandb password or observatory token, run 'metta install' to fix")
+    if not observatory_token:
+        raise ValueError("Failed to get observatory token, run 'metta install' to fix")
 
     task.update_envs(
         dict(
