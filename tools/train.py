@@ -10,7 +10,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
