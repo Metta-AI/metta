@@ -43,8 +43,8 @@ public:
   inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
   inline GridLocation() : r(0), c(0), layer(0) {}
 
-  inline bool operator!=(const GridLocation& other) const {
-    return r != other.r || c != other.c || layer != other.layer;
+  inline bool operator==(const GridLocation& other) const {
+    return r == other.r && c == other.c && layer == other.layer;
   }
 };
 

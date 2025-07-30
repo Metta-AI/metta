@@ -49,7 +49,7 @@ public:
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
     // Check if agent moved
-    if (actor->location != actor->prev_location) {
+    if (actor->location == actor->prev_location) {
       actor->stats.incr("status.stationary.ticks");
     } else {
       actor->stats.set("status.stationary.ticks", 0.0);
