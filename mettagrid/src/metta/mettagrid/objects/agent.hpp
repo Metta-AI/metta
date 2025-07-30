@@ -24,7 +24,8 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<InventoryItem, RewardType>& resource_reward_max,
               const std::map<std::string, RewardType>& stat_rewards,
               const std::map<std::string, RewardType>& stat_reward_max,
-              float group_reward_pct)
+              float group_reward_pct,
+              const std::map<InventoryItem, InventoryQuantity>& initial_inventory = {})
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
@@ -35,7 +36,8 @@ struct AgentConfig : public GridObjectConfig {
         resource_reward_max(resource_reward_max),
         stat_rewards(stat_rewards),
         stat_reward_max(stat_reward_max),
-        group_reward_pct(group_reward_pct) {}
+        group_reward_pct(group_reward_pct),
+        initial_inventory(initial_inventory) {}
   unsigned char group_id;
   std::string group_name;
   short freeze_duration;
@@ -46,6 +48,7 @@ struct AgentConfig : public GridObjectConfig {
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
+  std::map<InventoryItem, InventoryQuantity> initial_inventory;
 };
 
 class Agent : public GridObject {
@@ -94,10 +97,19 @@ public:
         current_stat_reward(0),
         reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
+    populate_initial_inventory(config.initial_inventory);
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+  }
+
+  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
+    for (const auto& [item, amount] : initial_inventory) {
+      if (amount > 0) {
+        this->inventory[item] = amount;
+      }
+    }
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
