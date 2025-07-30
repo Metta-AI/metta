@@ -32,3 +32,4 @@ game:
   termination:
     max_reward: ${game.map_builder.room.objects.altar}
     condition: 0.5
+    end_of_episode_boost: 5.0
