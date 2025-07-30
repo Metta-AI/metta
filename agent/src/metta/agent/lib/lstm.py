@@ -88,8 +88,8 @@ class LSTM(LayerBase):
         h_0 = (
             self.lstm_h[training_env_id]
             if training_env_id in self.lstm_h
-                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
-            )
+            else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+        )
         c_0 = (
             self.lstm_c[training_env_id]
             if training_env_id in self.lstm_c
