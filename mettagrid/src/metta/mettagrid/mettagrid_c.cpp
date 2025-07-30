@@ -518,8 +518,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
         (agent->how_long_blue_battery_held)++;
         // Debug print for battery holding duration
       }
-      if (agent->how_long_blue_battery_held >= 20) {
-        *agent->reward -= 10.0f;
+      if (agent->how_long_blue_battery_held > 0 && agent->how_long_blue_battery_held % 20 == 0) {
+        *agent->reward -= 1.0f;
       }
     }
   }

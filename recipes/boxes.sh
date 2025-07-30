@@ -28,7 +28,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0; do
    python3 tools/train.py \
-    run=$USER.navigation.ffa_NAV_BOXES_nomod_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_NAV_BOXES_balanced_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/autocurricula/random \
     ++trainer.env=env/mettagrid/autocurricula/defaults \
     +USER=greg \
