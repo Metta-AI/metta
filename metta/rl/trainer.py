@@ -370,9 +370,7 @@ class MettaTrainer:
             record_heartbeat()
 
             with self.torch_profiler:
-                self.policy.reset_memory()
                 self._rollout()
-                self.policy.reset_memory()
                 self._train()
 
             self.torch_profiler.on_epoch_end(self.epoch)

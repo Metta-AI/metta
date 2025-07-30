@@ -80,29 +80,27 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        # state = self._memory[:, :, td.training_env_id, :]
-        # h_0 = self._memory[0, :, td.training_env_id, :].contiguous()
-        # c_0 = self._memory[1, :, td.training_env_id, :].contiguous()
         if hasattr(td, "training_env_id"):
-            h_0 = (
-                self.lstm_h[td.training_env_id.start]
-                if td.training_env_id.start in self.lstm_h
-                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
-            )
-            c_0 = (
-                self.lstm_c[td.training_env_id.start]
-                if td.training_env_id.start in self.lstm_c
-                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
-            )
-            state = (h_0, c_0)
+            training_env_id = td.training_env_id.start
         else:
-            state = None
+            training_env_id = 0
+
+        h_0 = (
+            self.lstm_h[training_env_id]
+            if training_env_id in self.lstm_h
+                else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            )
+        c_0 = (
+            self.lstm_c[training_env_id]
+            if training_env_id in self.lstm_c
+            else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+        )
+        state = (h_0, c_0)
 
         hidden, (h_n, c_n) = self._net(hidden, state)
-        if hasattr(td, "training_env_id"):
-            self.lstm_h[td.training_env_id.start] = h_n.detach()
-            self.lstm_c[td.training_env_id.start] = c_n.detach()
-        # self._memory[:, :, td.training_env_id, :] = torch.stack([h_n.detach(), c_n.detach()], dim=0)
+
+        self.lstm_h[training_env_id] = h_n.detach()
+        self.lstm_c[training_env_id] = c_n.detach()
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
