@@ -381,12 +381,12 @@ export class Context3d {
 
   /* Draws a sprite from the texture atlas with its center at (centerX, centerY). */
   drawSprite(
-    imageName: string,
-    centerX: number,
-    centerY: number,
-    color: number[] = [1, 1, 1, 1],
-    scale: number | [number, number] = 1,
-    rotation = 0
+    imageName: string, // Name of the image in the atlas (e.g., 'player.png')
+    centerX: number, // X coordinate of the sprite's center
+    centerY: number, // Y coordinate of the sprite's center
+    color: number[] = [1, 1, 1, 1], // RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
+    scale: number | [number, number] = 1, // Uniform scale (number) or non-uniform scale [scaleX, scaleY]
+    rotation = 0 // Rotation angle in radians (positive = clockwise)
   ) {
     if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
