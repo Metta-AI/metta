@@ -4,10 +4,9 @@ from typing import Any
 
 import torch
 
-from metta.rl.losses import Losses
-from metta.rl.util.advantage import compute_advantage
-from metta.rl.util.batch_utils import calculate_prioritized_sampling_params
-from metta.rl.util.losses import process_minibatch_update
+from metta.batch_utils import calculate_prioritized_sampling_params
+from metta.rl.advantage import compute_advantage
+from metta.rl.losses import Losses, process_minibatch_update
 
 
 def train_ppo(

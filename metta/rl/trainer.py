@@ -12,41 +12,36 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
+from metta.batch_utils import calculate_batch_sizes
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
+from metta.distributed import setup_distributed_vars
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.monitoring import (
+    cleanup_monitoring,
+    setup_monitoring,
+)
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy, generate_policy_replay
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.torch_profiler import TorchProfiler
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import create_trainer_config
-from metta.rl.util.batch_utils import calculate_batch_sizes
-from metta.rl.util.distributed import setup_distributed_vars
-from metta.rl.util.monitoring import (
-    cleanup_monitoring,
-    setup_monitoring,
-)
-from metta.rl.util.optimization import (
+from metta.rl.optimization import (
     compute_gradient_stats,
     maybe_update_l2_weights,
 )
-from metta.rl.util.policy_management import (
+from metta.rl.policy_management import (
     load_or_initialize_policy,
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
-from metta.rl.util.rollout import get_lstm_config
-from metta.rl.util.stats import (
-    StatsTracker,
-    accumulate_rollout_stats,
-    process_stats,
-)
-from metta.rl.util.training_loop import (
+from metta.rl.rollout import get_lstm_config
+from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.trainer_config import create_trainer_config
+from metta.rl.training_loop import (
     log_training_progress,
     run_training_epoch,
     should_run,
@@ -60,6 +55,11 @@ from metta.rl.wandb import (
     upload_replay_html,
 )
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.stats import (
+    StatsTracker,
+    accumulate_rollout_stats,
+    process_stats,
+)
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib

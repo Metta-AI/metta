@@ -12,8 +12,8 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.rl.policy_management import cleanup_old_policies
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.util.policy_management import cleanup_old_policies
 
 logger = logging.getLogger(__name__)
 

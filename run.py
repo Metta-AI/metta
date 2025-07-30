@@ -11,12 +11,17 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
+from metta.batch_utils import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbContext
+from metta.distributed import setup_device_and_distributed
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.agent import create_or_load_agent
@@ -25,10 +30,25 @@ from metta.interface.environment import Environment
 from metta.interface.evaluation import create_evaluation_config_suite
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses
+from metta.rl.losses import Losses, process_minibatch_update
+from metta.rl.optimization import (
+    calculate_explained_variance,
+    compute_gradient_stats,
+    maybe_update_l2_weights,
+)
+from metta.rl.policy_management import (
+    validate_policy_environment_match,
+    wrap_agent_distributed,
+)
+from metta.rl.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_policy_inference,
+)
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import (
     CheckpointConfig,
@@ -42,35 +62,7 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
-from metta.rl.util.advantage import compute_advantage
-from metta.rl.util.batch_utils import (
-    calculate_batch_sizes,
-    calculate_prioritized_sampling_params,
-)
-from metta.rl.util.distributed import setup_device_and_distributed
-from metta.rl.util.losses import process_minibatch_update
-from metta.rl.util.optimization import (
-    calculate_explained_variance,
-    compute_gradient_stats,
-    maybe_update_l2_weights,
-)
-from metta.rl.util.policy_management import (
-    validate_policy_environment_match,
-    wrap_agent_distributed,
-)
-from metta.rl.util.rollout import (
-    get_lstm_config,
-    get_observation,
-    run_policy_inference,
-)
-from metta.rl.util.stats import (
-    StatsTracker,
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    compute_timing_stats,
-    process_training_stats,
-)
-from metta.rl.util.training_loop import should_run
+from metta.rl.training_loop import should_run
 from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
@@ -80,6 +72,13 @@ from metta.rl.wandb import (
 )
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
+from metta.stats import (
+    StatsTracker,
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")

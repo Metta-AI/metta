@@ -12,7 +12,7 @@ from metta.rl.losses import Losses
 from metta.rl.rollout import rollout
 from metta.rl.train import train_ppo
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.util.rich_progress import log_rich_progress, should_use_rich_console
+from metta.rich_progress import log_rich_progress, should_use_rich_console
 
 logger = logging.getLogger(__name__)
 

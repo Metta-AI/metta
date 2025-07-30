@@ -11,7 +11,7 @@ from metta.interface.agent import Agent
 from metta.interface.environment import Environment
 from metta.interface.directories import setup_run_directories, setup_device_and_distributed
 from metta.interface.training import Optimizer, save_checkpoint, load_checkpoint
-from metta.rl.util.policy_management import wrap_agent_distributed
+from metta.rl.policy_management import wrap_agent_distributed
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
@@ -73,10 +73,10 @@ optimizer.step(loss, epoch)
 ### Training Loop Functions
 
 ```python
-from metta.rl.util.rollout import perform_rollout_step
-from metta.rl.util.stats import accumulate_rollout_stats
-from metta.rl.util.advantage import compute_advantage
-from metta.rl.util.losses import process_minibatch_update
+from metta.rl.rollout import perform_rollout_step
+from metta.stats import accumulate_rollout_stats
+from metta.rl.advantage import compute_advantage
+from metta.rl.losses import process_minibatch_update
 
 # Rollout
 while not experience.ready_for_training:
@@ -122,7 +122,7 @@ device = setup_device_and_distributed("cuda")
 is_master, world_size, rank = setup_distributed_vars()
 
 # Wrap agent for distributed
-from metta.rl.util.policy_management import wrap_agent_distributed
+from metta.rl.policy_management import wrap_agent_distributed
 agent = wrap_agent_distributed(agent, device)
 
 # Run with torchrun
