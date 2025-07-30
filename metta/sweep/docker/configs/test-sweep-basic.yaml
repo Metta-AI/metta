@@ -1,0 +1,74 @@
+# Basic distributed sweep test configuration
+defaults:
+  - base_config
+  - sweep: quick
+  - trainer: test
+  - sim: test
+  - hardware: cpu # Use CPU for faster, reproducible tests
+  - wandb: offline
+
+# Override for testing
+sweep_name: test_basic_distributed
+runs_dir: /home/metta/test-results/runs
+sweep_dir: /home/metta/test-results/sweep
+data_dir: /home/metta/test-results/data
+
+# Test-specific overrides
+trainer:
+  total_timesteps: 1000 # Very short for fast testing
+  batch_size: 128
+  minibatch_size: 32
+  bptt_horizon: 8
+  checkpoint_interval: 100
+
+sim:
+  num_envs: 2
+  num_episodes: 1
+  max_time_s: 30
+
+sweep:
+  metric: reward
+  goal: maximize
+  parameters:
+    trainer:
+      learning_rate:
+        min: 0.0001
+        max: 0.001
+
+# Test configuration
+test:
+  max_rollouts: 2
+  timeout_per_rollout: 300 # 5 minutes
+  expected_success_rate: 0.8
+  measure_training_sync: true
+  measure_sweep_coordination: true
+
+# Distributed test settings
+distributed:
+  world_size: 2
+  expected_ranks: [0, 1]
+  sync_timeout: 60
+  port_range: [29500, 29510]
+
+# Monitoring and debugging
+monitoring:
+  enable_metrics: true
+  log_level: DEBUG
+  capture_process_stats: true
+  capture_network_stats: true
+  save_artifacts: true
+
+# Success criteria
+success_criteria:
+  min_rollouts_completed: 1
+  max_failures_allowed: 1
+  max_hang_time_seconds: 180
+  required_log_patterns:
+    - "Training completed"
+    - "Evaluation results"
+    - "Rollout completed successfully"
+  forbidden_log_patterns:
+    - "address already in use"
+    - "Connection refused"
+    - "Timeout waiting"
+    - "Process group not initialized"
