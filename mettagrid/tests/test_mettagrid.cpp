@@ -471,13 +471,14 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   Noop noop(noop_cfg);
   noop.init(&grid);
 
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 0.0f);
   noop.handle_action(agent->id, 0);
   EXPECT_EQ(agent->location.r, 5);
   EXPECT_EQ(agent->location.c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
   EXPECT_EQ(agent->prev_location.c, 5);
   EXPECT_EQ(agent->prev_action, "noop");
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 0.0f);
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 1.0f);
   agent->location.r = 6;
   agent->location.c = 6;
   noop.handle_action(agent->id, 0);
