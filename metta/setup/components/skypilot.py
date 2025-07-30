@@ -1,3 +1,4 @@
+import signal
 import subprocess
 
 from metta.common.util.constants import METTA_SKYPILOT_URL
@@ -41,12 +42,6 @@ class SkypilotSetup(SetupModule):
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
-    @property
-    def setup_script_location(self) -> str | None:
-        if self.config.user_type.is_softmax:
-            return "devops/skypilot/install.sh"
-        return None
-
     def install(self) -> None:
         info("Setting up SkyPilot...")
 
@@ -69,8 +64,18 @@ class SkypilotSetup(SetupModule):
         else:
             # Need to authenticate skypilot.
             if self.config.user_type.is_softmax:
-                super().install()
-                success("SkyPilot installed")
+                try:
+                    # Temporarily block Ctrl+C for parent process during script execution
+                    # This is necessary because `sky api login` flow requires ctrl+c before the token can be pasted.
+
+                    # Note: it's important to pass lambda, not `signal.SIG_IGN`, otherwise ctrl+c would be blocked even
+                    # in the child process.
+                    original_sigint_handler = signal.signal(signal.SIGINT, lambda signum, frame: None)
+
+                    self.run_command(["bash", "./devops/skypilot/install.sh"], capture_output=False)
+                    success("SkyPilot installed")
+                finally:
+                    signal.signal(signal.SIGINT, original_sigint_handler)
             else:
                 info("""
                     To use SkyPilot with your own AWS account:
