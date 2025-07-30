@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { DashboardState, PolicyHeatmapData, Repo, SavedDashboardCreate } from './repo'
+import { DashboardState, PolicyHeatmapData, Repo, SavedDashboard, SavedDashboardCreate } from './repo'
 import { PolicySelector } from './components/PolicySelector'
 import { SearchInput } from './components/SearchInput'
 import { EvalSelector } from './components/EvalSelector'
@@ -28,7 +28,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedRunFreePolicyIds, setSelectedRunFreePolicyIds] = useState<string[]>([])
   const [selectedEvalNames, setSelectedEvalNames] = useState<Set<string>>(new Set())
   const [trainingRunPolicySelector, setTrainingRunPolicySelector] = useState<'latest' | 'best'>('latest')
-  const [selectedMetric, setSelectedMetric] = useState<string>('')
+  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1)
@@ -50,6 +50,9 @@ export function Dashboard({ repo }: DashboardProps) {
 
   // Save dashboard modal state
   const [showSaveModal, setShowSaveModal] = useState(false)
+
+  // Dashboard metadata state
+  const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null)
 
   // Load eval names when training runs or policies are selected
   useEffect(() => {
@@ -108,6 +111,13 @@ export function Dashboard({ repo }: DashboardProps) {
         // Clear metric selection if it's no longer available
         if (selectedMetric && !metricsData.includes(selectedMetric)) {
           setSelectedMetric('')
+        }
+        if (metricsData.length > 0 && !selectedMetric) {
+          if (metricsData.includes('reward')) {
+            setSelectedMetric('reward')
+          } else {
+            setSelectedMetric(metricsData[0])
+          }
         }
       } catch (err) {
         setError(`Failed to load metrics: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -209,6 +219,21 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   }
 
+  // Helper function to compare dashboard states
+  const isDashboardStateChanged = () => {
+    if (!savedDashboard) return true
+
+    const currentState = getDashboardState()
+    const originalDashboardState = savedDashboard.dashboard_state
+    return (
+      JSON.stringify(currentState.selectedTrainingRunIds) !== JSON.stringify(originalDashboardState.selectedTrainingRunIds) ||
+      JSON.stringify(currentState.selectedRunFreePolicyIds) !== JSON.stringify(originalDashboardState.selectedRunFreePolicyIds) ||
+      JSON.stringify(currentState.selectedEvalNames) !== JSON.stringify(originalDashboardState.selectedEvalNames) ||
+      currentState.trainingRunPolicySelector !== originalDashboardState.trainingRunPolicySelector ||
+      currentState.selectedMetric !== originalDashboardState.selectedMetric
+    )
+  }
+
   const restoreDashboardState = async (state: DashboardState) => {
     setSelectedTrainingRunIds(state.selectedTrainingRunIds || [])
     setSelectedRunFreePolicyIds(state.selectedRunFreePolicyIds || [])
@@ -246,11 +271,25 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   }
 
-  const savedId = searchParams.get('saved_id')
+  const loadSavedDashboard = async (savedId: string) => {
+    try {
+      const savedDashboard = await repo.getSavedDashboard(savedId)
+      if (savedDashboard.dashboard_state) {
+        setSavedDashboard(savedDashboard)
+        await restoreDashboardState(savedDashboard.dashboard_state)
+      }
+    } catch (error) {
+      console.error('Failed to load saved dashboard:', error)
+    }
+  }
 
-  const handleDashboardButtonClick = () => {
+  const savedId = searchParams.get('saved_id')
+  const dashboardName = savedDashboard?.name ?? 'Policy Scorecard'
+
+  const handleDashboardButtonClick = async () => {
     if (savedId) {
-      repo.updateDashboardState(savedId, getDashboardState())
+      await repo.updateDashboardState(savedId, getDashboardState())
+      await loadSavedDashboard(savedId)
     } else {
       setShowSaveModal(true)
     }
@@ -259,18 +298,7 @@ export function Dashboard({ repo }: DashboardProps) {
   // Load saved dashboard on mount if saved_id parameter is present
   useEffect(() => {
     if (savedId) {
-      const loadSavedDashboard = async () => {
-        try {
-          const savedDashboard = await repo.getSavedDashboard(savedId)
-          if (savedDashboard.dashboard_state) {
-            await restoreDashboardState(savedDashboard.dashboard_state as DashboardState)
-          }
-        } catch (error) {
-          console.error('Failed to load saved dashboard:', error)
-        }
-      }
-
-      loadSavedDashboard()
+      loadSavedDashboard(savedId)
     }
   }, [savedId, repo])
 
@@ -278,7 +306,9 @@ export function Dashboard({ repo }: DashboardProps) {
     <div className={styles.dashboardContainer}>
       <div className={styles.dashboardContent}>
         <div className={styles.dashboardHeader}>
-          <h1 className={styles.dashboardTitle}>Policy Heatmap Dashboard</h1>
+          <h1 className={styles.dashboardTitle}>
+            {dashboardName}
+          </h1>
           <p className={styles.dashboardSubtitle}>
             Select policies and evaluations to generate interactive heatmaps for analysis.
           </p>
@@ -388,15 +418,8 @@ export function Dashboard({ repo }: DashboardProps) {
               </button>
               <button
                 onClick={handleDashboardButtonClick}
-                disabled={!heatmapData}
+                disabled={!isDashboardStateChanged()}
                 className={styles.saveDashboardButton}
-                title={
-                  heatmapData
-                    ? savedId
-                      ? 'Update current dashboard configuration'
-                      : 'Save current dashboard configuration'
-                    : 'Generate a heatmap first to save the dashboard'
-                }
               >
                 {savedId ? 'Update Dashboard' : 'Save Dashboard'}
               </button>
