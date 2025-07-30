@@ -82,7 +82,7 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::Up),
-        inventory(),  // default constructor
+        inventory(config.initial_inventory),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -97,19 +97,10 @@ public:
         current_stat_reward(0),
         reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
-    populate_initial_inventory(config.initial_inventory);
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
-  }
-
-  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
-    for (const auto& [item, amount] : initial_inventory) {
-      if (amount > 0) {
-        this->inventory[item] = amount;
-      }
-    }
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
