@@ -370,9 +370,10 @@ def process_stats(
         "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
     }
 
-    # Get system stats - disabled for performance
-    system_stats = {}  # system_monitor.stats() if system_monitor else {}
-    memory_stats = {}  # memory_monitor.stats() if memory_monitor else {}
+    # Get system stats - note: can impact performance
+    system_stats = system_monitor.stats() if system_monitor else {}
+    memory_stats = memory_monitor.stats() if memory_monitor else {}
+
 
     # Current hyperparameter values (after potential scheduler updates)
     hyperparameters = {
