@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from pydantic import BaseModel
 
-from metta.app_backend.eval_task_client import EvalTaskClient
+from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
