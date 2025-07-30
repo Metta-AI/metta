@@ -384,6 +384,14 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_user_id ON eval_tasks(user_id)""",
         ],
     ),
+    SqlMigration(
+        version=21,
+        description="Add updated_at to eval_tasks",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP""",
+            """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
+        ],
+    ),
 ]
 
 
@@ -982,7 +990,7 @@ class MettaRepo:
                 INSERT INTO eval_tasks (policy_id, sim_suite, attributes, user_id)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id, policy_id, sim_suite, status, assigned_at,
-                         assignee, created_at, attributes, retries, user_id
+                         assignee, created_at, attributes, retries, user_id, updated_at
                 """,
                 (policy_id, sim_suite, Jsonb(attributes), user_id),
             )
@@ -1000,6 +1008,7 @@ class MettaRepo:
                 "attributes": row[7],
                 "retries": row[8],
                 "user_id": row[9],
+                "updated_at": row[10],
             }
 
     async def get_available_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
@@ -1007,7 +1016,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name, et.user_id
+                       assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 JOIN policies p ON et.policy_id = p.id
                 WHERE status = 'unprocessed'
@@ -1031,6 +1040,7 @@ class MettaRepo:
                     "retries": row[8],
                     "policy_name": row[9],
                     "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]
@@ -1064,7 +1074,7 @@ class MettaRepo:
                 result = await con.execute(
                     """
                     SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name, et.user_id
+                            assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE assignee = %s AND status = 'unprocessed'
@@ -1076,7 +1086,7 @@ class MettaRepo:
                 result = await con.execute(
                     """
                     SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name, et.user_id
+                            assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE status = 'unprocessed' AND assignee IS NOT NULL
@@ -1097,6 +1107,7 @@ class MettaRepo:
                     "retries": row[8],
                     "policy_name": row[9],
                     "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]
@@ -1307,7 +1318,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name, et.user_id
+                       assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 JOIN policies p ON et.policy_id = p.id
                 WHERE assignee = %s
@@ -1332,6 +1343,7 @@ class MettaRepo:
                 "retries": row[8],
                 "policy_name": row[9],
                 "user_id": row[10],
+                "updated_at": row[11],
             }
 
     async def get_all_tasks(
@@ -1373,7 +1385,7 @@ class MettaRepo:
                 f"""
                 SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                        et.assignee, et.created_at, et.attributes, et.retries,
-                       p.name as policy_name, et.user_id
+                       p.name as policy_name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 LEFT JOIN policies p ON et.policy_id = p.id
                 WHERE {where_clause}
@@ -1396,6 +1408,7 @@ class MettaRepo:
                     "retries": row[8],
                     "policy_name": row[9],
                     "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]

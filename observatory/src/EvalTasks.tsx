@@ -11,6 +11,7 @@ type SortField =
   | 'retries'
   | 'created_at'
   | 'assigned_at'
+  | 'updated_at'
 type SortDirection = 'asc' | 'desc'
 
 interface Props {
@@ -185,12 +186,12 @@ export function EvalTasks({ repo }: Props) {
   }
 
   const truncateWorkerName = (workerName: string | null) => {
-    if (!workerName) return '-'
+    if (!workerName) return ''
     const parts = workerName.split('-')
     if (parts.length >= 3) {
       // Get the last part (suffix) and abbreviate the middle parts
       const suffix = parts[parts.length - 1]
-      return `eval-worker-...-${suffix}`
+      return suffix
     }
     return workerName
   }
@@ -613,20 +614,11 @@ export function EvalTasks({ repo }: Props) {
                 <SortHeader field="policy_name" label="Policy" isActive={true} width="25%" />
                 <SortHeader field="sim_suite" label="Suite" isActive={true} width="8%" />
                 <SortHeader field="status" label="Status" isActive={true} width="12%" />
-                <SortHeader field="user_id" label="User" isActive={true} width="15%" />
-                <SortHeader field="assignee" label="Assignee" isActive={true} width="15%" />
-                <th
-                  style={{
-                    padding: '12px',
-                    textAlign: 'left',
-                    borderBottom: '2px solid #dee2e6',
-                    width: '8%',
-                  }}
-                >
-                  Duration
-                </th>
-                <SortHeader field="retries" label="Retries" isActive={true} width="7%" />
+                <SortHeader field="user_id" label="User" isActive={true} width="10%" />
+                <SortHeader field="assignee" label="Assignee" isActive={true} width="10%" />
+                <SortHeader field="retries" label="Tries" isActive={true} width="7%" />
                 <SortHeader field="created_at" label="Created" isActive={true} width="10%" />
+                <SortHeader field="updated_at" label="Updated" isActive={true} width="10%" />
               </tr>
             </thead>
             <tbody>
@@ -726,14 +718,15 @@ export function EvalTasks({ repo }: Props) {
                         >
                           {truncateWorkerName(task.assignee)}
                         </span>
+                        <span>{workingDuration || ''}</span>
                       </td>
-                      <td style={{ padding: '12px' }}>{workingDuration || '-'}</td>
                       <td style={{ padding: '12px' }}>{task.retries}</td>
                       <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={8} style={{ padding: 0 }}>
+                        <td colSpan={9} style={{ padding: 0 }}>
                           {renderAttributes(task.attributes)}
                         </td>
                       </tr>
@@ -756,11 +749,12 @@ export function EvalTasks({ repo }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <SortHeader field="policy_name" label="Policy" isActive={false} width="30%" />
-                <SortHeader field="sim_suite" label="Suite" isActive={false} width="15%" />
-                <SortHeader field="user_id" label="User" isActive={false} width="15%" />
-                <SortHeader field="status" label="Status" isActive={false} width="20%" />
-                <SortHeader field="created_at" label="Created" isActive={false} width="20%" />
+                <SortHeader field="policy_name" label="Policy" isActive={false} width="20%" />
+                <SortHeader field="sim_suite" label="Suite" isActive={false} width="10%" />
+                <SortHeader field="user_id" label="User" isActive={false} width="12%" />
+                <SortHeader field="status" label="Status" isActive={false} width="15%" />
+                <SortHeader field="created_at" label="Created" isActive={false} width="19%" />
+                <SortHeader field="updated_at" label="Updated" isActive={false} width="19%" />
               </tr>
             </thead>
             <tbody>
@@ -843,10 +837,11 @@ export function EvalTasks({ repo }: Props) {
                         </div>
                       </td>
                       <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={5} style={{ padding: 0 }}>
+                        <td colSpan={6} style={{ padding: 0 }}>
                           {renderAttributes(task.attributes)}
                         </td>
                       </tr>

@@ -54,6 +54,7 @@ class TaskResponse(BaseModel):
     policy_name: str | None = None
     retries: int
     user_id: str | None = None
+    updated_at: datetime
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
@@ -80,6 +81,7 @@ class TaskResponse(BaseModel):
             policy_name=task.get("policy_name"),
             retries=task["retries"],
             user_id=task.get("user_id"),
+            updated_at=task["updated_at"],
         )
 
 
