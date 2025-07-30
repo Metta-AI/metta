@@ -52,10 +52,9 @@ dependencies = [
 dev = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0"]
 
 [tool.scikit-build]
-# `release-no-tests` is faster than `release` preset.
 # uv builds are done in isolated environment, so tests and benchmarks are not built here.
 # See `./README.md` for more details.
-cmake.args = ["--preset", "release-no-tests"]
+cmake.args = ["--preset", "release"]
 wheel.packages = ["src/metta"]
 
 # Note: if you decide to use `editable.rebuild` here, consider that it's not

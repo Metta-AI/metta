@@ -15,6 +15,10 @@
 
 namespace py = pybind11;
 
+// Global pointer to store the Python interpreter guard
+// This ensures it stays alive for the entire program duration
+static std::unique_ptr<py::scoped_interpreter> g_python_guard;
+
 // TODO: Currently this benchmark requires Python/pybind11 because the MettaGrid
 // API is tightly coupled with Python types (py::dict, py::list, py::array_t).
 //
@@ -179,35 +183,71 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, size_t n
   return action_sequence;
 }
 
+// Benchmark fixture class to ensure proper setup/teardown
+class MettaGridBenchmark : public benchmark::Fixture {
+public:
+  void SetUp(const ::benchmark::State&) override {
+    // Ensure Python is initialized
+    if (!g_python_guard) {
+      setup_error = "Python interpreter not initialized";
+      return;
+    }
+
+    // Acquire GIL for setup
+    py::gil_scoped_acquire acquire;
+
+    // Setup with default 4 agents (matching Python benchmark config)
+    num_agents = 4;
+    auto cfg = CreateBenchmarkConfig(num_agents);
+    auto map = CreateDefaultMap(2);
+
+    env = std::make_unique<MettaGrid>(cfg, map, 42);
+    env->reset();
+
+    // Verify agent count
+    if (env->num_agents() != num_agents) {
+      setup_error = "Agent count mismatch";
+      return;
+    }
+
+    // Pre-generate action sequence matching Python benchmark
+    // Python uses: iterations = 1000, rounds = 20, total = 20000
+    const int iterations = 1000;
+    const int rounds = 20;
+    const int total_iterations = iterations * rounds;
+
+    action_sequence = PreGenerateActionSequence(env.get(), num_agents, total_iterations);
+    iteration_counter = 0;
+    setup_error.clear();
+  }
+
+  void TearDown(const ::benchmark::State&) override {
+    // Acquire GIL for cleanup
+    py::gil_scoped_acquire acquire;
+
+    // Clean up
+    action_sequence.clear();
+    env.reset();
+  }
+
+protected:
+  std::unique_ptr<MettaGrid> env;
+  std::vector<py::array_t<int>> action_sequence;
+  size_t num_agents;
+  size_t iteration_counter;
+  std::string setup_error;
+};
+
 // Matching Python test_step_performance_no_reset
-static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
-  // Ensure we have the GIL for all Python operations
-  py::gil_scoped_acquire acquire;
-
-  // Setup with default 4 agents (matching Python benchmark config)
-  size_t num_agents = 4;
-  auto cfg = CreateBenchmarkConfig(num_agents);
-  auto map = CreateDefaultMap(2);
-
-  auto env = std::make_unique<MettaGrid>(cfg, map, 42);
-  env->reset();
-
-  // Verify agent count
-  if (env->num_agents() != num_agents) {
-    state.SkipWithError("Agent count mismatch");
+BENCHMARK_F(MettaGridBenchmark, Step)(benchmark::State& state) {
+  // Check for setup errors
+  if (!setup_error.empty()) {
+    state.SkipWithError(setup_error.c_str());
     return;
   }
 
-  // Pre-generate action sequence matching Python benchmark
-  // Python uses: iterations = 1000, rounds = 20, total = 20000
-  const int iterations = 1000;
-  const int rounds = 20;
-  const int total_iterations = iterations * rounds;
-
-  auto action_sequence = PreGenerateActionSequence(env.get(), num_agents, total_iterations);
-
-  // Counter to track which action to use
-  size_t iteration_counter = 0;
+  // Acquire GIL for the entire benchmark
+  py::gil_scoped_acquire acquire;
 
   // Benchmark loop
   for (auto _ : state) {
@@ -223,29 +263,34 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
     // matching the Python implementation
   }
 
-  // Report steps/second as custom counters
-  state.counters["env_rate"] = benchmark::Counter(static_cast<double>(state.iterations()), benchmark::Counter::kIsRate);
-  state.counters["agent_rate"] = benchmark::Counter(
-      static_cast<double>(state.iterations()) * static_cast<double>(num_agents), benchmark::Counter::kIsRate);
+  // Only set counters if iterations were actually performed
+  if (state.iterations() > 0) {
+    // Report steps/second as custom counters
+    // Use explicit string construction to avoid potential ASan issues with string literals
+    state.counters[std::string("env_rate")] =
+        benchmark::Counter(static_cast<double>(state.iterations()), benchmark::Counter::kIsRate);
+    state.counters[std::string("agent_rate")] = benchmark::Counter(
+        static_cast<double>(state.iterations()) * static_cast<double>(num_agents), benchmark::Counter::kIsRate);
+  }
 }
 
 // Custom main that properly initializes Python
 int main(int argc, char** argv) {
-  // Initialize Python interpreter first, before any benchmark registration
-  py::scoped_interpreter guard{};
+  // Initialize Python interpreter BEFORE benchmark initialization
+  // Store it in a global to ensure it stays alive
+  g_python_guard = std::make_unique<py::scoped_interpreter>();
 
-  // Initialize benchmark framework
+  // Now initialize benchmark framework
   ::benchmark::Initialize(&argc, argv);
-
-  // Register benchmarks after Python is initialized
-  // Use Threads(1) to ensure single-threaded execution for Python GIL safety
-  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)
-      ->Unit(benchmark::kMillisecond)
-      ->Threads(1);
 
   // Run benchmarks
   ::benchmark::RunSpecifiedBenchmarks();
+
+  // Shutdown benchmark framework
   ::benchmark::Shutdown();
+
+  // Clean up Python interpreter
+  g_python_guard.reset();
 
   return 0;
 }
