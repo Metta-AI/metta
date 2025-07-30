@@ -81,3 +81,4 @@ sweep_id
 
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
+experiments/notebooks/utils/scorecard_widget/static/

@@ -7,15 +7,15 @@ from fastapi.testclient import TestClient
 from metta.app_backend.clients.stats_client import StatsClient
 
 
-class TestPolicyHeatmapRoutes:
-    """Integration tests for policy-based heatmap routes."""
+class TestPolicyScorecardRoutes:
+    """Integration tests for policy-based scorecard routes."""
 
     # All fixtures are inherited from conftest.py
 
     def _create_test_data(
         self, stats_client: StatsClient, run_name: str, num_policies: int = 2, create_run_free_policies: int = 0
     ) -> Dict[str, Any]:
-        """Create test data for policy heatmap testing."""
+        """Create test data for policy scorecard testing."""
         data = {"policies": [], "policy_names": []}
 
         # Create training run and associated policies if requested
@@ -27,7 +27,7 @@ class TestPolicyHeatmapRoutes:
                 name=unique_run_name,
                 attributes={"environment": "test_env", "algorithm": "test_alg"},
                 url="https://example.com/run",
-                tags=["test_tag", "heatmap_test"],
+                tags=["test_tag", "scorecard_test", "heatmap_test"],
             )
 
             # Create epochs with different training epochs
@@ -150,7 +150,7 @@ class TestPolicyHeatmapRoutes:
         assert "tags" in training_run
         assert training_run["type"] == "training_run"
         assert isinstance(training_run["tags"], list)
-        assert training_run["tags"] == ["test_tag", "heatmap_test"]
+        assert training_run["tags"] == ["test_tag", "scorecard_test"]
 
         # Verify run-free policy structure
         assert "id" in policy
@@ -351,8 +351,10 @@ class TestPolicyHeatmapRoutes:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_generate_policy_heatmap_latest_selector(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test generating heatmap with latest policy selector."""
+    def test_generate_policy_scorecard_latest_selector(
+        self, test_client: TestClient, stats_client: StatsClient
+    ) -> None:
+        """Test generating scorecard with latest policy selector."""
         # Create two training runs with multiple policies each
         test_data1 = self._create_test_data(stats_client, "heatmap_latest_1", num_policies=2)
         test_data2 = self._create_test_data(stats_client, "heatmap_latest_2", num_policies=2)
@@ -401,8 +403,8 @@ class TestPolicyHeatmapRoutes:
                 assert "value" in heatmap["cells"][policy_name][eval_name]
                 assert "replayUrl" in heatmap["cells"][policy_name][eval_name]
 
-    def test_generate_policy_heatmap_best_selector(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test generating heatmap with best policy selector."""
+    def test_generate_policy_scorecard_best_selector(self, test_client: TestClient, stats_client: StatsClient) -> None:
+        """Test generating scorecard with best policy selector."""
         test_data = self._create_test_data(stats_client, "heatmap_best", num_policies=3)
 
         # Record episodes where policy performance varies
@@ -446,10 +448,10 @@ class TestPolicyHeatmapRoutes:
         # Verify average score
         assert abs(heatmap["policyAverageScores"][best_policy_name] - 85.0) < 0.01
 
-    def test_generate_policy_heatmap_with_run_free_policies(
+    def test_generate_policy_scorecard_with_run_free_policies(
         self, test_client: TestClient, stats_client: StatsClient
     ) -> None:
-        """Test heatmap generation includes run-free policies correctly."""
+        """Test scorecard generation includes run-free policies correctly."""
         # Create mix of training run and run-free policies
         test_data = self._create_test_data(stats_client, "mixed_policies", num_policies=1, create_run_free_policies=2)
 

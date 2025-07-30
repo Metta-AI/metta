@@ -12,7 +12,7 @@ from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
 
-logger = logging.getLogger("policy_heatmap_routes")
+logger = logging.getLogger("policy_scorecard_routes")
 
 # ============================================================================
 # Data Models
@@ -68,8 +68,8 @@ class MetricsRequest(BaseModel):
     eval_names: List[str]
 
 
-class HeatmapRequest(BaseModel):
-    """Request body for generating policy-based heatmap."""
+class ScorecardRequest(BaseModel):
+    """Request body for generating policy-based scorecard."""
 
     training_run_ids: List[str]
     run_free_policy_ids: List[str]
@@ -78,27 +78,27 @@ class HeatmapRequest(BaseModel):
     metric: str
 
 
-class TrainingRunHeatmapRequest(BaseModel):
-    """Request body for generating training run heatmap with ALL policies."""
+class TrainingRunScorecardRequest(BaseModel):
+    """Request body for generating training run scorecard with ALL policies."""
 
     eval_names: List[str]
     metric: str
 
 
-class HeatmapCell(BaseModel):
-    """Single cell in the policy heatmap grid."""
+class ScorecardCell(BaseModel):
+    """Single cell in the policy scorecard grid."""
 
     evalName: str
     replayUrl: Optional[str]
     value: float
 
 
-class HeatmapData(BaseModel):
-    """Complete policy heatmap data structure."""
+class ScorecardData(BaseModel):
+    """Complete policy scorecard data structure."""
 
     evalNames: List[str]
     policyNames: List[str]
-    cells: Dict[str, Dict[str, HeatmapCell]]
+    cells: Dict[str, Dict[str, ScorecardCell]]
     policyAverageScores: Dict[str, float]
     evalAverageScores: Dict[str, float]
     evalMaxScores: Dict[str, float]
@@ -193,7 +193,7 @@ GET_POLICY_NAMES_BY_IDS_QUERY = """
     ORDER BY p.name
 """
 
-POLICY_HEATMAP_DATA_QUERY = """
+POLICY_SCORECARD_DATA_QUERY = """
     SELECT
         we.primary_policy_id as policy_id,
         we.policy_name,
@@ -307,16 +307,16 @@ async def get_available_metrics_for_selection(
     return [row[0] for row in rows]
 
 
-async def fetch_policy_heatmap_data(
+async def fetch_policy_scorecard_data(
     con: AsyncConnection,
     training_run_ids: List[str],
     run_free_policy_ids: List[str],
     eval_names: List[str],
     metric: str,
 ) -> List[PolicyEvaluationResult]:
-    """Fetch evaluation data for policy-based heatmap."""
+    """Fetch evaluation data for policy-based scorecard."""
     async with con.cursor(row_factory=class_row(PolicyEvaluationResult)) as cursor:
-        await cursor.execute(POLICY_HEATMAP_DATA_QUERY, (training_run_ids, run_free_policy_ids, metric, eval_names))
+        await cursor.execute(POLICY_SCORECARD_DATA_QUERY, (training_run_ids, run_free_policy_ids, metric, eval_names))
         return await cursor.fetchall()
 
 
@@ -410,11 +410,11 @@ def _select_best_policy_from_run(run_evals: List[PolicyEvaluationResult], all_ev
     return best_policy
 
 
-def build_policy_heatmap(
+def build_policy_scorecard(
     evaluations: List[PolicyEvaluationResult],
     eval_names: List[str],
-) -> HeatmapData:
-    """Build heatmap data structure from policy evaluations."""
+) -> ScorecardData:
+    """Build scorecard data structure from policy evaluations."""
 
     # Group evaluations by policy and eval
     data_map = {(e.policy_name, e.eval_name): e for e in evaluations}
@@ -427,7 +427,7 @@ def build_policy_heatmap(
         cells[policy_name] = {}
         for eval_name in eval_names:
             eval = data_map.get((policy_name, eval_name))
-            cells[policy_name][eval_name] = HeatmapCell(
+            cells[policy_name][eval_name] = ScorecardCell(
                 evalName=eval_name, replayUrl=eval.replay_url if eval else None, value=eval.value if eval else 0.0
             )
 
@@ -444,7 +444,7 @@ def build_policy_heatmap(
         eval_averages[eval_name] = sum(scores) / len(scores) if scores else 0.0
         eval_max_scores[eval_name] = max(scores) if scores else 0.0
 
-    return HeatmapData(
+    return ScorecardData(
         evalNames=eval_names,
         policyNames=policy_names,
         cells=cells,
@@ -459,9 +459,9 @@ def build_policy_heatmap(
 # ============================================================================
 
 
-def create_policy_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
-    """Create FastAPI router for policy-based heatmap endpoints."""
-    router = APIRouter(prefix="/heatmap", tags=["heatmap"])
+def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
+    """Create FastAPI router for policy-based scorecard endpoints."""
+    router = APIRouter(tags=["scorecard"])
 
     @router.post("/policies")
     @timed_route("get_policies_and_training_runs")
@@ -492,10 +492,10 @@ def create_policy_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
                 con, request.training_run_ids, request.run_free_policy_ids, request.eval_names
             )
 
-    @router.post("/heatmap")
-    @timed_route("generate_policy_heatmap")
-    async def generate_policy_heatmap(request: HeatmapRequest) -> HeatmapData:
-        """Generate heatmap data based on training run and policy selection."""
+    @router.post("/scorecard")
+    @timed_route("generate_policy_scorecard")
+    async def generate_policy_scorecard(request: ScorecardRequest) -> ScorecardData:
+        """Generate scorecard data based on training run and policy selection."""
         if (
             (not request.training_run_ids and not request.run_free_policy_ids)
             or not request.eval_names
@@ -505,7 +505,7 @@ def create_policy_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
 
         async with metta_repo.connect() as con:
             # Fetch evaluation data
-            evaluations = await fetch_policy_heatmap_data(
+            evaluations = await fetch_policy_scorecard_data(
                 con, request.training_run_ids, request.run_free_policy_ids, request.eval_names, request.metric
             )
 
@@ -514,11 +514,11 @@ def create_policy_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
                 selected_evaluations = select_policies_by_training_run_selector(
                     evaluations, request.training_run_policy_selector, request.eval_names
                 )
-                # Build and return heatmap (includes all selected policies, even those without evaluations)
-                return build_policy_heatmap(selected_evaluations, request.eval_names)
+                # Build and return scorecard (includes all selected policies, even those without evaluations)
+                return build_policy_scorecard(selected_evaluations, request.eval_names)
             else:
-                # No evaluations found at all - return empty heatmap
-                return HeatmapData(
+                # No evaluations found at all - return empty scorecard
+                return ScorecardData(
                     evalNames=[],
                     policyNames=[],
                     cells={},
@@ -527,23 +527,30 @@ def create_policy_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
                     evalMaxScores={},
                 )
 
+    # Legacy heatmap endpoint for backward compatibility
+    @router.post("/heatmap")
+    @timed_route("generate_policy_heatmap")
+    async def generate_policy_heatmap(request: ScorecardRequest) -> ScorecardData:
+        """Legacy heatmap endpoint - calls scorecard internally."""
+        return await generate_policy_scorecard(request)
+
     @router.post("/training-run/{run_id}")
-    @timed_route("generate_training_run_heatmap")
-    async def generate_training_run_heatmap(run_id: str, request: TrainingRunHeatmapRequest) -> HeatmapData:
-        """Generate heatmap data for a specific training run showing ALL policies."""
+    @timed_route("generate_training_run_scorecard")
+    async def generate_training_run_scorecard(run_id: str, request: TrainingRunScorecardRequest) -> ScorecardData:
+        """Generate scorecard data for a specific training run showing ALL policies."""
         if not request.eval_names or not request.metric:
             raise HTTPException(status_code=400, detail="Missing required parameters")
 
         async with metta_repo.connect() as con:
             # Fetch evaluation data for this specific training run
-            evaluations = await fetch_policy_heatmap_data(con, [run_id], [], request.eval_names, request.metric)
+            evaluations = await fetch_policy_scorecard_data(con, [run_id], [], request.eval_names, request.metric)
 
-            # Build heatmap with ALL policies (no policy selection)
+            # Build scorecard with ALL policies (no policy selection)
             if evaluations:
-                return build_policy_heatmap(evaluations, request.eval_names)
+                return build_policy_scorecard(evaluations, request.eval_names)
             else:
-                # No evaluations found - return empty heatmap
-                return HeatmapData(
+                # No evaluations found - return empty scorecard
+                return ScorecardData(
                     evalNames=[],
                     policyNames=[],
                     cells={},

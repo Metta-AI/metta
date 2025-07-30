@@ -1,0 +1,1 @@
+observatory/src/Scorecard.tsx
