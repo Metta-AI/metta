@@ -51,7 +51,7 @@ def get_current_git_ref():
         # If in detached HEAD state, get the commit hash
         result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
         return result.stdout.strip()[:8]  # First 8 chars of commit hash
-    except:
+    except Exception:
         return "main"  # Fallback to main
 
 
