@@ -53,6 +53,7 @@ class TaskResponse(BaseModel):
     attributes: dict[str, Any]
     policy_name: str | None = None
     retries: int
+    user_id: str | None = None
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
@@ -78,6 +79,7 @@ class TaskResponse(BaseModel):
             attributes=task["attributes"] or {},
             policy_name=task.get("policy_name"),
             retries=task["retries"],
+            user_id=task.get("user_id"),
         )
 
 
@@ -113,6 +115,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             policy_id=request.policy_id,
             sim_suite=request.sim_suite,
             attributes=attributes,
+            user_id=user,
         )
         return TaskResponse.from_db(task)
 

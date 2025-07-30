@@ -13,9 +13,10 @@ interface EvalTask {
   attributes: Record<string, any>
   policy_name: string | null
   retries: number
+  user_id: string | null
 }
 
-type SortField = 'policy_name' | 'sim_suite' | 'status' | 'assignee' | 'retries' | 'created_at' | 'assigned_at'
+type SortField = 'policy_name' | 'sim_suite' | 'status' | 'assignee' | 'user_id' | 'retries' | 'created_at' | 'assigned_at'
 type SortDirection = 'asc' | 'desc'
 
 interface Props {
@@ -615,22 +616,23 @@ export function EvalTasks({ repo }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <SortHeader field="policy_name" label="Policy" isActive={true} width="30%" />
-                <SortHeader field="sim_suite" label="Suite" isActive={true} width="10%" />
-                <SortHeader field="status" label="Status" isActive={true} width="15%" />
-                <SortHeader field="assignee" label="Assignee" isActive={true} width="20%" />
+                <SortHeader field="policy_name" label="Policy" isActive={true} width="25%" />
+                <SortHeader field="sim_suite" label="Suite" isActive={true} width="8%" />
+                <SortHeader field="status" label="Status" isActive={true} width="12%" />
+                <SortHeader field="user_id" label="User" isActive={true} width="15%" />
+                <SortHeader field="assignee" label="Assignee" isActive={true} width="15%" />
                 <th
                   style={{
                     padding: '12px',
                     textAlign: 'left',
                     borderBottom: '2px solid #dee2e6',
-                    width: '10%',
+                    width: '8%',
                   }}
                 >
                   Duration
                 </th>
-                <SortHeader field="retries" label="Retries" isActive={true} width="8%" />
-                <SortHeader field="created_at" label="Created" isActive={true} width="12%" />
+                <SortHeader field="retries" label="Retries" isActive={true} width="7%" />
+                <SortHeader field="created_at" label="Created" isActive={true} width="10%" />
               </tr>
             </thead>
             <tbody>
@@ -717,6 +719,7 @@ export function EvalTasks({ repo }: Props) {
                           )}
                         </div>
                       </td>
+                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
                       <td style={{ padding: '12px' }}>
                         <span
                           style={{
@@ -759,10 +762,11 @@ export function EvalTasks({ repo }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <SortHeader field="policy_name" label="Policy" isActive={false} width="40%" />
+                <SortHeader field="policy_name" label="Policy" isActive={false} width="30%" />
                 <SortHeader field="sim_suite" label="Suite" isActive={false} width="15%" />
-                <SortHeader field="status" label="Status" isActive={false} width="25%" />
-                <SortHeader field="created_at" label="Created" isActive={false} width="25%" />
+                <SortHeader field="user_id" label="User" isActive={false} width="15%" />
+                <SortHeader field="status" label="Status" isActive={false} width="20%" />
+                <SortHeader field="created_at" label="Created" isActive={false} width="20%" />
               </tr>
             </thead>
             <tbody>
@@ -815,6 +819,7 @@ export function EvalTasks({ repo }: Props) {
                         </div>
                       </td>
                       <td style={{ padding: '12px' }}>{task.sim_suite}</td>
+                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
                       <td style={{ padding: '12px' }}>
                         <div>
                           <span
