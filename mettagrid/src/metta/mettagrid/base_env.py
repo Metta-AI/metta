@@ -131,6 +131,7 @@ class MettaGridEnv(ABC):
             with self.timer("_create_core_env.build_map"):
                 # Instantiate the map_builder if it has a _target_ field
                 import hydra.utils
+
                 map_builder = hydra.utils.instantiate(task_cfg.game.map_builder)
                 level = map_builder.build()
 

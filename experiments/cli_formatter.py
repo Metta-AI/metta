@@ -281,7 +281,7 @@ def format_help_with_defaults(
                 if type(None) in type_args:
                     is_optional = True
                     # Get the non-None type
-                    non_none_types = [t for t in type_args if t != type(None)]
+                    non_none_types = [t for t in type_args if t is not type(None)]
                     if non_none_types:
                         field_type = non_none_types[0]
                         type_origin = typing.get_origin(field_type)
@@ -298,13 +298,13 @@ def format_help_with_defaults(
                 type_origin in (dict, typing.Dict) if "typing" in locals() else (dict,)
             ):
                 metavar = "JSON" + (",null" if is_optional else "")
-            elif field_type == bool:
+            elif field_type is bool:
                 metavar = "bool" + (",null" if is_optional else "")
-            elif field_type == int:
+            elif field_type is int:
                 metavar = "int" + (",null" if is_optional else "")
-            elif field_type == float:
+            elif field_type is float:
                 metavar = "float" + (",null" if is_optional else "")
-            elif field_type == str or field_type is str:
+            elif field_type is str:
                 metavar = "str" + (",null" if is_optional else "")
             elif hasattr(field_type, "model_fields"):
                 # This is a nested Pydantic model

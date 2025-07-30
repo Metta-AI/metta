@@ -165,11 +165,7 @@ def navigation_bucketed_task_set(
     }
 
     # Create the task set using bucketed_task_set
-    return bucketed_task_set(
-        name=name,
-        env_cfg_template=DictConfig(base_config),
-        buckets=buckets,
-
+    return bucketed_task_set(name=name, env_cfg_template=DictConfig(base_config), buckets=buckets)
 
 
 # ============================================================================

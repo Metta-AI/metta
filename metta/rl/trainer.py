@@ -352,7 +352,7 @@ class MettaTrainer:
         self._log_master("Starting training")
 
         # Print curriculum structure and initial weights
-        if hasattr(self, '_curriculum'):
+        if hasattr(self, "_curriculum"):
             logger.info("=" * 80)
             logger.info("CURRICULUM STRUCTURE AND INITIAL WEIGHTS:")
             logger.info("=" * 80)
@@ -1067,15 +1067,15 @@ class MettaTrainer:
             # Convert game config to dict, but handle map_builder specially
             # since it's a Hydra instantiation target that will have methods
             game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=False)
-            
+
             if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
                 raise TypeError("env_cfg.game must be a dict with string keys")
-            
+
             # Resolve only the fields that PyPolicyGameConfig needs
             # We don't need map_builder for the policy config
             if "map_builder" in game_cfg_dict:
                 del game_cfg_dict["map_builder"]
-            
+
             # Now resolve the remaining config
             game_cfg_dict = OmegaConf.to_container(OmegaConf.create(game_cfg_dict), resolve=True)
 

@@ -24,7 +24,7 @@ Example structure:
 import copy
 from typing import Optional
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.curriculum_algorithm import CurriculumAlgorithm
 from metta.mettagrid.curriculum.curriculum_stats import CurriculumStats
@@ -44,7 +44,7 @@ class Task:
 
     def __init__(self, name: str):
         self._name = name
-    
+
     @property
     def name(self) -> str:
         """The name of this task."""
@@ -146,7 +146,7 @@ class Curriculum(Task):
 
     def is_leaf(self) -> bool:
         return False
-    
+
     @property
     def num_tasks(self) -> int:
         """Number of direct child tasks in this curriculum."""

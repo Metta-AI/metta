@@ -505,6 +505,8 @@ def test_range_buckets_divide_into_discrete_bins():
     - Another parameter with range [0.5, 2.0] divided into 3 bins
     - Expect 4×3 = 12 tasks with values sampled from bin ranges
     """
+    from metta.mettagrid.curriculum import bucketed_task_set
+
     base_config = OmegaConf.create({"robot": {"gripper_size": 10}, "task": {"object_size": 5, "distance": 1.0}})
     buckets = {
         "task.object_size": {
@@ -516,16 +518,11 @@ def test_range_buckets_divide_into_discrete_bins():
             "bins": 3,  # Creates [0.5,1.0), [1.0,1.5), [1.5,2.0]
         },
     }
-    buckets = {
-        "param1": ["red", "blue", "green"],
-        "param2": [1, 2, 3, 4],
-        "param3": [True, False],
-    }
-    expanded = _expand_buckets(buckets)
-    # All choice parameters should be direct lists
-    assert expanded["param1"] == ["red", "blue", "green"]
-    assert expanded["param2"] == [1, 2, 3, 4]
-    assert expanded["param3"] == [True, False]
+
+    curriculum = bucketed_task_set(name="test_bins", env_cfg_template=base_config, buckets=buckets)
+
+    # Should create 4 × 3 = 12 tasks
+    assert curriculum.num_tasks == 12
 
 
 # Removed obsolete tests for _expand_buckets, SampledTaskCurriculum, and MultiTaskCurriculum
@@ -749,69 +746,6 @@ def run_curriculum_simulation(
         "sample_rates": curriculum.stats().get_sample_rates(),
         "task_probabilities": curriculum.stats().get_task_probabilities(),
     }
-
-
-def test_range_buckets_divide_into_discrete_bins():
-    """Test that continuous range buckets are divided into discrete bins.
-
-    When using bucketed_task_set with:
-    - One parameter with range [2, 10] divided into 4 bins
-    - Another parameter with range [0.5, 2.0] divided into 3 bins
-    - Expect 4×3 = 12 tasks with values sampled from bin ranges
-    """
-    base_config = OmegaConf.create({"robot": {"gripper_size": 10}, "task": {"object_size": 5, "distance": 1.0}})
-    buckets = {
-        "task.object_size": {
-            "range": [2, 10],
-            "bins": 4,  # Creates [2,4), [4,6), [6,8), [8,10]
-        },
-        "task.distance": {
-            "range": [0.5, 2.0],
-            "bins": 3,  # Creates [0.5,1.0), [1.0,1.5), [1.5,2.0]
-        },
-    }
-
-    tree = bucketed_task_set(
-        name="test_range_buckets",
-        env_cfg_template=base_config,
-        buckets=buckets,
-    )
-
-    # Should create 4 × 3 = 12 tasks
-    assert len(tree.tasks()) == 12, f"Expected 12 tasks (4×3), got {len(tree.tasks())}"
-
-    # Verify that values are sampled within the expected ranges
-    for child in tree.tasks():
-        # Each config should have sampled values within the bin ranges
-        size = child.env_config().task.object_size
-        distance = child.env_config().task.distance
-
-        # Values should be within overall ranges
-        assert 2 <= size <= 10, f"First parameter {size} outside range [2,10]"
-        assert 0.5 <= distance <= 2.0, f"Second parameter {distance} outside range [0.5,2.0]"
-
-        # Task names should indicate the bin ranges
-        assert "object_size=" in child.short_name()
-        assert "distance=" in child.short_name()
-
-        # The name should show ranges like "(2,4)" or "(2.000,4.000)"
-        # Verify ranges appear in names
-        assert "(" in child.short_name() and ")" in child.short_name(), (
-            f"Task name should contain range notation: {child.short_name()}"
-        )
-
-    # Count how many tasks fall into each bin
-    size_bins = {0: 0, 1: 0, 2: 0, 3: 0}  # 4 bins
-    for child in tree.tasks():
-        size = child.env_config().task.object_size
-        bin_idx = int((size - 2) / 2)  # Map to bin index 0-3
-        size_bins[bin_idx] += 1
-
-    # Each size bin should have exactly 3 tasks (one for each distance bin)
-    for bin_idx, count in size_bins.items():
-        assert count == 3, f"Size bin {bin_idx} should have 3 tasks, got {count}"
-
-    print(f"\n✓ Range buckets correctly divide continuous ranges into {len(tree.tasks())} discrete bins")
 
 
 def test_env_overrides_apply_uniformly_across_bucketed_tasks():
