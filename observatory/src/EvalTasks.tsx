@@ -1,20 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Repo } from './repo'
+import { Repo, EvalTask } from './repo'
 import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO } from './constants'
-
-interface EvalTask {
-  id: string
-  policy_id: string
-  sim_suite: string
-  status: 'unprocessed' | 'canceled' | 'done' | 'error'
-  assigned_at: string | null
-  assignee: string | null
-  created_at: string
-  attributes: Record<string, any>
-  policy_name: string | null
-  retries: number
-  user_id: string | null
-}
 
 type SortField =
   | 'policy_name'

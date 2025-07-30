@@ -148,6 +148,7 @@ export type EvalTask = {
   attributes: Record<string, any>
   policy_name: string | null
   retries: number
+  user_id: string | null
 }
 
 export type EvalTasksResponse = {
