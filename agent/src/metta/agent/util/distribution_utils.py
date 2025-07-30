@@ -97,6 +97,11 @@ def get_from_master(obj: Any) -> Any:
         - For large objects or GPU tensors, this may have performance overhead due to
           serialization; consider tensor-specific ops like dist.broadcast() for tensors.
     """
+    #################
+    # DEBUG
+    print(f"get from master called from rank {dist.get_rank()} on device {obj.device}")
+    #################
+
     # Wrap in a list as required by the API
     obj_list = [obj]
 
