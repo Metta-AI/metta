@@ -47,7 +47,6 @@ setup: |
   echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
   bash ./devops/skypilot/config/setup-common.sh
-  bash ./devops/skypilot/config/gpu-troubleshoot.sh || true
 
   echo "[SETUP] Setup complete."
 
