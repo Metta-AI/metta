@@ -46,6 +46,7 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
         if legacy_file.exists():
             with open(legacy_file) as f:
                 token = f.read().strip()
+                logger.info(f"Token length: {len(token)}")
         else:
             return None
     else:
