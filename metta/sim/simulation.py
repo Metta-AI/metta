@@ -26,7 +26,7 @@ from omegaconf import OmegaConf
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter

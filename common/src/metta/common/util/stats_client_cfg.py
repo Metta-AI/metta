@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 from omegaconf import DictConfig, ListConfig
 
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 

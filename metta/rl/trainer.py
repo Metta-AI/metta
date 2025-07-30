@@ -21,8 +21,8 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
-from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
