@@ -152,17 +152,13 @@ class CheckpointManager:
         Returns:
             True if checkpoint was saved, False otherwise
         """
-        # Check if we should save based on interval (all ranks must agree)
+        # Check if we should save based on interval
         checkpoint_interval = self.trainer_cfg.checkpoint.checkpoint_interval
         if not force and checkpoint_interval and epoch % checkpoint_interval != 0:
             return False
 
-        # Now all ranks that should save are here
-        # Only master saves training state, but all ranks must participate in barrier
+        # Only master saves checkpoint state
         if not self.is_master:
-            # Non-master ranks need to participate in the barrier below
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
             return False
 
         logger.info(f"Saving checkpoint at epoch {epoch}")
