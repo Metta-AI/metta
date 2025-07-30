@@ -586,13 +586,19 @@ function drawGlyphBubbles() {
 
     for (let actionStep = state.step; actionStep >= 0; actionStep--) {
       const action = getAttr(state.selectedGridObject, 'action', actionStep)
-      if (!action || action[0] == null || action[1] == null) continue
+      if (!action || action[0] == null || action[1] == null) {
+        continue
+      }
 
       const actionName = state.replay.action_names[action[0]]
-      if (actionName !== 'change_glyph') continue
+      if (actionName !== 'change_glyph') {
+        continue
+      }
 
       const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
-      if (!actionSuccess) continue
+      if (!actionSuccess) {
+        continue
+      }
 
       glyphId = action[1]
       glyphActionStep = actionStep
@@ -610,47 +616,32 @@ function drawGlyphBubbles() {
 
       const glyphString = glyphAssociations[glyphId] || ''
 
-      if (ctx.fontAtlasData) {
-        for (const char of glyphString) {
-          console.log(`Char '${char}':`, ctx.fontAtlasData[char])
-        }
-      }
-
       if (glyphString !== '') {
         ctx.drawSprite(
           'actions/thoughts.png',
           bubbleX,
           bubbleY,
           [1, 1, 1, 1], // color (white)
-          -2, // scale x - make it 50% bigger and mirror
-          2, // scale y - make it 50% bigger
+          [-2, 2], // make it bigger and mirror x
           0 // rotation
         )
 
-        // Draw debug rectangle where text should be
-        let text_width = Common.TILE_SIZE * 0.8
-        let text_height = Common.TILE_SIZE * 0.3
-        let boxX = bubbleX - text_width / 2
-        let boxY = bubbleY - text_height / 2
-
-        // ctx.drawSprite(
-        //   'white.png', // 32x32 pixels
-        //   boxX + text_width / 2,
-        //   boxY + text_height / 2,
-        //   [1, 0, 0, 1], // RED tint
-        //   text_width / 64, // scale x
-        //   text_height / 64, // scale y
-        //   0             // no rotation
-        // )
-
+        const textWidth = Common.TILE_SIZE * 0.95
+        const textHeight = textWidth * 0.6
+        const textBbox: [number, number, number, number] = [
+          bubbleX + Common.TILE_SIZE * 0.02 - textWidth / 2,
+          bubbleY - Common.TILE_SIZE * 0.05 - textHeight / 2,
+          textWidth,
+          textHeight,
+        ]
         ctx.drawText(
           glyphString,
-          boxX + text_width / 2,
-          boxY + text_height / 2,
-          [0, 0, 0, 1], // fill black
-          text_height / 8, // scale
-          0, // spacing
-          true // center horizontally
+          textBbox,
+          [0, 0, 0, 1], // black text
+          'scale', // scale to fit while maintaining aspect ratio
+          'center', // center horizontally
+          'middle', // center vertically
+          -10 // spacing
         )
       }
     }
