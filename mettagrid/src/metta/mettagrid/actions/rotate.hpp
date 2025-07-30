@@ -28,7 +28,7 @@ protected:
       actor->stats.add(std::string("movement.rotation.to_") + OrientationNames[static_cast<int>(orientation)], 1);
 
       // Check if last action was also a rotation for sequential tracking
-      if (ActionHandler::get_last_action_name(actor->agent_id) == "rotate") {
+      if (actor->prev_action == "rotate") {
         actor->stats.add("movement.sequential_rotations", 1);
       }
     }

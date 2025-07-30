@@ -73,6 +73,8 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
+  GridLocation prev_location;
+  std::string prev_action;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -92,7 +94,9 @@ public:
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
-        reward(nullptr) {
+        reward(nullptr),
+        prev_location(),
+        prev_action("") {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 

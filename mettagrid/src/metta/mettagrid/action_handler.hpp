@@ -22,14 +22,6 @@ struct ActionConfig {
   virtual ~ActionConfig() {}
 };
 
-struct ActionTrackingState {
-  std::string last_action_name;
-  unsigned int consecutive_count = 0;
-  unsigned int total_count = 0;
-  bool last_success = false;
-  unsigned int current_step = 0;
-};
-
 class ActionHandler {
 public:
   unsigned char priority;
@@ -56,6 +48,13 @@ public:
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
+    // Check if agent moved
+    if (actor->location != actor->prev_location) {
+      actor->stats.incr("status.stationary.ticks");
+    } else {
+      actor->stats.set("status.stationary.ticks", 0.0);
+    }
+
     // Handle frozen status
     if (actor->frozen != 0) {
       actor->stats.incr("status.frozen.ticks");
@@ -78,7 +77,8 @@ public:
     bool success = has_needed_resources && _handle_action(actor, arg);
 
     // Update tracking for this agent
-    update_tracking(actor->agent_id, success);
+    actor->prev_action = _action_name;
+    actor->prev_location = actor->location;
 
     // Track success/failure
     if (success) {
@@ -107,70 +107,12 @@ public:
     return _action_name;
   }
 
-  // Get tracking state for a specific agent
-  const ActionTrackingState* get_agent_tracking(size_t agent_id) const {
-    auto it = _agent_tracking.find(agent_id);
-    return it != _agent_tracking.end() ? &it->second : nullptr;
-  }
-
-  // Get the last action name for an agent across all handlers
-  static std::string get_last_action_name(size_t agent_id) {
-    auto& actions = get_global_last_actions();
-    auto it = actions.find(agent_id);
-    return it != actions.end() ? it->second : "";
-  }
-
-  // Clear all tracking data (useful for reset)
-  static void clear_all_tracking() {
-    get_global_last_actions().clear();
-  }
-
-  // Clear tracking for this handler
-  void clear_tracking() {
-    _agent_tracking.clear();
-  }
-
 protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
   std::string _action_name;
   std::map<InventoryItem, InventoryQuantity> _required_resources;
   std::map<InventoryItem, InventoryQuantity> _consumed_resources;
-
-  // Per-agent tracking state for this handler
-  std::map<size_t, ActionTrackingState> _agent_tracking;
-
-  // REMOVED: static std::map<size_t, std::string> _global_last_actions;
-
-private:
-  // Use function-local static to avoid global destructor
-  static std::map<size_t, std::string>& get_global_last_actions() {
-    static std::map<size_t, std::string> global_last_actions;
-    return global_last_actions;
-  }
-
-  void update_tracking(size_t agent_id, bool success) {
-    auto& state = _agent_tracking[agent_id];
-    auto& global_actions = get_global_last_actions();
-
-    // Check if this is consecutive
-    if (global_actions[agent_id] == _action_name && success) {
-      state.consecutive_count++;
-    } else {
-      state.consecutive_count = success ? 1 : 0;
-    }
-
-    state.last_action_name = _action_name;
-    state.last_success = success;
-    if (success) {
-      state.total_count++;
-    }
-
-    // Update global tracking
-    if (success) {
-      global_actions[agent_id] = _action_name;
-    }
-  }
 };
 
 #endif  // ACTION_HANDLER_HPP_
