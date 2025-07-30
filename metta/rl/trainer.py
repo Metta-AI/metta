@@ -1099,6 +1099,7 @@ class MettaTrainer:
         self.vecenv.async_reset(self.cfg.seed + rank)
 
     def _load_policy(self, checkpoint: TrainerCheckpoint | None, policy_store) -> PolicyRecord | None:
+        logger.info(f"Checkpoint Path: {checkpoint}")
         """Try to load policy from checkpoint or config. Returns None if not found."""
         trainer_cfg = self.trainer_cfg
 
@@ -1109,6 +1110,11 @@ class MettaTrainer:
 
         # Try initial_policy from config
         if trainer_cfg.initial_policy and (initial_uri := trainer_cfg.initial_policy.uri) is not None:
+            self._log_master(f"Loading initial policy URI: {initial_uri}")
+            return policy_store.policy_record(initial_uri)
+
+        if self.cfg.policy_uri and (initial_uri := self.cfg.policy_uri) is not None:
+            logger.info(f"Policy URI: {self.cfg.policy_uri}")
             self._log_master(f"Loading initial policy URI: {initial_uri}")
             return policy_store.policy_record(initial_uri)
 
