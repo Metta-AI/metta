@@ -5,6 +5,18 @@ defaults:
 name: cyclical_timing
 
 simulations:
+  cyclical/horizontal_timing_3:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_3
+  cyclical/vertical_timing_3:
+    env: env/mettagrid/cyclical/evals/vertical_timing_3
+  cyclical/horizontal_timing_4:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_4
+  cyclical/vertical_timing_4:
+    env: env/mettagrid/cyclical/evals/vertical_timing_4
+  cyclical/horizontal_timing_5:
+    env: env/mettagrid/cyclical/evals/horizontal_timing_5
+  cyclical/vertical_timing_5:
+    env: env/mettagrid/cyclical/evals/vertical_timing_5
   cyclical/horizontal_timing_6:
     env: env/mettagrid/cyclical/evals/horizontal_timing_6
   cyclical/vertical_timing_6:
