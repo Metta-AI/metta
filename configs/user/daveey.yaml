@@ -22,7 +22,6 @@ trainer:
   # optimizer:
   #   type: muon
   # env_overrides:
-  #   sampling: 0.7
   #   game:
   #     num_agents: 36
   #     max_steps: 1000
@@ -76,7 +75,6 @@ replay_job:
 
 # env: /env/mettagrid/reward_dr
 # env_overrides:
-#   # sampling: 0.7
 #   game:
 #     num_agents: 16
 #     max_steps: 1000
