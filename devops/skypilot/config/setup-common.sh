@@ -6,7 +6,7 @@ cd /workspace/metta
 
 # Initialize git and point to remote
 git init
-git remote add origin "$METTA_GIT_REF"
+git remote add origin https://github.com/Metta-AI/metta/
 
 # Git setup
 echo "[SETUP] Git operations..."
