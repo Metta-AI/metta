@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
 import os
 import time
 import weakref
@@ -11,6 +10,8 @@ from typing import Any, Dict
 import torch.nn as nn
 import wandb
 from omegaconf import OmegaConf
+
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 
 logger = logging.getLogger(__name__)
 

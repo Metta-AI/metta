@@ -48,7 +48,6 @@ from metta.rl.util.batch_utils import (
     calculate_prioritized_sampling_params,
 )
 from metta.rl.util.distributed import setup_device_and_distributed
-from metta.rl.util.evaluation import generate_replay
 from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.optimization import (
     calculate_explained_variance,

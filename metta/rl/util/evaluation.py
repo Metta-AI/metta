@@ -6,9 +6,9 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import wandb
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
 
 logger = logging.getLogger(__name__)
 

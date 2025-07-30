@@ -3,7 +3,6 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from typing import Any
 
 import numpy as np
@@ -14,11 +13,6 @@ from omegaconf import DictConfig
 
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.app_backend.stats_client import StatsClient
-from metta.common.profiling.memory_monitor import MemoryMonitor
-from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
