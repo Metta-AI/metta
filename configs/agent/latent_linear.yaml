@@ -1,0 +1,73 @@
+# Minimal latent linear network - smallest possible token-based agent
+# Direct mapping from tokens to actions with minimal processing
+_target_: metta.agent.metta_agent.MettaAgent
+
+observations:
+  obs_key: grid_obs
+
+clip_range: 0 # set to 0 to disable clipping
+analyze_weights_interval: 300
+l2_init_weight_update_interval: 0
+
+components:
+  #necessary layers: _core_, _action_embeds_, _action_, _value_
+  #necessary input_source: _obs_
+
+  _obs_:
+    _target_: metta.agent.lib.obs_tokenizers.ObsTokenPadStrip
+    sources:
+      null
+
+  # Simple normalization
+  obs_normalizer:
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
+    sources:
+      - name: _obs_
+
+  # Minimal embedding - just embed attributes with tiny embedding dim
+  obs_embed:
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
+    num_freqs: 2  # Minimal fourier features
+    attr_embed_dim: 4  # Tiny embedding
+    sources:
+      - name: obs_normalizer
+
+  # Mean pool tokens to get fixed size
+  obs_pool:
+    _target_: metta.agent.lib.mean_pool.MeanPool
+    dim: 0  # Pool over token dimension
+    sources:
+      - name: obs_embed
+
+  # Minimal LSTM (required by framework)
+  _core_:
+    _target_: metta.agent.lib.lstm.LSTM
+    sources:
+      - name: obs_pool
+    output_size: 32  # Even smaller LSTM
+    nn_params:
+      num_layers: 1  # Single layer
+
+  # Direct value head
+  _value_:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: _core_
+    nn_params:
+      out_features: 1
+    nonlinearity: null
+
+  # Direct actor head
+  _action_embeds_:
+    _target_: metta.agent.lib.action.ActionEmbedding
+    sources:
+      null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 4  # Tiny embeddings
+
+  _action_:
+    _target_: metta.agent.lib.actor.MettaActorSingleHead
+    sources:
+      - name: _core_
+      - name: _action_embeds_
