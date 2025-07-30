@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: all
+  - sim: operantconditioning
   - _self_
 
 run: null # Auto-generated if not provided
@@ -9,11 +9,22 @@ policy_uri: ???
 
 sim_job:
   policy_uris:
-    - ${policy_uri}
+    - wandb://run/daphne.operantconditioning.backchaining.earlyterm.any.07-30
+    - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.any.07-30
+    - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.all.07-30
+    - wandb://run/daphne.operantconditioning.smoketestthree.earlyterm.any.07-30
+    - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.all.07-30
+    - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.any.07-30
+    - wandb://run/daphne.operantconditioning.backchaining.earlyterm.all.07-30
+    - wandb://run/daphne.operantconditioning.smoketestthree.earlyterm.all.07-30
+    - wandb://run/george.operantconditioning.smoketesttwo.07-30
+    - wandb://run/george.operantconditioning.smoketestthree.07-30
+    - wandb://run/george.operantconditioning.backchaining.07-30
+    - wandb://run/george.operantconditioning.smoketestfour.07-30
   simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
-  replay_dir: ${run_dir}/replays/evals
+  replay_dir: s3://softmax-public/replays/${run}
 
 eval_task_id: null
 
