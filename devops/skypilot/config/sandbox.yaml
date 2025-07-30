@@ -18,8 +18,8 @@ setup: |
   set -e
   echo "[SETUP] Starting setup..."
 
-  bash devops/skypilot/config/setup-common.sh
-  bash devops/skypilot/config/gpu-troubleshoot.sh || true
+  bash /workspace/metta/devops/skypilot/config/setup-common.sh
+  bash /workspace/metta/devops/skypilot/config/gpu-troubleshoot.sh || true
   echo "Sandbox is ready!"
 
   echo "[SETUP] Setup complete."
