@@ -277,8 +277,8 @@ function fixReplay() {
 
 /** Converts a replay from version 1 to version 2. */
 function convertReplayV1ToV2(replayData: any) {
-  console.log('Converting replay from version 1 to version 2...')
-  console.log('Replay data: ', replayData)
+  console.info('Converting replay from version 1 to version 2...')
+  console.info('Replay data: ', replayData)
   let data: any = {
     version: 2,
   }
@@ -397,7 +397,6 @@ function convertReplayV1ToV2(replayData: any) {
   }
 
   data.map_size = [maxX + 1, maxY + 1]
-  console.log('Converted replay data: ', data)
   return data
 }
 
