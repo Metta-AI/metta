@@ -144,24 +144,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         return False
 
-    def _check_reward_termination(self) -> bool:
-        """Check if episode should terminate based on total reward threshold."""
-
-        # if max_by_altars, terminate when total reward = num_altars
-        if self._task.env_cfg().game.get("termination.num_altars", False):
-            termination_reward = self._num_altars
-        # if max_reward, terminate when total reward = max reward
-        elif self._task.env_cfg().game.get("termination.max_reward"):
-            termination_reward = self._task.env_cfg().game.termination.max_reward
-        else:
-            return False
-
-        # Calculate total episode reward across all agents
-        total_episode_reward = self._c_env.get_episode_rewards().sum()
-
-        # Check if total reward has reached the threshold
-        return total_episode_reward >= termination_reward
-
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
