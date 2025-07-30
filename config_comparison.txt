@@ -18,7 +18,7 @@ Metta: ./tools/train.py run=relh.dummy.run
 ### Game Configuration
 | Parameter | Metta | 3rd Party |
 |-----------|--------|-----------|
-| num_agents | 24 (arena/basic) | 64 |
+| num_agents | 64 (basic_easy_shaped) | 64 |
 | obs_width | 11 | 11 |
 | obs_height | 11 | 11 |
 | num_observation_tokens | 200 | 200 |
@@ -37,40 +37,40 @@ Metta: ./tools/train.py run=relh.dummy.run
 |-----------|--------|-----------|
 | total_timesteps | 10,000,000,000 | 300,000,000 |
 | batch_size | 524,288 | auto |
-| minibatch_size | 16,384 | 32,768 |
+| minibatch_size | 32,768 | 32,768 |
 | bptt_horizon | 64 | 64 |
-| learning_rate | 0.000457 | 0.018470110879570414 |
-| adam_beta1 | 0.9 | 0.8923106632311335 |
-| adam_beta2 | 0.999 | 0.9632470625784862 |
-| adam_eps | 1.0e-12 | 1.3537431449843922e-7 |
-| clip_coef | 0.1 | 0.14919147162017737 |
-| ent_coef | 0.0021 | 0.016700174334611493 |
-| gae_lambda | 0.916 | 0.8443676864928215 |
-| gamma | 0.977 | 0.997950174315581 |
-| max_grad_norm | 0.5 | 2.572849891206465 |
-| vf_clip_coef | 0.1 | 0.1569624916309049 |
-| vf_coef | 0.44 | 3.2211333828684454 |
-| vtrace_c_clip | 1.0 | 2.134490283650365 |
-| vtrace_rho_clip | 1.0 | 2.296343917695581 |
+| learning_rate | 0.018470110879570414 | 0.018470110879570414 |
+| adam_beta1 | 0.8923106632311335 | 0.8923106632311335 |
+| adam_beta2 | 0.9632470625784862 | 0.9632470625784862 |
+| adam_eps | 1.3537431449843922e-07 | 1.3537431449843922e-7 |
+| clip_coef | 0.14919147162017737 | 0.14919147162017737 |
+| ent_coef | 0.016700174334611493 | 0.016700174334611493 |
+| gae_lambda | 0.8443676864928215 | 0.8443676864928215 |
+| gamma | 0.997950174315581 | 0.997950174315581 |
+| max_grad_norm | 2.572849891206465 | 2.572849891206465 |
+| vf_clip_coef | 0.1569624916309049 | 0.1569624916309049 |
+| vf_coef | 3.2211333828684454 | 3.2211333828684454 |
+| vtrace_c_clip | 2.134490283650365 | 2.134490283650365 |
+| vtrace_rho_clip | 2.296343917695581 | 2.296343917695581 |
 | prio_alpha | 0.0 | 0.7918451491719373 |
 | prio_beta0 | 0.6 | 0.5852686803034238 |
 
 ### Environment/Map Configuration
 | Parameter | Metta | 3rd Party |
 |-----------|--------|-----------|
-| map width | 25 | 64 |
-| map height | 25 | 64 |
+| map width | 64 | 64 |
+| map height | 64 | 64 |
 | border_width | 6 | 6 |
 | num_rooms | N/A | 1 |
 
 ### Object Counts (arena/basic vs 3rd party)
 | Object | Metta | 3rd Party |
 |--------|--------|-----------|
-| mine_red | 10 | 128 |
-| generator_red | 5 | 64 |
-| altar | 5 | 32 |
-| wall | 20 | 0 |
-| block | 20 | N/A |
+| mine_red | 20 | 128 |
+| generator_red | 10 | 64 |
+| altar | 8 | 32 |
+| wall | 40 | 0 |
+| block | 40 | N/A |
 | armory | N/A | 0 |
 | lasery | N/A | 0 |
 | lab | N/A | 0 |
@@ -131,7 +131,7 @@ Metta: ./tools/train.py run=relh.dummy.run
 
 1. The 3rd party config has much more aggressive hyperparameters which could lead to faster learning but potentially less stable training
 2. The prioritized experience replay is a significant difference - Metta has it disabled
-3. The map sizes are very different (25x25 vs 64x64) which affects exploration dynamics
-4. The object densities are proportionally different which could affect resource availability
+3. The map sizes are now aligned (64x64) which improves comparability
+4. The object densities are still different - 3rd party has more objects per map
 5. Consider aligning batch/minibatch sizes for fair comparison
 6. The learning rate difference is substantial (40x higher in 3rd party)

@@ -25,9 +25,9 @@ game:
       params:
         agents: 8
         objects:
-          mine_red: 20
-          generator_red: 10
-          altar: 8
+          mine_red: 16
+          generator_red: 8
+          altar: 4
 
-          block: 40
-          wall: 40
+          block: 0
+          wall: 0
