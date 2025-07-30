@@ -31,7 +31,7 @@ def main():
 
     model.eval()
 
-    samples = model.sample(args.num_samples, device)
+    samples = model.sample(args.num_samples, device)  # type: ignore
 
     for i, sample in enumerate(samples):
         sample_lines = tensor_to_ascii_lines(sample.cpu())
