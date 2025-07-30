@@ -13,12 +13,13 @@
 
 class PutRecipeItems : public ActionHandler {
 public:
-  int blue_battery_item_;
-  TypeId box_type_id_;
-  const std::string& box_type_name_;
-  explicit PutRecipeItems(const ActionConfig& cfg, TypeId box_type_id, const std::string& box_type_name, int blue_battery_item)
-      : ActionHandler(cfg, "put_recipe_items"), blue_battery_item_(blue_battery_item),
-      box_type_id_(box_type_id), box_type_name_(box_type_name) {}
+  // int blue_battery_item_;
+  // TypeId box_type_id_;
+  // const std::string& box_type_name_;
+  explicit PutRecipeItems(const ActionConfig& cfg) //TypeId box_type_id, const std::string& box_type_name, int blue_battery_item
+      : ActionHandler(cfg, "put_recipe_items") {}
+      // , blue_battery_item_(blue_battery_item),
+      // box_type_id_(box_type_id), box_type_name_(box_type_name) {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -32,17 +33,17 @@ protected:
     // Default is putting to converter
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
     if (!converter) {
-      if (_grid->is_empty(target_loc.r, target_loc.c) && blue_battery_item_ >= 0) {
-        // if (actor->inventory.count(blue_battery_item_) && actor->inventory[blue_battery_item_] > 0) {
-        //   actor->update_inventory(blue_battery_item_, -1);
-        //   actor->how_long_blue_battery_held = 0;
-        //   Box* box = new Box(target_loc.r, target_loc.c, box_type_id_, box_type_name_, actor->id, actor->agent_id, blue_battery_item_);
-        //   _grid->add_object(box);
-        //   actor->stats.add("box.created", 1.0f);
-        //   return true;
-        // }
-        return true;
-      }
+      // if (_grid->is_empty(target_loc.r, target_loc.c) && blue_battery_item_ >= 0) {
+      //   if (actor->inventory.count(blue_battery_item_) && actor->inventory[blue_battery_item_] > 0) {
+      //     actor->update_inventory(blue_battery_item_, -1);
+      //     actor->how_long_blue_battery_held = 0;
+      //     Box* box = new Box(target_loc.r, target_loc.c, box_type_id_, box_type_name_, actor->id, actor->agent_id, blue_battery_item_);
+      //     _grid->add_object(box);
+      //     actor->stats.add("box.created", 1.0f);
+      //     return true;
+      //   }
+      //   return true;
+      // }
 
       return false;
     }
