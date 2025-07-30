@@ -7,7 +7,7 @@ name: relh.dummy.run
 total_timesteps: 10000000000
 batch_size: 524288
 num_workers: None
-minibatch_size: 16384
+minibatch_size: 32768
 bptt_horizon: 64
 
 
@@ -110,6 +110,7 @@ agent:
       - name: actor_1
       - name: _action_embeds_
 trainer:
+  _target_: metta.rl.trainer.MettaTrainer
   num_workers: null
   curriculum: /env/mettagrid/arena/basic_easy_shaped
   env_overrides: {}
@@ -133,19 +134,19 @@ trainer:
   total_timesteps: 10000000000
   optimizer:
     type: adam
-    beta1: 0.9
-    beta2: 0.999
-    eps: 1.0e-12
-    learning_rate: 0.000457
+    beta1: 0.8923106632311335
+    beta2: 0.9632470625784862
+    eps: 1.3537431449843922e-07
+    learning_rate: 0.018470110879570414
     weight_decay: 0
   ppo:
-    clip_coef: 0.1
-    ent_coef: 0.0021
-    gae_lambda: 0.916
-    gamma: 0.977
-    max_grad_norm: 0.5
-    vf_clip_coef: 0.1
-    vf_coef: 0.44
+    clip_coef: 0.14919147162017737
+    ent_coef: 0.016700174334611493
+    gae_lambda: 0.8443676864928215
+    gamma: 0.997950174315581
+    max_grad_norm: 2.572849891206465
+    vf_clip_coef: 0.1569624916309049
+    vf_coef: 3.2211333828684454
     l2_reg_loss_coef: 0
     l2_init_loss_coef: 0
     norm_adv: true
@@ -155,13 +156,13 @@ trainer:
     prio_alpha: 0.0
     prio_beta0: 0.6
   vtrace:
-    vtrace_rho_clip: 1.0
-    vtrace_c_clip: 1.0
+    vtrace_rho_clip: 2.296343917695581
+    vtrace_c_clip: 2.134490283650365
   zero_copy: true
   require_contiguous_env_ids: false
   verbose: true
   batch_size: 524288
-  minibatch_size: 16384
+  minibatch_size: 32768
   bptt_horizon: 64
   update_epochs: 1
   cpu_offload: false
@@ -177,20 +178,20 @@ trainer:
     learning_rate_schedule:
       _target_: metta.rl.hyperparameter_scheduler.CosineSchedule
       min_value: 3.0e-05
-      initial_value: 0.000457
+      initial_value: 0.018470110879570414
     ppo_clip_schedule:
       _target_: metta.rl.hyperparameter_scheduler.LogarithmicSchedule
       min_value: 0.05
       decay_rate: 0.1
-      initial_value: 0.1
+      initial_value: 0.14919147162017737
     ppo_ent_coef_schedule:
       _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
       min_value: 0.0
-      initial_value: 0.0021
+      initial_value: 0.016700174334611493
     ppo_vf_clip_schedule:
       _target_: metta.rl.hyperparameter_scheduler.LinearSchedule
       min_value: 0.05
-      initial_value: 0.1
+      initial_value: 0.1569624916309049
     ppo_l2_reg_loss_schedule:
       _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
       initial_value: 0
