@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <set>
 #include <vector>
 
-#include "../mettagrid/packed_coordinate.hpp"  // Adjust path as needed
+#include "../mettagrid/packed_coordinate.hpp"
 
 using PackedCoordinate::ObservationPattern;
 using Offset = std::pair<int, int>;
@@ -79,35 +80,25 @@ TEST(ObservationPatternTest, OffsetsInManhattanOrder) {
   }
 }
 
-class ObservationPatternParamTest : public ::testing::TestWithParam<std::pair<int, int>> {};
+// Refactored to avoid parameterized test issues
+TEST(ObservationPatternTest, MatchesReferenceOffsets) {
+  // Test cases that were previously parameterized
+  struct TestCase {
+    int height;
+    int width;
+  };
 
-TEST_P(ObservationPatternParamTest, MatchesReferenceOffsets) {
-  int height = GetParam().first;
-  int width = GetParam().second;
+  std::vector<TestCase> test_cases = {{3, 9}, {7, 3}, {5, 5}, {1, 1}, {1, 5}, {5, 1}};
 
-  auto expected = compute_sorted_offsets(height, width);
-  std::vector<Offset> actual;
-  for (const auto& offset : ObservationPattern{height, width}) {
-    actual.push_back(offset);
+  for (const auto& tc : test_cases) {
+    SCOPED_TRACE("Height: " + std::to_string(tc.height) + ", Width: " + std::to_string(tc.width));
+
+    auto expected = compute_sorted_offsets(tc.height, tc.width);
+    std::vector<Offset> actual;
+    for (const auto& offset : ObservationPattern{tc.height, tc.width}) {
+      actual.push_back(offset);
+    }
+
+    EXPECT_EQ(actual, expected);
   }
-
-  EXPECT_EQ(actual, expected);
 }
-
-#if defined(__clang__)
-#define INSTANTIATE_TEST_MACRO INSTANTIATE_TEST_SUITE_P
-#else
-#define INSTANTIATE_TEST_MACRO INSTANTIATE_TEST_CASE_P
-#endif
-
-INSTANTIATE_TEST_MACRO(PackedCoordinate,
-                       ObservationPatternParamTest,
-                       ::testing::Values(std::make_pair(3, 9),
-                                         std::make_pair(7, 3),
-                                         std::make_pair(5, 5),
-                                         std::make_pair(1, 1),
-                                         std::make_pair(1, 5),
-                                         std::make_pair(5, 1)),
-                       [](const ::testing::TestParamInfo<std::pair<int, int>>& info) {
-                         return "H" + std::to_string(info.param.first) + "_W" + std::to_string(info.param.second);
-                       });

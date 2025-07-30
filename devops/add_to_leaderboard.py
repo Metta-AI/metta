@@ -9,6 +9,8 @@ from typing import List
 import wandb
 from wandb.errors import CommError
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
+
 
 def check_policy_exists(run_name: str) -> bool:
     """
@@ -121,8 +123,8 @@ Examples:
 
     print(f"\n🎉 Successfully added policy for {wandb_path} to leaderboard and updated dashboard!")
 
-    dashboard_url = """
-https://metta-ai.github.io/metta/observatory/?data=https://s3.amazonaws.com/softmax-public/policydash/results.html
+    dashboard_url = f"""
+{METTASCOPE_REPLAY_URL}/observatory/?data=https://s3.amazonaws.com/softmax-public/policydash/results.html
 """
 
     print(f"📈 Dashboard URL: {dashboard_url}")

@@ -1,6 +1,6 @@
 diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 --- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-07-28 13:28:05
++++ sky-patched/provision/docker_utils.py	2025-07-30 14:55:58
 @@ -221,0 +222,22 @@
 +        def is_ecr_server(server: str):
 +            return server.endswith(".amazonaws.com") and ".ecr." in server
@@ -48,3 +48,9 @@ diff -U0 -r sky/resources.py sky-patched/resources.py
 -        if self._docker_login_config is not None:
 -            config['_docker_login_config'] = dataclasses.asdict(
 -                self._docker_login_config)
+diff -U0 -r sky/users/server.py sky-patched/users/server.py
+--- sky/users/server.py	2025-07-28 13:24:57
++++ sky-patched/users/server.py	2025-07-29 19:56:03
+@@ -417 +417 @@
+-    random_suffix = secrets.token_hex(16)  # 16 character hex string
++    random_suffix = secrets.token_hex(8)  # 16 character hex string

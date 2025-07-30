@@ -113,7 +113,7 @@ class TestDockerIntegration:
             self.logger.info(f"Waiting for service to be ready at {host}:{port}")
 
             # Wait up to 200 seconds for the service to respond
-            max_attempts = 200
+            max_attempts = 10
             for attempt in range(max_attempts):
                 try:
                     response = requests.get(f"http://{host}:{port}/whoami", timeout=2)
@@ -173,7 +173,7 @@ class TestDockerIntegration:
 
             self.logger.info("Cleanup process completed")
         except Exception as e:
-            pytest.skip(f"Failed to start app_backend container: {e}")
+            pytest.fail(f"Failed to start app_backend container: {e}")
 
     def test_whoami_endpoint_no_auth(self, app_backend_container):
         """Test /whoami endpoint without authentication returns 'unknown'."""

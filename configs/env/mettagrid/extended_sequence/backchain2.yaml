@@ -6,8 +6,6 @@ defaults:
   - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
-sampling: 1
-
 game:
   num_agents: 24
   max_steps: 80

@@ -2,6 +2,8 @@ from enum import Enum
 
 from typing_extensions import NotRequired, TypedDict
 
+from metta.common.util.constants import METTA_AWS_ACCOUNT_ID, METTA_SKYPILOT_URL, METTA_WANDB_ENTITY
+
 
 class UserType(Enum):
     EXTERNAL = "external"
@@ -73,8 +75,8 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "githooks": {"enabled": True},
             "mettascope": {"enabled": False},
             "observatory-key": {"enabled": False},
-            "aws": {"enabled": True, "expected_connection": "751442549699"},
-            "wandb": {"enabled": True, "expected_connection": "metta-research"},
+            "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
+            "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
             "heatmapwidget": {"enabled": False},
@@ -89,9 +91,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
             "observatory-key": {"enabled": True, "expected_connection": "@stem.ai"},
-            "aws": {"enabled": True, "expected_connection": "751442549699"},
-            "wandb": {"enabled": True, "expected_connection": "metta-research"},
-            "skypilot": {"enabled": True, "expected_connection": "skypilot-api.softmax-research.net"},
+            "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
+            "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
+            "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
             "heatmapwidget": {"enabled": True},
         }

@@ -2,10 +2,10 @@ name: Asana Integration
 
 on:
   pull_request:
-    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+    types:
+      [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
   pull_request_review:
     types: [submitted, edited, dismissed]
-
 
 jobs:
   check-context:
@@ -57,7 +57,6 @@ jobs:
           github_repo: ${{ github.repository }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-
       - name: Sync PR Description (Asana to GH)
         uses: ./.github/actions/asana/pr_description_asana_to_gh
         with:
@@ -65,4 +64,3 @@ jobs:
           repo: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
-
