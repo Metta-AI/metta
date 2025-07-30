@@ -8,6 +8,7 @@ import sky
 import sky.exceptions
 import yaml
 
+from devops.skypilot.utils import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.cost_monitor import get_instance_cost
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
@@ -155,6 +156,7 @@ def main():
 
     with spinner("Preparing task configuration", style=cyan):
         task = sky.Task.from_yaml(config_path)
+        set_task_secrets(task)
         task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
         time.sleep(1)
 
