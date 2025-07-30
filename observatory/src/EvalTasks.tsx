@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Repo } from './repo'
+import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO } from './constants'
 
 interface EvalTask {
   id: string
@@ -185,7 +186,7 @@ export function EvalTasks({ repo }: Props) {
 
   const getGithubUrl = (gitHash: string) => {
     // Assuming metta repo, adjust if needed
-    return `https://github.com/Metta-AI/metta/commit/${gitHash}`
+    return `https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/commit/${gitHash}`
   }
 
   const truncateWorkerName = (workerName: string | null) => {

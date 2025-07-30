@@ -17,6 +17,7 @@ from pathlib import Path
 from pydantic import field_validator
 
 from metta.common.util.config import Config
+from metta.common.util.constants import METTA_GITHUB_ORGANIZATION
 from metta.common.util.git import add_remote, get_commit_count, get_file_list, run_git, run_git_in_dir
 from metta.common.util.git_filter import filter_repo
 
@@ -42,8 +43,8 @@ class FilterRepoConfig(Config):
         """Basic validation of git remote URL."""
         if not v.startswith(("git@", "https://", "http://")):
             raise ValueError("Remote must start with git@, https://, or http://")
-        if "Metta-AI/" not in v:
-            raise ValueError("Remote must be from Metta-AI organization")
+        if f"{METTA_GITHUB_ORGANIZATION}/" not in v:
+            raise ValueError(f"Remote must be from {METTA_GITHUB_ORGANIZATION} organization")
         return v
 
 
@@ -52,7 +53,7 @@ CONFIG_REGISTRY = {
     "filter_repo_test": FilterRepoConfig(
         name="filter_repo_test",
         paths=["mettagrid", "mettascope"],
-        remote="git@github.com:Metta-AI/test_filter_repo.git",
+        remote=f"git@github.com:{METTA_GITHUB_ORGANIZATION}/test_filter_repo.git",
     ),
 }
 
