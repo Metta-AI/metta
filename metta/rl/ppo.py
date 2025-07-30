@@ -9,7 +9,7 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.losses import Losses, process_minibatch_update
 
 
-def train_ppo(
+def ppo(
     policy: Any,
     optimizer: Any,
     experience: Any,
