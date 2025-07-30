@@ -41,12 +41,21 @@ export type TokenListResponse = {
   tokens: TokenInfo[]
 }
 
+// Dashboard state interface for saving/loading
+export interface DashboardState {
+  selectedTrainingRunIds: string[]
+  selectedRunFreePolicyIds: string[]
+  selectedEvalNames: string[]
+  trainingRunPolicySelector: 'latest' | 'best'
+  selectedMetric: string
+}
+
 export type SavedDashboard = {
   id: string
   name: string
   description: string | null
   type: string
-  dashboard_state: Record<string, any>
+  dashboard_state: DashboardState
   created_at: string
   updated_at: string
   user_id: string
@@ -295,7 +304,7 @@ export interface Repo {
   listSavedDashboards(): Promise<SavedDashboardListResponse>
   getSavedDashboard(dashboardId: string): Promise<SavedDashboard>
   createSavedDashboard(dashboardData: SavedDashboardCreate): Promise<SavedDashboard>
-  updateSavedDashboard(dashboardId: string, dashboardData: SavedDashboardCreate): Promise<SavedDashboard>
+  updateDashboardState(dashboardId: string, dashboardState: DashboardState): Promise<SavedDashboard>
   deleteSavedDashboard(dashboardId: string): Promise<void>
 
   // User methods
@@ -424,8 +433,8 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBody<SavedDashboard>('/dashboard/saved', dashboardData)
   }
 
-  async updateSavedDashboard(dashboardId: string, dashboardData: SavedDashboardCreate): Promise<SavedDashboard> {
-    return this.apiCallWithBodyPut<SavedDashboard>(`/dashboard/saved/${encodeURIComponent(dashboardId)}`, dashboardData)
+  async updateDashboardState(dashboardId: string, dashboardState: DashboardState): Promise<SavedDashboard> {
+    return this.apiCallWithBodyPut<SavedDashboard>(`/dashboard/saved/${encodeURIComponent(dashboardId)}`, dashboardState)
   }
 
   async deleteSavedDashboard(dashboardId: string): Promise<void> {

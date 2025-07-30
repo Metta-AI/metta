@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { PolicyHeatmapData, Repo, SavedDashboardCreate } from './repo'
+import { DashboardState, PolicyHeatmapData, Repo, SavedDashboardCreate } from './repo'
 import { PolicySelector } from './components/PolicySelector'
 import { SearchInput } from './components/SearchInput'
 import { EvalSelector } from './components/EvalSelector'
@@ -14,15 +14,6 @@ import { METTASCOPE_REPLAY_URL } from './constants'
 
 interface DashboardProps {
   repo: Repo
-}
-
-// Dashboard state interface for saving/loading
-export interface DashboardState {
-  selectedTrainingRunIds: string[]
-  selectedRunFreePolicyIds: string[]
-  selectedEvalNames: string[]
-  trainingRunPolicySelector: 'latest' | 'best'
-  selectedMetric: string
 }
 
 export function Dashboard({ repo }: DashboardProps) {
@@ -233,7 +224,7 @@ export function Dashboard({ repo }: DashboardProps) {
     )
   }
 
-  const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
+  const handleCreateDashboard = async (dashboardData: SavedDashboardCreate) => {
     try {
       const dashboardState = getDashboardState()
       const saveData = {
@@ -256,6 +247,15 @@ export function Dashboard({ repo }: DashboardProps) {
   }
 
   const savedId = searchParams.get('saved_id')
+
+  const handleDashboardButtonClick = () => {
+    if (savedId) {
+      repo.updateDashboardState(savedId, getDashboardState())
+    } else {
+      setShowSaveModal(true)
+    }
+  }
+
   // Load saved dashboard on mount if saved_id parameter is present
   useEffect(() => {
     if (savedId) {
@@ -387,16 +387,18 @@ export function Dashboard({ repo }: DashboardProps) {
                 )}
               </button>
               <button
-                onClick={() => setShowSaveModal(true)}
+                onClick={handleDashboardButtonClick}
                 disabled={!heatmapData}
                 className={styles.saveDashboardButton}
                 title={
                   heatmapData
-                    ? 'Save current dashboard configuration'
+                    ? savedId
+                      ? 'Update current dashboard configuration'
+                      : 'Save current dashboard configuration'
                     : 'Generate a heatmap first to save the dashboard'
                 }
               >
-                Save Dashboard
+                {savedId ? 'Update Dashboard' : 'Save Dashboard'}
               </button>
             </div>
             <div className={styles.buttonHelpText}>
@@ -447,7 +449,7 @@ export function Dashboard({ repo }: DashboardProps) {
         <SaveDashboardModal
           isOpen={showSaveModal}
           onClose={() => setShowSaveModal(false)}
-          onSave={handleSaveDashboard}
+          onSave={handleCreateDashboard}
         />
       </div>
     </div>

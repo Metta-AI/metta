@@ -899,13 +899,10 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    async def update_saved_dashboard(
+    async def update_dashboard_state(
         self,
         user_id: str,
         dashboard_id: str,
-        name: str,
-        description: str | None,
-        dashboard_type: str,
         dashboard_state: dict[str, Any],
     ) -> bool:
         """Update an existing saved dashboard."""
@@ -918,10 +915,10 @@ class MettaRepo:
             result = await con.execute(
                 """
                 UPDATE saved_dashboards
-                SET name = %s, description = %s, type = %s, dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
+                SET dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s AND user_id = %s
                 """,
-                (name, description, dashboard_type, Jsonb(dashboard_state), dashboard_uuid, user_id),
+                (Jsonb(dashboard_state), dashboard_uuid, user_id),
             )
             return result.rowcount > 0
 
