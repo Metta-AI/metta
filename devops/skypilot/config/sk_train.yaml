@@ -41,7 +41,7 @@ setup: |
   echo "[SETUP] Starting setup..."
 
   cd /workspace/metta
-  echo "[SETUP] Git operations..."
+
   git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
   git checkout "$METTA_GIT_REF"
   echo "[SETUP] Checked out: $(git rev-parse HEAD)"
