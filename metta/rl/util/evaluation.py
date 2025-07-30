@@ -97,10 +97,12 @@ def generate_replay(
 ) -> Optional[str]:
     """Generate and upload replay."""
     player_url = None
+    # Pass the config as _pre_built_env_config to avoid Hydra loading
+    task_cfg = curriculum.get_task().env_cfg()
     replay_sim_config = SingleEnvSimulationConfig(
-        env="/env/mettagrid/mettagrid",
+        env="replay_task",  # Just a descriptive name
         num_episodes=1,
-        env_overrides=curriculum.get_task().env_cfg(),
+        env_overrides={"_pre_built_env_config": task_cfg},
     )
 
     replay_simulator = Simulation(

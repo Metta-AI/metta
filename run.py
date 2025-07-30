@@ -771,10 +771,12 @@ while agent_step < trainer_config.total_timesteps:
         # Get the actual task configuration from the curriculum
         curr_obj = getattr(metta_grid_env, "_curriculum", None)
         if curr_obj:
+            # Pass the config as _pre_built_env_config to avoid Hydra loading
+            task_cfg = curr_obj.get_task().env_cfg()
             training_task_config = SingleEnvSimulationConfig(
-                env="/env/mettagrid/mettagrid",  # won't be used, dynamic env_cfg() should override all of it
+                env="eval/training_task",  # Just a descriptive name
                 num_episodes=1,
-                env_overrides=curr_obj.get_task().env_cfg(),
+                env_overrides={"_pre_built_env_config": task_cfg},
             )
             extended_eval_config.simulations["eval/training_task"] = training_task_config
 
@@ -885,10 +887,12 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
     # Get the actual task configuration from the curriculum
     curr_obj = getattr(metta_grid_env, "_curriculum", None)
     if curr_obj:
+        # Pass the config as _pre_built_env_config to avoid Hydra loading
+        task_cfg = curr_obj.get_task().env_cfg()
         training_task_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic env_cfg() should override all of it
+            env="eval/training_task",  # Just a descriptive name
             num_episodes=1,
-            env_overrides=curr_obj.get_task().env_cfg(),
+            env_overrides={"_pre_built_env_config": task_cfg},
         )
         extended_eval_config.simulations["eval/training_task"] = training_task_config
 
