@@ -374,7 +374,6 @@ def process_stats(
     system_stats = system_monitor.stats() if system_monitor else {}
     memory_stats = memory_monitor.stats() if memory_monitor else {}
 
-
     # Current hyperparameter values (after potential scheduler updates)
     hyperparameters = {
         "learning_rate": parameters["learning_rate"],
