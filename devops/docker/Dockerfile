@@ -47,10 +47,9 @@ COPY agent/pyproject.toml agent/
 COPY experiments/pyproject.toml experiments/
 
 ENV UV_LINK_MODE=copy
-ENV UV_FROZEN=1
 ARG TARGETPLATFORM
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
-    uv sync --no-install-workspace
+    uv sync --no-install-workspace --frozen
 
 # Install sources
 ADD . .

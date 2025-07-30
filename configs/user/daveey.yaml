@@ -55,10 +55,10 @@ analyzer:
       - metric: episode_reward
       - metric: "heart.get"
 
-# replay_job:
-#   sim:
-#     env:
-#       /env/mettagrid/arena/combat
+replay_job:
+  sim:
+    env:
+      /env/mettagrid/arena/tag
 # env_overrides:
 # game:
 #   max_steps: 5000

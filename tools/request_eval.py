@@ -165,12 +165,10 @@ async def _create_remote_eval_tasks(
                     debug(f"{task.id} ({status_str})", indent=4)
 
     task_requests = [
-        stats_client.create_task(
-            TaskCreateRequest(
-                policy_id=policy_id,
-                git_hash=request.git_hash,
-                sim_suite=eval_name,
-            )
+        TaskCreateRequest(
+            policy_id=policy_id,
+            git_hash=request.git_hash,
+            sim_suite=eval_name,
         )
         for policy_id in policy_ids.values()
         for eval_name in request.evals
@@ -186,7 +184,7 @@ async def _create_remote_eval_tasks(
         info("Dry run, not creating tasks")
         return
 
-    results: list[TaskResponse] = await asyncio.gather(*task_requests)
+    results: list[TaskResponse] = await asyncio.gather(*[stats_client.create_task(task) for task in task_requests])
     for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
         policy_name = policy_ids.inv[policy_id]
         success(f"{policy_name}:", indent=2)
