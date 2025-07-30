@@ -12,6 +12,13 @@ const lastCachedState = {
   selection: null as any,
   zoomLevel: -1,
   panPos: null as Vec2f | null,
+  width: -1,
+  height: -1,
+}
+
+/** Forces the trace to redraw on next call to drawTrace. */
+export function invalidateTrace() {
+  lastCachedState.step = -1 // Just invalidate one key field to force regeneration
 }
 
 /** Draws the trace panel. */
@@ -82,6 +89,8 @@ export function drawTrace(panel: PanelInfo) {
     state.step !== lastCachedState.step ||
     state.selectedGridObject !== lastCachedState.selection ||
     panel.zoomLevel !== lastCachedState.zoomLevel ||
+    panel.width !== lastCachedState.width ||
+    panel.height !== lastCachedState.height ||
     lastCachedState.panPos === null ||
     panel.panPos.x() !== lastCachedState.panPos.x() ||
     panel.panPos.y() !== lastCachedState.panPos.y()
@@ -90,6 +99,8 @@ export function drawTrace(panel: PanelInfo) {
     lastCachedState.step = state.step
     lastCachedState.selection = state.selectedGridObject
     lastCachedState.zoomLevel = panel.zoomLevel
+    lastCachedState.width = panel.width
+    lastCachedState.height = panel.height
     lastCachedState.panPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
   }
 
