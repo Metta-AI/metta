@@ -1,3 +1,4 @@
+import logging
 from logging import Logger
 from pathlib import Path
 
@@ -20,6 +21,12 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
         The machine token or None if not found.
     """
     yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Getting machine token for {stats_server_uri}")
+    logger.info(f"YAML file: {yaml_file}")
+    logger.info(f"Exists: {yaml_file.exists()}")
+
     if yaml_file.exists():
         with open(yaml_file) as f:
             tokens = yaml.safe_load(f) or {}
@@ -34,6 +41,8 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
         # Fall back to legacy token file, which is assumed to contain production
         # server tokens if it exists
         legacy_file = Path.home() / ".metta" / "observatory_token"
+        logger.info(f"Legacy file: {legacy_file}")
+        logger.info(f"Exists: {legacy_file.exists()}")
         if legacy_file.exists():
             with open(legacy_file) as f:
                 token = f.read().strip()
