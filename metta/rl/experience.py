@@ -113,26 +113,36 @@ class Experience:
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
-
-        episode_length = self.ep_lengths[env_id.start].item()
+        # episode_length = self.ep_lengths[env_id.start].item()
+        episode_lengths = self.ep_lengths[env_id]
         indices = self.ep_indices[env_id]
 
         # Store data in segmented tensors
-        self.buffer[indices, episode_length].update(data_td.select(*self.buffer.keys(include_nested=True)))
+        # self.buffer[indices, episode_length].update(data_td.select(*self.buffer.keys(include_nested=True)))
+        self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
         # Check if episodes are complete and reset if needed
-        if episode_length + 1 >= self.bptt_horizon:
-            self._reset_completed_episodes(env_id)
+        # if episode_length + 1 >= self.bptt_horizon:
+        #     self._reset_completed_episodes(env_id)
+        completed_mask = self.ep_lengths[env_id] >= self.bptt_horizon
+        if completed_mask.any():
+            completed_indices = env_id.start + torch.where(completed_mask)[0]
+            self._reset_completed_episodes(completed_indices)
 
-    def _reset_completed_episodes(self, env_id: slice) -> None:
+    def _reset_completed_episodes(self, completed_indices: Tensor) -> None:  # av used to be not tensor
         """Reset episode tracking for completed episodes."""
-        num_full = env_id.stop - env_id.start
+        # num_full = env_id.stop - env_id.start
+        num_full = len(completed_indices)
+        if num_full == 0:
+            return
         # Use pre-allocated range tensor and slice it
-        self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
-        self.ep_lengths[env_id] = 0
+        # self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
+        # self.ep_lengths[env_id] = 0
+        self.ep_indices[completed_indices] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
+        self.ep_lengths[completed_indices] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 

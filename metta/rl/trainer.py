@@ -519,7 +519,7 @@ class MettaTrainer:
         """Perform training phase."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
-        self.policy.reset_memory()
+        self.policy.reset_memory()  # av
         self.losses.zero()
 
         prio_cfg = trainer_cfg.prioritized_experience_replay
@@ -562,6 +562,7 @@ class MettaTrainer:
 
         for _epoch in range(trainer_cfg.update_epochs):
             for _ in range(experience.num_minibatches):
+                self.policy.reset_memory()
                 minibatch, indices, prio_weights = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=prio_cfg.prio_alpha,
