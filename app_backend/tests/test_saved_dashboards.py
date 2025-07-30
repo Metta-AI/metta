@@ -206,12 +206,7 @@ class TestSavedDashboards(BaseAsyncTest):
         # Update the dashboard
         update_response = test_client.put(
             f"/dashboard/saved/{dashboard_id}",
-            json={
-                "name": "Route Update Test Dashboard",
-                "description": "Updated description",
-                "type": "heatmap",
-                "dashboard_state": updated_state,
-            },
+            json=updated_state,
             headers={"X-Auth-Request-Email": user_id},
         )
         assert update_response.status_code == 200
@@ -219,7 +214,6 @@ class TestSavedDashboards(BaseAsyncTest):
 
         # Verify the update
         assert updated_dashboard["id"] == dashboard_id
-        assert updated_dashboard["description"] == "Updated description"
         assert updated_dashboard["dashboard_state"] == updated_state
 
         # Try to update with non-existent ID
