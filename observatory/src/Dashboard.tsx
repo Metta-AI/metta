@@ -413,7 +413,7 @@ export function Dashboard({ repo }: DashboardProps) {
                     Generating Heatmap...
                   </>
                 ) : (
-                  'Generate Heatmap'
+                  'Generate Scorecard'
                 )}
               </button>
               <button
