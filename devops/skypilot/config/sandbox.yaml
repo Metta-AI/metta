@@ -10,19 +10,22 @@ file_mounts:
     source: s3://softmax-public
     mode: MOUNT_CACHED
   /mnt/s3/train_dir:
-    name: softmax-train-dir
-    store: s3
+    source: s3://softmax-train-dir
     mode: MOUNT_CACHED
-  /tmp/setup-scripts:
-    source: ./devops/skypilot/config
-    mode: COPY
+
 
 setup: |
   set -e
   echo "[SETUP] Starting setup..."
 
-  bash /tmp/setup-scripts/setup-common.sh
-  bash /tmp/setup-scripts/gpu-troubleshoot.sh || true
+  cd /workspace/metta
+  echo "[SETUP] Git operations..."
+  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
+  git checkout "$METTA_GIT_REF"
+  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
+
+  bash ./devops/skypilot/config/setup-common.sh
+  bash ./devops/skypilot/config/gpu-troubleshoot.sh || true
   echo "Sandbox is ready!"
 
   echo "[SETUP] Setup complete."
