@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
@@ -14,7 +15,6 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
-from metta.app_backend.stats_client import StatsClient
 
 
 class TestEvalTaskRoutes:
@@ -240,7 +240,7 @@ class TestEvalTaskRoutes:
         )
         eval_task_id = task_response.id
 
-        episode = stats_client.record_episode(
+        episode = await stats_client._async_client.record_episode(
             agent_policies={0: test_policy_id},
             agent_metrics={0: {"score": 100.0, "steps": 50}},
             primary_policy_id=test_policy_id,
@@ -561,16 +561,16 @@ class TestEvalTaskRoutes:
     ):
         """Test filtering by multiple sim_suites and policy_ids."""
         # Create a second policy
-        training_run = stats_client.create_training_run(
+        training_run = await stats_client._async_client.create_training_run(
             name=f"test_multi_filter_run_{uuid.uuid4().hex[:8]}",
             attributes={"test": "true"},
         )
-        epoch = stats_client.create_epoch(
+        epoch = await stats_client._async_client.create_epoch(
             run_id=training_run.id,
             start_training_epoch=0,
             end_training_epoch=100,
         )
-        second_policy = stats_client.create_policy(
+        second_policy = await stats_client._async_client.create_policy(
             name=f"test_multi_filter_policy_{uuid.uuid4().hex[:8]}",
             description="Second test policy",
             epoch_id=epoch.id,
@@ -656,16 +656,16 @@ class TestEvalTaskRoutes:
         # Create multiple policies
         policies = []
         for i in range(3):
-            training_run = stats_client.create_training_run(
+            training_run = await stats_client._async_client.create_training_run(
                 name=f"test_sql_array_run_{i}_{uuid.uuid4().hex[:8]}",
                 attributes={"test": "true"},
             )
-            epoch = stats_client.create_epoch(
+            epoch = await stats_client._async_client.create_epoch(
                 run_id=training_run.id,
                 start_training_epoch=0,
                 end_training_epoch=100,
             )
-            policy = stats_client.create_policy(
+            policy = await stats_client._async_client.create_policy(
                 name=f"test_sql_array_policy_{i}_{uuid.uuid4().hex[:8]}",
                 description=f"Test policy {i}",
                 epoch_id=epoch.id,
