@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -214,6 +215,12 @@ class KindLocal(Kind):
         info("Creating secrets...")
         self._create_secret("wandb-api-secret", f"api-key={wandb_api_key}")
         self._create_secret("machine-token-secret", f"token={machine_token}")
+        datadog_api_key = os.environ.get("DATADOG_API_KEY")
+        if datadog_api_key:
+            info("Creating Datadog API secret...")
+            self._create_secret("datadog-api-secret", f"api-key={datadog_api_key}")
+        else:
+            info("No DATADOG_API_KEY found, skipping Datadog secret creation")
 
     def build(self) -> None:
         result = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True)

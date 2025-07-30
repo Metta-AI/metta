@@ -25,6 +25,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.common.datadog.tracing import add_span_tags, configure_datadog_tracing, trace_method, traced_span
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.logging_helpers import init_logging
@@ -52,7 +53,15 @@ class EvalTaskOrchestrator:
         self._task_client = EvalTaskClient(backend_url)
         self._container_manager = container_manager or create_container_manager()
 
+    @trace_method(operation_name="eval.orchestrator.claim_task", tags={"component": "orchestrator"})
     async def _attempt_claim_task(self, task: TaskResponse, worker: WorkerInfo) -> bool:
+        add_span_tags(
+            {
+                "task_id": str(task.id),
+                "worker_name": worker.container_name,
+                "git_hash": worker.git_hash,
+            }
+        )
         claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.container_name)
         claimed_ids = await self._task_client.claim_tasks(claim_request)
         if task.id in claimed_ids.claimed:
@@ -62,6 +71,7 @@ class EvalTaskOrchestrator:
             self._logger.debug("Failed to claim task; someone else must have it")
             return False
 
+    @trace_method(operation_name="eval.orchestrator.run_cycle", tags={"component": "orchestrator"})
     async def run_cycle(self) -> None:
         alive_workers_by_name: dict[str, WorkerInfo] = {
             w.container_name: w for w in await self._container_manager.discover_alive_workers()
@@ -124,15 +134,16 @@ class EvalTaskOrchestrator:
                 self._logger.info(
                     f"All {len(existing_workers)} workers for git hash {task.git_hash} are busy, spawning new worker"
                 )
-                new_worker = self._container_manager.start_worker_container(
-                    git_hash=task.git_hash,
-                    backend_url=self._backend_url,
-                    docker_image=self._docker_image,
-                    machine_token=self._machine_token,
-                )
-                alive_workers_by_name[new_worker.container_name] = new_worker
-                alive_workers_by_git_hash[task.git_hash].append(new_worker)
-                available_workers = [new_worker]
+                with traced_span("eval.orchestrator.spawn_worker", tags={"git_hash": task.git_hash}):
+                    new_worker = self._container_manager.start_worker_container(
+                        git_hash=task.git_hash,
+                        backend_url=self._backend_url,
+                        docker_image=self._docker_image,
+                        machine_token=self._machine_token,
+                    )
+                    alive_workers_by_name[new_worker.container_name] = new_worker
+                    alive_workers_by_git_hash[task.git_hash].append(new_worker)
+                    available_workers = [new_worker]
 
             # (b) If still no available workers, we're at capacity
             if not available_workers:
@@ -153,26 +164,35 @@ class EvalTaskOrchestrator:
         alive_unassigned_workers = [
             w for w in alive_workers_by_name.values() if w.container_name not in worker_assignments
         ]
-        for worker in alive_unassigned_workers:
-            try:
-                latest_task = await self._task_client.get_latest_assigned_task_for_worker(worker.container_name)
-                last_task_assigned_at = (
-                    latest_task.assigned_at.replace(tzinfo=timezone.utc)
-                    if latest_task and latest_task.assigned_at
-                    else datetime.min
-                )
-                last_assigned_age = (datetime.now(timezone.utc) - last_task_assigned_at).total_seconds()
-                if last_assigned_age > self._worker_idle_timeout:
-                    self._logger.info(f"Cleaning up {worker.container_name} - no tasks for {last_assigned_age:.0f}s")
-                    self._container_manager.cleanup_container(worker.container_id)
-                    del alive_workers_by_name[worker.container_name]
-            except Exception:
-                self._logger.error(f"Failed to check idle status for worker {worker.container_name}", exc_info=True)
+        with traced_span(
+            "eval.orchestrator.cleanup_idle_workers", tags={"num_idle_workers": len(alive_unassigned_workers)}
+        ):
+            for worker in alive_unassigned_workers:
+                try:
+                    latest_task = await self._task_client.get_latest_assigned_task_for_worker(worker.container_name)
+                    last_task_assigned_at = (
+                        latest_task.assigned_at.replace(tzinfo=timezone.utc)
+                        if latest_task and latest_task.assigned_at
+                        else datetime.min
+                    )
+                    last_assigned_age = (datetime.now(timezone.utc) - last_task_assigned_at).total_seconds()
+                    if last_assigned_age > self._worker_idle_timeout:
+                        self._logger.info(
+                            f"Cleaning up {worker.container_name} - no tasks for {last_assigned_age:.0f}s"
+                        )
+                        add_span_tags({"cleaned_worker": worker.container_name, "idle_time": last_assigned_age})
+                        self._container_manager.cleanup_container(worker.container_id)
+                        del alive_workers_by_name[worker.container_name]
+                except Exception:
+                    self._logger.error(f"Failed to check idle status for worker {worker.container_name}", exc_info=True)
 
     async def run(self) -> None:
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
         self._logger.info(f"Max workers per git hash: {self._max_workers_per_git_hash}")
+
+        # Configure Datadog tracing
+        configure_datadog_tracing(service_name="eval-orchestrator")
 
         while True:
             start_time = datetime.now(timezone.utc)

@@ -23,6 +23,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.common.datadog.tracing import add_span_tags, configure_datadog_tracing, trace_method, traced_span
 from metta.common.util.collections import remove_none_values
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
@@ -70,6 +71,7 @@ class EvalTaskWorker:
 
         return result
 
+    @trace_method(operation_name="eval.worker.setup_checkout", tags={"component": "worker"})
     def _setup_versioned_checkout(self) -> None:
         self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
         if os.path.exists(self._versioned_path):
@@ -111,12 +113,22 @@ class EvalTaskWorker:
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
+    @trace_method(operation_name="eval.worker.run_sim_task", resource_from="task", tags={"component": "worker"})
     async def _run_sim_task(
         self,
         task: TaskResponse,
         sim_suite: str,
         env_overrides: dict,
     ) -> None:
+        # Add task-specific tags to span
+        add_span_tags(
+            {
+                "task_id": str(task.id),
+                "policy_name": task.policy_name,
+                "sim_suite": sim_suite,
+                "git_hash": self._git_hash,
+            }
+        )
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
@@ -144,12 +156,20 @@ class EvalTaskWorker:
 
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
+    @trace_method(operation_name="eval.worker.update_status", tags={"component": "worker"})
     async def _update_task_status(
         self,
         task_id: uuid.UUID,
         status: TaskStatus,
         error_reason: str | None = None,
     ) -> None:
+        add_span_tags(
+            {
+                "task_id": str(task_id),
+                "new_status": status,
+                "has_error": error_reason is not None,
+            }
+        )
         await self._client.update_task_status(
             TaskUpdateRequest(
                 require_assignee=self._assignee,
@@ -172,38 +192,41 @@ class EvalTaskWorker:
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Worker id: {self._assignee}")
 
+        configure_datadog_tracing(service_name="eval-worker")
+
         self._setup_versioned_checkout()
 
         self._logger.info(f"Worker running from main branch, sim.py will use git hash {self._git_hash}")
 
         while True:
-            loop_start_time = datetime.now()
-            try:
-                claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
+            with traced_span("eval.worker.poll_cycle", tags={"worker_id": self._assignee, "git_hash": self._git_hash}):
+                loop_start_time = datetime.now()
+                try:
+                    claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
 
-                if claimed_tasks.tasks:
-                    task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
-                    self._logger.info(f"Processing task {task.id}")
-                    try:
-                        await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
-                        self._logger.info(f"Task {task.id} completed successfully")
-                        await self._update_task_status(task.id, "done")
-                        self._logger.info(f"Task {task.id} updated to done")
-                    except Exception as e:
-                        self._logger.error(f"Task failed: {e}", exc_info=True)
-                        await self._update_task_status(task.id, "error", str(e))
-                else:
-                    self._logger.debug("No tasks claimed")
+                    if claimed_tasks.tasks:
+                        task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
+                        self._logger.info(f"Processing task {task.id}")
+                        try:
+                            await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
+                            self._logger.info(f"Task {task.id} completed successfully")
+                            await self._update_task_status(task.id, "done")
+                            self._logger.info(f"Task {task.id} updated to done")
+                        except Exception as e:
+                            self._logger.error(f"Task failed: {e}", exc_info=True)
+                            await self._update_task_status(task.id, "error", str(e))
+                    else:
+                        self._logger.debug("No tasks claimed")
 
-                elapsed_time = (datetime.now() - loop_start_time).total_seconds()
-                await asyncio.sleep(max(0, self._poll_interval - elapsed_time))
+                    elapsed_time = (datetime.now() - loop_start_time).total_seconds()
+                    await asyncio.sleep(max(0, self._poll_interval - elapsed_time))
 
-            except KeyboardInterrupt:
-                self._logger.info("Worker interrupted")
-                break
-            except Exception as e:
-                self._logger.error(f"Error in worker loop: {e}", exc_info=True)
-                await asyncio.sleep(10)
+                except KeyboardInterrupt:
+                    self._logger.info("Worker interrupted")
+                    break
+                except Exception as e:
+                    self._logger.error(f"Error in worker loop: {e}", exc_info=True)
+                    await asyncio.sleep(10)
 
 
 async def main() -> None:

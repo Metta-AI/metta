@@ -45,6 +45,18 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.machineToken }}
               key: token
+        {{- if .Values.datadog.enabled }}
+        - name: DD_AGENT_HOST
+          value: {{ include "orchestrator.fullname" . }}-datadog-agent
+        - name: DD_TRACE_AGENT_PORT
+          value: "8126"
+        - name: DD_ENV
+          value: {{ .Values.datadog.env | default "local" | quote }}
+        - name: DD_SERVICE
+          value: "eval-orchestrator"
+        - name: DD_VERSION
+          value: {{ .Values.image.tag | quote }}
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
 

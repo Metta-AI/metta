@@ -1,0 +1,149 @@
+{{- if .Values.datadog.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "orchestrator.fullname" . }}-datadog-agent
+  labels:
+    {{- include "orchestrator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: datadog-agent
+spec:
+  selector:
+    matchLabels:
+      {{- include "orchestrator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: datadog-agent
+  template:
+    metadata:
+      labels:
+        {{- include "orchestrator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: datadog-agent
+    spec:
+      serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}-datadog
+      containers:
+      - name: datadog-agent
+        image: datadog/agent:latest
+        env:
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.datadog }}
+              key: api-key
+        - name: DD_SITE
+          value: {{ .Values.datadog.site | default "datadoghq.com" | quote }}
+        - name: DD_APM_ENABLED
+          value: "true"
+        - name: DD_APM_NON_LOCAL_TRAFFIC
+          value: "true"
+        - name: DD_LOGS_ENABLED
+          value: "true"
+        - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
+          value: "true"
+        - name: DD_CONTAINER_EXCLUDE
+          value: "name:datadog-agent"
+        - name: DD_KUBERNETES_KUBELET_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        ports:
+        - name: apm
+          containerPort: 8126
+          protocol: TCP
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: dockersocket
+          mountPath: /var/run/docker.sock
+          readOnly: true
+        - name: procdir
+          mountPath: /host/proc
+          readOnly: true
+        - name: cgroups
+          mountPath: /host/sys/fs/cgroup
+          readOnly: true
+      volumes:
+      - name: dockersocket
+        hostPath:
+          path: /var/run/docker.sock
+      - name: procdir
+        hostPath:
+          path: /proc
+      - name: cgroups
+        hostPath:
+          path: /sys/fs/cgroup
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "orchestrator.fullname" . }}-datadog-agent
+  labels:
+    {{- include "orchestrator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: datadog-agent
+spec:
+  type: ClusterIP
+  ports:
+  - name: apm
+    port: 8126
+    targetPort: 8126
+    protocol: TCP
+  selector:
+    {{- include "orchestrator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: datadog-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "orchestrator.serviceAccountName" . }}-datadog
+  labels:
+    {{- include "orchestrator.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "orchestrator.fullname" . }}-datadog
+rules:
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  - pods
+  - nodes
+  - componentstatuses
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+  - configmaps
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources:
+  - events
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources:
+  - jobs
+  - cronjobs
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "orchestrator.fullname" . }}-datadog
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "orchestrator.fullname" . }}-datadog
+subjects:
+- kind: ServiceAccount
+  name: {{ include "orchestrator.serviceAccountName" . }}-datadog
+  namespace: {{ .Release.Namespace }}
+{{- end }}

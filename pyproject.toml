@@ -59,6 +59,7 @@ dependencies = [
   "tiktoken>=0.9.0",
   "raylib>=5.5.0.0",
   "bidict>=0.23.1",
+  "ddtrace>=2.6.0",
 ]
 name = "metta"
 version = "0.1"
