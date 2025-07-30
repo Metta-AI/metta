@@ -13,6 +13,17 @@ file_mounts:
     name: softmax-train-dir
     store: s3
     mode: MOUNT_CACHED
+  /workspace/metta:
+    source: .
+    mode: COPY
+    exclude:
+      - .git
+      - "**/__pycache__"
+      - "**/*.pyc"
+      - .venv
+      - wandb
+      - "*.egg-info"
+      - .pytest_cache
 
 setup: |
   set -e
