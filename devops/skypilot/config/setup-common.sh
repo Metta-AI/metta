@@ -2,15 +2,6 @@
 set -e
 echo "[SETUP] Running common setup..."
 
-cd /workspace/metta
-
-# Git setup
-echo "[SETUP] Git operations..."
-git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
-git checkout "$METTA_GIT_REF"
-
-echo "[SETUP] Checked out: $(git rev-parse HEAD)"
-
 # Python environment setup
 echo "[SETUP] Setting up Python environment..."
 uv sync
