@@ -1,7 +1,7 @@
 resources:
   cloud: aws
   region: us-east-1
-  accelerators: "A10G:1"
+  accelerators: "L4:1"
   cpus: 8+
   image_id: docker:metta:latest
 
@@ -50,11 +50,12 @@ envs:
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
 
-  # configured by launch script based on local credentials
-  WANDB_PASSWORD: ""
-  OBSERVATORY_TOKEN: ""
-
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""
   SKYPILOT_DOCKER_PASSWORD: ""
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+
+secrets:
+  # configured by launch script based on local credentials
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""
