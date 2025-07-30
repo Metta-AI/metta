@@ -15,13 +15,13 @@ interface ScorecardWidgetProps {
 
 
 function ScorecardWidget({ model }: ScorecardWidgetProps) {
-    const [scorecardData, setScorecardData] = useState(null);
+    const [heatmapData, setHeatmapData] = useState(null);
     const [selectedMetric, setSelectedMetric] = useState('');
     const [numPoliciesToShow, setNumPoliciesToShow] = useState(10);
 
     // Initialize state from model
     useEffect(() => {
-        setScorecardData(model.get('scorecard_data'));
+        setHeatmapData(model.get('heatmap_data'));
         setSelectedMetric(model.get('selected_metric'));
         setNumPoliciesToShow(model.get('num_policies_to_show'));
     }, [model]);
@@ -29,8 +29,8 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
     // Listen for model changes
     useEffect(() => {
         const handleDataChange = () => {
-            console.log("Scorecard data changed, updating...");
-            setScorecardData(model.get('scorecard_data'));
+            console.log("Heatmap data changed, updating...");
+            setHeatmapData(model.get('heatmap_data'));
         };
 
         const handleMetricChange = () => {
@@ -43,12 +43,12 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
             setNumPoliciesToShow(model.get('num_policies_to_show'));
         };
 
-        model.on('change:scorecard_data', handleDataChange);
+        model.on('change:heatmap_data', handleDataChange);
         model.on('change:selected_metric', handleMetricChange);
         model.on('change:num_policies_to_show', handleNumPoliciesChange);
 
         return () => {
-            model.off('change:scorecard_data', handleDataChange);
+            model.off('change:heatmap_data', handleDataChange);
             model.off('change:selected_metric', handleMetricChange);
             model.off('change:num_policies_to_show', handleNumPoliciesChange);
         };
@@ -63,7 +63,7 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
     const openReplayUrl = (policyName: string, evalName: string) => {
         console.log("Opening replay for:", { policyName, evalName });
 
-        const cell = scorecardData?.cells[policyName]?.[evalName];
+        const cell = heatmapData?.cells[policyName]?.[evalName];
         if (!cell?.replayUrl) {
             console.warn("No replay URL found for cell:", { policyName, evalName });
             return;
@@ -83,15 +83,15 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
 
     // Transform data to use selected metric
     const transformedData = React.useMemo(() => {
-        if (!scorecardData || !selectedMetric || !scorecardData.cells) return scorecardData;
+        if (!heatmapData || !selectedMetric || !heatmapData.cells) return heatmapData;
 
         const transformedCells: any = {};
         const transformedPolicyAverages: any = {};
 
         // Transform cells to use selected metric value
-        Object.keys(scorecardData.cells).forEach(policyName => {
+        Object.keys(heatmapData.cells).forEach(policyName => {
             transformedCells[policyName] = {};
-            const policy = scorecardData.cells[policyName];
+            const policy = heatmapData.cells[policyName];
 
             Object.keys(policy).forEach(evalName => {
                 const cell = policy[evalName];
@@ -127,13 +127,13 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
         });
 
         return {
-            ...scorecardData,
+            ...heatmapData,
             cells: transformedCells,
             policyAverageScores: transformedPolicyAverages
         };
-    }, [scorecardData, selectedMetric]);
+    }, [heatmapData, selectedMetric]);
 
-    if (!scorecardData || !scorecardData.cells || Object.keys(scorecardData.cells).length === 0) {
+    if (!heatmapData || !heatmapData.cells || Object.keys(heatmapData.cells).length === 0) {
         return (
             <div style={{
                 padding: '20px',
@@ -144,14 +144,14 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
                 fontFamily: 'Arial, sans-serif',
                 textAlign: 'center'
             }}>
-                <h3 style={{ color: '#007bff', marginTop: 0 }}>📊 Interactive Policy Scorecard</h3>
+                <h3 style={{ color: '#007bff', marginTop: 0 }}>📊 Interactive Policy Heatmap</h3>
                 <p style={{ color: '#666' }}>No data available. Use <code>widget.set_data()</code> to load data.</p>
             </div>
         );
     }
 
-    // const policyCount = Object.keys(scorecardData.cells).length;
-    // const evalCount = scorecardData.evalNames ? scorecardData.evalNames.length : 0;
+    // const policyCount = Object.keys(heatmapData.cells).length;
+    // const evalCount = heatmapData.evalNames ? heatmapData.evalNames.length : 0;
 
     return (
         <div style={{
@@ -178,7 +178,7 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
 const rootMap = new WeakMap();
 
 function render({ model, el }: { model: any; el: HTMLElement }) {
-    console.log("ScorecardWidget render called");
+    console.log("HeatmapWidget render called");
 
     // Get or create root for this element
     let root = rootMap.get(el);
@@ -189,7 +189,7 @@ function render({ model, el }: { model: any; el: HTMLElement }) {
     }
 
     root.render(<ScorecardWidget model={model} />);
-    console.log("ScorecardWidget render completed successfully");
+    console.log("HeatmapWidget render completed successfully");
 }
 
 

@@ -1,1 +1,1 @@
-observatory/src/Scorecard.tsx
+../../../../../observatory/src/Scorecard.tsx

@@ -165,7 +165,7 @@ export type EvalTasksResponse = {
   tasks: EvalTask[]
 }
 
-// Policy-based heatmap types
+// Policy-based scorecard types
 export type PaginationRequest = {
   page: number
   page_size: number
