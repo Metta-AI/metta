@@ -283,9 +283,12 @@ function convertReplayV1ToV2(replayData: any) {
     version: 2,
   }
   data.action_names = replayData.action_names
-  data.item_names = replayData.inventory_items
+  if (replayData.inventory_items != null && replayData.inventory_items != undefined && replayData.inventory_items.length > 0) {
+    data.item_names = replayData.inventory_items
+  } else {
+    data.item_names = ['ore.red', 'ore.blue', 'ore.green', 'battery', 'heart', 'armor', 'laser', 'blueprint']
+  }
   data.type_names = replayData.object_types
-  data.map_size = replayData.map_size
   data.num_agents = replayData.num_agents
   data.max_steps = replayData.max_steps
 
@@ -320,6 +323,8 @@ function convertReplayV1ToV2(replayData: any) {
   }
 
   data.objects = []
+  let maxX = 0
+  let maxY = 0
   for (const gridObject of replayData.grid_objects) {
     let location = []
     gridObject["c"] = expandSequenceV2(gridObject["c"], replayData.max_steps)
@@ -330,24 +335,24 @@ function convertReplayV1ToV2(replayData: any) {
       let y = getAttrV1(gridObject, 'r', step, 0)
       let z = getAttrV1(gridObject, 'layer', step, 0)
       location.push([step, [x, y, z]])
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
     }
 
     let inventory = []
-    for (let inventoryId = 0; inventoryId < replayData.inventory_items.length; inventoryId++) {
-      let inventoryName = replayData.inventory_items[inventoryId]
+    for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
+      let inventoryName = data.item_names[inventoryId]
       if ("inv:" + inventoryName in gridObject) {
-        console.log("Expanding inventory: ", "inv:" + inventoryName)
         gridObject["inv:" + inventoryName] = expandSequenceV2(gridObject["inv:" + inventoryName], replayData.max_steps)
       }
       if ("agent:inv:" + inventoryName in gridObject) {
-        console.log("Expanding inventory: ", "agent:inv:" + inventoryName)
         gridObject["inv:" + inventoryName] = expandSequenceV2(gridObject["agent:inv:" + inventoryName], replayData.max_steps)
       }
     }
     for (let step = 0; step < replayData.max_steps; step++) {
       let inventoryList = []
-      for (let inventoryId = 0; inventoryId < replayData.inventory_items.length; inventoryId++) {
-        let inventoryName = replayData.inventory_items[inventoryId]
+      for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
+        let inventoryName = data.item_names[inventoryId]
         let inventoryAmount = getAttrV1(gridObject, "inv:" + inventoryName, step, 0)
         if (inventoryAmount != 0) {
           inventoryList.push([inventoryId, inventoryAmount])
@@ -390,6 +395,8 @@ function convertReplayV1ToV2(replayData: any) {
     }
     data.objects.push(object)
   }
+
+  data.map_size = [maxX + 1, maxY + 1]
   console.log('Converted replay data: ', data)
   return data
 }
