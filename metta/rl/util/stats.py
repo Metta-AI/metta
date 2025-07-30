@@ -18,33 +18,50 @@ def accumulate_rollout_stats(
     stats: Dict[str, Any],
 ) -> None:
     """Accumulate rollout statistics from info dictionaries."""
+    if not raw_infos:
+        return
+
     infos = defaultdict(list)
 
-    # Batch process info dictionaries
+    # Batch process info dictionaries - collect all values first
     for i in raw_infos:
         for k, v in unroll_nested_dict(i):
-            # Detach any tensors before accumulating to prevent memory leaks
-            if torch.is_tensor(v):
-                v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
-            elif isinstance(v, np.ndarray) and v.size == 1:
-                v = v.item()
             infos[k].append(v)
 
-    # Batch process stats
-    for k, v in infos.items():
-        if isinstance(v, np.ndarray):
-            v = v.tolist()
-
-        if isinstance(v, list):
-            stats.setdefault(k, []).extend(v)
+    # Batch process stats with optimized tensor handling
+    for k, values in infos.items():
+        # Check if all values are tensors that can be batched
+        if values and torch.is_tensor(values[0]):
+            # Stack tensors and detach once
+            try:
+                stacked = torch.stack(values)
+                if stacked.numel() == len(values):  # All scalar tensors
+                    processed_values = stacked.detach().cpu().numpy().tolist()
+                else:
+                    processed_values = [v.detach().cpu().numpy() for v in values]
+            except Exception:
+                # Fallback for incompatible shapes
+                processed_values = [
+                    v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy() for v in values
+                ]
         else:
-            if k not in stats:
-                stats[k] = v
+            # Non-tensor values or mixed types
+            processed_values = []
+            for v in values:
+                if torch.is_tensor(v):
+                    v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
+                elif isinstance(v, np.ndarray) and v.size == 1:
+                    v = v.item()
+                processed_values.append(v)
+
+        # Add to stats
+        if k not in stats:
+            stats[k] = processed_values
+        else:
+            if isinstance(stats[k], list):
+                stats[k].extend(processed_values)
             else:
-                try:
-                    stats[k] += v
-                except TypeError:
-                    stats[k] = [stats[k], v]  # fallback: bundle as list
+                stats[k] = [stats[k]] + processed_values
 
 
 def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:

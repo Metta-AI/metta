@@ -68,6 +68,7 @@ class Experience:
         pin = str(self.device).startswith("cuda") and cpu_offload
 
         # Create segmented tensor storage
+        # Using pinned memory for faster CPU->GPU transfers when cpu_offload is enabled
         self.obs = torch.zeros(
             self.segments,
             bptt_horizon,
@@ -82,6 +83,7 @@ class Experience:
         self.actions = torch.zeros(self.segments, bptt_horizon, *atn_space.shape, device=self.device, dtype=atn_dtype)
 
         # Create value and policy tensors
+        # For CPU offload, we keep these on GPU since they're smaller and frequently accessed
         self.values = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.logprobs = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.rewards = torch.zeros(self.segments, bptt_horizon, device=self.device)
