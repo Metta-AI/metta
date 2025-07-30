@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from psycopg import AsyncConnection
 from psycopg.rows import class_row
 from pydantic import BaseModel, Field
+from typing_extensions import Literal
 
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
@@ -73,7 +74,7 @@ class HeatmapRequest(BaseModel):
     training_run_ids: List[str]
     run_free_policy_ids: List[str]
     eval_names: List[str]
-    training_run_policy_selector: str = Field(default="latest", pattern="^(latest|best)$")
+    training_run_policy_selector: Literal["best", "latest"] = Field(default="latest")
     metric: str
 
 

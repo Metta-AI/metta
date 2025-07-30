@@ -4,16 +4,20 @@ from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget imp
     HeatmapWidget,
     create_heatmap_widget,
 )
+from metta.app_backend.routes.heatmap_routes import HeatmapData
 from metta.common.client.metta_client import MettaAPIClient
 from metta.common.util.constants import DEV_STATS_SERVER_URI
+from metta.setup.utils import info, warning
+from typing_extensions import Literal
 
 
 async def fetch_real_heatmap_data(
     metrics: List[str],
     search_texts: List[str] = [],
-    policy_selector: str = "best",
+    policy_selector: Literal["best", "latest"] = "best",
     api_base_url: str = DEV_STATS_SERVER_URI,
     max_policies: int = 30,
+    include_run_free_policies: bool = False,
 ) -> HeatmapWidget:
     """
     Fetch real evaluation data using the metta HTTP API (same as repo.ts).
@@ -35,6 +39,7 @@ async def fetch_real_heatmap_data(
 
     # Find training run IDs that match our training run names
     training_run_ids = []
+    run_free_policy_ids = []
     if search_texts:
         for search_text in search_texts:
             policies_data = await client.get_policies(
@@ -43,6 +48,8 @@ async def fetch_real_heatmap_data(
             for policy in policies_data.policies:
                 if policy.type == "training_run" and search_text in policy.name:
                     training_run_ids.append(policy.id)
+                elif policy.type == "policy" and include_run_free_policies:
+                    run_free_policy_ids.append(policy.id)
     else:
         raise Exception(
             "No search_texts provided. Please provide at least one so we can search for policies."
@@ -53,39 +60,46 @@ async def fetch_real_heatmap_data(
             f"No training runs found matching: {search_texts}. This may be due to a \
                 limitation in the backend. We're working on a fix!"
         )
+    info(f"Training run IDs: {len(training_run_ids)}")
+    info(f"Run free policy IDs: {len(run_free_policy_ids)}")
 
     # Step 2: Get available evaluations for these training runs
-    eval_names = await client.get_eval_names(training_run_ids, [])
+    eval_names = await client.get_eval_names(training_run_ids, run_free_policy_ids)
     if not eval_names:
-        print("❌ No evaluations found for selected training runs")
+        warning("No evaluations found for selected training runs")
         raise Exception("No evaluations found for selected training runs")
+    info(f"Common evals: {eval_names}")
 
     # Step 3: Get available metrics
     available_metrics = await client.get_available_metrics(
-        training_run_ids, run_free_policy_ids=[], eval_names=eval_names
+        training_run_ids, run_free_policy_ids, list(eval_names.keys())
     )
     if not available_metrics:
-        print("❌ No metrics found")
+        warning("No metrics found")
         raise Exception("No metrics found for selected training runs and evaluations")
 
     # Filter to requested metrics that actually exist
     valid_metrics = [m for m in metrics if m in available_metrics]
     if not valid_metrics:
-        print(f"❌ None of the requested metrics {metrics} are available")
+        warning(f"None of the requested metrics {metrics} are available")
         raise Exception(f"None of the requested metrics {metrics} are available")
 
     # Step 4: Generate heatmap for the first metric
     primary_metric = valid_metrics[0]
     keys = eval_names
-    heatmap_data = await client.generate_heatmap(
-        training_run_ids, [], keys, primary_metric, policy_selector
+    heatmap_data: HeatmapData = await client.generate_heatmap(
+        training_run_ids=training_run_ids,
+        run_free_policy_ids=[],
+        eval_names=list(keys),
+        metric=primary_metric,
+        policy_selector=policy_selector,
     )
 
     if not heatmap_data.policyNames:
-        raise Exception("❌ No heatmap policyNames. No heatmap data generated")
+        raise Exception("No heatmap policyNames. No heatmap data generated")
 
     # Limit policies if requested
-    policy_names = heatmap_data.policyNames
+    policy_names = list(heatmap_data.policyNames)
     if len(policy_names) > max_policies:
         # Sort by average score and take top N
         avg_scores = heatmap_data.policyAverageScores
