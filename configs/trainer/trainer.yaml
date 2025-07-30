@@ -29,23 +29,23 @@ total_timesteps: 10_000_000_000
 
 optimizer:
   type: adam
-  beta1: 0.9
-  beta2: 0.999
-  eps: 1e-12
-  learning_rate: 0.000457
+  beta1: 0.8923106632311335
+  beta2: 0.9632470625784862
+  eps: 1.3537431449843922e-7
+  learning_rate: 0.018470110879570414
   weight_decay: 0
 
 ppo:
   # Core PPO hyperparameters
-  clip_coef: 0.1
-  ent_coef: 0.0021
-  gae_lambda: 0.916
-  gamma: 0.977
+  clip_coef: 0.14919147162017737
+  ent_coef: 0.016700174334611493
+  gae_lambda: 0.8443676864928215
+  gamma: 0.997950174315581
 
   # Training parameters
-  max_grad_norm: 0.5
-  vf_clip_coef: 0.1
-  vf_coef: 0.44
+  max_grad_norm: 2.572849891206465
+  vf_clip_coef: 0.1569624916309049
+  vf_coef: 3.2211333828684454
   l2_reg_loss_coef: 0
   l2_init_loss_coef: 0
   norm_adv: true
@@ -59,15 +59,15 @@ prioritized_experience_replay:
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:
-  vtrace_rho_clip: 1.0 # Default: on-policy (no off-policy correction)
-  vtrace_c_clip: 1.0 # Default: on-policy bootstrapping
+  vtrace_rho_clip: 2.296343917695581 # PufferLib default
+  vtrace_c_clip: 2.134490283650365 # PufferLib default
 
 zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
 batch_size: 524288
-minibatch_size: 16384
+minibatch_size: 32768
 bptt_horizon: 64
 update_epochs: 1
 

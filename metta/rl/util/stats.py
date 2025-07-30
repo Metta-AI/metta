@@ -18,33 +18,45 @@ def accumulate_rollout_stats(
     stats: Dict[str, Any],
 ) -> None:
     """Accumulate rollout statistics from info dictionaries."""
+    if not raw_infos:
+        return
+
     infos = defaultdict(list)
 
-    # Batch process info dictionaries
+    # Batch process info dictionaries - collect all values first
     for i in raw_infos:
         for k, v in unroll_nested_dict(i):
-            # Detach any tensors before accumulating to prevent memory leaks
-            if torch.is_tensor(v):
-                v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
-            elif isinstance(v, np.ndarray) and v.size == 1:
-                v = v.item()
             infos[k].append(v)
 
-    # Batch process stats
-    for k, v in infos.items():
-        if isinstance(v, np.ndarray):
-            v = v.tolist()
+    # Process each stat type efficiently
+    for k, values in infos.items():
+        if not values:
+            continue
 
-        if isinstance(v, list):
-            stats.setdefault(k, []).extend(v)
+        # Check first value to determine processing strategy
+        first_val = values[0]
+
+        # Fast path for common Python scalars (int/float)
+        if isinstance(first_val, (int, float)):
+            stats.setdefault(k, []).extend(values)
+
+        # Fast path for scalar tensors (most common case)
+        elif torch.is_tensor(first_val) and first_val.numel() == 1:
+            # Batch convert all tensors at once
+            scalar_values = [v.item() for v in values]
+            stats.setdefault(k, []).extend(scalar_values)
+
+        # Handle other types
         else:
-            if k not in stats:
-                stats[k] = v
-            else:
-                try:
-                    stats[k] += v
-                except TypeError:
-                    stats[k] = [stats[k], v]  # fallback: bundle as list
+            processed = []
+            for v in values:
+                if torch.is_tensor(v):
+                    processed.append(v.item() if v.numel() == 1 else v.detach().cpu().numpy())
+                elif isinstance(v, np.ndarray) and v.size == 1:
+                    processed.append(v.item())
+                else:
+                    processed.append(v)
+            stats.setdefault(k, []).extend(processed)
 
 
 def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:

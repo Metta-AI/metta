@@ -32,11 +32,18 @@ def get_observation(
     mask = torch.as_tensor(mask)
     num_steps = int(mask.sum().item())
 
-    # Convert to tensors
-    o = torch.as_tensor(o).to(device, non_blocking=True)
-    r = torch.as_tensor(r).to(device, non_blocking=True)
-    d = torch.as_tensor(d).to(device, non_blocking=True)
-    t = torch.as_tensor(t).to(device, non_blocking=True)
+    # Convert to tensors and batch transfer to device
+    # This is more efficient than individual transfers
+    o = torch.as_tensor(o)
+    r = torch.as_tensor(r)
+    d = torch.as_tensor(d)
+    t = torch.as_tensor(t)
+
+    if str(device) != "cpu":
+        o = o.to(device, non_blocking=True)
+        r = r.to(device, non_blocking=True)
+        d = d.to(device, non_blocking=True)
+        t = t.to(device, non_blocking=True)
 
     return o, r, d, t, info, training_env_id, mask, num_steps
 
@@ -69,9 +76,6 @@ def run_policy_inference(
         lstm_state_to_store = None
         if state.lstm_h is not None and state.lstm_c is not None:
             lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
-
-        if str(device).startswith("cuda"):
-            torch.cuda.synchronize()
 
     return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
 
