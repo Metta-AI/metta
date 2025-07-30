@@ -46,24 +46,7 @@ export interface Atlas {
   margin: number
 }
 
-/**
- * Validate the structural integrity of an Atlas object.
- *
- * This function performs shallow validation of key atlas fields to ensure:
- * - `margin` is a number
- * - `size` is a Vec2f instance
- * - `texture` is a valid WebGLTexture
- * - `data` only contains valid sprite bounds ([x, y, width, height] arrays of numbers)
- *
- * This is useful for sanity checks after loading or deserializing atlas data.
- *
- * @param atlas - The atlas object to validate
- * @returns True if the atlas structure appears valid, false otherwise
- *
- * @example
- * const isValid = validateAtlas(atlas)
- * if (!isValid) console.warn('Invalid atlas structure')
- */
+
 export function validateAtlas(atlas: Atlas): boolean {
   return (
     typeof atlas.margin === 'number' &&
@@ -75,15 +58,7 @@ export function validateAtlas(atlas: Atlas): boolean {
   )
 }
 
-/**
- * Load atlas JSON data from a URL and return a tuple of [spriteMap, metadata].
- *
- * @param url - URL to the atlas JSON file
- * @returns Promise resolving to [spriteMap, metadata] or null if loading fails
- *
- * @example
- * const [sprites, metadata] = await loadAtlasJson('assets/sprites.json') ?? [{}, {}]
- */
+
 export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, AtlasMetadata] | null> {
   try {
     const res = await fetch(url)
@@ -106,18 +81,7 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
   }
 }
 
-/**
- * Load an atlas image from a URL and create an ImageBitmap.
- *
- * Uses premultiplied alpha to prevent color bleeding at sprite edges
- * when texture filtering is enabled.
- *
- * @param url - URL to the atlas image file (PNG, JPG, etc.)
- * @returns Promise resolving to an ImageBitmap or null if loading fails
- *
- * @example
- * const image = await loadAtlasImage('assets/sprites.png')
- */
+
 export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   try {
     const res = await fetch(url)
@@ -136,27 +100,7 @@ export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   }
 }
 
-/**
- * Creates, binds, and uploads the image to a new WebGL texture.
- *
- * @param gl - The WebGL rendering context
- * @param image - The image to upload to the GPU
- * @param options - Texture parameters
- * @param options.wrapS - Horizontal wrap mode (default: gl.REPEAT)
- * @param options.wrapT - Vertical wrap mode (default: gl.REPEAT)
- * @param options.minFilter - Minification filter (default: gl.LINEAR_MIPMAP_LINEAR)
- * @param options.magFilter - Magnification filter (default: gl.LINEAR)
- * @param options.generateMipmap - Whether to generate mipmaps (default: true)
- * @returns The created WebGL texture or null if creation fails
- *
- * @example
- * const texture = createTexture(gl, image, {
- *   wrapS: gl.CLAMP_TO_EDGE,
- *   wrapT: gl.CLAMP_TO_EDGE,
- *   minFilter: gl.NEAREST,
- *   magFilter: gl.NEAREST
- * })
- */
+
 export function createTexture(
   gl: WebGLRenderingContext,
   image: ImageBitmap,
@@ -188,26 +132,6 @@ export function createTexture(
   return texture
 }
 
-/**
- * Load a complete atlas (JSON data + texture) from URLs.
- *
- * This is the main entry point for loading texture atlases. It handles:
- * 1. Loading the JSON data and image in parallel
- * 2. Creating the WebGL texture
- * 3. Bundling everything into an Atlas object
- *
- * @param gl - The WebGL rendering context
- * @param jsonUrl - URL to the atlas JSON file
- * @param imageUrl - URL to the atlas image file
- * @param textureOptions - Optional texture parameters (see createTexture)
- * @returns Promise resolving to the complete Atlas or null if loading fails
- *
- * @example
- * const atlas = await loadAtlas(gl, 'sprites.json', 'sprites.png', {
- *   minFilter: gl.NEAREST,
- *   magFilter: gl.NEAREST
- * })
- */
 export async function loadAtlas(
   gl: WebGLRenderingContext,
   jsonUrl: string,
@@ -236,22 +160,7 @@ export async function loadAtlas(
   }
 }
 
-/**
- * Get sprite bounds and UV coordinates from the atlas.
- *
- * The margin is automatically applied to prevent texture bleeding when
- * bilinear filtering is enabled. The returned bounds include the margin.
- *
- * @param atlas - The atlas containing the sprite
- * @param spriteName - Name of the sprite to look up
- * @returns Object containing position, dimensions, and UV coordinates, or null if not found
- *
- * @example
- * const bounds = getSpriteBounds(atlas, 'player.png')
- * if (bounds) {
- *   drawRect(x, y, bounds.width, bounds.height, bounds.u0, bounds.v0, bounds.u1, bounds.v1)
- * }
- */
+
 export function getSpriteBounds(
   atlas: Atlas,
   spriteName: string

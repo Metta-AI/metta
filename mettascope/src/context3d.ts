@@ -1,4 +1,4 @@
-import { getSpriteBounds, getWhiteUV, hasSprite, loadAtlas } from './atlas.js'
+import { getSpriteBounds, getWhiteUV, hasSprite, loadAtlas, type Atlas } from './atlas.js'
 import { Mesh } from './mesh.js'
 import { Mat3f, Vec2f } from './vector_math.js'
 
@@ -50,7 +50,7 @@ export class Context3d {
   public gl: WebGLRenderingContext
   public ready = false
   public dpr = 1
-  public atlasData: AtlasData | null = null
+  public atlas: Atlas | null = null
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
