@@ -18,6 +18,8 @@ game:
       enabled: false
     change_color:
       enabled: false
+    get_items:
+      enabled: false
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
