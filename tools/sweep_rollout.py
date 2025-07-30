@@ -41,7 +41,6 @@ def main(cfg: DictConfig) -> int:
     try:
         run_once(
             lambda: setup_sweep(cfg, logger),
-            use_distributed=False,  # Don't initialize process group for sweep orchestration
         )
     except Exception as e:
         logger.error(f"Sweep setup failed: {e}", exc_info=True)
@@ -80,7 +79,6 @@ def run_single_rollout(cfg: DictConfig) -> int:
     # Master node only
     run_name, train_job_cfg, protein_suggestion, wandb_run_id = run_once(
         lambda: prepare_sweep_run(cfg, logger),
-        use_distributed=False,  # Don't initialize process group for sweep orchestration
     )
 
     # All ranks participate in training
@@ -106,7 +104,6 @@ def run_single_rollout(cfg: DictConfig) -> int:
             sweep_name=cfg.sweep_name,
             logger=logger,
         ),
-        use_distributed=False,  # Don't initialize process group for sweep orchestration
     )
 
     if eval_results is None:
