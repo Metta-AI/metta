@@ -257,7 +257,9 @@ class MettaGridCore:
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:
-        return self.c_env.feature_normalizations()
+        """Get feature normalizations from feature spec."""
+        feature_spec = self.c_env.feature_spec()
+        return {spec["id"]: spec["normalization"] for spec in feature_spec.values()}
 
     @property
     def initial_grid_hash(self) -> int:
