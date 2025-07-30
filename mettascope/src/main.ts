@@ -30,7 +30,7 @@ let frameRequested = false
 export function requestFrame() {
   if (!frameRequested) {
     frameRequested = true
-    requestAnimationFrame((time) => {
+    requestAnimationFrame((_time) => {
       frameRequested = false
       onFrame()
     })
@@ -40,7 +40,7 @@ export function requestFrame() {
 /** Handles resize events. */
 export function onResize() {
   // Adjust for high DPI displays.
-  const dpr = window.devicePixelRatio || 1
+  const _dpr = window.devicePixelRatio || 1
 
   const screenWidth = window.innerWidth
   const screenHeight = window.innerHeight
@@ -65,7 +65,7 @@ export function onResize() {
     ui.mapPanel.x = 0
     ui.mapPanel.y = Common.HEADER_HEIGHT
     ui.mapPanel.width = screenWidth
-    let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
+    const maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
     ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight)
 
     // Minimap goes in the bottom left corner of the mapPanel.
@@ -90,7 +90,7 @@ export function onResize() {
       ui.tracePanel.width = screenWidth
       ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
 
-      html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
+      html.actionButtons.style.top = `${ui.tracePanel.y - 148}px`
     } else {
       ui.tracePanel.x = 0
       ui.tracePanel.y = 0
@@ -100,7 +100,7 @@ export function onResize() {
       ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
       ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - ui.miniMapPanel.height
       ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300
-      html.actionButtons.style.top = ui.mapPanel.y + ui.mapPanel.height - 148 + 'px'
+      html.actionButtons.style.top = `${ui.mapPanel.y + ui.mapPanel.height - 148}px`
     }
 
     // Timeline panel is always on the bottom of the screen.
@@ -149,8 +149,8 @@ function hideUi() {
 }
 
 /** Handles pointer down events. */
-onEvent('pointerdown', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as PointerEvent
+onEvent('pointerdown', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.lastMousePos = ui.mousePos
   ui.mouseDownPos = ui.mousePos
@@ -184,7 +184,7 @@ onEvent('pointerup', 'body', () => {
   // Due to how we select objects on pointer-up (pointer-down is drag/pan),
   // we need to check for double-click on pointer-up as well.
   // BUT don't detect double-click if we're pinching or just finished pinching
-  const currentTime = new Date().getTime()
+  const currentTime = Date.now()
   if (!ui.isPinching && ui.touches.length === 0) {
     ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
     ui.lastClickTime = currentTime
@@ -196,10 +196,10 @@ onEvent('pointerup', 'body', () => {
 })
 
 /** Handles pointer move events. */
-onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as PointerEvent
+onEvent('pointermove', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
-  var target = event.target as HTMLElement
+  let target = event.target as HTMLElement
   while (target.id === '' && target.parentElement != null) {
     target = target.parentElement as HTMLElement
   }
@@ -207,10 +207,10 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   let p = event.target as HTMLElement
   while (p != null) {
     if (p.id !== '') {
-      ui.mouseTargets.push('#' + p.id)
+      ui.mouseTargets.push(`#${p.id}`)
     }
     for (const className of p.classList) {
-      ui.mouseTargets.push('.' + className)
+      ui.mouseTargets.push(`.${className}`)
     }
     p = p.parentElement as HTMLElement
   }
@@ -228,21 +228,21 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
   }
 
   // Drag the trace panel up or down.
-  if (ui.dragging == 'trace-panel') {
+  if (ui.dragging === 'trace-panel') {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
     localStorageSetNumber('traceSplit', ui.traceSplit)
     onResize()
   }
 
-  if (ui.dragging == 'agent-panel') {
+  if (ui.dragging === 'agent-panel') {
     ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
     localStorageSetNumber('agentPanelSplit', ui.agentPanelSplit)
     onResize()
   }
 
   if (ui.dragHtml != null) {
-    ui.dragHtml.style.left = ui.mousePos.x() - ui.dragOffset.x() + 'px'
-    ui.dragHtml.style.top = ui.mousePos.y() - ui.dragOffset.y() + 'px'
+    ui.dragHtml.style.left = `${ui.mousePos.x() - ui.dragOffset.x()}px`
+    ui.dragHtml.style.top = `${ui.mousePos.y() - ui.dragOffset.y()}px`
   }
 
   if (ui.mainScrubberDown) {
@@ -253,7 +253,14 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
     onTraceMinimapChange(event)
   }
 
-  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
+  const isOverBubble = ui.mouseTargets.includes('.hover-panel')
+  const isOverObject = ui.hoverObject !== null
+  const hasBubble = ui.delayedHoverObject !== null
+
+  const shouldKeepBubble = isOverBubble || isOverObject
+  const shouldHide = !shouldKeepBubble && hasBubble
+
+  if (shouldHide) {
     // Start a timer to hide the hover bubble after a delay
     if (ui.hideHoverTimer === null) {
       ui.hideHoverTimer = setTimeout(() => {
@@ -274,17 +281,17 @@ onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
 
 /** Handles dragging draggable elements. */
 onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
-  let event = e as PointerEvent
+  const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.dragHtml = target
-  let rect = target.getBoundingClientRect()
+  const rect = target.getBoundingClientRect()
   ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top)
   ui.dragging = 'draggable'
   requestFrame()
 })
 
 /** Handles scroll events. */
-onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
+onEvent('wheel', 'body', (_target: HTMLElement, e: Event) => {
   const event = e as WheelEvent
 
   // Allow natural scrolling inside scrollable containers
@@ -299,7 +306,7 @@ onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles the pointer moving outside the window. */
-document.addEventListener('pointerout', function (e) {
+document.addEventListener('pointerout', (e) => {
   if (!e.relatedTarget) {
     hideHoverBubble()
     requestFrame()
@@ -307,14 +314,14 @@ document.addEventListener('pointerout', function (e) {
 })
 
 /** Handles the window losing focus. */
-document.addEventListener('blur', function (e) {
+document.addEventListener('blur', (_e) => {
   hideHoverBubble()
   requestFrame()
 })
 
 /** Handles touch start events for pinch-to-zoom. */
-onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as TouchEvent
+onEvent('touchstart', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
   if (ui.touches.length === 2) {
@@ -347,8 +354,8 @@ onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles touch move events for pinch-to-zoom. */
-onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as TouchEvent
+onEvent('touchmove', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
   if (ui.isPinching && ui.touches.length === 2) {
@@ -360,8 +367,8 @@ onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles touch end events for pinch-to-zoom. */
-onEvent('touchend', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as TouchEvent
+onEvent('touchend', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as TouchEvent
   ui.touches = Array.from(event.touches)
 
   if (ui.touches.length < 2) {
@@ -376,7 +383,7 @@ onEvent('touchend', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles touch cancel events for pinch-to-zoom. */
-onEvent('touchcancel', 'body', (target: HTMLElement, e: Event) => {
+onEvent('touchcancel', 'body', (_target: HTMLElement, _e: Event) => {
   // Reset all pinch state when touch is cancelled
   ui.isPinching = false
   ui.touches = []
@@ -418,7 +425,7 @@ function updateUrlParams() {
   }
 
   // Include the map zoom level.
-  if (ui.mapPanel.zoomLevel != 1) {
+  if (ui.mapPanel.zoomLevel !== 1) {
     // Only include zoom to three decimal places.
     urlParams.set('mapZoom', ui.mapPanel.zoomLevel.toFixed(3))
   }
@@ -431,7 +438,7 @@ function updateUrlParams() {
   }
 
   // Replace the current state without creating a history entry.
-  const newUrl = window.location.pathname + '?' + urlParams.toString()
+  const newUrl = `${window.location.pathname}?${urlParams.toString()}`
   history.replaceState(null, '', newUrl)
 }
 
