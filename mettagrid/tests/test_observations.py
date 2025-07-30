@@ -2,9 +2,9 @@ from typing import List, Tuple
 
 import numpy as np
 
-from metta.mettagrid import dtype_actions
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_env import dtype_actions
 
 from .test_mettagrid import EnvConfig, TestEnvironmentBuilder, TokenTypes
 

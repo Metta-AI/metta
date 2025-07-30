@@ -2,8 +2,8 @@ import pytest
 from omegaconf import OmegaConf
 from omegaconf.errors import ConfigAttributeError
 
-from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 def test_invalid_env_map_type_raises():
