@@ -33,13 +33,6 @@ class LSTM(LayerBase):
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
         self._memory = None
-        # self.memory = TensorDict(
-        #     {
-        #         "lstm_h": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
-        #         "lstm_c": torch.zeros(self.num_layers, 1, self.hidden_size, dtype=torch.float32),
-        #     },
-        #     batch_size=[],
-        # )
 
     def get_memory(self):
         return self._memory
