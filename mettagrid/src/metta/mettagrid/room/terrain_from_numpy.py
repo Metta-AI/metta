@@ -162,8 +162,6 @@ class TerrainFromNumpy(Room):
 
         for obj_name, count in self._objects.items():
             count = count - np.where(level == obj_name, 1, 0).sum()
-            if count < 0:
-                continue
             # Remove objects if count is negative
             if count < 0:
                 positions = list(zip(*np.where(level == obj_name), strict=False))
