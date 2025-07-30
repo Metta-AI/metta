@@ -72,8 +72,14 @@ from metta.rl.util.stats import (
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.util.utils import check_abort, should_run
-from metta.rl.wandb import log_model_parameters, setup_wandb_metrics, upload_env_configs, upload_replay_html
+from metta.rl.util.training_loop import should_run
+from metta.rl.wandb import (
+    abort_requested,
+    log_model_parameters,
+    setup_wandb_metrics,
+    upload_env_configs,
+    upload_replay_html,
+)
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
@@ -747,7 +753,7 @@ while agent_step < trainer_config.total_timesteps:
 
     # Abort check via wandb tag (master only)
     if is_master and wandb_run and should_run(epoch, 5, True):
-        if check_abort(wandb_run, trainer_config, agent_step):
+        if abort_requested(wandb_run, min_interval_sec=60):
             break
 
     # Policy evaluation (master only)

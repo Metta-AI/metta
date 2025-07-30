@@ -22,16 +22,20 @@ from metta.rl.evaluate import evaluate_policy, generate_policy_replay
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
+from metta.rl.rollout import rollout
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
-from metta.rl.util.batch_utils import calculate_batch_sizes
+from metta.rl.util.advantage import compute_advantage
+from metta.rl.util.batch_utils import calculate_batch_sizes, calculate_prioritized_sampling_params
 from metta.rl.util.distributed import setup_distributed_vars
+from metta.rl.util.losses import process_minibatch_update
 from metta.rl.util.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
 from metta.rl.util.optimization import (
+    calculate_explained_variance,
     compute_gradient_stats,
     maybe_update_l2_weights,
 )
@@ -48,7 +52,6 @@ from metta.rl.util.stats import (
 )
 from metta.rl.util.training_loop import (
     log_training_progress,
-    run_training_epoch,
     should_run,
 )
 from metta.rl.vecenv import make_vecenv
@@ -56,6 +59,7 @@ from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
+    upload_env_configs,
     upload_policy_artifact,
     upload_replay_html,
 )
@@ -269,6 +273,12 @@ def train(
         setup_wandb_metrics(wandb_run)
         log_model_parameters(policy, wandb_run)
 
+        # Upload environment configs to wandb
+        curr_obj = getattr(metta_grid_env, "_curriculum", None)
+        if curr_obj is not None and hasattr(curr_obj, "get_env_cfg_by_bucket"):
+            env_configs = curr_obj.get_env_cfg_by_bucket()
+            upload_env_configs(env_configs=env_configs, wandb_run=wandb_run)
+
     # Initialize stats tracking
     if stats_client is not None:
         # Extract wandb attributes with defaults
@@ -294,25 +304,109 @@ def train(
         record_heartbeat()
 
         with torch_profiler:
-            # Run training epoch using new functional interface
-            agent_step, epochs_trained, raw_infos = run_training_epoch(
-                vecenv=vecenv,
-                policy=policy,
-                optimizer=optimizer,
-                experience=experience,
-                kickstarter=kickstarter,
-                losses=losses,
-                trainer_cfg=trainer_cfg,
-                agent_step=agent_step,
-                epoch=epoch,
-                device=device,
-                timer=timer,
-                world_size=world_size,
-            )
-            epoch += epochs_trained
+            # ===== ROLLOUT PHASE =====
+            with timer("_rollout"):
+                num_steps, raw_infos = rollout(
+                    vecenv=vecenv,
+                    policy=policy,
+                    experience=experience,
+                    device=device,
+                    timer=timer,
+                )
+                agent_step += num_steps * world_size
 
             # Process rollout stats
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
+
+            # ===== TRAINING PHASE =====
+            with timer("_train"):
+                # Reset for new training iteration
+                losses.zero()
+                experience.reset_importance_sampling_ratios()
+
+                # Calculate prioritized replay parameters
+                prio_cfg = trainer_cfg.prioritized_experience_replay
+                anneal_beta = calculate_prioritized_sampling_params(
+                    epoch=epoch,
+                    total_timesteps=trainer_cfg.total_timesteps,
+                    batch_size=trainer_cfg.batch_size,
+                    prio_alpha=prio_cfg.prio_alpha,
+                    prio_beta0=prio_cfg.prio_beta0,
+                )
+
+                # Compute advantages
+                advantages = torch.zeros(experience.values.shape, device=device)
+                initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+                advantages = compute_advantage(
+                    experience.values,
+                    experience.rewards,
+                    experience.dones,
+                    initial_importance_sampling_ratio,
+                    advantages,
+                    trainer_cfg.ppo.gamma,
+                    trainer_cfg.ppo.gae_lambda,
+                    trainer_cfg.vtrace.vtrace_rho_clip,
+                    trainer_cfg.vtrace.vtrace_c_clip,
+                    device,
+                )
+
+                # Calculate explained variance
+                losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+
+                # Train for multiple epochs
+                total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
+                minibatch_idx = 0
+                epochs_trained = 0
+
+                for _update_epoch in range(trainer_cfg.update_epochs):
+                    for _ in range(experience.num_minibatches):
+                        # Sample minibatch
+                        minibatch = experience.sample_minibatch(
+                            advantages=advantages,
+                            prio_alpha=prio_cfg.prio_alpha,
+                            prio_beta=anneal_beta,
+                            minibatch_idx=minibatch_idx,
+                            total_minibatches=total_minibatches,
+                        )
+
+                        # Train on minibatch
+                        loss = process_minibatch_update(
+                            policy=policy,
+                            experience=experience,
+                            minibatch=minibatch,
+                            advantages=advantages,
+                            trainer_cfg=trainer_cfg,
+                            kickstarter=kickstarter,
+                            agent_step=agent_step,
+                            losses=losses,
+                            device=device,
+                        )
+
+                        # Optimizer step
+                        if trainer_cfg.optimizer.type == "adam":
+                            optimizer.step()
+                        else:
+                            # ForeachMuon has custom step signature
+                            optimizer.step(loss, epoch, experience.accumulate_minibatches)
+                        minibatch_idx += 1
+
+                    epochs_trained += 1
+                    epoch += 1
+
+                    # Early exit if KL divergence is too high
+                    if trainer_cfg.ppo.target_kl is not None:
+                        average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
+                        if average_approx_kl > trainer_cfg.ppo.target_kl:
+                            break
+
+                # Synchronize after training if using CUDA
+                if minibatch_idx > 0 and str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+
+                # Compute gradient stats after training
+                if is_master:
+                    stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         torch_profiler.on_epoch_end(epoch)
 

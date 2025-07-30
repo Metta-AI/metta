@@ -37,6 +37,34 @@ def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
     return grad_stats
 
 
+def calculate_explained_variance(values: torch.Tensor, returns: torch.Tensor) -> float:
+    """Calculate the explained variance between predicted values and actual returns.
+
+    Args:
+        values: Predicted values from the value function
+        returns: Actual returns (rewards-to-go or advantages + values)
+
+    Returns:
+        Explained variance as a float between -inf and 1.0
+    """
+    # Flatten tensors to ensure they're 1D
+    values_flat = values.flatten()
+    returns_flat = returns.flatten()
+
+    # Calculate variance of returns
+    returns_var = returns_flat.var()
+
+    # If returns have no variance, return 0
+    if returns_var < 1e-8:
+        return 0.0
+
+    # Calculate explained variance: 1 - Var(returns - values) / Var(returns)
+    residual_var = (returns_flat - values_flat).var()
+    explained_var = 1.0 - (residual_var / returns_var)
+
+    return explained_var.item()
+
+
 def maybe_update_l2_weights(
     agent: Any,
     epoch: int,
