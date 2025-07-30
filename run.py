@@ -25,11 +25,11 @@ from metta.interface.environment import Environment
 from metta.interface.evaluation import create_evaluation_config_suite
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
     InitialPolicyConfig,
@@ -55,8 +55,6 @@ from metta.rl.util.optimization import (
     maybe_update_l2_weights,
 )
 from metta.rl.util.policy_management import (
-    cleanup_old_policies,
-    save_policy_with_metadata,
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
@@ -412,6 +410,15 @@ initial_policy_uri = policy_record.uri if policy_record else None
 initial_generation = policy_record.metadata.get("generation", 0) if policy_record else 0
 last_evaluation_epoch = epoch - 1  # Track last epoch when evaluation was performed
 
+# Create checkpoint manager
+checkpoint_manager = CheckpointManager(
+    trainer_cfg=trainer_config,
+    policy_store=policy_store,
+    checkpoint_dir=trainer_config.checkpoint.checkpoint_dir,
+    run_name=dirs.run_name,
+    is_master=is_master,
+)
+
 # Training loop
 logger.info(f"Starting training on {device}")
 current_policy_generation = initial_generation + 1 if policy_record else 0
@@ -681,60 +688,34 @@ while agent_step < trainer_config.total_timesteps:
     if should_run(epoch, trainer_config.grad_mean_variance_interval, is_master):
         stats_tracker.grad_stats = compute_gradient_stats(agent)
 
-    # Save checkpoint periodically
-    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
-        # Save policy with metadata (master only)
-        if is_master:
-            # Create temporary initial_policy_record for save_policy_with_metadata
-            temp_initial_policy_record = None
-            if initial_policy_uri:
-                temp_initial_policy_record = type(
-                    "obj",
-                    (object,),
-                    {
-                        "uri": initial_policy_uri,
-                        "metadata": {"generation": initial_generation},
-                    },
-                )()
+    # Save checkpoint periodically - all ranks must participate in checkpoint decision
+    if checkpoint_manager.should_checkpoint(epoch):
+        saved_record = checkpoint_manager.save_policy(
+            policy=agent,
+            epoch=epoch,
+            agent_step=agent_step,
+            evals=eval_scores,
+            timer=timer,
+            initial_policy_record=initial_policy_record,
+        )
 
-            saved_record = save_policy_with_metadata(
-                policy=agent,
-                policy_store=policy_store,
-                epoch=epoch,
-                agent_step=agent_step,
-                evals=eval_scores,
-                timer=timer,
-                initial_policy_record=temp_initial_policy_record,
-                run_name=dirs.run_name,
-                is_master=is_master,
-            )
+        if saved_record:
+            latest_saved_policy_record = saved_record
 
-            if saved_record:
-                latest_saved_policy_record = saved_record
+            # Only master saves training state
+            if is_master:
+                checkpoint_manager.save_checkpoint(
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    optimizer=optimizer,
+                    policy_path=saved_record.uri,
+                    timer=timer,
+                    run_dir=dirs.run_dir,
+                    kickstarter=kickstarter,
+                )
 
-                # Clean up old policies periodically
-                if epoch % 10 == 0:
-                    cleanup_old_policies(trainer_config.checkpoint.checkpoint_dir, keep_last_n=5)
-
-        # Save training state (master only)
-        if is_master:
-            extra_args = {}
-            if kickstarter.enabled and kickstarter.teacher_uri is not None:
-                extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
-
-            latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
-            checkpoint = TrainerCheckpoint(
-                agent_step=agent_step,
-                epoch=epoch,
-                optimizer_state_dict=optimizer.state_dict(),
-                stopwatch_state=timer.save_state(),
-                policy_path=latest_uri,
-                extra_args=extra_args,
-            )
-            checkpoint.save(dirs.run_dir)
-            logger.info(f"Saved training state at epoch {epoch}")
-
-        # Ensure all ranks synchronize after checkpoint saving
+        # All ranks must synchronize after checkpoint operations
+        # This barrier must be outside the if saved_record block so all ranks hit it
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
@@ -966,52 +947,33 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
             wandb_run=wandb_run,
         )
 
-# Save final checkpoint
-# Save policy with metadata (master only)
+# Force final saves - all ranks must participate
 if is_master:
-    # Create temporary initial_policy_record for save_policy_with_metadata
-    temp_initial_policy_record = None
-    if initial_policy_uri:
-        temp_initial_policy_record = type(
-            "obj",
-            (object,),
-            {"uri": initial_policy_uri, "metadata": {"generation": initial_generation}},
-        )()
-
-    saved_record = save_policy_with_metadata(
+    saved_record = checkpoint_manager.save_policy(
         policy=agent,
-        policy_store=policy_store,
         epoch=epoch,
         agent_step=agent_step,
         evals=eval_scores,
         timer=timer,
-        initial_policy_record=temp_initial_policy_record,
-        run_name=dirs.run_name,
-        is_master=is_master,
+        initial_policy_record=initial_policy_record,
+        force=True,
     )
 
     if saved_record:
         latest_saved_policy_record = saved_record
+        # Save final training state
+        checkpoint_manager.save_checkpoint(
+            agent_step=agent_step,
+            epoch=epoch,
+            optimizer=optimizer,
+            policy_path=saved_record.uri,
+            timer=timer,
+            run_dir=dirs.run_dir,
+            kickstarter=kickstarter,
+            force=True,
+        )
 
-# Save training state (master only)
-if is_master:
-    extra_args = {}
-    if kickstarter.enabled and kickstarter.teacher_uri is not None:
-        extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
-
-    latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
-    checkpoint = TrainerCheckpoint(
-        agent_step=agent_step,
-        epoch=epoch,
-        optimizer_state_dict=optimizer.state_dict(),
-        stopwatch_state=timer.save_state(),
-        policy_path=latest_uri,
-        extra_args=extra_args,
-    )
-    checkpoint.save(dirs.run_dir)
-    logger.info("Saved final training state")
-
-# Ensure all ranks synchronize after final checkpoint
+# All ranks must synchronize after final save operations
 if torch.distributed.is_initialized():
     torch.distributed.barrier()
 
