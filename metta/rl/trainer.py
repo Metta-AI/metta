@@ -981,6 +981,7 @@ class MettaTrainer:
         except ValidationError as e:
             raise ValueError(f"env_cfg.game is not compatible with agent requirements: {e}") from e
 
+        # Get the number of agents from the task after overrides are applied
         num_agents = game_cfg.num_agents
 
         # Calculate batch sizes using helper function

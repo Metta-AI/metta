@@ -43,6 +43,11 @@ class ObsTokenToBoxShaper(LayerBase):
         # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
         x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
         y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+
+        # Clamp coordinates to valid range to prevent out-of-bounds indexing
+        x_coord_indices = torch.clamp(x_coord_indices, 0, self.out_width - 1)
+        y_coord_indices = torch.clamp(y_coord_indices, 0, self.out_height - 1)
+
         atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 
