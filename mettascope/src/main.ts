@@ -1,7 +1,16 @@
 import { initActionButtons, processActions, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import * as Common from './common.js'
-import { ctx, html, setFollowSelection, state, ui, METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO, METTA_GITHUB_PRIMARY_BRANCH } from './common.js'
+import {
+  ctx,
+  html,
+  setFollowSelection,
+  state,
+  ui,
+  METTA_GITHUB_ORGANIZATION,
+  METTA_GITHUB_REPO,
+  METTA_GITHUB_PRIMARY_BRANCH,
+} from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
 import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
 import {
