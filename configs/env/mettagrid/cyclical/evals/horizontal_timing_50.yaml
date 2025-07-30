@@ -5,6 +5,11 @@ defaults:
 game:
   max_steps: 500
 
+  agent:
+    rewards:
+      inventory:
+        heart: 0.1000000000
+
   objects:
     converter:
       conversion_ticks: 50
