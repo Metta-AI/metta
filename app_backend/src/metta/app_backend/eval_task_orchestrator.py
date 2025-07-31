@@ -15,6 +15,8 @@ import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from ddtrace.trace import tracer
+
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.factory import create_container_manager
@@ -25,6 +27,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.logging_helpers import init_logging
@@ -52,6 +55,7 @@ class EvalTaskOrchestrator:
         self._task_client = EvalTaskClient(backend_url)
         self._container_manager = container_manager or create_container_manager()
 
+    @trace("orchestrator.claim_task")
     async def _attempt_claim_task(self, task: TaskResponse, worker: WorkerInfo) -> bool:
         claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.container_name)
         claimed_ids = await self._task_client.claim_tasks(claim_request)
@@ -62,6 +66,7 @@ class EvalTaskOrchestrator:
             self._logger.debug("Failed to claim task; someone else must have it")
             return False
 
+    @trace("orchestrator.run_cycle")
     async def run_cycle(self) -> None:
         alive_workers_by_name: dict[str, WorkerInfo] = {
             w.container_name: w for w in await self._container_manager.discover_alive_workers()
@@ -174,6 +179,9 @@ class EvalTaskOrchestrator:
         self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
         self._logger.info(f"Max workers per git hash: {self._max_workers_per_git_hash}")
 
+        with tracer.trace("orchestrator.startup"):
+            self._logger.info("Orchestrator startup trace")
+
         while True:
             start_time = datetime.now(timezone.utc)
             try:
@@ -188,6 +196,7 @@ class EvalTaskOrchestrator:
 
 async def main() -> None:
     init_logging()
+    init_tracing()
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     logger = logging.getLogger(__name__)
