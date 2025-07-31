@@ -1030,11 +1030,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     bool,
-<<<<<<< HEAD
-                    const std::string&>(),
-=======
                     bool>(),
->>>>>>> origin/main
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
