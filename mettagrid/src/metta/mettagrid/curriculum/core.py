@@ -79,3 +79,6 @@ class SingleTaskCurriculum(Curriculum):
 
     def get_task(self) -> Task:
         return Task(self._task_id, self, self._task_cfg)
+
+    def get_task_probs(self) -> dict[str, float]:
+        return {self._task_id: 1.0}

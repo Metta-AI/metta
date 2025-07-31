@@ -128,7 +128,6 @@ def demo_puffer_env():
     env = MettaGridPufferEnv(
         curriculum=curriculum,
         render_mode=None,
-        is_training=False,
     )
 
     print("PufferLib environment created")
