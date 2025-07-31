@@ -47,6 +47,7 @@ from metta.rl.policy_management import (
 from metta.rl.rollout import (
     get_lstm_config,
     get_observation,
+    process_dual_policy_stats,
     run_dual_policy_rollout,
     run_policy_inference,
 )
@@ -523,6 +524,15 @@ while agent_step < trainer_config.total_timesteps:
 
         if info:
             raw_infos.extend(info)
+
+    # Process dual-policy statistics if enabled
+    if trainer_config.dual_policy.enabled and npc_policy_record is not None:
+        process_dual_policy_stats(
+            raw_infos=raw_infos,
+            training_agents_pct=trainer_config.dual_policy.training_agents_pct,
+            num_agents_per_env=env.num_agents,  # type: ignore
+            num_envs=env.num_envs,  # type: ignore
+        )
 
     # Process rollout statistics
     accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)

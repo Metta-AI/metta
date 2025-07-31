@@ -275,6 +275,9 @@ class MettaGridEnv(ABC):
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._core_env.num_agents
 
+        # Add episode rewards to info for dual-policy logging
+        infos["episode_rewards"] = episode_rewards.tolist()
+
         # Add map and label rewards
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean

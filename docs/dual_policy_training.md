@@ -14,12 +14,12 @@ Dual-policy training enables scenarios where:
 
 ### Basic Setup
 
-Enable dual-policy training in your configuration:
+Dual-policy training is disabled by default. To enable it, set `enabled: true` in your configuration:
 
 ```yaml
 trainer:
   dual_policy:
-    enabled: true
+    enabled: true  # Must be explicitly enabled
     training_agents_pct: 0.5  # 50% of agents use training policy
     checkpoint_npc:
       uri: "wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2"
@@ -57,6 +57,7 @@ trainer:
     --nodes=1 \
     +user=dual_policy_checkpoint_example \
     run=my_experiment \
+    trainer.dual_policy.enabled=true \
     trainer.dual_policy.checkpoint_npc.uri="wandb://my_uri" \
     trainer.dual_policy.training_agents_pct=0.6
 ```

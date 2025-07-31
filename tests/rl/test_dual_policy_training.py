@@ -84,5 +84,5 @@ def test_trainer_config_dual_policy_defaults():
     }
 
     config = TrainerConfig(**config_dict)
-    assert config.dual_policy.enabled is False
+    assert config.dual_policy.enabled is False  # Disabled by default
     assert config.dual_policy.training_agents_pct == 0.5

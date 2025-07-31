@@ -262,6 +262,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
+        # Add episode rewards to info for dual-policy logging
+        infos["episode_rewards"] = episode_rewards.tolist()
+
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 

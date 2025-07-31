@@ -162,6 +162,96 @@ def run_dual_policy_rollout(
     return actions, training_log_probs, training_values.flatten(), lstm_state_to_store
 
 
+def process_dual_policy_stats(
+    raw_infos: list,
+    training_agents_pct: float,
+    num_agents_per_env: int,
+    num_envs: int,
+) -> None:
+    """Process dual-policy statistics from raw infos and add to info structure.
+
+    This function extracts separate rewards and hearts for training policy agents and NPC agents,
+    then adds them to the info structure under a 'dual_policy' section.
+    """
+    for info in raw_infos:
+        if "agent" in info and "game" in info:
+            # Calculate agent indices for training vs NPC policies
+            training_agents_per_env = max(1, int(num_agents_per_env * training_agents_pct))
+            npc_agents_per_env = num_agents_per_env - training_agents_per_env
+
+            # Get episode rewards if available
+            episode_rewards = info.get("episode_rewards", None)
+            if episode_rewards is not None and len(episode_rewards) == num_envs * num_agents_per_env:
+                # Separate rewards for training and NPC agents
+                training_rewards = []
+                npc_rewards = []
+
+                for env_idx in range(num_envs):
+                    env_start = env_idx * num_agents_per_env
+                    # Training agents: first training_agents_per_env agents in each env
+                    training_rewards.extend(episode_rewards[env_start : env_start + training_agents_per_env])
+                    # NPC agents: remaining agents in each env
+                    if npc_agents_per_env > 0:
+                        npc_rewards.extend(
+                            episode_rewards[env_start + training_agents_per_env : env_start + num_agents_per_env]
+                        )
+
+                # Calculate statistics
+                training_reward_sum = sum(training_rewards) if training_rewards else 0.0
+                training_reward_mean = training_reward_sum / len(training_rewards) if training_rewards else 0.0
+                npc_reward_sum = sum(npc_rewards) if npc_rewards else 0.0
+                npc_reward_mean = npc_reward_sum / len(npc_rewards) if npc_rewards else 0.0
+                combined_reward_sum = training_reward_sum + npc_reward_sum
+                combined_reward_mean = (
+                    combined_reward_sum / (len(training_rewards) + len(npc_rewards))
+                    if (training_rewards or npc_rewards)
+                    else 0.0
+                )
+
+                # Add to info structure
+                info["dual_policy"] = {
+                    "training_reward_sum": training_reward_sum,
+                    "training_reward_mean": training_reward_mean,
+                    "training_reward_count": len(training_rewards),
+                    "npc_reward_sum": npc_reward_sum,
+                    "npc_reward_mean": npc_reward_mean,
+                    "npc_reward_count": len(npc_rewards),
+                    "combined_reward_sum": combined_reward_sum,
+                    "combined_reward_mean": combined_reward_mean,
+                    "total_agent_count": len(training_rewards) + len(npc_rewards),
+                }
+
+            # Process agent stats for hearts
+            agent_stats = info.get("agent", {})
+            if agent_stats and "heart" in agent_stats:
+                # For hearts, we need to calculate per-agent statistics
+                # Since agent stats are averaged across all agents, we need to reconstruct
+                total_hearts = agent_stats["heart"] * (num_envs * num_agents_per_env)
+
+                # Estimate hearts for training vs NPC agents based on percentage
+                training_hearts = total_hearts * training_agents_pct
+                npc_hearts = total_hearts * (1 - training_agents_pct)
+
+                # Add hearts to dual_policy section
+                if "dual_policy" not in info:
+                    info["dual_policy"] = {}
+
+                info["dual_policy"].update(
+                    {
+                        "training_hearts": training_hearts,
+                        "npc_hearts": npc_hearts,
+                        "combined_hearts": total_hearts,
+                        "training_hearts_per_agent": training_hearts / (num_envs * training_agents_per_env)
+                        if training_agents_per_env > 0
+                        else 0.0,
+                        "npc_hearts_per_agent": npc_hearts / (num_envs * npc_agents_per_env)
+                        if npc_agents_per_env > 0
+                        else 0.0,
+                        "combined_hearts_per_agent": total_hearts / (num_envs * num_agents_per_env),
+                    }
+                )
+
+
 def get_observation(
     vecenv: Any,
     device: torch.device,

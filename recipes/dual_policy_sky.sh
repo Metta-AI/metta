@@ -26,6 +26,7 @@ echo "Num workers: $NUM_WORKERS"
     run=$RUN_NAME \
     trainer.total_timesteps=$TOTAL_TIMESTEPS \
     trainer.num_workers=$NUM_WORKERS \
+    trainer.dual_policy.enabled=true \
     trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
     "$@"
 

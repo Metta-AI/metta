@@ -9,7 +9,7 @@ defaults:
 # Dual-policy configuration
 trainer:
   dual_policy:
-    enabled: true
+    enabled: true  # Enable dual-policy training for this recipe
     training_agents_pct: 0.5  # 50% of agents use training policy, 50% use NPC
     checkpoint_npc:
       uri: "wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2"
