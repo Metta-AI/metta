@@ -186,7 +186,7 @@ Common patterns:
 ### Training a Model
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
+./tools/train.py run=my_experiment wandb=off +user=<name>
 ```
 
 Parameters:
@@ -215,7 +215,7 @@ To use WandB with your personal account:
 Now you can run training with your personal WandB config:
 
 ```
-./tools/train.py run=local.yourname.123 +hardware=macbook wandb=user
+./tools/train.py run=local.yourname.123 wandb=user
 ```
 
 ## Visualizing a Model

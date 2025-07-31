@@ -145,7 +145,7 @@ metta install aws wandb              # Install specific components
 
 1. **Training**: `tools/train.py` - Main training script using Hydra configuration
    ```bash
-   uv run ./tools/train.py run=my_experiment +hardware=macbook
+   uv run ./tools/train.py run=my_experiment
    ```
 
 2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
@@ -166,7 +166,7 @@ metta install aws wandb              # Install specific components
 
 4. **Interactive Play**: `tools/play.py` - Manual testing and exploration
    ```bash
-   uv run ./tools/play.py run=play +hardware=macbook
+   uv run ./tools/play.py run=play
    ```
 
 #### Visualization Tools

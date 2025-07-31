@@ -49,7 +49,7 @@ Note: The project requires Python 3.11.7 specifically, as specified in the pypro
 To train a model:
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off
+./tools/train.py run=my_experiment wandb=off
 ```
 
 Parameters:
@@ -64,7 +64,7 @@ Parameters:
 To run the interactive simulation:
 
 ```bash
-./tools/play.py run=my_experiment +hardware=macbook wandb=off
+./tools/play.py run=my_experiment wandb=off
 ```
 
 This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing
