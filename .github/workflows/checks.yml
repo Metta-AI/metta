@@ -180,7 +180,7 @@ jobs:
             package: "app_backend"
             shard_id: 1
             num_shards: 5
-          - name: "app_backend-shard-1"
+          - name: "app_backend-shard-2"
             package: "app_backend"
             shard_id: 2
             num_shards: 5
