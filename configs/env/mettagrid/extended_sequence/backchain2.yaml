@@ -36,7 +36,7 @@ game:
       output_resources:
         heart: 1
     generator_red:
-      cooldown: 1
+      cooldown: 255
       input_resources:
         ore_red: 0
       output_resources:

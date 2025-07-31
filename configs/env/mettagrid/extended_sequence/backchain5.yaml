@@ -41,16 +41,19 @@ game:
       output_resources:
         heart: 1
     generator_red:
+      cooldown: 255
       input_resources:
         ore_red: 1
       output_resources:
         battery_red: 1
     mine_red:
+      cooldown: 255
       input_resources:
         ore_green: 1
       output_resources:
         ore_red: 1
     mine_green:
+      cooldown: 255
       input_resources:
         ore_blue: 1
       output_resources:
