@@ -6,7 +6,7 @@ import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
 import type { PanelInfo } from './panels.js'
-import { getAttr, sendAction } from './replay.js'
+import { sendAction } from './replay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
 
@@ -23,8 +23,8 @@ function clampMapPan(panel: PanelInfo) {
   // starting at (−TILE_SIZE/2, −TILE_SIZE/2).
   const mapMinX = -Common.TILE_SIZE / 2
   const mapMinY = -Common.TILE_SIZE / 2
-  const mapMaxX = state.replay.map_size[0] * Common.TILE_SIZE - Common.TILE_SIZE / 2
-  const mapMaxY = state.replay.map_size[1] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+  const mapMaxX = state.replay.mapSize[0] * Common.TILE_SIZE - Common.TILE_SIZE / 2
+  const mapMaxY = state.replay.mapSize[1] * Common.TILE_SIZE - Common.TILE_SIZE / 2
 
   // Dimensions of the visible area in world-space coordinates.
   const rect = panel.rectInner()
@@ -63,7 +63,7 @@ function clampMapPan(panel: PanelInfo) {
 
 /** Checks to see if an object has any inventory. */
 function hasInventory(obj: any) {
-  const inventory = getAttr(obj, 'inventory')
+  const inventory = obj.inventory.get()
   if (inventory === null || inventory === undefined) {
     return false
   }
@@ -80,8 +80,8 @@ export function focusFullMap(_panel: PanelInfo) {
   if (state.replay === null) {
     return
   }
-  const width = state.replay.map_size[0] * Common.TILE_SIZE
-  const height = state.replay.map_size[1] * Common.TILE_SIZE
+  const width = state.replay.mapSize[0] * Common.TILE_SIZE
+  const height = state.replay.mapSize[1] * Common.TILE_SIZE
   focusMap(width / 2, height / 2, width, height)
 }
 
@@ -91,8 +91,8 @@ function drawFloor() {
   ctx.drawSolidRect(
     -Common.TILE_SIZE / 2,
     -Common.TILE_SIZE / 2,
-    state.replay.map_size[0] * Common.TILE_SIZE,
-    state.replay.map_size[1] * Common.TILE_SIZE,
+    state.replay.mapSize[0] * Common.TILE_SIZE,
+    state.replay.mapSize[1] * Common.TILE_SIZE,
     floorColor
   )
 }
@@ -100,14 +100,14 @@ function drawFloor() {
 /** Draws the walls, based on the adjacency map, and fills any holes. */
 function drawWalls() {
   // Construct a wall adjacency map.
-  const wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
+  const wallMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
   for (const gridObject of state.replay.objects) {
-    const type = getAttr(gridObject, 'type_id')
-    const typeName = state.replay.type_names[type]
+    const type = gridObject.typeId
+    const typeName = state.replay.typeNames[type]
     if (typeName !== 'wall') {
       continue
     }
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
     wallMap.set(x, y, true)
@@ -115,12 +115,12 @@ function drawWalls() {
 
   // Draw the walls, following the adjacency map.
   for (const gridObject of state.replay.objects) {
-    const type = getAttr(gridObject, 'type_id')
-    const typeName = state.replay.type_names[type]
+    const type = gridObject.typeId
+    const typeName = state.replay.typeNames[type]
     if (typeName !== 'wall') {
       continue
     }
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
     let suffix = '0'
@@ -148,12 +148,12 @@ function drawWalls() {
 
   // Draw the wall infill, following the adjacency map.
   for (const gridObject of state.replay.objects) {
-    const type = getAttr(gridObject, 'type_id')
-    const typeName = state.replay.type_names[type]
+    const type = gridObject.typeId
+    const typeName = state.replay.typeNames[type]
     if (typeName !== 'wall') {
       continue
     }
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
     // If walls to the E, S, and SE are filled, draw a wall fill.
@@ -180,19 +180,19 @@ function drawWalls() {
 }
 
 function drawObject(gridObject: any) {
-  const type: number = getAttr(gridObject, 'type_id')
-  const typeName: string = state.replay.type_names[type]
+  const type: number = gridObject.typeId
+  const typeName: string = state.replay.typeNames[type]
   if (typeName === 'wall') {
     // Walls are drawn in a different way.
     return
   }
-  const location = getAttr(gridObject, 'location')
+  const location = gridObject.location.get()
   const x = location[0]
   const y = location[1]
 
-  if (gridObject.agent_id !== undefined) {
+  if (gridObject.isAgent) {
     // Respect the orientation of an object, usually an agent.
-    const orientation = getAttr(gridObject, 'orientation')
+    const orientation = gridObject.orientation.get()
     let suffix = ''
     if (orientation === 0) {
       suffix = 'n'
@@ -204,51 +204,19 @@ function drawObject(gridObject: any) {
       suffix = 'e'
     }
 
-    const agent_id = getAttr(gridObject, 'agent_id')
+    const agentId = gridObject.agentId
 
     ctx.drawSprite(
       `agents/agent.${suffix}.png`,
       x * Common.TILE_SIZE,
       y * Common.TILE_SIZE,
-      Common.colorFromId(agent_id)
+      Common.colorFromId(agentId)
     )
   } else {
     // Draw regular objects.
+    ctx.drawSprite(state.replay.objectImages[type], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
-    // Draw the base layer.
-    ctx.drawSprite(state.replay.object_images[type][0], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
-
-    // Draw the color layer.
-    const colorIdx = getAttr(gridObject, 'color')
-    if (colorIdx >= 0 && colorIdx < Common.COLORS.size) {
-      const colorValues = Array.from(Common.COLORS.values())
-      ctx.drawSprite(
-        state.replay.object_images[type][2],
-        x * Common.TILE_SIZE,
-        y * Common.TILE_SIZE,
-        colorValues[colorIdx]
-      )
-    }
-
-    // Draw the item layer.
-    if (hasInventory(gridObject)) {
-      // Only render the overlay if the inventory contains output resources
-
-      let outputItemExists = false
-
-      // if (objectConfig?.output_resources) {
-      //   // Check if any output resources are in the inventory
-      //   for (const resource in objectConfig.output_resources) {
-      //     if (getAttr(gridObject, `inv:${resource}`) > 0) {
-      //       outputItemExists = true
-      //       break
-      //     }
-      //   }
-      // }
-      if (outputItemExists) {
-        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
-      }
-    }
+    // TODO Make heart work
   }
 }
 
@@ -262,19 +230,19 @@ function drawObjects() {
 /** Draws actions above the objects. */
 function drawActions() {
   for (const gridObject of state.replay.objects) {
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
 
     // Do agent actions.
-    if (gridObject.action !== undefined) {
+    if (gridObject.actionId.isSequence()) {
       // Draw the action.
-      const actionId = getAttr(gridObject, 'action_id')
-      const actionParam = getAttr(gridObject, 'action_param')
-      const actionSuccess = getAttr(gridObject, 'action_success')
+      const actionId = gridObject.actionId.get()
+      const actionParam = gridObject.actionParameter.get()
+      const actionSuccess = gridObject.actionSuccess.get()
       if (actionSuccess && actionId != null) {
-        const action_name = state.replay.action_names[actionId]
-        const orientation = getAttr(gridObject, 'orientation')
+        const action_name = state.replay.actionNames[actionId]
+        const orientation = gridObject.orientation.get()
         let rotation = 0
         if (orientation === 0) {
           rotation = Math.PI / 2 // North
@@ -328,7 +296,7 @@ function drawActions() {
     }
 
     // Do building actions.
-    if (getAttr(gridObject, 'is_converting')) {
+    if (gridObject.productionProgress.get() > 0) {
       ctx.drawSprite(
         'actions/converting.png',
         x * Common.TILE_SIZE,
@@ -341,7 +309,7 @@ function drawActions() {
     }
 
     // Do states.
-    if (getAttr(gridObject, 'is_frozen')) {
+    if (gridObject.isFrozen.get()) {
       ctx.drawSprite('agents/frozen.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
     }
   }
@@ -354,14 +322,14 @@ function drawInventory(useSearch = false) {
   }
 
   for (const gridObject of state.replay.objects) {
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
 
     // Sum up the object's inventory in case we need to condense it.
     let inventoryX = Common.INVENTORY_PADDING
     let numItems = 0
-    const inventory: [number, number][] = getAttr(gridObject, 'inventory')
+    const inventory: [number, number][] = gridObject.inventory.get()
     for (const inventoryPair of inventory) {
       const num = inventoryPair[1]
       numItems += num
@@ -371,7 +339,7 @@ function drawInventory(useSearch = false) {
     for (const inventoryPair of inventory) {
       const inventoryId = inventoryPair[0]
       const num = inventoryPair[1]
-      const key = state.replay.item_names[inventoryId]
+      const key = state.replay.itemNames[inventoryId]
       const icon = `resources/${key}.png`
       const color = [1, 1, 1, 1]
       if (num > 0) {
@@ -409,11 +377,11 @@ function drawInventory(useSearch = false) {
 /** Draws the rewards on the bottom of the object. */
 function drawRewards() {
   for (const gridObject of state.replay.objects) {
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
-    if (gridObject.total_reward !== undefined) {
-      const totalReward = getAttr(gridObject, 'total_reward')
+    if (gridObject.totalReward !== undefined) {
+      const totalReward = gridObject.totalReward.get()
       let rewardX = 0
       const advanceX = Math.min(32, Common.TILE_SIZE / totalReward)
       for (let i = 0; i < totalReward; i++) {
@@ -437,7 +405,7 @@ function drawSelection() {
     return
   }
 
-  const location = getAttr(state.selectedGridObject, 'location')
+  const location = state.selectedGridObject.location.get()
   const x = location[0]
   const y = location[1]
   ctx.drawSprite('selection.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
@@ -450,11 +418,11 @@ function drawTrajectory() {
   }
   if (state.selectedGridObject.location.length > 0) {
     // Draw both past and future trajectories.
-    for (let i = 1; i < state.replay.max_steps; i++) {
-      const location0 = getAttr(state.selectedGridObject, 'location', i - 1)
+    for (let i = 1; i < state.replay.maxSteps; i++) {
+      const location0 = state.selectedGridObject.location.get(i - 1)
       const cx0 = location0[0]
       const cy0 = location0[1]
-      const location1 = getAttr(state.selectedGridObject, 'location', i)
+      const location1 = state.selectedGridObject.location.get(i)
       const cx1 = location1[0]
       const cy1 = location1[1]
       if (cx0 !== cx1 || cy0 !== cy1) {
@@ -465,7 +433,7 @@ function drawTrajectory() {
           if (state.step >= i) {
             // The past trajectory is black.
             color = [0, 0, 0, a]
-            if (state.selectedGridObject.agent_id !== undefined) {
+            if (state.selectedGridObject.isAgent) {
               image = 'agents/footprints.png'
             } else {
               image = 'agents/past_arrow.png'
@@ -473,7 +441,7 @@ function drawTrajectory() {
           } else {
             // The future trajectory is white.
             color = [a, a, a, a]
-            if (state.selectedGridObject.agent_id !== undefined) {
+            if (state.selectedGridObject.isAgent) {
               image = 'agents/path.png'
             } else {
               image = 'agents/future_arrow.png'
@@ -505,25 +473,25 @@ function drawThoughtBubbles() {
   // We don't have this directly from the policy yet, so the next best thing
   // is to show a future "key action."
   // It should be a good proxy for what the agent is thinking about.
-  if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
+  if (state.selectedGridObject != null && state.selectedGridObject.isAgent) {
     // We need to find a key action in the future.
     // A key action is a successful action that is not a no-op, rotate, or move.
     // It must not be more than 20 steps in the future.
     let keyAction = null
     let keyActionStep = null
     let actionHasTarget = false
-    const actionStepEnd = Math.min(state.replay.max_steps, state.step + 20)
+    const actionStepEnd = Math.min(state.replay.maxSteps, state.step + 20)
     for (let actionStep = state.step; actionStep < actionStepEnd; actionStep++) {
-      const actionId = getAttr(state.selectedGridObject, 'action_id', actionStep)
-      const actionParam = getAttr(state.selectedGridObject, 'action_param', actionStep)
+      const actionId = state.selectedGridObject.actionId.get(actionStep)
+      const actionParam = state.selectedGridObject.actionParameter.get(actionStep)
       if (actionId == null || actionParam == null) {
         continue
       }
-      const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
+      const actionSuccess = state.selectedGridObject.actionSuccess.get(actionStep)
       if (!actionSuccess) {
         continue
       }
-      const actionName = state.replay.action_names[actionId]
+      const actionName = state.replay.actionNames[actionId]
       if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move') {
         continue
       }
@@ -534,16 +502,16 @@ function drawThoughtBubbles() {
     }
 
     if (keyAction != null && keyActionStep != null) {
-      const location = getAttr(state.selectedGridObject, 'location')
+      const location = state.selectedGridObject.location.get()
       const x = (location[0] + 0.5) * Common.TILE_SIZE
       const y = (location[1] - 0.5) * Common.TILE_SIZE
       if (actionHasTarget && keyActionStep !== state.step) {
         // Draw an arrow on a circle around the target, pointing at it.
-        const targetLocation = getAttr(state.selectedGridObject, 'location', keyActionStep)
+        const targetLocation = state.selectedGridObject.location.get(keyActionStep)
         const [targetGridX, targetGridY] = applyOrientationOffset(
           targetLocation[0],
           targetLocation[1],
-          getAttr(state.selectedGridObject, 'agent:orientation', keyActionStep)
+          state.selectedGridObject.orientation.get(keyActionStep)
         )
         const targetX = (targetGridX + 0.5) * Common.TILE_SIZE
         const targetY = (targetGridY - 0.5) * Common.TILE_SIZE
@@ -561,7 +529,7 @@ function drawThoughtBubbles() {
         ctx.drawSprite('actions/thoughts.png', x, y)
       }
       // Draw the action icon.
-      const iconName = `actions/icons/${state.replay.action_names[keyAction[0]]}.png`
+      const iconName = `actions/icons/${state.replay.actionNames[keyAction[0]]}.png`
       if (ctx.hasImage(iconName)) {
         ctx.drawSprite(iconName, x, y, [1, 1, 1, 1], 1 / 4, 0)
       } else {
@@ -571,9 +539,9 @@ function drawThoughtBubbles() {
       // Draw the resources lost on the left and gained on the right.
       let gainX = x + 32
       let lossX = x - 32
-      const gainMap = getAttr(state.selectedGridObject, 'gainMap', keyActionStep)
+      const gainMap = state.selectedGridObject.gainMap[keyActionStep]
       for (const [inventoryId, inventoryAmount] of gainMap) {
-        const inventoryName = state.replay.item_names[inventoryId]
+        const inventoryName = state.replay.itemNames[inventoryId]
         const inventoryImage = `resources/${inventoryName}.png`
         if (inventoryAmount > 0) {
           ctx.drawSprite(inventoryImage, gainX, y, [1, 1, 1, 1], 1 / 8, 0)
@@ -591,15 +559,15 @@ function drawThoughtBubbles() {
 function drawVisibility() {
   if (state.showVisualRanges || state.showFogOfWar) {
     // Compute the visibility map; each agent contributes to the visibility map.
-    const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
+    const visibilityMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
 
     // Update the visibility map for a grid object.
     function updateVisibilityMap(gridObject: any) {
-      const location = getAttr(gridObject, 'location')
+      const location = gridObject.location.get()
       const x = location[0]
       const y = location[1]
       const visionSize = Math.floor(
-        getAttr(gridObject, 'vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2
+        gridObject.visionSize / 2
       )
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
@@ -608,14 +576,14 @@ function drawVisibility() {
       }
     }
 
-    if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+    if (state.selectedGridObject !== null && state.selectedGridObject.isAgent) {
       // When there is a selected grid object, only update its visibility.
       updateVisibilityMap(state.selectedGridObject)
     } else {
       // When there is no selected grid object, update the visibility map for all agents.
       for (const gridObject of state.replay.objects) {
-        const type = getAttr(gridObject, 'type_id')
-        const typeName = state.replay.type_names[type]
+        const type = gridObject.typeId
+        const typeName = state.replay.typeNames[type]
         if (typeName === 'agent') {
           updateVisibilityMap(gridObject)
         }
@@ -626,8 +594,8 @@ function drawVisibility() {
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }
-    for (let x = 0; x < state.replay.map_size[0]; x++) {
-      for (let y = 0; y < state.replay.map_size[1]; y++) {
+    for (let x = 0; x < state.replay.mapSize[0]; x++) {
+      for (let y = 0; y < state.replay.mapSize[1]; y++) {
         if (!visibilityMap.get(x, y)) {
           ctx.drawSolidRect(
             x * Common.TILE_SIZE - Common.TILE_SIZE / 2,
@@ -645,8 +613,8 @@ function drawVisibility() {
 /** Draws the grid. */
 function drawGrid() {
   if (state.showGrid) {
-    for (let x = 0; x < state.replay.map_size[0]; x++) {
-      for (let y = 0; y < state.replay.map_size[1]; y++) {
+    for (let x = 0; x < state.replay.mapSize[0]; x++) {
+      for (let y = 0; y < state.replay.mapSize[1]; y++) {
         ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
     }
@@ -745,11 +713,11 @@ function drawAttackMode() {
   }
 
   // Draw a selection of 3x3 grid of targets in the direction of the selected agent.
-  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-    const location = getAttr(state.selectedGridObject, 'location')
+  if (state.selectedGridObject !== null && state.selectedGridObject.isAgent) {
+    const location = state.selectedGridObject.location.get()
     const x = location[0]
     const y = location[1]
-    const orientation = getAttr(state.selectedGridObject, 'agent:orientation')
+    const orientation = state.selectedGridObject.orientation.get()
 
     // Draw a 3x3 grid of targets in the direction of the selected agent.
     for (let attackIndex = 1; attackIndex <= 9; attackIndex++) {
@@ -768,7 +736,7 @@ function drawAttackMode() {
 
 /** Draw the info line from the object to the info panel. */
 function drawInfoLine(bubble: HoverBubble) {
-  const location = getAttr(bubble.object, 'location')
+  const location = bubble.object.location.get()
   const x = location[0]
   const y = location[1]
   ctx.drawSprite('info.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
@@ -809,7 +777,7 @@ export function drawMap(panel: PanelInfo) {
           Math.round(localMousePos.y() / Common.TILE_SIZE)
         )
         objectUnderMouse = state.replay.objects.find((obj: any) => {
-          const location = getAttr(obj, 'location')
+          const location = obj.location.get()
           const x = location[0]
           const y = location[1]
           return x === gridMousePos.x() && y === gridMousePos.y()
@@ -832,11 +800,11 @@ export function drawMap(panel: PanelInfo) {
       if (objectUnderMouse !== undefined) {
         updateSelection(objectUnderMouse)
         console.info('Selected object on the map:', state.selectedGridObject)
-        if (state.selectedGridObject.agent_id !== undefined) {
+        if (state.selectedGridObject.isAgent) {
           // If selecting an agent, focus the trace panel on the agent.
           ui.tracePanel.focusPos(
             state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-            getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+            state.selectedGridObject.agentId * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
             Common.DEFAULT_TRACE_ZOOM_LEVEL
           )
         }
@@ -862,7 +830,7 @@ export function drawMap(panel: PanelInfo) {
 
   // If we're following a selection, center the map on it.
   if (state.followSelection && state.selectedGridObject !== null) {
-    const location = getAttr(state.selectedGridObject, 'location')
+    const location = state.selectedGridObject.location.get()
     const x = location[0]
     const y = location[1]
     panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
@@ -908,8 +876,8 @@ export function drawMap(panel: PanelInfo) {
     ctx.drawSolidRect(
       -Common.TILE_SIZE / 2,
       -Common.TILE_SIZE / 2,
-      state.replay.map_size[0] * Common.TILE_SIZE,
-      state.replay.map_size[1] * Common.TILE_SIZE,
+      state.replay.mapSize[0] * Common.TILE_SIZE,
+      state.replay.mapSize[1] * Common.TILE_SIZE,
       [0, 0, 0, 0.8]
     )
 
@@ -917,9 +885,9 @@ export function drawMap(panel: PanelInfo) {
 
     // Draw matching objects on top of the overlay.
     for (const gridObject of state.replay.objects) {
-      const typeId = getAttr(gridObject, 'type_id')
-      const typeName = state.replay.type_names[typeId]
-      const location = getAttr(gridObject, 'location')
+      const typeId = gridObject.typeId
+      const typeName = state.replay.typeNames[typeId]
+      const location = gridObject.location.get()
       const x = location[0]
       const y = location[1]
       if (searchMatch(typeName)) {

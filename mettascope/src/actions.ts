@@ -1,7 +1,7 @@
 import { state } from './common.js'
 import { find } from './htmlutils.js'
 import { requestFrame } from './main.js'
-import { getAttr, sendAction } from './replay.js'
+import { sendAction } from './replay.js'
 
 /** Initializes the action buttons. */
 export function initActionButtons() {
@@ -66,7 +66,7 @@ export function processActions(event: KeyboardEvent) {
 
   if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject
-    const orientation = getAttr(agent, 'orientation')
+    const orientation = agent.orientation.get(0)
     // Support WASD, arrow keys, and all numpad keys for movement/rotation.
     const key = event.key
     const code = event.code

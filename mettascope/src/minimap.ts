@@ -2,7 +2,6 @@ import * as Common from './common.js'
 import { ctx, state, ui } from './common.js'
 import { parseHtmlColor } from './htmlutils.js'
 import type { PanelInfo } from './panels.js'
-import { getAttr } from './replay.js'
 import { Vec2f } from './vector_math.js'
 
 /** Core minimap rendering logic that can be shared between minimap and macromap rendering. */
@@ -15,18 +14,18 @@ export function renderMinimapObjects(offset: Vec2f) {
   ctx.drawSolidRect(
     offset.x(),
     offset.y(),
-    state.replay.map_size[0],
-    state.replay.map_size[1],
+    state.replay.mapSize[0],
+    state.replay.mapSize[1],
     parseHtmlColor('#E7D4B7')
   )
 
   // Draw the grid objects on the minimap.
   for (const gridObject of state.replay.objects) {
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
-    const type = getAttr(gridObject, 'type_id')
-    const typeName = state.replay.type_names[type]
+    const type = gridObject.typeId
+    const typeName = state.replay.typeNames[type]
     let color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
@@ -38,19 +37,19 @@ export function renderMinimapObjects(offset: Vec2f) {
 
   // Draw the agent pips on top.
   for (const gridObject of state.replay.objects) {
-    const location = getAttr(gridObject, 'location')
+    const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
-    const type = getAttr(gridObject, 'type_id')
-    const typeName = state.replay.type_names[type]
+    const type = gridObject.typeId
+    const typeName = state.replay.typeNames[type]
     const pipScale = 0.3
     if (typeName === 'agent') {
-      const agent_id = getAttr(gridObject, 'agent_id')
+      const agentId = gridObject.agentId
       ctx.drawSprite(
         'minimapPip.png',
         x + offset.x() + 0.5,
         y + offset.y() + 0.5,
-        Common.colorFromId(agent_id),
+        Common.colorFromId(agentId),
         pipScale,
         0
       )

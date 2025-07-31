@@ -78,8 +78,8 @@ export function onResize() {
 
     // Minimap goes in the bottom left corner of the mapPanel.
     if (state.replay != null) {
-      const miniMapWidth = state.replay.map_size[0] * 2
-      const miniMapHeight = state.replay.map_size[1] * 2
+      const miniMapWidth = state.replay.mapSize[0] * 2
+      const miniMapHeight = state.replay.mapSize[1] * 2
       ui.miniMapPanel.x = 0
       ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight
       ui.miniMapPanel.width = miniMapWidth
@@ -587,7 +587,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     if (state.ws !== null) {
       state.ws.send(JSON.stringify({ type: 'advance' }))
     } else {
-      updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+      updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
     }
   }
 
@@ -598,7 +598,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
   }
   if (event.key === ']') {
     setIsPlaying(false)
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
   }
 
   // '<' and '>' for zoom out/in on keyboard
@@ -699,7 +699,7 @@ export function onFrame() {
   if (state.isPlaying) {
     state.partialStep += state.playbackSpeed
     if (state.partialStep >= 1) {
-      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps
+      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.maxSteps
       state.partialStep -= Math.floor(state.partialStep)
       if (state.ws !== null) {
         state.ws.send(JSON.stringify({ type: 'advance' }))
@@ -886,12 +886,12 @@ onEvent('click', '#step-forward', () => {
   if (state.ws !== null) {
     state.ws.send(JSON.stringify({ type: 'advance' }))
   } else {
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
   }
 })
 onEvent('click', '#rewind-to-end', () => {
   setIsPlaying(false)
-  updateStep(state.replay.max_steps - 1)
+  updateStep(state.replay.maxSteps - 1)
 })
 onEvent('click', '#demo-mode-toggle', () => {
   if (state.demoMode) {

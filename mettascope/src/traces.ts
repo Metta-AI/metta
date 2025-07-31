@@ -3,7 +3,6 @@ import { ctx, setFollowSelection, state, ui } from './common.js'
 import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection, updateStep } from './main.js'
 import type { PanelInfo } from './panels.js'
-import { getAttr } from './replay.js'
 import { Vec2f } from './vector_math.js'
 
 // Cache tracking.
@@ -54,17 +53,17 @@ export function drawTrace(panel: PanelInfo) {
         const agentId = Math.floor(localMousePos.y() / Common.TRACE_HEIGHT)
         if (
           mapX > 0 &&
-          mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
+          mapX < state.replay.maxSteps * Common.TRACE_WIDTH &&
           localMousePos.y() > 0 &&
-          localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT &&
+          localMousePos.y() < state.replay.numAgents * Common.TRACE_HEIGHT &&
           selectedStep >= 0 &&
-          selectedStep < state.replay.max_steps &&
+          selectedStep < state.replay.maxSteps &&
           agentId >= 0 &&
-          agentId < state.replay.num_agents
+          agentId < state.replay.numAgents
         ) {
           updateSelection(state.replay.agents[agentId])
           console.info('Selected an agent on a trace:', state.selectedGridObject)
-          const location = getAttr(state.selectedGridObject, 'location')
+          const location = state.selectedGridObject.location.get()
           ui.mapPanel.focusPos(
             location[0] * Common.TILE_SIZE,
             location[1] * Common.TILE_SIZE,
@@ -80,7 +79,7 @@ export function drawTrace(panel: PanelInfo) {
   // If we're following a selection, center the trace panel on it.
   if (state.followSelection && state.selectedGridObject !== null) {
     const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2
-    const y = getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
+    const y = state.selectedGridObject.agentId * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
     panel.panPos = new Vec2f(-x, -y)
     shouldRegenerate = true
   }
@@ -116,7 +115,7 @@ export function drawTrace(panel: PanelInfo) {
   const rect = panel.rectInner()
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
-  const fullSize = new Vec2f(state.replay.max_steps * Common.TRACE_WIDTH, state.replay.num_agents * Common.TRACE_HEIGHT)
+  const fullSize = new Vec2f(state.replay.maxSteps * Common.TRACE_WIDTH, state.replay.numAgents * Common.TRACE_HEIGHT)
 
   // Draw the background.
   ctx.drawSolidRect(
@@ -133,8 +132,8 @@ export function drawTrace(panel: PanelInfo) {
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
   // Draw a rectangle around the selected agent.
-  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-    const agentId = state.selectedGridObject.agent_id
+  if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== undefined) {
+    const agentId = state.selectedGridObject.agentId
 
     // Draw the selection rectangle.
     ctx.drawSolidRect(0, agentId * Common.TRACE_HEIGHT, fullSize.x(), Common.TRACE_HEIGHT, [0.3, 0.3, 0.3, 1])
@@ -150,28 +149,28 @@ export function drawTrace(panel: PanelInfo) {
   )
 
   // Draw the agent traces.
-  for (let i = 0; i < state.replay.num_agents; i++) {
+  for (let i = 0; i < state.replay.numAgents; i++) {
     const agent = state.replay.agents[i]
-    for (let j = 0; j < state.replay.max_steps; j++) {
-      const actionId = getAttr(agent, 'action_id', j)
-      const actionParam = getAttr(agent, 'action_param', j)
-      const actionSuccess = getAttr(agent, 'action_success', j)
+    for (let j = 0; j < state.replay.maxSteps; j++) {
+      const actionId = agent.actionId.get(j)
+      const actionParam = agent.actionParameter.get(j)
+      const actionSuccess = agent.actionSuccess.get(j)
 
-      if (getAttr(agent, 'is_frozen', j)) {
+      if (agent.isFrozen.get(j)) {
         // Draw the frozen state.
         ctx.drawSprite(
           'trace/frozen.png',
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
         )
-      } else if (actionSuccess && actionId >= 0 && actionId < state.replay.action_images.length) {
+      } else if (actionSuccess && actionId >= 0 && actionId < state.replay.actionImages.length) {
         // Draw the action.
         ctx.drawSprite(
-          state.replay.action_images[actionId],
+          state.replay.actionImages[actionId],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
         )
-      } else if (actionId != null && actionId >= 0 && actionId < state.replay.action_images.length) {
+      } else if (actionId != null && actionId >= 0 && actionId < state.replay.actionImages.length) {
         // Draw the invalid action.
         ctx.drawSprite(
           'trace/invalid.png',
@@ -180,7 +179,7 @@ export function drawTrace(panel: PanelInfo) {
         )
       }
 
-      const reward = getAttr(agent, 'reward', j)
+      const reward = agent.currentReward.get(j)
       // If there is a reward, draw a coin.
       if (reward > 0) {
         ctx.drawSprite(
@@ -193,35 +192,35 @@ export function drawTrace(panel: PanelInfo) {
       }
 
       // Draw resource gain/loss.
-      if (state.showResources && j > 0) {
-        const inventory = getAttr(agent, 'inventory', j)
-        const prevInventory = getAttr(agent, 'inventory', j - 1)
-        let y = 0
-        const step = 32
-        for (const inventoryPair of inventory) {
-          const inventoryId = inventoryPair[0]
-          const inventoryAmount = inventoryPair[1]
-          let diff = inventoryAmount
-          // If the inventory has changed, draw the sprite.
-          for (const prevInventoryPair of prevInventory) {
-            if (prevInventoryPair[0] === inventoryPair[0]) {
-              diff = inventoryAmount - prevInventoryPair[1]
-            }
-          }
-          for (let k = 0; k < diff; k++) {
-            const inventoryName = state.replay.item_names[inventoryId]
-            const inventoryImage = `resources/${inventoryName}.png`
-            ctx.drawSprite(
-              inventoryImage,
-              j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-              i * Common.TRACE_HEIGHT + y,
-              [1, 1, 1, 1],
-              1 / 4
-            )
-            y += step
-          }
-        }
-      }
+      // if (state.showResources && j > 0) {
+      //   const inventory = agent.inventory.get(j)
+      //   const prevInventory = agent.inventory.get(j - 1)
+      //   let y = 0
+      //   const step = 32
+      //   for (const inventoryPair of inventory) {
+      //     const inventoryId = inventoryPair[0]
+      //     const inventoryAmount = inventoryPair[1]
+      //     let diff = inventoryAmount
+      //     // If the inventory has changed, draw the sprite.
+      //     for (const prevInventoryPair of prevInventory) {
+      //       if (prevInventoryPair[0] === inventoryPair[0]) {
+      //         diff = inventoryAmount - prevInventoryPair[1]
+      //       }
+      //     }
+      //     for (let k = 0; k < diff; k++) {
+      //       const inventoryName = state.replay.itemNames[inventoryId]
+      //       const inventoryImage = `resources/${inventoryName}.png`
+      //       ctx.drawSprite(
+      //         inventoryImage,
+      //         j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+      //         i * Common.TRACE_HEIGHT + y,
+      //         [1, 1, 1, 1],
+      //         1 / 4
+      //       )
+      //       y += step
+      //     }
+      //   }
+      // }
     }
   }
 

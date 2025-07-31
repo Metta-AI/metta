@@ -26,10 +26,10 @@ function updateSearchDropdown() {
   // Add all of the resources to the search dropdown.
   const usedKeys = new Set<string>()
   const keys: string[] = []
-  for (const key of state.replay.resource_inventory.keys()) {
+  for (const key of state.replay.itemNames) {
     keys.push(key)
   }
-  for (const key of state.replay.type_names) {
+  for (const key of state.replay.typeNames) {
     keys.push(key)
   }
 

@@ -4,16 +4,142 @@ import { ctx, html, state, ui } from './common.js'
 import { onResize, requestFrame, updateStep } from './main.js'
 import { focusFullMap } from './worldmap.js'
 
-/** Gets an attribute from a grid object, respecting the current step. */
-export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
-  const prop = obj[attr]
-  if (prop === undefined) {
-    return defaultValue
+/** This represents a sequence of values sort of like a movie timeline. */
+export class Sequence<T> {
+  private value: T | null = null
+  private sequence: T[] | null = null
+  constructor(defaultValue: T) {
+    this.value = defaultValue
   }
-  if (!Array.isArray(prop) || prop.length != state.replay.max_steps) {
-    return prop // This must be a constant that does not change over time.
+
+  /** Expands a sequence of values. */
+  expand(data: any, numSteps: number, defaultValue: T) {
+    if (data == null || data == undefined) {
+      // Use the default value.
+      this.value = defaultValue
+      return
+    } else if (data instanceof Array) {
+      // For coordinates, we need to expand the sequence.
+      if (data.length == 0) {
+        this.value = defaultValue
+        return
+      } else if (Array.isArray(this.value) && data.length > 0 && !Array.isArray(data[1])) {
+        // Its just a single array like value.
+        this.value = data as T
+      } else {
+        // Expand the sequence.
+        // A sequence of pairs is expanded to a sequence of values.
+        var expanded: any[] = []
+        var i = 0
+        var j = 0
+        var v: any = null
+        for (i = 0; i < numSteps; i++) {
+          if (j < data.length && data[j][0] == i) {
+            v = data[j][1]
+            if (v == null || v == undefined) {
+              v = defaultValue
+            }
+            j++
+          }
+          expanded.push(v)
+        }
+        this.sequence = expanded
+      }
+    } else {
+      // A single value is a valid sequence.
+      this.value = data as T
+    }
   }
-  return prop[atStep === -1 ? state.step : atStep] // When the step is not passed in, use the global step.
+
+  /** Gets a value from the sequence at current or specified step. */
+  get(atStep: number = -1): T {
+    if (atStep == -1) {
+      atStep = state.step
+    }
+    if (this.sequence == null) {
+      return this.value as T
+    } else {
+      return this.sequence[atStep] as T
+    }
+  }
+
+  /** Adds a value to the sequence. */
+  add(value: T) {
+    if (this.sequence == null) {
+      this.value = value as T
+    } else {
+      this.sequence.push(value)
+    }
+  }
+
+  /** Checks if the sequence is a sequence of values. */
+  isSequence(): boolean {
+    return this.sequence != null
+  }
+
+  /** Checks if the sequence is a single value . */
+  isValue(): boolean {
+    return this.sequence == null
+  }
+}
+
+// Entity and replay conform version 2 of the replay_spec.md.
+export class Entity {
+  // Common keys.
+  id: number = 0
+  typeId: number = 0
+  groupId: number = 0
+  agentId: number = 0
+  location: Sequence<[number, number, number]> = new Sequence([0, 0, 0])
+  orientation: Sequence<number> = new Sequence(0)
+  inventory: Sequence<[number, number][]> = new Sequence<[number, number][]>([])
+  inventoryMax: number = 0
+  color: Sequence<number> = new Sequence(0)
+
+  // Agent specific keys.
+  actionId: Sequence<number> = new Sequence(0)
+  actionParameter: Sequence<number> = new Sequence(0)
+  actionSuccess: Sequence<boolean> = new Sequence(false)
+  currentReward: Sequence<number> = new Sequence(0)
+  totalReward: Sequence<number> = new Sequence(0)
+  isFrozen: Sequence<boolean> = new Sequence(false)
+  frozenProgress: Sequence<number> = new Sequence(0)
+  frozenTime: number = 0
+  visionSize: number = 0
+
+  // Building specific keys.
+  recipeInput: number[] = []
+  recipeOutput: number[] = []
+  recipeMax: number = 0
+  productionProgress: Sequence<number> = new Sequence(0)
+  productionTime: number = 0
+  cooldownProgress: Sequence<number> = new Sequence(0)
+  cooldownTime: number = 0
+
+  // Gain map for the agent.
+  gainMap: Map<number, number>[] = []
+  isAgent: boolean = false
+}
+
+export class Replay {
+  version: number = 0
+  numAgents: number = 0
+  maxSteps: number = 0
+  mapSize: [number, number] = [0, 0]
+  fileName: string = ''
+  typeNames: string[] = []
+  actionNames: string[] = []
+  itemNames: string[] = []
+  groupNames: string[] = []
+  objects: Entity[] = []
+  rewardSharingMatrix: number[][] = []
+  agents: Entity[] = []
+
+  // Generated data.
+  typeImages: string[] = []
+  actionImages: string[] = []
+  resourceImages: string[] = []
+  objectImages: string[] = []
 }
 
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
@@ -95,26 +221,6 @@ export async function readFile(file: File) {
   }
 }
 
-/**
- * Expands a sequence of values.
- * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
- */
-// [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
-function expandSequence(sequence: any[], numSteps: number): any[] {
-  const expanded: any[] = []
-  let i = 0
-  let j = 0
-  let v: any = null
-  for (i = 0; i < numSteps; i++) {
-    if (j < sequence.length && sequence[j][0] === i) {
-      v = sequence[j][1]
-      j++
-    }
-    expanded.push(v)
-  }
-  return expanded
-}
-
 // Removes a prefix from a string.
 function removePrefix(str: string, prefix: string) {
   return str.startsWith(prefix) ? str.slice(prefix.length) : str
@@ -135,92 +241,57 @@ function loadReplayText(url: string, replayData: string) {
 // adding missing keys, recomputing invalid values, etc.
 // It also creates some internal data structures for faster access to images.
 function fixReplay() {
-  // // Fix "agent.agent" -> "agent".
-  // for (let i = 0; i < state.replay.type_names.length; i++) {
-  //   if (state.replay.type_names[i] === 'agent.agent') {
-  //     state.replay.type_names[i] = 'agent'
-  //   }
-  // }
+  console.log('Fixing replay...')
 
   // Create action image mappings for faster access.
-  state.replay.action_images = []
-  for (const actionName of state.replay.action_names) {
+  state.replay.actionImages = []
+  for (const actionName of state.replay.actionNames) {
     const path = `trace/${actionName}.png`
     if (ctx.hasImage(path)) {
-      state.replay.action_images.push(path)
+      state.replay.actionImages.push(path)
     } else {
       console.warn('Action not supported: ', path)
-      state.replay.action_images.push('trace/unknown.png')
+      state.replay.actionImages.push('trace/unknown.png')
     }
   }
 
-  // Create a list of all keys that objects can have.
-  state.replay.all_keys = new Set()
-  for (const gridObject of state.replay.objects) {
-    for (const key in gridObject) {
-      state.replay.all_keys.add(key)
+  // Create object image mappings for faster access.
+  state.replay.objectImages = []
+  for (const typeName of state.replay.typeNames) {
+    const path = `objects/${typeName}.png`
+    if (ctx.hasImage(path)) {
+      state.replay.objectImages.push(path)
+    } else {
+      console.warn('Object not supported: ', path)
+      state.replay.objectImages.push('objects/unknown.png')
     }
   }
 
-  // Create an object image mapping for faster access.
-  // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
-  // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
-  state.replay.object_images = []
-  state.replay.type_names.forEach((originalTypeName: string) => {
-    let typeName = originalTypeName
-    // Remove known color suffixes.
-    for (const colorName of Common.COLORS.keys()) {
-      if (typeName.endsWith(`_${colorName}`)) {
-        typeName = typeName.slice(0, -colorName.length - 1)
-        break
+  // Create  resource image mappings for faster access.
+  state.replay.resourceImages = []
+  for (const resourceName of state.replay.itemNames) {
+    const path = `resources/${resourceName}.png`
+    if (ctx.hasImage(path)) {
+      state.replay.resourceImages.push(path)
+    } else {
+      console.warn('Resource not supported: ', path)
+      state.replay.resourceImages.push('resources/unknown.png')
+    }
+  }
+
+  // Find all agents for faster access.
+  state.replay.agents = []
+  for (let i = 0; i < state.replay.numAgents; i++) {
+    state.replay.agents.push(new Entity())
+    for (const gridObject of state.replay.objects) {
+      const typeId = gridObject.typeId
+      const typeName = state.replay.typeNames[typeId]
+      if (typeName === 'agent' && gridObject.agentId === i) {
+        state.replay.agents[i] = gridObject
+        gridObject.isAgent = true
       }
     }
-    let image = `objects/${typeName}.png`
-    let imageItem = `objects/${typeName}.item.png`
-    let imageColor = `objects/${typeName}.color.png`
-    if (!ctx.hasImage(image)) {
-      console.warn(`Object name not supported: "${typeName}"`)
-      // Use the "unknown" image.
-      image = 'objects/unknown.png'
-      imageItem = 'objects/unknown.item.png'
-      imageColor = 'objects/unknown.color.png'
-    }
-    state.replay.object_images.push([image, imageItem, imageColor])
-  })
-
-  // Create a resource inventory mapping for faster access.
-  // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
-  // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
-  // Example: "agent:inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
-  // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
-  state.replay.resource_inventory = new Map()
-  for (const key of state.replay.all_keys) {
-    if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
-      let type: string = key
-      type = removePrefix(type, 'inv:')
-      type = removePrefix(type, 'agent:inv:')
-      let color = [1, 1, 1, 1] // Default to white.
-      for (const [colorName, colorValue] of Common.COLORS) {
-        if (type.endsWith(colorName)) {
-          if (ctx.hasImage(`resources/${type}.png`)) {
-            // Use the resource.color.png with a white color.
-            break
-          }
-          // Use the resource.png with a specific color.
-          type = removeSuffix(type, `.${colorName}`)
-          color = colorValue as number[]
-          if (!ctx.hasImage(`resources/${type}.png`)) {
-            // Use the unknown.png with a specific color.
-            console.warn('Resource not supported: ', type)
-            type = 'unknown'
-          }
-        }
-      }
-      const image = `resources/${type}.png`
-      state.replay.resource_inventory.set(key, [image, color])
-    }
   }
-
 
   // Compute gain/loss of for agents.
   for (const agent of state.replay.agents) {
@@ -228,9 +299,9 @@ function fixReplay() {
     agent.gainMap = []
     // Gain map for step 0 is empty.
     {
-      const inventory = getAttr(agent, 'inventory', 0)
+      const inventory = agent.inventory.get(0)
       const gainMap = new Map<number, number>()
-      if (inventory != null && inventory != 0) {
+      if (inventory.length > 0) {
         for (const inventoryPair of inventory) {
           const inventoryId = inventoryPair[0]
           const inventoryAmount = inventoryPair[1]
@@ -240,9 +311,9 @@ function fixReplay() {
       agent.gainMap.push(gainMap)
     }
     // We compute the gain map for each step > 1.
-    for (let step = 1; step < state.replay.max_steps; step++) {
-      const inventory = getAttr(agent, 'inventory', step)
-      const prevInventory = getAttr(agent, 'inventory', step - 1)
+    for (let step = 1; step < state.replay.maxSteps; step++) {
+      const inventory = agent.inventory.get(step)
+      const prevInventory = agent.inventory.get(step - 1)
       const gainMap = new Map<number, number>()
       // We add current's frame inventory to the gain map.
       for (const inventoryPair of inventory) {
@@ -283,6 +354,15 @@ function convertReplayV1ToV2(replayData: any) {
     version: 2,
   }
   data.action_names = replayData.action_names
+  data.action_names = data.action_names.map((name: string) => {
+    if (name === "put_recipe_items") {
+      return "put_items"
+    }
+    if (name === "get_output") {
+      return "get_items"
+    }
+    return name
+  })
   if (replayData.inventory_items != null && replayData.inventory_items != undefined && replayData.inventory_items.length > 0) {
     data.item_names = replayData.inventory_items
   } else {
@@ -371,6 +451,7 @@ function convertReplayV1ToV2(replayData: any) {
 
     if (gridObject.agent_id != null) {
       object.agent_id = gridObject.agent_id
+      object.is_object = true
       object.is_frozen = gridObject["agent:frozen"]
       object.color = gridObject["agent:color"]
       object.action_success = gridObject["action_success"]
@@ -414,32 +495,62 @@ function loadReplayJson(url: string, replayJson: any) {
     return
   }
 
-  state.replay = replayData
+  state.replay = new Replay()
+  state.replay.version = replayData.version
+  state.replay.actionNames = replayData.action_names
+  state.replay.itemNames = replayData.item_names
+  state.replay.typeNames = replayData.type_names
+  state.replay.numAgents = replayData.num_agents
+  state.replay.maxSteps = replayData.max_steps
+  state.replay.mapSize = replayData.map_size
+  state.replay.fileName = replayData.file_name
 
   // Go through each grid object and expand its key sequence.
-  for (const gridObject of state.replay.objects) {
-    for (const key in gridObject) {
-      if (Array.isArray(gridObject[key]) && gridObject[key][0].length == 2) {
-        gridObject[key] = expandSequence(gridObject[key], state.replay.max_steps)
-      }
-    }
-  }
+  for (const gridObject of replayData.objects) {
+    let object = new Entity()
+    object.id = gridObject.id
+    object.typeId = gridObject.type_id
+    object.location.expand(gridObject.location, replayData.max_steps, [0, 0, 0])
+    object.orientation.expand(gridObject.orientation, replayData.max_steps, 0)
+    console.log('gridObject.inventory: ', gridObject.inventory)
+    object.inventory.expand(gridObject.inventory, replayData.max_steps, [])
+    object.inventoryMax = gridObject.inventory_max
+    object.color.expand(gridObject.color, replayData.max_steps, 0)
 
-  // Find all agents for faster access.
-  state.replay.agents = []
-  for (let i = 0; i < state.replay.num_agents; i++) {
-    state.replay.agents.push({})
-    for (const gridObject of state.replay.objects) {
-      if (gridObject.agent_id === i) {
-        state.replay.agents[i] = gridObject
-      }
+    if ("agent_id" in gridObject) {
+      object.agentId = gridObject.agent_id
+      object.groupId = gridObject.group_id
+      object.isFrozen.expand(gridObject.is_frozen, replayData.max_steps, false)
+      object.actionId.expand(gridObject.action_id, replayData.max_steps, 0)
+      object.actionParameter.expand(gridObject.action_param, replayData.max_steps, 0)
+      object.actionSuccess.expand(gridObject.action_success, replayData.max_steps, false)
+      object.currentReward.expand(gridObject.current_reward, replayData.max_steps, 0)
+      object.totalReward.expand(gridObject.total_reward, replayData.max_steps, 0)
+      object.frozenProgress.expand(gridObject.frozen_progress, replayData.max_steps, 0)
+      object.frozenTime = gridObject.frozen_time
+      object.visionSize = Common.DEFAULT_VISION_SIZE // TODO Fix this
     }
+
+    if ("recipe_input" in gridObject) {
+      object.recipeInput = gridObject.recipe_input
+      object.recipeOutput = gridObject.recipe_output
+      object.recipeMax = gridObject.recipe_max
+      object.productionProgress.expand(gridObject.production_progress, replayData.max_steps, 0)
+      object.productionTime = gridObject.production_time
+      object.cooldownProgress.expand(gridObject.cooldown_progress, replayData.max_steps, 0)
+      object.cooldownTime = gridObject.cooldown_time
+    }
+
+    state.replay.objects.push(object)
   }
 
   fixReplay()
 
-  if (state.replay.file_name) {
-    html.fileName.textContent = state.replay.file_name
+
+  console.log('Replay data: ', state.replay)
+
+  if (state.replay.fileName) {
+    html.fileName.textContent = state.replay.fileName
   } else {
     html.fileName.textContent = url.split('/').pop() || 'unknown'
   }
@@ -458,40 +569,39 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1)
+  state.replay.maxSteps = Math.max(state.replay.maxSteps, step + 1)
 
   for (const gridObject of replayStep.objects) {
     // Grid objects are 1-indexed.
     const index = gridObject.id - 1
-    for (const key in gridObject) {
-      const value = gridObject[key]
-      // Ensure that the grid object exists.
-      while (state.replay.objects.length <= index) {
-        state.replay.objects.push({})
-      }
-      // Ensure that the key exists.
-      if (state.replay.objects[index][key] === undefined || state.replay.objects[index][key] === null) {
-        state.replay.objects[index][key] = []
-        while (state.replay.objects[index][key].length <= step) {
-          state.replay.objects[index][key].push(null)
-        }
-      }
-
-      state.replay.objects[index][key][step] = value
-
-      if (key === 'agent_id') {
-        // Update the agent.
-        while (state.replay.agents.length <= value) {
-          state.replay.agents.push({})
-        }
-        state.replay.agents[value] = state.replay.objects[index]
-      }
+    // Ensure that the grid object exists.
+    while (state.replay.objects.length <= index) {
+      state.replay.objects.push(new Entity())
     }
-    // Make sure that the keys that don't exist in the update are set to null too.
-    for (const key in state.replay.objects[index]) {
-      if (gridObject[key] === undefined) {
-        state.replay.objects[index][key][step] = null
-      }
+
+    const object = state.replay.objects[index]
+    object.id = gridObject.id
+    object.typeId = gridObject.type_id
+    object.groupId = gridObject.group_id
+    object.agentId = gridObject.agent_id
+    object.visionSize = gridObject.vision_size
+    object.isFrozen.add(gridObject.is_frozen)
+    object.location.add(gridObject.location)
+    object.orientation.add(gridObject.orientation)
+    object.inventory.add(gridObject.inventory)
+    object.color.add(gridObject.color)
+    if ("agent_id" in gridObject) {
+      object.actionId.add(gridObject.action_id)
+      object.actionParameter.add(gridObject.action_param)
+      object.actionSuccess.add(gridObject.action_success)
+      object.currentReward.add(gridObject.current_reward)
+      object.totalReward.add(gridObject.total_reward)
+      object.isFrozen.add(gridObject.isFrozen)
+      object.frozenProgress.add(gridObject.frozen_progress)
+    }
+    if ("recipe_input" in gridObject) {
+      object.productionProgress.add(gridObject.production_progress)
+      object.cooldownProgress.add(gridObject.cooldown_progress)
     }
   }
 
@@ -534,9 +644,9 @@ export function sendAction(actionName: string, actionParam: number) {
     console.error('WebSocket is not connected')
     return
   }
-  const agentId = getAttr(state.selectedGridObject, 'agent_id')
+  const agentId = state.selectedGridObject.agentId
   if (agentId != null) {
-    const actionId = state.replay.action_names.indexOf(actionName)
+    const actionId = state.replay.actionNames.indexOf(actionName)
     if (actionId === -1) {
       console.error('Action not found: ', actionName)
       return
@@ -572,12 +682,9 @@ export function propertyName(key: string) {
 
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
-  if (state.replay.type_names.includes(key)) {
-    const idx = state.replay.type_names.indexOf(key)
-    return `data/atlas/${state.replay.object_images[idx][0]}`
-  }
-  if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
-    return `data/atlas/resources/${key.replace('inv:', '').replace('agent:', '')}.png`
+  if (state.replay.typeNames.includes(key)) {
+    const idx = state.replay.typeNames.indexOf(key)
+    return `data/atlas/${state.replay.typeImages[idx]}`
   }
   return `data/ui/table/${key.replace('agent:', '')}.png`
 }

@@ -81,6 +81,7 @@ class EpisodeReplay:
             if "agent_id" in grid_object:
                 agent_id = grid_object["agent_id"]
                 update_object["agent_id"] = agent_id
+                update_object["is_agent"] = True
                 update_object["vision_size"] = 11  # TODO: Waiting for env to support this
                 update_object["action_id"] = int(actions[agent_id][0])
                 update_object["action_param"] = int(actions[agent_id][1])

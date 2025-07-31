@@ -12,7 +12,7 @@ import {
   showMenu,
 } from './htmlutils.js'
 import { updateSelection } from './main.js'
-import { getAttr, propertyIcon, propertyName } from './replay.js'
+import { propertyIcon, propertyName } from './replay.js'
 
 enum SortDirection {
   None = 0,
@@ -74,9 +74,9 @@ const columnOptionTemplate = find('#new-column-dropdown .column-option')
 const typeahead = find('#new-column-input') as HTMLInputElement
 
 let columns = [
-  new ColumnDefinition('agent_id', false),
-  new ColumnDefinition('total_reward', false),
-  new ColumnDefinition('total_reward', true),
+  new ColumnDefinition('agentId', false),
+  new ColumnDefinition('totalReward', false),
+  new ColumnDefinition('totalReward', true),
 ]
 let mainSort: ColumnDefinition = columns[1]
 let typeaheadValue = ''
@@ -234,7 +234,7 @@ onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, _e: Event) => 
   const agentId = findAttr(target, 'data-agent-id')
   if (agentId !== '') {
     state.replay.objects.forEach((gridObject: any) => {
-      if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') === agentId) {
+      if (gridObject.agentId === agentId) {
         updateSelection(gridObject, true)
         // Note: can't use break with forEach
       }
@@ -361,6 +361,10 @@ export function updateAvailableColumns() {
 
 /** Update the agent table. */
 export function updateAgentTable() {
+
+  // TODO Fix the agent table
+  return
+
   // The agent table might change due to changes in:
   //   * The columns array.
   //   * The main sort column.
@@ -376,12 +380,12 @@ export function updateAgentTable() {
     let bValue: number
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
-      aValue = getAttr(a, mainSort.field, state.replay.max_steps - 1)
-      bValue = getAttr(b, mainSort.field, state.replay.max_steps - 1)
+      aValue = a[mainSort.field].get(state.replay.maxSteps - 1)
+      bValue = b[mainSort.field].get(state.replay.maxSteps - 1)
     } else {
       // Uses the current step for the sort.
-      aValue = getAttr(a, mainSort.field)
-      bValue = getAttr(b, mainSort.field)
+      aValue = a[mainSort.field].get(0)
+      bValue = b[mainSort.field].get(0)
     }
     // Sort direction adjustment.
     if (mainSort.sortDirection === SortDirection.Descending) {
@@ -418,9 +422,9 @@ export function updateAgentTable() {
 
         let value: number
         if (columnDef.isFinal) {
-          value = getAttr(agent, columnDef.field, state.replay.max_steps - 1)
+          value = agent[columnDef.field].get(state.replay.maxSteps - 1)
         } else {
-          value = getAttr(agent, columnDef.field)
+          value = agent[columnDef.field].get(0)
         }
         if (value == null) {
           value = 0
@@ -431,9 +435,9 @@ export function updateAgentTable() {
         }
 
         dataCell.children[0].textContent = valueStr
-        const agentId = getAttr(agent, 'agent_id')
+        const agentId = agent.agentId
         dataCell.setAttribute('data-agent-id', agentId.toString())
-        if (state.selectedGridObject != null && agentId === getAttr(state.selectedGridObject, 'agent_id')) {
+        if (state.selectedGridObject != null && agentId === state.selectedGridObject.agentId) {
           dataCell.classList.add('selected')
         }
         column.appendChild(dataCell)
@@ -448,9 +452,9 @@ export function updateAgentTable() {
   newColumn.appendChild(headerCell)
   agents.forEach((agent: any) => {
     const dataCell = newColumnDataCell.cloneNode(true) as HTMLElement
-    const agentId = getAttr(agent, 'agent_id')
+    const agentId = agent.agentId
     dataCell.setAttribute('data-agent-id', agentId.toString())
-    if (state.selectedGridObject != null && agentId === getAttr(state.selectedGridObject, 'agent_id')) {
+    if (state.selectedGridObject != null && agentId === state.selectedGridObject.agentId) {
       dataCell.classList.add('selected')
     }
     newColumn.appendChild(dataCell)
