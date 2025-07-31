@@ -67,7 +67,7 @@ hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
   // Show the actions buttons (memory, etc.) if the object is an agent
   // and if the websocket is connected.
   const actions = findIn(bubble.div, '.actions')
-  if (state.ws != null && bubble.object.hasOwnProperty('agent_id')) {
+  if (state.ws != null && bubble.object.isAgent) {
     actions.classList.remove('hidden')
   } else {
     actions.classList.add('hidden')
@@ -183,10 +183,8 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
   const inputResources = object.inputResources
   const outputResources = object.outputResources
 
-  // If config has input_resources or output_resources use that,
-  // otherwise use input_{resource} and output_{resource}.
   if (inputResources.length > 0 || outputResources.length > 0) {
-    // input_resources is a object like {heart: 1, blueprint: 1}
+    // Add the input resources.
     for (const resourcePair of inputResources) {
       const resourceId = resourcePair[0]
       const resourceAmount = resourcePair[1]
@@ -197,9 +195,9 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
       recipe.appendChild(item)
       displayedResources++
     }
-    // Add the arrow.
+    // Add the arrow between the input and output.
     recipe.appendChild(recipeArrow.cloneNode(true))
-    // Add the output.
+    // Add the output resources.
     if (outputResources.length > 0) {
       for (const resourcePair of outputResources) {
         const resourceId = resourcePair[0]
