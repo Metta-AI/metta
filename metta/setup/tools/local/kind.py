@@ -169,27 +169,9 @@ class Kind:
         subprocess.run(["kubectl", "exec", "-it", pod_name, "-n", self.namespace, "--", "/bin/bash"], check=True)
 
     def _get_wandb_api_key(self) -> str | None:
-        """Get WANDB API key from .netrc file."""
-        netrc_path = Path.home() / ".netrc"
-        if netrc_path.exists():
-            try:
-                with open(netrc_path, "r") as f:
-                    content = f.read()
-                    lines = content.split("\n")
-                    for i, line in enumerate(lines):
-                        if "machine api.wandb.ai" in line:
-                            # Look for login and password in subsequent lines
-                            for j in range(i + 1, min(i + 3, len(lines))):
-                                parts = lines[j].split()
-                                if len(parts) >= 2 and parts[0] == "login":
-                                    # Look for password
-                                    for k in range(j, min(j + 2, len(lines))):
-                                        parts2 = lines[k].split()
-                                        if len(parts2) >= 2 and parts2[0] == "password":
-                                            return parts2[1]
-            except Exception:
-                pass
-        return None
+        import wandb
+
+        return wandb.Api().api_key
 
 
 class KindLocal(Kind):
