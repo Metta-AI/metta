@@ -16,8 +16,6 @@ import pytest
 from omegaconf import OmegaConf
 
 from metta.sweep.protein_metta import MettaProtein
-from metta.sweep.wandb_utils import create_wandb_sweep
-from tools.sweep_config_utils import save_train_job_override_config
 from tools.sweep_prepare_run import apply_protein_suggestion
 
 

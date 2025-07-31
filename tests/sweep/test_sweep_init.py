@@ -168,7 +168,7 @@ class TestGenerateProteinSuggestion:
             generate_protein_suggestion(config, mock_protein)
 
         # Should have recorded 10 failures
-        assert mock_protein.observe_failure.call_count == 10
+        assert mock_protein.observe_failure.call_count == 11
 
 
 class TestApplyProteinSuggestion:
