@@ -1,0 +1,118 @@
+# Based on https://github.com/digitalocean/Kubernetes-Starter-Kit-Developers/blob/main/04-setup-observability/assets/manifests/prom-stack-values-v35.5.1.yaml
+
+# Managed by EKS
+
+namespaceOverride: monitoring
+
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+
+defaultRules:
+  create: true
+  rules:
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    # externalUrl: TODO
+    alertmanagerConfiguration:
+      name: global-config # TODO
+
+grafana:
+  enabled: true
+
+  grafana.ini:
+    # defaults from upstream values.yaml
+    paths:
+      data: /var/lib/grafana/
+      logs: /var/log/grafana
+      plugins: /var/lib/grafana/plugins
+      provisioning: /etc/grafana/provisioning
+    log:
+      mode: console
+    analytics:
+      check_for_updates: false
+    server:
+      root_url: https://grafana.softmax-research.net
+    auth.google:
+      enabled: true
+      allow_sign_up: true
+      auto_login: false
+      #
+      client_id: $__file{/etc/secrets/softmax-infra-oauth/client-id}
+      client_secret: $__file{/etc/secrets/softmax-infra-oauth/client-secret}
+      scopes: openid email profile
+      auth_url: https://accounts.google.com/o/oauth2/v2/auth
+      token_url: https://oauth2.googleapis.com/token
+      api_url: https://openidconnect.googleapis.com/v1/userinfo
+      allowed_domains: stem.ai softmax.com
+
+  extraSecretMounts:
+    # This secret is terraformed by devops/tf/eks
+    - name: softmax-infra-oauth
+      secretName: softmax-infra-oauth
+      defaultMode: 0440
+      mountPath: /etc/secrets/softmax-infra-oauth
+      readOnly: true
+
+  admin:
+    existingSecret: grafana-credentials # terraformed by devops/tf/eks
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+    hosts:
+      - grafana.softmax-research.net
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.softmax-research.net
+
+  persistence:
+    enabled: true
+    storageClassName: gp3
+    accessModes: ["ReadWriteOnce"]
+    size: 10Gi
+
+prometheusOperator:
+  enabled: true
+
+prometheus:
+  enabled: true
+
+  # additionalServiceMonitors:
+  # # Uncomment the following section to enable ingress-nginx service monitoring
+  #   - name: "ingress-nginx-monitor"
+  #     selector:
+  #       matchLabels:
+  #         app.kubernetes.io/name: ingress-nginx
+  #     namespaceSelector:
+  #       matchNames:
+  #         - ingress-nginx
+  #     endpoints:
+  #       - port: "metrics"
+
+  prometheusSpec:
+    # via https://github.com/prometheus-community/helm-charts/issues/1911 (note that last comment has a few typos)
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+    # externalUrl: TODO
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 100Gi
