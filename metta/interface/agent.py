@@ -213,7 +213,6 @@ def create_or_load_agent(
                 "agent": _get_default_agent_config(str(device))["agent"],
             }
         ),
-        device=device,
         is_master=is_master,
         rank=rank,
     )

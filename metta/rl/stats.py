@@ -4,13 +4,21 @@ import logging
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 import torch
 
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.policy_store import PolicyRecord
+from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.rl.experience import Experience
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.losses import Losses
+from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +119,10 @@ def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 def process_training_stats(
     raw_stats: Dict[str, Any],
-    losses: Any,
-    experience: Any,
-    trainer_config: Any,
-    kickstarter: Any,
+    losses: Losses,
+    experience: Experience,
+    trainer_config: TrainerConfig,
+    kickstarter: Kickstarter | None,
 ) -> Dict[str, Any]:
     """Process training statistics into a clean format.
 
@@ -181,7 +189,7 @@ def process_training_stats(
 
 
 def compute_timing_stats(
-    timer: Any,
+    timer: Stopwatch,
     agent_step: int,
 ) -> Dict[str, Any]:
     """Compute timing statistics from a Stopwatch timer.
@@ -315,23 +323,23 @@ def build_wandb_stats(
 
 def process_stats(
     stats: Dict[str, Any],
-    losses: Any,
+    losses: Losses,
     evals: EvalRewardSummary,
     grad_stats: Dict[str, float],
-    experience: Any,
-    policy: Any,
-    timer: Any,
-    trainer_cfg: Any,
+    experience: Experience,
+    policy: MettaAgent | DistributedMettaAgent,
+    timer: Stopwatch,
+    trainer_cfg: TrainerConfig,
     agent_step: int,
     epoch: int,
     world_size: int,
-    wandb_run: Optional[Any],
-    memory_monitor: Optional[Any],
-    system_monitor: Optional[Any],
-    latest_saved_policy_record: Optional[Any],
-    initial_policy_record: Optional[Any],
-    optimizer: Optional[Any] = None,
-    kickstarter: Optional[Any] = None,
+    wandb_run: WandbRun | None,
+    memory_monitor: Any | None,
+    system_monitor: Any | None,
+    latest_saved_policy_record: PolicyRecord | None,
+    initial_policy_record: PolicyRecord | None,
+    optimizer: torch.optim.Optimizer | None = None,
+    kickstarter: Kickstarter | None = None,
 ) -> None:
     """Process and log training statistics."""
     if not wandb_run:

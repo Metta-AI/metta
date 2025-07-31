@@ -1,14 +1,15 @@
 """Optimization utilities for Metta training."""
 
 import logging
-from typing import Any
 
 import torch
+
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 
 logger = logging.getLogger(__name__)
 
 
-def compute_gradient_stats(policy: torch.nn.Module) -> dict[str, float]:
+def compute_gradient_stats(policy: MettaAgent | DistributedMettaAgent) -> dict[str, float]:
     """Compute gradient statistics for the policy.
 
     Returns:
@@ -38,7 +39,7 @@ def compute_gradient_stats(policy: torch.nn.Module) -> dict[str, float]:
 
 
 def maybe_update_l2_weights(
-    agent: Any,
+    agent: MettaAgent | DistributedMettaAgent,
     epoch: int,
     interval: int,
     is_master: bool = True,
