@@ -11,8 +11,11 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.policy_store import PolicyStore
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
+from metta.common.wandb.wandb_context import WandbRun
 from metta.core.distributed import setup_distributed_vars
 from metta.core.monitoring import (
     cleanup_monitoring,
@@ -77,10 +80,10 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 def train(
     cfg: DictConfig,
-    wandb_run: Any | None,
-    policy_store: Any,
-    sim_suite_config: Any,
-    stats_client: Any | None,
+    wandb_run: WandbRun | None,
+    policy_store: PolicyStore,
+    sim_suite_config: SimulationSuiteConfig,
+    stats_client: StatsClient | None,
     **kwargs: Any,
 ) -> None:
     """Main training loop for Metta agents."""
@@ -172,14 +175,15 @@ def train(
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
-        policy = cast("MettaAgent | DistributedMettaAgent", torch.compile(policy, mode=trainer_cfg.compile_mode))
+        # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
+        policy = cast(MettaAgent | DistributedMettaAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
 
     # Create kickstarter
     kickstarter = Kickstarter(
-        trainer_cfg.kickstart,
-        str(device),
-        policy_store,
-        metta_grid_env,
+        cfg=trainer_cfg.kickstart,
+        device=device,
+        policy_store=policy_store,
+        metta_grid_env=metta_grid_env,
     )
 
     # Wrap in DDP if distributed
@@ -262,10 +266,14 @@ def train(
     stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
     if stats_client is not None:
         # Extract wandb attributes with defaults
-        name = getattr(wandb_run, "name", "unknown") or "unknown"
-        url = getattr(wandb_run, "url", None)
-        tags = list(wandb_run.tags) if wandb_run and wandb_run.tags else None
-        description = getattr(wandb_run, "notes", None)
+        name = url = description = "unknown"
+        tags: list[str] | None = None
+        if wandb_run:
+            name = wandb_run.name or name
+            url = wandb_run.url
+            if wandb_run.tags:
+                tags = list(wandb_run.tags)
+        description = wandb_run.notes if wandb_run else None
 
         try:
             stats_tracker.stats_run_id = stats_client.create_training_run(
