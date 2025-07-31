@@ -41,7 +41,6 @@ from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update
 from metta.rl.optimization import (
-    calculate_explained_variance,
     compute_gradient_stats,
     maybe_update_l2_weights,
 )
@@ -558,7 +557,11 @@ while agent_step < trainer_config.total_timesteps:
     if minibatch_idx > 0 and str(device).startswith("cuda"):
         torch.cuda.synchronize()
 
-    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+    # Calculate explained variance
+    y_pred = experience.values.flatten()
+    y_true = advantages.flatten() + experience.values.flatten()
+    var_y = y_true.var()
+    losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
 
     # Calculate performance metrics
     train_time = time.time() - train_start

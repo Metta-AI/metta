@@ -27,7 +27,6 @@ from .losses import compute_ppo_losses, process_minibatch_update
 
 # Optimization utilities
 from .optimization import (
-    calculate_explained_variance,
     compute_gradient_stats,
     maybe_update_l2_weights,
 )
@@ -65,7 +64,6 @@ __all__ = [
     "compute_ppo_losses",
     "process_minibatch_update",
     # Optimization
-    "calculate_explained_variance",
     "compute_gradient_stats",
     "maybe_update_l2_weights",
     # Policy management
