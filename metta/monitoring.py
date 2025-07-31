@@ -14,22 +14,20 @@ logger = logging.getLogger(__name__)
 def setup_monitoring(
     policy: Any,
     experience: Experience,
-    is_master: bool,
     timer: Optional[Stopwatch] = None,
-) -> Tuple[Optional[MemoryMonitor], Optional[SystemMonitor]]:
-    """Set up memory and system monitoring for master rank.
+) -> Tuple[MemoryMonitor, SystemMonitor]:
+    """Set up memory and system monitoring.
+
+    Note: This should only be called on the master rank.
 
     Args:
         policy: Policy model to monitor
         experience: Experience buffer to monitor
-        is_master: Whether this is the master rank
         timer: Optional stopwatch timer for system monitor
 
     Returns:
-        Tuple of (memory_monitor, system_monitor), both None if not master
+        Tuple of (memory_monitor, system_monitor)
     """
-    if not is_master:
-        return None, None
 
     # Create memory monitor
     memory_monitor = MemoryMonitor()

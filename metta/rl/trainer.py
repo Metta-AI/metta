@@ -24,7 +24,6 @@ from metta.monitoring import (
     setup_monitoring,
 )
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.replays import generate_policy_replay
 from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -257,12 +256,14 @@ def train(
         logger.info("Starting training")
 
     # Set up monitoring (master only)
-    memory_monitor, system_monitor = setup_monitoring(
-        policy=policy,
-        experience=experience,
-        is_master=is_master,
-        timer=timer,
-    )
+    if is_master:
+        memory_monitor, system_monitor = setup_monitoring(
+            policy=policy,
+            experience=experience,
+            timer=timer,
+        )
+    else:
+        memory_monitor, system_monitor = None, None
 
     # Set up wandb metrics (master only)
     if wandb_run and is_master:
@@ -469,25 +470,6 @@ def train(
                 )
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
-        # Generate replay
-        if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
-            if latest_saved_policy_record:
-                replay_url = generate_policy_replay(
-                    policy_record=latest_saved_policy_record,
-                    policy_store=policy_store,
-                    trainer_cfg=trainer_cfg,
-                    epoch=epoch,
-                    device=device,
-                    vectorization=cfg.vectorization,
-                    wandb_run=wandb_run,
-                )
-                if replay_url:
-                    upload_replay_html(
-                        replay_urls={"replay": [replay_url]},
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        wandb_run=wandb_run,
-                    )
 
         # Compute gradient stats
         if should_run(epoch, trainer_cfg.grad_mean_variance_interval, is_master):
