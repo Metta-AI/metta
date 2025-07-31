@@ -87,15 +87,8 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
         The agent, possibly wrapped in DistributedMettaAgent
     """
     if torch.distributed.is_initialized():
-        # For CPU, we need to handle DistributedDataParallel differently
-        if device.type == "cpu":
-            # Convert BatchNorm to SyncBatchNorm
-            agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-            # For CPU, don't pass device_ids
-            agent = DistributedDataParallel(agent)
-        else:
-            # For GPU, use the custom DistributedMettaAgent wrapper
-            agent = DistributedMettaAgent(agent, device)
+        # Always use DistributedMettaAgent for its __getattr__ forwarding
+        agent = DistributedMettaAgent(agent, device)
 
     return agent
 
