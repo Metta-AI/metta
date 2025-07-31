@@ -5,6 +5,7 @@ import subprocess
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.models import WorkerInfo
+from metta.common.datadog.config import datadog_config
 
 
 class K8sPodManager(AbstractContainerManager):
@@ -54,6 +55,8 @@ class K8sPodManager(AbstractContainerManager):
                             {"name": "WORKER_ASSIGNEE", "value": pod_name},
                             {"name": "WANDB_API_KEY", "value": self._wandb_api_key},
                             {"name": "MACHINE_TOKEN", "value": machine_token},
+                            *[{"name": k, "value": v} for k, v in datadog_config.to_env_dict().items()],
+                            {"name": "DD_SERVICE", "value": "eval-worker"},
                         ],
                         "resources": {
                             "requests": {

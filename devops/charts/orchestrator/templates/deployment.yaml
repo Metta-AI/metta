@@ -45,6 +45,20 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.machineToken }}
               key: token
+        {{- if .Values.datadog.enabled }}
+        - name: DD_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: DD_TRACE_ENABLED
+          value: {{ .Values.env.DD_TRACE_ENABLED | quote }}
+        - name: DD_ENV
+          value: {{ .Values.datadog.env | quote }}
+        - name: DD_SERVICE
+          value: "eval-orchestrator"
+        - name: DD_VERSION
+          value: {{ .Values.image.tag | quote }}
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
 

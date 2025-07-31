@@ -1,4 +1,6 @@
 # Environment and IDE
+.claude/tasks
+.claude/analysis
 .envrc
 .env
 .env.*
@@ -59,6 +61,7 @@ personal/
 test_data/
 **/*benchmark_results.json
 .testmondata*
+tests/pufferlib_compatibility_matrix.json
 
 # Logs and profiling
 *.log

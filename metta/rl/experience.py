@@ -139,11 +139,6 @@ class Experience:
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
     @property
-    def full(self) -> bool:
-        """Alias for ready_for_training for compatibility."""
-        return self.ready_for_training
-
-    @property
     def ready_for_training(self) -> bool:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
