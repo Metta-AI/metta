@@ -9,6 +9,8 @@ import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 
+from metta.agent.external.example import Recurrent
+
 
 class PolicyBase(nn.Module, ABC):
     """Base class for all policies with standardized interface."""
@@ -432,6 +434,39 @@ class MonolithicPolicy(PolicyBase):
         return action, log_prob, entropy, value, new_state
 
 
+class PufferlibRecurrentPolicy(PolicyBase):
+    def __init__(self, env):
+        super().__init__("PufferlibRecurrent")
+        self.action_space = env.single_action_space
+
+        if isinstance(self.action_space, spaces.Discrete):
+            # treat Discrete(N) as a 1-D MultiDiscrete([N])
+            self.action_nvec = np.array([self.action_space.n], dtype=int)
+        elif isinstance(self.action_space, spaces.MultiDiscrete):
+            self.action_nvec = self.action_space.nvec
+        else:
+            raise NotImplementedError(f"Unsupported action space: {type(self.action_space)}")
+
+        self.recurrent_agent = Recurrent(env)
+        self.recurrent_agent.device = "cpu"
+        self.recurrent_agent.eval()  # Optional: set eval mode
+
+    def forward(
+        self,
+        agent: MettaAgent,
+        obs: Dict[str, torch.Tensor],
+        state: Optional[dict] = None,
+        action: Optional[torch.Tensor] = None,
+    ):
+        """
+        MettaAgent's obs -> Tensor: (B, M, 3) or (B, TT, M, 3)
+        You must convert the dictionary to the tensor format expected by the pufferlib agent.
+        """
+        observations = obs["obs"]  # Use correct key based on env
+        output = self.recurrent_agent(observations, state=state, action=action)
+        return output
+
+
 def create_component_based_agent():
     """Create an example MettaAgent using component-based approach (Approach 1)."""
 
@@ -528,33 +563,167 @@ if __name__ == "__main__":
 
     ## Monolithic Policy
 
-    agent1, _ = create_monolithic_agent()
+    # agent1, _ = create_monolithic_agent()
 
-    # Switch component-based agent to monolithic policy
-    monolithic_policy = MonolithicPolicy(obs_dim=10, action_space=gym.spaces.Discrete(5), hidden_size=64)
-    agent1.set_policy(monolithic_policy)
-    print("Switched component-based agent to monolithic policy!")
+    # # Switch component-based agent to monolithic policy
+    # monolithic_policy = MonolithicPolicy(obs_dim=10, action_space=gym.spaces.Discrete(5), hidden_size=64)
+    # agent1.set_policy(monolithic_policy)
+    # print("Switched component-based agent to monolithic policy!")
 
-    obs = {
-        "grid_obs": torch.rand(1, 10),
-        "global_vars": torch.tensor([]).reshape(1, 0),
+    # obs = {
+    #     "grid_obs": torch.rand(1, 10),
+    #     "global_vars": torch.tensor([]).reshape(1, 0),
+    # }
+
+    # with torch.no_grad():
+    #     action, log_prob, entropy, value, state = agent1(obs)
+    #     print(f"New output - Action: {action}, Value: {value}")
+
+    # # Component Based Policy (YAML)
+
+    # agent2, _ = create_component_based_agent()
+
+    # print("Switched component-based agent to monolithic policy!")
+
+    # obs = {
+    #     "grid_obs": torch.rand(1, 10),
+    #     "global_vars": torch.tensor([]).reshape(1, 0),
+    # }
+
+    # with torch.no_grad():
+    #     action, log_prob, entropy, value, state = agent2(obs)
+    #     print(f"New output - Action: {action}, Value: {value}")
+
+    import numpy as np
+    import torch
+    from gym import spaces
+
+    def env_creator(name: str = None):
+        """
+        Factory function for creating the MettaGrid environment.
+        The `name` parameter is ignored but kept for API compatibility.
+        """
+        return MettaGridEnv()
+
+    class MettaGridEnv:
+        """
+        A simple grid-based environment for pufferlib agents.
+        Observation space: 11x11 grid with a single channel (float32).
+        Action space: 4 discrete actions (up, down, left, right).
+        """
+
+        def __init__(self):
+            # Single-agent observation & action spaces
+            self.single_observation_space = spaces.Box(low=0.0, high=1.0, shape=(11, 11, 3), dtype=np.float32)
+            self.single_action_space = spaces.MultiDiscrete([4])
+
+            # For compatibility with pufferlib VecEnv wrappers
+            self.observation_space = self.single_observation_space
+            self.action_space = self.single_action_space
+
+            # Internal state
+            self.grid = np.zeros((11, 11, 3), dtype=np.float32)
+            self.agent_pos = [5, 5]
+
+        def reset(self):
+            """
+            Reset the environment to an initial state.
+            Returns:
+                obs (np.ndarray): Observation of shape (11, 11, 1).
+                info (dict): Empty info dict.
+            """
+            self.grid.fill(0)
+            self.agent_pos = [5, 5]
+            self._place_agent()
+            obs = self._get_obs()
+            return obs, {}
+
+        def step(self, action: int):
+            """
+            Take an action in the environment.
+            Args:
+                action (int): Discrete action (0=up, 1=down, 2=left, 3=right).
+            Returns:
+                (obs, info), reward, done, { }
+            """
+            # Clear old agent position
+            self.grid[self.agent_pos[0], self.agent_pos[1]] = 0.0
+
+            # Move agent
+            if action == 0 and self.agent_pos[0] > 0:
+                self.agent_pos[0] -= 1
+            elif action == 1 and self.agent_pos[0] < 10:
+                self.agent_pos[0] += 1
+            elif action == 2 and self.agent_pos[1] > 0:
+                self.agent_pos[1] -= 1
+            elif action == 3 and self.agent_pos[1] < 10:
+                self.agent_pos[1] += 1
+
+            # Place agent in new position
+            self._place_agent()
+
+            # Observations
+            obs = self._get_obs()
+            reward = 0.0
+            done = False
+            info = {}
+            return (obs, info), reward, done, {}
+
+        def _place_agent(self):
+            self.grid[self.agent_pos[0], self.agent_pos[1]] = 1.0
+
+        def _get_obs(self) -> np.ndarray:
+            # Expand grid to have channel axis
+            return self.grid[..., None]
+
+        def render(self, mode="human"):
+            # Simple text render
+            grid = np.array(self.grid, copy=True)
+            grid[self.agent_pos[0], self.agent_pos[1]] = 9
+            print(grid)
+
+        def close(self):
+            pass
+
+    env = env_creator()
+
+    agent_spec = AgentSpec(
+        obs_space=env.single_observation_space,
+        action_space=env.single_action_space,
+        obs_width=11,
+        obs_height=11,
+        feature_normalizations={},
+        global_features={},
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        required_components=[],
+        optional_components=[],
+    )
+
+    config = {
+        "hidden_size": 512,
+        "components": {},
     }
 
-    with torch.no_grad():
-        action, log_prob, entropy, value, state = agent1(obs)
-        print(f"New output - Action: {action}, Value: {value}")
+    builder = MettaAgentBuilder(config, agent_spec)
+    policy = PufferlibRecurrentPolicy(env)
+    agent = builder.build(policy=policy)
 
-    # Component Based Policy (YAML)
+    # Wrap obs into expected format
+    obs, _ = env.reset()
+    print("Shape:", obs.shape)
+    obs_tensor = torch.tensor(obs).squeeze(3)
+    print(obs_tensor.shape)
 
-    agent2, _ = create_component_based_agent()
-
-    print("Switched component-based agent to monolithic policy!")
-
-    obs = {
-        "grid_obs": torch.rand(1, 10),
-        "global_vars": torch.tensor([]).reshape(1, 0),
+    obs_dict = {
+        "obs": obs_tensor.to(agent_spec.device),
+        "components": {},
+        "global_features": torch.zeros(1, 0).to(agent_spec.device),
     }
 
-    with torch.no_grad():
-        action, log_prob, entropy, value, state = agent2(obs)
-        print(f"New output - Action: {action}, Value: {value}")
+    output = agent(obs_dict)
+    actions, selected_action_log_probs, entropy, value, logits_list = output
+
+    print("actions shape:", actions.shape)
+    print("selected_action_log_probs shape:", selected_action_log_probs.shape)
+    print("entropy shape:", entropy.shape)
+    print("value shape:", value.shape)
