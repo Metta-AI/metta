@@ -444,11 +444,13 @@ last_evaluation_epoch = epoch - 1  # Track last epoch when evaluation was perfor
 
 # Create checkpoint manager
 checkpoint_manager = CheckpointManager(
-    trainer_cfg=trainer_config,
-    policy_store=policy_store,
     checkpoint_dir=trainer_config.checkpoint.checkpoint_dir,
-    run_name=dirs.run_name,
+    policy_store=policy_store,
+    trainer_cfg=trainer_config,
+    device=device,
     is_master=is_master,
+    rank=rank,
+    run_name=dirs.run_name,
 )
 
 # Training loop
