@@ -190,11 +190,8 @@ def train(
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
-    if hasattr(policy, "initialize_to_environment"):
-        features = metta_grid_env.get_observation_features()
-        policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
-    else:
-        policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    features = metta_grid_env.get_observation_features()
+    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Get LSTM configuration
     hidden_size, num_lstm_layers = get_lstm_config(policy)
