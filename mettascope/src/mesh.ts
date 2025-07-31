@@ -1,3 +1,4 @@
+import type { RGBA } from './htmlutils.js'
 import type { Vec2f } from './vector_math.js'
 
 /** Mesh class responsible for managing vertex data. */
@@ -12,6 +13,7 @@ export class Mesh {
 
   public name: string
   public gl: WebGLRenderingContext
+  public texture: WebGLTexture | null = null
   public vertexBuffer: WebGLBuffer | null = null
   public indexBuffer: WebGLBuffer | null = null
 
@@ -164,7 +166,7 @@ export class Mesh {
     v0: number,
     u1: number,
     v1: number,
-    color: [number, number, number, number] = [1, 1, 1, 1]
+    color: RGBA = [1, 1, 1, 1]
   ) {
     // Check if we need to resize
     if (this.currentQuad >= this.maxQuads) {

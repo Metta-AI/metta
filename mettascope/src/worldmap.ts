@@ -3,7 +3,7 @@ import { ctx, setFollowSelection, state, ui } from './common.js'
 import { glyphAssociations } from './glyphtable.js'
 import { Grid } from './grid.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
-import { parseHtmlColor } from './htmlutils.js'
+import { parseHtmlColor, type RGBA } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
 import type { PanelInfo } from './panels.js'
@@ -448,7 +448,7 @@ function drawTrajectory() {
       if (cx0 !== cx1 || cy0 !== cy1) {
         const a = 1 - Math.abs(i - state.step) / 200
         if (a > 0) {
-          let color = [0, 0, 0, a]
+          let color: RGBA = [0, 0, 0, a]
           let image = ''
           if (state.step >= i) {
             // The past trajectory is black.

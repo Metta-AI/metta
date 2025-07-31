@@ -1,4 +1,5 @@
-import { getSpriteBounds, getWhiteUV, hasSprite, loadAtlas, type Atlas } from './atlas.js'
+import { getSpriteBounds, getWhiteUV, hasSprite, loadAtlas, SpriteBounds, type Atlas } from './atlas.js'
+import type { RGBA } from './htmlutils.js'
 import { Mesh } from './mesh.js'
 import { Mat3f, Vec2f } from './vector_math.js'
 
@@ -331,7 +332,7 @@ export class Context3d {
     v0: number,
     u1: number,
     v1: number,
-    color: number[] = [1, 1, 1, 1]
+    color: RGBA = [1, 1, 1, 1]
   ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
@@ -364,7 +365,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas with its top-left corner at (x, y). */
-  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]) {
+  drawImage(imageName: string, x: number, y: number, color: RGBA = [1, 1, 1, 1]) {
     if (!this.ready || !this.mainAtlas) {
       throw new Error('Drawer not initialized')
     }
@@ -397,7 +398,7 @@ export class Context3d {
     imageName: string, // Name of the image in the atlas (e.g., 'player.png')
     centerX: number, // X coordinate of the sprite's center
     centerY: number, // Y coordinate of the sprite's center
-    color: number[] = [1, 1, 1, 1], // RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
+    color: RGBA = [1, 1, 1, 1], // RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
     scale: number | [number, number] = 1, // Uniform scale (number) or non-uniform scale [scaleX, scaleY]
     rotation = 0 // Rotation angle in radians (positive = clockwise)
   ) {
@@ -451,7 +452,7 @@ export class Context3d {
   }
 
   /** Draws a solid filled rectangle. */
-  drawSolidRect(x: number, y: number, width: number, height: number, color: number[]) {
+  drawSolidRect(x: number, y: number, width: number, height: number, color: RGBA) {
     if (!this.ready || !this.mainAtlas) {
       throw new Error('Drawer not initialized')
     }
@@ -467,7 +468,7 @@ export class Context3d {
   }
 
   /** Draws a stroked rectangle with set stroke width. */
-  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: number[]) {
+  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: RGBA) {
     // Draw 4 rectangles as borders for the stroke rectangle.
     // Top border.
     this.drawSolidRect(x, y, width, strokeWidth, color)
@@ -483,7 +484,7 @@ export class Context3d {
   drawText(
     text: string,
     bbox: [number, number, number, number],
-    color: number[] = [1, 1, 1, 1],
+    color: RGBA = [1, 1, 1, 1],
     mode: 'scale' | 'stretch' = 'scale',
     align: 'left' | 'center' | 'right' = 'left',
     valign: 'top' | 'middle' | 'bottom' = 'top',
@@ -507,10 +508,10 @@ export class Context3d {
     this.currentMesh!.texture = this.fontAtlas.texture
 
     // Cast fontAtlasData to any to access our custom structure
-    const fontData = this.fontAtlas.metadata as any
+    const metadata = this.fontAtlas.metadata as any
 
     // Get emoji codes from font data
-    const emojiCodes = fontData.emojiCodes || {}
+    const emojiCodes = metadata.emojiCodes || {}
     const emojiValues = new Set(Object.values(emojiCodes))
 
     // Build regex pattern from actual emoji codes in the font atlas
@@ -521,18 +522,11 @@ export class Context3d {
 
     // Helper function to get character info with emoji code support
     const getCharInfo = (char: string) => {
-      if (!fontData) {
-        return null
-      }
-
-      // Check if it's an emoji code like :happy:
       if (emojiCodes[char]) {
         const emojiChar = emojiCodes[char]
-        if (emojiChar && fontData.characters) {
-          return fontData.characters[emojiChar]
-        }
+        return this.fontAtlas?.data[emojiChar]
       }
-      return fontData.characters?.[char]
+      return this.fontAtlas?.data[char]
     }
 
     // Parse text to handle multi-character emoji codes
@@ -563,33 +557,25 @@ export class Context3d {
       return chars
     }
 
-    // Extract bbox dimensions
-    const [bx, by, bw, bh] = bbox
-
     // Parse the text into characters/emoji codes
     const textChars = parseText(text)
 
-    // Get base font metrics from metadata
-    const baseCharHeight = fontData.metadata?.cellHeight || 36
-    const baseCharWidth = fontData.metadata?.cellWidth || 24
-
     // Calculate actual text dimensions using real character widths
     let textWidth = 0
-    const textHeight = baseCharHeight
+    let textHeight = metadata.cellHeight // Use cell height as text height
 
     // Build character info array while calculating width
-    const charInfos: Array<{ char: string; info: any; width: number }> = []
+    const charInfos: Array<{ char: string; info: SpriteBounds; width: number }> = []
 
     for (const char of textChars) {
-      const charInfo = getCharInfo(char)
-      if (!charInfo) {
+      const info = getCharInfo(char)
+      if (!info) {
         console.warn(`Character not found in font atlas: ${char}`)
         continue
       }
-
-      const charWidth = charInfo.width || baseCharWidth
-      charInfos.push({ char, info: charInfo, width: charWidth })
-      textWidth += charWidth
+      const [_x, _y, width, _height] = info
+      charInfos.push({ char, info, width })
+      textWidth += width
     }
 
     // Add spacing between characters
@@ -597,7 +583,8 @@ export class Context3d {
       textWidth += (charInfos.length - 1) * spacing
     }
 
-    // Calculate scale based on mode
+    // Calculate scale factors based on mode
+    const [bx, by, bw, bh] = bbox
     let scaleX = 1
     let scaleY = 1
 
@@ -633,19 +620,17 @@ export class Context3d {
 
     // Draw each character
     for (const { char, info, width } of charInfos) {
-      const sx = info.x
-      const sy = info.y
-      const sw = info.width || baseCharWidth
-      const sh = info.height || baseCharHeight
+      console.log(char)
 
-      const u0 = sx / this.fontTextureSize.x()
-      const v0 = sy / this.fontTextureSize.y()
-      const u1 = (sx + sw) / this.fontTextureSize.x()
-      const v1 = (sy + sh) / this.fontTextureSize.y()
+      const [sx, sy, sw, sh] = info
+      const u0 = sx / this.fontAtlas.size.x()
+      const v0 = sy / this.fontAtlas.size.y()
+      const u1 = (sx + sw) / this.fontAtlas.size.x()
+      const v1 = (sy + sh) / this.fontAtlas.size.y()
 
       // Check if this is an emoji
       const isEmoji = emojiValues.has(char) || emojiCodes.hasOwnProperty(char)
-      const drawColor = isEmoji ? [1, 1, 1, 1] : color
+      const drawColor: RGBA = isEmoji ? [1, 1, 1, 1] : color
 
       this.drawRect(cursorX, cursorY, sw * scaleX, sh * scaleY, u0, v0, u1, v1, drawColor)
 
@@ -695,7 +680,7 @@ export class Context3d {
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
       // Bind texture
-      const texture = mesh.texture || this.mainAtlasTexture
+      const texture = mesh.texture || this.mainAtlas!.texture
       this.gl.activeTexture(this.gl.TEXTURE0)
       this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
       this.gl.uniform1i(this.samplerLocation, 0)
@@ -780,7 +765,7 @@ export class Context3d {
     x1: number,
     y1: number,
     spacing: number,
-    color: number[],
+    color: RGBA,
     skipStart = 0,
     skipEnd = 0
   ) {

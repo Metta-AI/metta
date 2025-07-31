@@ -1,5 +1,7 @@
+export type RGBA = [number, number, number, number]
+
 /** Parses a hex color string into a float array. */
-export function parseHtmlColor(color: string): [number, number, number, number] {
+export function parseHtmlColor(color: string): RGBA {
   return [
     Number.parseInt(color.slice(1, 3), 16) / 255,
     Number.parseInt(color.slice(3, 5), 16) / 255,
