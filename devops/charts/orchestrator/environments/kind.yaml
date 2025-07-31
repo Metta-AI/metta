@@ -1,5 +1,6 @@
 image:
-  repository: metta-policy-evaluator-local
+  registry: ""
+  name: metta-policy-evaluator-local
   tag: "latest"
   pullPolicy: IfNotPresent
 

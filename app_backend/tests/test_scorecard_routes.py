@@ -2,73 +2,20 @@ import time
 from typing import Any, Dict, List
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
 
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 
 
-class TestPolicyHeatmapRoutes:
-    """Integration tests for policy-based heatmap routes."""
+class TestPolicyScorecardRoutes:
+    """Integration tests for policy-based scorecard routes."""
 
-    @pytest.fixture(scope="class")
-    def postgres_container(self):
-        """Create a PostgreSQL container for testing."""
-        try:
-            container = PostgresContainer(
-                image="postgres:17",
-                username="test_user",
-                password="test_password",
-                dbname="test_db",
-                driver=None,
-            )
-            container.start()
-            yield container
-            container.stop()
-        except Exception as e:
-            pytest.skip(f"Failed to start PostgreSQL container: {e}")
-
-    @pytest.fixture(scope="class")
-    def db_uri(self, postgres_container: PostgresContainer) -> str:
-        """Get the database URI for the test container."""
-        return postgres_container.get_connection_url()
-
-    @pytest.fixture(scope="class")
-    def stats_repo(self, db_uri: str) -> MettaRepo:
-        """Create a MettaRepo instance with the test database."""
-        return MettaRepo(db_uri)
-
-    @pytest.fixture(scope="class")
-    def test_app(self, stats_repo: MettaRepo) -> FastAPI:
-        """Create a test FastAPI app with dependency injection."""
-        return create_app(stats_repo)
-
-    @pytest.fixture(scope="class")
-    def test_client(self, test_app: FastAPI) -> TestClient:
-        """Create a test client."""
-        return TestClient(test_app)
-
-    @pytest.fixture(scope="class")
-    def stats_client(self, test_client: TestClient) -> StatsClient:
-        """Create a stats client for testing."""
-        # First create a machine token
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "test_policy_heatmap_client_token"},
-            headers={"X-Auth-Request-Email": "test_user"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-
-        return StatsClient(test_client, machine_token=token)
+    # All fixtures are inherited from conftest.py
 
     def _create_test_data(
         self, stats_client: StatsClient, run_name: str, num_policies: int = 2, create_run_free_policies: int = 0
     ) -> Dict[str, Any]:
-        """Create test data for policy heatmap testing."""
+        """Create test data for policy scorecard testing."""
         data = {"policies": [], "policy_names": []}
 
         # Create training run and associated policies if requested
@@ -80,7 +27,7 @@ class TestPolicyHeatmapRoutes:
                 name=unique_run_name,
                 attributes={"environment": "test_env", "algorithm": "test_alg"},
                 url="https://example.com/run",
-                tags=["test_tag", "heatmap_test"],
+                tags=["test_tag", "scorecard_test"],
             )
 
             # Create epochs with different training epochs
@@ -203,7 +150,7 @@ class TestPolicyHeatmapRoutes:
         assert "tags" in training_run
         assert training_run["type"] == "training_run"
         assert isinstance(training_run["tags"], list)
-        assert training_run["tags"] == ["test_tag", "heatmap_test"]
+        assert training_run["tags"] == ["test_tag", "scorecard_test"]
 
         # Verify run-free policy structure
         assert "id" in policy
@@ -267,7 +214,7 @@ class TestPolicyHeatmapRoutes:
             metric_values={"policy_0_test_env": 75.0, "policy_1_test_env": 85.0},
         )
 
-        # Search by tag (tags are ["test_tag", "heatmap_test"] from _create_test_data)
+        # Search by tag (tags are ["test_tag", "scorecard_test"] from _create_test_data)
         response = test_client.post(
             "/heatmap/policies",
             json={"search_text": "test_tag", "pagination": {"page": 1, "page_size": 25}},
@@ -283,7 +230,7 @@ class TestPolicyHeatmapRoutes:
         # Search by partial tag match
         response = test_client.post(
             "/heatmap/policies",
-            json={"search_text": "heatmap", "pagination": {"page": 1, "page_size": 25}},
+            json={"search_text": "scorecard", "pagination": {"page": 1, "page_size": 25}},
         )
         assert response.status_code == 200
         result = response.json()
@@ -291,7 +238,7 @@ class TestPolicyHeatmapRoutes:
         # Should return the matching training run
         assert len(result["policies"]) >= 1
         training_run = next(p for p in result["policies"] if p["type"] == "training_run")
-        assert any("heatmap" in tag for tag in training_run["tags"])
+        assert any("scorecard" in tag for tag in training_run["tags"])
 
         # Search by non-existent tag
         response = test_client.post(
@@ -404,8 +351,10 @@ class TestPolicyHeatmapRoutes:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_generate_policy_heatmap_latest_selector(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test generating heatmap with latest policy selector."""
+    def test_generate_policy_scorecard_latest_selector(
+        self, test_client: TestClient, stats_client: StatsClient
+    ) -> None:
+        """Test generating scorecard with latest policy selector."""
         # Create two training runs with multiple policies each
         test_data1 = self._create_test_data(stats_client, "heatmap_latest_1", num_policies=2)
         test_data2 = self._create_test_data(stats_client, "heatmap_latest_2", num_policies=2)
@@ -420,9 +369,9 @@ class TestPolicyHeatmapRoutes:
         # Get training run IDs
         training_run_ids = [str(test_data1["training_run"].id), str(test_data2["training_run"].id)]
 
-        # Generate heatmap with latest selector
+        # Generate scorecard with latest selector
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": [],
@@ -454,8 +403,8 @@ class TestPolicyHeatmapRoutes:
                 assert "value" in heatmap["cells"][policy_name][eval_name]
                 assert "replayUrl" in heatmap["cells"][policy_name][eval_name]
 
-    def test_generate_policy_heatmap_best_selector(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test generating heatmap with best policy selector."""
+    def test_generate_policy_scorecard_best_selector(self, test_client: TestClient, stats_client: StatsClient) -> None:
+        """Test generating scorecard with best policy selector."""
         test_data = self._create_test_data(stats_client, "heatmap_best", num_policies=3)
 
         # Record episodes where policy performance varies
@@ -473,9 +422,9 @@ class TestPolicyHeatmapRoutes:
 
         self._record_episodes(stats_client, test_data, "best_suite", ["env1", "env2"], metrics)
 
-        # Generate heatmap with best selector
+        # Generate scorecard with best selector
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -499,10 +448,10 @@ class TestPolicyHeatmapRoutes:
         # Verify average score
         assert abs(heatmap["policyAverageScores"][best_policy_name] - 85.0) < 0.01
 
-    def test_generate_policy_heatmap_with_run_free_policies(
+    def test_generate_policy_scorecard_with_run_free_policies(
         self, test_client: TestClient, stats_client: StatsClient
     ) -> None:
-        """Test heatmap generation includes run-free policies correctly."""
+        """Test scorecard generation includes run-free policies correctly."""
         # Create mix of training run and run-free policies
         test_data = self._create_test_data(stats_client, "mixed_policies", num_policies=1, create_run_free_policies=2)
 
@@ -519,7 +468,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test with latest selector (should include all: 1 from run + 2 run-free)
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": run_free_policy_ids,
@@ -540,7 +489,7 @@ class TestPolicyHeatmapRoutes:
         """Test heatmap generation with missing required parameters."""
         # Missing training run IDs and policy IDs
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [],
                 "run_free_policy_ids": [],
@@ -553,7 +502,7 @@ class TestPolicyHeatmapRoutes:
 
         # Missing eval_names
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": ["some-id"],
                 "run_free_policy_ids": [],
@@ -566,7 +515,7 @@ class TestPolicyHeatmapRoutes:
 
         # Missing metric
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": ["some-id"],
                 "run_free_policy_ids": [],
@@ -584,7 +533,7 @@ class TestPolicyHeatmapRoutes:
         # Don't record any episodes, so no data should be found
 
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -620,7 +569,7 @@ class TestPolicyHeatmapRoutes:
         )
 
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -671,7 +620,7 @@ class TestPolicyHeatmapRoutes:
             )
 
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -690,7 +639,7 @@ class TestPolicyHeatmapRoutes:
     def test_invalid_policy_selector_value(self, test_client: TestClient) -> None:
         """Test that invalid training_run_policy_selector values are rejected."""
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [],
                 "run_free_policy_ids": ["some-id"],
@@ -858,7 +807,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test 1: Latest selector with all categories
         response_latest_all = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -898,7 +847,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test 2: Best selector with all categories
         response_best_all = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -927,7 +876,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test 3: Navigation only evaluation
         response_nav_only = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -994,7 +943,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test best selector again - should now pick policy_0 from run1
         response_best_after_boost = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -1042,7 +991,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test that this multi-agent episode is properly aggregated
         response_multi_agent = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data1["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1073,7 +1022,7 @@ class TestPolicyHeatmapRoutes:
         self._record_episodes(stats_client, single_data, "simple", ["env1"], {"policy_0_env1": 75.0})
 
         response_single = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(single_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1114,7 +1063,7 @@ class TestPolicyHeatmapRoutes:
         # Both latest and best should include all run-free policies
         for selector in ["latest", "best"]:
             response = test_client.post(
-                "/heatmap/heatmap",
+                "/scorecard/scorecard",
                 json={
                     "training_run_ids": [],
                     "run_free_policy_ids": run_free_policy_ids,
@@ -1136,7 +1085,7 @@ class TestPolicyHeatmapRoutes:
         self._record_episodes(stats_client, zero_data, "zero_suite", ["env1"], {"policy_0_env1": 0.0})
 
         response_zero = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(zero_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1166,7 +1115,7 @@ class TestPolicyHeatmapRoutes:
             self._record_episodes(stats_client, large_data, category, large_envs_per_cat, large_metrics)
 
         response_large = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(large_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1213,7 +1162,7 @@ class TestPolicyHeatmapRoutes:
         self._record_episodes(stats_client, perf_data, "combat", ["combat"], perf_metrics)
 
         response_best_perf = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(perf_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1239,7 +1188,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test latest selector should pick policy_4 (highest epoch from this run)
         response_latest_perf = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(perf_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1321,7 +1270,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test that "latest" selector includes both policies (both latest in their epochs)
         response_latest = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1346,7 +1295,7 @@ class TestPolicyHeatmapRoutes:
         # Policy 1 avg: (80+70)/2 = 75.0
         # Policy 2 avg: (90+85)/2 = 87.5 (best)
         response_best = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1421,7 +1370,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "latest" selector: should pick latest from each run + all run-free
         response_latest = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -1446,7 +1395,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "best" selector: should pick best from each run + all run-free
         response_best = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -1479,7 +1428,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test subset of evaluations to ensure proper filtering
         response_subset = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -1517,7 +1466,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "latest" selector with ties: should pick policy with highest epoch, break ties alphabetically
         response_latest_tie = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(tie_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1536,7 +1485,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "best" selector with performance ties: should pick latest epoch when performance is equal
         response_best_tie = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(tie_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1571,7 +1520,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test best selector again: should now clearly pick policy 2
         response_best_after_boost = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(tie_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1618,9 +1567,9 @@ class TestPolicyHeatmapRoutes:
 
         run_free_policy_ids = [str(p.id) for p in run_free_data["policies"]]
 
-        # Generate heatmap with sparse data
+        # Generate scorecard with sparse data
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data1["training_run"].id)],
                 "run_free_policy_ids": run_free_policy_ids,
@@ -1733,7 +1682,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "best" selector - should pick policy 4 (highest average: 90.0)
         response_best = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1753,7 +1702,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "latest" selector - should pick policy 4 (highest epoch: 400)
         response_latest = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1792,7 +1741,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "best" selector again - should now pick policy 1
         response_best2 = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1810,7 +1759,7 @@ class TestPolicyHeatmapRoutes:
 
         # But "latest" selector should still pick policy 4 (highest epoch unchanged)
         response_latest2 = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(test_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -1865,7 +1814,7 @@ class TestPolicyHeatmapRoutes:
 
         # Generate comprehensive heatmap
         response = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -2022,7 +1971,7 @@ class TestPolicyHeatmapRoutes:
         run_free_policy_ids = [str(p.id) for p in large_run_free["policies"]]
 
         response_latest_large = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -2056,7 +2005,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test "best" selector with large dataset
         response_best_large = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": training_run_ids,
                 "run_free_policy_ids": run_free_policy_ids,
@@ -2102,7 +2051,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test latest selector
         response_partial_latest = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(partial_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -2125,7 +2074,7 @@ class TestPolicyHeatmapRoutes:
 
         # Test best selector - should handle missing evaluations in average calculation
         response_partial_best = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(partial_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -2205,7 +2154,7 @@ class TestPolicyHeatmapRoutes:
         )
 
         response_multiagent_edge = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(multiagent_data["training_run"].id)],
                 "run_free_policy_ids": [],
@@ -2281,7 +2230,7 @@ class TestPolicyHeatmapRoutes:
         )
 
         response_extreme = test_client.post(
-            "/heatmap/heatmap",
+            "/scorecard/scorecard",
             json={
                 "training_run_ids": [str(extreme_data["training_run"].id)],
                 "run_free_policy_ids": [],

@@ -2,6 +2,7 @@
 
 import logging
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -11,6 +12,34 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class StatsTracker:
+    """Manages training statistics and database tracking."""
+
+    # Rollout stats collected during episodes
+    rollout_stats: Dict[str, Any] = field(default_factory=dict)
+
+    # Gradient statistics (computed periodically)
+    grad_stats: Dict[str, float] = field(default_factory=dict)
+
+    # Database tracking for stats service
+    stats_epoch_start: int = 0
+    stats_epoch_id: Optional[Any] = None
+    stats_run_id: Optional[Any] = None
+
+    def clear_rollout_stats(self) -> None:
+        """Clear rollout stats after processing."""
+        self.rollout_stats.clear()
+
+    def clear_grad_stats(self) -> None:
+        """Clear gradient stats after processing."""
+        self.grad_stats.clear()
+
+    def update_epoch_tracking(self, new_epoch_start: int) -> None:
+        """Update epoch tracking after creating a new stats epoch."""
+        self.stats_epoch_start = new_epoch_start
 
 
 def accumulate_rollout_stats(
@@ -153,14 +182,12 @@ def process_training_stats(
 def compute_timing_stats(
     timer: Any,
     agent_step: int,
-    world_size: int = 1,
 ) -> Dict[str, Any]:
     """Compute timing statistics from a Stopwatch timer.
 
     Args:
         timer: Stopwatch instance
         agent_step: Current agent step count
-        world_size: Number of distributed processes
 
     Returns:
         Dictionary with timing statistics including:
@@ -183,10 +210,6 @@ def compute_timing_stats(
 
     epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
     steps_per_second = timer.get_rate(agent_step) if wall_time > 0 else 0
-
-    # Scale by world size for distributed training
-    epoch_steps_per_second *= world_size
-    steps_per_second *= world_size
 
     timing_stats = {
         **{
@@ -230,7 +253,6 @@ def build_wandb_stats(
     evals: EvalRewardSummary,
     agent_step: int,
     epoch: int,
-    world_size: int = 1,
 ) -> Dict[str, Any]:
     """Build complete statistics dictionary for wandb logging.
 
@@ -246,7 +268,6 @@ def build_wandb_stats(
         evals: Evaluation scores
         agent_step: Current agent step
         epoch: Current epoch
-        world_size: Number of distributed processes
 
     Returns:
         Complete dictionary ready for wandb logging
@@ -267,7 +288,7 @@ def build_wandb_stats(
 
     # X-axis values for wandb
     metric_stats = {
-        "metric/agent_step": agent_step * world_size,
+        "metric/agent_step": agent_step,
         "metric/epoch": epoch,
         "metric/total_time": timing_info["wall_time"],
         "metric/train_time": timing_info["train_time"],
@@ -311,7 +332,7 @@ def process_stats(
     optimizer: Optional[Any] = None,
     kickstarter: Optional[Any] = None,
 ) -> None:
-    """Process and log training statistics - kept for backward compatibility with process_stats API."""
+    """Process and log training statistics."""
     if not wandb_run:
         return
 
@@ -328,7 +349,6 @@ def process_stats(
     timing_info = compute_timing_stats(
         timer=timer,
         agent_step=agent_step,
-        world_size=world_size,
     )
 
     # Compute weight stats if configured
@@ -350,9 +370,19 @@ def process_stats(
         "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
     }
 
-    # Get system stats
+    # Get system stats - note: can impact performance
     system_stats = system_monitor.stats() if system_monitor else {}
     memory_stats = memory_monitor.stats() if memory_monitor else {}
+
+    # Current hyperparameter values (after potential scheduler updates)
+    hyperparameters = {
+        "learning_rate": parameters["learning_rate"],
+        "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
+        "ppo_vf_clip_coef": trainer_cfg.ppo.vf_clip_coef,
+        "ppo_ent_coef": trainer_cfg.ppo.ent_coef,
+        "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
+        "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
+    }
 
     # Build complete stats
     all_stats = build_wandb_stats(
@@ -362,11 +392,11 @@ def process_stats(
         grad_stats=grad_stats,
         system_stats=system_stats,
         memory_stats=memory_stats,
+        hyperparameters=hyperparameters,
         parameters=parameters,
         evals=evals,
         agent_step=agent_step,
         epoch=epoch,
-        world_size=world_size,
     )
 
     # Log to wandb

@@ -35,17 +35,6 @@ export interface Atlas {
   margin: number // Pixel margin added around sprites to prevent texture bleeding
 }
 
-export function validateAtlas(atlas: Atlas): boolean {
-  return (
-    typeof atlas.margin === 'number' &&
-    atlas.size instanceof Vec2f &&
-    atlas.texture !== null &&
-    Object.values(atlas.data).every(
-      (bounds) => Array.isArray(bounds) && bounds.length === 4 && bounds.every((n) => typeof n === 'number')
-    )
-  )
-}
-
 export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, AtlasMetadata] | null> {
   try {
     const res = await fetch(url)
@@ -54,14 +43,19 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
     }
 
     const raw = await res.json()
-
     const metadata = (raw.metadata ?? {}) as AtlasMetadata
 
+    // Extract only valid sprite bounds entries using the type guard
     const spriteEntries = Object.entries(raw).filter(([k, v]) => k !== 'metadata' && isSpriteBounds(v))
-
     const sprites = Object.fromEntries(spriteEntries) as AtlasSpriteMap
 
-    return [sprites as AtlasSpriteMap, metadata as AtlasMetadata]
+    // Inline validation: make sure the atlas JSON at least has valid sprites
+    if (!sprites || Object.keys(sprites).length === 0) {
+      console.error(`Atlas ${url} has no valid sprite entries.`)
+      return null
+    }
+
+    return [sprites, metadata]
   } catch (err) {
     console.error(`Error loading atlas ${url}:`, err)
     return null
@@ -95,6 +89,7 @@ export function createTexture(
     minFilter?: number
     magFilter?: number
     generateMipmap?: boolean
+    pixelArt?: boolean
   } = {}
 ): WebGLTexture | null {
   const texture = gl.createTexture()
@@ -103,16 +98,34 @@ export function createTexture(
   }
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
+
+  // Don't set UNPACK_PREMULTIPLY_ALPHA since the image is already premultiplied
+
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
-  if (options.generateMipmap !== false) {
+  // Default to pixel art mode for crisp sprites
+  const isPixelArt = options.pixelArt ?? true
+  const needsMipmap = options.generateMipmap === true && !isPixelArt
+
+  if (needsMipmap) {
     gl.generateMipmap(gl.TEXTURE_2D)
   }
 
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, options.wrapS ?? gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, options.wrapT ?? gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.minFilter ?? gl.LINEAR_MIPMAP_LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.magFilter ?? gl.LINEAR)
+  // Use CLAMP_TO_EDGE by default to avoid issues with NPOT textures
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, options.wrapS ?? gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, options.wrapT ?? gl.CLAMP_TO_EDGE)
+
+  if (isPixelArt) {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.minFilter ?? gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.magFilter ?? gl.NEAREST)
+  } else {
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      options.minFilter ?? (needsMipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR)
+    )
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.magFilter ?? gl.LINEAR)
+  }
 
   return texture
 }
@@ -160,8 +173,8 @@ export function getSpriteBounds(
 } | null {
   const spriteData = atlas.data[spriteName]
 
-  // Check if it's actually sprite data (array of 4 numbers)
-  if (!Array.isArray(spriteData) || spriteData.length !== 4) {
+  // Check if it's actually sprite data using the type guard
+  if (!isSpriteBounds(spriteData)) {
     return null
   }
 
@@ -197,7 +210,7 @@ export function getSpriteBounds(
  */
 export function hasSprite(atlas: Atlas, spriteName: string): boolean {
   const data = atlas.data[spriteName]
-  return Array.isArray(data) && data.length === 4
+  return isSpriteBounds(data)
 }
 
 /**
@@ -213,7 +226,7 @@ export function hasSprite(atlas: Atlas, spriteName: string): boolean {
 export function getWhiteUV(atlas: Atlas): { u: number; v: number } | null {
   const whiteSprite = atlas.data['white.png']
 
-  if (!Array.isArray(whiteSprite) || whiteSprite.length !== 4) {
+  if (!isSpriteBounds(whiteSprite)) {
     return null
   }
 

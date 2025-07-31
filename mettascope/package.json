@@ -9,7 +9,7 @@
     "lint:eslint": "eslint .",
     "lint:prettier": "prettier --check .",
     "format": "prettier --write .",
-    "server": "python -m http.server 8000",
+    "server": "pnpm run build && python -m http.server 8000",
     "playwright:install": "playwright install --with-deps",
     "test": "playwright test tests/*.test.ts"
   },

@@ -5,7 +5,7 @@
   "files.insertFinalNewline": true,
   // C/C++ Configuration
   "[cpp]": {
-    "editor.rulers": [120]
+    "editor.rulers": [120],
   },
   "C_Cpp.default.cppStandard": "c++20",
   "C_Cpp.default.compilerPath": "/usr/bin/clang++",
@@ -17,10 +17,10 @@
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
       "source.fixAll.ruff": "explicit",
-      "source.organizeImports.ruff": "explicit"
+      "source.organizeImports.ruff": "explicit",
     },
     "editor.rulers": [120],
-    "editor.renderWhitespace": "trailing"
+    "editor.renderWhitespace": "trailing",
   },
   "python.testing.unittestEnabled": true,
   "python.testing.pytestEnabled": false,
@@ -33,8 +33,12 @@
     "editor.quickSuggestions": {
       "other": true,
       "comments": false,
-      "strings": true
-    }
+      "strings": true,
+    },
+  },
+  // HTML Configuration
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
   },
   // Terminal Configuration
   "terminal.integrated.cwd": "${workspaceFolder}",
@@ -45,6 +49,6 @@
     "**/*.egg-info": true,
     "outputs": true,
     "train_dir": true,
-    "wandb": true
-  }
+    "wandb": true,
+  },
 }

@@ -2,27 +2,14 @@ import uuid
 from typing import List
 
 import pytest
-from fastapi.testclient import TestClient
 
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 
 
 class TestStatsServerSimple:
     """Simplified end-to-end tests for the stats server."""
 
-    @pytest.fixture(scope="class")
-    def stats_client(self, test_client: TestClient) -> StatsClient:
-        """Create a stats client for testing."""
-        # First create a machine token
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "test_stats_client_token"},
-            headers={"X-Auth-Request-Email": "test_user"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-
-        return StatsClient(test_client, machine_token=token)
+    # Remove duplicate stats_client fixture - it's already defined in conftest.py
 
     def test_complete_workflow(self, stats_client: StatsClient) -> None:
         """Test the complete end-to-end workflow."""

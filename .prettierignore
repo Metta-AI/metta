@@ -19,3 +19,5 @@ htmlcov/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+mettascope/index.html

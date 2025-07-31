@@ -1,8 +1,9 @@
 import * as Common from './common.js'
 import { ctx, setFollowSelection, state, ui } from './common.js'
+import { glyphAssociations } from './glyphtable.js'
 import { Grid } from './grid.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
-import { parseHtmlColor } from './htmlutils.js'
+import { parseHtmlColor, type RGBA } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
 import type { PanelInfo } from './panels.js'
@@ -447,7 +448,7 @@ function drawTrajectory() {
       if (cx0 !== cx1 || cy0 !== cy1) {
         const a = 1 - Math.abs(i - state.step) / 200
         if (a > 0) {
-          let color = [0, 0, 0, a]
+          let color: RGBA = [0, 0, 0, a]
           let image = ''
           if (state.step >= i) {
             // The past trajectory is black.
@@ -572,6 +573,76 @@ function drawThoughtBubbles() {
             resourceX -= 8
           }
         }
+      }
+    }
+  }
+}
+
+/** Draws a glyph bubble if the selected agent has a recent change_glyph action. */
+function drawGlyphBubbles() {
+  if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
+    let glyphActionStep: number | null = null
+    let glyphId: number | null = null
+
+    for (let actionStep = state.step; actionStep >= 0; actionStep--) {
+      const action = getAttr(state.selectedGridObject, 'action', actionStep)
+      if (!action || action[0] == null || action[1] == null) {
+        continue
+      }
+
+      const actionName = state.replay.action_names[action[0]]
+      if (actionName !== 'change_glyph') {
+        continue
+      }
+
+      const actionSuccess = getAttr(state.selectedGridObject, 'action_success', actionStep)
+      if (!actionSuccess) {
+        continue
+      }
+
+      glyphId = action[1]
+      glyphActionStep = actionStep
+      break
+    }
+
+    if (glyphId != null && glyphActionStep != null) {
+      const x = getAttr(state.selectedGridObject, 'c')
+      const y = getAttr(state.selectedGridObject, 'r')
+      const centerX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2
+      const centerY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+
+      const bubbleX = centerX - Common.TILE_SIZE * 0.6
+      const bubbleY = centerY - Common.TILE_SIZE / 2
+
+      const glyphString = glyphAssociations[glyphId] || ''
+
+      if (glyphString !== '') {
+        ctx.drawSprite(
+          'actions/thoughts.png',
+          bubbleX,
+          bubbleY,
+          [1, 1, 1, 1], // color (white)
+          [-2, 2], // make it bigger and mirror x
+          0 // rotation
+        )
+
+        const textWidth = Common.TILE_SIZE * 0.95
+        const textHeight = textWidth * 0.6
+        const textBbox: [number, number, number, number] = [
+          bubbleX + Common.TILE_SIZE * 0.02 - textWidth / 2,
+          bubbleY - Common.TILE_SIZE * 0.05 - textHeight / 2,
+          textWidth,
+          textHeight,
+        ]
+        ctx.drawText(
+          glyphString,
+          textBbox,
+          [0, 0, 0, 1], // black text
+          'scale', // scale to fit while maintaining aspect ratio
+          'center', // center horizontally
+          'middle', // center vertically
+          -10 // spacing
+        )
       }
     }
   }
@@ -886,6 +957,7 @@ export function drawMap(panel: PanelInfo) {
     drawVisibility()
     drawGrid()
     drawThoughtBubbles()
+    drawGlyphBubbles()
   }
 
   if (search.active) {

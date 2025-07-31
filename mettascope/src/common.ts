@@ -1,6 +1,6 @@
 import { Context3d } from './context3d.js'
 import type { HoverBubble } from './hoverbubbles.js'
-import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
+import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity, type RGBA } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
 
@@ -122,6 +122,7 @@ export const state = {
   showActionButtons: false,
   showAgentPanel: false,
   showAttackMode: false,
+  showGlyphEditor: false,
 
   // Playing over a WebSocket
   ws: null as WebSocket | null,
@@ -147,6 +148,7 @@ export const html = {
   demoModeToggle: find('#demo-mode-toggle'),
   fullScreenToggle: find('#full-screen-toggle'),
   tracesToggle: find('#traces-toggle'),
+  glyphToggle: find('#glyph-toggle'),
 
   actionButtons: find('#action-buttons'),
 
@@ -172,7 +174,7 @@ export const html = {
 }
 
 /** Generates a color from an agent ID. */
-export function colorFromId(agentId: number): [number, number, number, number] {
+export function colorFromId(agentId: number): RGBA {
   const n = agentId + Math.PI + Math.E + Math.SQRT2
   return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }

@@ -1,10 +1,10 @@
-# Heatmap Widget
+# Scorecard Widget
 
-A Jupyter widget for displaying interactive policy evaluation heatmaps. This widget integrates with the Metta ecosystem to visualize training results and policy performance across different evaluations.
+A Jupyter widget for displaying interactive policy evaluation scorecards. This widget integrates with the Metta ecosystem to visualize training results and policy performance across different evaluations.
 
 ## Features
 
-- Interactive heatmap visualization of policy evaluation results
+- Interactive scorecard visualization of policy evaluation results
 - Click to select cells and view detailed metrics
 - Open replay URLs directly in the browser
 - Real-time data updates via Jupyter widget communication
@@ -15,10 +15,10 @@ A Jupyter widget for displaying interactive policy evaluation heatmaps. This wid
 
 ### Quick Installation (Recommended)
 
-The easiest way to install the heatmap widget is using the Metta CLI:
+The easiest way to install the scorecard widget is using the Metta CLI:
 
 ```bash
-metta install heatmapwidget
+metta install scorecardwidget
 ```
 
 This command will automatically build the JavaScript components and install the Python package.
@@ -43,7 +43,7 @@ This command will automatically build the JavaScript components and install the 
 For active development, you can use the development mode which provides hot-reloading:
 
 1. **Enable Development Mode**:
-   Edit `heatmap_widget/HeatmapWidget.py` and set:
+   Edit `scorecard_widget/ScorecardWidget.py` and set:
    ```python
    _DEV = True
    ```
@@ -69,7 +69,7 @@ For production use or when you're done developing:
    ```
 
 2. **Disable Development Mode**:
-   Edit `heatmap_widget/HeatmapWidget.py` and set:
+   Edit `scorecard_widget/ScorecardWidget.py` and set:
    ```python
    _DEV = False
    ```
@@ -84,22 +84,22 @@ For production use or when you're done developing:
 ### Basic Usage
 
 ```python
-from heatmap_widget import HeatmapWidget
+from scorecard_widget import ScorecardWidget
 
 # Create a demo widget with sample data
-widget = HeamapWidget()
+widget = ScorecardWidget()
 widget
 ```
 
 ### Loading Real Data
 
 ```python
-from heatmap_widget import HeatmapWidget
-from heatmap_widget.util import fetch_real_heatmap_data
+from scorecard_widget import ScorecardWidget
+from scorecard_widget.util import fetch_real_scorecard_data
 
 # Fetch real data from the Metta backend
-data = fetch_real_heatmap_data()
-widget = HeatmapWidget()
+data = fetch_real_scorecard_data()
+widget = ScorecardWidget()
 widget.set_data(data)
 widget
 ```
@@ -129,7 +129,7 @@ widget.on_replay_opened(on_replay_opened)
 ## Development Workflow
 
 1. **Start Development**:
-   - Set `_DEV = True` in `HeatmapWidget.py`
+   - Set `_DEV = True` in `ScorecardWidget.py`
    - Run `npm run dev`
    - Start Jupyter and create/modify widgets
 
@@ -139,13 +139,13 @@ widget.on_replay_opened(on_replay_opened)
    - Check browser console for debugging
 
 3. **Build for Production**:
-   - Set `_DEV = False` in `HeatmapWidget.py`
+   - Set `_DEV = False` in `ScorecardWidget.py`
    - Run `npm run build`
    - Test the built version
 
 4. **Deploy**:
    - Commit your changes
-   - Users can install with `metta install heatmapwidget`
+   - Users can install with `metta install scorecardwidget`
 
 
 ## Important Notes
@@ -153,7 +153,7 @@ widget.on_replay_opened(on_replay_opened)
 - **Always remember to toggle `_DEV` mode**: Set to `True` for development, `False` for production
 - **Development server must be running**: When `_DEV = True`, ensure `npm run dev` is running
 - **Build before distribution**: Run `npm run build` before setting `_DEV = False`
-- **Installation builds automatically**: `metta install heatmapwidget` handles the build process
+- **Installation builds automatically**: `metta install scorecardwidget` handles the build process
 
 ## Troubleshooting
 
@@ -170,4 +170,4 @@ widget.on_replay_opened(on_replay_opened)
 ### Build Issues
 - Run `npm install` to ensure dependencies are installed
 - Check for TypeScript compilation errors during build
-- Verify the built `index.js` file exists in `heatmap_widget/static/`
+- Verify the built `index.js` file exists in `scorecard_widget/static/`

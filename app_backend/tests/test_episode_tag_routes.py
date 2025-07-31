@@ -4,7 +4,7 @@ from typing import Dict
 import pytest
 from fastapi.testclient import TestClient
 
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 
 
 class TestEpisodeTagRoutes:
