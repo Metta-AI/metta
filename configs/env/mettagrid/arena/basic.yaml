@@ -10,7 +10,6 @@ defaults:
   - _self_
 
 game:
-
   num_agents: 24
   map_builder:
     _target_: metta.map.mapgen.MapGen
