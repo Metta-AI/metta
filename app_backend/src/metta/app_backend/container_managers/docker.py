@@ -13,16 +13,14 @@ class DockerContainerManager(AbstractContainerManager):
 
     def start_worker_container(
         self,
-        git_hash: str,
         backend_url: str,
         docker_image: str,
         machine_token: str,
         dd_env_vars: dict[str, str] | None = None,
     ) -> WorkerInfo:
-        container_name = self._format_container_name(git_hash)
+        container_name = self._format_container_name()
         env_vars = {
             "BACKEND_URL": backend_url,
-            "GIT_HASH": git_hash,
             "WORKER_ASSIGNEE": container_name,
             "MACHINE_TOKEN": machine_token,
             "WANDB_API_KEY": os.environ["WANDB_API_KEY"],
@@ -50,7 +48,6 @@ class DockerContainerManager(AbstractContainerManager):
             container_id = result.stdout.strip()
             self._logger.info(f"Started worker container {container_name} ({container_id[:12]})")
             return WorkerInfo(
-                git_hash=git_hash,
                 container_id=container_id,
                 container_name=container_name,
             )
@@ -96,7 +93,6 @@ class DockerContainerManager(AbstractContainerManager):
                             git_hash, _ = self._parse_container_name(container_name)
                             workers.append(
                                 WorkerInfo(
-                                    git_hash=git_hash,
                                     container_id=container_id,
                                     container_name=container_name,
                                 )

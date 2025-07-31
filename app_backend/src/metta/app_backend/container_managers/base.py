@@ -9,8 +9,8 @@ from metta.app_backend.container_managers.models import WorkerInfo
 class AbstractContainerManager(ABC):
     _container_prefix = "eval-worker-"
 
-    def _format_container_name(self, git_hash: str) -> str:
-        return f"{self._container_prefix}{git_hash}-{self._generate_container_suffix()}"
+    def _format_container_name(self) -> str:
+        return f"{self._container_prefix}-{self._generate_container_suffix()}"
 
     def _parse_container_name(self, container_name: str) -> tuple[str, str]:
         git_hash, suffix = container_name.replace(self._container_prefix, "").split("-", 1)
@@ -24,15 +24,13 @@ class AbstractContainerManager(ABC):
     @abstractmethod
     def start_worker_container(
         self,
-        git_hash: str,
         backend_url: str,
         docker_image: str,
         machine_token: str,
     ) -> WorkerInfo:
-        """Start a worker container for a specific git hash.
+        """Start a worker container
 
         Args:
-            git_hash: The git hash for the worker
             backend_url: The backend URL for the worker to connect to
             docker_image: The Docker image to use
 
