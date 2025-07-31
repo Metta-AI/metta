@@ -10,14 +10,13 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.batch_utils import calculate_batch_sizes
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.distributed import setup_distributed_vars
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv
+from metta.rl.evaluate import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.monitoring import (
     cleanup_monitoring,
@@ -37,7 +36,7 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_lstm_config
-from metta.rl.stats import (
+from metta.stats import (
     StatsTracker,
     accumulate_rollout_stats,
     process_stats,
@@ -57,7 +56,6 @@ from metta.rl.wandb import (
     setup_wandb_metrics,
     upload_policy_artifact,
 )
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -415,56 +413,25 @@ def train(
                         attributes={},
                     ).id
 
-                # Check for remote evaluation
-                if (
-                    trainer_cfg.simulation.evaluate_remote
-                    and wandb_run
-                    and stats_client
-                    and wandb_policy_name  # ensures it was uploaded to wandb
-                ):
-                    # Remote evaluation
-                    if ":" not in wandb_policy_name:
-                        logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
-                    else:
-                        internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
-                        stats_server_policy_id = get_or_create_policy_ids(
-                            stats_client,
-                            [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
-                            stats_tracker.stats_epoch_id,
-                        ).get(internal_wandb_policy_name)
-                        if not stats_server_policy_id:
-                            logger.warning(
-                                f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}"
-                            )
-                        else:
-                            task = stats_client.create_task(
-                                TaskCreateRequest(
-                                    policy_id=stats_server_policy_id,
-                                    git_hash=trainer_cfg.simulation.git_hash,
-                                    sim_suite=sim_suite_config.name,
-                                )
-                            )
-                            logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
-
-                # Local evaluation
-                logger.info("Starting local policy evaluation")
+                # Evaluate policy using the extracted evaluation function
                 eval_scores = evaluate_policy(
-                    latest_saved_policy_record,
-                    sim_suite_config,
-                    curriculum,
-                    stats_client,
-                    stats_tracker,
-                    agent_step,
-                    epoch,
-                    device,
-                    cfg.vectorization,
-                    trainer_cfg.simulation.replay_dir,
-                    wandb_policy_name,
-                    policy_store,
-                    cfg,
-                    wandb_run,
-                    logger,
+                    policy_record=latest_saved_policy_record,
+                    policy_uri=latest_saved_policy_record.uri,
+                    sim_suite_config=sim_suite_config,
+                    device=device,
+                    vectorization=cfg.vectorization,
+                    replay_dir=trainer_cfg.simulation.replay_dir,
+                    stats_epoch_id=stats_tracker.stats_epoch_id,
+                    wandb_policy_name=wandb_policy_name,
+                    policy_store=policy_store,
+                    stats_client=stats_client,
+                    cfg=cfg,
+                    wandb_run=wandb_run,
+                    trainer_cfg=trainer_cfg,
+                    agent_step=agent_step,
+                    epoch=epoch,
                 )
+                
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
         # Compute gradient stats
