@@ -53,10 +53,9 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
     upload_policy_artifact,
-    upload_replay_html,
 )
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
-from metta.stats import (
+from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
     process_stats,

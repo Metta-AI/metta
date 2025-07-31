@@ -74,7 +74,7 @@ optimizer.step(loss, epoch)
 
 ```python
 from metta.rl.rollout import perform_rollout_step
-from metta.stats import accumulate_rollout_stats
+from metta.rl.stats import accumulate_rollout_stats
 from metta.rl.advantage import compute_advantage
 from metta.rl.losses import process_minibatch_update
 

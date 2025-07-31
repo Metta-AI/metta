@@ -1,8 +1,8 @@
 """
-Heatmap Widget for Jupyter Notebooks
+Scorecard Widget for Jupyter Notebooks
 
-An anywidget-based implementation of the observatory heatmap component.
-Provides interactive policy evaluation heatmaps with hover and click functionality.
+An anywidget-based implementation of the observatory scorecard component.
+Provides interactive policy evaluation scorecards with hover and click functionality.
 """
 
 import pathlib
@@ -26,21 +26,21 @@ else:
 CSS = (src_dir / "styles.css").read_text()
 
 
-class HeatmapWidget(anywidget.AnyWidget):
+class ScorecardWidget(anywidget.AnyWidget):
     """
-    Interactive heatmap widget for policy evaluation data.
+    Interactive scorecard widget for policy evaluation data.
 
-    Displays a heatmap of policy performance across different evaluations,
+    Displays a scorecard of policy performance across different evaluations,
     with interactive features like hover, click, and replay URL opening.
     """
 
     # AnyWidget requires _esm property for JavaScript code
     _esm = ESM
     _css = CSS
-    name = traitlets.Unicode("HeatmapWidget").tag(sync=True)
+    name = traitlets.Unicode("ScorecardWidget").tag(sync=True)
 
     # Widget traits (data that syncs between Python and JavaScript)
-    heatmap_data = traitlets.Dict({}).tag(sync=True)
+    scorecard_data = traitlets.Dict({}).tag(sync=True)
     selected_metric = traitlets.Unicode("reward").tag(sync=True)
     num_policies_to_show = traitlets.Int(20).tag(sync=True)
     selected_cell = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
@@ -55,7 +55,7 @@ class HeatmapWidget(anywidget.AnyWidget):
         }
 
         # This print should work now!
-        print("🚀 HeatmapWidget initialized successfully!")
+        print("🚀 ScorecardWidget initialized successfully!")
 
         # Set up observers
         self.observe(self._on_cell_selected, names="selected_cell")
@@ -111,7 +111,7 @@ class HeatmapWidget(anywidget.AnyWidget):
         policy_average_scores: Dict[str, float],
         selected_metric: str = "reward",
     ):
-        """Set the heatmap data.
+        """Set the scorecard data.
 
         Args:
             cells: Nested dict of {policy_name: {eval_name: {value, replayUrl, evalName}}}
@@ -120,7 +120,7 @@ class HeatmapWidget(anywidget.AnyWidget):
             policy_average_scores: Dict mapping policy names to average scores
             selected_metric: Name of the selected metric
         """
-        self.heatmap_data = {
+        self.scorecard_data = {
             "cells": cells,
             "evalNames": eval_names,
             "policyNames": policy_names,
@@ -140,7 +140,7 @@ class HeatmapWidget(anywidget.AnyWidget):
         metrics: List[str],
         selected_metric: str | None = None,
     ):
-        """Set heatmap data with multiple metrics per cell.
+        """Set scorecard data with multiple metrics per cell.
 
         Args:
             cells: Nested dict of {policy_name: {eval_name: {metrics: {metric_name: value}, replayUrl, evalName}}}
@@ -168,7 +168,7 @@ class HeatmapWidget(anywidget.AnyWidget):
                     count += 1
             policy_average_scores[policy_name] = total / count if count > 0 else 0
 
-        self.heatmap_data = {
+        self.scorecard_data = {
             "cells": cells,
             "evalNames": eval_names,
             "policyNames": policy_names,
@@ -185,7 +185,7 @@ class HeatmapWidget(anywidget.AnyWidget):
     def update_metric(self, metric: str):
         """Update the selected metric.
 
-        This will trigger a re-render of the heatmap with the new metric
+        This will trigger a re-render of the scorecard with the new metric
         displayed in titles and labels.
 
         Args:
@@ -211,13 +211,13 @@ class HeatmapWidget(anywidget.AnyWidget):
         return self.selected_metric
 
 
-def create_heatmap_widget(**kwargs) -> HeatmapWidget:
-    """Create and return a new heatmap widget.
+def create_scorecard_widget(**kwargs) -> ScorecardWidget:
+    """Create and return a new scorecard widget.
 
     Args:
-        **kwargs: Additional keyword arguments passed to HeatmapWidget constructor
+        **kwargs: Additional keyword arguments passed to ScorecardWidget constructor
 
     Returns:
-        HeatmapWidget instance
+        ScorecardWidget instance
     """
-    return HeatmapWidget(**kwargs)
+    return ScorecardWidget(**kwargs)

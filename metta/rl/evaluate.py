@@ -15,7 +15,7 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.replays import upload_replay_html
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.stats import StatsTracker
+from metta.rl.stats import StatsTracker
 
 
 def should_evaluate(epoch: int, evaluate_interval: int, is_master: bool = True) -> bool:

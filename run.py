@@ -68,11 +68,11 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
     upload_env_configs,
-    upload_replay_html,
 )
+from metta.replays import upload_replay_html
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.stats import (
+from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
     build_wandb_stats,
