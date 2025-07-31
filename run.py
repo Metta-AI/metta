@@ -69,7 +69,7 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
-from metta.rl.training_loop import should_run
+from metta.rl.utils import should_run
 from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,

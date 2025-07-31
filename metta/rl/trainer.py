@@ -44,7 +44,7 @@ from metta.rl.stats import (
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
-from metta.rl.training_loop import (
+from metta.rl.utils import (
     log_training_progress,
     should_run,
 )
@@ -99,15 +99,11 @@ def train(
     is_master, world_size, rank = setup_distributed_vars()
     device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
 
-    # Create timer
+    # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
-
-    # Create losses tracker and torch profiler
     losses = Losses()
     torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
-
-    # Create curriculum from config path
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
     # Calculate batch sizes
@@ -136,7 +132,6 @@ def train(
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
     # Initialize state containers
-    stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
     # Create checkpoint manager
@@ -266,6 +261,7 @@ def train(
         log_model_parameters(policy, wandb_run)
 
     # Initialize stats tracking
+    stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
     if stats_client is not None:
         # Extract wandb attributes with defaults
         name = getattr(wandb_run, "name", "unknown") or "unknown"
@@ -290,7 +286,7 @@ def train(
         record_heartbeat()
 
         with torch_profiler:
-            # Rollout phase
+            # ===== ROLLOUT PHASE =====
             with timer("_rollout"):
                 num_steps, raw_infos = rollout(
                     vecenv=vecenv,
@@ -300,8 +296,9 @@ def train(
                     timer=timer,
                 )
                 agent_step += num_steps * world_size
+            accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
-            # Training phase
+            # ===== TRAINING PHASE =====
             with timer("_train"):
                 epochs_trained = ppo(
                     policy=policy,
@@ -315,9 +312,6 @@ def train(
                     device=device,
                 )
             epoch += epochs_trained
-
-            # Process rollout stats
-            accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
         torch_profiler.on_epoch_end(epoch)
 
