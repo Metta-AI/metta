@@ -12,6 +12,7 @@ from metta.app_backend.routes.scorecard_routes import (
     ScorecardData,
     ScorecardRequest,
 )
+from metta.app_backend.routes.sql_routes import SQLQueryRequest, SQLQueryResponse
 
 
 class ListModel(RootModel[list]):
@@ -19,6 +20,12 @@ class ListModel(RootModel[list]):
 
 
 class ScorecardClient(BaseAppBackendClient):
+    async def sql_query(self, sql: str):
+        payload = SQLQueryRequest(
+            query=sql,
+        )
+        return await self._make_request(SQLQueryResponse, "POST", "/sql/query", json=payload.model_dump(mode="json"))
+
     async def get_policies(self, search_text: str | None = None, page_size: int = 50):
         payload = PoliciesRequest(
             search_text=search_text,
