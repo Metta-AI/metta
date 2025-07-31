@@ -266,11 +266,7 @@ class Experience:
         self.ratio[indices] = new_ratio.detach()
 
     def stats(self) -> Dict[str, float]:
-        """Get mean values of all tracked buffers.
-            - truncateds: Fraction of episodes that were truncated
-            - ratio: Mean importance sampling ratio
-            - ep_lengths: Mean episode length for active episodes
-        """
+        """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.rewards.mean().item(),
             "values": self.values.mean().item(),
