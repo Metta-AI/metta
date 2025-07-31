@@ -34,7 +34,6 @@ from metta.mettagrid import (
     dtype_actions,  # noqa: F401
     mettagrid_c,  # noqa: F401
 )
-from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.replays import upload_replay_html
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
