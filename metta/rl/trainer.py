@@ -10,17 +10,16 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from metta.utils.batch import calculate_batch_sizes
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.core.distributed import setup_distributed_vars
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.mettagrid import MettaGridEnv
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
@@ -36,6 +35,11 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_lstm_config
+from metta.rl.stats import (
+    StatsTracker,
+    accumulate_rollout_stats,
+    process_stats,
+)
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
@@ -45,18 +49,14 @@ from metta.rl.training_loop import (
     should_run,
 )
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
     upload_policy_artifact,
 )
-from metta.rl.stats import (
-    StatsTracker,
-    accumulate_rollout_stats,
-    process_stats,
-)
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.utils.batch import calculate_batch_sizes
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
