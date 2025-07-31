@@ -26,7 +26,7 @@ class PolicyRecord:
         self.uri: str | None = uri
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy: MettaAgent | DistributedMettaAgent | None = None
+        self._cached_policy: "MettaAgent | DistributedMettaAgent | None" = None
 
     @property
     def metadata(self) -> PolicyMetadata:
@@ -88,7 +88,7 @@ class PolicyRecord:
         return self.uri[len(file_uri_prefix) :]
 
     @property
-    def policy(self) -> MettaAgent | DistributedMettaAgent:
+    def policy(self) -> "MettaAgent | DistributedMettaAgent":
         """Load and return the policy, using cache if available."""
         if self._cached_policy is None:
             if self._policy_store is None:
@@ -109,7 +109,7 @@ class PolicyRecord:
         return self._cached_policy
 
     @policy.setter
-    def policy(self, policy: MettaAgent | DistributedMettaAgent) -> None:
+    def policy(self, policy: "MettaAgent | DistributedMettaAgent") -> None:
         """Set or overwrite the policy.
 
         Args:
