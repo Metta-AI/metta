@@ -34,8 +34,6 @@ def main(cfg: DictConfig) -> int:
     ORIGINAL_ARGS = sys.argv[1:]  # Skip the script name
 
     logger.info(f"Starting sweep rollout with config: {list(cfg.keys())}")
-    logger.debug(f"Full config: {OmegaConf.to_yaml(cfg)}")
-    logger.debug(f"Original command-line args: {ORIGINAL_ARGS}")
 
     # Setup the sweep - only rank 0 does this, others wait
     try:
@@ -117,7 +115,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
 def train_for_run(
     run_name: str,
     train_job_cfg: DictConfig,
-    wandb_run_id: str | None = None,
+    wandb_run_id: str,
     original_args: list[str] | None = None,
     logger: logging.Logger | None = None,
 ) -> subprocess.CompletedProcess:
@@ -128,17 +126,24 @@ def train_for_run(
         "./devops/train.sh",
         f"run={run_name}",
         f"data_dir={train_job_cfg.data_dir}",
+        f"wandb.run_id={wandb_run_id}",
+        f"wandb.group={train_job_cfg.sweep_name}",
+        f"wandb.name={run_name}",
     ]
-
-    # Pass wandb.run_id directly if available
-    if wandb_run_id:
-        cmd.append(f"wandb.run_id={wandb_run_id}")
 
     # Pass through relevant arguments from the original command line
     # Filter out arguments that we're already setting explicitly
     if original_args:
         # TODO: Skim those keys
-        skip_prefixes = ["run=", "sweep_name=", "dist_cfg_path=", "data_dir=", "sweep_dir=", "wandb.run_id="]
+        skip_prefixes = [
+            "run=",
+            "sweep_name=",
+            "data_dir=",
+            "sweep_dir=",
+            "wandb.run_id=",
+            "wandb.group=",
+            "wandb.name=",
+        ]
         for arg in original_args:
             # Skip arguments we're already setting
             if any(arg.startswith(prefix) for prefix in skip_prefixes):
