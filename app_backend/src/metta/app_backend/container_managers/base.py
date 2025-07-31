@@ -28,7 +28,6 @@ class AbstractContainerManager(ABC):
         backend_url: str,
         docker_image: str,
         machine_token: str,
-        dd_env_vars: dict[str, str] | None = None,
     ) -> WorkerInfo:
         """Start a worker container for a specific git hash.
 

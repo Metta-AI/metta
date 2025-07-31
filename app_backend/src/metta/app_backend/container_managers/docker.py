@@ -4,6 +4,7 @@ import subprocess
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.models import WorkerInfo
+from metta.common.datadog.config import datadog_config
 
 
 class DockerContainerManager(AbstractContainerManager):
@@ -25,7 +26,7 @@ class DockerContainerManager(AbstractContainerManager):
             "WORKER_ASSIGNEE": container_name,
             "MACHINE_TOKEN": machine_token,
             "WANDB_API_KEY": os.environ["WANDB_API_KEY"],
-            **(dd_env_vars or {}),
+            **datadog_config.to_env_dict(),
             "DD_SERVICE": "eval-worker",
         }
 

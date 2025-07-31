@@ -13,7 +13,6 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
     TaskUpdateResponse,
 )
-from metta.common.datadog.tracing import add_span_tags
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -23,27 +22,21 @@ class EvalTaskClient(BaseAppBackendClient):
         return await self._make_request(TaskResponse, "POST", "/tasks", json=request.model_dump(mode="json"))
 
     async def get_available_tasks(self, limit: int = 200) -> TasksResponse:
-        add_span_tags({"limit": limit})
         return await self._make_request(TasksResponse, "GET", "/tasks/available", params={"limit": limit})
 
     async def claim_tasks(self, request: TaskClaimRequest) -> TaskClaimResponse:
-        add_span_tags({"num_tasks": len(request.tasks), "assignee": request.assignee})
         return await self._make_request(TaskClaimResponse, "POST", "/tasks/claim", json=request.model_dump(mode="json"))
 
     async def get_claimed_tasks(self, assignee: str | None = None) -> TasksResponse:
-        if assignee:
-            add_span_tags({"assignee": assignee})
         params = {"assignee": assignee} if assignee is not None else {}
         return await self._make_request(TasksResponse, "GET", "/tasks/claimed", params=params)
 
     async def update_task_status(self, request: TaskUpdateRequest) -> TaskUpdateResponse:
-        add_span_tags({"num_updates": len(request.updates)})
         return await self._make_request(
             TaskUpdateResponse, "POST", "/tasks/claimed/update", json=request.model_dump(mode="json")
         )
 
     async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse:
-        add_span_tags({"assignee": assignee})
         return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
 
     async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
