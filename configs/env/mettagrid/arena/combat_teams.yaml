@@ -1,5 +1,5 @@
 defaults:
-  - basic_teams
+  - configs/env/mettagrid/arena/basic_teams
   - /env/mettagrid/game/objects/combat@game.objects
   - _self_
 
