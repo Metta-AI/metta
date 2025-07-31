@@ -39,12 +39,14 @@ wandb:
   job_type: ${cmd}
   #tags: ["krishnakanth", "arena_teams", "learning_progress"]
 
-# Override to run only arena/combat_teams
-evals:
-  num_episodes: 1
-  max_time_s: 60
-  env_overrides: {}
-  name: arena_combat_only
-  simulations:
-    arena/combat_teams:
-      env: /env/mettagrid/arena/combat_teams
+# Train job configuration
+train_job:
+  map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
+  evals:
+    num_episodes: 1
+    max_time_s: 60
+    env_overrides: {}
+    name: arena_combat_only
+    simulations:
+      arena/combat_teams:
+        env: /env/mettagrid/arena/combat_teams

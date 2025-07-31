@@ -13,6 +13,6 @@ train_job:
   evals: ${sim}
 
 trainer:
-  curriculum: /env/mettagrid/arena/basic_teams
+  curriculum: /env/mettagrid/arena/combat_teams
 
 cmd: train

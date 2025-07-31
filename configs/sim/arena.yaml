@@ -17,12 +17,6 @@ simulations:
 #    env: /env/mettagrid/arena/advanced_poor
   arena/combat_teams:
     env: /env/mettagrid/arena/combat_teams
-  arena/basic_teams:
-    env: /env/mettagrid/arena/basic_teams
-  arena/advanced_teams:
-    env: /env/mettagrid/arena/advanced_teams
-  arena/tag_teams:
-    env: /env/mettagrid/arena/tag_teams
 
   # arena/combat_npc:
   #   env: /env/mettagrid/arena/combat
