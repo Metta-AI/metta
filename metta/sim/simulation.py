@@ -26,9 +26,9 @@ from omegaconf import OmegaConf
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.vecenv import make_vecenv
@@ -419,6 +419,7 @@ class Simulation:
 
                 # Get agent metrics for this episode
                 agent_metrics_df = stats_db.query(f"SELECT * FROM agent_metrics WHERE episode_id = '{episode_id}'")
+                # agent_id -> metric_name -> metric_value
                 agent_metrics: Dict[int, Dict[str, float]] = {}
 
                 for _, metric_row in agent_metrics_df.iterrows():

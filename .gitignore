@@ -1,4 +1,6 @@
 # Environment and IDE
+.claude/tasks
+.claude/analysis
 .envrc
 .env
 .env.*
@@ -81,3 +83,4 @@ sweep_id
 
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
+experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js

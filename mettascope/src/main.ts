@@ -27,7 +27,7 @@ import { initObjectMenu } from './objmenu.js'
 import { fetchReplay, initWebSocket, readFile } from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
-import { drawTrace } from './traces.js'
+import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
 import { Heatmap } from './heatmap.js'
@@ -154,6 +154,7 @@ function hideUi() {
   state.showTraces = false
   state.showAgentPanel = false
   state.showActionButtons = false
+  invalidateTrace()
   onResize()
 }
 
@@ -524,6 +525,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
       state.showTraces = false
       localStorage.setItem('showTraces', state.showTraces.toString())
       toggleOpacity(html.tracesToggle, state.showTraces)
+      invalidateTrace()
       onResize()
     } else if (state.showActionButtons) {
       state.showActionButtons = false
@@ -1036,6 +1038,12 @@ onEvent('click', '#traces-toggle', () => {
   state.showTraces = !state.showTraces
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+
+  // Invalidate trace cache when hiding to ensure proper regeneration when shown again
+  if (!state.showTraces) {
+    invalidateTrace()
+  }
+
   onResize()
   requestFrame()
 })
@@ -1069,6 +1077,7 @@ onEvent('click', '#trace-panel .close', () => {
   state.showTraces = false
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+  invalidateTrace()
   onResize()
   requestFrame()
 })

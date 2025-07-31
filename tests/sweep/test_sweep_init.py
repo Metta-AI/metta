@@ -141,11 +141,11 @@ class TestGenerateProteinSuggestion:
 
         result = generate_protein_suggestion(config, mock_protein)
 
-        # Should have called record_failure for the invalid suggestion
-        mock_protein.record_failure.assert_called_once()
-        assert "Batch size 1000 must be divisible by minibatch size 64" in str(
-            mock_protein.record_failure.call_args[0][0]
-        )
+        # Should have called observe_failure for the invalid suggestion
+        mock_protein.observe_failure.assert_called_once()
+        # The observe_failure method gets the suggestion, not the error message
+        call_args = mock_protein.observe_failure.call_args[0][0]
+        assert isinstance(call_args, dict)
 
         # Should return the valid suggestion
         assert result["trainer"]["batch_size"] == 2048
@@ -167,8 +167,8 @@ class TestGenerateProteinSuggestion:
         with pytest.raises(ValueError, match="Batch size 1000 must be divisible by minibatch size 64"):
             generate_protein_suggestion(config, mock_protein)
 
-        # Should have recorded 11 failures (1 initial + 10 retries)
-        assert mock_protein.record_failure.call_count == 11
+        # Should have recorded 10 failures
+        assert mock_protein.observe_failure.call_count == 11
 
 
 class TestApplyProteinSuggestion:

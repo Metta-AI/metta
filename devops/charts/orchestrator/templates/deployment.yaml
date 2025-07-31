@@ -17,7 +17,7 @@ spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+        image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["uv", "run", "python", "-m", "metta.app_backend.eval_task_orchestrator"]
         env:
@@ -30,7 +30,7 @@ spec:
         - name: WORKER_IDLE_TIMEOUT
           value: {{ .Values.env.WORKER_IDLE_TIMEOUT | quote }}
         - name: DOCKER_IMAGE
-          value: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+          value: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         - name: KUBERNETES_NAMESPACE
           valueFrom:
             fieldRef:
@@ -45,6 +45,20 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.machineToken }}
               key: token
+        {{- if .Values.datadog.enabled }}
+        - name: DD_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: DD_TRACE_ENABLED
+          value: {{ .Values.env.DD_TRACE_ENABLED | quote }}
+        - name: DD_ENV
+          value: {{ .Values.datadog.env | quote }}
+        - name: DD_SERVICE
+          value: "eval-orchestrator"
+        - name: DD_VERSION
+          value: {{ .Values.image.tag | quote }}
+        {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
 
