@@ -5,9 +5,9 @@ from typing import Any, Dict, Tuple
 import torch
 from torch import Tensor
 
-from metta.utils.batch import calculate_prioritized_sampling_params
 from metta.rl.advantage import compute_advantage
 from metta.rl.losses import Losses, process_minibatch_update
+from metta.utils.batch import calculate_prioritized_sampling_params
 
 
 def compute_ppo_losses(

@@ -6,13 +6,13 @@ from typing import Any, Dict, Tuple
 import torch
 
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.utils.progress import log_rich_progress, should_use_rich_console
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.ppo import ppo
 from metta.rl.rollout import rollout
 from metta.rl.trainer_config import TrainerConfig
+from metta.utils.progress import log_rich_progress, should_use_rich_console
 
 logger = logging.getLogger(__name__)
 

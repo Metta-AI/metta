@@ -11,10 +11,6 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.utils.batch import (
-    calculate_batch_sizes,
-    calculate_prioritized_sampling_params,
-)
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
@@ -24,6 +20,7 @@ from metta.common.wandb.wandb_context import WandbContext
 from metta.core.distributed import setup_device_and_distributed
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.eval.replays import upload_replay_html
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config, setup_run_directories
 from metta.interface.environment import Environment
@@ -34,14 +31,12 @@ from metta.mettagrid import (
     dtype_actions,  # noqa: F401
     mettagrid_c,  # noqa: F401
 )
-from metta.eval.replays import upload_replay_html
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update
 from metta.rl.optimization import (
-    calculate_explained_variance,
     compute_gradient_stats,
     maybe_update_l2_weights,
 )
@@ -83,6 +78,10 @@ from metta.rl.wandb import (
 )
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
+from metta.utils.batch import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -558,7 +557,11 @@ while agent_step < trainer_config.total_timesteps:
     if minibatch_idx > 0 and str(device).startswith("cuda"):
         torch.cuda.synchronize()
 
-    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+    # Calculate explained variance
+    y_pred = experience.values.flatten()
+    y_true = advantages.flatten() + experience.values.flatten()
+    var_y = y_true.var()
+    losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
 
     # Calculate performance metrics
     train_time = time.time() - train_start
