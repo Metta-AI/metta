@@ -6,7 +6,6 @@ defaults:
   - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/arena@evals
   - _self_
 
 # Basic run configuration
@@ -39,3 +38,19 @@ wandb:
   data_dir: ${run_dir}
   job_type: ${cmd}
   #tags: ["krishnakanth", "arena_teams", "learning_progress"]
+
+# Override to run only arena/combat_teams
+evals:
+  num_episodes: 1
+  max_time_s: 60
+  env_overrides: {}
+  name: arena_combat_only
+  simulations:
+    arena/combat_teams:
+      env: /env/mettagrid/arena/combat_teams
+    arena/basic_teams:
+      env: /env/mettagrid/arena/basic_teams
+    arena/advanced_teams:
+      env: /env/mettagrid/arena/advanced_teams
+    arena/tag_teams:
+      env: /env/mettagrid/arena/tag_teams
