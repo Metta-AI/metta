@@ -10,6 +10,7 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.core.distributed import setup_distributed_vars
@@ -59,7 +60,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.utils.batch import calculate_batch_sizes
 
 try:
-    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
 except ImportError:
     raise ImportError(
         "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
@@ -156,12 +157,12 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
+    policy: MettaAgent | DistributedMettaAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
         cfg=cfg,
         checkpoint=checkpoint,
         policy_store=policy_store,
         metta_grid_env=metta_grid_env,
-        device=device,
         is_master=is_master,
         rank=rank,
     )
@@ -283,7 +284,7 @@ def train(
         record_heartbeat()
 
         with torch_profiler:
-            # ===== ROLLOUT PHASE =====
+            # ---- ROLLOUT PHASE ---- 
             with timer("_rollout"):
                 num_steps, raw_infos = rollout(
                     vecenv=vecenv,
@@ -295,7 +296,7 @@ def train(
                 agent_step += num_steps * world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
-            # ===== TRAINING PHASE =====
+            # ---- TRAINING PHASE ---- 
             with timer("_train"):
                 epochs_trained = ppo(
                     policy=policy,
@@ -432,7 +433,6 @@ def train(
                 # Evaluate policy using the extracted evaluation function
                 eval_scores = evaluate_policy(
                     policy_record=latest_saved_policy_record,
-                    policy_uri=latest_saved_policy_record.uri,
                     sim_suite_config=extended_suite_config,
                     device=device,
                     vectorization=cfg.vectorization,

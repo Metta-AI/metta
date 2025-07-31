@@ -9,6 +9,8 @@ import torch
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import wait_for_file
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
@@ -297,12 +299,11 @@ def ensure_initial_policy(
 def load_or_initialize_policy(
     cfg: Any,
     checkpoint: Any | None,
-    policy_store: Any,
+    policy_store: PolicyStore,
     metta_grid_env: Any,
-    device: torch.device,
     is_master: bool,
     rank: int,
-) -> Tuple[Any, Any, Any]:
+) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
     """
     Load or initialize policy with distributed coordination.
 
@@ -315,6 +316,7 @@ def load_or_initialize_policy(
     default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
 
     # First priority: checkpoint
+    policy_record: PolicyRecord | None = None
     if checkpoint and checkpoint.policy_path:
         logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
         policy_record = policy_store.policy_record(checkpoint.policy_path)
@@ -332,10 +334,7 @@ def load_or_initialize_policy(
     # If we found an existing policy, all ranks use it
     if policy_record:
         # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
+        if isinstance(policy_record.policy, MettaAgent) and "original_feature_mapping" in policy_record.metadata:
             policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
             logger.info("Restored original_feature_mapping")
 

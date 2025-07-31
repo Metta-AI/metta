@@ -1,6 +1,7 @@
 """Policy evaluation functionality."""
 
 import logging
+import uuid
 from typing import Any
 
 import numpy as np
@@ -21,12 +22,11 @@ logger = logging.getLogger(__name__)
 def evaluate_policy(
     *,
     policy_record: Any,
-    policy_uri: str,
     sim_suite_config: SimulationSuiteConfig,
     device: torch.device,
     vectorization: str,
     replay_dir: str | None,
-    stats_epoch_id: str | None,
+    stats_epoch_id: uuid.UUID | None,
     wandb_policy_name: str | None,
     policy_store: Any,
     stats_client: StatsClient | None,
@@ -80,7 +80,6 @@ def evaluate_policy(
                 # TODO: need policy evaluator to generate replays and push stats to wandb
 
     # Local evaluation
-    logger.info(f"Simulating policy: {policy_uri} with extended config including training task")
     evaluation_results = eval_service_evaluate_policy(
         policy_record=policy_record,
         simulation_suite=sim_suite_config,

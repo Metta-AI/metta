@@ -20,7 +20,7 @@ def rollout(
     experience: Any,
     device: torch.device,
     timer: Any,
-) -> Tuple[int, list]:
+) -> tuple[int, list]:
     """Perform a complete rollout phase.
 
     Returns:
