@@ -700,7 +700,10 @@ export function propertyName(key: string) {
 export function propertyIcon(key: string) {
   if (state.replay.typeNames.includes(key)) {
     const idx = state.replay.typeNames.indexOf(key)
-    return `data/atlas/${state.replay.typeImages[idx]}`
+    return `data/atlas/objects/${state.replay.typeImages[idx]}`
+  } else if (state.replay.itemNames.includes(key)) {
+    const idx = state.replay.itemNames.indexOf(key)
+    return `data/atlas/resources/${key}.png`
   }
   return `data/ui/table/${key.replace('agent:', '')}.png`
 }

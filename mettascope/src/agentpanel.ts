@@ -12,7 +12,7 @@ import {
   showMenu,
 } from './htmlutils.js'
 import { updateSelection } from './main.js'
-import { Entity, propertyIcon, propertyName } from './replay.js'
+import { Entity, Sequence, propertyIcon, propertyName } from './replay.js'
 
 enum SortDirection {
   None = 0,
@@ -25,16 +25,19 @@ class ColumnDefinition {
   field: string
   isFinal: boolean
   sortDirection: SortDirection
+  itemId: number
 
   constructor(
     field: string,
     isFinal: boolean,
     sortDirection: SortDirection = SortDirection.None,
-    _isStepColumn = false
+    _isStepColumn = false,
+    itemId: number = -1
   ) {
     this.field = field
     this.isFinal = isFinal
     this.sortDirection = sortDirection
+    this.itemId = itemId
   }
 
   generateName() {
@@ -309,21 +312,27 @@ export function updateAvailableColumns() {
   const noMatchFound = find('#new-column-dropdown .no-match-found')
 
   // All agent keys:
-  const agentKeys = new Set<string>()
-  for (const agent of state.replay.agents) {
-    for (const key in agent) {
-      agentKeys.add(key)
-    }
+  // Add object fields as available columns.
+  const availableColumnNames = [
+    "agentId",
+    "totalReward",
+    "totalReward",
+    "actionId",
+    "actionParameter",
+    "actionSuccess",
+    "currentReward",
+    "orientation",
+    "isFrozen",
+  ]
+  for (const name of availableColumnNames) {
+    availableColumns.push(new ColumnDefinition(name, false))
+    availableColumns.push(new ColumnDefinition(name, true))
   }
-  // All inventory keys:
-  for (const key of agentKeys) {
-    if (key !== 'agent' && key !== 'c' && key !== 'r' && key !== 'reward') {
-      // If there is a typeahead value, only show columns that match the typeahead value.
-      if (typeaheadValue !== '' && !key.toLowerCase().includes(typeaheadValue.toLowerCase())) {
-        continue
-      }
-      availableColumns.push(new ColumnDefinition(key, false))
-    }
+  // Add resources as available columns.
+  for (let itemId = 0; itemId < state.replay.itemNames.length; itemId++) {
+    const itemName = state.replay.itemNames[itemId]
+    availableColumns.push(new ColumnDefinition(itemName, false, itemId))
+    availableColumns.push(new ColumnDefinition(itemName, true, itemId))
   }
 
   if (availableColumns.length === 0) {
@@ -359,12 +368,34 @@ export function updateAvailableColumns() {
   }
 }
 
+/** Get the amount of an item in the inventory. */
+function getInventoryAmount(agent: any, itemName: string, step: number) {
+  const itemId = state.replay.itemNames.indexOf(itemName)
+  const inventory = agent.inventory.get(step)
+  for (const [inventoryId, inventoryAmount] of inventory) {
+    if (inventoryId === itemId) {
+      console.log("getInventoryAmount:", itemName, inventoryAmount)
+      return inventoryAmount
+    }
+  }
+  return 0
+}
+
+/** Try to load a value from the agent or return 0, never error. */
+function tryLoadValue(agent: any, field: string, step: number) {
+  if (state.replay.itemNames.includes(field)) {
+    return getInventoryAmount(agent, field, step)
+  }
+  if (typeof agent[field] === 'number') {
+    return agent[field]
+  } else if (agent[field] instanceof Sequence) {
+    return agent[field].get(step)
+  }
+  return 0
+}
+
 /** Update the agent table. */
 export function updateAgentTable() {
-
-  // TODO Fix the agent table
-  return
-
   // The agent table might change due to changes in:
   //   * The columns array.
   //   * The main sort column.
@@ -380,12 +411,12 @@ export function updateAgentTable() {
     let bValue: number
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
-      aValue = a[mainSort.field].get(state.replay.maxSteps - 1)
-      bValue = b[mainSort.field].get(state.replay.maxSteps - 1)
+      aValue = tryLoadValue(a, mainSort.field, state.replay.maxSteps - 1)
+      bValue = tryLoadValue(b, mainSort.field, state.replay.maxSteps - 1)
     } else {
       // Uses the current step for the sort.
-      aValue = a[mainSort.field].get(0)
-      bValue = b[mainSort.field].get(0)
+      aValue = tryLoadValue(a, mainSort.field, state.step)
+      bValue = tryLoadValue(b, mainSort.field, state.step)
     }
     // Sort direction adjustment.
     if (mainSort.sortDirection === SortDirection.Descending) {
@@ -422,9 +453,9 @@ export function updateAgentTable() {
 
         let value: number
         if (columnDef.isFinal) {
-          value = agent[columnDef.field].get(state.replay.maxSteps - 1)
+          value = tryLoadValue(agent, columnDef.field, state.replay.maxSteps - 1)
         } else {
-          value = agent[columnDef.field].get(0)
+          value = tryLoadValue(agent, columnDef.field, state.step)
         }
         if (value == null) {
           value = 0
