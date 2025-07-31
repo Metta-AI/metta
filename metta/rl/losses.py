@@ -34,11 +34,7 @@ class Losses:
         self.minibatches_processed = 0
 
     def stats(self) -> dict[str, float]:
-        """Convert losses to dictionary with proper averages.
-        
-        Returns:
-            Dict mapping loss names to averaged values
-        """
+        """Convert losses to dictionary with proper averages."""
         n = max(1, self.minibatches_processed)
 
         return {
@@ -68,22 +64,7 @@ def process_minibatch_update(
     losses: Losses,
     device: torch.device,
 ) -> Tensor:
-    """Process a single minibatch update and return the total loss.
-    
-    Args:
-        policy: Policy network
-        experience: Experience buffer
-        minibatch: Dict containing minibatch data
-        advantages: Advantage estimates
-        trainer_cfg: Training configuration
-        kickstarter: Kickstarter for behavior cloning
-        agent_step: Current agent step count
-        losses: Losses accumulator
-        device: Compute device
-    
-    Returns:
-        Total loss tensor
-    """
+    """Process a single minibatch update and return the total loss."""
     obs = minibatch["obs"]
 
     lstm_state = PolicyState()

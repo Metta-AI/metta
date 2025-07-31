@@ -17,12 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
-    """Clean up old policy checkpoints, keeping only the most recent ones.
-    
-    Args:
-        checkpoint_dir: Directory containing checkpoints
-        keep_last_n: Number of recent checkpoints to keep
-    """
+    """Clean up old policy checkpoints, keeping only the most recent ones."""
     try:
         # Get checkpoint directory
         checkpoint_path = Path(checkpoint_dir)
@@ -46,12 +41,7 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
 
 
 def validate_policy_environment_match(policy: Any, env: Any) -> None:
-    """Validate that policy's observation shape matches environment's.
-    
-    Args:
-        policy: Policy network (MettaAgent or DistributedMettaAgent)
-        env: Environment instance
-    """
+    """Validate that policy's observation shape matches environment's."""
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):
         agent = policy
@@ -88,15 +78,7 @@ def validate_policy_environment_match(policy: Any, env: Any) -> None:
 
 
 def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
-    """Wrap agent in DistributedMettaAgent if distributed training is initialized.
-
-    Args:
-        agent: The agent to potentially wrap
-        device: The device to use
-
-    Returns:
-        The agent, possibly wrapped in DistributedMettaAgent
-    """
+    """Wrap agent in DistributedMettaAgent if distributed training is initialized."""
     if torch.distributed.is_initialized():
         # Always use DistributedMettaAgent for its __getattr__ forwarding
         agent = DistributedMettaAgent(agent, device)
@@ -114,23 +96,7 @@ def maybe_load_checkpoint(
     is_master: bool,
     rank: int,
 ) -> Tuple[Any | None, Any, int, int]:
-    """Load checkpoint and policy if they exist, or create new ones.
-
-    This unifies the checkpoint loading logic from trainer.py and run.py.
-
-    Args:
-        run_dir: Directory containing checkpoints
-        policy_store: PolicyStore instance
-        trainer_cfg: TrainerConfig with checkpoint settings
-        metta_grid_env: MettaGridEnv instance for policy creation
-        cfg: Full config for policy creation
-        device: Device to load on
-        is_master: Whether this is the master process
-        rank: Process rank for distributed training
-
-    Returns:
-        Tuple of (checkpoint, policy_record, agent_step, epoch)
-    """
+    """Load checkpoint and policy if they exist, or create new ones."""
     # Try to load checkpoint
     checkpoint = TrainerCheckpoint.load(run_dir)
     agent_step = 0
@@ -228,18 +194,7 @@ def ensure_initial_policy(
     loaded_policy_path: str | None,
     device: torch.device,
 ) -> None:
-    """Ensure all ranks have the same initial policy in distributed training.
-
-    If no checkpoint exists, master creates and saves the initial policy,
-    then all ranks synchronize. In single GPU mode, just saves the initial policy.
-
-    Args:
-        agent: The agent to initialize
-        policy_store: PolicyStore instance
-        checkpoint_path: Directory for checkpoints
-        loaded_policy_path: Path to already loaded policy (None if no checkpoint)
-        device: Training device
-    """
+    """Ensure all ranks have the same initial policy in distributed training."""
     # If we already loaded a policy, nothing to do
     if loaded_policy_path is not None:
         return
@@ -313,12 +268,7 @@ def load_or_initialize_policy(
     is_master: bool,
     rank: int,
 ) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
-    """
-    Load or initialize policy with distributed coordination.
-
-    Returns:
-        Tuple of (policy, initial_policy_record, latest_saved_policy_record)
-    """
+    """Load or initialize policy with distributed coordination."""
     trainer_cfg = cfg.trainer
 
     # Check if policy already exists at default path - all ranks check this

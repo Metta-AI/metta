@@ -23,23 +23,7 @@ def compute_advantage(
     vtrace_c_clip: float,
     device: Union[torch.device, str],
 ) -> Tensor:
-    """CUDA kernel for puffer advantage with automatic CPU & MPS fallback.
-    
-    Args:
-        values: Value estimates
-        rewards: Reward values
-        dones: Episode done flags
-        importance_sampling_ratio: IS ratio
-        advantages: Advantage tensor to fill
-        gamma: Discount factor
-        gae_lambda: GAE lambda parameter
-        vtrace_rho_clip: V-trace rho clipping
-        vtrace_c_clip: V-trace c clipping
-        device: Compute device
-    
-    Returns:
-        Computed advantages tensor
-    """
+    """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
     # Get correct device
     device = torch.device(device) if isinstance(device, str) else device
 
@@ -73,15 +57,7 @@ def compute_advantage(
 
 
 def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tensor:
-    """Normalize advantages with distributed training support while preserving shape.
-    
-    Args:
-        adv: Advantage tensor to normalize
-        norm_adv: Whether to normalize (True) or not (False)
-    
-    Returns:
-        Normalized advantages tensor
-    """
+    """Normalize advantages with distributed training support while preserving shape."""
     if not norm_adv:
         return adv
 
