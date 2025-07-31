@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Callable
 
 from devops.docker.push_image import push_image
+from metta.common.util.constants import DEV_STATS_SERVER_URI, METTA_AWS_ACCOUNT_ID, METTA_AWS_REGION
 from metta.common.util.fs import get_repo_root
 from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.utils import error, info, success
@@ -208,7 +209,7 @@ class KindLocal(Kind):
             error("No WANDB API key found. Please run 'wandb login' and try again.")
             sys.exit(1)
 
-        machine_token = get_machine_token("http://localhost:8000")
+        machine_token = get_machine_token(DEV_STATS_SERVER_URI)
 
         info("Creating secrets...")
         self._create_secret("wandb-api-secret", f"api-key={wandb_api_key}")
@@ -241,8 +242,8 @@ class KindLocal(Kind):
 
 
 class EksProd(Kind):
-    aws_account_id = "751442549699"
-    aws_region = "us-east-1"
+    aws_account_id = METTA_AWS_ACCOUNT_ID
+    aws_region = METTA_AWS_REGION
     cluster_name = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/main"
     namespace = "orchestrator"
     context = cluster_name

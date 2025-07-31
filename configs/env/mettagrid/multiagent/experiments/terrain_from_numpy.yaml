@@ -6,8 +6,6 @@ defaults:
   - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
-sampling: 1
-
 game:
   num_agents: 32
   agent:
@@ -53,13 +51,11 @@ game:
         wall: 20
   objects:
     altar:
-      # initial_resource_count: ${choose:0,1}
       cooldown: 10
       input_resources:
         battery_red: 1
 
     generator_red:
-      # initial_resource_count: ${choose:0,1}
       cooldown: 10
 
     # generator_blue:

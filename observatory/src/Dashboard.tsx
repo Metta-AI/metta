@@ -10,6 +10,7 @@ import { Heatmap } from './Heatmap'
 import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
+import { METTASCOPE_REPLAY_URL } from './constants'
 
 interface DashboardProps {
   repo: Repo
@@ -188,7 +189,7 @@ export function Dashboard({ repo }: DashboardProps) {
     const cell = heatmapData?.cells[policyName]?.[evalName]
     if (!cell?.replayUrl) return
 
-    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
     window.open(replay_url_prefix + cell.replayUrl, '_blank')
   }
 

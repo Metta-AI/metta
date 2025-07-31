@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/bucketed
+  curriculum: /env/mettagrid/curriculum/operant_conditioning/backchaining
 
 policy_uri: wandb://run/daphne.navigation.earlyterm.any.1.07-29
 

@@ -9,7 +9,7 @@ game:
     root:
       params:
         objects:
-          mine_blue: 1
+          mine_green: 1
           generator_red: 1
           generator_blue: 1
           generator_green: 1
@@ -30,6 +30,10 @@ game:
         battery_blue: 0
     generator_green:
       cooldown: 1
+      input_resources:
+        ore_green: 1
+        ore_blue: 0
+        ore_red: 0
       output_resources:
         battery_green: 0
         heart: 1

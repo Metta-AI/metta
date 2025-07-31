@@ -39,6 +39,9 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "navigation/training/",
         # These are broken into different files to work around curriculum needs. They don't load right in this test.
         "cooperation/experimental/",
+        "navigation_sequence/experiments",
+        "multiagent/experiments/",
+        "multiagent/multiagent/",
     ]
 
     # exclude some configs that won't work
@@ -47,6 +50,8 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
     return result
 
 
+# TODO: This should probably be switched to "is this config either an env or a curriculum" or something, so we need
+# fewer exceptions. We could also standardize naming to help with this.
 @pytest.mark.parametrize("cfg_metadata", map_or_env_configs(), ids=[cfg.path for cfg in map_or_env_configs()])
 class TestValidateAllEnvs:
     def test_map(self, cfg_metadata: MettagridCfgFileMetadata):
