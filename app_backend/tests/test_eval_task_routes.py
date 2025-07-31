@@ -258,6 +258,7 @@ class TestEvalTaskRoutes:
                 (episode.id,),
             )
             row = await result.fetchone()
+            assert row is not None
             assert row[0] == eval_task_id
 
     @pytest.mark.asyncio
