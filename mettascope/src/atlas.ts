@@ -62,12 +62,7 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
   }
 }
 
-export async function loadAtlasImage(
-  url: string,
-  options: {
-    premultiplyAlpha?: 'none' | 'premultiply' | 'default'
-  } = {}
-): Promise<ImageBitmap | null> {
+export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   try {
     const res = await fetch(url)
     if (!res.ok) {
@@ -77,7 +72,7 @@ export async function loadAtlasImage(
     // Use premultiplied alpha to fix border issues
     return await createImageBitmap(blob, {
       colorSpaceConversion: 'none',
-      premultiplyAlpha: options.premultiplyAlpha ?? 'premultiply',
+      premultiplyAlpha: 'premultiply',
     })
   } catch (err) {
     console.error(`Error loading image ${url}:`, err)
@@ -94,7 +89,6 @@ export function createTexture(
     minFilter?: number
     magFilter?: number
     generateMipmap?: boolean
-    premultipliedAlpha?: boolean
     pixelArt?: boolean
   } = {}
 ): WebGLTexture | null {
@@ -105,10 +99,7 @@ export function createTexture(
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
 
-  // Always use premultiplied alpha for sprite atlases (default true)
-  if (options.premultipliedAlpha !== false) {
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
-  }
+  // Don't set UNPACK_PREMULTIPLY_ALPHA since the image is already premultiplied
 
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
@@ -143,12 +134,9 @@ export async function loadAtlas(
   gl: WebGLRenderingContext,
   jsonUrl: string,
   imageUrl: string,
-  options?: {
-    textureOptions?: Parameters<typeof createTexture>[2]
-    imageOptions?: Parameters<typeof loadAtlasImage>[1]
-  }
+  textureOptions?: Parameters<typeof createTexture>[2]
 ): Promise<Atlas | null> {
-  const [json, image] = await Promise.all([loadAtlasJson(jsonUrl), loadAtlasImage(imageUrl, options?.imageOptions)])
+  const [json, image] = await Promise.all([loadAtlasJson(jsonUrl), loadAtlasImage(imageUrl)])
 
   if (!json || !image) {
     return null
@@ -156,10 +144,7 @@ export async function loadAtlas(
 
   const [data, metadata] = json
 
-  const texture = createTexture(gl, image, {
-    premultipliedAlpha: options?.imageOptions?.premultiplyAlpha !== 'none',
-    ...options?.textureOptions,
-  })
+  const texture = createTexture(gl, image, textureOptions)
   if (!texture) {
     return null
   }

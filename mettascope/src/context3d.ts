@@ -34,9 +34,7 @@ const FRAGMENT_SHADER_SOURCE = `
 
   void main() {
     vec4 texColor = texture2D(u_sampler, v_texcoord);
-    // Do the premultiplied alpha conversion.
-    vec4 premultipliedColor = vec4(texColor.rgb * texColor.a, texColor.a);
-    gl_FragColor = premultipliedColor * v_color;
+    gl_FragColor = texColor * v_color;
   }
 `
 
@@ -203,19 +201,8 @@ export class Context3d {
       this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
     }
 
-    this.mainAtlas = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl, {
-      wrapS: this.gl.REPEAT,
-      wrapT: this.gl.REPEAT,
-      minFilter: this.gl.LINEAR_MIPMAP_LINEAR,
-      magFilter: this.gl.LINEAR,
-    })
-
-    this.fontAtlas = await loadAtlas(this.gl, fontJsonUrl, fontImageUrl, {
-      wrapS: this.gl.REPEAT,
-      wrapT: this.gl.REPEAT,
-      minFilter: this.gl.LINEAR_MIPMAP_LINEAR,
-      magFilter: this.gl.LINEAR,
-    })
+    this.mainAtlas = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl)
+    this.fontAtlas = await loadAtlas(this.gl, fontJsonUrl, fontImageUrl)
 
     // Create and compile shaders
     const vertexShader = this.createShader(this.gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE)

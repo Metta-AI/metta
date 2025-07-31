@@ -98,7 +98,7 @@ function generateGlyphTableRows(filter = '') {
           value="${glyphString}"
           data-glyph-id="${i}"
           placeholder="∅"
-          maxlength="20"
+          maxlength="40"
         >
       </td>
 
