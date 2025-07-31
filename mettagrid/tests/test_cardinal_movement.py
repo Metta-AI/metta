@@ -4,7 +4,7 @@ import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_env import dtype_actions
-from mettagrid.tests.conftest import make_test_config
+from tests.test_utils import make_test_config
 
 
 def test_cardinal_movement_basic():

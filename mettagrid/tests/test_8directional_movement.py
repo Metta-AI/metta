@@ -31,7 +31,7 @@ def test_8directional_movement_all_directions():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
     initial_orientation = objects[agent_id]["orientation"]
     assert initial_pos == (2, 2)
@@ -60,7 +60,7 @@ def test_8directional_movement_all_directions():
         actual_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
         assert actual_pos == expected_pos, f"Direction {direction}: expected {expected_pos}, got {actual_pos}"
         
-        # Verify orientation hasn't changed
+        # Verify orientation hasn't changed (atomic action principle)
         assert objects[agent_id]["orientation"] == initial_orientation
 
 
@@ -87,7 +87,7 @@ def test_8directional_movement_obstacles():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
     action_names = env.action_names()
     move_8dir_idx = action_names.index("move_8directional")
@@ -135,7 +135,7 @@ def test_orientation_unchanged_with_8directional():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
     action_names = env.action_names()
     move_8dir_idx = action_names.index("move_8directional")
@@ -179,7 +179,7 @@ def test_cardinal_movement_no_orientation_change():
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
     action_names = env.action_names()
     move_cardinal_idx = action_names.index("move_cardinal")
