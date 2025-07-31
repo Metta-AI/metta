@@ -23,6 +23,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
@@ -70,6 +71,7 @@ class EvalTaskWorker:
 
         return result
 
+    @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self) -> None:
         self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
         if os.path.exists(self._versioned_path):
@@ -111,6 +113,7 @@ class EvalTaskWorker:
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
+    @trace("worker.run_sim_task")
     async def _run_sim_task(
         self,
         task: TaskResponse,
@@ -144,6 +147,7 @@ class EvalTaskWorker:
 
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
+    @trace("worker.update_status")
     async def _update_task_status(
         self,
         task_id: uuid.UUID,
@@ -208,6 +212,7 @@ class EvalTaskWorker:
 
 async def main() -> None:
     init_logging()
+    init_tracing()
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logger = logging.getLogger(__name__)
 
