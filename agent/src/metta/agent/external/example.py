@@ -74,22 +74,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             lstm_c = lstm_c.to(self.device)
             # Ensure LSTM state shapes match
             expected_num_layers = self.lstm.num_layers
-            if lstm_h.shape[0] != expected_num_layers:
-                if lstm_h.shape[0] > expected_num_layers:
-                    lstm_h = lstm_h[:expected_num_layers, :, :]
-                    lstm_c = lstm_c[:expected_num_layers, :, :]
-                else:
-                    pad_size = expected_num_layers - lstm_h.shape[0]
-                    lstm_h = torch.cat([lstm_h, torch.zeros_like(lstm_h[:pad_size, :, :])], dim=0)
-                    lstm_c = torch.cat([lstm_c, torch.zeros_like(lstm_c[:pad_size, :, :])], dim=0)
-            if lstm_h.shape[1] != B:
-                if lstm_h.shape[1] > B:
-                    lstm_h = lstm_h[:, :B, :]
-                    lstm_c = lstm_c[:, :B, :]
-                else:
-                    pad_size = B - lstm_h.shape[1]
-                    lstm_h = torch.cat([lstm_h, torch.zeros_like(lstm_h[:, :pad_size, :])], dim=1)
-                    lstm_c = torch.cat([lstm_c, torch.zeros_like(lstm_c[:, :pad_size, :])], dim=1)
+            lstm_h = lstm_h[:expected_num_layers, :, :]
+            lstm_c = lstm_c[:expected_num_layers, :, :]
             lstm_state = (lstm_h, lstm_c)
         else:
             lstm_state = None
