@@ -121,6 +121,26 @@ class TorchProfilerConfig(BaseModelWithForbidExtra):
         return self
 
 
+class DualPolicyConfig(BaseModelWithForbidExtra):
+    """Configuration for dual-policy training where some agents use training policy and others use NPC policy."""
+
+    # Enable dual-policy training
+    enabled: bool = Field(default=False)
+
+    # NPC policy configuration
+    checkpoint_npc: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
+
+    # Percentage of agents that use the training policy (0.0 to 1.0)
+    # The remaining agents will use the NPC policy
+    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "DualPolicyConfig":
+        if self.enabled and not self.checkpoint_npc.uri:
+            raise ValueError("checkpoint_npc.uri must be set when dual_policy.enabled is True")
+        return self
+
+
 class TrainerConfig(BaseModelWithForbidExtra):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
@@ -139,6 +159,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # V-trace
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+
+    # Dual-policy training configuration
+    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     # System configuration
     # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)

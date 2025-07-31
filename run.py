@@ -47,6 +47,7 @@ from metta.rl.policy_management import (
 from metta.rl.rollout import (
     get_lstm_config,
     get_observation,
+    run_dual_policy_rollout,
     run_policy_inference,
 )
 from metta.rl.stats import (
@@ -300,6 +301,35 @@ agent, policy_record, agent_step, epoch, checkpoint = create_or_load_agent(
     rank=rank,
 )
 
+# Load NPC policy for dual-policy training if enabled
+npc_policy_record = None
+if trainer_config.dual_policy.enabled:
+    npc_uri = trainer_config.dual_policy.checkpoint_npc.uri
+    if npc_uri is None:
+        raise ValueError("NPC policy URI must be set when dual_policy.enabled is True")
+
+    logger.info(f"Loading NPC policy from: {npc_uri}")
+    npc_policy_record = policy_store.load_from_uri(npc_uri)
+
+    # Initialize NPC policy to environment
+    npc_policy = npc_policy_record.policy
+    features = metta_grid_env.get_observation_features()
+    action_names = metta_grid_env.action_names
+    max_args = metta_grid_env.max_action_args
+
+    # Restore original feature mapping if available
+    if (
+        hasattr(npc_policy, "restore_original_feature_mapping")
+        and "original_feature_mapping" in npc_policy_record.metadata
+    ):
+        npc_policy.restore_original_feature_mapping(npc_policy_record.metadata["original_feature_mapping"])
+
+    npc_policy.initialize_to_environment(features, action_names, max_args, device)
+    npc_policy._initialized_to_env = True  # Mark as initialized
+
+    logger.info(f"NPC policy loaded successfully: {npc_policy_record.run_name}")
+    logger.info(f"Dual-policy training enabled: {trainer_config.dual_policy.training_agents_pct:.1%} training agents")
+
 # Get LSTM config from the agent
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
@@ -451,12 +481,27 @@ while agent_step < trainer_config.total_timesteps:
         o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
         agent_step += num_steps
 
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            agent, o, experience, training_env_id.start, device
-        )
+        # Run policy inference (dual-policy or single-policy)
+        if trainer_config.dual_policy.enabled and npc_policy_record is not None:
+            # Dual-policy training: some agents use training policy, others use NPC policy
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_dual_policy_rollout(
+                training_policy=agent,
+                npc_policy_record=npc_policy_record,
+                observations=o,
+                experience=experience,
+                training_env_id_start=training_env_id.start,
+                device=device,
+                training_agents_pct=trainer_config.dual_policy.training_agents_pct,
+                num_agents_per_env=env.num_agents,  # type: ignore
+                num_envs=env.num_envs,  # type: ignore
+            )
+        else:
+            # Single-policy training: all agents use training policy
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                agent, o, experience, training_env_id.start, device
+            )
 
-        # Store experience
+        # Store experience (only from training policy agents in dual-policy mode)
         experience.store(
             obs=o,
             actions=actions,

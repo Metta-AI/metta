@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 from torch import Tensor
 
+from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.mettagrid.mettagrid_env import dtype_actions
@@ -63,6 +64,102 @@ def rollout(
             raw_infos.extend(info)
 
     return total_steps, raw_infos
+
+
+def run_dual_policy_rollout(
+    training_policy: torch.nn.Module,
+    npc_policy_record: PolicyRecord,
+    observations: Tensor,
+    experience: Experience,
+    training_env_id_start: int,
+    device: torch.device,
+    training_agents_pct: float,
+    num_agents_per_env: int,
+    num_envs: int,
+) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
+    """Run dual-policy rollout where some agents use training policy and others use NPC policy.
+
+    Args:
+        training_policy: The policy being trained
+        npc_policy_record: The NPC policy record loaded from wandb URI
+        observations: Observations tensor of shape (total_agents, *obs_shape)
+        experience: Experience buffer
+        training_env_id_start: Starting environment ID
+        device: Device to run inference on
+        training_agents_pct: Percentage of agents that use training policy
+        num_agents_per_env: Number of agents per environment
+        num_envs: Number of environments
+
+    Returns:
+        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
+        Only includes data from training policy agents, NPC data is excluded
+    """
+    with torch.no_grad():
+        # Calculate agent indices for training vs NPC policies
+        training_agents_per_env = max(1, int(num_agents_per_env * training_agents_pct))
+        npc_agents_per_env = num_agents_per_env - training_agents_per_env
+
+        # Create index matrices for all environments
+        total_agents = num_envs * num_agents_per_env
+        idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
+
+        # Training policy agents: first training_agents_per_env agents in each env
+        training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
+        # NPC agents: remaining agents in each env
+        npc_idxs = (
+            idx_matrix[:, training_agents_per_env:].reshape(-1)
+            if npc_agents_per_env > 0
+            else torch.tensor([], device=device, dtype=torch.long)
+        )
+
+        # Get training policy actions for training agents
+        training_obs = observations[training_idxs]
+        training_state = PolicyState()
+        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
+        if lstm_h is not None:
+            training_state.lstm_h = lstm_h
+            training_state.lstm_c = lstm_c
+
+        training_actions, training_log_probs, _, training_values, _ = training_policy(training_obs, training_state)
+
+        # Get NPC policy actions for NPC agents (if any)
+        if len(npc_idxs) > 0:
+            npc_obs = observations[npc_idxs]
+            npc_policy = npc_policy_record.policy
+            npc_state = PolicyState()
+
+            # Initialize NPC policy to environment if needed
+            if not hasattr(npc_policy, "_initialized_to_env"):
+                # This would need to be done during setup, but for now we'll assume it's already done
+                pass
+
+            npc_actions, npc_log_probs, _, npc_values, _ = npc_policy(npc_obs, npc_state)
+
+            # Combine actions: training agents first, then NPC agents
+            # Reshape to (num_envs, agents_per_env, action_dim)
+            training_actions_reshaped = training_actions.reshape(num_envs, training_agents_per_env, -1)
+            npc_actions_reshaped = npc_actions.reshape(num_envs, npc_agents_per_env, -1)
+
+            # Concatenate along agents dimension
+            all_actions = torch.cat([training_actions_reshaped, npc_actions_reshaped], dim=1)
+            # Flatten back to (total_agents, action_dim)
+            actions = all_actions.reshape(-1, all_actions.shape[-1])
+        else:
+            # No NPC agents, use only training actions
+            actions = training_actions
+
+        # Store LSTM state for training policy only
+        lstm_state_to_store = None
+        if training_state.lstm_h is not None and training_state.lstm_c is not None:
+            lstm_state_to_store = {"lstm_h": training_state.lstm_h.detach(), "lstm_c": training_state.lstm_c.detach()}
+
+        if str(device).startswith("cuda"):
+            torch.cuda.synchronize()
+
+    # Return only training policy data (actions, log_probs, values)
+    # The actions tensor contains all agents' actions for environment step
+    # But we only return training policy's log_probs and values for experience storage
+    return actions, training_log_probs, training_values.flatten(), lstm_state_to_store
 
 
 def get_observation(
