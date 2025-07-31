@@ -326,13 +326,11 @@ export function updateAvailableColumns() {
   ]
   for (const name of availableColumnNames) {
     availableColumns.push(new ColumnDefinition(name, false))
-    availableColumns.push(new ColumnDefinition(name, true))
   }
   // Add resources as available columns.
   for (let itemId = 0; itemId < state.replay.itemNames.length; itemId++) {
     const itemName = state.replay.itemNames[itemId]
     availableColumns.push(new ColumnDefinition(itemName, false, itemId))
-    availableColumns.push(new ColumnDefinition(itemName, true, itemId))
   }
 
   if (availableColumns.length === 0) {
