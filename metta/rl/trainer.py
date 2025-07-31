@@ -421,7 +421,7 @@ def train(
                     env_overrides=sim_suite_config.env_overrides,
                     num_episodes=sim_suite_config.num_episodes,
                 )
-                
+
                 # Add training task to the suite
                 # Pass the config as _pre_built_env_config to avoid Hydra loading
                 task_cfg = curriculum.get_task().env_cfg()
@@ -431,7 +431,7 @@ def train(
                     env_overrides={"_pre_built_env_config": task_cfg},
                 )
                 extended_suite_config.simulations["eval/training_task"] = training_task_config
-                
+
                 # Evaluate policy using the extracted evaluation function
                 eval_scores = evaluate_policy(
                     policy_record=latest_saved_policy_record,
