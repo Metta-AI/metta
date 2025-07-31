@@ -212,8 +212,6 @@ function drawObject(gridObject: Entity) {
   } else {
     // Draw regular objects.
     ctx.drawSprite(state.replay.objectImages[type], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
-
-    // TODO Make heart work
   }
 }
 
@@ -331,6 +329,40 @@ function drawInventory(useSearch = false) {
       const num = inventoryPair[1]
       numItems += num
     }
+    // If object has one output resource, and its in the inventory,
+    // draw it in the center. This is used to draw the hard over an altar.
+    if (
+      gridObject.outputResources.length === 1 &&
+      inventory.length === 1 &&
+      inventory[0][1] === 1 &&
+      inventory[0][0] === gridObject.outputResources[0][0]
+    ) {
+      const itemName = state.replay.itemNames[gridObject.outputResources[0][0]]
+      if (useSearch) {
+        if (searchMatch(itemName)) {
+          // Draw halo behind the icon.
+          ctx.drawSprite(
+            'effects/halo.png',
+            x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
+            y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
+            [1, 1, 1, 1],
+            0.25,
+            0
+          )
+        }
+      }
+      const icon = `resources/${itemName}.png`
+      ctx.drawSprite(
+        icon,
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 8,
+        [1, 1, 1, 1],
+        1 / 2,
+        0
+      )
+      continue
+    }
+
     // Draw the actual inventory icons.
     const advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
     for (const inventoryPair of inventory) {
