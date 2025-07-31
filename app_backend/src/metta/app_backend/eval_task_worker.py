@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 
 from devops.observatory_login import CLIAuthenticator
-from metta.app_backend.eval_task_client import EvalTaskClient
+from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     TaskResponse,
     TaskStatus,

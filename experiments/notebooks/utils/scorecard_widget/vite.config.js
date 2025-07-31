@@ -6,15 +6,15 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
   build: {
-    outDir: "heatmap_widget/static",
+    outDir: "scorecard_widget/static",
     lib: {
       entry: ["src/index.tsx"],
       formats: ["es"],
     },
     rollupOptions: {
       external: [
-        // Externalize the symlinked Heatmap component from Observatory
-        './src/Heatmap.tsx',
+        // Externalize the symlinked Scorecard component from Observatory
+        './src/Scorecard.tsx',
       ],
     },
   },

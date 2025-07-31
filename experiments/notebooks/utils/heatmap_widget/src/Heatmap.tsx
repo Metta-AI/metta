@@ -1,1 +1,0 @@
-../../../../../observatory/src/Heatmap.tsx

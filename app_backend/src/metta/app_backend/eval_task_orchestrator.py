@@ -15,10 +15,10 @@ import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.factory import create_container_manager
 from metta.app_backend.container_managers.models import WorkerInfo
-from metta.app_backend.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
     TaskResponse,
