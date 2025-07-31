@@ -44,6 +44,10 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 - do not write comments that are redundant with code.
 - common.ts is imported by most parts of mettascope and contains all the state.
 - Most 'magic number' constants should live in ./mettascope/src/common.ts
+- code is expected to fail fast and loudly. DO NOT use silent error suppression or error hiding.
+  - if a function gets invalid input, we should throw an error.
+  - if a function returns an error, allow that error to bubble up.
+
 
 - ./mettascope/src/vector_math.ts has Vec2f and Mat3f.
 - Do not pass X and Y arguments separately. pass them as a Vec2f.
