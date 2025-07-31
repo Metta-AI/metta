@@ -31,7 +31,6 @@ class ColumnDefinition {
     field: string,
     isFinal: boolean,
     sortDirection: SortDirection = SortDirection.None,
-    _isStepColumn = false,
     itemId: number = -1
   ) {
     this.field = field
@@ -311,7 +310,6 @@ export function updateAvailableColumns() {
   typeaheadValue = typeahead.value
   const noMatchFound = find('#new-column-dropdown .no-match-found')
 
-  // All agent keys:
   // Add object fields as available columns.
   const availableColumnNames = [
     "agentId",
@@ -379,8 +377,8 @@ function getInventoryAmount(agent: any, itemName: string, step: number) {
   return 0
 }
 
-/** Try to load a value from the agent or return 0, never error. */
-function tryLoadValue(agent: any, field: string, step: number) {
+/** Try to load a value from the agent or return 0. */
+function getColumnValue(agent: any, field: string, step: number) {
   if (state.replay.itemNames.includes(field)) {
     return getInventoryAmount(agent, field, step)
   }
@@ -409,12 +407,12 @@ export function updateAgentTable() {
     let bValue: number
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
-      aValue = tryLoadValue(a, mainSort.field, state.replay.maxSteps - 1)
-      bValue = tryLoadValue(b, mainSort.field, state.replay.maxSteps - 1)
+      aValue = getColumnValue(a, mainSort.field, state.replay.maxSteps - 1)
+      bValue = getColumnValue(b, mainSort.field, state.replay.maxSteps - 1)
     } else {
       // Uses the current step for the sort.
-      aValue = tryLoadValue(a, mainSort.field, state.step)
-      bValue = tryLoadValue(b, mainSort.field, state.step)
+      aValue = getColumnValue(a, mainSort.field, state.step)
+      bValue = getColumnValue(b, mainSort.field, state.step)
     }
     // Sort direction adjustment.
     if (mainSort.sortDirection === SortDirection.Descending) {
@@ -451,9 +449,9 @@ export function updateAgentTable() {
 
         let value: number
         if (columnDef.isFinal) {
-          value = tryLoadValue(agent, columnDef.field, state.replay.maxSteps - 1)
+          value = getColumnValue(agent, columnDef.field, state.replay.maxSteps - 1)
         } else {
-          value = tryLoadValue(agent, columnDef.field, state.step)
+          value = getColumnValue(agent, columnDef.field, state.step)
         }
         if (value == null) {
           value = 0
