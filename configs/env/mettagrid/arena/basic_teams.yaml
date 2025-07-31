@@ -1,0 +1,34 @@
+# Simple map with mines / generators / altar
+# and team-based reward sharing.
+
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/groups/solo_team@game.groups
+  - /env/mettagrid/game/objects@game.objects:
+      - basic
+      - mines
+      - generators
+  - _self_
+
+game:
+  num_agents: 24
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+
+    width: 25
+    height: 25
+    instances: ${div:${..num_agents},6}
+    border_width: 6
+    instance_border_width: 0
+
+    root:
+      type: metta.map.scenes.random.Random
+      params:
+        agents: 6
+        objects:
+          mine_red: 10
+          generator_red: 5
+          altar: 5
+
+          block: 20
+          wall: 20

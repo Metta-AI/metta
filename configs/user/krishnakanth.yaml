@@ -1,0 +1,41 @@
+# @package __global__
+
+# User config for krishnakanth - Arena Teams training
+
+defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/all@evals
+  - _self_
+
+# Basic run configuration
+run: krishnakanth_arena_teams
+cmd: train
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/arena/learning_progress
+  num_workers: 4
+  optimizer:
+    type: muon
+    learning_rate: 0.0045
+  simulation:
+    evaluate_interval: 50
+  checkpoint:
+    wandb_checkpoint_interval: 100
+  total_timesteps: 10_000_000_000
+
+# Wandb configuration
+wandb:
+  enabled: true
+  project: metta
+  entity: metta-research
+  group: ${run}
+  name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: ${cmd}
+  #tags: ["krishnakanth", "arena_teams", "learning_progress"]

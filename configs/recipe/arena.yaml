@@ -1,0 +1,7 @@
+trainer:
+  curriculum: /env/mettagrid/curriculum/arena/learning_progress \
+  optimizer:
+    learning_rate: 0.0045
+    type: muon
+  simulation:
+    evaluate_interval: 50
