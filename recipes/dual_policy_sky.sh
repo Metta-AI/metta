@@ -29,6 +29,7 @@ echo "Num workers: $NUM_WORKERS"
     trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
     "$@"
 
-echo "Training completed!"
+sky status
+
 echo "Results available at: ./train_dir/$RUN_NAME/"
 echo "WandB run: https://wandb.ai/metta-research/dual_policy_training/runs/$RUN_NAME"
