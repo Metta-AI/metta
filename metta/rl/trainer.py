@@ -60,15 +60,15 @@ from metta.rl.util.rollout import (
     get_observation,
     run_policy_inference,
 )
-from metta.rl.util.stats import (
+from metta.rl.vecenv import make_vecenv
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
