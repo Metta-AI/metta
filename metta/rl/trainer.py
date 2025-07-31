@@ -519,19 +519,27 @@ def train(
                 kickstarter=kickstarter,
                 force=True,
             )
+    else:
+        # Non-master ranks log their status
+        if torch.distributed.is_initialized():
+            logger.info(f"[Rank {torch.distributed.get_rank()}] Skipping save (non-master)")
 
     # Only master uploads to wandb
     if is_master and wandb_run and latest_saved_policy_record:
         logger.info("Uploading final policy to wandb...")
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record, force=True)
         logger.info("Wandb upload complete")
+    else:
+        # Non-master ranks log their status
+        if torch.distributed.is_initialized() and not is_master:
+            logger.info(f"[Rank {torch.distributed.get_rank()}] Skipping wandb upload (non-master)")
 
     # Single final synchronization - ALL ranks must wait here
     # This ensures all work (including wandb upload) is complete before any rank exits
     if torch.distributed.is_initialized():
-        logger.info(f"[Rank {torch.distributed.get_rank()}] Waiting at final barrier")
+        logger.info(f"[Rank {torch.distributed.get_rank()}] About to wait at final barrier")
         torch.distributed.barrier()
-        logger.info(f"[Rank {torch.distributed.get_rank()}] Passed final barrier")
+        logger.info(f"[Rank {torch.distributed.get_rank()}] Successfully passed final barrier")
 
     # Cleanup
     vecenv.close()
