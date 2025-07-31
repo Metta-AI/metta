@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 def evaluate_policy(
     *,
     policy_record: Any,
-    policy_uri: str,
     sim_suite_config: SimulationSuiteConfig,
     device: torch.device,
     vectorization: str,
@@ -81,7 +80,6 @@ def evaluate_policy(
                 # TODO: need policy evaluator to generate replays and push stats to wandb
 
     # Local evaluation
-    logger.info(f"Simulating policy: {policy_uri} with extended config including training task")
     evaluation_results = eval_service_evaluate_policy(
         policy_record=policy_record,
         simulation_suite=sim_suite_config,

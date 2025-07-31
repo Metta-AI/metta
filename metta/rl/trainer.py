@@ -177,7 +177,7 @@ def train(
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
-        policy = torch.compile(policy, mode=trainer_cfg.compile_mode)  # type: ignore
+        policy = torch.compile(policy, mode=trainer_cfg.compile_mode)
 
     # Create kickstarter
     kickstarter = Kickstarter(
@@ -442,7 +442,6 @@ def train(
                 # Evaluate policy using the extracted evaluation function
                 eval_scores = evaluate_policy(
                     policy_record=latest_saved_policy_record,
-                    policy_uri=latest_saved_policy_record.uri,
                     sim_suite_config=extended_suite_config,
                     device=device,
                     vectorization=cfg.vectorization,
