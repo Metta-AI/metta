@@ -319,7 +319,9 @@ def load_or_initialize_policy(
     policy, initial_policy_record, latest_saved_policy_record = None, None, None
 
     if is_master:
-        return load_or_initialize_policy_master(cfg, checkpoint, policy_store, metta_grid_env)
+        policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy_master(
+            cfg, checkpoint, policy_store, metta_grid_env
+        )
 
     # receive policy from master using NCCL broadcasting
     policy, initial_policy_record, latest_saved_policy_record = (
