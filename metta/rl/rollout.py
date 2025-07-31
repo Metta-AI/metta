@@ -41,6 +41,25 @@ def get_observation(
     return o, r, d, t, info, training_env_id, mask, num_steps
 
 
+def send_observation(
+    vecenv: Any,
+    actions: Tensor,
+    dtype_actions: Any,
+    timer: Any,
+) -> None:
+    """Send actions back to the vectorized environment.
+
+    Args:
+        vecenv: The vectorized environment instance
+        actions: Tensor of actions to send to the environment
+        dtype_actions: The numpy dtype to cast actions to before sending
+        timer: Timer instance for profiling
+    """
+    # Send actions back to environment
+    with timer("_rollout.env"):
+        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+
+
 def run_policy_inference(
     policy: torch.nn.Module,
     observations: Tensor,

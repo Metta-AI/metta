@@ -36,7 +36,7 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.ppo import ppo
-from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference
+from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference, send_observation
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -295,7 +295,7 @@ def train(
                     o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
-                    # Run policy inference
+                    # Inference
                     actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
                         policy, o, experience, training_env_id.start, device
                     )
@@ -314,11 +314,9 @@ def train(
                         lstm_state=lstm_state_to_store,
                     )
 
-                    # Send actions back to environment
-                    with timer("_rollout.env"):
-                        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+                    # Send observation
+                    send_observation(vecenv, actions, dtype_actions, timer)
 
-                    # Collect info for batch processing
                     if info:
                         raw_infos.extend(info)
 
