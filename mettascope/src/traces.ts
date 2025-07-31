@@ -194,35 +194,24 @@ export function drawTrace(panel: PanelInfo) {
       }
 
       // Draw resource gain/loss.
-      // if (state.showResources && j > 0) {
-      //   const inventory = agent.inventory.get(j)
-      //   const prevInventory = agent.inventory.get(j - 1)
-      //   let y = 0
-      //   const step = 32
-      //   for (const inventoryPair of inventory) {
-      //     const inventoryId = inventoryPair[0]
-      //     const inventoryAmount = inventoryPair[1]
-      //     let diff = inventoryAmount
-      //     // If the inventory has changed, draw the sprite.
-      //     for (const prevInventoryPair of prevInventory) {
-      //       if (prevInventoryPair[0] === inventoryPair[0]) {
-      //         diff = inventoryAmount - prevInventoryPair[1]
-      //       }
-      //     }
-      //     for (let k = 0; k < diff; k++) {
-      //       const inventoryName = state.replay.itemNames[inventoryId]
-      //       const inventoryImage = `resources/${inventoryName}.png`
-      //       ctx.drawSprite(
-      //         inventoryImage,
-      //         j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-      //         i * Common.TRACE_HEIGHT + y,
-      //         [1, 1, 1, 1],
-      //         1 / 4
-      //       )
-      //       y += step
-      //     }
-      //   }
-      // }
+      if (state.showResources && j > 0) {
+        const gainMap = agent.gainMap[j]
+        let y = 0
+        const step = 32
+        for (const [inventoryId, inventoryAmount] of gainMap) {
+          const inventoryName = state.replay.itemNames[inventoryId]
+          const inventoryImage = `resources/${inventoryName}.png`
+          for (let k = 0; k < inventoryAmount; k++) {
+            ctx.drawSprite(
+              inventoryImage,
+              j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+              i * Common.TRACE_HEIGHT + y, [1, 1, 1, 1],
+              1 / 4
+            )
+            y += step
+          }
+        }
+      }
     }
   }
 
