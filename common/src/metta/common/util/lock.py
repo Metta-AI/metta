@@ -54,7 +54,9 @@ def run_once(fn: Callable[[], T]) -> T:
         dist.broadcast_object_list(result_list, src=0)
         result = result_list[0]
 
-    if group_initialized:
+    # Only destroy the process group if we created it AND we're not in a torchrun context
+    # torchrun sets TORCHELASTIC_RUN_ID, so we can use that to detect it
+    if group_initialized and not os.environ.get("TORCHELASTIC_RUN_ID"):
         dist.destroy_process_group()
 
     assert result is not None  # This should always be true after broadcast

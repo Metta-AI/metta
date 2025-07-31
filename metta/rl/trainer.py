@@ -534,12 +534,12 @@ def train(
         if torch.distributed.is_initialized() and not is_master:
             logger.info(f"[Rank {torch.distributed.get_rank()}] Skipping wandb upload (non-master)")
 
-    # Single final synchronization - ALL ranks must wait here
+    # Final synchronization - ALL ranks must wait here
     # This ensures all work (including wandb upload) is complete before any rank exits
     if torch.distributed.is_initialized():
-        logger.info(f"[Rank {torch.distributed.get_rank()}] About to wait at final barrier")
+        logger.info(f"[Rank {torch.distributed.get_rank()}] Waiting at final barrier")
         torch.distributed.barrier()
-        logger.info(f"[Rank {torch.distributed.get_rank()}] Successfully passed final barrier")
+        logger.info(f"[Rank {torch.distributed.get_rank()}] Passed final barrier - training complete")
 
     # Cleanup
     vecenv.close()
