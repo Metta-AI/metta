@@ -45,13 +45,14 @@ from metta.rl.training_loop import (
     should_run,
 )
 from metta.rl.vecenv import make_vecenv
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
     upload_policy_artifact,
 )
-from metta.stats import (
+from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
     process_stats,
@@ -413,11 +414,29 @@ def train(
                         attributes={},
                     ).id
 
+                # Create extended simulation suite that includes the training task
+                extended_suite_config = SimulationSuiteConfig(
+                    name=sim_suite_config.name,
+                    simulations=dict(sim_suite_config.simulations),
+                    env_overrides=sim_suite_config.env_overrides,
+                    num_episodes=sim_suite_config.num_episodes,
+                )
+                
+                # Add training task to the suite
+                # Pass the config as _pre_built_env_config to avoid Hydra loading
+                task_cfg = curriculum.get_task().env_cfg()
+                training_task_config = SingleEnvSimulationConfig(
+                    env="eval/training_task",  # Just a descriptive name
+                    num_episodes=1,
+                    env_overrides={"_pre_built_env_config": task_cfg},
+                )
+                extended_suite_config.simulations["eval/training_task"] = training_task_config
+                
                 # Evaluate policy using the extracted evaluation function
                 eval_scores = evaluate_policy(
                     policy_record=latest_saved_policy_record,
                     policy_uri=latest_saved_policy_record.uri,
-                    sim_suite_config=sim_suite_config,
+                    sim_suite_config=extended_suite_config,
                     device=device,
                     vectorization=cfg.vectorization,
                     replay_dir=trainer_cfg.simulation.replay_dir,
