@@ -9,8 +9,6 @@ defaults:
   - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
-sampling: 1
-
 labels:
   - sequence
 
@@ -19,12 +17,12 @@ game:
   max_steps: 2000
   agent:
     resource_limits:
-      ore_red: ${sampling:5,20,15}
-      battery_red: ${sampling:5,20,15}
+      ore_red: 15
+      battery_red: 15
     rewards:
       inventory:
-        ore_red: ${sampling:0.005,0.1, 0.01}
-        battery_red: ${sampling:0.01,0.3, 0.1}
+        ore_red: 0.01
+        battery_red: 0.1
         heart: 1
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
@@ -36,8 +34,8 @@ game:
       agents: 1
       dir: ???
       objects:
-        mine_red: ${sampling:5,20,15}
-        generator_red: ${sampling:5,20,15}
+        mine_red: 15
+        generator_red: 15
         altar: 5
   objects:
     altar:
@@ -47,6 +45,6 @@ game:
       cooldown: 1
     generator_red:
       initial_resource_count: 0
-      cooldown: ${sampling:100,500,100}
+      cooldown: 100
     mine_red:
-      cooldown: ${sampling:100,500,100}
+      cooldown: 100

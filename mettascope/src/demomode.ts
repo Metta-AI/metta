@@ -7,11 +7,11 @@
  * - Shows overall view.
  */
 
-import { requestFrame, setIsPlaying } from './main.js'
-import { focusFullMap, focusMap } from './worldmap.js'
-import { ui, state } from './common.js'
-import { getAttr } from './replay.js'
 import * as Common from './common.js'
+import { state, ui } from './common.js'
+import { requestFrame, setIsPlaying } from './main.js'
+import { getAttr } from './replay.js'
+import { focusFullMap, focusMap } from './worldmap.js'
 
 enum ShotType {
   FOCUS_AGENT = 'focus_agent',
@@ -43,12 +43,13 @@ class Shot {
 }
 
 /** Current active shot. */
-var shot: Shot | null = null
+let shot: Shot | null = null
 
 export function initDemoMode() {}
 
 export function startDemoMode() {
   state.demoMode = true
+  state.isPlaying = true
   requestFrame()
 }
 
@@ -72,7 +73,6 @@ export function doDemoMode() {
   if (!state.demoMode || state.replay == null) {
     return
   }
-  state.isPlaying = true
 
   // Is the current shot over?
   if (shot == null || shot.startTime + shot.duration < epochTime()) {
@@ -86,23 +86,23 @@ export function doDemoMode() {
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.2
     } else {
       // Find an agent that will do some thing interesting soon.
-      var agentId = Math.floor(Math.random() * state.replay.agents.length)
+      let agentId = Math.floor(Math.random() * state.replay.agents.length)
       for (let i = 0; i < state.replay.agents.length; i++) {
-        let agent = state.replay.agents[i]
+        const agent = state.replay.agents[i]
         let actionFound = false
         for (let j = 0; j < 10; j++) {
-          let action = getAttr(agent, 'action', state.step + j)
+          const action = getAttr(agent, 'action', state.step + j)
           if (action == null || action[0] == null || action[1] == null) {
             continue
           }
           const actionName = state.replay.action_names[action[0]]
-          let actionSuccess = getAttr(agent, 'action_success', state.step + j)
+          const actionSuccess = getAttr(agent, 'action_success', state.step + j)
           if (
-            actionName != 'noop' &&
-            actionName != 'rotate' &&
-            actionName != 'move' &&
-            actionName != 'change_color' &&
-            actionName != 'change_shape' &&
+            actionName !== 'noop' &&
+            actionName !== 'rotate' &&
+            actionName !== 'move' &&
+            actionName !== 'change_color' &&
+            actionName !== 'change_shape' &&
             actionSuccess
           ) {
             agentId = i
@@ -124,7 +124,7 @@ export function doDemoMode() {
     }
   }
 
-  let t = (epochTime() - shot.startTime) / shot.duration
+  const t = (epochTime() - shot.startTime) / shot.duration
   if (shot != null) {
     ui.mapPanel.zoomLevel = shot.zoomLevel - shot.zooming + shot.zooming * easeInOut(t)
   }

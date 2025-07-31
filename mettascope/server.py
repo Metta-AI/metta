@@ -3,17 +3,17 @@ import logging
 import webbrowser
 from pathlib import Path
 
-import hydra
 import numpy as np
 import torch as th
 import uvicorn
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
 import mettascope.replays as replays
-from metta.common.util.script_decorators import metta_script
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
+from metta.util.metta_script import metta_script
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -184,7 +184,11 @@ def make_app(cfg: DictConfig):
         while True:
             # Main message loop.
 
-            message = await websocket.receive_json()
+            try:
+                message = await websocket.receive_json()
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected by client")
+                break
 
             if message["type"] == "action":
                 action_message = message
@@ -236,7 +240,7 @@ def run(cfg: DictConfig, open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
-        server_url = "http://localhost:8000"
+        server_url = DEV_METTASCOPE_FRONTEND_URL
 
         @app.on_event("startup")
         async def _open_browser():
@@ -245,11 +249,4 @@ def run(cfg: DictConfig, open_url: str | None = None):
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
-@metta_script
-def main(cfg):
-    run(cfg)
-
-
-if __name__ == "__main__":
-    main()
+metta_script(run, "replay_job")

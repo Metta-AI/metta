@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 import torch
 from omegaconf import DictConfig
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 from .environment import _get_default_env_config
@@ -24,14 +25,13 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
     """
     # Create pre-built navigation evaluation configs
     base_nav_config = _get_default_env_config()
-    base_nav_config["sampling"] = 0  # Disable sampling for evaluation
 
     # Create evaluation configs for different terrain sizes
     simulations = {}
 
     # Small terrain evaluation
     simulations["navigation/terrain_small"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy_defaults",
         "num_episodes": 5,
         "max_time_s": 30,
         "env_overrides": {
@@ -42,7 +42,7 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
 
     # Medium terrain evaluation
     simulations["navigation/terrain_medium"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy_defaults",
         "num_episodes": 5,
         "max_time_s": 30,
         "env_overrides": {
@@ -53,7 +53,7 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
 
     # Large terrain evaluation
     simulations["navigation/terrain_large"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy_defaults",
         "num_episodes": 5,
         "max_time_s": 30,
         "env_overrides": {
@@ -84,7 +84,6 @@ def create_replay_config(terrain_dir: str = "varied_terrain/balanced_medium") ->
     """
     # Create pre-built navigation config for replay
     replay_config = _get_default_env_config()
-    replay_config["sampling"] = 0  # Disable sampling for replay
 
     # Create simulation config with pre-built config in env_overrides
     replay_sim_config = SingleEnvSimulationConfig(
@@ -229,7 +228,7 @@ def generate_replay_simple(
     player_url = None
     if replay_urls:
         replay_url = replay_urls[0]
-        player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+        player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={replay_url}"
         logger.info(f"Replay available at: {player_url}")
 
     results.stats_db.close()

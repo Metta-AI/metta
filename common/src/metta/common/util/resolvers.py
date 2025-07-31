@@ -1,12 +1,10 @@
 import datetime
-import random
-from typing import Any, Dict, TypeVar, Union
+import logging
+from typing import Any, TypeVar, Union
 
 import numpy as np
 from hydra.experimental.callback import Callback
 from omegaconf import DictConfig, OmegaConf
-
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 
 T = TypeVar("T")  # For generic conditional function
 Numeric = Union[int, float]  # Type alias for numeric types
@@ -14,14 +12,6 @@ Numeric = Union[int, float]  # Type alias for numeric types
 
 def oc_if(condition: bool, true_value: T, false_value: T) -> T:
     return true_value if condition else false_value
-
-
-def oc_uniform(min_val: Numeric, max_val: Numeric) -> float:
-    return float(np.random.uniform(min_val, max_val))
-
-
-def oc_choose(*args: Any) -> Any:
-    return random.choice(args)
 
 
 def oc_divide(a: Numeric, b: Numeric) -> Numeric:
@@ -154,51 +144,6 @@ def oc_scale(
     return result
 
 
-def oc_scaled_range(lower_limit: Numeric, upper_limit: Numeric, center: Numeric, *, _root_: Dict[str, Any]) -> Numeric:
-    """
-    Generates a value centered around a specified point based on a "sampling" parameter that controls how
-    widely the distribution spreads between the limiting values.
-
-    Parameters:
-    -----------
-    lower_limit : Numeric
-        The minimum allowed value (lower boundary).
-    upper_limit : Numeric
-        The maximum allowed value (upper boundary).
-    center : Numeric
-        The center point of the distribution. When sampling=0, this value is returned directly.
-    _root_ : dict (a named argument provided by OmegaConf)
-        A dictionary containing the "sampling" parameter. If None, sampling defaults to 0. Must be between 0 and 1.
-        IMPORTANT: this parameter must be named "_root_" exactly as shown here.
-
-    Returns:
-    --------
-    Numeric
-        A value between lower_limit and upper_limit, with distribution controlled by the sampling parameter.
-        Returns integer if center is an integer, float otherwise.
-    """
-
-    # Get sampling parameter from root, defaulting to 0
-    _root_ = _root_ or {}
-    sampling = _root_.get("sampling", 0)
-
-    # Fast path: return center when sampling is 0
-    if sampling == 0:
-        return center
-
-    assert sampling >= 0 and sampling <= 1, 'Environment configuration for "sampling" must be in range [0, 1]!'
-
-    # Calculate the scaled range on both sides of the center
-    left_range = sampling * (center - lower_limit)
-    right_range = sampling * (upper_limit - center)
-
-    # Generate a random value within the scaled range
-    val = np.random.uniform(center - left_range, center + right_range)
-
-    # Return integer if the center was an integer
-    return int(round(val)) if isinstance(center, int) else val
-
-
 def oc_iir(alpha: Numeric, current_value: Numeric, last_value: Numeric) -> Numeric:
     """
     Apply an IIR (Infinite Impulse Response) filter.
@@ -270,7 +215,7 @@ class ResolverRegistrar(Callback):
     """Class for registering custom OmegaConf resolvers."""
 
     def __init__(self):
-        self.logger = setup_mettagrid_logger("ResolverRegistrar")
+        self.logger = logging.getLogger("ResolverRegistrar")
         self.resolver_count = 0
         """Prepare for registration but don't register yet."""
 
@@ -300,10 +245,6 @@ class ResolverRegistrar(Callback):
         # Register all your resolvers
         OmegaConf.register_new_resolver("if", oc_if, replace=True)
         self.resolver_count += 1
-        OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
-        self.resolver_count += 1
         OmegaConf.register_new_resolver("div", oc_divide, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("subtract", oc_subtract, replace=True)
@@ -327,8 +268,6 @@ class ResolverRegistrar(Callback):
         OmegaConf.register_new_resolver("equals", oc_equals, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("eq", oc_equals, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("sampling", oc_scaled_range, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("gt", oc_greater_than, replace=True)
         self.resolver_count += 1

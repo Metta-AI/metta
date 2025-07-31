@@ -45,7 +45,7 @@ echo "  - Master port: $MASTER_PORT"
 echo "  - Node index: $NODE_INDEX"
 echo "  - Arguments: $args"
 
-echo "[INFO] Starting distributed training..."
+echo "[INFO] Starting training..."
 
 set +e
 PYTHONPATH=$PYTHONPATH:. uv run torchrun \
@@ -56,7 +56,6 @@ PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --node-rank=$NODE_INDEX \
   tools/train.py \
   trainer.num_workers=null \
-  wandb.enabled=true \
   $args
 EXIT_CODE=$?
 set -e

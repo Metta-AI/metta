@@ -1,242 +1,302 @@
 """
-MettaGridCore - Stateless wrapper around C++ MettaGrid environment.
+MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
 
-This class provides a thin wrapper around the C++ MettaGrid class that:
-- Does not support reset() - environments must be recreated
-- Requires explicit buffer management
-- Provides a pure step/observation interface
-- Serves as the base for all framework-specific adapters
+This class provides the base functionality for all framework-specific adapters,
+without any training-specific features or framework dependencies.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gymnasium import spaces
 
-from metta.mettagrid.mettagrid_c import GameConfig as GameConfig_cpp
-from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.level_builder import Level
+from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+
+logger = logging.getLogger("MettaGridCore")
 
 
 class MettaGridCore:
     """
-    Core wrapper around C++ MettaGrid environment.
+    Core MettaGrid functionality without any training features.
 
-    This class is stateless and does not support reset() - new instances
-    must be created for each episode. It provides explicit buffer management
-    and a pure step/observation interface.
+    This class provides pure C++ wrapper functionality without training-specific
+    features like stats writing, replay writing, or curriculum management.
+    Use MettaGridEnv for training functionality.
     """
 
     def __init__(
         self,
-        game_config: GameConfig_cpp,
-        map_grid: List[List[str]],
-        seed: int = 0,
-        observation_buffer: Optional[np.ndarray] = None,
-        terminal_buffer: Optional[np.ndarray] = None,
-        truncation_buffer: Optional[np.ndarray] = None,
-        reward_buffer: Optional[np.ndarray] = None,
+        level: Level,
+        game_config_dict: Dict[str, Any],
+        render_mode: Optional[str] = None,
+        **kwargs: Any,
     ):
         """
-        Initialize MettaGridCore.
+        Initialize core MettaGrid functionality.
 
         Args:
-            game_config: Game configuration
-            map_grid: 2D grid as list of lists of strings
-            seed: Random seed
-            observation_buffer: Pre-allocated observation buffer (optional)
-            terminal_buffer: Pre-allocated terminal buffer (optional)
-            truncation_buffer: Pre-allocated truncation buffer (optional)
-            reward_buffer: Pre-allocated reward buffer (optional)
+            level: Level to use for the environment
+            game_config_dict: Game configuration dictionary
+            render_mode: Rendering mode (None, "human", "miniscope")
+            **kwargs: Additional arguments passed to subclasses
         """
-        self._c_env = MettaGrid(game_config, map_grid, seed)
-        self._game_config = game_config
-        self._map_grid = map_grid
-        self._seed = seed
+        self._render_mode = render_mode
+        self._level = level
+        self._renderer = None
+        self._map_labels: List[str] = level.labels
+        self._current_seed: int = 0
 
-        # Store buffer references
-        self._observation_buffer = observation_buffer
-        self._terminal_buffer = terminal_buffer
-        self._truncation_buffer = truncation_buffer
-        self._reward_buffer = reward_buffer
+        # Environment metadata
+        self.labels: List[str] = []
+        self._should_reset = False
 
-        # If buffers provided, set them in C++ environment
-        if all(buf is not None for buf in [observation_buffer, terminal_buffer, truncation_buffer, reward_buffer]):
-            assert observation_buffer is not None
-            assert terminal_buffer is not None
-            assert truncation_buffer is not None
-            assert reward_buffer is not None
-            self._c_env.set_buffers(observation_buffer, terminal_buffer, truncation_buffer, reward_buffer)
+        # Initialize renderer class if needed (before C++ env creation)
+        if self._render_mode is not None:
+            self._initialize_renderer()
+
+        # Create C++ environment immediately
+        self._c_env_instance: Optional[MettaGridCpp] = self._create_c_env(game_config_dict)
+
+    @property
+    def c_env(self) -> MettaGridCpp:
+        """Get core environment instance, raising error if not initialized."""
+        if self._c_env_instance is None:
+            raise RuntimeError("Environment not initialized")
+        return self._c_env_instance
+
+    def _initialize_renderer(self) -> None:
+        """Initialize renderer class based on render mode."""
+        self._renderer = None
+        self._renderer_class = None
+
+        if self._render_mode == "human":
+            from metta.mettagrid.renderer.nethack import NethackRenderer
+
+            self._renderer_class = NethackRenderer
+        elif self._render_mode == "miniscope":
+            from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
+
+            self._renderer_class = MiniscopeRenderer
+
+    def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
+        """
+        Create a new MettaGridCpp instance.
+
+        Args:
+            game_config_dict: Game configuration dictionary
+            seed: Random seed for environment
+
+        Returns:
+            New MettaGridCpp instance
+        """
+        level = self._level
+
+        # Validate number of agents
+        level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+        assert game_config_dict["num_agents"] == level_agents, (
+            f"Number of agents {game_config_dict['num_agents']} does not match number of agents in map {level_agents}"
+        )
+
+        # Ensure we have a dict
+        if not isinstance(game_config_dict, dict):
+            raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
+
+        # Create C++ config
+        try:
+            c_cfg = from_mettagrid_config(game_config_dict)
+        except Exception as e:
+            logger.error(f"Error creating C++ config: {e}")
+            logger.error(f"Game config: {game_config_dict}")
+            raise e
+
+        # Create C++ environment
+        current_seed = seed if seed is not None else self._current_seed
+        c_env = MettaGridCpp(c_cfg, level.grid.tolist(), current_seed)
+
+        # Initialize renderer if needed
+        if (
+            self._render_mode is not None
+            and self._renderer is None
+            and hasattr(self, "_renderer_class")
+            and self._renderer_class is not None
+        ):
+            self._renderer = self._renderer_class(c_env.object_type_names())
+
+        return c_env
+
+    def reset(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """
+        Reset the environment.
+
+        Args:
+            game_config_dict: Game configuration dictionary
+            seed: Random seed
+
+        Returns:
+            Tuple of (observations, info)
+        """
+        # Recreate C++ environment with new config
+        self._c_env_instance = self._create_c_env(game_config_dict, seed)
+
+        # Update seed
+        self._current_seed = seed or 0
+
+        # Reset flags
+        self._should_reset = False
+
+        # Get initial observations from core environment
+        obs, infos = self.c_env.reset()
+
+        return obs, infos
 
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """
-        Execute one step in the environment.
+        Execute one timestep of the environment dynamics with the given actions.
 
         Args:
-            actions: Action array of shape (num_agents, 2) with dtype int32
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
 
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        if (
-            self._observation_buffer is None
-            or self._reward_buffer is None
-            or self._terminal_buffer is None
-            or self._truncation_buffer is None
-        ):
-            raise RuntimeError("Buffers must be set before stepping. Call set_buffers() first.")
+        # Execute step in core environment
+        obs, rewards, terminals, truncations, _ = self.c_env.step(actions)
 
-        # Step the C++ environment
-        self._c_env.step(actions)
+        # Check for episode completion
+        infos = {}
+        if terminals.all() or truncations.all():
+            self._should_reset = True
 
-        # Return buffer contents
-        return (
-            self._observation_buffer.copy(),
-            self._reward_buffer.copy(),
-            self._terminal_buffer.copy(),
-            self._truncation_buffer.copy(),
-            {},  # Empty info dict - framework adapters can add info
-        )
+        return obs, rewards, terminals, truncations, infos
 
-    def get_initial_observations(self) -> np.ndarray:
-        """
-        Get initial observations after environment creation.
+    def render(self) -> Optional[str]:
+        """Render the environment."""
+        if self._renderer is None or self._c_env_instance is None:
+            return None
 
-        Returns:
-            Initial observation array
-        """
-        if self._observation_buffer is None:
-            raise RuntimeError("Buffers must be set before getting observations. Call set_buffers() first.")
+        return self._renderer.render(self.c_env.current_step, self.c_env.grid_objects())
 
-        obs, _ = self._c_env.reset()
-        return obs
-
-    def set_buffers(
-        self,
-        observation_buffer: np.ndarray,
-        terminal_buffer: np.ndarray,
-        truncation_buffer: np.ndarray,
-        reward_buffer: np.ndarray,
-    ) -> None:
-        """
-        Set buffers for environment step operations.
-
-        Args:
-            observation_buffer: Buffer for observations
-            terminal_buffer: Buffer for terminal flags
-            truncation_buffer: Buffer for truncation flags
-            reward_buffer: Buffer for rewards
-        """
-        self._observation_buffer = observation_buffer
-        self._terminal_buffer = terminal_buffer
-        self._truncation_buffer = truncation_buffer
-        self._reward_buffer = reward_buffer
-
-        # Set buffers in C++ environment
-        self._c_env.set_buffers(observation_buffer, terminal_buffer, truncation_buffer, reward_buffer)
+    def close(self) -> None:
+        """Close the environment."""
+        if self._c_env_instance is not None:
+            # Clean up any resources if needed
+            self._c_env_instance = None
 
     # Properties that expose C++ environment functionality
     @property
-    def num_agents(self) -> int:
-        return self._c_env.num_agents
+    def done(self) -> bool:
+        """Check if environment needs reset."""
+        return self._should_reset
 
+    @property
+    def render_mode(self) -> Optional[str]:
+        """Get render mode."""
+        return self._render_mode
+
+    @property
+    def core_env(self) -> Optional[MettaGridCpp]:
+        """Get core environment instance."""
+        return self._c_env_instance
+
+    # Properties that delegate to core environment
     @property
     def max_steps(self) -> int:
-        return self._c_env.max_steps
+        return self.c_env.max_steps
 
     @property
-    def current_step(self) -> int:
-        return self._c_env.current_step
+    def num_agents(self) -> int:
+        return self.c_env.num_agents
 
     @property
     def obs_width(self) -> int:
-        return self._c_env.obs_width
+        return self.c_env.obs_width
 
     @property
     def obs_height(self) -> int:
-        return self._c_env.obs_height
+        return self.c_env.obs_height
 
     @property
     def map_width(self) -> int:
-        return self._c_env.map_width
+        return self.c_env.map_width
 
     @property
     def map_height(self) -> int:
-        return self._c_env.map_height
+        return self.c_env.map_height
 
     @property
-    def observation_space(self) -> spaces.Box:
-        return self._c_env.observation_space
+    def _observation_space(self) -> spaces.Box:
+        """Internal observation space - use single_observation_space for PufferEnv compatibility."""
+        return self.c_env.observation_space
 
     @property
-    def action_space(self) -> spaces.MultiDiscrete:
-        return self._c_env.action_space
+    def _action_space(self) -> spaces.MultiDiscrete:
+        """Internal action space - use single_action_space for PufferEnv compatibility."""
+        return self.c_env.action_space
 
     @property
     def action_names(self) -> List[str]:
-        return self._c_env.action_names()
+        return self.c_env.action_names()
 
     @property
     def max_action_args(self) -> List[int]:
-        action_args_array = self._c_env.max_action_args()
+        action_args_array = self.c_env.max_action_args()
         return [int(x) for x in action_args_array]
 
     @property
     def object_type_names(self) -> List[str]:
-        return self._c_env.object_type_names()
+        return self.c_env.object_type_names()
 
     @property
     def inventory_item_names(self) -> List[str]:
-        return self._c_env.inventory_item_names()
+        return self.c_env.inventory_item_names()
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:
-        return self._c_env.feature_normalizations()
+        """Get feature normalizations from feature spec."""
+        feature_spec = self.c_env.feature_spec()
+        return {int(spec["id"]): float(spec["normalization"]) for spec in feature_spec.values()}
 
     @property
     def initial_grid_hash(self) -> int:
-        return self._c_env.initial_grid_hash
+        return self.c_env.initial_grid_hash
 
-    def get_episode_rewards(self) -> np.ndarray:
-        return self._c_env.get_episode_rewards()
+    @property
+    def action_success(self) -> List[bool]:
+        return self.c_env.action_success()
 
-    def get_episode_stats(self) -> Dict[str, Any]:
-        stats = self._c_env.get_episode_stats()
-        return dict(stats)
+    @property
+    def global_features(self) -> List[Any]:
+        """Global features for compatibility."""
+        return []
 
     def get_observation_features(self) -> Dict[str, Dict]:
         """
-        Get observation features for policy initialization.
+        Build the features dictionary for initialize_to_environment.
 
         Returns:
             Dictionary mapping feature names to their properties
         """
-        if hasattr(self._c_env, "feature_spec"):
-            feature_spec = self._c_env.feature_spec()
-            features = {}
+        # Get feature spec from C++ environment
+        feature_spec = self.c_env.feature_spec()
 
-            for feature_name, feature_info in feature_spec.items():
-                feature_dict = {"id": feature_info["id"]}
+        features = {}
+        for feature_name, feature_info in feature_spec.items():
+            feature_dict: Dict[str, Any] = {"id": feature_info["id"]}
 
-                if "normalization" in feature_info:
-                    feature_dict["normalization"] = feature_info["normalization"]
+            # Add normalization if present
+            if "normalization" in feature_info:
+                feature_dict["normalization"] = feature_info["normalization"]
 
-                features[feature_name] = feature_dict
+            features[feature_name] = feature_dict
 
-            return features
-        else:
-            # Fallback for compatibility
-            return {}
-
-    def grid_objects(self) -> Dict[int, Dict[str, Any]]:
-        """Get information about all grid objects."""
-        return self._c_env.grid_objects()
-
-    def get_agent_groups(self) -> np.ndarray:
-        return self._c_env.get_agent_groups()
+        return features
 
     @property
-    def action_success(self) -> List[bool]:
-        action_success_array = self._c_env.action_success()
-        return [bool(x) for x in action_success_array]
+    def grid_objects(self) -> Dict[int, Dict[str, Any]]:
+        """Get grid objects information."""
+        return self.c_env.grid_objects()

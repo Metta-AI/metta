@@ -172,6 +172,13 @@ metta configure    # Reconfigure for a different profile
 The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/)
 for configuration management, which allows flexible parameter overrides and composition.
 
+#### Hydra Configuration Patterns
+
+- Use `+` prefix to add new config groups: `+hardware=macbook`
+- Use `++` prefix to force override: `++trainer.device=cpu`
+- Config composition order matters - later overrides take precedence
+
+Common patterns:
 - **Override parameters**: `param=value` sets configuration values directly
 - **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
 - **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
@@ -268,7 +275,7 @@ To add your policy to the existing navigation evals DB:
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db`
 artifact on WandB.
 
-Then, to see the results in the heatmap along with the other policies in the database, you can run:
+Then, to see the results in the scorecard along with the other policies in the database, you can run:
 
 ```
 ./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html

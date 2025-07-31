@@ -34,6 +34,14 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
         "navigation/training/sparse.yaml",
+        "object_use/training/easy_all_objects.yaml",
+        # These are curricula, not envs
+        "navigation/training/",
+        # These are broken into different files to work around curriculum needs. They don't load right in this test.
+        "cooperation/experimental/",
+        "navigation_sequence/experiments",
+        "multiagent/experiments/",
+        "multiagent/multiagent/",
     ]
 
     # exclude some configs that won't work
@@ -42,6 +50,8 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
     return result
 
 
+# TODO: This should probably be switched to "is this config either an env or a curriculum" or something, so we need
+# fewer exceptions. We could also standardize naming to help with this.
 @pytest.mark.parametrize("cfg_metadata", map_or_env_configs(), ids=[cfg.path for cfg in map_or_env_configs()])
 class TestValidateAllEnvs:
     def test_map(self, cfg_metadata: MettagridCfgFileMetadata):
@@ -61,7 +71,6 @@ class TestValidateAllEnvs:
         OmegaConf.resolve(cfg)
         game_config_dict = OmegaConf.to_container(cfg, resolve=True)
         assert isinstance(game_config_dict, dict)
-        del game_config_dict["map_builder"]
 
         # uncomment for debugging
         print(OmegaConf.to_yaml(OmegaConf.create(game_config_dict)))

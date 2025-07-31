@@ -15,7 +15,7 @@ from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.instantiate import instantiate
 
 if TYPE_CHECKING:
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
+    from metta.mettagrid import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
 
@@ -48,7 +48,14 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
         agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        super().__init__(agent, device_ids=[device], output_device=device)
+
+        # Handle CPU vs GPU initialization
+        if device.type == "cpu":
+            # For CPU, don't pass device_ids
+            super().__init__(agent)
+        else:
+            # For GPU, pass device_ids
+            super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):
         try:

@@ -8,13 +8,14 @@ from pydantic import BaseModel, Field
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
+from metta.common.util.git import get_latest_commit
 
 T = TypeVar("T")
 
 
 class TaskCreateRequest(BaseModel):
     policy_id: uuid.UUID
-    git_hash: str
+    git_hash: str | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     sim_suite: str = "all"
 
@@ -33,6 +34,14 @@ class TaskUpdateRequest(BaseModel):
     updates: dict[uuid.UUID, TaskStatusUpdate]
 
 
+class TaskFilterParams(BaseModel):
+    limit: int = Field(default=500, ge=1, le=1000)
+    statuses: list[str] | None = None
+    git_hash: str | None = None
+    policy_ids: list[uuid.UUID] | None = None
+    sim_suites: list[str] | None = None
+
+
 class TaskResponse(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
@@ -44,6 +53,8 @@ class TaskResponse(BaseModel):
     attributes: dict[str, Any]
     policy_name: str | None = None
     retries: int
+    user_id: str | None = None
+    updated_at: datetime
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
@@ -69,11 +80,13 @@ class TaskResponse(BaseModel):
             attributes=task["attributes"] or {},
             policy_name=task.get("policy_name"),
             retries=task["retries"],
+            user_id=task.get("user_id"),
+            updated_at=task["updated_at"],
         )
 
 
 class TaskUpdateResponse(BaseModel):
-    statuses: dict[uuid.UUID, str]
+    statuses: dict[uuid.UUID, TaskStatus]
 
 
 class TasksResponse(BaseModel):
@@ -88,9 +101,14 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("", response_model=TaskResponse)
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
+        # If no git_hash provided, fetch latest commit from main branch
+        git_hash = request.git_hash
+        if git_hash is None:
+            git_hash = await get_latest_commit(branch="main")
+
         attributes = {
             "env_overrides": request.env_overrides,
-            "git_hash": request.git_hash,
+            "git_hash": git_hash,
         }
         if not await stats_repo.get_policy_by_id(request.policy_id):
             raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
@@ -99,6 +117,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             policy_id=request.policy_id,
             sim_suite=request.sim_suite,
             attributes=attributes,
+            user_id=user,
         )
         return TaskResponse.from_db(task)
 
@@ -130,6 +149,25 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_claimed_tasks(assignee: str | None = Query(None)) -> TasksResponse:
         tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
+        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        return TasksResponse(tasks=task_responses)
+
+    @router.get("/all", response_model=TasksResponse)
+    @timed_http_handler
+    async def get_all_tasks(
+        limit: int = Query(default=500, ge=1, le=1000),
+        statuses: list[TaskStatus] | None = Query(default=None),
+        git_hash: str | None = Query(default=None),
+        policy_ids: list[uuid.UUID] | None = Query(default=None),
+        sim_suites: list[str] | None = Query(default=None),
+    ) -> TasksResponse:
+        tasks = await stats_repo.get_all_tasks(
+            limit=limit,
+            statuses=statuses,
+            git_hash=git_hash,
+            policy_ids=policy_ids,
+            sim_suites=sim_suites,
+        )
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 

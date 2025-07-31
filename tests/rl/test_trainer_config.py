@@ -1,6 +1,5 @@
 import math
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from hydra import compose, initialize_config_dir
@@ -20,7 +19,6 @@ valid_optimizer_config = {
 
 # Complete valid trainer config with all required fields
 valid_trainer_config = {
-    "_target_": "metta.rl.trainer.MettaTrainer",
     "total_timesteps": 1000000,
     "batch_size": 1024,
     "minibatch_size": 256,
@@ -55,12 +53,6 @@ valid_trainer_config = {
         "target_kl": None,
     },
     "optimizer": valid_optimizer_config,
-    "lr_scheduler": {
-        "enabled": False,
-        "anneal_lr": False,
-        "warmup_steps": None,
-        "schedule_type": None,
-    },
     "prioritized_experience_replay": {
         "prio_alpha": 0.0,
         "prio_beta0": 0.6,
@@ -120,21 +112,6 @@ valid_trainer_config = {
 }
 
 
-@patch("metta.common.util.script_decorators.setup_mettagrid_environment", return_value=None)
-@patch("metta.common.util.script_decorators.torch.cuda.is_available", return_value=True)
-@patch("metta.common.util.script_decorators.is_multiprocessing_available", return_value=True)
-def process_cfg_like_metta_script_main(cfg: DictConfig, *_mocks) -> DictConfig:
-    from metta.common.util.script_decorators import metta_script
-
-    # Use the metta_script decorator, which validates/modifies the config
-    # Mock out setup_mettagrid_environment; not necessary for testing trainer config parsing
-    @metta_script
-    def _process_config(cfg: DictConfig) -> DictConfig:
-        return cfg
-
-    return _process_config(cfg)
-
-
 def make_cfg(trainer_cfg: dict) -> DictConfig:
     return DictConfig(
         {
@@ -158,11 +135,11 @@ class TestTypedConfigs:
 
         # Test that runtime paths are set correctly
         assert trainer_config.checkpoint.checkpoint_dir == "/tmp/test_run/checkpoints"
-        assert trainer_config.simulation.replay_dir == "s3://softmax-public/replays/test_run"
+        assert trainer_config.simulation.replay_dir == "/tmp/test_run/replays/"
 
     def test_config_field_validation(self):
         # invalid field
-        with pytest.raises(ValidationError) as err:
+        with pytest.raises(ValidationError, match="learning_rate") as err:
             _ = OptimizerConfig.model_validate({**valid_optimizer_config, "learning_rate": -1.0})
         assert "learning_rate" in str(err)
 
@@ -237,7 +214,6 @@ class TestTypedConfigs:
 
         # Test that we can convert the entire config back to dict for hydra.utils.instantiate
         config_dict = validated_config.model_dump(by_alias=True)
-        assert config_dict["_target_"] == "metta.rl.trainer.MettaTrainer"
         assert config_dict["batch_size"] == 1024
         assert config_dict["env_overrides"]["max_steps"] == 1000
 
@@ -323,7 +299,7 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
             overrides=default_overrides + (overrides or []),
         )
 
-        return process_cfg_like_metta_script_main(cfg)
+        return cfg
 
 
 class TestRealTypedConfigs:

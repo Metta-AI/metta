@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field
 
@@ -134,6 +134,7 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     noop: Optional[PyActionConfig] = None
     move: Optional[PyActionConfig] = None
     rotate: Optional[PyActionConfig] = None
+    move_cardinal: Optional[PyActionConfig] = None
     put_items: Optional[PyActionConfig] = None
     get_items: Optional[PyActionConfig] = None
     attack: Optional[PyAttackActionConfig] = None
@@ -169,6 +170,7 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1)
+    max_conversions: int = Field(default=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)
@@ -194,9 +196,16 @@ class PyGameConfig(BaseModelWithForbidExtra):
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
     objects: dict[str, PyConverterConfig | PyWallConfig]
-    
-    # Movement mode configuration
-    movement_mode: str = Field(default="relative", pattern="^(relative|cardinal)$", description="Movement mode: 'relative' for tank-style controls, 'cardinal' for direct NSEW movement")
+    # these are not used in the C++ code, but we allow them to be set for other uses.
+    # E.g., templates can use params as a place where values are expected to be written,
+    # and other parts of the template can read from there.
+    params: Optional[Any] = None
+    map_builder: Optional[Any] = None
+
+    # Movement metrics configuration
+    track_movement_metrics: bool = Field(
+        default=False, description="Enable movement metrics tracking (sequential rotations)"
+    )
 
 
 class PyPolicyGameConfig(PyGameConfig):

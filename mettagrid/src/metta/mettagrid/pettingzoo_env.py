@@ -10,29 +10,31 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gymnasium import spaces
+from omegaconf import OmegaConf
 from pettingzoo import ParallelEnv
 from typing_extensions import override
 
-from metta.mettagrid.base_env import MettaGridEnv
+from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
 
-# Data types for PettingZoo
-dtype_observations = np.dtype(np.uint8)
-dtype_terminals = np.dtype(bool)
-dtype_truncations = np.dtype(bool)
-dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)
+# Data types for PettingZoo - import from C++ module
+from metta.mettagrid.mettagrid_c import (
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 
 
-class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
+class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
     """
     PettingZoo ParallelEnv adapter for MettaGrid environments.
 
     This class provides a PettingZoo-compatible interface for MettaGrid environments,
     using the parallel environment API for multi-agent scenarios.
+    No training features are included - this is purely for PettingZoo compatibility.
     """
 
     def __init__(
@@ -40,9 +42,6 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
-        is_training: bool = False,
         **kwargs: Any,
     ):
         """
@@ -52,90 +51,78 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
             curriculum: Curriculum for task management
             render_mode: Rendering mode
             level: Optional pre-built level
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
             **kwargs: Additional arguments
         """
-        # Initialize base environment
-        MettaGridEnv.__init__(
+        # Get level from curriculum if not provided
+        if level is None:
+            task = curriculum.get_task()
+            level = task.env_cfg().game.map_builder.build()
+
+        # Ensure we have a level
+        assert level is not None, "Level must be provided or generated from curriculum"
+
+        # Store curriculum for reset operations
+        self._curriculum = curriculum
+        self._task = self._curriculum.get_task()
+
+        # Get game config for core initialization
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        # Initialize core environment (no training features)
+        MettaGridCore.__init__(
             self,
-            curriculum=curriculum,
-            render_mode=render_mode,
             level=level,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
+            game_config_dict=game_config_dict,
+            render_mode=render_mode,
             **kwargs,
         )
-
-        # Create initial core environment for property access
-        self._core_env = self._create_core_env(0)
 
         # PettingZoo attributes
         self.agents: List[str] = []
         self.possible_agents: List[str] = []
 
         # populate possible_agents immediately (PettingZoo spec)
-        num_agents = self._core_env.num_agents
+        num_agents = self.c_env.num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
 
-        # Buffers for environment data
+        # Create space objects once to avoid memory leaks
+        # PettingZoo requires same space object instances to be returned
+        self._observation_space_obj = self.c_env.observation_space
+        self._action_space_obj = self.c_env.action_space
+
+        # Initialize buffer attributes for memory management
         self._observations: Optional[np.ndarray] = None
         self._terminals: Optional[np.ndarray] = None
         self._truncations: Optional[np.ndarray] = None
         self._rewards: Optional[np.ndarray] = None
 
+        # Allocate buffers for C++ environment
+        self._allocate_buffers()
+
+    def _allocate_buffers(self) -> None:
+        """Allocate numpy arrays for C++ environment shared memory."""
+        # Allocate observation buffer
+        obs_shape = (self.num_agents, *self._observation_space.shape)
+        self._observations = np.zeros(obs_shape, dtype=dtype_observations)
+
+        # Allocate terminal/truncation/reward buffers
+        self._terminals = np.zeros(self.num_agents, dtype=dtype_terminals)
+        self._truncations = np.zeros(self.num_agents, dtype=dtype_truncations)
+        self._rewards = np.zeros(self.num_agents, dtype=dtype_rewards)
+
+        # Set buffers in C++ environment for direct writes
+        self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
+
     def _setup_agents(self) -> None:
         """Setup agent names after core environment is created."""
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        # Create agent names
-        num_agents = self._core_env.num_agents
+        # Create agent names - c_env property handles the None check
+        num_agents = self.c_env.num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
         self.agents = self.possible_agents.copy()
 
-    def _allocate_buffers(self) -> None:
-        """Allocate buffers based on environment dimensions."""
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        num_agents = self._core_env.num_agents
-        obs_space = self._core_env.observation_space
-
-        # Allocate buffers
-        self._observations = np.zeros((num_agents,) + obs_space.shape, dtype=dtype_observations)
-        self._terminals = np.zeros(num_agents, dtype=dtype_terminals)
-        self._truncations = np.zeros(num_agents, dtype=dtype_truncations)
-        self._rewards = np.zeros(num_agents, dtype=dtype_rewards)
-
-    @override
-    def _get_initial_observations(self) -> np.ndarray:
-        """
-        Get initial observations and set up buffers.
-
-        Returns:
-            Initial observations array
-        """
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        # Setup agents
-        self._setup_agents()
-
-        # Allocate buffers
-        self._allocate_buffers()
-
-        # Set buffers in core environment
-        assert self._observations is not None
-        assert self._terminals is not None
-        assert self._truncations is not None
-        assert self._rewards is not None
-        self._core_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
-
-        # Get initial observations
-        return self._core_env.get_initial_observations()
+    # Buffer management is handled by base MettaGridEnv class
 
     @override
     def reset(
@@ -152,7 +139,18 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
             Tuple of (observations_dict, infos_dict)
         """
         del options  # Unused parameter
-        obs_array, info = self.reset_base(seed)
+
+        # Get new task from curriculum and its config
+        self._task = self._curriculum.get_task()
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        obs_array, info = super().reset(game_config_dict, seed)
+
+        # Setup agents if not already done
+        if not self.agents:
+            self._setup_agents()
 
         # Convert to PettingZoo format
         observations = {agent: obs_array[i] for i, agent in enumerate(self.agents)}
@@ -180,16 +178,9 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
                 actions_array[i] = actions[agent].astype(dtype_actions)
 
         # Call base step implementation
-        infos = self.step_base(actions_array)
+        observations, rewards, terminals, truncations, infos = super().step(actions_array)
 
-        # Get step results
-        if self._observations is None or self._rewards is None or self._terminals is None or self._truncations is None:
-            raise RuntimeError("Buffers not initialized")
-
-        observations = self._observations.copy()
-        rewards = self._rewards.copy()
-        terminals = self._terminals.copy()
-        truncations = self._truncations.copy()
+        # Step results are already provided by base class
 
         # Convert to PettingZoo format
         obs_dict = {agent: observations[i] for i, agent in enumerate(self.agents)}
@@ -209,30 +200,18 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
 
         return obs_dict, reward_dict, terminal_dict, truncation_dict, info_dict
 
-    # PettingZoo required properties and methods
-    @property
-    def observation_space(self) -> spaces.Box:
-        """Get observation space for a single agent."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._core_env.observation_space
-
-    @property
-    def action_space(self) -> spaces.MultiDiscrete:
-        """Get action space for a single agent."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._core_env.action_space
-
-    def observation_space_for_agent(self, agent: str) -> spaces.Box:
+    # PettingZoo required methods
+    def observation_space(self, agent: str) -> spaces.Box:
         """Get observation space for a specific agent."""
-        del agent  # Unused parameter
-        return self.observation_space
+        del agent  # Unused parameter - all agents have same space
+        # Return the same space object instance (PettingZoo requirement)
+        return self._observation_space_obj
 
-    def action_space_for_agent(self, agent: str) -> spaces.MultiDiscrete:
+    def action_space(self, agent: str) -> spaces.MultiDiscrete:
         """Get action space for a specific agent."""
-        del agent  # Unused parameter
-        return self.action_space
+        del agent  # Unused parameter - all agents have same space
+        # Return the same space object instance (PettingZoo requirement)
+        return self._action_space_obj
 
     def state(self) -> np.ndarray:
         """
@@ -241,21 +220,18 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         Returns:
             Global state array
         """
-        if self._observations is None:
-            raise RuntimeError("Environment not initialized")
-
-        # Return flattened observations as global state
-        return self._observations.flatten()
+        # For state, we can return a flattened representation of all current observations
+        # Since we don't store observations, we'll create a zero state of appropriate size
+        obs_space = self.c_env.observation_space
+        total_size = self.c_env.num_agents * int(np.prod(obs_space.shape))
+        return np.zeros(total_size, dtype=obs_space.dtype)
 
     @property
     def state_space(self) -> spaces.Box:
         """Get state space (optional for PettingZoo)."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-
         # State space is flattened observation space
-        obs_space = self._core_env.observation_space
-        total_size = self._core_env.num_agents * int(np.prod(obs_space.shape))
+        obs_space = self.c_env.observation_space
+        total_size = self.c_env.num_agents * int(np.prod(obs_space.shape))
 
         return spaces.Box(
             low=obs_space.low.flatten()[0],
@@ -278,7 +254,4 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         """Get maximum number of agents."""
         return len(self.possible_agents)
 
-    @property
-    def num_agents(self) -> int:
-        """Get current number of agents."""
-        return len(self.agents)
+    # num_agents property is defined above

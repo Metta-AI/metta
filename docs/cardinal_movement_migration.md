@@ -1,8 +1,8 @@
-# Cardinal Movement Migration Guide
+# Cardinal Movement Guide
 
 ## Overview
 
-The cardinal movement system replaces the traditional tank-style controls (forward/backward + rotate) with direct movement in cardinal directions (North/South/East/West). This change simplifies agent control and makes movement more intuitive.
+The cardinal movement system provides direct movement in cardinal directions (North/South/East/West) as an alternative to traditional tank-style controls (forward/backward + rotate). Both movement types can coexist in the same environment, giving maximum flexibility.
 
 ## Key Changes
 
@@ -14,19 +14,27 @@ The cardinal movement system replaces the traditional tank-style controls (forwa
 - `rotate` action with args 0-3: Set orientation (Up/Down/Left/Right)
 
 **Cardinal movement:**
-- `move` action with arg 0: Move North (Up)
-- `move` action with arg 1: Move South (Down)
-- `move` action with arg 2: Move West (Left)
-- `move` action with arg 3: Move East (Right)
-- `rotate` action: Not available in cardinal mode
+- `move_cardinal` action with arg 0: Move North (Up)
+- `move_cardinal` action with arg 1: Move South (Down)
+- `move_cardinal` action with arg 2: Move West (Left)
+- `move_cardinal` action with arg 3: Move East (Right)
 
 ### Configuration
 
-To enable cardinal movement, add the following to your environment configuration:
+Movement types are controlled through the actions configuration:
 
 ```yaml
 game:
-  movement_mode: cardinal  # Options: "relative" (default) or "cardinal"
+  actions:
+    # Tank-style movement
+    move:
+      enabled: true  # or false
+    rotate:
+      enabled: true  # or false
+    
+    # Cardinal movement
+    move_cardinal:
+      enabled: true  # or false
 ```
 
 ### Agent Orientation
@@ -38,43 +46,40 @@ game:
 
 ## Migration Path for Trained Policies
 
-### Using the Action Remapper
+### Configuration-Based Migration
 
-For policies trained with tank-style controls, use the `TankToCardinalRemapper`:
+The simplest migration path is to enable the appropriate actions in your configuration:
+
+1. **For existing tank-style policies**: Keep `move` and `rotate` enabled, disable `move_cardinal`
+2. **For new cardinal-style policies**: Disable `move` and `rotate`, enable `move_cardinal`
+3. **For experiments**: Enable all three to compare behaviors
+
+### Action Space Considerations
+
+When changing movement types, be aware that the action indices will change:
 
 ```python
-from metta.mettagrid.util.action_remapper import TankToCardinalRemapper
+# Example with tank-style only
+action_names = ["noop", "move", "rotate", "attack"]  
+# move is index 1, rotate is index 2
 
-# Initialize remapper with your environment's action names
-action_names = env.action_names()
-remapper = TankToCardinalRemapper(action_names)
+# Example with cardinal only
+action_names = ["noop", "move_cardinal", "attack"]
+# move_cardinal is index 1, attack is index 2
 
-# Track agent orientations (get from env.grid_objects())
-agent_orientations = {0: 0, 1: 2}  # agent_id -> orientation
-
-# Remap actions before stepping
-actions = policy.get_actions(observations)  # Your existing policy
-remapped_actions = remapper.remap_actions(actions, agent_orientations)
-env.step(remapped_actions)
+# Example with both enabled
+action_names = ["noop", "move", "rotate", "move_cardinal", "attack"]
+# move is index 1, rotate is index 2, move_cardinal is index 3
 ```
-
-### Conversion Examples
-
-| Tank-style Action | Agent Orientation | Cardinal Equivalent |
-|-------------------|-------------------|-------------------|
-| Move forward | Facing Up | Move North |
-| Move forward | Facing Right | Move East |
-| Move backward | Facing Up | Move South |
-| Rotate to Left | Any | Move West |
 
 ## Retraining Considerations
 
 ### Action Space Changes
 
-When retraining policies for cardinal movement:
-1. The `move` action now has 4 arguments (0-3) instead of 2 (0-1)
-2. The `rotate` action is no longer available
-3. Total action space may be smaller (one less action type)
+When training policies with cardinal movement:
+1. The `move_cardinal` action has 4 arguments (0-3) for the four directions
+2. The action space size depends on which actions are enabled
+3. Policies can be trained with just one movement type or both
 
 ### Behavioral Differences
 
@@ -90,51 +95,60 @@ When retraining policies for cardinal movement:
 
 ## Example Configurations
 
-### Basic Cardinal Movement Environment
+### Pure Cardinal Movement
 
 ```yaml
 defaults:
-  - game/agent: agent
-  - game/groups: solo
-  - game/objects:
-      - basic
+  - mettagrid
 
 game:
-  num_agents: 1
-  movement_mode: cardinal
-
   actions:
-    noop:
-      enabled: true
     move:
-      enabled: true
-    # rotate not needed in cardinal mode
-    attack:
+      enabled: false
+    rotate:
+      enabled: false
+    move_cardinal:
       enabled: true
 ```
 
-### Multi-Agent Cardinal Environment
+### Pure Tank-Style Movement (Default)
 
 ```yaml
-game:
-  num_agents: 4
-  movement_mode: cardinal
+defaults:
+  - mettagrid
 
-  groups:
-    team_a:
-      id: 0
-      group_reward_pct: 0.5
-    team_b:
-      id: 1
-      group_reward_pct: 0.5
+game:
+  actions:
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    move_cardinal:
+      enabled: false
+```
+
+### Hybrid Movement Mode
+
+```yaml
+defaults:
+  - mettagrid
+
+game:
+  actions:
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    move_cardinal:
+      enabled: true
 ```
 
 ## Backward Compatibility
 
 The system maintains full backward compatibility:
-- Existing configurations default to `movement_mode: relative`
-- Tank-style policies can still run unchanged in relative mode
-- The action remapper provides a bridge for gradual migration
+- Existing configurations work unchanged (tank-style movement is the default)
+- New `move_cardinal` action is disabled by default
+- Policies trained before this change continue to work exactly as before
 
 ## Performance Considerations
 

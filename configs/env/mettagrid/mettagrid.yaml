@@ -6,8 +6,6 @@ defaults:
       - basic
   - _self_
 
-sampling: 0
-
 game:
   num_agents: ???
   obs_width: 11
@@ -15,8 +13,8 @@ game:
   num_observation_tokens: 200
   max_steps: 1000
 
-  # Movement mode: "relative" for tank-style controls, "cardinal" for NSEW movement
-  movement_mode: cardinal
+  # Movement metrics tracking
+  track_movement_metrics: true
 
   # Global observation tokens configuration
   global_obs:
@@ -37,7 +35,7 @@ game:
     - heart
     - armor
     - laser
-    # - blueprint
+    - blueprint
 
   # Show recipe inputs in observations for all converters
   recipe_details_obs: false

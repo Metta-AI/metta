@@ -1,46 +1,42 @@
-import * as Common from './common.js'
-import { ui, state, html, ctx } from './common.js'
-import { focusFullMap } from './worldmap.js'
-import { onResize, updateStep, requestFrame } from './main.js'
 import { updateAgentTable } from './agentpanel.js'
+import * as Common from './common.js'
+import { ctx, html, state, ui } from './common.js'
+import { onResize, requestFrame, updateStep } from './main.js'
+import { focusFullMap } from './worldmap.js'
 
 /** Gets an attribute from a grid object, respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
-  if (atStep == -1) {
-    // When the step is not passed in, use the global step.
-    atStep = state.step
-  }
-  if (obj[attr] === undefined) {
+  const prop = obj[attr]
+  if (prop === undefined) {
     return defaultValue
-  } else if (obj[attr] instanceof Array) {
-    return obj[attr][atStep]
-  } else {
-    // This must be a constant that does not change over time.
-    return obj[attr]
   }
+  if (!Array.isArray(prop)) {
+    return prop // This must be a constant that does not change over time.
+  }
+  return prop[atStep === -1 ? state.step : atStep] // When the step is not passed in, use the global step.
 }
 
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
 async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   const decompressionStream = new DecompressionStream('deflate')
   const decompressedStream = stream.pipeThrough(decompressionStream)
-
   const reader = decompressedStream.getReader()
   const chunks: Uint8Array[] = []
-  let result
-  while (!(result = await reader.read()).done) {
+  let result: ReadableStreamReadResult<Uint8Array>
+
+  result = await reader.read()
+  while (!result.done) {
     chunks.push(result.value)
+    result = await reader.read()
   }
 
   const totalLength = chunks.reduce((acc, val) => acc + val.length, 0)
   const flattenedChunks = new Uint8Array(totalLength)
-
   let offset = 0
   for (const chunk of chunks) {
     flattenedChunks.set(chunk, offset)
     offset += chunk.length
   }
-
   const decoder = new TextDecoder()
   return decoder.decode(flattenedChunks)
 }
@@ -68,17 +64,17 @@ export async function fetchReplay(replayUrl: string) {
     const contentType = response.headers.get('Content-Type')
     console.info('Content-Type: ', contentType)
     if (contentType === 'application/json') {
-      let replayData = await response.text()
+      const replayData = await response.text()
       loadReplayText(replayUrl, replayData)
     } else if (contentType === 'application/x-compress' || contentType === 'application/octet-stream') {
       // This is compressed JSON.
       const decompressedData = await decompressStream(response.body)
       loadReplayText(replayUrl, decompressedData)
     } else {
-      throw new Error('Unsupported content type: ' + contentType)
+      throw new Error(`Unsupported content type: ${contentType}`)
     }
   } catch (error) {
-    Common.showModal('error', 'Error fetching replay', 'Message: ' + error)
+    Common.showModal('error', 'Error fetching replay', `Message: ${error}`)
   }
 }
 
@@ -95,7 +91,7 @@ export async function readFile(file: File) {
       loadReplayText(file.name, decompressedData)
     }
   } catch (error) {
-    Common.showModal('error', 'Error reading file', 'Message: ' + error)
+    Common.showModal('error', 'Error reading file', `Message: ${error}`)
   }
 }
 
@@ -105,12 +101,12 @@ export async function readFile(file: File) {
  */
 // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
 function expandSequence(sequence: any[], numSteps: number): any[] {
-  var expanded: any[] = []
-  var i = 0
-  var j = 0
-  var v: any = null
+  const expanded: any[] = []
+  let i = 0
+  let j = 0
+  let v: any = null
   for (i = 0; i < numSteps; i++) {
-    if (j < sequence.length && sequence[j][0] == i) {
+    if (j < sequence.length && sequence[j][0] === i) {
       v = sequence[j][1]
       j++
     }
@@ -130,7 +126,7 @@ function removeSuffix(str: string, suffix: string) {
 }
 
 // Loads the replay text.
-async function loadReplayText(url: string, replayData: string) {
+function loadReplayText(url: string, replayData: string) {
   loadReplayJson(url, JSON.parse(replayData))
 }
 
@@ -141,7 +137,7 @@ async function loadReplayText(url: string, replayData: string) {
 function fixReplay() {
   // Fix "agent.agent" -> "agent".
   for (let i = 0; i < state.replay.object_types.length; i++) {
-    if (state.replay.object_types[i] == 'agent.agent') {
+    if (state.replay.object_types[i] === 'agent.agent') {
       state.replay.object_types[i] = 'agent'
     }
   }
@@ -149,7 +145,7 @@ function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.action_images = []
   for (const actionName of state.replay.action_names) {
-    let path = 'trace/' + actionName + '.png'
+    const path = `trace/${actionName}.png`
     if (ctx.hasImage(path)) {
       state.replay.action_images.push(path)
     } else {
@@ -170,27 +166,27 @@ function fixReplay() {
   // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
   // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
-  for (let i = 0; i < state.replay.object_types.length; i++) {
-    let typeName = state.replay.object_types[i]
+  state.replay.object_types.forEach((originalTypeName: string) => {
+    let typeName = originalTypeName
     // Remove known color suffixes.
-    for (const color of Common.COLORS) {
-      if (typeName.endsWith('_' + color[0])) {
-        typeName = typeName.slice(0, -color[0].length - 1)
+    for (const colorName of Common.COLORS.keys()) {
+      if (typeName.endsWith(`_${colorName}`)) {
+        typeName = typeName.slice(0, -colorName.length - 1)
         break
       }
     }
-    var image = 'objects/' + typeName + '.png'
-    var imageItem = 'objects/' + typeName + '.item.png'
-    var imageColor = 'objects/' + typeName + '.color.png'
+    let image = `objects/${typeName}.png`
+    let imageItem = `objects/${typeName}.item.png`
+    let imageColor = `objects/${typeName}.color.png`
     if (!ctx.hasImage(image)) {
-      console.warn('Object name not supported: "' + typeName + '"')
+      console.warn(`Object name not supported: "${typeName}"`)
       // Use the "unknown" image.
       image = 'objects/unknown.png'
       imageItem = 'objects/unknown.item.png'
       imageColor = 'objects/unknown.color.png'
     }
     state.replay.object_images.push([image, imageItem, imageColor])
-  }
+  })
 
   // Create a resource inventory mapping for faster access.
   // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
@@ -200,43 +196,42 @@ function fixReplay() {
   state.replay.resource_inventory = new Map()
   for (const key of state.replay.all_keys) {
     if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
-      var type: string = key
+      let type: string = key
       type = removePrefix(type, 'inv:')
       type = removePrefix(type, 'agent:inv:')
-      var color = [1, 1, 1, 1] // Default to white.
+      let color = [1, 1, 1, 1] // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
-          if (ctx.hasImage('resources/' + type + '.png')) {
+          if (ctx.hasImage(`resources/${type}.png`)) {
             // Use the resource.color.png with a white color.
             break
-          } else {
-            // Use the resource.png with a specific color.
-            type = removeSuffix(type, '.' + colorName)
-            color = colorValue as number[]
-            if (!ctx.hasImage('resources/' + type + '.png')) {
-              // Use the unknown.png with a specific color.
-              console.warn('Resource not supported: ', type)
-              type = 'unknown'
-            }
+          }
+          // Use the resource.png with a specific color.
+          type = removeSuffix(type, `.${colorName}`)
+          color = colorValue as number[]
+          if (!ctx.hasImage(`resources/${type}.png`)) {
+            // Use the unknown.png with a specific color.
+            console.warn('Resource not supported: ', type)
+            type = 'unknown'
           }
         }
       }
-      image = 'resources/' + type + '.png'
+      const image = `resources/${type}.png`
       state.replay.resource_inventory.set(key, [image, color])
     }
   }
 
   // The map size is not to be trusted. Recompute the map size just in case.
-  let oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]]
+  const oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]]
   state.replay.map_size[0] = 1
   state.replay.map_size[1] = 1
   for (const gridObject of state.replay.grid_objects) {
-    let x = getAttr(gridObject, 'c') + 1
-    let y = getAttr(gridObject, 'r') + 1
+    const x = getAttr(gridObject, 'c') + 1
+    const y = getAttr(gridObject, 'r') + 1
     state.replay.map_size[0] = Math.max(state.replay.map_size[0], x)
     state.replay.map_size[1] = Math.max(state.replay.map_size[1], y)
   }
-  if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
+  if (oldMapSize[0] !== state.replay.map_size[0] || oldMapSize[1] !== state.replay.map_size[1]) {
     // The map size changed, so update the map.
     console.info('Map size changed to: ', state.replay.map_size[0], 'x', state.replay.map_size[1])
     focusFullMap(ui.mapPanel)
@@ -246,13 +241,13 @@ function fixReplay() {
 }
 
 /** Loads a replay from a JSON object. */
-async function loadReplayJson(url: string, replayData: any) {
+function loadReplayJson(url: string, replayData: any) {
   state.replay = replayData
 
   // Go through each grid object and expand its key sequence.
   for (const gridObject of state.replay.grid_objects) {
     for (const key in gridObject) {
-      if (gridObject[key] instanceof Array) {
+      if (Array.isArray(gridObject[key])) {
         gridObject[key] = expandSequence(gridObject[key], state.replay.max_steps)
       }
     }
@@ -263,7 +258,7 @@ async function loadReplayJson(url: string, replayData: any) {
   for (let i = 0; i < state.replay.num_agents; i++) {
     state.replay.agents.push({})
     for (const gridObject of state.replay.grid_objects) {
-      if (gridObject['agent_id'] == i) {
+      if (gridObject.agent_id === i) {
         state.replay.agents[i] = gridObject
       }
     }
@@ -312,7 +307,7 @@ export function loadReplayStep(replayStep: any) {
 
       state.replay.grid_objects[index][key][step] = value
 
-      if (key == 'agent_id') {
+      if (key === 'agent_id') {
         // Update the agent.
         while (state.replay.agents.length <= value) {
           state.replay.agents.push({})
@@ -337,7 +332,7 @@ export function loadReplayStep(replayStep: any) {
 
 /** Get object config. */
 export function getObjectConfig(object: any) {
-  let typeName = state.replay.object_types[object.type]
+  const typeName = state.replay.object_types[object.type]
   if (state.replay.config == null) {
     return null
   }
@@ -366,7 +361,7 @@ export function initWebSocket(wsUrl: string) {
     Common.showModal('error', 'WebSocket closed', 'Please check your connection and refresh this page.')
   }
   state.ws.onerror = (event) => {
-    Common.showModal('error', 'WebSocket error', 'Websocket error: ' + event)
+    Common.showModal('error', 'WebSocket error', `Websocket error: ${event}`)
   }
 }
 
@@ -379,7 +374,7 @@ export function sendAction(actionName: string, actionParam: number) {
   const agentId = getAttr(state.selectedGridObject, 'agent_id')
   if (agentId != null) {
     const actionId = state.replay.action_names.indexOf(actionName)
-    if (actionId == -1) {
+    if (actionId === -1) {
       console.error('Action not found: ', actionName)
       return
     }
@@ -414,11 +409,11 @@ export function propertyName(key: string) {
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
   if (state.replay.object_types.includes(key)) {
-    let idx = state.replay.object_types.indexOf(key)
-    return 'data/atlas/' + state.replay.object_images[idx][0]
-  } else if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
-    return 'data/atlas/resources/' + key.replace('inv:', '').replace('agent:', '') + '.png'
-  } else {
-    return 'data/ui/table/' + key.replace('agent:', '') + '.png'
+    const idx = state.replay.object_types.indexOf(key)
+    return `data/atlas/${state.replay.object_images[idx][0]}`
   }
+  if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
+    return `data/atlas/resources/${key.replace('inv:', '').replace('agent:', '')}.png`
+  }
+  return `data/ui/table/${key.replace('agent:', '')}.png`
 }

@@ -15,24 +15,30 @@ import subprocess
 import uuid
 from datetime import datetime
 
-from metta.app_backend.eval_task_client import EvalTaskClient
+from devops.observatory_login import CLIAuthenticator
+from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     TaskResponse,
     TaskStatus,
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
-from metta.common.util.logging_helpers import setup_mettagrid_logger
+from metta.common.util.git import METTA_API_REPO_URL
+from metta.common.util.logging_helpers import init_logging
 
 
 class EvalTaskWorker:
-    def __init__(self, backend_url: str, git_hash: str, assignee: str, logger: logging.Logger | None = None):
+    def __init__(
+        self, backend_url: str, git_hash: str, assignee: str, machine_token: str, logger: logging.Logger | None = None
+    ):
         self._backend_url = backend_url
         self._git_hash = git_hash
         self._assignee = assignee
+        CLIAuthenticator(self._backend_url).save_token(machine_token)
         self._client = EvalTaskClient(backend_url)
-        self._logger = logger or setup_mettagrid_logger("eval_worker_worker")
+        self._logger = logger or logging.getLogger(__name__)
         self._poll_interval = 5.0
 
     async def __aenter__(self):
@@ -41,6 +47,31 @@ class EvalTaskWorker:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._client.close()
 
+    def _run_cmd_from_versioned_checkout(
+        self,
+        cmd: list[str],
+        error_msg: str,
+        capture_output: bool = True,
+    ) -> subprocess.CompletedProcess:
+        """Run a command from the versioned checkout with a clean environment."""
+        env = os.environ.copy()
+        for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
+            env.pop(key, None)
+
+        result = subprocess.run(
+            cmd,
+            cwd=self._versioned_path,
+            capture_output=capture_output,
+            text=True,
+            env=env,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(f"{error_msg}: {result.stderr}")
+
+        return result
+
+    @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self) -> None:
         self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
         if os.path.exists(self._versioned_path):
@@ -52,7 +83,7 @@ class EvalTaskWorker:
         os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
         result = subprocess.run(
-            ["git", "clone", "https://github.com/Metta-AI/metta.git", self._versioned_path],
+            ["git", "clone", METTA_API_REPO_URL, self._versioned_path],
             capture_output=True,
             text=True,
         )
@@ -69,8 +100,20 @@ class EvalTaskWorker:
         if result.returncode != 0:
             raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
 
+        # Install dependencies in the versioned checkout
+        self._logger.info("Installing dependencies in versioned checkout...")
+        self._run_cmd_from_versioned_checkout(
+            ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
+            "Failed to configure dependencies",
+        )
+        self._run_cmd_from_versioned_checkout(
+            ["uv", "run", "metta", "install"],
+            "Failed to install dependencies",
+        )
+
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
+    @trace("worker.run_sim_task")
     async def _run_sim_task(
         self,
         task: TaskResponse,
@@ -82,13 +125,14 @@ class EvalTaskWorker:
             raise RuntimeError(f"Policy name not found for task {task.id}")
         cmd = [
             "uv",
-            "--project",
-            self._versioned_path,
             "run",
             "tools/sim.py",
             f"policy_uri=wandb://run/{policy_name}",
             f"sim={sim_suite}",
             f"eval_task_id={str(task.id)}",
+            f"stats_server_uri={self._backend_url}",
+            "device=cpu",
+            "vectorization=serial",
         ]
 
         for key, value in env_overrides.items():
@@ -96,13 +140,14 @@ class EvalTaskWorker:
 
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            raise RuntimeError(f"sim.py failed with exit code {result.returncode}:\n{result.stderr}")
+        result = self._run_cmd_from_versioned_checkout(
+            cmd,
+            "sim.py failed with exit code",
+        )
 
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
+    @trace("worker.update_status")
     async def _update_task_status(
         self,
         task_id: uuid.UUID,
@@ -166,14 +211,17 @@ class EvalTaskWorker:
 
 
 async def main() -> None:
-    logger = setup_mettagrid_logger("eval_worker_worker")
+    init_logging()
+    init_tracing()
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logger = logging.getLogger(__name__)
 
     backend_url = os.environ["BACKEND_URL"]
     git_hash = os.environ["GIT_HASH"]
     assignee = os.environ["WORKER_ASSIGNEE"]
+    machine_token = os.environ["MACHINE_TOKEN"]
 
-    async with EvalTaskWorker(backend_url, git_hash, assignee, logger) as worker:
+    async with EvalTaskWorker(backend_url, git_hash, assignee, machine_token, logger) as worker:
         await worker.run()
 
 

@@ -1,233 +1,197 @@
-import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { HeatmapData, PolicySelector, Repo, SavedDashboard, SavedDashboardCreate } from './repo'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { DashboardState, PolicyScorecardData, Repo, SavedDashboard, SavedDashboardCreate } from './repo'
+import { PolicySelector } from './components/PolicySelector'
+import { SearchInput } from './components/SearchInput'
+import { EvalSelector } from './components/EvalSelector'
+import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
+import { MetricSelector } from './components/MetricSelector'
+import { Scorecard } from './Scorecard'
+import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
-import { Heatmap } from './Heatmap'
 import { SaveDashboardModal } from './SaveDashboardModal'
-import { MultiSelectDropdown } from './MultiSelectDropdown'
-import { SuiteTabs } from './SuiteTabs'
-
-// CSS for dashboard
-const DASHBOARD_CSS = `
-
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.btn-primary {
-  background: #007bff;
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: #0056b3;
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: #fff;
-}
-
-.btn-secondary:hover {
-  background: #545b62;
-}
-
-/* Policy selector styles */
-.policy-selector {
-  margin: 20px 0;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-}
-
-.policy-selector-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.policy-selector-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
-}
-
-.policy-selector-controls {
-  display: flex;
-  gap: 10px;
-}
-
-.policy-selector-btn {
-  padding: 6px 12px;
-  border: 1px solid #ddd;
-  background: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.policy-selector-btn:hover {
-  background: #f8f8f8;
-}
-
-.policy-selector-btn.active {
-  background: #007bff;
-  color: #fff;
-  border-color: #007bff;
-}
-`
+import { METTASCOPE_REPLAY_URL } from './constants'
 
 interface DashboardProps {
   repo: Repo
 }
 
 export function Dashboard({ repo }: DashboardProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   // Data state
-  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null)
-  const [metrics, setMetrics] = useState<string[]>([])
-  const [suites, setSuites] = useState<string[]>([])
+  const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
+  const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
+  const [scorecardData, setScorecardData] = useState<PolicyScorecardData | null>(null)
+
+  // Selection state
+  const [selectedTrainingRunIds, setSelectedTrainingRunIds] = useState<string[]>([])
+  const [selectedRunFreePolicyIds, setSelectedRunFreePolicyIds] = useState<string[]>([])
+  const [selectedEvalNames, setSelectedEvalNames] = useState<Set<string>>(new Set())
+  const [trainingRunPolicySelector, setTrainingRunPolicySelector] = useState<'latest' | 'best'>('latest')
+  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
   // UI state
-  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
-  const [selectedSuite, setSelectedSuite] = useState<string>('navigation')
+  const [policySearchText, setPolicySearchText] = useState<string>('')
+  const [loading, setLoading] = useState({
+    evalCategories: false,
+    metrics: false,
+    scorecard: false,
+  })
+  const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{
     policyUri: string
     evalName: string
   } | null>(null)
-  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20)
-  const [selectedPolicies, setSelectedPolicies] = useState<Set<string>>(new Set())
-  const [policySelector, setPolicySelector] = useState<PolicySelector>('latest')
+  const [controlsExpanded, setControlsExpanded] = useState<boolean>(true)
 
-  // Save dashboard state
+  // Save dashboard modal state
   const [showSaveModal, setShowSaveModal] = useState(false)
-  const [savedId, setSavedId] = useState<string | null>(null)
+
+  // Dashboard metadata state
   const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null)
 
-  const location = useLocation()
-
-  // Initialize data and load saved dashboard if provided
+  // Load eval names when training runs or policies are selected
   useEffect(() => {
-    const initializeData = async () => {
-      const urlParams = new URLSearchParams(location.search)
-      const savedIdParam = urlParams.get('saved_id')
+    const loadEvalNames = async () => {
+      if (selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) {
+        setEvalNames(new Set())
+        setSelectedEvalNames(new Set())
+        return
+      }
 
-      // Load suites first
-      const suitesData = await repo.getSuites()
-      setSuites(suitesData)
+      try {
+        setLoading((prev) => ({ ...prev, evalCategories: true }))
+        setError(null)
+        const evalNamesData = await repo.getEvalNames({
+          training_run_ids: selectedTrainingRunIds,
+          run_free_policy_ids: selectedRunFreePolicyIds,
+        })
+        setEvalNames(evalNamesData)
 
-      if (savedIdParam) {
-        // Load saved dashboard
-        try {
-          const dashboard = await repo.getSavedDashboard(savedIdParam)
-          const state = dashboard.dashboard_state
-          setSelectedSuite(state.suite || suitesData[0])
-          setSelectedMetric(state.metric || 'reward')
-          setNumPoliciesToShow(state.num_policies_to_show || 20)
-          setSelectedPolicies(new Set(state.selected_policies || []))
-          setPolicySelector(state.policy_selector || 'latest')
-          setSavedId(savedIdParam)
-          setSavedDashboard(dashboard)
-        } catch (err) {
-          console.error('Failed to load shared dashboard:', err)
-          // Fallback to first suite if saved dashboard fails
-          setSelectedSuite(suitesData[0])
+        // Clear eval selections that are no longer valid
+        setSelectedEvalNames(new Set([...selectedEvalNames].filter((evalName) => evalNamesData.has(evalName))))
+      } catch (err) {
+        setError(`Failed to load eval names: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setEvalNames(new Set())
+        setSelectedEvalNames(new Set())
+      } finally {
+        setLoading((prev) => ({ ...prev, evalCategories: false }))
+      }
+    }
+
+    loadEvalNames()
+  }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds])
+
+  // Load available metrics when training runs/policies and evaluations are selected
+  useEffect(() => {
+    const loadMetrics = async () => {
+      if (
+        (selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) ||
+        selectedEvalNames.size === 0
+      ) {
+        setAvailableMetrics([])
+        setSelectedMetric('')
+        return
+      }
+
+      try {
+        setLoading((prev) => ({ ...prev, metrics: true }))
+        setError(null)
+        const metricsData = await repo.getAvailableMetrics({
+          training_run_ids: selectedTrainingRunIds,
+          run_free_policy_ids: selectedRunFreePolicyIds,
+          eval_names: Array.from(selectedEvalNames),
+        })
+        setAvailableMetrics(metricsData)
+
+        // Clear metric selection if it's no longer available
+        if (selectedMetric && !metricsData.includes(selectedMetric)) {
+          setSelectedMetric('')
         }
-      } else {
-        // No saved dashboard, use first suite
-        setSelectedSuite(suitesData[0])
+        if (metricsData.length > 0 && !selectedMetric) {
+          if (metricsData.includes('reward')) {
+            setSelectedMetric('reward')
+          } else {
+            setSelectedMetric(metricsData[0])
+          }
+        }
+      } catch (err) {
+        setError(`Failed to load metrics: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setAvailableMetrics([])
+        setSelectedMetric('')
+      } finally {
+        setLoading((prev) => ({ ...prev, metrics: false }))
       }
     }
 
-    initializeData()
-  }, [location.search, repo])
+    loadMetrics()
+  }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric])
 
-  // Load metrics when suite changes
-  useEffect(() => {
-    const loadSuiteData = async () => {
-      if (!selectedSuite) return
-
-      const metricsData = await repo.getAllMetrics()
-      setMetrics(metricsData)
+  // Generate scorecard
+  const generateScorecard = async (
+    selectedTrainingRunIds: string[],
+    selectedRunFreePolicyIds: string[],
+    selectedEvalNames: Set<string>,
+    selectedMetric: string
+  ) => {
+    if (
+      (selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) ||
+      selectedEvalNames.size === 0 ||
+      !selectedMetric
+    ) {
+      setError('Please select training runs/policies, evaluations, and a metric before generating the scorecard.')
+      return
     }
 
-    loadSuiteData()
-  }, [selectedSuite, repo])
-
-  // Load heatmap data when suite, metric, group metric, or policy selector changes
-  useEffect(() => {
-    const loadHeatmapData = async () => {
-      if (!selectedSuite || !selectedMetric) return
-
-      const heatmapData = await repo.getHeatmapData(
-        selectedMetric,
-        selectedSuite,
-        policySelector
-      )
-      setHeatmapData(heatmapData)
-    }
-
-    loadHeatmapData()
-  }, [selectedSuite, selectedMetric, policySelector, repo])
-
-  const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
     try {
-      const fullDashboardData: SavedDashboardCreate = {
-        ...dashboardData,
-        dashboard_state: {
-          suite: selectedSuite,
-          metric: selectedMetric,
-          num_policies_to_show: numPoliciesToShow,
-          selected_policies: Array.from(selectedPolicies),
-          policy_selector: policySelector,
-        },
-      }
-
-      if (savedId) {
-        // Update existing dashboard
-        const updatedDashboard = await repo.updateSavedDashboard(savedId, fullDashboardData)
-        setSavedDashboard(updatedDashboard)
-      } else {
-        // Create new dashboard
-        const newDashboard = await repo.createSavedDashboard(fullDashboardData)
-        setSavedId(newDashboard.id)
-        setSavedDashboard(newDashboard)
-      }
-    } catch (err: any) {
-      throw new Error(err.message || 'Failed to save dashboard')
+      setLoading((prev) => ({ ...prev, scorecard: true }))
+      setError(null)
+      const scorecardResult = await repo.generatePolicyScorecard({
+        training_run_ids: selectedTrainingRunIds,
+        run_free_policy_ids: selectedRunFreePolicyIds,
+        eval_names: Array.from(selectedEvalNames),
+        training_run_policy_selector: trainingRunPolicySelector,
+        metric: selectedMetric,
+      })
+      setScorecardData(scorecardResult)
+      setControlsExpanded(false)
+    } catch (err) {
+      setError(`Failed to generate scorecard: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      setScorecardData(null)
+    } finally {
+      setLoading((prev) => ({ ...prev, scorecard: false }))
     }
   }
 
-  if (!heatmapData) {
-    return <div>Loading...</div>
+  const generateScorecardCallback = async () => {
+    await generateScorecard(selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric)
   }
 
-  // Component functions
+  // Stable handlers for PolicySelector to prevent unnecessary re-renders
+  const handleSearchChange = useCallback((searchText: string) => {
+    setPolicySearchText(searchText)
+  }, [])
 
-  const setSelectedCellIfNotLocked = (cell: {
-    policyUri: string
-    evalName: string
-  }) => {
-    if (!isViewLocked) {
-      setSelectedCell(cell)
-    }
-  }
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+  }, [])
 
-  const openReplayUrl = (policyUri: string, evalName: string) => {
-    const evalData = heatmapData?.cells[policyUri]?.[evalName]
-    if (!evalData?.replayUrl) return
+  const canGenerateScorecard =
+    (selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
+    selectedEvalNames.size > 0 &&
+    selectedMetric !== '' &&
+    !Object.values(loading).some(Boolean)
 
-    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
-    window.open(replay_url_prefix + evalData.replayUrl, '_blank')
+  const openReplayUrl = (policyName: string, evalName: string) => {
+    const cell = scorecardData?.cells[policyName]?.[evalName]
+    if (!cell?.replayUrl) return
+
+    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
+    window.open(replay_url_prefix + cell.replayUrl, '_blank')
   }
 
   const toggleLock = () => {
@@ -240,313 +204,275 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   }
 
-  const selectedCellData = selectedCell ? heatmapData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
+  const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
 
-  // Policy selection functions
-  const selectAllPolicies = () => {
-    const allPolicies = Object.keys(heatmapData.cells)
-    setSelectedPolicies(new Set(allPolicies))
+  // Dashboard state management functions
+  const getDashboardState = () => {
+    return {
+      selectedTrainingRunIds,
+      selectedRunFreePolicyIds,
+      selectedEvalNames: Array.from(selectedEvalNames),
+      trainingRunPolicySelector,
+      selectedMetric,
+    }
   }
 
-  const clearPolicySelection = () => {
-    setSelectedPolicies(new Set())
+  // Helper function to compare dashboard states
+  const isDashboardStateChanged = () => {
+    if (!savedDashboard) return true
+
+    const currentState = getDashboardState()
+    const originalDashboardState = savedDashboard.dashboard_state
+    return (
+      JSON.stringify(currentState.selectedTrainingRunIds) !==
+        JSON.stringify(originalDashboardState.selectedTrainingRunIds) ||
+      JSON.stringify(currentState.selectedRunFreePolicyIds) !==
+        JSON.stringify(originalDashboardState.selectedRunFreePolicyIds) ||
+      JSON.stringify(currentState.selectedEvalNames) !== JSON.stringify(originalDashboardState.selectedEvalNames) ||
+      currentState.trainingRunPolicySelector !== originalDashboardState.trainingRunPolicySelector ||
+      currentState.selectedMetric !== originalDashboardState.selectedMetric
+    )
   }
 
-  // Filter heatmap data based on selected policies
-  const filteredHeatmapData =
-    selectedPolicies.size > 0
-      ? {
-          ...heatmapData,
-          cells: Object.fromEntries(
-            Object.entries(heatmapData.cells).filter(([policyUri]) => selectedPolicies.has(policyUri))
-          ),
-          policyAverageScores: Object.fromEntries(
-            Object.entries(heatmapData.policyAverageScores).filter(([policyUri]) => selectedPolicies.has(policyUri))
-          ),
-        }
-      : heatmapData
+  const restoreDashboardState = async (state: DashboardState) => {
+    setSelectedTrainingRunIds(state.selectedTrainingRunIds || [])
+    setSelectedRunFreePolicyIds(state.selectedRunFreePolicyIds || [])
+    setSelectedEvalNames(new Set(state.selectedEvalNames || []))
+    setTrainingRunPolicySelector(state.trainingRunPolicySelector || 'latest')
+    setSelectedMetric(state.selectedMetric || '')
 
-  // Get sorted policies for display
-  const sortedPolicies = Object.keys(heatmapData.cells).sort(
-    (a, b) => heatmapData.policyAverageScores[b] - heatmapData.policyAverageScores[a]
-  )
+    await generateScorecard(
+      state.selectedTrainingRunIds,
+      state.selectedRunFreePolicyIds,
+      new Set(state.selectedEvalNames),
+      state.selectedMetric
+    )
+  }
 
-  // Convert policies to options for MultiSelectDropdown
-  const policyOptions = sortedPolicies.map((policyUri) => ({
-    value: policyUri,
-    label: policyUri,
-    metadata: {
-      score: heatmapData.policyAverageScores[policyUri],
-    },
-  }))
+  const handleCreateDashboard = async (dashboardData: SavedDashboardCreate) => {
+    try {
+      const dashboardState = getDashboardState()
+      const saveData = {
+        ...dashboardData,
+        dashboard_state: dashboardState,
+      }
+
+      const savedDashboard = await repo.createSavedDashboard(saveData)
+
+      // Update URL to include the saved dashboard ID
+      const newSearchParams = new URLSearchParams(searchParams)
+      newSearchParams.set('saved_id', savedDashboard.id)
+      setSearchParams(newSearchParams)
+
+      setShowSaveModal(false)
+    } catch (error) {
+      console.error('Failed to save dashboard:', error)
+      throw error
+    }
+  }
+
+  const loadSavedDashboard = async (savedId: string) => {
+    try {
+      const savedDashboard = await repo.getSavedDashboard(savedId)
+      if (savedDashboard.dashboard_state) {
+        setSavedDashboard(savedDashboard)
+        await restoreDashboardState(savedDashboard.dashboard_state)
+      }
+    } catch (error) {
+      console.error('Failed to load saved dashboard:', error)
+    }
+  }
+
+  const savedId = searchParams.get('saved_id')
+  const dashboardName = savedDashboard?.name ?? 'Policy Scorecard'
+
+  const handleDashboardButtonClick = async () => {
+    if (savedId) {
+      await repo.updateDashboardState(savedId, getDashboardState())
+      await loadSavedDashboard(savedId)
+    } else {
+      setShowSaveModal(true)
+    }
+  }
+
+  // Load saved dashboard on mount if saved_id parameter is present
+  useEffect(() => {
+    if (savedId) {
+      loadSavedDashboard(savedId)
+    }
+  }, [savedId, repo])
 
   return (
-    <div
-      style={{
-        padding: '20px',
-        background: '#f8f9fa',
-        minHeight: 'calc(100vh - 60px)',
-      }}
-    >
-      <style>{DASHBOARD_CSS}</style>
-      <div
-        style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          background: '#fff',
-          padding: '20px',
-          borderRadius: '5px',
-          boxShadow: '0 2px 4px rgba(0,0,0,.1)',
-        }}
-      >
-        {savedDashboard && (
-          <div
-            style={{
-              textAlign: 'center',
-              marginBottom: '20px',
-              paddingBottom: '20px',
-              borderBottom: '1px solid #eee',
-            }}
-          >
-            <h1
-              style={{
-                margin: 0,
-                color: '#333',
-                fontSize: '24px',
-                fontWeight: '600',
-              }}
-            >
-              {savedDashboard.name}
-            </h1>
-            {savedDashboard.description && (
-              <p
-                style={{
-                  margin: '8px 0 0 0',
-                  color: '#666',
-                  fontSize: '16px',
-                }}
-              >
-                {savedDashboard.description}
-              </p>
-            )}
+    <div className={styles.dashboardContainer}>
+      <div className={styles.dashboardContent}>
+        <div className={styles.dashboardHeader}>
+          <h1 className={styles.dashboardTitle}>{dashboardName}</h1>
+          <p className={styles.dashboardSubtitle}>
+            Select policies and evaluations to generate interactive scorecards for analysis.
+          </p>
+        </div>
+
+        {error && (
+          <div className={styles.errorContainer}>
+            <div className={styles.errorTitle}>Error</div>
+            <div className={styles.errorMessage}>{error}</div>
           </div>
         )}
 
-        <SuiteTabs
-          suites={suites}
-          selectedSuite={selectedSuite}
-          onSuiteChange={setSelectedSuite}
-          rightContent={
-            <button className="btn btn-secondary" onClick={() => setShowSaveModal(true)}>
-              {savedId ? 'Update Dashboard' : 'Save Dashboard'}
+        <div className={styles.controlsSection}>
+          <div className={styles.controlsHeader}>
+            <h2 className={styles.controlsTitle}>Configuration Controls</h2>
+            <button
+              className={styles.toggleButton}
+              onClick={() => setControlsExpanded(!controlsExpanded)}
+              aria-expanded={controlsExpanded}
+            >
+              {controlsExpanded ? '▼' : '▶'} {controlsExpanded ? 'Hide' : 'Show'} Controls
             </button>
-          }
-        />
-
-        <SaveDashboardModal
-          isOpen={showSaveModal}
-          onClose={() => setShowSaveModal(false)}
-          onSave={handleSaveDashboard}
-          initialName={savedDashboard?.name || ''}
-          initialDescription={savedDashboard?.description || ''}
-          isUpdate={!!savedId}
-        />
-
-        {filteredHeatmapData && (
-          <Heatmap
-            data={filteredHeatmapData}
-            selectedMetric={selectedMetric}
-            setSelectedCell={setSelectedCellIfNotLocked}
-            openReplayUrl={openReplayUrl}
-            numPoliciesToShow={numPoliciesToShow}
-          />
-        )}
-
-        {/* Controls Section - Two Column Layout */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '20px',
-            marginTop: '30px',
-            marginBottom: '30px',
-          }}
-        >
-          {/* Left Column - Heatmap Controls */}
-          <div
-            style={{
-              background: '#f8f9fa',
-              padding: '20px',
-              borderRadius: '8px',
-              border: '1px solid #e9ecef',
-            }}
-          >
-            <h3
-              style={{
-                margin: '0 0 15px 0',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#333',
-              }}
-            >
-              Heatmap Controls
-            </h3>
-
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '15px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Heatmap Metric</div>
-                <select
-                  value={selectedMetric}
-                  onChange={(e) => setSelectedMetric(e.target.value)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
-                    fontSize: '14px',
-                    flex: '1',
-                    backgroundColor: '#fff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {metrics.map((metric) => (
-                    <option key={metric} value={metric}>
-                      {metric}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Number of policies:</div>
-                <input
-                  type="number"
-                  value={numPoliciesToShow}
-                  onChange={(e) => setNumPoliciesToShow(parseInt(e.target.value))}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
-                    fontSize: '14px',
-                    flex: '1',
-                  }}
-                />
-              </div>
-            </div>
           </div>
 
-          {/* Right Column - Policy Selection */}
-          <div
-            style={{
-              background: '#f8f9fa',
-              padding: '20px',
-              borderRadius: '8px',
-              border: '1px solid #e9ecef',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '15px',
-              }}
-            >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: '#333',
-                }}
-              >
-                Policy Selection ({selectedPolicies.size} selected)
-              </h3>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '8px',
-                }}
-              >
-                <button className="policy-selector-btn" onClick={selectAllPolicies}>
-                  Select All
-                </button>
-                <button className="policy-selector-btn" onClick={clearPolicySelection}>
-                  Clear All
-                </button>
+          {controlsExpanded && (
+            <div className={styles.widgetsGrid}>
+              {/* Policy Selection */}
+              <div className={styles.widget}>
+                <h3 className={styles.widgetTitle}>Policy Selection</h3>
+                <div className={styles.widgetContent}>
+                  <SearchInput searchText={policySearchText} onSearchChange={handleSearchChange} disabled={false} />
+                  <PolicySelector
+                    repo={repo}
+                    searchText={policySearchText}
+                    selectedTrainingRunIds={selectedTrainingRunIds}
+                    selectedRunFreePolicyIds={selectedRunFreePolicyIds}
+                    onTrainingRunSelectionChange={setSelectedTrainingRunIds}
+                    onRunFreePolicySelectionChange={setSelectedRunFreePolicyIds}
+                    currentPage={currentPage}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
               </div>
-            </div>
-            <MultiSelectDropdown
-              options={policyOptions}
-              selectedValues={selectedPolicies}
-              onSelectionChange={setSelectedPolicies}
-              placeholder="Select policies"
-              searchPlaceholder="Search policies..."
-              width="100%"
-            />
 
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '15px',
-                marginTop: '15px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Training Run Policy Selection</div>
-                <select
-                  value={policySelector}
-                  onChange={(e) => setPolicySelector(e.target.value as PolicySelector)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
-                    fontSize: '14px',
-                    flex: '1',
-                    backgroundColor: '#fff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="latest">Latest</option>
-                  <option value="best">Best</option>
-                </select>
+              {/* Evaluation Selection */}
+              <div className={styles.widget}>
+                <h3 className={styles.widgetTitle}>Evaluation Selection</h3>
+                <div className={styles.widgetContent}>
+                  <EvalSelector
+                    evalNames={evalNames}
+                    selectedEvalNames={selectedEvalNames}
+                    onSelectionChange={setSelectedEvalNames}
+                    loading={loading.evalCategories}
+                  />
+                </div>
+              </div>
+
+              {/* Training Run Policy Selector */}
+              <div className={styles.widget}>
+                <h3 className={styles.widgetTitle}>Training Run Policy Selector</h3>
+                <div className={styles.widgetContent}>
+                  <TrainingRunPolicySelector
+                    value={trainingRunPolicySelector}
+                    onChange={setTrainingRunPolicySelector}
+                    disabled={selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0}
+                  />
+                </div>
+              </div>
+
+              {/* Metric Selection */}
+              <div className={styles.widget}>
+                <h3 className={styles.widgetTitle}>Metric Selection</h3>
+                <div className={styles.widgetContent}>
+                  <MetricSelector
+                    metrics={availableMetrics}
+                    selectedMetric={selectedMetric}
+                    onSelectionChange={setSelectedMetric}
+                    loading={loading.metrics}
+                    disabled={
+                      (selectedTrainingRunIds.length === 0 && selectedRunFreePolicyIds.length === 0) ||
+                      selectedEvalNames.size === 0
+                    }
+                  />
+                </div>
               </div>
             </div>
+          )}
+        </div>
+
+        {/* Generate Scorecard Button */}
+        <div className={styles.generateScorecardContainer}>
+          <div className={styles.generateScorecardButtonWrapper}>
+            <div className={styles.dashboardActions}>
+              <button
+                onClick={generateScorecardCallback}
+                disabled={!canGenerateScorecard}
+                className={styles.generateScorecardButton}
+              >
+                {loading.scorecard ? (
+                  <>
+                    <span className={styles.loadingSpinner}></span>
+                    Generating Scorecard...
+                  </>
+                ) : (
+                  'Generate Scorecard'
+                )}
+              </button>
+              <button
+                onClick={handleDashboardButtonClick}
+                disabled={!isDashboardStateChanged()}
+                className={styles.saveDashboardButton}
+              >
+                {savedId ? 'Update Dashboard' : 'Save Dashboard'}
+              </button>
+            </div>
+            <div className={styles.buttonHelpText}>
+              {selectedTrainingRunIds.length + selectedRunFreePolicyIds.length} policies, {selectedEvalNames.size}{' '}
+              evaluations
+              {selectedMetric && `, using ${selectedMetric} metric`}
+            </div>
+            {!canGenerateScorecard && (
+              <div className={styles.validationMessage}>
+                {selectedTrainingRunIds.length === 0 &&
+                  selectedRunFreePolicyIds.length === 0 &&
+                  'Please select training runs or policies'}
+                {(selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
+                  selectedEvalNames.size === 0 &&
+                  'Please select evaluations'}
+                {(selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
+                  selectedEvalNames.size > 0 &&
+                  !selectedMetric &&
+                  'Please select a metric'}
+                {Object.values(loading).some(Boolean) && 'Loading...'}
+              </div>
+            )}
           </div>
         </div>
 
-        <MapViewer
-          selectedEval={selectedEval}
-          isViewLocked={isViewLocked}
-          selectedReplayUrl={selectedReplayUrl}
-          onToggleLock={toggleLock}
-          onReplayClick={handleReplayClick}
+        {/* Scorecard Display */}
+        {scorecardData && (
+          <div className={styles.scorecardContainer}>
+            <Scorecard
+              data={scorecardData}
+              selectedMetric={selectedMetric}
+              setSelectedCell={setSelectedCell}
+              openReplayUrl={openReplayUrl}
+              numPoliciesToShow={scorecardData.policyNames.length} // Show all policies
+            />
+
+            <MapViewer
+              selectedEval={selectedEval}
+              isViewLocked={isViewLocked}
+              selectedReplayUrl={selectedReplayUrl}
+              onToggleLock={toggleLock}
+              onReplayClick={handleReplayClick}
+            />
+          </div>
+        )}
+
+        {/* Save Dashboard Modal */}
+        <SaveDashboardModal
+          isOpen={showSaveModal}
+          onClose={() => setShowSaveModal(false)}
+          onSave={handleCreateDashboard}
         />
       </div>
     </div>

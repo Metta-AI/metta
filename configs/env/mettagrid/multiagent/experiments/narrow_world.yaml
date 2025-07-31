@@ -1,12 +1,13 @@
 defaults:
-  - /env/mettagrid/multiagent/experiments/defaults@
+  - /env/mettagrid/multiagent/experiments/defaults_bucketed@
   - _self_
 
-game:
-  map_builder:
-    _target_: metta.mettagrid.room.multi_agent.narrow_world.NarrowWorld
-    border_width: 0
-    objects:
-      altar: ${sampling:20,60,40}
-      mine_red: ${sampling:20,60,40}
-      generator_red: ${sampling:20,60,40}
+env_overrides:
+  game:
+    map_builder:
+      _target_: metta.mettagrid.room.multi_agent.narrow_world.NarrowWorld
+      border_width: 0
+      objects:
+        altar: 40
+        mine_red: 40
+        generator_red: 40

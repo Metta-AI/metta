@@ -18,6 +18,8 @@ dependencies = [
   "psycopg[binary,pool]>=3.2.9",
   "pydantic>=2.11.5",
   "pytest-asyncio>=1.0.0",
+  "httpx>=0.28.1",
+  "metta-common",
 ]
 
 [dependency-groups]
@@ -44,3 +46,6 @@ pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["metta.app_backend"]
+
+[tool.uv.sources]
+metta-common = { workspace = true }

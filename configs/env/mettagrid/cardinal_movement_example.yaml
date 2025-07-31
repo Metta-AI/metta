@@ -2,40 +2,56 @@ defaults:
   - mettagrid
   - _self_
 
-# Example configuration for cardinal movement system
-# This replaces tank-style controls (forward/backward + rotate) with direct NSEW movement
+# Example configuration showing how to use cardinal movement
+# alongside traditional tank-style movement
 
 game:
-  # Enable cardinal movement mode
-  movement_mode: cardinal  # Options: "relative" (tank-style) or "cardinal" (NSEW)
-  
-  # In cardinal mode, agents can move directly in any cardinal direction
-  # without needing to rotate first
-  
-  # Other standard configuration
-  num_agents: 4
-  obs_width: 11
-  obs_height: 11
-  max_steps: 1000
-  
-  # Actions configuration
-  # Note: rotate action is automatically disabled in cardinal mode
   actions:
+    # Traditional tank-style movement (forward/backward + rotation)
+    move:
+      enabled: false  # Disable for pure cardinal movement
+    rotate:
+      enabled: false  # Disable for pure cardinal movement
+    
+    # New cardinal movement action (direct NSEW movement)
+    move_cardinal:
+      enabled: true
+    
+    # Other actions remain unchanged
     noop:
       enabled: true
-    move:
-      enabled: true
-      # In cardinal mode:
-      # arg 0 = North (Up)
-      # arg 1 = South (Down)
-      # arg 2 = West (Left)
-      # arg 3 = East (Right)
-    attack:
-      enabled: true
-      # Attack still uses agent orientation/facing
-      consumed_resources:
-        laser: 1
     put_items:
       enabled: true
     get_items:
       enabled: true
+    attack:
+      enabled: true
+      consumed_resources:
+        laser: 1
+      defense_resources:
+        armor: 1
+    swap:
+      enabled: true
+
+# Example configurations:
+
+# 1. Pure cardinal movement (recommended for new environments):
+#    - move: false
+#    - rotate: false
+#    - move_cardinal: true
+
+# 2. Pure tank-style movement (backward compatible):
+#    - move: true
+#    - rotate: true
+#    - move_cardinal: false
+
+# 3. Hybrid mode (both movement types available):
+#    - move: true
+#    - rotate: true
+#    - move_cardinal: true
+#    Note: This gives agents more action choices and may affect learning
+
+# Agent orientation behavior:
+# - In cardinal mode, agents automatically face the direction they move
+# - Orientation still affects directional actions like attack
+# - Agents can "look at" walls by attempting to move into them
