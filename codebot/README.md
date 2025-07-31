@@ -1,108 +1,76 @@
-# Codebot: AI-Powered Code Assistant Framework
+# Codebot
 
-## Overview
-
-Codebot is a framework for building AI-powered code assistants that amplify human engineering capabilities. It provides a unified interface for executing code operations through different LLM interaction modes.
-
-## Quick Start
+## Immediate vision
 
 ```bash
-# One-shot execution (default, fastest)
-codebot test              # Write tests for changed code
-codebot lint              # Fix linting issues
-codebot review            # Review current changes
+# Fix failing tests (reads error from clipboard)
+codebot debug-tests metta/rl
 
-# Persistent mode (maintains conversation state)
-codebot test -p           # Use claude -p for stateful interaction
-codebot review -p         # Iterative review with context retention
+# Launches a claude code with a subagent prompt + additional context like `git diff main`
+codebot debug-tests metta/rl -i
 
-# Interactive mode (launches Claude Code)
-codebot test -i           # Interactive test writing
-codebot review -i         # Interactive code review session
 
-# Workflows (compose multiple commands)
-codebot test-debug        # Run test → debug → test loop
-codebot webapp            # Full web app development flow
+# Fix ruff issues
+codebot lint
+
 ```
 
-## Core Concepts
+## Documentation
 
-### Commands
-Single-purpose operations that perform specific tasks. Each command:
-- Automatically gathers context (git diff, clipboard, relevant files)
-- Can execute in three modes: one-shot (default), persistent (-p), or interactive (-i)
-- Returns structured file changes
+### Stage 1: Codebot CLI
 
-### Workflows
-Compose multiple commands into multi-step processes with:
-- Sequential and parallel execution
-- Conditional branching based on results
-- Interactive handoff points
+Start here - immediate value with simple commands and interactive modes.
 
-### Context Management
-Smart context assembly that:
-- Prioritizes by relevance and recency
-- Respects token limits
-- Includes project structure (parent READMEs)
-- Filters by file extensions when appropriate
+- [CODEBOT.md](CODEBOT.md) - Core CLI, commands, and interactive modes
 
-## Architecture
+### Stage 2: Workflows
 
-### Execution Modes
+Chain commands together for complex multi-step tasks.
 
-1. **One-shot (default)**: Direct LLM API call for fastest performance
-2. **Persistent (-p)**: Uses `claude -p` to maintain conversation state across commands
-3. **Interactive (-i)**: Launches Claude Code for human-in-the-loop refinement
+- [WORKFLOWS.md](WORKFLOWS.md) - Composing commands into workflows
 
-### Data Model
+### Stage 3: Manybots
 
-```python
-@dataclass
-class Command:
-    name: str
-    prompt_template: str
-    default_paths: List[str]
-    output_schema: OutputSchema
+Autonomous agents that work toward goals with clear ownership.
 
-@dataclass
-class ExecutionContext:
-    git_diff: str
-    clipboard: str
-    relevant_files: List[FileContent]
-    mode: Literal["oneshot", "persistent", "interactive"]
+- [MANYBOT.md](MANYBOT.md) - Goal-driven agents with areas of responsibility
 
-@dataclass
-class CommandOutput:
-    file_changes: List[FileChange]
-    metadata: Dict[str, Any]
+## Examples
+
+### Stage 1: Direct Commands
+
+```bash
+# One-shot commands
+codebot test src/api.py
+codebot debug-tests      # reads from clipboard
+codebot review          # reviews git diff
+
+# Interactive modes
+codebot refactor -i     # Claude Code
+codebot fix -p          # Pipeline conversation
+codebot lint -r         # Review each change
 ```
 
-## Implementation Status
+### Stage 2: Workflows
 
-### Available Now
-- Core command framework
-- Context management system
-- Git diff and clipboard integration
-- Basic workflow composition
+```bash
+# Built-in workflows
+codebot tdd src/feature.py
+codebot feature -m "Add user notifications"
 
-### In Development
-- Claude Code MCP integration
-- Remote execution subscriptions
-- Advanced workflow patterns
+# Custom workflow
+codebot db-migration
+```
 
-### Future Considerations
-- Performance optimizations
-- Extended tool integrations
-- Custom command plugins
+### Stage 3: Autonomous Agents
 
-## Design Principles
+```bash
+# Create goal-driven bots
+manybot create test-bot \
+  --goal "90% test coverage by Q1" \
+  --owns "src/" "tests/"
 
-1. **Start Simple**: Focus on high-value commands before scaling
-2. **Best Context**: Provide the most relevant information within token limits
-3. **Clear Contracts**: Type-safe interfaces for reliable composition
-4. **Human-Centric**: Amplify developer capabilities, don't replace them
-5. **Flexible Execution**: Support different interaction modes for different needs
-
-## Next Steps
-
-See the [Design Overview](DESIGN.md) for detailed architecture and implementation guidance.
+# Manage bots
+manybot list
+manybot status test-bot
+```
