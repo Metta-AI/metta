@@ -6,7 +6,7 @@ protein:
   random_suggestions: 1024
   suggestions_per_pareto: 256
 
-metric: overview/reward
+metric: reward
 goal: maximize
 method: bayes
 
