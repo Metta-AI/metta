@@ -121,7 +121,7 @@ uv run ./tools/play.py run=play_$TEST_ID policy_uri=file://./train_dir/test_$TES
 # Add a policy to the navigation evals database
 uv run ./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
 
-# Analyze results with heatmap
+# Analyze results with scorecard
 uv run ./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
 ```
 

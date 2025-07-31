@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Heatmap } from './Heatmap';
+import { Scorecard } from './Scorecard';
 
 
-interface HeatmapWidgetProps {
+interface ScorecardWidgetProps {
     model: {
         get: (key: string) => any;
         on: (event: string, callback: (...args: any[]) => void) => void;
@@ -14,7 +14,7 @@ interface HeatmapWidgetProps {
 }
 
 
-function HeatmapWidget({ model }: HeatmapWidgetProps) {
+function ScorecardWidget({ model }: ScorecardWidgetProps) {
     const [heatmapData, setHeatmapData] = useState(null);
     const [selectedMetric, setSelectedMetric] = useState('');
     const [numPoliciesToShow, setNumPoliciesToShow] = useState(10);
@@ -162,7 +162,7 @@ function HeatmapWidget({ model }: HeatmapWidgetProps) {
             backgroundColor: '#f8f9fa',
             fontFamily: 'Arial, sans-serif'
         }}>
-            <Heatmap
+            <Scorecard
                 data={transformedData}
                 selectedMetric={selectedMetric}
                 setSelectedCell={setSelectedCell}
@@ -188,8 +188,8 @@ function render({ model, el }: { model: any; el: HTMLElement }) {
         rootMap.set(el, root);
     }
 
-    root.render(<HeatmapWidget model={model} />);
-    console.log("HeatmapWidget render completed successfully");
+    root.render(<ScorecardWidget model={model} />);
+    console.log("ScorecardWidget render completed successfully");
 }
 
 

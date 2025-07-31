@@ -275,7 +275,7 @@ To add your policy to the existing navigation evals DB:
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db`
 artifact on WandB.
 
-Then, to see the results in the heatmap along with the other policies in the database, you can run:
+Then, to see the results in the scorecard along with the other policies in the database, you can run:
 
 ```
 ./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
