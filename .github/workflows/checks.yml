@@ -175,11 +175,23 @@ jobs:
           - name: "app_backend-shard-0"
             package: "app_backend"
             shard_id: 0
-            num_shards: 2
+            num_shards: 5
           - name: "app_backend-shard-1"
             package: "app_backend"
             shard_id: 1
-            num_shards: 2
+            num_shards: 5
+          - name: "app_backend-shard-2"
+            package: "app_backend"
+            shard_id: 2
+            num_shards: 5
+          - name: "app_backend-shard-3"
+            package: "app_backend"
+            shard_id: 3
+            num_shards: 5
+          - name: "app_backend-shard-4"
+            package: "app_backend"
+            shard_id: 4
+            num_shards: 5
 
           # Mettagrid with sharding
           - name: "mettagrid-shard-0"

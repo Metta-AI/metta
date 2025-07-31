@@ -1,6 +1,7 @@
 """Statistics processing functions for Metta training."""
 
 import logging
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
@@ -26,8 +27,8 @@ class StatsTracker:
 
     # Database tracking for stats service
     stats_epoch_start: int = 0
-    stats_epoch_id: Optional[Any] = None
-    stats_run_id: Optional[Any] = None
+    stats_epoch_id: uuid.UUID | None = None
+    stats_run_id: uuid.UUID | None = None
 
     def clear_rollout_stats(self) -> None:
         """Clear rollout stats after processing."""

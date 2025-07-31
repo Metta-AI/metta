@@ -14,10 +14,12 @@ env:
   CONTAINER_RUNTIME: "k8s"
   POLL_INTERVAL: "5"
   WORKER_IDLE_TIMEOUT: "1200"
+  DD_TRACE_ENABLED: "true"
 
 secrets:
   wandb: "wandb-api-secret"
   machineToken: "machine-token-secret"
+  datadog: "datadog-secret"
 
 resources:
   requests:
@@ -26,3 +28,27 @@ resources:
   limits:
     cpu: 1000m
     memory: 4Gi
+
+datadog:
+  enabled: true
+  env: "production"
+  datadog:
+    apiKeyExistingSecret: datadog-secret
+    clusterName: "arn:aws:eks:us-east-1:751442549699:cluster/main"
+    site: datadoghq.com
+    apm:
+      portEnabled: true
+      port: 8126
+    logs:
+      enabled: true
+      containerCollectAll: true
+    processAgent:
+      enabled: true
+      processCollection: true
+    orchestratorExplorer:
+      enabled: true
+    tags:
+      - "env:production"
+  agents:
+    enabled: true
+    useHostNetwork: true
