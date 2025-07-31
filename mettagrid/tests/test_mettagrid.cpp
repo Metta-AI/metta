@@ -471,27 +471,40 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   Noop noop(noop_cfg);
   noop.init(&grid);
 
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 0.0f);
-  noop.handle_action(agent->id, 0);
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 0.0f);
+  noop.handle_action(agent->id, 0);  // count 1, max 1
   EXPECT_EQ(agent->location.r, 5);
   EXPECT_EQ(agent->location.c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
   EXPECT_EQ(agent->prev_location.c, 5);
   EXPECT_EQ(agent->prev_action_name, "noop");
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 1.0f);
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
   agent->location.r = 6;
   agent->location.c = 6;
-  noop.handle_action(agent->id, 0);
+  noop.handle_action(agent->id, 0);  // count 0, max 1
   EXPECT_EQ(agent->location.r, 6);
   EXPECT_EQ(agent->location.c, 6);
   EXPECT_EQ(agent->prev_location.r, 6);
   EXPECT_EQ(agent->prev_location.c, 6);
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 0.0f);  // Moved, so reset to 0
-  noop.handle_action(agent->id, 0);
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 1.0f);
-  noop.handle_action(agent->id, 0);
-  noop.handle_action(agent->id, 0);
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.stationary.ticks"], 3.0f);
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  noop.handle_action(agent->id, 0);  // count 1, max 1
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  noop.handle_action(agent->id, 0);  // count 2, max 2
+  noop.handle_action(agent->id, 0);  // count 3, max 3
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
+  agent->location.r = 7;
+  agent->location.c = 7;
+  noop.handle_action(agent->id, 0);  // count 0, max 3
+  EXPECT_EQ(agent->location.r, 7);
+  EXPECT_EQ(agent->location.c, 7);
+  EXPECT_EQ(agent->prev_location.r, 7);
+  EXPECT_EQ(agent->prev_location.c, 7);
+  noop.handle_action(agent->id, 0);  // count 1, max 3
+  noop.handle_action(agent->id, 0);  // count 2, max 3
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
+  noop.handle_action(agent->id, 0);  // count 3, max 3
+  noop.handle_action(agent->id, 0);  // count 4, max 4
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 4.0f);
 }
 
 // ==================== Event System Tests ====================

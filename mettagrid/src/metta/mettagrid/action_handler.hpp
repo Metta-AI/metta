@@ -71,11 +71,11 @@ public:
 
     // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
-    if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
-      actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
-    }
     if (actor->location == actor->prev_location) {
       actor->steps_without_motion += 1;
+      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
+        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+      }
     } else {
       actor->steps_without_motion = 0;
     }
