@@ -22,7 +22,7 @@ trainer:
     type: muon
     learning_rate: 0.0045
   simulation:
-    evaluate_interval: 50
+    evaluate_interval: 100
   checkpoint:
     wandb_checkpoint_interval: 100
   total_timesteps: 10_000_000_000
@@ -48,9 +48,3 @@ evals:
   simulations:
     arena/combat_teams:
       env: /env/mettagrid/arena/combat_teams
-    arena/basic_teams:
-      env: /env/mettagrid/arena/basic_teams
-    arena/advanced_teams:
-      env: /env/mettagrid/arena/advanced_teams
-    arena/tag_teams:
-      env: /env/mettagrid/arena/tag_teams
