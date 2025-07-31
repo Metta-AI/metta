@@ -16,6 +16,7 @@ class DockerContainerManager(AbstractContainerManager):
         backend_url: str,
         docker_image: str,
         machine_token: str,
+        dd_env_vars: dict[str, str] | None = None,
     ) -> WorkerInfo:
         container_name = self._format_container_name(git_hash)
         env_vars = {
@@ -24,6 +25,8 @@ class DockerContainerManager(AbstractContainerManager):
             "WORKER_ASSIGNEE": container_name,
             "MACHINE_TOKEN": machine_token,
             "WANDB_API_KEY": os.environ["WANDB_API_KEY"],
+            **(dd_env_vars or {}),
+            "DD_SERVICE": "eval-worker",
         }
 
         cmd = [

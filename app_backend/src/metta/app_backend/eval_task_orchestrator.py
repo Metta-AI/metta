@@ -26,7 +26,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
 )
 from metta.common.datadog.tracing import add_span_tags, configure_datadog_tracing, trace_method, traced_span
-from metta.common.util.collections import group_by
+from metta.common.util.collections import group_by, remove_none_values
 from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.logging_helpers import init_logging
 
@@ -140,6 +140,18 @@ class EvalTaskOrchestrator:
                         backend_url=self._backend_url,
                         docker_image=self._docker_image,
                         machine_token=self._machine_token,
+                        dd_env_vars=remove_none_values(
+                            {
+                                k: os.getenv(k)
+                                for k in [
+                                    "DD_AGENT_HOST",
+                                    "DD_TRACE_AGENT_PORT",
+                                    "DD_ENV",
+                                    "DD_VERSION",
+                                    "DD_TRACE_ENABLED",
+                                ]
+                            }
+                        ),
                     )
                     alive_workers_by_name[new_worker.container_name] = new_worker
                     alive_workers_by_git_hash[task.git_hash].append(new_worker)

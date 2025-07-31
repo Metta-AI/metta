@@ -5,7 +5,8 @@ import traceback
 from contextlib import contextmanager
 from typing import Any, Callable, ParamSpec, TypeVar
 
-from ddtrace import patch, tracer
+from ddtrace import patch
+from ddtrace.trace import tracer
 
 logger = logging.getLogger(__name__)
 
@@ -29,38 +30,55 @@ def configure_datadog_tracing(
         enabled: Whether tracing is enabled (defaults to DD_TRACE_ENABLED env var)
     """
     if enabled is None:
-        enabled = os.getenv("DD_TRACE_ENABLED", "true").lower() == "true"
+        enabled = os.getenv("DD_TRACE_ENABLED", "false").lower() == "true"
 
     if not enabled:
         logger.info("Datadog tracing disabled")
         tracer.enabled = False
         return
 
-    # Configure tracer
-    tracer.configure(
-        hostname=os.getenv("DD_AGENT_HOST", "localhost"),
-        port=int(os.getenv("DD_TRACE_AGENT_PORT", "8126")),
-        debug=os.getenv("DD_TRACE_DEBUG", "false").lower() == "true",
-        enabled=enabled,
-    )
+    # Configure tracer (without deprecated hostname/port parameters)
+    # Agent connection is configured via environment variables:
+    # - DD_TRACE_AGENT_URL or DD_AGENT_HOST + DD_AGENT_PORT
+    tracer.configure()
 
     # Set global tags
-    if env or os.getenv("DD_ENV"):
-        tracer.set_tags({"env": env or os.getenv("DD_ENV")})
+    tags = {}
 
-    if version or os.getenv("DD_VERSION"):
-        tracer.set_tags({"version": version or os.getenv("DD_VERSION")})
+    if env:
+        tags["env"] = env
+    elif os.getenv("DD_ENV"):
+        tags["env"] = os.getenv("DD_ENV")
 
-    if service_name or os.getenv("DD_SERVICE"):
-        tracer.set_tags({"service": service_name or os.getenv("DD_SERVICE")})
+    if version:
+        tags["version"] = version
+    elif os.getenv("DD_VERSION"):
+        tags["version"] = os.getenv("DD_VERSION")
+
+    if service_name:
+        tags["service"] = service_name
+    elif os.getenv("DD_SERVICE"):
+        tags["service"] = os.getenv("DD_SERVICE")
+
+    if tags:
+        tracer.set_tags(tags)
 
     # Auto-patch common libraries
     patch(httpx=True)
 
+    # Get agent connection info from environment
+    agent_url = os.getenv("DD_TRACE_AGENT_URL")
+    if agent_url:
+        agent_info = agent_url
+    else:
+        agent_host = os.getenv("DD_AGENT_HOST", "localhost")
+        agent_port = os.getenv("DD_TRACE_AGENT_PORT", "8126")
+        agent_info = f"{agent_host}:{agent_port}"
+
     logger.info(
         f"Datadog tracing configured: service={service_name}, "
         f"env={env or os.getenv('DD_ENV', 'not-set')}, "
-        f"agent={os.getenv('DD_AGENT_HOST', 'localhost')}:{os.getenv('DD_TRACE_AGENT_PORT', '8126')}"
+        f"agent={agent_info}"
     )
 
 
@@ -86,7 +104,8 @@ def traced_span(
     """
     with tracer.trace(operation_name, resource=resource, service=service) as span:
         if tags:
-            span.set_tags(tags)
+            for k, v in tags.items():
+                span.set_tag(k, v)
         try:
             yield span
         except Exception as e:
@@ -139,7 +158,8 @@ def trace_method(
                 if args and hasattr(args[0], "__class__"):
                     span.set_tag("class", args[0].__class__.__name__)
 
-                return await func(*args, **kwargs)
+                result = await func(*args, **kwargs)
+                return result
 
         @functools.wraps(func)
         def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
@@ -159,7 +179,8 @@ def trace_method(
                 if args and hasattr(args[0], "__class__"):
                     span.set_tag("class", args[0].__class__.__name__)
 
-                return func(*args, **kwargs)
+                result = func(*args, **kwargs)
+                return result
 
         # Return appropriate wrapper based on function type
         import asyncio
@@ -176,7 +197,8 @@ def add_span_tags(tags: dict[str, Any]) -> None:
     """Add tags to the current active span."""
     span = tracer.current_span()
     if span:
-        span.set_tags(tags)
+        for k, v in tags.items():
+            span.set_tag(k, v)
 
 
 def set_span_error(error: Exception) -> None:

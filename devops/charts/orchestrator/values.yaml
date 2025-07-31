@@ -14,6 +14,7 @@ env:
   CONTAINER_RUNTIME: "k8s"
   POLL_INTERVAL: "5"
   WORKER_IDLE_TIMEOUT: "1200"
+  DD_TRACE_ENABLED: "true"
 
 secrets:
   wandb: "wandb-api-secret"

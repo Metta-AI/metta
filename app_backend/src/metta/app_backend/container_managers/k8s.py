@@ -27,6 +27,7 @@ class K8sPodManager(AbstractContainerManager):
         backend_url: str,
         docker_image: str,
         machine_token: str,
+        dd_env_vars: dict[str, str] | None = None,
     ) -> dict:
         pod_name = self._format_container_name(git_hash)
         return {
@@ -54,6 +55,8 @@ class K8sPodManager(AbstractContainerManager):
                             {"name": "WORKER_ASSIGNEE", "value": pod_name},
                             {"name": "WANDB_API_KEY", "value": self._wandb_api_key},
                             {"name": "MACHINE_TOKEN", "value": machine_token},
+                            *[{"name": k, "value": v} for k, v in (dd_env_vars or {}).items()],
+                            {"name": "DD_SERVICE", "value": "eval-worker"},
                         ],
                         "resources": {
                             "requests": {
@@ -72,9 +75,10 @@ class K8sPodManager(AbstractContainerManager):
         backend_url: str,
         docker_image: str,
         machine_token: str,
+        dd_env_vars: dict[str, str],
     ) -> WorkerInfo:
         # Create pod via kubectl
-        pod_manifest = self._get_pod_manifest(git_hash, backend_url, docker_image, machine_token)
+        pod_manifest = self._get_pod_manifest(git_hash, backend_url, docker_image, machine_token, dd_env_vars)
         pod_name = pod_manifest["metadata"]["name"]
         cmd = self._get_kubectl_cmd() + ["create", "-f", "-"]
 
