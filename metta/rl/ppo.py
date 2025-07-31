@@ -65,11 +65,7 @@ def ppo(
     epoch: int,
     device: torch.device,
 ) -> int:
-    """Perform training for one or more epochs on collected experience.
-
-    Returns:
-        Number of epochs trained
-    """
+    """Perform PPO training on collected experience."""
     losses.zero()
     experience.reset_importance_sampling_ratios()
 
