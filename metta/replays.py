@@ -9,6 +9,7 @@ from metta.common.util.constants import METTASCOPE_REPLAY_URL
 
 logger = logging.getLogger(__name__)
 
+
 def upload_replay_html(
     replay_urls: dict[str, list[str]],
     agent_step: int,

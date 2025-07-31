@@ -109,5 +109,3 @@ def evaluate_policy(
         )
 
     return evaluation_results.scores
-
-

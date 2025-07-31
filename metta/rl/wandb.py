@@ -160,4 +160,3 @@ def upload_policy_artifact(
     except Exception as e:
         logger.warning(f"Failed to upload policy to wandb: {e}")
         return None
-

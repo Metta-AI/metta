@@ -470,7 +470,6 @@ def train(
                 )
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
-
         # Compute gradient stats
         if should_run(epoch, trainer_cfg.grad_mean_variance_interval, is_master):
             with timer("grad_stats"):
