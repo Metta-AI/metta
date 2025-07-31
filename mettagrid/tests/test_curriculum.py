@@ -67,10 +67,10 @@ def test_single_task_curriculum(env_cfg):
     assert task.id() == "task"
     assert task.env_cfg() == env_cfg
     assert not task.is_complete()
-    task.complete(0.5)
+    task.complete_trial(0.5)
     assert task.is_complete()
     with pytest.raises(AssertionError):
-        task.complete(0.1)
+        task.complete_trial(0.1)
 
 
 def test_random_curriculum_selects_task(monkeypatch, env_cfg):

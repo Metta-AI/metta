@@ -42,12 +42,10 @@ class Task:
         self._name = id
         self._curricula = [(curriculum, id)]
 
-    def complete(self, score: float) -> bool:
+    def complete_trial(self, score: float) -> bool:
         """Lets the task know that a trial has been completed.
 
         Based on this, the task should expose a new trial, or become complete.
-
-        Returns true if the task is complete, false otherwise.
         """
         pass
 
@@ -79,22 +77,26 @@ class Task:
 
 
 class SingleTrialTask(Task):
-    """A task that only has a single trial."""
+    """A task that only has a single trial. This task may be repeated multiple times."""
 
     def __init__(self, id: str, curriculum: Curriculum, env_cfg: DictConfig):
         super().__init__(id, curriculum)
+        self._total_score = 0.0
+        self._num_trials = env_cfg.get("num_trials", 1)
+        self._current_trial = 0
         self._is_complete = False
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
-        self._episode_idx = 0
-        self._scores = []
 
-    def complete(self, score: float):
+    def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"
-        self._is_complete = True
-        for curriculum, id in self._curricula:
-            curriculum.complete_task(id, sum(self._scores))
+        self._current_trial += 1
+        self._total_score += score
+        if self._current_trial >= self._num_trials:
+            self._is_complete = True
+            for curriculum, id in self._curricula:
+                curriculum.complete_task(id, self._total_score)
 
     def is_complete(self):
         return self._is_complete
