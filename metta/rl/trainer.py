@@ -394,6 +394,7 @@ def train(
                 rollout_time=rollout_time,
                 stats_time=stats_time,
                 is_master=is_master,
+                run_name=cfg.run,
             )
 
         # Update L2 weights if configured

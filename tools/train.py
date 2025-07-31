@@ -15,6 +15,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
@@ -131,6 +132,23 @@ def apply_mac_overrides(cfg: DictConfig) -> None:
         _set_min(cfg, "trainer.simulation.evaluate_interval", 10)
 
 
+def set_run_name_if_missing(cfg: DictConfig) -> None:
+    """Set up cfg.run if it's not already set."""
+    if (OmegaConf.is_missing(cfg, "run") or not cfg.get("run")) and cfg.run_name_pattern:
+        generated_name = cfg.run_name_pattern
+        replacements = {
+            "user": os.getenv("USER", "unknown_user"),
+            "now": oc_date_format("YYYYMMDD_HHmmss"),
+            "curriculum": cfg.trainer.curriculum.split("/")[-1],
+        }
+        for key, replacement in replacements.items():
+            generated_name = generated_name.replace(f"{{{key}}}", replacement)
+        if not all(c.isalnum() or c in [".", "_", "-"] for c in generated_name):
+            raise ValueError(f"Invalid run name pattern: {cfg.run_name_pattern} -> {generated_name}")
+        print(f"Setting run name to {generated_name}")
+        cfg.run = generated_name
+
+
 @record
 def main(cfg: DictConfig) -> int:
     record_heartbeat()
@@ -164,4 +182,4 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-metta_script(main, "train_job")
+metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
