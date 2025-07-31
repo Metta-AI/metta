@@ -125,9 +125,9 @@ class LocalCommands:
     @property
     def kind_manager(self):
         if self._kind_manager is None:
-            from metta.setup.tools.local.kind import Kind
+            from metta.setup.tools.local.kind import KindLocal
 
-            self._kind_manager = Kind()
+            self._kind_manager = KindLocal()
         return self._kind_manager
 
     def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:

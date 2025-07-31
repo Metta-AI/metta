@@ -1,9 +1,9 @@
 import logging
-import os
 import time
-from typing import Any, List
+from typing import Any, List, Optional
 
 import wandb
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.retry import retry_on_exception
 
@@ -63,32 +63,94 @@ def _fetch_sweep_from_api(project: str, entity: str, name: str) -> str | None:
     return None
 
 
-def create_wandb_sweep(sweep_name: str, wandb_entity: str, wandb_project: str) -> str:
+def create_wandb_sweep(
+    sweep_name: str, wandb_entity: str, wandb_project: str, sweep_config: Optional[DictConfig | ListConfig] = None
+) -> str:
     """
-    Create a new wandb sweep with a dummy parameter (Protein will control all suggestions).
+    Create a new wandb sweep with parameters from Protein sweep configuration.
 
     Args:
         sweep_name (str): The name of the sweep.
         wandb_entity (str): The wandb entity (username or team name).
         wandb_project (str): The wandb project name.
+        sweep_config (Optional): The sweep configuration containing parameters.
+                                If None, uses dummy parameter for backward compatibility.
 
     Returns:
         str: The ID of the created sweep.
     """
+    # Extract metric and goal information from sweep config
+    metric_name = "score"  # Default to what sweep_eval.py logs to WandB
+    metric_goal = "maximize"  # Default fallback
+    method = "bayes"  # Default fallback
+
+    # Use the same parameter conversion approach as MettaProtein
+    wandb_parameters = {"dummy_param": {"values": [1]}}  # Fallback
+
+    if sweep_config and hasattr(sweep_config, "parameters"):
+        # Use the same conversion pattern as protein_metta.py
+        parameters_dict = OmegaConf.to_container(sweep_config.parameters, resolve=True)
+
+        # Convert Protein parameter format to WandB format for visualization
+        wandb_parameters = _convert_protein_to_wandb_params(parameters_dict)
+
+        # Extract other config values
+        if hasattr(sweep_config, "metric"):
+            metric_name = sweep_config.metric
+        if hasattr(sweep_config, "goal"):
+            metric_goal = sweep_config.goal
+        if hasattr(sweep_config, "method"):
+            method = sweep_config.method
+
+    logger.info(f"Creating WandB sweep '{sweep_name}' with {len(wandb_parameters)} parameters")
+
     sweep_id = wandb.sweep(
         sweep={
             "name": sweep_name,
-            "method": "bayes",  # This won't actually be used since we override suggestions
-            "metric": {"name": "protein.objective", "goal": "maximize"},
-            "parameters": {
-                # WandB requires at least one parameter, but Protein will override all suggestions
-                "dummy_param": {"values": [1]}
-            },
+            "method": method,
+            "metric": {"name": metric_name, "goal": metric_goal},
+            "parameters": wandb_parameters,
         },
         project=wandb_project,
         entity=wandb_entity,
     )
     return sweep_id
+
+
+def _convert_protein_to_wandb_params(parameters_dict: Any) -> dict[str, Any]:
+    """Convert Protein parameter dict to WandB parameter format for visualization.
+
+    This is a simple conversion that flattens nested parameters and converts
+    Protein distribution specs to basic WandB min/max or values format.
+    """
+    wandb_params: dict[str, Any] = {}
+
+    def _flatten_and_convert(obj: Any, prefix: str = "") -> Any:
+        """Recursively flatten and convert parameter definitions."""
+        if isinstance(obj, dict):
+            # Check if this looks like a parameter definition
+            if "min" in obj and "max" in obj:
+                # Convert to WandB range format
+                return {"min": float(obj["min"]), "max": float(obj["max"])}
+            elif "values" in obj:
+                # Convert to WandB discrete format
+                return {"values": obj["values"]}
+            else:
+                # Recurse into nested structure
+                for key, value in obj.items():
+                    param_path = f"{prefix}.{key}" if prefix else key
+                    result = _flatten_and_convert(value, param_path)
+                    if result is not None:
+                        wandb_params[param_path] = result
+        return None
+
+    _flatten_and_convert(parameters_dict)
+
+    # Ensure at least one parameter for WandB
+    if not wandb_params:
+        wandb_params = {"dummy_param": {"values": [1]}}
+
+    return wandb_params
 
 
 def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
@@ -109,34 +171,6 @@ def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
         logger.error(f"Failed to fetch sweeps after all retry attempts. Assuming no existing sweep. Error: {e}")
         # Return None to allow sweep creation to proceed
         return None
-
-
-def generate_run_id_for_sweep(sweep_id: str, sweep_names_dir: str) -> str:
-    api = wandb.Api()
-    sweep = api.sweep(sweep_id)
-
-    used_ids = set()
-    used_names = set(run.name for run in sweep.runs).union(set(os.listdir(sweep_names_dir)))
-    for name in used_names:
-        # Skip None names
-        if name is None:
-            continue
-
-        # Only process names that look like they follow our pattern (contain '.r.')
-        if ".r." in name:
-            try:
-                # Extract ID from names like "sweep_name.r.123"
-                id = int(name.split(".r.")[-1])
-                used_ids.add(id)
-            except ValueError:
-                logger.warning(f"Invalid run name format: {name}, expected format: <sweep_name>.r.<integer>")
-        # Silently skip other names (WandB auto-generated names, artifacts, etc.)
-
-    id = 0
-    if len(used_ids) > 0:
-        id = max(used_ids) + 1
-
-    return f"{sweep.name}.r.{id}"
 
 
 def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
