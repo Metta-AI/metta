@@ -3,7 +3,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Tuple, cast
 
 import torch
 from torch.nn.parallel import DistributedDataParallel
@@ -11,6 +11,7 @@ from torch.nn.parallel import DistributedDataParallel
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.distribution_utils import get_from_master
 from metta.common.util.fs import wait_for_file
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
@@ -313,6 +314,37 @@ def load_or_initialize_policy(
 ) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
     """
     Load or initialize policy with distributed coordination.
+    This is called from all ranks.
+    """
+    policy, initial_policy_record, latest_saved_policy_record = None, None, None
+
+    if is_master:
+        return load_or_initialize_policy_master(cfg, checkpoint, policy_store, metta_grid_env)
+
+    # receive policy from master using NCCL broadcasting
+    policy, initial_policy_record, latest_saved_policy_record = (
+        get_from_master(policy),
+        get_from_master(initial_policy_record),
+        get_from_master(latest_saved_policy_record),
+    )
+
+    # cast to the correct type
+    policy = cast(MettaAgent | DistributedMettaAgent, policy)
+    initial_policy_record = cast(PolicyRecord, initial_policy_record)
+    latest_saved_policy_record = cast(PolicyRecord, latest_saved_policy_record)
+
+    return policy, initial_policy_record, latest_saved_policy_record
+
+
+def load_or_initialize_policy_master(
+    cfg: Any,
+    checkpoint: Any | None,
+    policy_store: PolicyStore,
+    metta_grid_env: Any,
+) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
+    """
+    Load or initialize policy with distributed coordination.
+    This is only called from the master rank.
 
     Returns:
         Tuple of (policy, initial_policy_record, latest_saved_policy_record)
@@ -351,48 +383,20 @@ def load_or_initialize_policy(
 
         return policy, initial_policy_record, latest_saved_policy_record
 
-    # No existing policy found - need to create one with distributed coordination
-    if torch.distributed.is_initialized() and not is_master:
-        # Non-master waits for master to create
-        logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
+    # Master creates new policy
+    logger.info("No existing policy found, creating new one")
+    name = policy_store.make_model_name(0)
+    pr = policy_store.create_empty_policy_record(name)
+    pr.policy = make_policy(metta_grid_env, cfg)
+    saved_pr = policy_store.save(pr)
+    logger.info(f"Created and saved new policy to {saved_pr.uri}")
+
+    policy = saved_pr.policy
+    initial_policy_record = saved_pr
+    latest_saved_policy_record = saved_pr
+
+    # Synchronize with non-master ranks after saving
+    if torch.distributed.is_initialized():
         torch.distributed.barrier()
-
-        def log_progress(elapsed: float, status: str) -> None:
-            if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
-                logger.info(f"Rank {rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-            elif status == "found":
-                logger.info(f"Rank {rank}: Policy file found, waiting for write to complete...")
-            elif status == "stable":
-                logger.info(f"Rank {rank}: Policy file stable after {elapsed:.1f}s")
-
-        if not wait_for_file(default_path, timeout=300, progress_callback=log_progress):
-            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
-
-        try:
-            policy_record = policy_store.policy_record(default_path)
-        except Exception as e:
-            raise RuntimeError(f"Rank {rank}: Failed to load policy from {default_path}: {e}") from e
-
-        policy = policy_record.policy
-        initial_policy_record = policy_record
-        latest_saved_policy_record = policy_record
-
-        logger.info(f"Rank {rank}: Successfully loaded policy from {default_path}")
-    else:
-        # Master creates new policy
-        logger.info("No existing policy found, creating new one")
-        name = policy_store.make_model_name(0)
-        pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
-        saved_pr = policy_store.save(pr)
-        logger.info(f"Created and saved new policy to {saved_pr.uri}")
-
-        policy = saved_pr.policy
-        initial_policy_record = saved_pr
-        latest_saved_policy_record = saved_pr
-
-        # Synchronize with non-master ranks after saving
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
 
     return policy, initial_policy_record, latest_saved_policy_record
