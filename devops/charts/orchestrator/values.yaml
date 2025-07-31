@@ -19,7 +19,7 @@ env:
 secrets:
   wandb: "wandb-api-secret"
   machineToken: "machine-token-secret"
-  datadog: "datadog-api-secret"
+  datadog: "datadog-secret"
 
 resources:
   requests:
@@ -30,5 +30,10 @@ resources:
     memory: 4Gi
 
 datadog:
-  enabled: false
-  site: "datadoghq.com"
+  enabled: true
+  env: "production"
+
+datadog-operator:
+  apiKeyExistingSecret: datadog-secret
+  site: datadoghq.com
+  clusterName: "arn:aws:eks:us-east-1:751442549699:cluster/main"

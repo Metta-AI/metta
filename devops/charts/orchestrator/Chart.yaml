@@ -1,3 +1,8 @@
 apiVersion: v2
 name: orchestrator
 version: 0.1.0
+dependencies:
+  - name: datadog-operator
+    version: "1.8.3"
+    repository: https://helm.datadoghq.com
+    condition: datadog.enabled

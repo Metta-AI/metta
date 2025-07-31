@@ -4,8 +4,12 @@ image:
   tag: "latest"
   pullPolicy: IfNotPresent
 
-datadog:
-  enabled: true
-
 env:
   BACKEND_URL: "http://host.docker.internal:8000"
+
+datadog:
+  enabled: true
+  env: "local"
+
+datadog-operator:
+  clusterName: "kind-metta-local"

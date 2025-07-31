@@ -1,4 +1,3 @@
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -70,29 +69,49 @@ class Kind:
 
         self._maybe_load_secrets()
 
+        info("Updating Helm dependencies...")
+        subprocess.run(["helm", "dependency", "update", str(self.helm_chart_path)], check=True)
+        success("Helm dependencies updated")
+
         result = subprocess.run(["helm", "list", "-n", self.namespace, "-q"], capture_output=True, text=True)
         cmd = "upgrade" if self.helm_release_name in result.stdout else "install"
         info(f"Running {cmd} for {self.helm_release_name}...")
+
+        # Build helm command with base values
+        helm_cmd = [
+            "helm",
+            cmd,
+            self.helm_release_name,
+            str(self.helm_chart_path),
+            "-n",
+            self.namespace,
+        ]
+
+        # Add environment values file if present
+        if self.environment_values_file:
+            helm_cmd.extend(["-f", str(self.environment_values_file)])
+
+        subprocess.run(helm_cmd, check=True)
+
+        info("Orchestrator deployed via Helm")
+
+        # Wait for Datadog operator to be ready if enabled
+        info("Waiting for Datadog operator to be ready...")
         subprocess.run(
             [
-                "helm",
-                cmd,
-                self.helm_release_name,
-                str(self.helm_chart_path),
+                "kubectl",
+                "wait",
+                "--for=condition=ready",
+                "pod",
+                "-l",
+                "app.kubernetes.io/name=datadog-operator",
                 "-n",
                 self.namespace,
-                *(
-                    [
-                        "-f",
-                        str(self.environment_values_file),
-                    ]
-                    if self.environment_values_file
-                    else []
-                ),
+                "--timeout=120s",
             ],
-            check=True,
+            check=False,  # Don't fail if timeout
         )
-        info("Orchestrator deployed via Helm")
+
         info("To view pods: metta local kind get-pods")
         info("To view logs: metta local kind logs <pod-name>")
         info("To stop: metta local kind down")
@@ -215,12 +234,6 @@ class KindLocal(Kind):
         info("Creating secrets...")
         self._create_secret("wandb-api-secret", f"api-key={wandb_api_key}")
         self._create_secret("machine-token-secret", f"token={machine_token}")
-        datadog_api_key = os.environ.get("DATADOG_API_KEY")
-        if datadog_api_key:
-            info("Creating Datadog API secret...")
-            self._create_secret("datadog-api-secret", f"api-key={datadog_api_key}")
-        else:
-            info("No DATADOG_API_KEY found, skipping Datadog secret creation")
 
     def build(self) -> None:
         result = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True)
