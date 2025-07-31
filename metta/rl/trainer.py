@@ -189,14 +189,8 @@ def train(
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
-
-        # Ensure all ranks are ready before wrapping
         torch.distributed.barrier()
-
-        # Use the wrap_agent_distributed function which handles CPU vs GPU correctly
         policy = wrap_agent_distributed(policy, device)
-
-        # Ensure all ranks have wrapped before proceeding
         torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
@@ -255,11 +249,9 @@ def train(
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-    if is_master:
-        logger.info("Starting training")
-
     # Set up monitoring (master only)
     if is_master:
+        logger.info("Starting training")
         memory_monitor, system_monitor = setup_monitoring(
             policy=policy,
             experience=experience,

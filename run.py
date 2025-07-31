@@ -545,11 +545,21 @@ while agent_step < trainer_config.total_timesteps:
                 device=device,
             )
 
-            if optimizer_type == "adam":
+            # Optimizer step
+            optimizer.zero_grad()
+            loss.backward()
+            
+            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                torch.nn.utils.clip_grad_norm_(agent.parameters(), trainer_config.ppo.max_grad_norm)
                 optimizer.step()
-            else:
-                # ForeachMuon has custom step signature
-                optimizer.step(loss, epoch, experience.accumulate_minibatches)
+                
+                # Optional weight clipping
+                if hasattr(agent, "clip_weights"):
+                    agent.clip_weights()
+                    
+                if str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+            
             minibatch_idx += 1
         epoch += 1
 
