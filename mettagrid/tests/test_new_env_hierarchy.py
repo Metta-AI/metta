@@ -71,11 +71,13 @@ class TestNewEnvironmentHierarchy:
     def test_imports(self):
         """Test that all new classes can be imported."""
         # Test basic imports - this verifies our modules are structured correctly
+        from metta.mettagrid.base_env import MettaGridEnv
+        from metta.mettagrid.core import MettaGridCore
         from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
-        from metta.mettagrid.mettagrid_env import MettaGridEnv
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
         from metta.mettagrid.puffer_env import MettaGridPufferEnv
 
+        assert MettaGridCore is not None
         assert MettaGridEnv is not None
         assert MettaGridPufferEnv is not None
         assert MettaGridGymEnv is not None

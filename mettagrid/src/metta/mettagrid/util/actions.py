@@ -78,7 +78,7 @@ def generate_valid_random_actions(
     num_actions = action_space.nvec[0]  # Number of action types
 
     # Get the maximum argument values for each action type
-    max_args = env.max_action_args
+    max_args = env._c_env.max_action_args()
 
     # Initialize actions array with correct dtype
     actions = np.zeros((num_agents, 2), dtype=dtype_actions)
