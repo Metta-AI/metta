@@ -228,20 +228,25 @@ def train(
 
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
-    opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
-    # ForeachMuon expects int for weight_decay, Adam expects float
-    weight_decay = trainer_cfg.optimizer.weight_decay
-    if optimizer_type != "adam":
-        # Ensure weight_decay is int for ForeachMuon
-        weight_decay = int(weight_decay)
-
-    optimizer = opt_cls(
-        policy.parameters(),
-        lr=trainer_cfg.optimizer.learning_rate,
-        betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
-        eps=trainer_cfg.optimizer.eps,
-        weight_decay=weight_decay,  # type: ignore - ForeachMuon type annotation issue
-    )
+    if optimizer_type == "adam":
+        optimizer = torch.optim.Adam(
+            policy.parameters(),
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=trainer_cfg.optimizer.weight_decay,
+        )
+    elif optimizer_type == "muon":
+        # ForeachMuon expects int for weight_decay
+        optimizer = ForeachMuon(
+            policy.parameters(),
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=int(trainer_cfg.optimizer.weight_decay),
+        )
+    else:
+        raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
     if checkpoint and checkpoint.optimizer_state_dict:
         try:

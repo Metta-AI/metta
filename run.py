@@ -316,20 +316,25 @@ initial_policy_record = policy_record
 
 # Create optimizer like bad_run.py does
 optimizer_type = trainer_config.optimizer.type
-opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
-# ForeachMuon expects int for weight_decay, Adam expects float
-weight_decay = trainer_config.optimizer.weight_decay
-if optimizer_type != "adam":
-    # Ensure weight_decay is int for ForeachMuon
-    weight_decay = int(weight_decay)
-
-optimizer = opt_cls(
-    agent.parameters(),  # type: ignore - agent is MettaAgent from factory
-    lr=trainer_config.optimizer.learning_rate,
-    betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
-    eps=trainer_config.optimizer.eps,
-    weight_decay=weight_decay,  # type: ignore - ForeachMuon type annotation issue
-)
+if optimizer_type == "adam":
+    optimizer = torch.optim.Adam(
+        agent.parameters(),  # type: ignore - agent is MettaAgent from factory
+        lr=trainer_config.optimizer.learning_rate,
+        betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+        eps=trainer_config.optimizer.eps,
+        weight_decay=trainer_config.optimizer.weight_decay,
+    )
+elif optimizer_type == "muon":
+    # ForeachMuon expects int for weight_decay
+    optimizer = ForeachMuon(
+        agent.parameters(),  # type: ignore - agent is MettaAgent from factory
+        lr=trainer_config.optimizer.learning_rate,
+        betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+        eps=trainer_config.optimizer.eps,
+        weight_decay=int(trainer_config.optimizer.weight_decay),
+    )
+else:
+    raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
 if checkpoint and checkpoint.optimizer_state_dict:
     try:
