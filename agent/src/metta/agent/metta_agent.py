@@ -48,7 +48,7 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
         agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        
+
         # Handle CPU vs GPU initialization
         if device.type == "cpu":
             # For CPU, don't pass device_ids

@@ -284,7 +284,7 @@ def train(
         record_heartbeat()
 
         with torch_profiler:
-            # ---- ROLLOUT PHASE ---- 
+            # ---- ROLLOUT PHASE ----
             with timer("_rollout"):
                 num_steps, raw_infos = rollout(
                     vecenv=vecenv,
@@ -296,7 +296,7 @@ def train(
                 agent_step += num_steps * world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
-            # ---- TRAINING PHASE ---- 
+            # ---- TRAINING PHASE ----
             with timer("_train"):
                 epochs_trained = ppo(
                     policy=policy,

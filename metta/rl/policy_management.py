@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Tuple
 
 import torch
-from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.agent.policy_record import PolicyRecord

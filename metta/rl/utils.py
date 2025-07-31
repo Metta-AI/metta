@@ -1,8 +1,7 @@
 """Training loop helper functions."""
 
 import logging
-from typing import Tuple
-from metta.common.profiling.stopwatch import Stopwatch
+
 from metta.utils.progress import log_rich_progress, should_use_rich_console
 
 logger = logging.getLogger(__name__)
