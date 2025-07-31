@@ -169,11 +169,11 @@ class TestPrepareSweepRun:
         mock_gen_suggestion.return_value = {"trainer": {"lr": 0.001}}
 
         # Mock WandB run creation
-        mock_create_wandb_run.return_value = None  # Function doesn't return anything
+        mock_create_wandb_run.return_value = "test_wandb_run_id"
 
         # Call function
         logger = Mock()
-        run_name, train_cfg, suggestion = prepare_sweep_run(config, logger)
+        run_name, train_cfg, suggestion, wandb_run_id = prepare_sweep_run(config, logger)
 
         # Assertions
         assert run_name == "test_sweep.r.1"
@@ -182,6 +182,7 @@ class TestPrepareSweepRun:
         assert train_cfg.wandb.group == "test_sweep"  # Manually set in the function
         assert train_cfg.wandb.name == "test_sweep.r.1"  # Manually set
         assert suggestion == {"trainer": {"lr": 0.001}}
+        assert wandb_run_id == "test_wandb_run_id"
 
         # Verify directories were created
         mock_makedirs.assert_called()
