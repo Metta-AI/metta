@@ -18,7 +18,7 @@ class Losses:
         self.zero()
 
     def zero(self):
-        """Reset all loss values to 0.0"""
+        """Reset all loss values to 0.0."""
         self.policy_loss_sum = 0.0
         self.value_loss_sum = 0.0
         self.entropy_sum = 0.0
@@ -34,7 +34,7 @@ class Losses:
         self.minibatches_processed = 0
 
     def stats(self) -> dict[str, float]:
-        """Convert losses to dictionary with proper averages"""
+        """Convert losses to dictionary with proper averages."""
         n = max(1, self.minibatches_processed)
 
         return {

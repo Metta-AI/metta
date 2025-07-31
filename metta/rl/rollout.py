@@ -18,12 +18,7 @@ def get_observation(
     device: torch.device,
     timer: Any,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
-    """Get observations and other data from the vectorized environment and convert to tensors.
-
-    Returns:
-        Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
-    """
-    # Receive environment data
+    """Get observations from vectorized environment and convert to tensors."""
     with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 
@@ -47,15 +42,7 @@ def send_observation(
     dtype_actions: Any,
     timer: Any,
 ) -> None:
-    """Send actions back to the vectorized environment.
-
-    Args:
-        vecenv: The vectorized environment instance
-        actions: Tensor of actions to send to the environment
-        dtype_actions: The numpy dtype to cast actions to before sending
-        timer: Timer instance for profiling
-    """
-    # Send actions back to environment
+    """Send actions back to the vectorized environment."""
     with timer("_rollout.env"):
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
@@ -67,11 +54,7 @@ def run_policy_inference(
     training_env_id_start: int,
     device: torch.device,
 ) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
-    """Run the policy to get actions and value estimates.
-
-    Returns:
-        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
-    """
+    """Run policy inference to get actions and values."""
     with torch.no_grad():
         state = PolicyState()
         lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
