@@ -25,7 +25,7 @@ trainer:
   minibatch_size: 16384
 
   # Environment configuration
-  curriculum: "/env/mettagrid/curriculum/navigation/bucketed"
+  curriculum: "/env/mettagrid/curriculum/arena/learning_progress"
 
   # Checkpoint configuration
   checkpoint:
