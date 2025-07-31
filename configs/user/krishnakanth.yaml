@@ -6,7 +6,7 @@ defaults:
   - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/arena_teams@evals
+  - /sim/arena@evals
   - _self_
 
 # Basic run configuration
