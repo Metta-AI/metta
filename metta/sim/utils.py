@@ -2,7 +2,7 @@ import uuid
 
 from bidict import bidict
 
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 
 
 def get_or_create_policy_ids(

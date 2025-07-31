@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import traceback
@@ -21,8 +20,8 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
-from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
@@ -60,15 +59,15 @@ from metta.rl.util.rollout import (
     get_observation,
     run_policy_inference,
 )
-from metta.rl.util.stats import (
+from metta.rl.vecenv import make_vecenv
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -789,13 +788,11 @@ class MettaTrainer:
                 if not stats_server_policy_id:
                     logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
                 else:
-                    task = asyncio.run(
-                        self._stats_client.create_task(
-                            TaskCreateRequest(
-                                policy_id=stats_server_policy_id,
-                                git_hash=self.trainer_cfg.simulation.git_hash,
-                                sim_suite=self._sim_suite_config.name,
-                            )
+                    task = self._stats_client.create_task(
+                        TaskCreateRequest(
+                            policy_id=stats_server_policy_id,
+                            git_hash=self.trainer_cfg.simulation.git_hash,
+                            sim_suite=self._sim_suite_config.name,
                         )
                     )
                     logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")

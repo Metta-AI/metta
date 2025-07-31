@@ -22,7 +22,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType, PolicyStore
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy

@@ -1,11 +1,11 @@
 from typing import List
 
-from experiments.notebooks.utils.heatmap_widget.heatmap_widget.HeatmapWidget import (
-    HeatmapWidget,
-    create_heatmap_widget,
+from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
+    ScorecardWidget,
+    create_scorecard_widget,
 )
 from metta.app_backend.clients.scorecard_client import ScorecardClient
-from metta.app_backend.routes.heatmap_routes import HeatmapData
+from metta.app_backend.routes.scorecard_routes import ScorecardData
 from metta.setup.utils import info, warning
 from typing_extensions import Literal
 
@@ -16,8 +16,8 @@ async def get_available_metrics(
     include_run_free_policies: bool = False,
 ) -> List[str]:
     """
-    Get available metrics for the given search texts without generating a heatmap.
-    Useful for exploring what metrics are available before calling fetch_real_heatmap_data.
+    Get available metrics for the given search texts without generating a scorecard.
+    Useful for exploring what metrics are available before calling fetch_real_scorecard_data.
 
     Args:
         client: ScorecardClient instance
@@ -70,14 +70,14 @@ async def get_available_metrics(
     return sorted(available_metrics)
 
 
-async def fetch_real_heatmap_data(
+async def fetch_real_scorecard_data(
     client: ScorecardClient,
     metrics: List[str],
     search_texts: List[str] = [],
     policy_selector: Literal["best", "latest"] = "best",
     max_policies: int = 30,
     include_run_free_policies: bool = False,
-) -> HeatmapWidget:
+) -> ScorecardWidget:
     """
     Fetch real evaluation data using the metta HTTP API (same as repo.ts).
 
@@ -89,7 +89,7 @@ async def fetch_real_heatmap_data(
         max_policies: Maximum number of policies to display
 
     Returns:
-        HeatmapWidget with real data
+        ScorecardWidget with real data
     """
     # Step 1: Get available policies to find training run IDs
     # TODO: backend should be doing the filtering, not frontend
@@ -150,9 +150,9 @@ async def fetch_real_heatmap_data(
             f"None of the requested metrics {metrics} are available. Available metrics: {sorted(available_metrics)}"
         )
 
-    # Step 4: Generate heatmap for the first metric
+    # Step 4: Generate scorecard for the first metric
     primary_metric = valid_metrics[0]
-    heatmap_data: HeatmapData = await client.generate_heatmap(
+    scorecard_data: ScorecardData = await client.generate_scorecard(
         training_run_ids=training_run_ids,
         run_free_policy_ids=[],
         eval_names=flat_eval_names,
@@ -160,34 +160,36 @@ async def fetch_real_heatmap_data(
         policy_selector=policy_selector,
     )
 
-    if not heatmap_data.policyNames:
-        raise Exception("No heatmap policyNames. No heatmap data generated")
+    if not scorecard_data.policyNames:
+        raise Exception("No scorecard policyNames. No scorecard data generated")
 
     # Limit policies if requested
-    policy_names = list(heatmap_data.policyNames)
+    policy_names = list(scorecard_data.policyNames)
     if len(policy_names) > max_policies:
         # Sort by average score and take top N
-        avg_scores = heatmap_data.policyAverageScores
+        avg_scores = scorecard_data.policyAverageScores
         top_policies = sorted(
             avg_scores.keys(), key=lambda p: avg_scores[p], reverse=True
         )[:max_policies]
 
         # Filter the data
         filtered_cells = {
-            p: heatmap_data.cells[p] for p in top_policies if p in heatmap_data.cells
+            p: scorecard_data.cells[p]
+            for p in top_policies
+            if p in scorecard_data.cells
         }
-        heatmap_data.policyNames = top_policies
-        heatmap_data.cells = filtered_cells
-        heatmap_data.policyAverageScores = {
+        scorecard_data.policyNames = top_policies
+        scorecard_data.cells = filtered_cells
+        scorecard_data.policyAverageScores = {
             p: avg_scores[p] for p in top_policies if p in avg_scores
         }
 
     # Step 5: Convert to widget format
     cells = {}
-    for policy_name in heatmap_data.policyNames:
+    for policy_name in scorecard_data.policyNames:
         cells[policy_name] = {}
-        for eval_name in heatmap_data.evalNames:
-            cell = heatmap_data.cells.get(policy_name, {}).get(eval_name)
+        for eval_name in scorecard_data.evalNames:
+            cell = scorecard_data.cells.get(policy_name, {}).get(eval_name)
             if cell:
                 cells[policy_name][eval_name] = {
                     "metrics": {primary_metric: cell.value},
@@ -202,11 +204,11 @@ async def fetch_real_heatmap_data(
                 }
 
     # Create widget
-    widget = create_heatmap_widget()
+    widget = create_scorecard_widget()
     widget.set_multi_metric_data(
         cells=cells,
-        eval_names=heatmap_data.evalNames,
-        policy_names=heatmap_data.policyNames,
+        eval_names=scorecard_data.evalNames,
+        policy_names=scorecard_data.policyNames,
         metrics=valid_metrics,  # Use only the valid metrics that were found
         selected_metric=primary_metric,
     )

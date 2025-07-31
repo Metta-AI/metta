@@ -8,7 +8,7 @@ from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.route_logger import timed_route
 
-# Set up logging for heatmap performance analysis
+# Set up logging for scorecard performance analysis
 logger = logging.getLogger("dashboard_performance")
 logger.setLevel(logging.INFO)
 
