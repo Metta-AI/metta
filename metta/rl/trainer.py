@@ -10,7 +10,7 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
@@ -160,7 +160,7 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
-    policy: MettaAgent | DistributedMettaAgent
+    policy: PolicyAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
         cfg=cfg,
         checkpoint=checkpoint,
@@ -176,7 +176,7 @@ def train(
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
-        policy = cast(MettaAgent | DistributedMettaAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
+        policy = cast(PolicyAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
 
     # Create kickstarter
     kickstarter = Kickstarter(
