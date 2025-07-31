@@ -642,6 +642,30 @@ function drawGrid() {
   }
 }
 
+/** Maps a normalized heat value (0-1) to a color using a blue-yellow-red thermal gradient. */
+function getHeatmapColor(normalizedHeat: number): [number, number, number, number] {
+  // Use square root scaling for better visual distribution.
+  const scaledHeat = Math.sqrt(normalizedHeat)
+  const opacity = (HEATMAP_MIN_OPACITY * 0.5) + (scaledHeat * (HEATMAP_MAX_OPACITY * 0.6))
+  let r: number, g: number, b: number
+
+  if (scaledHeat < 0.5) {
+    // Blue to yellow transition: blue → cyan → green → yellow.
+    const t = scaledHeat * 2  // Normalize to 0-1 range for this half.
+    r = Math.max((t - 0.5) * 1.6, 0)  // Only add red in second half (0.5-1.0) to avoid purple.
+    g = t * 0.8  // Add green from 0 to 0.8 for cyan/green.
+    b = (1 - t) * 0.7  // Fade out blue linearly from 0.7 to 0.
+  } else {
+    // Yellow to red transition preserves red and reduces green.
+    const t = (scaledHeat - 0.5) * 2  // Normalize to 0-1 range for this half.
+    r = 0.8 + (t * 0.2)  // Increase red slightly from 0.8 to 1.0.
+    g = 0.8 * (1 - t)  // Fade out green from 0.8 to 0 for pure red.
+    b = 0  // No blue component in yellow-red range.
+  }
+
+  return [r, g, b, opacity]
+}
+
 /** Draws the heatmap overlay. */
 function drawHeatmap() {
   if (state.showHeatmap) {
@@ -661,15 +685,15 @@ function drawHeatmap() {
         const heat = state.heatmap.getHeat(state.step, x, y)
         if (heat > 0) {
           const normalizedHeat = heat / maxHeat
-          const opacity = HEATMAP_MIN_OPACITY + (normalizedHeat * (HEATMAP_MAX_OPACITY - HEATMAP_MIN_OPACITY))
+          const color = getHeatmapColor(normalizedHeat)
 
-          // Draw a semi-transparent red overlay with variable brightness.
+          // Draw the heatmap overlay with gradient colors
           ctx.drawSolidRect(
             x * Common.TILE_SIZE - Common.TILE_SIZE / 2,
             y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
             Common.TILE_SIZE,
             Common.TILE_SIZE,
-            [1, 0, 0, opacity]
+            color
           )
         }
       }
@@ -911,6 +935,7 @@ export function drawMap(panel: PanelInfo) {
     drawSelection()
   } else {
     drawFloor()
+    drawHeatmap()
     drawWalls()
     drawTrajectory()
     drawObjects()
@@ -920,7 +945,6 @@ export function drawMap(panel: PanelInfo) {
     drawRewards()
     drawVisibility()
     drawGrid()
-    drawHeatmap()
     drawThoughtBubbles()
   }
 
