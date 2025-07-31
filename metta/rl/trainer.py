@@ -130,7 +130,9 @@ def train(
         is_training=True,
     )
 
-    seed = cfg.get("seed", np.random.randint(0, 1000000))
+    seed = cfg.get("seed")
+    if seed is None:
+        seed = np.random.randint(0, 1000000)
     vecenv.async_reset(seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
