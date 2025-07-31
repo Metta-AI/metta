@@ -55,7 +55,6 @@ To train a model:
 Parameters:
 
 - `run`: Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `+hardware=<preset>`: Tunes the trainer for your machine (options include macbook, desktop, etc.)
 - `+user=<n>`: Loads defaults from `configs/user/<n>.yaml`
 - `wandb=off`: Disables Weights & Biases logging if you don't have access
 

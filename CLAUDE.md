@@ -217,7 +217,6 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `agent/`: Agent architecture configurations (latent_attn_tiny, latent_attn_small, latent_attn_med, fast, reference_design)
 - `trainer/`: Training configurations
 - `sim/`: Simulation configurations (navigation, memory, arena, etc.)
-- `hardware/`: Hardware-specific settings (macbook, github)
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
 
@@ -236,7 +235,7 @@ uv run ./tools/train.py wandb=off
 
 #### Hydra Configuration Patterns
 
-- Use `+` prefix to add new config groups: `+hardware=macbook`
+- Use `+` prefix to add new config groups: `+user=your-custom-config-name`
 - Use `++` prefix to force override: `++trainer.device=cpu`
 - Config composition order matters - later overrides take precedence
 
