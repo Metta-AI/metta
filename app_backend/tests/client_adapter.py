@@ -11,7 +11,7 @@ class TestClientAdapter:
         self.test_client = test_client
         self.base_url = test_client.base_url
 
-    async def request(self, method: str, url: str, **kwargs) -> httpx.Response:
+    def request(self, method: str, url: str, **kwargs) -> httpx.Response:
         """Make a request using the TestClient synchronously."""
         # Remove headers we'll handle separately
         headers = kwargs.pop("headers", {})
@@ -22,23 +22,12 @@ class TestClientAdapter:
         # Convert to httpx.Response-like object
         return response
 
-    async def aclose(self):
-        """No-op for test client."""
-        pass
-
 
 def create_test_stats_client(test_client: TestClient, machine_token: str):
     """Create a StatsClient that works with TestClient."""
-    from metta.app_backend.clients.stats_client import AsyncStatsClient, StatsClient
+    from metta.app_backend.clients.stats_client import StatsClient
 
-    # Create the async client with proper URL
-    async_client = AsyncStatsClient(backend_url=str(test_client.base_url), machine_token=machine_token)
-
-    # Replace the http client with our adapter
-    async_client._http_client = TestClientAdapter(test_client)
-
-    # Create the sync wrapper
     stats_client = StatsClient(backend_url=str(test_client.base_url), machine_token=machine_token)
-    stats_client._async_client = async_client
+    stats_client._http_client = TestClientAdapter(test_client)  # type: ignore
 
     return stats_client
