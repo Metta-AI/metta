@@ -5,6 +5,15 @@ extracting the rollout and train logic from MettaTrainer into standalone functio
 """
 
 # Advantage computation
+# Statistics and metrics
+from metta.stats import (
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_stats,
+    process_training_stats,
+)
+
 from .advantage import compute_advantage, normalize_advantage_distributed
 
 # Batch utilities
@@ -38,15 +47,6 @@ from .policy_management import (
 
 # Rollout utilities
 from .rollout import get_lstm_config, get_observation, run_policy_inference
-
-# Statistics and metrics
-from .stats import (
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    compute_timing_stats,
-    process_stats,
-    process_training_stats,
-)
 
 # Utility functions
 from .utils import should_run

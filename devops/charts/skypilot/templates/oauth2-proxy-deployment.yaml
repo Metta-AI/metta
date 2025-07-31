@@ -94,12 +94,6 @@ spec:
                 {{- end }}
               {{- end }}
             {{- end }}
-          # Softmax patch - stable cookie secret
-          {{- else if (index .Values.ingress "oauth2-proxy" "client-details-from-secret") }}
-          valueFrom:
-            secretKeyRef:
-              name: {{ index .Values.ingress "oauth2-proxy" "client-details-from-secret" }}
-              key: cookie-secret
           {{- else }}
           # Generate a random cookie secret if no existing one is found
           value: {{ randAlphaNum 32 | b64enc | quote }}

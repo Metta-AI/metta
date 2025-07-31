@@ -17,12 +17,12 @@ from logging import Logger
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
+from cogweb.cogweb_client import CogwebClient
 from metta.common.util.lock import run_once
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
-from metta.sweep.wandb_utils import generate_run_id_for_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +33,19 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
+def setup_next_run(cfg: DictConfig, logger: Logger) -> tuple[str, str]:
     """
     Create a new run for an existing sweep.
-    Returns the run ID.
+    Returns the run ID and the dist_cfg_path.
     """
     # Load sweep metadata
     sweep_metadata = OmegaConf.load(os.path.join(cfg.sweep_dir, "metadata.yaml"))
 
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
-    # TODO: Use sweep_id instead of sweep_path, currently very confusing.
-    run_id = generate_run_id_for_sweep(sweep_metadata.wandb_path, cfg.runs_dir)
+    # Use centralized database for atomic run ID generation
+    backend_url = cfg.sweep_server_uri
+    cogweb_client = CogwebClient.get_client(base_url=backend_url)
+    run_id = cogweb_client.sweep_client().get_next_run_id(cfg.sweep_name)
     logger.info(f"Creating new run: {run_id}")
 
     run_dir = os.path.join(cfg.runs_dir, run_id)
@@ -51,6 +53,7 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
 
     cfg.run = run_id  # Top-level for training scripts
     cfg.run_dir = run_dir  # Top-level for training scripts
+    dist_cfg_path = os.path.join(run_dir, "dist_cfg.yaml")
 
     def init_run():
         with WandbContext(cfg.wandb, cfg) as wandb_run:
@@ -81,7 +84,6 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
             # Apply Protein suggestions on top of sweep_job overrides
             # Make a deepcopy of the sweep_job config to avoid modifying the original.
             sweep_job_container = OmegaConf.to_container(cfg.sweep_job, resolve=True)
-            assert isinstance(sweep_job_container, dict), "sweep_job must be a dictionary structure"
             sweep_job_copy = DictConfig(sweep_job_container)
             apply_protein_suggestion(sweep_job_copy, clean_suggestion)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
@@ -92,7 +94,7 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
             sweep_job_final = OmegaConf.to_container(sweep_job_copy, resolve=True)
             assert isinstance(sweep_job_final, dict), "sweep_job_final must be a dictionary"
 
-            #
+            # TODO: Use sweep_config_utils.py to save config into run_dir
             train_cfg_overrides = DictConfig(
                 {
                     **sweep_job_final,
@@ -108,13 +110,13 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
             )
             OmegaConf.save(train_cfg_overrides, save_path)
 
-            os.makedirs(os.path.dirname(cfg.dist_cfg_path), exist_ok=True)
+            # We are now saving into the run directory directly
             OmegaConf.save(
                 {
                     "run": run_id,
                     "wandb_run_id": wandb_run_id,
                 },
-                cfg.dist_cfg_path,
+                dist_cfg_path,
             )
 
     # TODO: Why are we doing this in wandb.agent? What is WandB agent?
@@ -127,7 +129,7 @@ def setup_next_run(cfg: DictConfig, logger: Logger) -> str:
     )
 
     logger.info(f"Run created: {run_id}")
-    return run_id
+    return run_id, dist_cfg_path
 
 
 def validate_protein_suggestion(config: DictConfig, suggestion: dict):

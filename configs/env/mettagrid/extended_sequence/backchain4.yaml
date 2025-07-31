@@ -10,7 +10,7 @@ sampling: 1
 
 game:
   num_agents: 24
-  max_steps: 150
+  max_steps: 600
   agent:
     default_resource_limit: 1
     rewards:

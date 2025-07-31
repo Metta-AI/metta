@@ -37,6 +37,7 @@ game:
         battery_red: 0
       output_resources:
         battery_red: 1
+        laser: 0
         armor: 0
     altar:
       cooldown: 1
