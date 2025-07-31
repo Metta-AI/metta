@@ -513,86 +513,9 @@ def create_component_based_agent():
     return agent, agent_spec
 
 
-def create_monolithic_agent():
-    """Create an example MettaAgent using monolithic PyTorch approach (Approach 2)."""
-
-    # Define agent specification (simpler for monolithic)
-    agent_spec = AgentSpec(
-        obs_space=gym.spaces.Dict(
-            {
-                "grid_obs": gym.spaces.Box(low=0, high=1, shape=(10,), dtype=float),
-                "global_vars": gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(0,), dtype=int),
-            }
-        ),
-        action_space=gym.spaces.Discrete(5),
-        obs_width=5,
-        obs_height=5,
-        feature_normalizations={},
-        global_features={},
-        device="cpu",
-        required_components=[],  # No components needed for monolithic
-        optional_components=[],
-    )
-
-    # No component configuration needed - everything is in the policy
-    config = {
-        "hidden_size": 64,
-        "clip_range": 0.2,
-        "components": {},  # Empty components
-    }
-
-    # Create monolithic policy
-    policy = MonolithicPolicy(
-        obs_dim=10,
-        action_space=agent_spec.action_space,
-        hidden_size=64,
-        num_layers=2,
-        rnn_type="lstm",
-    )
-
-    # Build agent
-    builder = MettaAgentBuilder(config, agent_spec)
-    agent = builder.build(policy=policy)
-
-    return agent, agent_spec
-
-
 if __name__ == "__main__":
     # Setup logging
     logging.basicConfig(level=logging.INFO)
-
-    ## Monolithic Policy
-
-    # agent1, _ = create_monolithic_agent()
-
-    # # Switch component-based agent to monolithic policy
-    # monolithic_policy = MonolithicPolicy(obs_dim=10, action_space=gym.spaces.Discrete(5), hidden_size=64)
-    # agent1.set_policy(monolithic_policy)
-    # print("Switched component-based agent to monolithic policy!")
-
-    # obs = {
-    #     "grid_obs": torch.rand(1, 10),
-    #     "global_vars": torch.tensor([]).reshape(1, 0),
-    # }
-
-    # with torch.no_grad():
-    #     action, log_prob, entropy, value, state = agent1(obs)
-    #     print(f"New output - Action: {action}, Value: {value}")
-
-    # # Component Based Policy (YAML)
-
-    # agent2, _ = create_component_based_agent()
-
-    # print("Switched component-based agent to monolithic policy!")
-
-    # obs = {
-    #     "grid_obs": torch.rand(1, 10),
-    #     "global_vars": torch.tensor([]).reshape(1, 0),
-    # }
-
-    # with torch.no_grad():
-    #     action, log_prob, entropy, value, state = agent2(obs)
-    #     print(f"New output - Action: {action}, Value: {value}")
 
     import numpy as np
     import torch
