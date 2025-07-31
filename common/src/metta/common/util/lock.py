@@ -10,7 +10,9 @@ T = TypeVar("T")
 
 
 def _init_process_group() -> bool:
-    world_size = int(os.environ.get("WORLD_SIZE", os.environ.get("NUM_NODES", "1")))
+    # If the distributed environment is not set up, handle empty environment variables
+    world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
+    world_size = int(world_size_str) if world_size_str.strip() else 1
     if world_size <= 1:
         return False
     if dist.is_initialized():
