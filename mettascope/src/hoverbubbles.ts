@@ -142,27 +142,21 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
   const params = findIn(htmlBubble, '.params')
   removeChildren(params)
 
-  // TODO redo this
-  // for (const key in object) {
-  //   let value = object[key].get()
-  //   if (key === 'type') {
-  //     value = state.replay.typeNames[value]
-  //   } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.size) {
-  //     const colorNames = Array.from(Common.COLORS.keys())
-  //     value = colorNames[value]
-  //   } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
-  //     // If the value is a float and not an integer, round it to three decimal places.
-  //     if (typeof value === 'number' && !Number.isInteger(value)) {
-  //       value = value.toFixed(3)
-  //     }
-  //   } else {
-  //     continue
-  //   }
-  //   const param = paramTemplate.cloneNode(true) as HTMLElement
-  //   param.querySelector('.name')!.textContent = key
-  //   param.querySelector('.value')!.textContent = value
-  //   params.appendChild(param)
-  // }
+  function addParam(name: string, value: string) {
+    const param = paramTemplate.cloneNode(true) as HTMLElement
+    param.querySelector('.name')!.textContent = name
+    param.querySelector('.value')!.textContent = value
+    params.appendChild(param)
+  }
+
+  // Add various parameters.
+  addParam("ID", object.id.toString())
+  const typeName = state.replay.typeNames[object.typeId]
+  addParam('Type', typeName)
+  if (object.isAgent) {
+    addParam('Agent ID', object.agentId.toString())
+    addParam('Current Reward', object.currentReward.get().toString())
+  }
 
   // Populate the inventory area.
   const inventory = findIn(htmlBubble, '.inventory')

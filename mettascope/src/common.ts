@@ -129,8 +129,6 @@ export const state = {
   isOneToOneAction: false,
 }
 
-
-
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,
 
