@@ -543,18 +543,18 @@ while agent_step < trainer_config.total_timesteps:
             # Optimizer step
             optimizer.zero_grad()
             loss.backward()
-            
+
             if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
                 torch.nn.utils.clip_grad_norm_(agent.parameters(), trainer_config.ppo.max_grad_norm)
                 optimizer.step()
-                
+
                 # Optional weight clipping
                 if hasattr(agent, "clip_weights"):
                     agent.clip_weights()
-                    
+
                 if str(device).startswith("cuda"):
                     torch.cuda.synchronize()
-            
+
             minibatch_idx += 1
         epoch += 1
 

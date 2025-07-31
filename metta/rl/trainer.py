@@ -2,8 +2,6 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from metta.rl.ppo import ppo
-from metta.rl.rollout import rollout
 from typing import Any
 
 import numpy as np
@@ -36,7 +34,8 @@ from metta.rl.policy_management import (
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
-from metta.rl.rollout import get_lstm_config
+from metta.rl.ppo import ppo
+from metta.rl.rollout import get_lstm_config, rollout
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
