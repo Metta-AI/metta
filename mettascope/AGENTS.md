@@ -48,7 +48,6 @@ Follow the repository-wide rules described in `/AGENTS.md`:
   - if a function gets invalid input, we should throw an error.
   - if a function returns an error, allow that error to bubble up.
 
-
 - ./mettascope/src/vector_math.ts has Vec2f and Mat3f.
 - Do not pass X and Y arguments separately. pass them as a Vec2f.
 - when working with `gridObject`s, do not access properties directly. you must use `getAttr()` from replay.ts
