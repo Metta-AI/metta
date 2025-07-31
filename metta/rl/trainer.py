@@ -83,7 +83,16 @@ def train(
     stats_client: Any | None,
     **kwargs: Any,
 ) -> None:
-    """Functional training loop."""
+    """Main training loop for Metta agents.
+    
+    Args:
+        cfg: Hydra configuration dict
+        wandb_run: Weights & Biases run instance
+        policy_store: Policy storage manager
+        sim_suite_config: Simulation configuration
+        stats_client: Stats tracking client
+        **kwargs: Additional keyword arguments
+    """
     logger.info(f"run_dir = {cfg.run_dir}")
 
     # Log recent checkpoints for debugging

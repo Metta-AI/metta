@@ -17,7 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
-    """Clean up old policy checkpoints, keeping only the most recent ones."""
+    """Clean up old policy checkpoints, keeping only the most recent ones.
+    
+    Args:
+        checkpoint_dir: Directory containing checkpoints
+        keep_last_n: Number of recent checkpoints to keep
+    """
     try:
         # Get checkpoint directory
         checkpoint_path = Path(checkpoint_dir)
@@ -41,7 +46,12 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
 
 
 def validate_policy_environment_match(policy: Any, env: Any) -> None:
-    """Validate that policy's observation shape matches environment's."""
+    """Validate that policy's observation shape matches environment's.
+    
+    Args:
+        policy: Policy network (MettaAgent or DistributedMettaAgent)
+        env: Environment instance
+    """
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):
         agent = policy

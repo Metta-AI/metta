@@ -18,7 +18,7 @@ class Losses:
         self.zero()
 
     def zero(self):
-        """Reset all loss values to 0.0"""
+        """Reset all loss values to 0.0."""
         self.policy_loss_sum = 0.0
         self.value_loss_sum = 0.0
         self.entropy_sum = 0.0
@@ -34,7 +34,11 @@ class Losses:
         self.minibatches_processed = 0
 
     def stats(self) -> dict[str, float]:
-        """Convert losses to dictionary with proper averages"""
+        """Convert losses to dictionary with proper averages.
+        
+        Returns:
+            Dict mapping loss names to averaged values
+        """
         n = max(1, self.minibatches_processed)
 
         return {
@@ -64,7 +68,22 @@ def process_minibatch_update(
     losses: Losses,
     device: torch.device,
 ) -> Tensor:
-    """Process a single minibatch update and return the total loss."""
+    """Process a single minibatch update and return the total loss.
+    
+    Args:
+        policy: Policy network
+        experience: Experience buffer
+        minibatch: Dict containing minibatch data
+        advantages: Advantage estimates
+        trainer_cfg: Training configuration
+        kickstarter: Kickstarter for behavior cloning
+        agent_step: Current agent step count
+        losses: Losses accumulator
+        device: Compute device
+    
+    Returns:
+        Total loss tensor
+    """
     obs = minibatch["obs"]
 
     lstm_state = PolicyState()

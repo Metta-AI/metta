@@ -18,10 +18,15 @@ def get_observation(
     device: torch.device,
     timer: Any,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
-    """Get observations and other data from the vectorized environment and convert to tensors.
-
+    """Get observations from vectorized environment.
+    
+    Args:
+        vecenv: Vectorized environment instance
+        device: Target device for tensors
+        timer: Timer for profiling
+    
     Returns:
-        Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
+        Tuple of (obs, rewards, dones, truncations, info, training_env_id, mask, num_steps)
     """
     # Receive environment data
     with timer("_rollout.env"):
@@ -47,13 +52,13 @@ def send_observation(
     dtype_actions: Any,
     timer: Any,
 ) -> None:
-    """Send actions back to the vectorized environment.
-
+    """Send actions to vectorized environment.
+    
     Args:
-        vecenv: The vectorized environment instance
-        actions: Tensor of actions to send to the environment
-        dtype_actions: The numpy dtype to cast actions to before sending
-        timer: Timer instance for profiling
+        vecenv: Vectorized environment instance
+        actions: Actions tensor to send
+        dtype_actions: Numpy dtype for actions
+        timer: Timer for profiling
     """
     # Send actions back to environment
     with timer("_rollout.env"):
@@ -67,10 +72,17 @@ def run_policy_inference(
     training_env_id_start: int,
     device: torch.device,
 ) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
-    """Run the policy to get actions and value estimates.
-
+    """Run policy inference to get actions and values.
+    
+    Args:
+        policy: Policy network
+        observations: Input observations
+        experience: Experience buffer for LSTM states
+        training_env_id_start: Starting environment ID
+        device: Compute device
+    
     Returns:
-        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
+        Tuple of (actions, log_probs, values, lstm_state)
     """
     with torch.no_grad():
         state = PolicyState()
@@ -96,7 +108,14 @@ def run_policy_inference(
 
 
 def get_lstm_config(policy: Any) -> Tuple[int, int]:
-    """Extract LSTM configuration from policy."""
+    """Extract LSTM configuration from policy.
+    
+    Args:
+        policy: Policy network
+    
+    Returns:
+        Tuple of (hidden_size, num_lstm_layers)
+    """
     hidden_size = getattr(policy, "hidden_size", 256)
     num_lstm_layers = 2  # Default value
 

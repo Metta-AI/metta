@@ -20,7 +20,21 @@ def compute_ppo_losses(
     trainer_cfg: Any,
     device: torch.device,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
-    """Compute PPO losses for policy and value functions."""
+    """Compute PPO losses for policy and value functions.
+    
+    Args:
+        minibatch: Dict containing minibatch data
+        new_logprobs: New log probabilities from policy
+        entropy: Policy entropy
+        newvalue: New value estimates
+        importance_sampling_ratio: IS ratio for off-policy correction
+        adv: Advantage estimates
+        trainer_cfg: Training configuration
+        device: Compute device
+    
+    Returns:
+        Tuple of (pg_loss, v_loss, entropy_loss, clipfrac, approx_kl)
+    """
     # Policy loss
     pg_loss1 = -adv * importance_sampling_ratio
     pg_loss2 = -adv * torch.clamp(
@@ -65,8 +79,19 @@ def ppo(
     epoch: int,
     device: torch.device,
 ) -> int:
-    """Perform training for one or more epochs on collected experience.
-
+    """Perform PPO training on collected experience.
+    
+    Args:
+        policy: Policy network to train
+        optimizer: Optimizer for policy parameters
+        experience: Experience buffer with rollout data
+        kickstarter: Kickstarter for behavior cloning
+        losses: Losses accumulator
+        trainer_cfg: Training configuration
+        agent_step: Current agent step count
+        epoch: Current epoch number
+        device: Compute device
+    
     Returns:
         Number of epochs trained
     """

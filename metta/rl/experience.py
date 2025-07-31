@@ -156,7 +156,23 @@ class Experience:
         mask: Tensor,
         lstm_state: Optional[Dict[str, Tensor]] = None,
     ) -> int:
-        """Store a batch of experience."""
+        """Store a batch of experience.
+        
+        Args:
+            obs: Observations tensor
+            actions: Actions tensor
+            logprobs: Log probabilities of actions
+            rewards: Rewards tensor
+            dones: Episode done flags
+            truncations: Episode truncation flags
+            values: Value estimates
+            env_id: Environment ID slice
+            mask: Valid step mask
+            lstm_state: Optional LSTM state dict
+        
+        Returns:
+            Number of steps stored
+        """
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
@@ -229,7 +245,18 @@ class Experience:
         minibatch_idx: int,
         total_minibatches: int,
     ) -> Dict[str, Tensor]:
-        """Sample a prioritized minibatch."""
+        """Sample a prioritized minibatch.
+        
+        Args:
+            advantages: Advantage estimates
+            prio_alpha: Priority exponent alpha
+            prio_beta: Importance sampling beta
+            minibatch_idx: Current minibatch index
+            total_minibatches: Total number of minibatches
+        
+        Returns:
+            Dict containing minibatch data (obs, actions, values, etc.)
+        """
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)
         prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
