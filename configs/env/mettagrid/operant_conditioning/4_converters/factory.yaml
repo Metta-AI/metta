@@ -38,6 +38,7 @@ game:
       output_resources:
         battery_red: 1
         armor: 0
+        laser: 0
     altar:
       cooldown: 1
       input_resources:
