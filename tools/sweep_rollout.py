@@ -84,7 +84,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
     train_for_run(
         run_name=run_name,
         train_job_cfg=train_job_cfg,
-        wandb_run_id=wandb_run_id,
+        wandb_run_id=wandb_run_id or "",  # Handle None case
         original_args=ORIGINAL_ARGS,
         logger=logger,
     )
@@ -156,9 +156,37 @@ def train_for_run(
     else:
         print(f"[SWEEP:{run_name}] Running: {' '.join(cmd)}")
 
+    # Prepare environment variables for subprocess
+    # This ensures distributed training variables are passed through
+    env = os.environ.copy()
+
+    # Log distributed training environment variables if present
+    dist_vars = [
+        "WORLD_SIZE",
+        "RANK",
+        "LOCAL_RANK",
+        "NUM_NODES",
+        "NODE_INDEX",
+        "MASTER_ADDR",
+        "MASTER_PORT",
+        "NUM_GPUS",
+        "CUDA_VISIBLE_DEVICES",
+    ]
+    dist_env_info = {var: env.get(var) for var in dist_vars if env.get(var)}
+    if dist_env_info:
+        if logger:
+            logger.info(f"[SWEEP:{run_name}] Distributed env vars: {dist_env_info}")
+        else:
+            print(f"[SWEEP:{run_name}] Distributed env vars: {dist_env_info}")
+
+    # Check if we should enable batch scaling for multi-GPU
+    # Note: We don't auto-enable this as it changes the effective batch size
+    # Users should explicitly set this if they want batch scaling
+
     try:
         # Launch and wait (no capture_output to maintain real-time logging)
-        result = subprocess.run(cmd, check=True)
+        # Pass the environment to ensure distributed training variables are available
+        result = subprocess.run(cmd, check=True, env=env)
         return result
 
     except subprocess.CalledProcessError as e:

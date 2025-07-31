@@ -88,11 +88,23 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     train_job = TrainJob(cfg.train_job)
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
+        rank = torch.distributed.get_rank()
+
+        # Log distributed setup info
+        logger.info(f"Distributed training initialized: rank={rank}, world_size={world_size}")
+
         if cfg.trainer.scale_batches_by_world_size:
             cfg.trainer.forward_pass_minibatch_target_size = (
                 cfg.trainer.forward_pass_minibatch_target_size // world_size
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
+            logger.info(f"Scaled batch_size to {cfg.trainer.batch_size} (divided by {world_size})")
+        else:
+            logger.info(f"Batch scaling disabled. Each GPU will process full batch_size={cfg.trainer.batch_size}")
+
+        # Log distributed training setup
+        logger.info(f"Rank {rank} active on {cfg.device} (world_size={world_size})")
+        logger.info(f"Total training will be {cfg.trainer.total_timesteps} timesteps across all GPUs")
 
     policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
@@ -100,6 +112,8 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
         stats_client.validate_authenticated()
 
     # Use the functional train interface directly
+    # cfg is guaranteed to be DictConfig after validation
+    assert isinstance(cfg, DictConfig)
     functional_train(
         cfg=cfg,
         wandb_run=wandb_run,

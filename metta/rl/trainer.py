@@ -283,6 +283,13 @@ def train(
         steps_before = agent_step
         record_heartbeat()
 
+        # Log progress from all ranks
+        if torch.distributed.is_initialized():
+            logger.info(
+                f"[Rank {torch.distributed.get_rank()}] Starting iteration at "
+                f"agent_step={agent_step}/{trainer_cfg.total_timesteps}"
+            )
+
         with torch_profiler:
             # ---- ROLLOUT PHASE ----
             with timer("_rollout"):
@@ -294,6 +301,14 @@ def train(
                     timer=timer,
                 )
                 agent_step += num_steps * world_size
+
+                # Log step update from all ranks
+                if torch.distributed.is_initialized():
+                    logger.info(
+                        f"[Rank {torch.distributed.get_rank()}] After rollout: "
+                        f"num_steps={num_steps}, new agent_step={agent_step}"
+                    )
+
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
             # ---- TRAINING PHASE ----
@@ -463,6 +478,13 @@ def train(
                 wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
                 break
 
+    # Log completion from all ranks
+    if torch.distributed.is_initialized():
+        logger.info(
+            f"[Rank {torch.distributed.get_rank()}] Exited training loop. "
+            f"Final agent_step={agent_step}, total_timesteps={trainer_cfg.total_timesteps}"
+        )
+
     if is_master:
         logger.info("Training complete!")
         timing_summary = timer.get_all_summaries()
@@ -470,6 +492,9 @@ def train(
             logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
     # Force final saves - all ranks must participate
+    if torch.distributed.is_initialized():
+        logger.info(f"[Rank {torch.distributed.get_rank()}] Entering final save section")
+
     if is_master:
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
@@ -495,16 +520,18 @@ def train(
                 force=True,
             )
 
-    # All ranks must synchronize after final save operations
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
-    if wandb_run and latest_saved_policy_record:
+    # Only master uploads to wandb
+    if is_master and wandb_run and latest_saved_policy_record:
+        logger.info("Uploading final policy to wandb...")
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record, force=True)
+        logger.info("Wandb upload complete")
 
-    # Final synchronization before cleanup
+    # Single final synchronization - ALL ranks must wait here
+    # This ensures all work (including wandb upload) is complete before any rank exits
     if torch.distributed.is_initialized():
+        logger.info(f"[Rank {torch.distributed.get_rank()}] Waiting at final barrier")
         torch.distributed.barrier()
+        logger.info(f"[Rank {torch.distributed.get_rank()}] Passed final barrier")
 
     # Cleanup
     vecenv.close()

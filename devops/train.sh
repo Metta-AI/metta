@@ -5,6 +5,15 @@ set -e
 # Parse arguments
 args="${@:1}"
 
+# Parse CUDA_VISIBLE_DEVICES from arguments if provided
+for arg in "$@"; do
+  if [[ "$arg" == cuda_visible_devices=* ]]; then
+    export CUDA_VISIBLE_DEVICES="${arg#cuda_visible_devices=}"
+    # Remove this argument from the list passed to training
+    args="${args//$arg/}"
+  fi
+done
+
 source ./devops/setup.env
 
 # Start heartbeat monitor if available
@@ -21,11 +30,20 @@ else
 fi
 export HEARTBEAT_FILE
 
+# Handle CUDA_VISIBLE_DEVICES
+if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+  echo "[INFO] CUDA_VISIBLE_DEVICES set to: $CUDA_VISIBLE_DEVICES"
+fi
 
 # Auto-detect GPUs if not set
 if [ -z "$NUM_GPUS" ]; then
   if command -v nvidia-smi &> /dev/null; then
-    NUM_GPUS=$(nvidia-smi --list-gpus | wc -l)
+    if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+      # Count GPUs based on CUDA_VISIBLE_DEVICES
+      NUM_GPUS=$(echo "$CUDA_VISIBLE_DEVICES" | tr ',' '\n' | wc -l)
+    else
+      NUM_GPUS=$(nvidia-smi --list-gpus | wc -l)
+    fi
   else
     NUM_GPUS=1
   fi
