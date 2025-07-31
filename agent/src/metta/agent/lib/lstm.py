@@ -35,7 +35,7 @@ class LSTM(LayerBase):
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
 
-        self.max_envs = 524288  # av hack. need a better way. don't want to get it from the env, it should just work.
+        # self.max_envs = 524288  # av hack. need a better way. don't want to get it from the env, it should just work.
         # preallocate state buffer. [0] = hidden states, [1] = cell states
         # self.register_buffer(
         #     "_memory", torch.zeros(2, self.num_layers, self.max_envs, self.hidden_size), persistent=False
