@@ -3,11 +3,14 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 import torch
+from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.common.util.fs import wait_for_file
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
 logger = logging.getLogger(__name__)
 
@@ -34,86 +37,6 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
 
     except Exception as e:
         logger.warning(f"Error during policy cleanup: {e}")
-
-
-def save_policy_with_metadata(
-    policy: Any,
-    policy_store: Any,
-    epoch: int,
-    agent_step: int,
-    evals: Any,  # EvalRewardSummary
-    timer: Any,
-    initial_policy_record: Optional[Any],
-    run_name: str,
-    is_master: bool = True,
-) -> Optional[Any]:
-    """Save policy with metadata.
-
-    Returns:
-        Saved policy record or None if not master
-    """
-    if not is_master:
-        return None
-
-    logger.info(f"Saving policy at epoch {epoch}")
-
-    # Extract the actual policy module from distributed wrapper if needed
-    policy_to_save = policy
-    if isinstance(policy, DistributedMettaAgent):
-        policy_to_save = policy.module
-
-    # Build metadata
-    name = policy_store.make_model_name(epoch)
-
-    # Extract average reward from evals
-    # Handle both EvalRewardSummary object and dict
-    avg_reward = 0.0
-    evals_dict = {}
-    if evals:
-        if hasattr(evals, "avg_category_score"):
-            # It's an EvalRewardSummary object
-            avg_reward = evals.avg_category_score if evals.avg_category_score is not None else 0.0
-            evals_dict = {
-                "category_scores": evals.category_scores,
-                "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
-                "avg_category_score": evals.avg_category_score,
-                "avg_simulation_score": evals.avg_simulation_score,
-            }
-        else:
-            # It's a dict
-            avg_reward = sum(v for k, v in evals.items() if k.endswith("/score")) / max(
-                1, len([k for k in evals.keys() if k.endswith("/score")])
-            )
-            evals_dict = evals
-
-    metadata = {
-        "epoch": epoch,
-        "agent_step": agent_step,
-        "total_time": timer.get_elapsed(),
-        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
-        "run": run_name,
-        "initial_pr": initial_policy_record.uri if initial_policy_record else None,
-        "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
-        "evals": evals_dict,
-        "avg_reward": avg_reward,
-    }
-
-    # Save original feature mapping
-    if hasattr(policy_to_save, "get_original_feature_mapping"):
-        original_feature_mapping = policy_to_save.get_original_feature_mapping()
-        if original_feature_mapping is not None:
-            metadata["original_feature_mapping"] = original_feature_mapping
-            logger.info(f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata")
-
-    # Create and save policy record
-    policy_record = policy_store.create_empty_policy_record(name)
-    policy_record.metadata = metadata
-    policy_record.policy = policy_to_save
-
-    saved_policy_record = policy_store.save(policy_record)
-    logger.info(f"Successfully saved policy at epoch {epoch}")
-
-    return saved_policy_record
 
 
 def validate_policy_environment_match(policy: Any, env: Any) -> None:
@@ -164,10 +87,6 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
         The agent, possibly wrapped in DistributedMettaAgent
     """
     if torch.distributed.is_initialized():
-        from torch.nn.parallel import DistributedDataParallel
-
-        from metta.agent.metta_agent import DistributedMettaAgent
-
         # For CPU, we need to handle DistributedDataParallel differently
         if device.type == "cpu":
             # Convert BatchNorm to SyncBatchNorm
@@ -190,7 +109,7 @@ def maybe_load_checkpoint(
     device: torch.device,
     is_master: bool,
     rank: int,
-) -> Tuple[Optional[Any], Any, int, int]:
+) -> Tuple[Any | None, Any, int, int]:
     """Load checkpoint and policy if they exist, or create new ones.
 
     This unifies the checkpoint loading logic from trainer.py and run.py.
@@ -208,10 +127,6 @@ def maybe_load_checkpoint(
     Returns:
         Tuple of (checkpoint, policy_record, agent_step, epoch)
     """
-    from metta.agent.metta_agent import make_policy
-    from metta.common.util.fs import wait_for_file
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
     # Try to load checkpoint
     checkpoint = TrainerCheckpoint.load(run_dir)
     agent_step = 0
@@ -306,7 +221,7 @@ def ensure_initial_policy(
     agent: Any,
     policy_store: Any,
     checkpoint_path: str,
-    loaded_policy_path: Optional[str],
+    loaded_policy_path: str | None,
     device: torch.device,
 ) -> None:
     """Ensure all ranks have the same initial policy in distributed training.
@@ -321,9 +236,6 @@ def ensure_initial_policy(
         loaded_policy_path: Path to already loaded policy (None if no checkpoint)
         device: Training device
     """
-    from metta.agent.metta_agent import DistributedMettaAgent
-    from metta.common.util.fs import wait_for_file
-
     # If we already loaded a policy, nothing to do
     if loaded_policy_path is not None:
         return
@@ -387,3 +299,101 @@ def ensure_initial_policy(
         # Save through policy store
         saved_policy_record = policy_store.save(policy_record)
         logger.info(f"Saved initial policy to {saved_policy_record.uri}")
+
+
+def load_or_initialize_policy(
+    cfg: Any,
+    checkpoint: Any | None,
+    policy_store: Any,
+    metta_grid_env: Any,
+    device: torch.device,
+    is_master: bool,
+    rank: int,
+) -> Tuple[Any, Any, Any]:
+    """
+    Load or initialize policy with distributed coordination.
+
+    Returns:
+        Tuple of (policy, initial_policy_record, latest_saved_policy_record)
+    """
+    trainer_cfg = cfg.trainer
+
+    # Check if policy already exists at default path - all ranks check this
+    default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
+
+    # First priority: checkpoint
+    if checkpoint and checkpoint.policy_path:
+        logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+        policy_record = policy_store.policy_record(checkpoint.policy_path)
+    # Second priority: initial_policy from config
+    elif trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
+        logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
+        policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
+    # Third priority: existing default path
+    elif os.path.exists(default_path):
+        logger.info(f"Loading policy from default path: {default_path}")
+        policy_record = policy_store.policy_record(default_path)
+    else:
+        policy_record = None
+
+    # If we found an existing policy, all ranks use it
+    if policy_record:
+        # Restore original_feature_mapping from metadata if available
+        if (
+            hasattr(policy_record.policy, "restore_original_feature_mapping")
+            and "original_feature_mapping" in policy_record.metadata
+        ):
+            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+            logger.info("Restored original_feature_mapping")
+
+        policy = policy_record.policy
+        initial_policy_record = policy_record
+        latest_saved_policy_record = policy_record
+
+        return policy, initial_policy_record, latest_saved_policy_record
+
+    # No existing policy found - need to create one with distributed coordination
+    if torch.distributed.is_initialized() and not is_master:
+        # Non-master waits for master to create
+        logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
+        torch.distributed.barrier()
+
+        def log_progress(elapsed: float, status: str) -> None:
+            if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                logger.info(f"Rank {rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+            elif status == "found":
+                logger.info(f"Rank {rank}: Policy file found, waiting for write to complete...")
+            elif status == "stable":
+                logger.info(f"Rank {rank}: Policy file stable after {elapsed:.1f}s")
+
+        if not wait_for_file(default_path, timeout=300, progress_callback=log_progress):
+            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
+
+        try:
+            policy_record = policy_store.policy_record(default_path)
+        except Exception as e:
+            raise RuntimeError(f"Rank {rank}: Failed to load policy from {default_path}: {e}") from e
+
+        policy = policy_record.policy
+        initial_policy_record = policy_record
+        latest_saved_policy_record = policy_record
+
+        logger.info(f"Rank {rank}: Successfully loaded policy from {default_path}")
+    else:
+        # Master creates new policy
+        logger.info("No existing policy found, creating new one")
+        name = policy_store.make_model_name(0)
+        pr = policy_store.create_empty_policy_record(name)
+        pr.policy = make_policy(metta_grid_env, cfg)
+        saved_pr = policy_store.save(pr)
+        logger.info(f"Created and saved new policy to {saved_pr.uri}")
+
+        policy = saved_pr.policy
+        initial_policy_record = saved_pr
+        latest_saved_policy_record = saved_pr
+
+        # Synchronize with non-master ranks after saving
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+    return policy, initial_policy_record, latest_saved_policy_record

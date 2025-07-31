@@ -4,18 +4,8 @@ import logging
 from typing import Any, Dict
 
 import torch
-from torch import Tensor
 
 logger = logging.getLogger(__name__)
-
-
-def calculate_explained_variance(values: Tensor, advantages: Tensor) -> float:
-    """Calculate explained variance for value function evaluation."""
-    y_pred = values.flatten()
-    y_true = advantages.flatten() + values.flatten()
-    var_y = y_true.var()
-    explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
-    return explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
 
 def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
