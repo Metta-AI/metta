@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
@@ -14,7 +15,6 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
-from metta.app_backend.stats_client import StatsClient
 
 
 class TestEvalTaskRoutes:
@@ -258,6 +258,7 @@ class TestEvalTaskRoutes:
                 (episode.id,),
             )
             row = await result.fetchone()
+            assert row is not None
             assert row[0] == eval_task_id
 
     @pytest.mark.asyncio

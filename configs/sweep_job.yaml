@@ -10,6 +10,9 @@ defaults:
 cmd: sweep
 sweep_name: ???  # Will be set via command line override
 
+# Override stats_server_uri from common.yaml to use localhost for sweep coordination
+sweep_server_uri: http://localhost:8000
+
 trainer:
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
   curriculum: /env/mettagrid/arena/basic_easy_shaped
@@ -42,3 +45,4 @@ sweep_job:
 # TODO: Remove and update references.
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"
+

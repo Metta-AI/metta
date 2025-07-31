@@ -159,7 +159,7 @@ MIGRATIONS = [
     ),
     SqlMigration(
         version=6,
-        description="Add heatmap performance indexes",
+        description="Add scorecard performance indexes",
         sql_statements=[
             # Critical index for episode_agent_metrics main query
             """ALTER TABLE episode_agent_metrics DROP CONSTRAINT episode_agent_metrics_pkey""",
