@@ -18,14 +18,14 @@ run_dir: ${data_dir}/${run}
 trainer:
   curriculum: /env/mettagrid/curriculum/arena/learning_progress
   num_workers: 4
-  optimizer:
-    type: muon
-    learning_rate: 0.0045
-  simulation:
-    evaluate_interval: 100
-  checkpoint:
-    wandb_checkpoint_interval: 100
-  total_timesteps: 10_000_000_000
+ # optimizer:
+ #   type: muon
+ #   learning_rate: 0.0045
+ # simulation:
+#    evaluate_interval: 100
+#  checkpoint:
+#    wandb_checkpoint_interval: 100
+#  total_timesteps: 10_000_000_000
 
 # Wandb configuration
 wandb:
