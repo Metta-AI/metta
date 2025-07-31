@@ -6,7 +6,7 @@ import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects } from './minimap.js'
 import type { PanelInfo } from './panels.js'
-import { sendAction } from './replay.js'
+import { Entity, sendAction } from './replay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
 
@@ -62,12 +62,9 @@ function clampMapPan(panel: PanelInfo) {
 }
 
 /** Checks to see if an object has any inventory. */
-function hasInventory(obj: any) {
+function hasInventory(obj: Entity) {
   const inventory = obj.inventory.get()
-  if (inventory === null || inventory === undefined) {
-    return false
-  }
-  return Object.keys(inventory).length > 0
+  return inventory.length > 0
 }
 
 /** Focus the screen on a specific area of the map. */
@@ -179,7 +176,7 @@ function drawWalls() {
   }
 }
 
-function drawObject(gridObject: any) {
+function drawObject(gridObject: Entity) {
   const type: number = gridObject.typeId
   const typeName: string = state.replay.typeNames[type]
   if (typeName === 'wall') {
@@ -562,7 +559,7 @@ function drawVisibility() {
     const visibilityMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
 
     // Update the visibility map for a grid object.
-    function updateVisibilityMap(gridObject: any) {
+    function updateVisibilityMap(gridObject: Entity) {
       const location = gridObject.location.get()
       const x = location[0]
       const y = location[1]
@@ -776,7 +773,7 @@ export function drawMap(panel: PanelInfo) {
           Math.round(localMousePos.x() / Common.TILE_SIZE),
           Math.round(localMousePos.y() / Common.TILE_SIZE)
         )
-        objectUnderMouse = state.replay.objects.find((obj: any) => {
+        objectUnderMouse = state.replay.objects.find((obj: Entity) => {
           const location = obj.location.get()
           const x = location[0]
           const y = location[1]
@@ -797,7 +794,7 @@ export function drawMap(panel: PanelInfo) {
       setFollowSelection(false)
     } else if (ui.mouseUp && ui.mouseDownPos.sub(ui.mousePos).length() < 10) {
       // Check if we are clicking on an object.
-      if (objectUnderMouse !== undefined) {
+      if (objectUnderMouse !== undefined && objectUnderMouse !== null) {
         updateSelection(objectUnderMouse)
         console.info('Selected object on the map:', state.selectedGridObject)
         if (state.selectedGridObject.isAgent) {

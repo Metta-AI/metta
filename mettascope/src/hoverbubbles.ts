@@ -18,13 +18,14 @@ import * as Common from './common.js'
 import { state, ui } from './common.js'
 import { find, findIn, onEvent, removeChildren } from './htmlutils.js'
 import { Vec2f } from './vector_math.js'
+import { Entity } from './replay.js'
 
 /** An info bubble. */
 export class HoverBubble {
-  public object: any
+  public object: Entity
   public div: HTMLElement
 
-  constructor(object: any) {
+  constructor(object: Entity) {
     this.object = object
     this.div = document.createElement('div')
   }
@@ -89,7 +90,7 @@ hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
 })
 
 /** Updates the hover bubble's visibility, position, and DOM tree. */
-export function updateHoverBubble(object: any) {
+export function updateHoverBubble(object: Entity) {
   if (object !== null && object !== undefined) {
     // Is there a popup open for this object?
     // Then don't show a new one.
@@ -133,10 +134,10 @@ export function hideHoverBubble() {
 }
 
 /** Updates the DOM tree of the info bubble. */
-function updateDom(htmlBubble: HTMLElement, object: any) {
+function updateDom(htmlBubble: HTMLElement, object: Entity) {
   // Update the readout.
-  htmlBubble.setAttribute('data-object-id', object.id)
-  htmlBubble.setAttribute('data-agent-id', object.agentId)
+  htmlBubble.setAttribute('data-object-id', object.id.toString())
+  htmlBubble.setAttribute('data-agent-id', object.agentId.toString())
 
   const params = findIn(htmlBubble, '.params')
   removeChildren(params)
@@ -172,7 +173,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
     if (resourceAmount > 0) {
       const resourceName = state.replay.itemNames[inventoryId]
       const item = itemTemplate.cloneNode(true) as HTMLElement
-      item.querySelector('.amount')!.textContent = resourceAmount
+      item.querySelector('.amount')!.textContent = resourceAmount.toString()
       item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
       inventory.appendChild(item)
     }
@@ -197,7 +198,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
       const resourceAmount = resourcePair[1]
       const resourceName = state.replay.itemNames[resourceId]
       const item = itemTemplate.cloneNode(true) as HTMLElement
-      item.querySelector('.amount')!.textContent = resourceAmount
+      item.querySelector('.amount')!.textContent = resourceAmount.toString()
       item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
       recipe.appendChild(item)
       displayedResources++
@@ -211,7 +212,7 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
         const resourceAmount = resourcePair[1]
         const resourceName = state.replay.itemNames[resourceId]
         const item = itemTemplate.cloneNode(true) as HTMLElement
-        item.querySelector('.amount')!.textContent = resourceAmount
+        item.querySelector('.amount')!.textContent = resourceAmount.toString()
         item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
         recipe.appendChild(item)
         displayedResources++

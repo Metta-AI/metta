@@ -24,7 +24,7 @@ import {
 } from './htmlutils.js'
 import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { fetchReplay, initWebSocket, readFile } from './replay.js'
+import { Entity, fetchReplay, initWebSocket, readFile } from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'
@@ -459,7 +459,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 }
 
 /** Centralized function to select an object. */
-export function updateSelection(object: any, setFollow = false) {
+export function updateSelection(object: Entity | null, setFollow = false) {
   state.selectedGridObject = object
   if (setFollow) {
     setFollowSelection(true)

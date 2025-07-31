@@ -108,8 +108,8 @@ export class Entity {
   visionSize: number = 0
 
   // Building specific keys.
-  recipeInput: number[] = []
-  recipeOutput: number[] = []
+  recipeInput: [number, number][] = []
+  recipeOutput: [number, number][] = []
   recipeMax: number = 0
   productionProgress: Sequence<number> = new Sequence(0)
   productionTime: number = 0

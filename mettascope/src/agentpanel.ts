@@ -12,7 +12,7 @@ import {
   showMenu,
 } from './htmlutils.js'
 import { updateSelection } from './main.js'
-import { propertyIcon, propertyName } from './replay.js'
+import { Entity, propertyIcon, propertyName } from './replay.js'
 
 enum SortDirection {
   None = 0,
@@ -231,12 +231,12 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, _e: Event) =
 
 /** Clicking on a data cell should select the agent. */
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, _e: Event) => {
-  const agentId = findAttr(target, 'data-agent-id')
-  if (agentId !== '') {
-    state.replay.objects.forEach((gridObject: any) => {
-      if (gridObject.agentId === agentId) {
-        updateSelection(gridObject, true)
-        // Note: can't use break with forEach
+  const agentIdStr = findAttr(target, 'data-agent-id')
+  if (agentIdStr !== '') {
+    const agentId = parseInt(agentIdStr)
+    state.replay.objects.forEach((object: Entity) => {
+      if (object.agentId == agentId) {
+        updateSelection(object, true)
       }
     })
   }
