@@ -438,7 +438,7 @@ function injectGlyphEditorModal() {
             </table>
           </div>
           <div class="glyph-editor-footer">
-            <span class="hint">Press Enter to save and move to next • Tab to navigate • Esc to close</span>
+            <span class="hint">Press Enter to save and move to next • Tab to navigate</span>
           </div>
         </div>
       </div>
