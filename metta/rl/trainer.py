@@ -10,7 +10,7 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.core.distributed import setup_distributed_vars
@@ -162,7 +162,7 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
-    policy: MettaAgent
+    policy: MettaAgent | DistributedMettaAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
         cfg=cfg,
         checkpoint=checkpoint,
