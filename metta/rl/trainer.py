@@ -2,7 +2,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -172,7 +172,7 @@ def train(
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
-        policy = torch.compile(policy, mode=trainer_cfg.compile_mode)
+        policy = cast("MettaAgent | DistributedMettaAgent", torch.compile(policy, mode=trainer_cfg.compile_mode))
 
     # Create kickstarter
     kickstarter = Kickstarter(
