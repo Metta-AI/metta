@@ -306,10 +306,9 @@ def load_or_initialize_policy(
     checkpoint: Any | None,
     policy_store: Any,
     metta_grid_env: Any,
-    device: torch.device,
     is_master: bool,
     rank: int,
-) -> Tuple[Any, Any, Any]:
+) -> tuple[MettaAgent, Any, Any]:
     """
     Load or initialize policy with distributed coordination.
 

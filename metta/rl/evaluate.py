@@ -1,6 +1,7 @@
 """Policy evaluation functionality."""
 
 import logging
+import uuid
 from typing import Any
 
 import numpy as np
@@ -26,7 +27,7 @@ def evaluate_policy(
     device: torch.device,
     vectorization: str,
     replay_dir: str | None,
-    stats_epoch_id: str | None,
+    stats_epoch_id: uuid.UUID | None,
     wandb_policy_name: str | None,
     policy_store: Any,
     stats_client: StatsClient | None,
