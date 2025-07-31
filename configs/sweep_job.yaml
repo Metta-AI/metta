@@ -35,12 +35,12 @@ sweep_train_job:
   sim: ${sim}
   trainer: ${trainer}
   agent: ${agent}
-  wandb: ${wandb}
-  # These fields are set programmatically by create_train_job_cfg_for_run()
+  wandb: ${wandb} # Modified by sweep_lifecycle.py
   run: ${run}
-  data_dir: "${sweep_dir}/runs"
+  data_dir: "${sweep_dir}/runs" # NB: This is not $DATA_DIR. We are saving the data inside the sweep_dir/runs directory.
   run_dir: "${sweep_dir}/runs/${run}"
   stats_server_uri: null # No logging to observatory for sweeps
+  sweep_name: ${sweep_name}
 
 sweep_dir: ???
 run: ???
