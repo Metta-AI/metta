@@ -27,6 +27,10 @@ mkdir -p "$RUN_DIR"
 
 echo "Run directory: $RUN_DIR"
 
+# Get local cost estimate (for local runs, this might be 0 or a fixed rate)
+export METTA_HOURLY_COST="${METTA_HOURLY_COST:-0.0}"
+echo "Estimated hourly cost: $METTA_HOURLY_COST"
+
 # Run training locally
 python run.py \
     run="$RUN_NAME" \
@@ -39,3 +43,4 @@ python run.py \
 echo "Training completed!"
 echo "Results available at: $RUN_DIR/"
 echo "WandB run: https://wandb.ai/metta-research/dual_policy_training/runs/$RUN_NAME"
+echo "Total estimated cost: $METTA_HOURLY_COST per hour"

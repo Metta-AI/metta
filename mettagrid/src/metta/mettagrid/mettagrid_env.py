@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import os
 import time
 import uuid
 from typing import Any, Dict, Optional, cast
@@ -16,6 +15,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.instantiate import instantiate
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
@@ -105,22 +105,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
-            elif self._render_mode == "raylib":
-                # Only initialize raylib renderer if not in CI/Docker environment
-                is_ci_environment = bool(
-                    os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.path.exists("/.dockerenv")
-                )
-                if not is_ci_environment:
-                    try:
-                        from metta.mettagrid.renderer.raylib import RaylibRenderer
-
-                        self._renderer = RaylibRenderer(self.object_type_names, self.map_width, self.map_height)
-                    except ImportError:
-                        logger.warning("Raylib renderer requested but raylib not available")
-                        self._renderer = None
-                else:
-                    logger.info("Raylib renderer disabled in CI/Docker environment")
-                    self._renderer = None
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -129,21 +113,25 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
         task = self._task
-        task_cfg = task.env_cfg()
         level = self._level
 
         if level is None:
+            map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                level = task_cfg.game.map_builder.build()
+                map_builder = instantiate(map_builder_config, _recursive_=True)
+                level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task_cfg.game.num_agents == level_agents, (
-            f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
+        assert task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
+        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
+        # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
+        if "map_builder" in game_config_dict:
+            del game_config_dict["map_builder"]
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
@@ -151,6 +139,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 
@@ -235,6 +224,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             # if self._task.env_cfg().game.diversity_bonus.enabled:
             #     self.rewards *= calculate_diversity_bonus(
             #         self._c_env.get_episode_rewards(),
+            #         self._c_env.get_agent_groups(),
             #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
             #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
             #     )
@@ -261,9 +251,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
-
-        # Add episode rewards to info for dual-policy logging
-        infos["episode_rewards"] = episode_rewards.tolist()
 
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
@@ -294,7 +281,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
-            "completion_time": int(time.time()),
+            "completion_time": time.time(),
         }
         infos["attributes"] = attributes
 
@@ -387,7 +374,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         Return the observation space for a single agent.
         Returns:
-            Box: A Box space with shape (num_agents, num_observation_tokens, 3)
+            Box: A Box space with shape depending on whether observation tokens are used.
+                If using tokens: (num_agents, num_observation_tokens, 3)
+                Otherwise: (obs_height, obs_width, num_grid_features)
         """
         return self._c_env.observation_space
 
@@ -401,6 +390,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         return self._c_env.action_space
 
+    # obs_width and obs_height correspond to the view window size, and should indicate the grid from which
+    # tokens are being computed.
     @property
     def obs_width(self):
         return self._c_env.obs_width
@@ -419,25 +410,21 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
-        # Use the configured renderer if available
-        if self._renderer is not None and hasattr(self._renderer, "render"):
-            return self._renderer.render(self._steps, self.grid_objects)
+        if self._renderer is None:
+            return None
 
-        return None
+        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 
     @property
     @override
     def done(self):
         return self._should_reset
 
-    # TODO: we should eliminate this and use feature spec instead
     @property
     def feature_normalizations(self) -> dict[int, float]:
-        # Get feature spec from C++ environment
-        feature_spec = self._c_env.feature_spec()
-        return {spec["id"]: spec["normalization"] for spec in feature_spec.values()}
+        return self._c_env.feature_normalizations()
 
-    def get_observation_features(self) -> dict[str, dict[str, int | float]]:
+    def get_observation_features(self) -> dict[str, dict]:
         """
         Build the features dictionary for initialize_to_environment.
 
@@ -449,7 +436,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
-            feature_dict: dict[str, int | float] = {"id": feature_info["id"]}
+            feature_dict = {"id": feature_info["id"]}
 
             # Add normalization if present
             if "normalization" in feature_info:
