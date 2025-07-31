@@ -19,7 +19,6 @@ def get_observation(
     timer: Any,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
     """Get observations from vectorized environment and convert to tensors."""
-    # Receive environment data
     with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 
@@ -43,8 +42,7 @@ def send_observation(
     dtype_actions: Any,
     timer: Any,
 ) -> None:
-    """Send actions to vectorized environment."""
-    # Send actions back to environment
+    """Send actions back to the vectorized environment."""
     with timer("_rollout.env"):
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
