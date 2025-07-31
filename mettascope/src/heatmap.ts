@@ -27,6 +27,16 @@ export class Heatmap {
 
     // Initialize the heatmap for every step in the current replay.
     for (let step = 0; step < this.maxSteps; step++) {
+      // Start with previous step's cumulative values.
+      if (step > 0) {
+        for (let x = 0; x < this.width; x++) {
+          for (let y = 0; y < this.height; y++) {
+            this.data[step][x][y] = this.data[step - 1][x][y]
+          }
+        }
+      }
+
+      // Add agent positions for this step.
       for (const gridObject of state.replay.grid_objects) {
         if (gridObject.agent_id === undefined) continue
 
@@ -34,7 +44,7 @@ export class Heatmap {
         const y = getAttr(gridObject, 'r', step)
 
         this.assertValidPosition(step, x, y)
-        this.data[step][x][y] = 1
+        this.data[step][x][y]++
       }
     }
   }
@@ -53,10 +63,21 @@ export class Heatmap {
         for (let x = 0; x < this.width; x++) {
           stepData[x] = new Array(this.height).fill(0)
         }
+
+        // Start with previous step's cumulative values.
+        if (i > 0) {
+          for (let x = 0; x < this.width; x++) {
+            for (let y = 0; y < this.height; y++) {
+              stepData[x][y] = this.data[i - 1][x][y]
+            }
+          }
+        }
+
         this.data[i] = stepData
       }
     }
-    // Update the heatmap for every agent.
+
+    // Update the cumulative heatmap for every agent at this step.
     for (const gridObject of state.replay.grid_objects) {
       if (gridObject.agent_id === undefined) continue
 
@@ -64,7 +85,7 @@ export class Heatmap {
       const y = getAttr(gridObject, 'r', step)
 
       this.assertValidPosition(step, x, y)
-      this.data[step][x][y] = 1
+      this.data[step][x][y]++
     }
   }
 
@@ -72,5 +93,10 @@ export class Heatmap {
     if (step < 0 || step >= this.maxSteps || x < 0 || x >= this.width || y < 0 || y >= this.height) {
       throw new Error(`Invalid heatmap position: ${step}, ${x}, ${y}`)
     }
+  }
+
+    getHeat(step: number, x: number, y: number): number {
+    this.assertValidPosition(step, x, y)
+    return this.data[step][x][y]
   }
 }

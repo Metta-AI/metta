@@ -1,5 +1,5 @@
 import * as Common from './common.js'
-import { ctx, setFollowSelection, state, ui } from './common.js'
+import { ctx, setFollowSelection, state, ui, HEATMAP_MIN_OPACITY, HEATMAP_MAX_OPACITY } from './common.js'
 import { Grid } from './grid.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
 import { parseHtmlColor } from './htmlutils.js'
@@ -642,6 +642,41 @@ function drawGrid() {
   }
 }
 
+/** Draws the heatmap overlay. */
+function drawHeatmap() {
+  if (state.showHeatmap) {
+    // Find the maximum heat value for normalization
+    let maxHeat = 0
+    for (let x = 0; x < state.replay.map_size[0]; x++) {
+      for (let y = 0; y < state.replay.map_size[1]; y++) {
+        const heat = state.heatmap.getHeat(state.step, x, y)
+        maxHeat = Math.max(maxHeat, heat)
+      }
+    }
+
+    if (maxHeat === 0) return
+
+    for (let x = 0; x < state.replay.map_size[0]; x++) {
+      for (let y = 0; y < state.replay.map_size[1]; y++) {
+        const heat = state.heatmap.getHeat(state.step, x, y)
+        if (heat > 0) {
+          const normalizedHeat = heat / maxHeat
+          const opacity = HEATMAP_MIN_OPACITY + (normalizedHeat * (HEATMAP_MAX_OPACITY - HEATMAP_MIN_OPACITY))
+
+          // Draw a semi-transparent red overlay with variable brightness.
+          ctx.drawSolidRect(
+            x * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+            y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+            Common.TILE_SIZE,
+            Common.TILE_SIZE,
+            [1, 0, 0, opacity]
+          )
+        }
+      }
+    }
+  }
+}
+
 /** Given a position and an orientation, returns the position offset by the orientation. */
 function applyOrientationOffset(x: number, y: number, orientation: number) {
   switch (orientation) {
@@ -885,6 +920,7 @@ export function drawMap(panel: PanelInfo) {
     drawRewards()
     drawVisibility()
     drawGrid()
+    drawHeatmap()
     drawThoughtBubbles()
   }
 

@@ -42,6 +42,9 @@ export const TRACE_WIDTH = 54
 // Info panel constants
 export const INFO_PANEL_POP_TIME = 300 // ms
 
+export const HEATMAP_MIN_OPACITY = 0.1
+export const HEATMAP_MAX_OPACITY = 0.7
+
 // Colors for resources
 export const COLORS = new Map([
   ['red', parseHtmlColor('#E4433A')],
@@ -118,6 +121,7 @@ export const state = {
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
+  showHeatmap: true, // TODO we need to add a heatmap button
   showMiniMap: false,
   showInfo: false,
   showTraces: true,
@@ -165,6 +169,7 @@ export const html = {
   gridToggle: find('#grid-toggle'),
   visualRangeToggle: find('#visual-range-toggle'),
   fogOfWarToggle: find('#fog-of-war-toggle'),
+  // heatmapToggle: find('#heatmap-toggle'),
 
   stepCounter: find('#step-counter'),
 
