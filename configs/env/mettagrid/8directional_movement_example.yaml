@@ -1,0 +1,52 @@
+defaults:
+  - mettagrid
+  - _self_
+
+# Example configuration showing 8-directional movement
+# This allows agents to move in 8 directions including diagonals
+
+game:
+  actions:
+    # Disable tank-style movement for pure 8-directional
+    move:
+      enabled: false
+    rotate:
+      enabled: false
+    
+    # Disable cardinal movement (use 8-directional instead)
+    move_cardinal:
+      enabled: false
+    
+    # Enable 8-directional movement
+    move_8directional:
+      enabled: true
+    
+    # Other actions remain unchanged
+    noop:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: true
+      consumed_resources:
+        laser: 1
+      defense_resources:
+        armor: 1
+    swap:
+      enabled: true
+
+# Movement directions for move_8directional:
+# 0 = North
+# 1 = Northeast
+# 2 = East
+# 3 = Southeast
+# 4 = South
+# 5 = Southwest
+# 6 = West
+# 7 = Northwest
+
+# Note: 8-directional movement does NOT change agent orientation.
+# Agents maintain their facing direction for actions like attack.
+# Only the rotate action changes orientation.

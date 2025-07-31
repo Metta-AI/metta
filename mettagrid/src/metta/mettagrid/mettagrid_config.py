@@ -135,6 +135,7 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     move: Optional[PyActionConfig] = None
     rotate: Optional[PyActionConfig] = None
     move_cardinal: Optional[PyActionConfig] = None
+    move_8directional: Optional[PyActionConfig] = None
     put_items: Optional[PyActionConfig] = None
     get_items: Optional[PyActionConfig] = None
     attack: Optional[PyAttackActionConfig] = None

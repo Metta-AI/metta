@@ -1,8 +1,12 @@
-# Cardinal Movement Guide
+# Direct Movement Guide
 
 ## Overview
 
-The cardinal movement system provides direct movement in cardinal directions (North/South/East/West) as an alternative to traditional tank-style controls (forward/backward + rotate). Both movement types can coexist in the same environment, giving maximum flexibility.
+The direct movement system provides alternatives to traditional tank-style controls (forward/backward + rotate). We now support:
+- **Cardinal movement**: 4-directional movement (North/South/East/West)
+- **8-directional movement**: Movement in 8 directions including diagonals (N/NE/E/SE/S/SW/W/NW)
+
+All movement types can coexist in the same environment, giving maximum flexibility.
 
 ## Key Changes
 
@@ -13,11 +17,21 @@ The cardinal movement system provides direct movement in cardinal directions (No
 - `move` action with arg 1: Move backward (relative to agent orientation)
 - `rotate` action with args 0-3: Set orientation (Up/Down/Left/Right)
 
-**Cardinal movement:**
+**Cardinal movement (4-directional):**
 - `move_cardinal` action with arg 0: Move North (Up)
 - `move_cardinal` action with arg 1: Move South (Down)
 - `move_cardinal` action with arg 2: Move West (Left)
 - `move_cardinal` action with arg 3: Move East (Right)
+
+**8-directional movement:**
+- `move_8directional` action with arg 0: Move North
+- `move_8directional` action with arg 1: Move Northeast
+- `move_8directional` action with arg 2: Move East
+- `move_8directional` action with arg 3: Move Southeast
+- `move_8directional` action with arg 4: Move South
+- `move_8directional` action with arg 5: Move Southwest
+- `move_8directional` action with arg 6: Move West
+- `move_8directional` action with arg 7: Move Northwest
 
 ### Configuration
 
@@ -32,17 +46,22 @@ game:
     rotate:
       enabled: true  # or false
     
-    # Cardinal movement
+    # Cardinal movement (4-directional)
     move_cardinal:
+      enabled: true  # or false
+    
+    # 8-directional movement
+    move_8directional:
       enabled: true  # or false
 ```
 
 ### Agent Orientation
 
-- In cardinal mode, agents still maintain an orientation for actions like `attack` that depend on facing direction
-- **Agents always rotate to face the direction they're trying to move, even if the movement is blocked**
-- This allows agents to "look at" walls and obstacles
-- Initial orientation remains Up (0) by default
+**Important change**: Direct movement actions (`move_cardinal` and `move_8directional`) now perform single atomic movements:
+- They do NOT change the agent's orientation
+- Orientation is only changed by the `rotate` action
+- This ensures each action does exactly one thing
+- Orientation still affects directional actions like `attack`
 
 ## Migration Path for Trained Policies
 
@@ -95,7 +114,7 @@ When training policies with cardinal movement:
 
 ## Example Configurations
 
-### Pure Cardinal Movement
+### Pure Cardinal Movement (4-directional)
 
 ```yaml
 defaults:
@@ -108,6 +127,22 @@ game:
     rotate:
       enabled: false
     move_cardinal:
+      enabled: true
+```
+
+### Pure 8-Directional Movement
+
+```yaml
+defaults:
+  - mettagrid
+
+game:
+  actions:
+    move:
+      enabled: false
+    rotate:
+      enabled: false
+    move_8directional:
       enabled: true
 ```
 
@@ -152,9 +187,19 @@ The system maintains full backward compatibility:
 
 ## Performance Considerations
 
-Cardinal movement may offer performance benefits:
-- Reduced action space (no rotate action)
-- More direct pathfinding
-- Simpler action selection logic
+Direct movement systems offer different trade-offs:
 
-However, some scenarios designed for tank-style movement may need adjustment to work well with cardinal movement.
+**Cardinal movement (4-directional)**:
+- Smaller action space than tank-style (4 vs 2+4 for move+rotate)
+- More direct pathfinding than tank-style
+- Good for grid-aligned environments
+
+**8-directional movement**:
+- Larger action space (8 directions)
+- Most efficient pathfinding (diagonal shortcuts)
+- Best for open environments with fewer obstacles
+
+**Tank-style movement**:
+- Smallest individual action spaces (2 for move, 4 for rotate)
+- Requires action sequences for diagonal movement
+- Natural for environments with facing-dependent mechanics
