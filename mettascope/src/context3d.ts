@@ -508,7 +508,8 @@ export class Context3d {
     this.currentMesh!.texture = this.fontAtlas.texture
 
     // Cast fontAtlasData to any to access our custom structure
-    const metadata = this.fontAtlas.metadata as any
+    const metadata = this.fontAtlas.metadata
+    const data = this.fontAtlas.data
 
     // Get emoji codes from font data
     const emojiCodes = metadata.emojiCodes || {}
@@ -522,11 +523,31 @@ export class Context3d {
 
     // Helper function to get character info with emoji code support
     const getCharInfo = (char: string) => {
+      console.log(`getCharInfo called with char: "${char}" (code: ${char.charCodeAt(0)})`)
+
+      // First check if it's an emoji code
       if (emojiCodes[char]) {
         const emojiChar = emojiCodes[char]
-        return this.fontAtlas?.data[emojiChar]
+        console.log(`Found emoji code mapping: "${char}" -> "${emojiChar}"`)
+        const emojiData = this.fontAtlas?.data[emojiChar]
+        console.log(`Emoji data lookup result:`, emojiData)
+        return emojiData
       }
-      return this.fontAtlas?.data[char]
+
+      // For regular characters, try both the character and its char code
+      let charData = this.data?[char]
+      console.log(`Direct lookup for "${char}":`, charData)
+
+      if (!charData) {
+        // Try using the character code as the key
+        const charCode = char.charCodeAt(0).toString()
+        console.log(`Trying char code lookup with key "${charCode}"`)
+        charData = this.fontAtlas?.data[charCode]
+        console.log(`Char code lookup result:`, charData)
+      }
+
+      console.log(`Final result for "${char}":`, charData)
+      return charData
     }
 
     // Parse text to handle multi-character emoji codes
@@ -560,9 +581,13 @@ export class Context3d {
     // Parse the text into characters/emoji codes
     const textChars = parseText(text)
 
+  console.log('textChars', textChars)
+  console.log('fontAtlas sample keys:', Object.keys(this.fontAtlas).slice(0, 10))
+  console.log('checking for "L" in fontAtlas:', this.fontAtlas['L'])
+
     // Calculate actual text dimensions using real character widths
     let textWidth = 0
-    let textHeight = metadata.cellHeight // Use cell height as text height
+    const textHeight = metadata.cellHeight // Use cell height as text height
 
     // Build character info array while calculating width
     const charInfos: Array<{ char: string; info: SpriteBounds; width: number }> = []
@@ -603,6 +628,9 @@ export class Context3d {
     const scaledWidth = textWidth * scaleX
     const scaledHeight = textHeight * scaleY
 
+    console.log('scaledWidth', scaledWidth)
+    console.log('scaledHeight', scaledHeight)
+
     // Calculate starting position based on alignment
     let cursorX = bx
     if (align === 'center') {
@@ -617,6 +645,8 @@ export class Context3d {
     } else if (valign === 'bottom') {
       cursorY = by + bh - scaledHeight
     }
+
+    console.log('charInfos', charInfos)
 
     // Draw each character
     for (const { char, info, width } of charInfos) {
