@@ -12,6 +12,7 @@ import {
   ui,
 } from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
+import { getWebGLStats, initFpsCounter, updateFps } from './fps.js'
 import { hideGlyphEditorPanel, initGlyphTable, showGlyphEditorPanel } from './glyphtable.js'
 import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
 import {
@@ -654,6 +655,8 @@ export function onFrame() {
     return
   }
 
+  updateFps(getWebGLStats(ctx))
+
   doDemoMode()
 
   ctx.clear()
@@ -1107,6 +1110,7 @@ initDemoMode()
 initializeTooltips()
 initGlyphTable()
 startGamepadPolling()
+initFpsCounter()
 
 window.addEventListener('load', async () => {
   // Use a local atlas texture.
