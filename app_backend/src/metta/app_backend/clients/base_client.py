@@ -22,13 +22,6 @@ class BaseAppBackendClient:
 
         self._machine_token = machine_token or get_machine_token(backend_url)
 
-    @classmethod
-    def from_client(cls: Type[ClientT], client: "BaseAppBackendClient") -> ClientT:
-        return cls(
-            backend_url=str(client._http_client.base_url),
-            machine_token=client._machine_token,
-        )
-
     async def __aenter__(self):
         return self
 

@@ -32,6 +32,23 @@ from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.interface.evaluation import (
+    create_evaluation_config_suite,
+    create_replay_config,
+)
+from metta.interface.training import (
+    Optimizer,
+    cleanup_distributed,
+    cleanup_wandb,
+    ensure_initial_policy,
+    initialize_wandb,
+    load_checkpoint,
+    save_checkpoint,
+)
+from metta.mettagrid import (
+    dtype_actions,
+    mettagrid_c,  # noqa: F401
+)
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update

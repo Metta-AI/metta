@@ -240,7 +240,7 @@ class TestEvalTaskRoutes:
         )
         eval_task_id = task_response.id
 
-        episode = await stats_client._async_client.record_episode(
+        episode = stats_client.record_episode(
             agent_policies={0: test_policy_id},
             agent_metrics={0: {"score": 100.0, "steps": 50}},
             primary_policy_id=test_policy_id,
@@ -562,16 +562,16 @@ class TestEvalTaskRoutes:
     ):
         """Test filtering by multiple sim_suites and policy_ids."""
         # Create a second policy
-        training_run = await stats_client._async_client.create_training_run(
+        training_run = stats_client.create_training_run(
             name=f"test_multi_filter_run_{uuid.uuid4().hex[:8]}",
             attributes={"test": "true"},
         )
-        epoch = await stats_client._async_client.create_epoch(
+        epoch = stats_client.create_epoch(
             run_id=training_run.id,
             start_training_epoch=0,
             end_training_epoch=100,
         )
-        second_policy = await stats_client._async_client.create_policy(
+        second_policy = stats_client.create_policy(
             name=f"test_multi_filter_policy_{uuid.uuid4().hex[:8]}",
             description="Second test policy",
             epoch_id=epoch.id,
@@ -657,16 +657,16 @@ class TestEvalTaskRoutes:
         # Create multiple policies
         policies = []
         for i in range(3):
-            training_run = await stats_client._async_client.create_training_run(
+            training_run = stats_client.create_training_run(
                 name=f"test_sql_array_run_{i}_{uuid.uuid4().hex[:8]}",
                 attributes={"test": "true"},
             )
-            epoch = await stats_client._async_client.create_epoch(
+            epoch = stats_client.create_epoch(
                 run_id=training_run.id,
                 start_training_epoch=0,
                 end_training_epoch=100,
             )
-            policy = await stats_client._async_client.create_policy(
+            policy = stats_client.create_policy(
                 name=f"test_sql_array_policy_{i}_{uuid.uuid4().hex[:8]}",
                 description=f"Test policy {i}",
                 epoch_id=epoch.id,

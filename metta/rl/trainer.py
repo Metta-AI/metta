@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from collections import defaultdict
@@ -18,13 +17,16 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.distributed import setup_distributed_vars
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy
+from metta.eval.eval_service import evaluate_policy
+from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -438,13 +440,11 @@ def train(
                                 f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}"
                             )
                         else:
-                            task = asyncio.run(
-                                stats_client.create_task(
-                                    TaskCreateRequest(
-                                        policy_id=stats_server_policy_id,
-                                        git_hash=trainer_cfg.simulation.git_hash,
-                                        sim_suite=sim_suite_config.name,
-                                    )
+                            task = self._stats_client.create_task(
+                                TaskCreateRequest(
+                                    policy_id=stats_server_policy_id,
+                                    git_hash=self.trainer_cfg.simulation.git_hash,
+                                    sim_suite=self._sim_suite_config.name,
                                 )
                             )
                             logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
