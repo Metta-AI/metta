@@ -66,7 +66,7 @@ export function processActions(event: KeyboardEvent) {
 
   if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject
-    const orientation = agent.orientation.get(0)
+    const orientation = agent.orientation.get()
     // Support WASD, arrow keys, and all numpad keys for movement/rotation.
     const key = event.key
     const code = event.code

@@ -64,11 +64,14 @@ export class Sequence<T> {
   }
 
   /** Adds a value to the sequence. */
-  add(value: T) {
+  add(value: T, step: number) {
     if (this.sequence == null) {
       this.sequence = []
     }
-    this.sequence.push(value)
+    while (this.sequence.length <= step) {
+      this.sequence.push(this.value as T)
+    }
+    this.sequence[step] = value
   }
 
   /** Checks if the sequence is a sequence of values. */
@@ -590,28 +593,28 @@ export function loadReplayStep(replayStep: any) {
     object.id = gridObject.id
     object.typeId = gridObject.type_id
     object.groupId = gridObject.group_id
-    object.isFrozen.add(gridObject.is_frozen)
-    object.location.add(gridObject.location)
-    object.orientation.add(gridObject.orientation)
-    object.inventory.add(gridObject.inventory)
-    object.color.add(gridObject.color)
+    object.isFrozen.add(gridObject.is_frozen, step)
+    object.location.add(gridObject.location, step)
+    object.orientation.add(gridObject.orientation, step)
+    object.inventory.add(gridObject.inventory, step)
+    object.color.add(gridObject.color, step)
     if ("agent_id" in gridObject) {
       object.agentId = gridObject.agent_id
       object.visionSize = gridObject.vision_size
-      object.actionId.add(gridObject.action_id)
-      object.actionParameter.add(gridObject.action_param)
-      object.actionSuccess.add(gridObject.action_success)
-      object.currentReward.add(gridObject.current_reward)
-      object.totalReward.add(gridObject.total_reward)
-      object.isFrozen.add(gridObject.isFrozen)
-      object.frozenProgress.add(gridObject.frozen_progress)
+      object.actionId.add(gridObject.action_id, step)
+      object.actionParameter.add(gridObject.action_param, step)
+      object.actionSuccess.add(gridObject.action_success, step)
+      object.currentReward.add(gridObject.current_reward, step)
+      object.totalReward.add(gridObject.total_reward, step)
+      object.isFrozen.add(gridObject.isFrozen, step)
+      object.frozenProgress.add(gridObject.frozen_progress, step)
     }
     if ("input_resources" in gridObject) {
       object.inputResources = gridObject.input_resources
       object.outputResources = gridObject.output_resources
       object.recipeMax = gridObject.recipe_max
-      object.productionProgress.add(gridObject.production_progress)
-      object.cooldownProgress.add(gridObject.cooldown_progress)
+      object.productionProgress.add(gridObject.production_progress, step)
+      object.cooldownProgress.add(gridObject.cooldown_progress, step)
     }
   }
 
