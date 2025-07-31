@@ -129,7 +129,6 @@ class EvalTaskOrchestrator:
                 self._logger.info(
                     f"All {len(existing_workers)} workers for git hash {task.git_hash} are busy, spawning new worker"
                 )
-                # Spawn new worker for this git hash
                 new_worker = self._container_manager.start_worker_container(
                     git_hash=task.git_hash,
                     backend_url=self._backend_url,
@@ -159,7 +158,6 @@ class EvalTaskOrchestrator:
         alive_unassigned_workers = [
             w for w in alive_workers_by_name.values() if w.container_name not in worker_assignments
         ]
-        # Cleanup idle workers
         for worker in alive_unassigned_workers:
             try:
                 latest_task = await self._task_client.get_latest_assigned_task_for_worker(worker.container_name)
@@ -171,7 +169,6 @@ class EvalTaskOrchestrator:
                 last_assigned_age = (datetime.now(timezone.utc) - last_task_assigned_at).total_seconds()
                 if last_assigned_age > self._worker_idle_timeout:
                     self._logger.info(f"Cleaning up {worker.container_name} - no tasks for {last_assigned_age:.0f}s")
-                    # Worker cleanup logged separately
                     self._container_manager.cleanup_container(worker.container_id)
                     del alive_workers_by_name[worker.container_name]
             except Exception:
@@ -182,10 +179,6 @@ class EvalTaskOrchestrator:
         self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
         self._logger.info(f"Max workers per git hash: {self._max_workers_per_git_hash}")
 
-        # Configure Datadog tracing
-        init_tracing()
-
-        # Test trace
         with tracer.trace("orchestrator.startup"):
             self._logger.info("Orchestrator startup trace")
 
@@ -203,6 +196,7 @@ class EvalTaskOrchestrator:
 
 async def main() -> None:
     init_logging()
+    init_tracing()
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     logger = logging.getLogger(__name__)

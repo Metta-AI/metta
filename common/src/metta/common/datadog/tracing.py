@@ -1,3 +1,4 @@
+import functools
 import sys
 
 from ddtrace.trace import tracer
@@ -5,6 +6,7 @@ from ddtrace.trace import tracer
 from metta.common.datadog.config import datadog_config
 
 
+@functools.cache
 def init_tracing():
     if datadog_config.DD_TRACE_ENABLED:
         msg = (

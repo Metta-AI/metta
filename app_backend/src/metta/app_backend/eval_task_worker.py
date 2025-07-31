@@ -120,7 +120,6 @@ class EvalTaskWorker:
         sim_suite: str,
         env_overrides: dict,
     ) -> None:
-        # Task info logged separately
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
@@ -155,7 +154,6 @@ class EvalTaskWorker:
         status: TaskStatus,
         error_reason: str | None = None,
     ) -> None:
-        # Status update logged separately
         await self._client.update_task_status(
             TaskUpdateRequest(
                 require_assignee=self._assignee,
@@ -178,14 +176,11 @@ class EvalTaskWorker:
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Worker id: {self._assignee}")
 
-        init_tracing()
-
         self._setup_versioned_checkout()
 
         self._logger.info(f"Worker running from main branch, sim.py will use git hash {self._git_hash}")
 
         while True:
-            # Poll for assigned tasks
             loop_start_time = datetime.now()
             try:
                 claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
@@ -217,6 +212,7 @@ class EvalTaskWorker:
 
 async def main() -> None:
     init_logging()
+    init_tracing()
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logger = logging.getLogger(__name__)
 
