@@ -6,7 +6,6 @@
 namespace py = pybind11;
 
 // PufferLib expects particular datatypes
-// These data types must match PufferLib -- see pufferlib/vector.py
 
 inline py::object dtype_observations() {
   auto np = py::module_::import("numpy");
