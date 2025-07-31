@@ -11,29 +11,30 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from gymnasium import Env as GymEnv
-from gymnasium import spaces
+from omegaconf import OmegaConf
 from typing_extensions import override
 
-from metta.mettagrid.base_env import MettaGridEnv
+from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
 
-# Data types for Gymnasium
-dtype_observations = np.dtype(np.uint8)
-dtype_terminals = np.dtype(bool)
-dtype_truncations = np.dtype(bool)
-dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)
+# Data types for Gymnasium - import from C++ module
+from metta.mettagrid.mettagrid_c import (
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 
 
-class MettaGridGymEnv(MettaGridEnv, GymEnv):
+class MettaGridGymEnv(MettaGridCore, GymEnv):
     """
     Gymnasium adapter for MettaGrid environments.
 
     This class provides a Gymnasium-compatible interface for MettaGrid environments,
     supporting both single-agent and multi-agent scenarios.
+    No training features are included - this is purely for Gymnasium compatibility.
     """
 
     def __init__(
@@ -41,9 +42,6 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
-        is_training: bool = False,
         single_agent: bool = False,
         **kwargs: Any,
     ):
@@ -54,21 +52,32 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
             curriculum: Curriculum for task management
             render_mode: Rendering mode
             level: Optional pre-built level
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
             single_agent: Whether to use single-agent mode
             **kwargs: Additional arguments
         """
-        # Initialize base environment
-        MettaGridEnv.__init__(
+        # Get level from curriculum if not provided
+        if level is None:
+            task = curriculum.get_task()
+            level = task.env_cfg().game.map_builder.build()
+
+        # Ensure we have a level
+        assert level is not None, "Level must be provided or generated from curriculum"
+
+        # Store curriculum for reset operations
+        self._curriculum = curriculum
+        self._task = self._curriculum.get_task()
+
+        # Get game config for core initialization
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        # Initialize core functionality
+        MettaGridCore.__init__(
             self,
-            curriculum=curriculum,
-            render_mode=render_mode,
             level=level,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
+            game_config_dict=game_config_dict,
+            render_mode=render_mode,
             **kwargs,
         )
 
@@ -77,58 +86,28 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
 
         self._single_agent = single_agent
 
-        # Create initial core environment for property access
-        self._core_env = self._create_core_env(0)
-
-        # Buffers for environment data
+        # Initialize buffer attributes for memory management
         self._observations: Optional[np.ndarray] = None
         self._terminals: Optional[np.ndarray] = None
         self._truncations: Optional[np.ndarray] = None
         self._rewards: Optional[np.ndarray] = None
 
-    def _allocate_buffers(self) -> None:
-        """Allocate buffers based on environment dimensions."""
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        num_agents = self._core_env.num_agents
-        obs_space = self._core_env.observation_space
-
-        # Allocate buffers
-        self._observations = np.zeros((num_agents,) + obs_space.shape, dtype=dtype_observations)
-        self._terminals = np.zeros(num_agents, dtype=dtype_terminals)
-        self._truncations = np.zeros(num_agents, dtype=dtype_truncations)
-        self._rewards = np.zeros(num_agents, dtype=dtype_rewards)
-
-    @override
-    def _get_initial_observations(self) -> np.ndarray:
-        """
-        Get initial observations and set up buffers.
-
-        Returns:
-            Initial observations array
-        """
-        if self._core_env is None:
-            raise RuntimeError("Core environment not initialized")
-
-        # Allocate buffers
+        # Allocate buffers for C++ environment
         self._allocate_buffers()
 
-        # Set buffers in core environment
-        assert self._observations is not None
-        assert self._terminals is not None
-        assert self._truncations is not None
-        assert self._rewards is not None
-        self._core_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
+    def _allocate_buffers(self) -> None:
+        """Allocate numpy arrays for C++ environment shared memory."""
+        # Allocate observation buffer
+        obs_shape = (self.num_agents, *self._observation_space.shape)
+        self._observations = np.zeros(obs_shape, dtype=dtype_observations)
 
-        # Get initial observations
-        obs = self._core_env.get_initial_observations()
+        # Allocate terminal/truncation/reward buffers
+        self._terminals = np.zeros(self.num_agents, dtype=dtype_terminals)
+        self._truncations = np.zeros(self.num_agents, dtype=dtype_truncations)
+        self._rewards = np.zeros(self.num_agents, dtype=dtype_rewards)
 
-        # Return single agent observation if in single agent mode
-        if self._single_agent:
-            return obs[0]
-
-        return obs
+        # Set buffers in C++ environment for direct writes
+        self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
 
     @override
     def reset(
@@ -144,7 +123,19 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
         Returns:
             Tuple of (observations, info)
         """
-        return self.reset_base(seed)
+        # Get new task from curriculum and its config
+        self._task = self._curriculum.get_task()
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        # Call the base reset method
+        obs, info = super().reset(game_config_dict, seed)
+
+        # Handle single-agent return format
+        if self._single_agent and obs is not None:
+            return obs[0], info
+        return obs, info
 
     @override
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
@@ -171,16 +162,7 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
         actions = actions.astype(dtype_actions)
 
         # Call base step implementation
-        infos = self.step_base(actions)
-
-        # Get step results
-        if self._observations is None or self._rewards is None or self._terminals is None or self._truncations is None:
-            raise RuntimeError("Buffers not initialized")
-
-        observations = self._observations.copy()
-        rewards = self._rewards.copy()
-        terminals = self._terminals.copy()
-        truncations = self._truncations.copy()
+        observations, rewards, terminals, truncations, infos = super().step(actions)
 
         # Handle single-agent return format
         if self._single_agent:
@@ -195,36 +177,34 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
             # Multi-agent format - return arrays
             return (observations, rewards, terminals, truncations, infos)
 
-    # Gymnasium required properties
+    # Gymnasium space properties
     @property
-    @override
-    def observation_space(self) -> spaces.Space:
+    def observation_space(self):
         """Get observation space."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-
-        single_space = self._core_env.observation_space
-
         if self._single_agent:
-            return single_space
+            return self._observation_space
         else:
-            # Multi-agent space - return array of spaces
-            return spaces.Tuple([single_space for _ in range(self._core_env.num_agents)])
+            # Multi-agent case - return the multi-agent space
+            return self._observation_space
 
     @property
-    @override
-    def action_space(self) -> spaces.Space:
+    def action_space(self):
         """Get action space."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-
-        single_space = self._core_env.action_space
-
         if self._single_agent:
-            return single_space
+            return self._action_space
         else:
-            # Multi-agent space - return array of spaces
-            return spaces.Tuple([single_space for _ in range(self._core_env.num_agents)])
+            # Multi-agent case - return the multi-agent space
+            return self._action_space
+
+    @property
+    def single_observation_space(self):
+        """Single agent observation space."""
+        return self._observation_space
+
+    @property
+    def single_action_space(self):
+        """Single agent action space."""
+        return self._action_space
 
 
 class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
@@ -240,9 +220,6 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
         curriculum: Curriculum,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        stats_writer: Optional[StatsWriter] = None,
-        replay_writer: Optional[ReplayWriter] = None,
-        is_training: bool = False,
         **kwargs: Any,
     ):
         """
@@ -252,34 +229,12 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
             curriculum: Curriculum for task management
             render_mode: Rendering mode
             level: Optional pre-built level
-            stats_writer: Optional stats writer
-            replay_writer: Optional replay writer
-            is_training: Whether this is for training
             **kwargs: Additional arguments
         """
         super().__init__(
             curriculum=curriculum,
             render_mode=render_mode,
             level=level,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
             single_agent=True,
             **kwargs,
         )
-
-    @property
-    @override
-    def observation_space(self) -> spaces.Box:
-        """Get single-agent observation space."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._core_env.observation_space
-
-    @property
-    @override
-    def action_space(self) -> spaces.MultiDiscrete:
-        """Get single-agent action space."""
-        if self._core_env is None:
-            raise RuntimeError("Environment not initialized")
-        return self._core_env.action_space
