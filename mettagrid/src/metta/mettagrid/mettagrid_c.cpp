@@ -332,10 +332,12 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   }
 
   // Add visitation counts for this agent
-  auto& agent = _agents[agent_idx];
-  auto visitation_counts = agent->get_visitation_counts();
-  for (size_t i = 0; i < 5; i++) {
-    global_tokens.push_back({ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
+  if (_global_obs_config.visitation_counts) {
+    auto& agent = _agents[agent_idx];
+    auto visitation_counts = agent->get_visitation_counts();
+    for (size_t i = 0; i < 5; i++) {
+      global_tokens.push_back({ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
+    }
   }
 
   // Global tokens are always at the center of the observation.
@@ -1019,15 +1021,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
-           py::arg("resource_rewards") = false)
+           py::arg("resource_rewards") = false,
+           py::arg("visitation_counts") = true)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards);
+      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards)
+      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,
