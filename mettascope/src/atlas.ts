@@ -45,10 +45,8 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
     const raw = await res.json()
     const metadata = (raw.metadata ?? {}) as AtlasMetadata
 
-    // Extract only valid sprite bounds entries
-    const spriteEntries = Object.entries(raw).filter(
-      ([k, v]) => k !== 'metadata' && Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === 'number')
-    )
+    // Extract only valid sprite bounds entries using the type guard
+    const spriteEntries = Object.entries(raw).filter(([k, v]) => k !== 'metadata' && isSpriteBounds(v))
     const sprites = Object.fromEntries(spriteEntries) as AtlasSpriteMap
 
     // Inline validation: make sure the atlas JSON at least has valid sprites
@@ -156,8 +154,8 @@ export function getSpriteBounds(
 } | null {
   const spriteData = atlas.data[spriteName]
 
-  // Check if it's actually sprite data (array of 4 numbers)
-  if (!Array.isArray(spriteData) || spriteData.length !== 4) {
+  // Check if it's actually sprite data using the type guard
+  if (!isSpriteBounds(spriteData)) {
     return null
   }
 
@@ -193,7 +191,7 @@ export function getSpriteBounds(
  */
 export function hasSprite(atlas: Atlas, spriteName: string): boolean {
   const data = atlas.data[spriteName]
-  return Array.isArray(data) && data.length === 4
+  return isSpriteBounds(data)
 }
 
 /**
@@ -209,7 +207,7 @@ export function hasSprite(atlas: Atlas, spriteName: string): boolean {
 export function getWhiteUV(atlas: Atlas): { u: number; v: number } | null {
   const whiteSprite = atlas.data['white.png']
 
-  if (!Array.isArray(whiteSprite) || whiteSprite.length !== 4) {
+  if (!isSpriteBounds(whiteSprite)) {
     return null
   }
 
