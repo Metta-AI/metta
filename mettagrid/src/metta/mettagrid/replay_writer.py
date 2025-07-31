@@ -70,8 +70,7 @@ class EpisodeReplay:
             update_object = {}
             update_object["id"] = grid_object["id"]
             update_object["type_id"] = grid_object["type_id"]
-            location = grid_object["location"]
-            update_object["location"] = [location[1], location[0], location[2]]
+            update_object["location"] = grid_object["location"]
             update_object["orientation"] = grid_object.get("orientation", 0)
             update_object["inventory"] = self.inventory_format(grid_object.get("inventory", {}))
             update_object["inventory_max"] = grid_object.get("inventory_max", 0)
