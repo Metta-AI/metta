@@ -228,37 +228,37 @@ def test_hybrid_movement_mode():
     env.reset()
 
     action_names = env.action_names()
-    
+
     # All three movement-related actions should be present
     assert "move" in action_names
     assert "rotate" in action_names
     assert "move_cardinal" in action_names
-    
+
     move_idx = action_names.index("move")
     rotate_idx = action_names.index("rotate")
     move_cardinal_idx = action_names.index("move_cardinal")
-    
+
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
-    
+
     # Test using cardinal movement
     actions = np.zeros((1, 2), dtype=dtype_actions)
     actions[0] = [move_cardinal_idx, 0]  # Move North
     env.step(actions)
-    
+
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 2)
     assert objects[agent_id]["orientation"] == 0  # Facing North
-    
+
     # Test using tank-style movement
     actions[0] = [rotate_idx, 3]  # Rotate to face Right
     env.step(actions)
-    
+
     objects = env.grid_objects()
     assert objects[agent_id]["orientation"] == 3  # Now facing Right
-    
+
     actions[0] = [move_idx, 0]  # Move forward (East)
     env.step(actions)
-    
+
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 3)

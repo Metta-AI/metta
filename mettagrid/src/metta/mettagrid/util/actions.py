@@ -113,19 +113,19 @@ def generate_valid_random_actions(
 def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
     """
     Move an agent in a specific direction.
-    
+
     This function handles both relative (tank-style) and cardinal movement modes.
-    
+
     Args:
         env: The MettaGrid environment
         orientation: The direction to move (UP, DOWN, LEFT, RIGHT)
         agent_idx: Index of the agent to move (default: 0)
-        
+
     Returns:
         Dict with movement results including success status and positions
     """
     direction_name = str(orientation)
-    
+
     result = {
         "action": f"move_{direction_name}",
         "agent_idx": agent_idx,
@@ -143,33 +143,33 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
 
     try:
         action_names = env.action_names()
-        
+
         # Check if we're in cardinal movement mode
-        movement_mode = getattr(env._c_env, 'movement_mode', 'relative')
-        
+        movement_mode = getattr(env._c_env, "movement_mode", "relative")
+
         if movement_mode == "cardinal":
             # Cardinal movement - direct movement without rotation
             if "move" not in action_names:
                 result["error"] = "Move action not available"
                 return result
-                
+
             move_action_idx = action_names.index("move")
-            
+
             print(f"Moving agent {agent_idx} {direction_name} (cardinal mode)")
-            
+
             # Get initial state
             result["obs_before"] = get_current_observation(env, agent_idx)
             result["position_before"] = get_agent_position(env, agent_idx)
             result["orientation_before"] = get_agent_orientation(env, agent_idx)
-            
+
             # Cardinal move - orientation value directly maps to direction
             move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
             move_action[agent_idx] = [move_action_idx, orientation.value]
-            
+
             obs_after, rewards, terminals, truncations, info = env.step(move_action)
             move_success = env.action_success()
             result["move_success"] = bool(move_success[agent_idx])
-            
+
         else:
             # Tank-style movement - rotate then move
             if "rotate" not in action_names:
@@ -178,45 +178,45 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
             if "move" not in action_names:
                 result["error"] = "Move action not available"
                 return result
-                
+
             rotate_action_idx = action_names.index("rotate")
             move_action_idx = action_names.index("move")
-            
+
             print(f"Moving agent {agent_idx} {direction_name} (tank mode)")
-            
+
             # Get initial state
             result["obs_before"] = get_current_observation(env, agent_idx)
             result["position_before"] = get_agent_position(env, agent_idx)
             result["orientation_before"] = get_agent_orientation(env, agent_idx)
-            
+
             # Step 1: Rotate to face target direction
             rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
             rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
-            
+
             env.step(rotate_action)
             rotate_success = env.action_success()
             result["rotate_success"] = bool(rotate_success[agent_idx])
-            
+
             if not result["rotate_success"]:
                 result["error"] = f"Failed to rotate to {direction_name}"
                 return result
-                
+
             # Verify rotation worked
             current_orientation = get_agent_orientation(env, agent_idx)
             if current_orientation != orientation.value:
                 result["error"] = f"Rotation failed: expected {orientation.value}, got {current_orientation}"
                 return result
-                
+
             print(f"  Rotated to face {direction_name}")
-            
+
             # Step 2: Move forward
             move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
             move_action[agent_idx] = [move_action_idx, 0]  # Move forward
-            
+
             obs_after, rewards, terminals, truncations, info = env.step(move_action)
             move_success = env.action_success()
             result["move_success"] = bool(move_success[agent_idx])
-            
+
         # Get final state
         result["obs_after"] = obs_after.copy()
         result["position_after"] = get_agent_position(env, agent_idx)
