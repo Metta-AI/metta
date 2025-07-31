@@ -62,7 +62,12 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
   }
 }
 
-export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
+export async function loadAtlasImage(
+  url: string,
+  options: {
+    premultiplyAlpha?: 'none' | 'premultiply' | 'default'
+  } = {}
+): Promise<ImageBitmap | null> {
   try {
     const res = await fetch(url)
     if (!res.ok) {
@@ -72,7 +77,7 @@ export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
     // Use premultiplied alpha to fix border issues
     return await createImageBitmap(blob, {
       colorSpaceConversion: 'none',
-      premultiplyAlpha: 'premultiply',
+      premultiplyAlpha: options.premultiplyAlpha ?? 'premultiply',
     })
   } catch (err) {
     console.error(`Error loading image ${url}:`, err)
@@ -89,6 +94,8 @@ export function createTexture(
     minFilter?: number
     magFilter?: number
     generateMipmap?: boolean
+    premultipliedAlpha?: boolean
+    pixelArt?: boolean
   } = {}
 ): WebGLTexture | null {
   const texture = gl.createTexture()
@@ -97,16 +104,37 @@ export function createTexture(
   }
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
+
+  // Always use premultiplied alpha for sprite atlases (default true)
+  if (options.premultipliedAlpha !== false) {
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
+  }
+
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
-  if (options.generateMipmap !== false) {
+  // Default to pixel art mode for crisp sprites
+  const isPixelArt = options.pixelArt ?? true
+  const needsMipmap = options.generateMipmap === true && !isPixelArt
+
+  if (needsMipmap) {
     gl.generateMipmap(gl.TEXTURE_2D)
   }
 
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, options.wrapS ?? gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, options.wrapT ?? gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.minFilter ?? gl.LINEAR_MIPMAP_LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.magFilter ?? gl.LINEAR)
+  // Use CLAMP_TO_EDGE by default to avoid issues with NPOT textures
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, options.wrapS ?? gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, options.wrapT ?? gl.CLAMP_TO_EDGE)
+
+  if (isPixelArt) {
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.minFilter ?? gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.magFilter ?? gl.NEAREST)
+  } else {
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      options.minFilter ?? (needsMipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR)
+    )
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.magFilter ?? gl.LINEAR)
+  }
 
   return texture
 }
@@ -115,9 +143,12 @@ export async function loadAtlas(
   gl: WebGLRenderingContext,
   jsonUrl: string,
   imageUrl: string,
-  textureOptions?: Parameters<typeof createTexture>[2]
+  options?: {
+    textureOptions?: Parameters<typeof createTexture>[2]
+    imageOptions?: Parameters<typeof loadAtlasImage>[1]
+  }
 ): Promise<Atlas | null> {
-  const [json, image] = await Promise.all([loadAtlasJson(jsonUrl), loadAtlasImage(imageUrl)])
+  const [json, image] = await Promise.all([loadAtlasJson(jsonUrl), loadAtlasImage(imageUrl, options?.imageOptions)])
 
   if (!json || !image) {
     return null
@@ -125,7 +156,10 @@ export async function loadAtlas(
 
   const [data, metadata] = json
 
-  const texture = createTexture(gl, image, textureOptions)
+  const texture = createTexture(gl, image, {
+    premultipliedAlpha: options?.imageOptions?.premultiplyAlpha !== 'none',
+    ...options?.textureOptions,
+  })
   if (!texture) {
     return null
   }
