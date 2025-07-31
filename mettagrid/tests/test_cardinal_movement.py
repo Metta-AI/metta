@@ -3,6 +3,7 @@
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 from tests.test_utils import make_test_config
 
@@ -25,12 +26,13 @@ def test_cardinal_movement_basic():
         },
     )
 
-    env = MettaGrid(config, config["map"], seed=42)
+    game_map = config.pop("map")
+    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     # Get initial agent position and orientation
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
     initial_orientation = objects[agent_id]["orientation"]
     assert initial_pos == (2, 2)
@@ -95,23 +97,31 @@ def test_cardinal_movement_obstacles():
         },
     )
 
-    env = MettaGrid(config, config["map"], seed=42)
+    game_map = config.pop("map")
+    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     action_names = env.action_names()
     move_cardinal_idx = action_names.index("move_cardinal")
 
+    # Check initial position
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 2)
+
     # Try to move into walls - should fail
     actions = np.zeros((1, 2), dtype=dtype_actions)
 
-    # North into wall
+    # First move North to (1, 2) - should succeed (empty space)
     actions[0] = [move_cardinal_idx, 0]
     env.step(actions)
-    success = env.action_success()
-    assert not success[0]
+    assert env.action_success()[0]
+
+    # Now try to move North again into wall at (0, 2) - should fail
+    actions[0] = [move_cardinal_idx, 0]
+    env.step(actions)
+    assert not env.action_success()[0]
 
     # Move to corner
     actions[0] = [move_cardinal_idx, 2]  # West
@@ -149,13 +159,14 @@ def test_orientation_preserved_in_cardinal_mode():
         },
     )
 
-    env = MettaGrid(config, config["map"], seed=42)
+    game_map = config.pop("map")
+    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
-    agent_ids = [id for id, obj in objects.items() if obj["type_name"] == "agent"]
-    player_id = next(id for id in agent_ids if objects[id]["group_name"] == "player")
-    enemy_id = next(id for id in agent_ids if objects[id]["group_name"] == "enemy")
+    agent_ids = [id for id, obj in objects.items() if obj["type_id"] == 0]
+    player_id = next(id for id in agent_ids if objects[id]["group_id"] == 0)  # player group
+    enemy_id = next(id for id in agent_ids if objects[id]["group_id"] == 1)  # enemy group
 
     # Check initial orientations
     assert objects[player_id]["orientation"] == 0  # Up
@@ -176,16 +187,17 @@ def test_orientation_not_changed_by_cardinal_movement():
         ],
         actions={
             "move": {"enabled": False},
-            "rotate": {"enabled": False},
+            "rotate": {"enabled": True},  # Enable rotate to test orientation changes
             "move_cardinal": {"enabled": True},
         },
     )
 
-    env = MettaGrid(config, config["map"], seed=42)
+    game_map = config.pop("map")
+    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Check initial orientation
     assert objects[agent_id]["orientation"] == 0  # Up
@@ -239,7 +251,8 @@ def test_hybrid_movement_mode():
         },
     )
 
-    env = MettaGrid(config, config["map"], seed=42)
+    game_map = config.pop("map")
+    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     action_names = env.action_names()
@@ -254,7 +267,7 @@ def test_hybrid_movement_mode():
     move_cardinal_idx = action_names.index("move_cardinal")
 
     objects = env.grid_objects()
-    agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Test using cardinal movement
     actions = np.zeros((1, 2), dtype=dtype_actions)

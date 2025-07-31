@@ -1,5 +1,5 @@
-#ifndef ACTIONS_MOVE_8DIRECTIONAL_HPP_
-#define ACTIONS_MOVE_8DIRECTIONAL_HPP_
+#ifndef ACTIONS_MOVE_8WAY_HPP_
+#define ACTIONS_MOVE_8WAY_HPP_
 
 #include <string>
 
@@ -8,9 +8,9 @@
 #include "objects/agent.hpp"
 #include "types.hpp"
 
-class Move8Directional : public ActionHandler {
+class Move8Way : public ActionHandler {
 public:
-  explicit Move8Directional(const ActionConfig& cfg) : ActionHandler(cfg, "move_8directional") {}
+  explicit Move8Way(const ActionConfig& cfg) : ActionHandler(cfg, "move_8way") {}
 
   unsigned char max_arg() const override {
     return 7;  // 0-7 for 8 directions
@@ -18,7 +18,7 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // 8-directional movement: agents move directly in any of 8 directions
+    // 8-way movement: agents move directly in any of 8 directions
     // WITHOUT changing orientation
     // arg == 0: North (Up)
     // arg == 1: Northeast
@@ -81,4 +81,4 @@ protected:
   }
 };
 
-#endif  // ACTIONS_MOVE_8DIRECTIONAL_HPP_
+#endif  // ACTIONS_MOVE_8WAY_HPP_

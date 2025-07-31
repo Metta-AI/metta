@@ -4,7 +4,7 @@
 
 The direct movement system provides alternatives to traditional tank-style controls (forward/backward + rotate). We now support:
 - **Cardinal movement**: 4-directional movement (North/South/East/West)
-- **8-directional movement**: Movement in 8 directions including diagonals (N/NE/E/SE/S/SW/W/NW)
+- **8-way movement**: Movement in 8 directions including diagonals (N/NE/E/SE/S/SW/W/NW)
 
 All movement types can coexist in the same environment, giving maximum flexibility.
 
@@ -23,15 +23,15 @@ All movement types can coexist in the same environment, giving maximum flexibili
 - `move_cardinal` action with arg 2: Move West (Left)
 - `move_cardinal` action with arg 3: Move East (Right)
 
-**8-directional movement:**
-- `move_8directional` action with arg 0: Move North
-- `move_8directional` action with arg 1: Move Northeast
-- `move_8directional` action with arg 2: Move East
-- `move_8directional` action with arg 3: Move Southeast
-- `move_8directional` action with arg 4: Move South
-- `move_8directional` action with arg 5: Move Southwest
-- `move_8directional` action with arg 6: Move West
-- `move_8directional` action with arg 7: Move Northwest
+**8-way movement:**
+- `move_8way` action with arg 0: Move North
+- `move_8way` action with arg 1: Move Northeast
+- `move_8way` action with arg 2: Move East
+- `move_8way` action with arg 3: Move Southeast
+- `move_8way` action with arg 4: Move South
+- `move_8way` action with arg 5: Move Southwest
+- `move_8way` action with arg 6: Move West
+- `move_8way` action with arg 7: Move Northwest
 
 ### Configuration
 
@@ -50,14 +50,14 @@ game:
     move_cardinal:
       enabled: true  # or false
     
-    # 8-directional movement
-    move_8directional:
+    # 8-way movement
+    move_8way:
       enabled: true  # or false
 ```
 
 ### Agent Orientation
 
-**Important change**: Direct movement actions (`move_cardinal` and `move_8directional`) now perform single atomic movements:
+**Important change**: Direct movement actions (`move_cardinal` and `move_8way`) now perform single atomic movements:
 - They do NOT change the agent's orientation
 - Orientation is only changed by the `rotate` action
 - This ensures each action does exactly one thing
@@ -142,7 +142,7 @@ game:
       enabled: false
     rotate:
       enabled: false
-    move_8directional:
+    move_8way:
       enabled: true
 ```
 
@@ -194,7 +194,7 @@ Direct movement systems offer different trade-offs:
 - More direct pathfinding than tank-style
 - Good for grid-aligned environments
 
-**8-directional movement**:
+**8-way movement**:
 - Larger action space (8 directions)
 - Most efficient pathfinding (diagonal shortcuts)
 - Best for open environments with fewer obstacles

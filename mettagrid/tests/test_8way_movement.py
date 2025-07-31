@@ -1,4 +1,4 @@
-"""Tests for 8-directional movement system."""
+"""Tests for 8-way movement system."""
 
 import numpy as np
 
@@ -8,8 +8,8 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 from tests.test_utils import make_test_config
 
 
-def test_8directional_movement_all_directions():
-    """Test 8-directional movement in all eight directions."""
+def test_8way_movement_all_directions():
+    """Test 8-way movement in all eight directions."""
     config = make_test_config(
         num_agents=1,
         map=[
@@ -22,7 +22,7 @@ def test_8directional_movement_all_directions():
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": False},
-            "move_8directional": {"enabled": True},
+            "move_8way": {"enabled": True},
         },
     )
 
@@ -37,7 +37,7 @@ def test_8directional_movement_all_directions():
     assert initial_pos == (2, 2)
 
     action_names = env.action_names()
-    move_8dir_idx = action_names.index("move_8directional")
+    move_8dir_idx = action_names.index("move_8way")
 
     # Test all 8 directions
     moves = [
@@ -64,8 +64,8 @@ def test_8directional_movement_all_directions():
         assert objects[agent_id]["orientation"] == initial_orientation
 
 
-def test_8directional_movement_obstacles():
-    """Test that 8-directional movement respects obstacles."""
+def test_8way_movement_obstacles():
+    """Test that 8-way movement respects obstacles."""
     config = make_test_config(
         num_agents=1,
         map=[
@@ -78,7 +78,7 @@ def test_8directional_movement_obstacles():
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": False},
-            "move_8directional": {"enabled": True},
+            "move_8way": {"enabled": True},
         },
     )
 
@@ -90,7 +90,7 @@ def test_8directional_movement_obstacles():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
     action_names = env.action_names()
-    move_8dir_idx = action_names.index("move_8directional")
+    move_8dir_idx = action_names.index("move_8way")
 
     # Test diagonal movements near corners
     actions = np.zeros((1, 2), dtype=dtype_actions)
@@ -114,8 +114,8 @@ def test_8directional_movement_obstacles():
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 
-def test_orientation_unchanged_with_8directional():
-    """Test that orientation is never changed by 8-directional movement."""
+def test_orientation_unchanged_with_8way():
+    """Test that orientation is never changed by 8-way movement."""
     config = make_test_config(
         num_agents=1,
         map=[
@@ -126,7 +126,7 @@ def test_orientation_unchanged_with_8directional():
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": True},  # Keep rotate to test orientation
-            "move_8directional": {"enabled": True},
+            "move_8way": {"enabled": True},
         },
     )
 
@@ -138,7 +138,7 @@ def test_orientation_unchanged_with_8directional():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
     action_names = env.action_names()
-    move_8dir_idx = action_names.index("move_8directional")
+    move_8dir_idx = action_names.index("move_8way")
     rotate_idx = action_names.index("rotate")
 
     # First rotate to face right
