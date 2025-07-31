@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import traceback
@@ -789,13 +788,11 @@ class MettaTrainer:
                 if not stats_server_policy_id:
                     logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
                 else:
-                    task = asyncio.run(
-                        self._stats_client.create_task(
-                            TaskCreateRequest(
-                                policy_id=stats_server_policy_id,
-                                git_hash=self.trainer_cfg.simulation.git_hash,
-                                sim_suite=self._sim_suite_config.name,
-                            )
+                    task = self._stats_client.create_task(
+                        TaskCreateRequest(
+                            policy_id=stats_server_policy_id,
+                            git_hash=self.trainer_cfg.simulation.git_hash,
+                            sim_suite=self._sim_suite_config.name,
                         )
                     )
                     logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
