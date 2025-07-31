@@ -699,11 +699,9 @@ export function propertyName(key: string) {
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
   if (state.replay.typeNames.includes(key)) {
-    const idx = state.replay.typeNames.indexOf(key)
-    return `data/atlas/objects/${state.replay.typeImages[idx]}`
+    return `data/atlas/objects/${key}.png`
   } else if (state.replay.itemNames.includes(key)) {
-    const idx = state.replay.itemNames.indexOf(key)
     return `data/atlas/resources/${key}.png`
   }
-  return `data/ui/table/${key.replace('agent:', '')}.png`
+  return `data/ui/table/${key}.png`
 }
