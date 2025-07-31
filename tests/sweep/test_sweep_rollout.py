@@ -121,13 +121,14 @@ class TestRunSingleRollout:
             {
                 "run": "test_sweep.r.1",
                 "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
-                "dist_cfg_path": "/tmp/test_sweep/runs/test_sweep.r.1/dist_cfg.yaml",
+                "data_dir": "/tmp/test_sweep/runs",
             }
         )
         mock_prepare.return_value = (
             "test_sweep.r.1",
             mock_train_cfg,
             {"trainer": {"lr": 0.005}},
+            "test_wandb_run_id",
         )
 
         # Mock loading the full config
@@ -184,13 +185,14 @@ class TestRunSingleRollout:
             {
                 "run": "test_sweep.r.1",
                 "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
-                "dist_cfg_path": "/tmp/test_sweep/runs/test_sweep.r.1/dist_cfg.yaml",
+                "data_dir": "/tmp/test_sweep/runs",
             }
         )
         mock_prepare.return_value = (
             "test_sweep.r.1",
             mock_train_cfg,
             {"trainer": {"lr": 0.005}},
+            "test_wandb_run_id",
         )
 
         # Training fails
@@ -217,13 +219,14 @@ class TestRunSingleRollout:
             {
                 "run": "test_sweep.r.1",
                 "run_dir": "/tmp/test_sweep/runs/test_sweep.r.1",
-                "dist_cfg_path": "/tmp/test_sweep/runs/test_sweep.r.1/dist_cfg.yaml",
+                "data_dir": "/tmp/test_sweep/runs",
             }
         )
         mock_prepare.return_value = (
             "test_sweep.r.1",
             mock_train_cfg,
             {"trainer": {"lr": 0.005}},
+            "test_wandb_run_id",
         )
 
         # Mock loading the full config
@@ -259,7 +262,6 @@ class TestTrainForRun:
                 "run": "test_run",
                 "run_dir": "/tmp/test_run",
                 "data_dir": "/tmp/test_run",
-                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
             }
         )
 
@@ -278,7 +280,7 @@ class TestTrainForRun:
         # Check command structure
         assert "./devops/train.sh" in call_args
         assert "run=test_run" in call_args
-        assert "dist_cfg_path=/tmp/test_run/dist_cfg.yaml" in call_args
+        assert "data_dir=/tmp/test_run" in call_args
         assert "--gpus=4" in call_args
         assert "--nodes=2" in call_args
 
@@ -294,7 +296,6 @@ class TestTrainForRun:
                 "run": "test_run",
                 "run_dir": "/tmp/test_run",
                 "data_dir": "/tmp/test_run",
-                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
             }
         )
 
@@ -302,18 +303,18 @@ class TestTrainForRun:
         train_for_run(
             run_name="test_run",
             train_job_cfg=mock_config,
-            original_args=["run=old_run", "--gpus=4", "dist_cfg_path=/old/path"],
+            original_args=["run=old_run", "--gpus=4", "data_dir=/old/path"],
             logger=Mock(),
         )
 
         # Verify subprocess was called
         call_args = mock_subprocess_run.call_args[0][0]
 
-        # Should have filtered out duplicate run and dist_cfg_path
+        # Should have filtered out duplicate run and data_dir
         assert call_args.count("run=test_run") == 1
-        assert call_args.count("dist_cfg_path=/tmp/test_run/dist_cfg.yaml") == 1
+        assert call_args.count("data_dir=/tmp/test_run") == 1
         assert "run=old_run" not in call_args
-        assert "dist_cfg_path=/old/path" not in call_args
+        assert "data_dir=/old/path" not in call_args
 
     @patch("subprocess.run")
     def test_train_for_run_handles_failure(self, mock_subprocess_run):
@@ -327,7 +328,6 @@ class TestTrainForRun:
                 "run": "test_run",
                 "run_dir": "/tmp/test_run",
                 "data_dir": "/tmp/test_run",
-                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
             }
         )
 
@@ -352,7 +352,6 @@ class TestTrainForRun:
                 "run": "test_run",
                 "run_dir": "/tmp/test_run",
                 "data_dir": "/tmp/test_run",
-                "dist_cfg_path": "/tmp/test_run/dist_cfg.yaml",
             }
         )
 
