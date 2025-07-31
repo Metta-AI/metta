@@ -15,6 +15,7 @@ variable "oauth_secret_arn" {
 }
 
 variable "oauth_secret_namespaces" {
+  type        = list(string)
   default     = ["skypilot", "monitoring", "observatory"]
   description = "The secret with google oauth credentials will be created in these namespaces"
 }
