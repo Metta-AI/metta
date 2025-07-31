@@ -1,7 +1,7 @@
 """Replay generation and management functionality for Metta."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 

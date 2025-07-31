@@ -16,6 +16,8 @@ from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.distributed import setup_distributed_vars
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
+from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.monitoring import (
     cleanup_monitoring,
@@ -23,10 +25,6 @@ from metta.monitoring import (
 )
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy
-from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -40,6 +38,11 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_lstm_config
+from metta.rl.stats import (
+    StatsTracker,
+    accumulate_rollout_stats,
+    process_stats,
+)
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
@@ -56,11 +59,6 @@ from metta.rl.wandb import (
     upload_policy_artifact,
 )
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
-from metta.rl.stats import (
-    StatsTracker,
-    accumulate_rollout_stats,
-    process_stats,
-)
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib

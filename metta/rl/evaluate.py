@@ -1,21 +1,16 @@
 """Policy evaluation functionality."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
-import wandb
-from omegaconf import DictConfig
 
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.replays import upload_replay_html
-from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.rl.stats import StatsTracker
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 
 def should_evaluate(epoch: int, evaluate_interval: int, is_master: bool = True) -> bool:

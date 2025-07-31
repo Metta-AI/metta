@@ -11,7 +11,6 @@ import torch.nn as nn
 import wandb
 from omegaconf import OmegaConf
 
-
 logger = logging.getLogger(__name__)
 
 # Use WeakKeyDictionary to associate state with each wandb.Run without mutating the object

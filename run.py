@@ -27,28 +27,17 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.agent import create_or_load_agent
 from metta.interface.directories import save_experiment_config, setup_run_directories
 from metta.interface.environment import Environment
-from metta.interface.evaluation import create_evaluation_config_suite
-from metta.mettagrid import mettagrid_c  # noqa: F401
-from metta.mettagrid.mettagrid_env import dtype_actions
-from metta.rl.advantage import compute_advantage
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.interface.evaluation import (
     create_evaluation_config_suite,
-    create_replay_config,
-)
-from metta.interface.training import (
-    Optimizer,
-    cleanup_distributed,
-    cleanup_wandb,
-    ensure_initial_policy,
-    initialize_wandb,
-    load_checkpoint,
-    save_checkpoint,
 )
 from metta.mettagrid import (
-    dtype_actions,
+    dtype_actions,  # noqa: F401
     mettagrid_c,  # noqa: F401
 )
+from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.replays import upload_replay_html
+from metta.rl.advantage import compute_advantage
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update
@@ -65,6 +54,13 @@ from metta.rl.rollout import (
     get_lstm_config,
     get_observation,
     run_policy_inference,
+)
+from metta.rl.stats import (
+    StatsTracker,
+    accumulate_rollout_stats,
+    build_wandb_stats,
+    compute_timing_stats,
+    process_training_stats,
 )
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_config import (
@@ -86,16 +82,8 @@ from metta.rl.wandb import (
     setup_wandb_metrics,
     upload_env_configs,
 )
-from metta.replays import upload_replay_html
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.rl.stats import (
-    StatsTracker,
-    accumulate_rollout_stats,
-    build_wandb_stats,
-    compute_timing_stats,
-    process_training_stats,
-)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
