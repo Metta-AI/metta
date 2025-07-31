@@ -2,6 +2,8 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
+from metta.rl.ppo import ppo
+from metta.rl.rollout import rollout
 from typing import Any
 
 import numpy as np
@@ -45,7 +47,6 @@ from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.training_loop import (
     log_training_progress,
-    run_training_epoch,
     should_run,
 )
 from metta.rl.vecenv import make_vecenv
@@ -290,21 +291,30 @@ def train(
         record_heartbeat()
 
         with torch_profiler:
-            # Run training epoch using new functional interface
-            agent_step, epochs_trained, raw_infos = run_training_epoch(
-                vecenv=vecenv,
-                policy=policy,
-                optimizer=optimizer,
-                experience=experience,
-                kickstarter=kickstarter,
-                losses=losses,
-                trainer_cfg=trainer_cfg,
-                agent_step=agent_step,
-                epoch=epoch,
-                device=device,
-                timer=timer,
-                world_size=world_size,
-            )
+            # Rollout phase
+            with timer("_rollout"):
+                num_steps, raw_infos = rollout(
+                    vecenv=vecenv,
+                    policy=policy,
+                    experience=experience,
+                    device=device,
+                    timer=timer,
+                )
+                agent_step += num_steps * world_size
+
+            # Training phase
+            with timer("_train"):
+                epochs_trained = ppo(
+                    policy=policy,
+                    optimizer=optimizer,
+                    experience=experience,
+                    kickstarter=kickstarter,
+                    losses=losses,
+                    trainer_cfg=trainer_cfg,
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    device=device,
+                )
             epoch += epochs_trained
 
             # Process rollout stats

@@ -93,11 +93,6 @@ dirs = setup_run_directories()
 # Set up device and distributed training
 device, is_master, world_size, rank = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
 
-# Configuration using individual component configs
-# Note: batch_size must be >= total_agents * bptt_horizon
-# With navigation curriculum: 4 agents per env * many envs = ~2048 total agents
-# Required batch_size >= 2048 * 64 (bptt_horizon) = 131072
-
 # Core training parameters
 num_workers = 4
 total_timesteps = 10_000_000
@@ -568,9 +563,6 @@ while agent_step < trainer_config.total_timesteps:
             average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
             if average_approx_kl > trainer_config.ppo.target_kl:
                 break
-
-    if minibatch_idx > 0 and str(device).startswith("cuda"):
-        torch.cuda.synchronize()
 
     # Calculate explained variance
     y_pred = experience.values.flatten()

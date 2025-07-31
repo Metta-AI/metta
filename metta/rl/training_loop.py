@@ -32,68 +32,6 @@ def should_run(
 
     return epoch % interval == 0
 
-
-def run_training_epoch(
-    vecenv: Any,
-    policy: Any,
-    optimizer: torch.optim.Optimizer,
-    experience: Experience,
-    kickstarter: Kickstarter,
-    losses: Losses,
-    trainer_cfg: TrainerConfig,
-    agent_step: int,
-    epoch: int,
-    device: torch.device,
-    timer: Stopwatch,
-    world_size: int = 1,
-) -> Tuple[int, int, Dict[str, list]]:
-    """Run one training epoch (rollout + training).
-
-    Args:
-        vecenv: Vectorized environment
-        policy: Policy model
-        optimizer: Optimizer
-        experience: Experience buffer
-        kickstarter: Kickstarter for knowledge distillation
-        losses: Losses tracker
-        trainer_cfg: Training configuration
-        agent_step: Current agent step
-        epoch: Current epoch
-        device: Training device
-        timer: Stopwatch timer
-        world_size: Number of distributed workers
-
-    Returns:
-        Tuple of (new_agent_step, epochs_trained, raw_infos)
-    """
-    # Rollout phase
-    with timer("_rollout"):
-        num_steps, raw_infos = rollout(
-            vecenv=vecenv,
-            policy=policy,
-            experience=experience,
-            device=device,
-            timer=timer,
-        )
-        agent_step += num_steps * world_size
-
-    # Training phase
-    with timer("_train"):
-        epochs_trained = ppo(
-            policy=policy,
-            optimizer=optimizer,
-            experience=experience,
-            kickstarter=kickstarter,
-            losses=losses,
-            trainer_cfg=trainer_cfg,
-            agent_step=agent_step,
-            epoch=epoch,
-            device=device,
-        )
-
-    return agent_step, epochs_trained, raw_infos
-
-
 def log_training_progress(
     epoch: int,
     agent_step: int,
