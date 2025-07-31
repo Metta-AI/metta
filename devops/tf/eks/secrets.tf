@@ -7,7 +7,7 @@ data "aws_secretsmanager_secret_version" "oauth_secret_version" {
 }
 
 resource "kubernetes_secret" "oauth_secret" {
-  for_each = var.oauth_secret_namespaces
+  for_each = toset(var.oauth_secret_namespaces)
 
   metadata {
     name      = "softmax-infra-oauth"
