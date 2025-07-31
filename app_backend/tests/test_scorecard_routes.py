@@ -27,7 +27,7 @@ class TestPolicyScorecardRoutes:
                 name=unique_run_name,
                 attributes={"environment": "test_env", "algorithm": "test_alg"},
                 url="https://example.com/run",
-                tags=["test_tag", "scorecard_test", "heatmap_test"],
+                tags=["test_tag", "scorecard_test"],
             )
 
             # Create epochs with different training epochs
@@ -214,7 +214,7 @@ class TestPolicyScorecardRoutes:
             metric_values={"policy_0_test_env": 75.0, "policy_1_test_env": 85.0},
         )
 
-        # Search by tag (tags are ["test_tag", "heatmap_test"] from _create_test_data)
+        # Search by tag (tags are ["test_tag", "scorecard_test"] from _create_test_data)
         response = test_client.post(
             "/heatmap/policies",
             json={"search_text": "test_tag", "pagination": {"page": 1, "page_size": 25}},
@@ -230,7 +230,7 @@ class TestPolicyScorecardRoutes:
         # Search by partial tag match
         response = test_client.post(
             "/heatmap/policies",
-            json={"search_text": "heatmap", "pagination": {"page": 1, "page_size": 25}},
+            json={"search_text": "scorecard", "pagination": {"page": 1, "page_size": 25}},
         )
         assert response.status_code == 200
         result = response.json()
@@ -238,7 +238,7 @@ class TestPolicyScorecardRoutes:
         # Should return the matching training run
         assert len(result["policies"]) >= 1
         training_run = next(p for p in result["policies"] if p["type"] == "training_run")
-        assert any("heatmap" in tag for tag in training_run["tags"])
+        assert any("scorecard" in tag for tag in training_run["tags"])
 
         # Search by non-existent tag
         response = test_client.post(
