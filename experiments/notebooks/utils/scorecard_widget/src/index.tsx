@@ -189,7 +189,7 @@ function render({ model, el }: { model: any; el: HTMLElement }) {
     }
 
     root.render(<ScorecardWidget model={model} />);
-    console.log("HeatmapWidget render completed successfully");
+    console.log("ScorecardWidget render completed successfully");
 }
 
 
