@@ -643,8 +643,6 @@ function drawGrid() {
   }
 }
 
-
-
 /** Draws the heatmap overlay. */
 function drawHeatmap() {
   if (state.showHeatmap) {

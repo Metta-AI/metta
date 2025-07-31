@@ -747,7 +747,7 @@ async function parseUrlParams() {
   }
   if (replayUrl) {
     console.info('Loading replay from URL: ', replayUrl)
-        await fetchReplay(replayUrl)
+    await fetchReplay(replayUrl)
 
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
