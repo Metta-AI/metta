@@ -42,7 +42,7 @@ class Task:
         self._name = id
         self._curricula = [(curriculum, id)]
 
-    def complete_trial(self, score: float) -> bool:
+    def complete(self, score: float) -> bool:
         """Lets the task know that a trial has been completed.
 
         Based on this, the task should expose a new trial, or become complete.
@@ -90,7 +90,7 @@ class SingleTrialTask(Task):
         self._episode_idx = 0
         self._scores = []
 
-    def complete_trial(self, score: float):
+    def complete(self, score: float):
         assert not self._is_complete, "Task is already complete"
         self._is_complete = True
         for curriculum, id in self._curricula:
