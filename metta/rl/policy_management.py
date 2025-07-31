@@ -395,8 +395,4 @@ def load_or_initialize_policy_master(
     initial_policy_record = saved_pr
     latest_saved_policy_record = saved_pr
 
-    # Synchronize with non-master ranks after saving
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
     return policy, initial_policy_record, latest_saved_policy_record
