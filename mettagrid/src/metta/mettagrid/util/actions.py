@@ -3,11 +3,11 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_env import (
+from metta.mettagrid import (
     MettaGridEnv,
     dtype_actions,
 )
+from metta.mettagrid.mettagrid_c import MettaGrid
 
 
 class Orientation(Enum):
