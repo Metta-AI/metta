@@ -606,7 +606,10 @@ export function loadReplayStep(replayStep: any) {
       object.isFrozen.add(gridObject.isFrozen)
       object.frozenProgress.add(gridObject.frozen_progress)
     }
-    if ("recipe_input" in gridObject) {
+    if ("input_resources" in gridObject) {
+      object.inputResources = gridObject.input_resources
+      object.outputResources = gridObject.output_resources
+      object.recipeMax = gridObject.recipe_max
       object.productionProgress.add(gridObject.production_progress)
       object.cooldownProgress.add(gridObject.cooldown_progress)
     }
