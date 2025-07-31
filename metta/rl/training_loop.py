@@ -1,9 +1,7 @@
 """Training loop helper functions."""
 
 import logging
-from typing import Tuple
 
-from metta.common.profiling.stopwatch import Stopwatch
 from metta.utils.progress import log_rich_progress, should_use_rich_console
 
 logger = logging.getLogger(__name__)
@@ -79,19 +77,3 @@ def log_training_progress(
             f"step {agent_step}/{total_steps_str}- "
             f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"
         )
-
-
-def get_epoch_timing(timer: Stopwatch) -> Tuple[float, float, float]:
-    """Get timing breakdown for the last epoch.
-
-    Args:
-        timer: Stopwatch timer
-
-    Returns:
-        Tuple of (rollout_time, train_time, stats_time)
-    """
-    rollout_time = timer.get_last_elapsed("_rollout")
-    train_time = timer.get_last_elapsed("_train")
-    stats_time = timer.get_last_elapsed("_process_stats")
-
-    return rollout_time, train_time, stats_time

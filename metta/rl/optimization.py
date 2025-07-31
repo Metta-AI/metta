@@ -1,14 +1,14 @@
 """Optimization utilities for Metta training."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import torch
 
 logger = logging.getLogger(__name__)
 
 
-def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
+def compute_gradient_stats(policy: torch.nn.Module) -> dict[str, float]:
     """Compute gradient statistics for the policy.
 
     Returns:
