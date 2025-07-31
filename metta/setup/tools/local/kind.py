@@ -95,23 +95,6 @@ class Kind:
 
         info("Orchestrator deployed via Helm")
 
-        # Wait for Datadog operator to be ready if enabled
-        info("Waiting for Datadog operator to be ready...")
-        subprocess.run(
-            [
-                "kubectl",
-                "wait",
-                "--for=condition=ready",
-                "pod",
-                "-l",
-                "app.kubernetes.io/name=datadog-operator",
-                "-n",
-                self.namespace,
-                "--timeout=120s",
-            ],
-            check=False,  # Don't fail if timeout
-        )
-
         info("To view pods: metta local kind get-pods")
         info("To view logs: metta local kind logs <pod-name>")
         info("To stop: metta local kind down")

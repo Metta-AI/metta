@@ -31,9 +31,23 @@ resources:
 
 datadog:
   enabled: true
-  env: "production"
-
-datadog-operator:
-  apiKeyExistingSecret: datadog-secret
-  site: datadoghq.com
-  clusterName: "arn:aws:eks:us-east-1:751442549699:cluster/main"
+  datadog:
+    apiKeyExistingSecret: datadog-secret
+    clusterName: "arn:aws:eks:us-east-1:751442549699:cluster/main"
+    site: datadoghq.com
+    apm:
+      portEnabled: true
+      port: 8126
+    logs:
+      enabled: true
+      containerCollectAll: true
+    processAgent:
+      enabled: true
+      processCollection: true
+    orchestratorExplorer:
+      enabled: true
+    tags:
+      - "env:production"
+  agents:
+    enabled: true
+    useHostNetwork: true

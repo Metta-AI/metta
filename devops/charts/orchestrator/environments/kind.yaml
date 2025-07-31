@@ -9,7 +9,15 @@ env:
 
 datadog:
   enabled: true
-  env: "local"
-
-datadog-operator:
-  clusterName: "kind-metta-local"
+  datadog:
+    clusterName: "kind-metta-local"
+    tags:
+      - "env:local"
+  agents:
+    containers:
+      agent:
+        env:
+          - name: DD_HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
