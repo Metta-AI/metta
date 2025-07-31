@@ -30,7 +30,7 @@ game:
       output_resources:
         battery_green: 0
     factory:
-      cooldown: 50
+      cooldown: 255
       input_resources:
         blueprint: 0
         ore_red: 0
