@@ -25,6 +25,7 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
@@ -857,13 +858,13 @@ class MettaTrainer:
             for name, urls in replay_groups.items():
                 if len(urls) == 1:
                     # Single episode - just show the name
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                    player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={urls[0]}"
                     links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
                 else:
                     # Multiple episodes - show with numbers
                     episode_links = []
                     for i, url in enumerate(urls, 1):
-                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                        player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={url}"
                         episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
                     links.append(f"{name} [{' '.join(episode_links)}]")
 
@@ -879,7 +880,7 @@ class MettaTrainer:
         # Also log individual link for backward compatibility
         if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
             training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
+            player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={training_url}"
             link_summary = {
                 "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
             }

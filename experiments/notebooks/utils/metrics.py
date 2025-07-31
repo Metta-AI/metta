@@ -2,9 +2,11 @@ import pandas as pd
 import wandb
 from wandb.apis.public.runs import Run
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+
 
 def get_run(
-    run_name: str, entity: str = "metta-research", project: str = "metta"
+    run_name: str, entity: str = METTA_WANDB_ENTITY, project: str = METTA_WANDB_PROJECT
 ) -> Run | None:
     try:
         api = wandb.Api()

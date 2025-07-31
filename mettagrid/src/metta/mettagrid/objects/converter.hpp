@@ -145,11 +145,11 @@ public:
         max_conversions(cfg.max_conversions),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
+        converting(false),
+        cooling_down(false),
         color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
-        converting(false),
-        cooling_down(false),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
         conversions_completed(0) {
@@ -190,10 +190,6 @@ public:
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
-    } else {
-      // Negative cooldown means never convert again
-      this->cooling_down = true;
-      stats.incr("conversions.permanent_stop");
     }
   }
 

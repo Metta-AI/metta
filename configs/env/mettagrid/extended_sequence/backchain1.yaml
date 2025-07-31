@@ -6,11 +6,9 @@ defaults:
   - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
-sampling: 1
-
 game:
   num_agents: 24
-  max_steps: 500
+  max_steps: 80
   agent:
     default_resource_limit: 1
     rewards:
@@ -19,8 +17,8 @@ game:
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
-    width: 10
-    height: 10
+    width: 7
+    height: 7
 
     root:
       type: metta.map.scenes.random.Random
@@ -31,7 +29,8 @@ game:
 
   objects:
     altar:
-      cooldown: 100
+      cooldown: 255
+      initial_resource_count: 1
       input_resources:
         battery_red: 0
       output_resources:

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Plot from 'react-plotly.js'
 import { HeatmapData } from './repo'
+import { METTA_WANDB_ENTITY, METTA_WANDB_PROJECT } from './constants'
 
 interface HeatmapProps {
   data: HeatmapData
@@ -61,8 +62,8 @@ const getShortName = (evalName: string) => {
 }
 
 const wandb_url = (policyName: string) => {
-  const entity = 'metta-research'
-  const project = 'metta'
+  const entity = METTA_WANDB_ENTITY
+  const project = METTA_WANDB_PROJECT
   let policyKey = policyName
   if (policyName.includes(':v')) {
     policyKey = policyName.split(':v')[0]
