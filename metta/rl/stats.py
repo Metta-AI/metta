@@ -9,7 +9,7 @@ from typing import Any, Dict
 import numpy as np
 import torch
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyRecord
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.wandb.wandb_context import WandbRun
@@ -327,7 +327,7 @@ def process_stats(
     evals: EvalRewardSummary,
     grad_stats: Dict[str, float],
     experience: Experience,
-    policy: MettaAgent | DistributedMettaAgent,
+    policy: PolicyAgent,
     timer: Stopwatch,
     trainer_cfg: TrainerConfig,
     agent_step: int,

@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 from torch import Tensor
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.common.profiling.stopwatch import Stopwatch
@@ -50,7 +50,7 @@ def send_observation(
 
 
 def run_policy_inference(
-    policy: MettaAgent | DistributedMettaAgent,
+    policy: PolicyAgent,
     observations: Tensor,
     experience: Experience,
     training_env_id_start: int,
@@ -80,7 +80,7 @@ def run_policy_inference(
     return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
 
 
-def get_lstm_config(policy: MettaAgent | DistributedMettaAgent) -> Tuple[int, int]:
+def get_lstm_config(policy: PolicyAgent) -> Tuple[int, int]:
     """Extract LSTM configuration from policy."""
     hidden_size = getattr(policy, "hidden_size", 256)
     num_lstm_layers = 2  # Default value

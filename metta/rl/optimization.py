@@ -4,12 +4,12 @@ import logging
 
 import torch
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import PolicyAgent
 
 logger = logging.getLogger(__name__)
 
 
-def compute_gradient_stats(policy: MettaAgent | DistributedMettaAgent) -> dict[str, float]:
+def compute_gradient_stats(policy: PolicyAgent) -> dict[str, float]:
     """Compute gradient statistics for the policy.
 
     Returns:
@@ -39,7 +39,7 @@ def compute_gradient_stats(policy: MettaAgent | DistributedMettaAgent) -> dict[s
 
 
 def maybe_update_l2_weights(
-    agent: MettaAgent | DistributedMettaAgent,
+    agent: PolicyAgent,
     epoch: int,
     interval: int,
     is_master: bool = True,

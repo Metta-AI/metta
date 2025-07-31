@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import wait_for_file
@@ -42,7 +42,7 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
         logger.warning(f"Error during policy cleanup: {e}")
 
 
-def validate_policy_environment_match(policy: MettaAgent | DistributedMettaAgent, env: MettaGridEnv) -> None:
+def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):
@@ -79,7 +79,7 @@ def validate_policy_environment_match(policy: MettaAgent | DistributedMettaAgent
             )
 
 
-def wrap_agent_distributed(agent: MettaAgent, device: torch.device) -> MettaAgent | DistributedMettaAgent:
+def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAgent:
     if torch.distributed.is_initialized():
         # Always use DistributedMettaAgent for its __getattr__ forwarding
         agent = DistributedMettaAgent(agent, device)
@@ -193,7 +193,7 @@ def load_or_initialize_policy(
     metta_grid_env: MettaGridEnv,
     is_master: bool,
     rank: int,
-) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
+) -> tuple[PolicyAgent, PolicyRecord, PolicyRecord]:
     """Load or initialize policy with distributed coordination."""
     trainer_cfg = cfg.trainer
 

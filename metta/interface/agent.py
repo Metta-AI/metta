@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.mettagrid import MettaGridEnv
 
 if TYPE_CHECKING:
@@ -175,7 +175,7 @@ def create_or_load_agent(
     device: str | torch.device = "cuda",
     is_master: bool = True,
     rank: int = 0,
-) -> tuple[MettaAgent, Any, int, int, Any]:  # Returns (agent, policy_record, agent_step, epoch, checkpoint)
+) -> tuple[PolicyAgent, Any, int, int, Any]:  # Returns (agent, policy_record, agent_step, epoch, checkpoint)
     """Create a new agent or load from checkpoint/initial policy.
 
     This helper function encapsulates the full logic for agent creation/loading,

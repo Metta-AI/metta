@@ -5,7 +5,7 @@ from typing import Dict, Tuple
 import torch
 from torch import Tensor
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -59,7 +59,7 @@ def compute_ppo_losses(
 
 
 def ppo(
-    policy: MettaAgent | DistributedMettaAgent,
+    policy: PolicyAgent,
     optimizer: torch.optim.Optimizer,
     experience: Experience,
     kickstarter: Kickstarter,
