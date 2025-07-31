@@ -19,7 +19,7 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid import MettaGridEnv
+from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy
@@ -36,7 +36,7 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.ppo import ppo
-from metta.rl.rollout import get_lstm_config, rollout
+from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference, send_observation
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -286,14 +286,41 @@ def train(
         with torch_profiler:
             # ---- ROLLOUT PHASE ----
             with timer("_rollout"):
-                num_steps, raw_infos = rollout(
-                    vecenv=vecenv,
-                    policy=policy,
-                    experience=experience,
-                    device=device,
-                    timer=timer,
-                )
-                agent_step += num_steps * world_size
+                raw_infos = []
+                experience.reset_for_rollout()
+                total_steps = 0
+
+                while not experience.ready_for_training:
+                    # Get observation
+                    o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
+                    total_steps += num_steps
+
+                    # Inference
+                    actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                        policy, o, experience, training_env_id.start, device
+                    )
+
+                    # Store experience
+                    experience.store(
+                        obs=o,
+                        actions=actions,
+                        logprobs=selected_action_log_probs,
+                        rewards=r,
+                        dones=d,
+                        truncations=t,
+                        values=values,
+                        env_id=training_env_id,
+                        mask=mask,
+                        lstm_state=lstm_state_to_store,
+                    )
+
+                    # Send observation
+                    send_observation(vecenv, actions, dtype_actions, timer)
+
+                    if info:
+                        raw_infos.extend(info)
+
+                agent_step += total_steps * world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
             # ---- TRAINING PHASE ----
