@@ -20,12 +20,11 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
@@ -35,7 +34,6 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
@@ -52,6 +50,7 @@ from metta.rl.util.optimization import (
 )
 from metta.rl.util.policy_management import (
     cleanup_old_policies,
+    load_or_initialize_policy,
     validate_policy_environment_match,
 )
 from metta.rl.util.rollout import (
@@ -90,7 +89,7 @@ class MettaTrainer:
         self,
         cfg: DictConfig,
         wandb_run: WandbRun | None,
-        policy_store: PolicyStore,
+        policy_store: PolicyStore | None,
         sim_suite_config: SimulationSuiteConfig,
         stats_client: StatsClient | None,
         **kwargs: Any,
@@ -181,92 +180,38 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        # Load or create policy with distributed coordination
-        policy_record = self._load_policy(checkpoint, policy_store)
+        # At this point we want to load the policy on the master rank and just initialize a random policy
+        # on the other ranks.
+        self.policy, self.initial_policy_record, self.latest_saved_policy_record = None, None, None
+        if self._master:
+            # we only load all these things on master
+            self.policy, self.initial_policy_record, self.latest_saved_policy_record = load_or_initialize_policy(
+                self.cfg,
+                self.policy_store,
+                metta_grid_env,
+                self.device,
+            )
 
-        if policy_record is not None:
-            self._log_master(f"Rank {self._rank}: LOADED {policy_record.uri}")
-            self.latest_saved_policy_record = policy_record
+        # We have to make sure the initial and latest saved policy records are the same on all ranks.
+        self.policy = get_from_master(self.policy)
+        self.initial_policy_record = get_from_master(self.initial_policy_record)
+        self.latest_saved_policy_record = get_from_master(self.latest_saved_policy_record)
 
-            # Get the policy from the record
-            self.policy = policy_record.policy
-
-            # Restore original_feature_mapping from metadata if available
-            if (
-                hasattr(self.policy, "restore_original_feature_mapping")
-                and "original_feature_mapping" in policy_record.metadata
-            ):
-                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-                self._log_master(f"Rank {self._rank}: Restored original_feature_mapping")
-
-            # Initialize the policy to the environment
-            self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-
-            self.initial_policy_record = policy_record
-
-        else:
-            self._log_master(f"Rank {self._rank}: No existing policy found, creating new one")
-            # In distributed mode, handle policy creation/loading differently
-            if torch.distributed.is_initialized() and not self._master:
-                # Non-master ranks wait for master to create and save the policy
-                default_policy_path = os.path.join(
-                    trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0)
-                )
-                self._log_master(f"Rank {self._rank}: Waiting for master to create policy at {default_policy_path}")
-
-                # Synchronize with master before attempting to load
-                torch.distributed.barrier()
-
-                def log_progress(elapsed: float, status: str) -> None:
-                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
-                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-                    elif status == "found":
-                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
-                    elif status == "stable":
-                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
-
-                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
-                    raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
-
-                try:
-                    policy_record = self.policy_store.policy_record(default_policy_path)
-                except Exception as e:
-                    raise RuntimeError(
-                        f"Rank {self._rank}: Failed to load policy from {default_policy_path}: {e}"
-                    ) from e
-
-                self.initial_policy_record = policy_record
-                self.latest_saved_policy_record = policy_record
-                self.policy = policy_record.policy
-
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-            else:
-                # Master creates and saves new policy
-                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
-                self.initial_policy_record = policy_record
-                self.latest_saved_policy_record = policy_record
-                self.policy = policy_record.policy
-
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-
-                # Synchronize with non-master ranks after saving
-                if torch.distributed.is_initialized():
-                    logger.info("Master rank: Policy saved, synchronizing with other ranks")
-                    torch.distributed.barrier()
-
-        self._log_master(f"USING {self.initial_policy_record.uri}")
-        self._log_master(f"MettaTrainer loaded: {self.policy}")
+        if self._master:
+            self._log_master(f"MettaTrainer loaded: {self.policy}")
 
         if trainer_cfg.compile:
             self._log_master("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(
-            trainer_cfg.kickstart,
-            self.device,
-            policy_store,
-            metta_grid_env,
-        )
+        # FIX BEFORE MERGE
+        # if self._master and self.policy_store is not None:
+        #     self.kickstarter = Kickstarter(
+        #         trainer_cfg.kickstart,
+        #         self.device,
+        #         self.policy_store,
+        #         metta_grid_env,
+        #     )
 
         if torch.distributed.is_initialized():
             logger.debug(f"Initializing DistributedDataParallel on device {self.device}")
@@ -855,13 +800,13 @@ class MettaTrainer:
             for name, urls in replay_groups.items():
                 if len(urls) == 1:
                     # Single episode - just show the name
-                    player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={urls[0]}"
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
                     links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
                 else:
                     # Multiple episodes - show with numbers
                     episode_links = []
                     for i, url in enumerate(urls, 1):
-                        player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={url}"
+                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
                         episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
                     links.append(f"{name} [{' '.join(episode_links)}]")
 
@@ -877,7 +822,7 @@ class MettaTrainer:
         # Also log individual link for backward compatibility
         if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
             training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-            player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={training_url}"
+            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
             link_summary = {
                 "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
             }
