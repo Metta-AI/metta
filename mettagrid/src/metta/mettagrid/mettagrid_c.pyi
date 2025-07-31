@@ -6,15 +6,6 @@ import numpy as np
 # Type alias for clarity
 StatsDict: TypeAlias = dict[str, float]
 
-# Data types exported from C++
-dtype_observations: np.dtype
-dtype_terminals: np.dtype
-dtype_truncations: np.dtype
-dtype_rewards: np.dtype
-dtype_actions: np.dtype
-dtype_masks: np.dtype
-dtype_success: np.dtype
-
 class EpisodeStats(TypedDict):
     game: StatsDict
     agent: list[StatsDict]

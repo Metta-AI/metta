@@ -179,8 +179,8 @@ def test_puffer_env_buffer_integration(simple_config):
     obs, info = env.reset(seed=42)
 
     # The environment should have internal buffers set up
-    assert hasattr(env, "_c_env_instance")
-    assert env._c_env_instance is not None
+    assert hasattr(env, "_core_env")
+    assert env._core_env is not None
 
     # Test that stepping works with buffers
     actions = np.random.randint(0, 2, size=(env.num_agents, 2), dtype=np.int32)

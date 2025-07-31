@@ -1058,13 +1058,4 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // This can be fixed, but until we do that, we're not exposing these.
   // .def_readwrite("actions", &GameConfig::actions)
   // .def_readwrite("objects", &GameConfig::objects);
-
-  // Export data types from types.hpp
-  m.attr("dtype_observations") = dtype_observations();
-  m.attr("dtype_terminals") = dtype_terminals();
-  m.attr("dtype_truncations") = dtype_truncations();
-  m.attr("dtype_rewards") = dtype_rewards();
-  m.attr("dtype_actions") = dtype_actions();
-  m.attr("dtype_masks") = dtype_masks();
-  m.attr("dtype_success") = dtype_success();
 }
