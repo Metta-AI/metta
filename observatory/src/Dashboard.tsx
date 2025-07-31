@@ -150,14 +150,14 @@ export function Dashboard({ repo }: DashboardProps) {
     try {
       setLoading((prev) => ({ ...prev, scorecard: true }))
       setError(null)
-      const heatmapResult = await repo.generatePolicyScorecard({
+      const scorecardResult = await repo.generatePolicyScorecard({
         training_run_ids: selectedTrainingRunIds,
         run_free_policy_ids: selectedRunFreePolicyIds,
         eval_names: Array.from(selectedEvalNames),
         training_run_policy_selector: trainingRunPolicySelector,
         metric: selectedMetric,
       })
-      setScorecardData(heatmapResult)
+      setScorecardData(scorecardResult)
       setControlsExpanded(false)
     } catch (err) {
       setError(`Failed to generate scorecard: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -310,7 +310,7 @@ export function Dashboard({ repo }: DashboardProps) {
         <div className={styles.dashboardHeader}>
           <h1 className={styles.dashboardTitle}>{dashboardName}</h1>
           <p className={styles.dashboardSubtitle}>
-            Select policies and evaluations to generate interactive heatmaps for analysis.
+            Select policies and evaluations to generate interactive scorecards for analysis.
           </p>
         </div>
 
@@ -410,7 +410,7 @@ export function Dashboard({ repo }: DashboardProps) {
                 {loading.scorecard ? (
                   <>
                     <span className={styles.loadingSpinner}></span>
-                    Generating Heatmap...
+                    Generating Scorecard...
                   </>
                 ) : (
                   'Generate Scorecard'
@@ -447,7 +447,7 @@ export function Dashboard({ repo }: DashboardProps) {
           </div>
         </div>
 
-        {/* Heatmap Display */}
+        {/* Scorecard Display */}
         {scorecardData && (
           <div className={styles.scorecardContainer}>
             <Scorecard
