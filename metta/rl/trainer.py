@@ -10,14 +10,14 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from metta.batch_utils import calculate_batch_sizes
+from metta.utils.batch import calculate_batch_sizes
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
-from metta.distributed import setup_distributed_vars
+from metta.core.distributed import setup_distributed_vars
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.monitoring import (
+from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )

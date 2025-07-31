@@ -11,7 +11,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.batch_utils import (
+from metta.utils.batch import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
 )
@@ -21,7 +21,7 @@ from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbContext
-from metta.distributed import setup_device_and_distributed
+from metta.core.distributed import setup_device_and_distributed
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.interface.agent import create_or_load_agent
@@ -34,7 +34,7 @@ from metta.mettagrid import (
     dtype_actions,  # noqa: F401
     mettagrid_c,  # noqa: F401
 )
-from metta.replays import upload_replay_html
+from metta.eval.replays import upload_replay_html
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience

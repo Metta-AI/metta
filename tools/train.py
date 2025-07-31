@@ -16,7 +16,7 @@ from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
-from metta.distributed import setup_device_and_distributed
+from metta.core.distributed import setup_device_and_distributed
 from metta.rl.trainer import train as functional_train
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
