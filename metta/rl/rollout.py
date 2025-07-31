@@ -8,7 +8,7 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.mettagrid import dtype_actions
 from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)
