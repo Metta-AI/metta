@@ -13,6 +13,7 @@ datadog:
     clusterName: "kind-metta-local"
     tags:
       - "env:local"
+  env: "development"
   agents:
     containers:
       agent:
