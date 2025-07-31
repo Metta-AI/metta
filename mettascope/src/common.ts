@@ -102,7 +102,7 @@ export const state = {
   replay: null as any,
   selectedGridObject: null as any,
   followSelection: false, // Flag to follow the selected entity.
-  heatmap: null as Heatmap | null,
+  heatmap: new Heatmap(),
 
   // Playback state
   step: 0,

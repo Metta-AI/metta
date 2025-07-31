@@ -237,6 +237,7 @@ function fixReplay() {
     focusFullMap(ui.mapPanel)
     // Force a resize to update the minimap panel.
     onResize()
+    state.heatmap.initialize()
   }
 }
 
@@ -276,6 +277,7 @@ function loadReplayJson(url: string, replayData: any) {
   focusFullMap(ui.mapPanel)
   updateAgentTable()
   onResize()
+  state.heatmap.initialize()
   requestFrame()
 }
 
@@ -326,6 +328,7 @@ export function loadReplayStep(replayStep: any) {
   fixReplay()
 
   updateStep(step)
+  state.heatmap.update(step)
 
   requestFrame()
 }
