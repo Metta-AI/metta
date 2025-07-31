@@ -438,11 +438,11 @@ def train(
                                 f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}"
                             )
                         else:
-                            task = self._stats_client.create_task(
+                            task = stats_client.create_task(
                                 TaskCreateRequest(
                                     policy_id=stats_server_policy_id,
-                                    git_hash=self.trainer_cfg.simulation.git_hash,
-                                    sim_suite=self._sim_suite_config.name,
+                                    git_hash=trainer_cfg.simulation.git_hash,
+                                    sim_suite=sim_suite_config.name,
                                 )
                             )
                             logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
