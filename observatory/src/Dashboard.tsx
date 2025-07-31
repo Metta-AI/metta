@@ -1,27 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { PolicyHeatmapData, Repo, SavedDashboardCreate } from './repo'
+import { DashboardState, PolicyScorecardData, Repo, SavedDashboard, SavedDashboardCreate } from './repo'
 import { PolicySelector } from './components/PolicySelector'
 import { SearchInput } from './components/SearchInput'
 import { EvalSelector } from './components/EvalSelector'
 import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
 import { MetricSelector } from './components/MetricSelector'
-import { Heatmap } from './Heatmap'
+import { Scorecard } from './Scorecard'
 import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
+import { METTASCOPE_REPLAY_URL } from './constants'
 
 interface DashboardProps {
   repo: Repo
-}
-
-// Dashboard state interface for saving/loading
-export interface DashboardState {
-  selectedTrainingRunIds: string[]
-  selectedRunFreePolicyIds: string[]
-  selectedEvalNames: string[]
-  trainingRunPolicySelector: 'latest' | 'best'
-  selectedMetric: string
 }
 
 export function Dashboard({ repo }: DashboardProps) {
@@ -29,14 +21,14 @@ export function Dashboard({ repo }: DashboardProps) {
   // Data state
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
   const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
-  const [heatmapData, setHeatmapData] = useState<PolicyHeatmapData | null>(null)
+  const [scorecardData, setScorecardData] = useState<PolicyScorecardData | null>(null)
 
   // Selection state
   const [selectedTrainingRunIds, setSelectedTrainingRunIds] = useState<string[]>([])
   const [selectedRunFreePolicyIds, setSelectedRunFreePolicyIds] = useState<string[]>([])
   const [selectedEvalNames, setSelectedEvalNames] = useState<Set<string>>(new Set())
   const [trainingRunPolicySelector, setTrainingRunPolicySelector] = useState<'latest' | 'best'>('latest')
-  const [selectedMetric, setSelectedMetric] = useState<string>('')
+  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1)
@@ -46,7 +38,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const [loading, setLoading] = useState({
     evalCategories: false,
     metrics: false,
-    heatmap: false,
+    scorecard: false,
   })
   const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
@@ -58,6 +50,9 @@ export function Dashboard({ repo }: DashboardProps) {
 
   // Save dashboard modal state
   const [showSaveModal, setShowSaveModal] = useState(false)
+
+  // Dashboard metadata state
+  const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null)
 
   // Load eval names when training runs or policies are selected
   useEffect(() => {
@@ -117,6 +112,13 @@ export function Dashboard({ repo }: DashboardProps) {
         if (selectedMetric && !metricsData.includes(selectedMetric)) {
           setSelectedMetric('')
         }
+        if (metricsData.length > 0 && !selectedMetric) {
+          if (metricsData.includes('reward')) {
+            setSelectedMetric('reward')
+          } else {
+            setSelectedMetric(metricsData[0])
+          }
+        }
       } catch (err) {
         setError(`Failed to load metrics: ${err instanceof Error ? err.message : 'Unknown error'}`)
         setAvailableMetrics([])
@@ -129,8 +131,8 @@ export function Dashboard({ repo }: DashboardProps) {
     loadMetrics()
   }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric])
 
-  // Generate heatmap
-  const generateHeatmap = async (
+  // Generate scorecard
+  const generateScorecard = async (
     selectedTrainingRunIds: string[],
     selectedRunFreePolicyIds: string[],
     selectedEvalNames: Set<string>,
@@ -141,32 +143,32 @@ export function Dashboard({ repo }: DashboardProps) {
       selectedEvalNames.size === 0 ||
       !selectedMetric
     ) {
-      setError('Please select training runs/policies, evaluations, and a metric before generating the heatmap.')
+      setError('Please select training runs/policies, evaluations, and a metric before generating the scorecard.')
       return
     }
 
     try {
-      setLoading((prev) => ({ ...prev, heatmap: true }))
+      setLoading((prev) => ({ ...prev, scorecard: true }))
       setError(null)
-      const heatmapResult = await repo.generatePolicyHeatmap({
+      const scorecardResult = await repo.generatePolicyScorecard({
         training_run_ids: selectedTrainingRunIds,
         run_free_policy_ids: selectedRunFreePolicyIds,
         eval_names: Array.from(selectedEvalNames),
         training_run_policy_selector: trainingRunPolicySelector,
         metric: selectedMetric,
       })
-      setHeatmapData(heatmapResult)
+      setScorecardData(scorecardResult)
       setControlsExpanded(false)
     } catch (err) {
-      setError(`Failed to generate heatmap: ${err instanceof Error ? err.message : 'Unknown error'}`)
-      setHeatmapData(null)
+      setError(`Failed to generate scorecard: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      setScorecardData(null)
     } finally {
-      setLoading((prev) => ({ ...prev, heatmap: false }))
+      setLoading((prev) => ({ ...prev, scorecard: false }))
     }
   }
 
-  const generateHeatmapCallback = async () => {
-    await generateHeatmap(selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric)
+  const generateScorecardCallback = async () => {
+    await generateScorecard(selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric)
   }
 
   // Stable handlers for PolicySelector to prevent unnecessary re-renders
@@ -178,17 +180,17 @@ export function Dashboard({ repo }: DashboardProps) {
     setCurrentPage(page)
   }, [])
 
-  const canGenerateHeatmap =
+  const canGenerateScorecard =
     (selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
     selectedEvalNames.size > 0 &&
     selectedMetric !== '' &&
     !Object.values(loading).some(Boolean)
 
   const openReplayUrl = (policyName: string, evalName: string) => {
-    const cell = heatmapData?.cells[policyName]?.[evalName]
+    const cell = scorecardData?.cells[policyName]?.[evalName]
     if (!cell?.replayUrl) return
 
-    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
     window.open(replay_url_prefix + cell.replayUrl, '_blank')
   }
 
@@ -202,7 +204,7 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   }
 
-  const selectedCellData = selectedCell ? heatmapData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
+  const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
 
@@ -217,6 +219,23 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   }
 
+  // Helper function to compare dashboard states
+  const isDashboardStateChanged = () => {
+    if (!savedDashboard) return true
+
+    const currentState = getDashboardState()
+    const originalDashboardState = savedDashboard.dashboard_state
+    return (
+      JSON.stringify(currentState.selectedTrainingRunIds) !==
+        JSON.stringify(originalDashboardState.selectedTrainingRunIds) ||
+      JSON.stringify(currentState.selectedRunFreePolicyIds) !==
+        JSON.stringify(originalDashboardState.selectedRunFreePolicyIds) ||
+      JSON.stringify(currentState.selectedEvalNames) !== JSON.stringify(originalDashboardState.selectedEvalNames) ||
+      currentState.trainingRunPolicySelector !== originalDashboardState.trainingRunPolicySelector ||
+      currentState.selectedMetric !== originalDashboardState.selectedMetric
+    )
+  }
+
   const restoreDashboardState = async (state: DashboardState) => {
     setSelectedTrainingRunIds(state.selectedTrainingRunIds || [])
     setSelectedRunFreePolicyIds(state.selectedRunFreePolicyIds || [])
@@ -224,7 +243,7 @@ export function Dashboard({ repo }: DashboardProps) {
     setTrainingRunPolicySelector(state.trainingRunPolicySelector || 'latest')
     setSelectedMetric(state.selectedMetric || '')
 
-    await generateHeatmap(
+    await generateScorecard(
       state.selectedTrainingRunIds,
       state.selectedRunFreePolicyIds,
       new Set(state.selectedEvalNames),
@@ -232,7 +251,7 @@ export function Dashboard({ repo }: DashboardProps) {
     )
   }
 
-  const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
+  const handleCreateDashboard = async (dashboardData: SavedDashboardCreate) => {
     try {
       const dashboardState = getDashboardState()
       const saveData = {
@@ -254,22 +273,34 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   }
 
+  const loadSavedDashboard = async (savedId: string) => {
+    try {
+      const savedDashboard = await repo.getSavedDashboard(savedId)
+      if (savedDashboard.dashboard_state) {
+        setSavedDashboard(savedDashboard)
+        await restoreDashboardState(savedDashboard.dashboard_state)
+      }
+    } catch (error) {
+      console.error('Failed to load saved dashboard:', error)
+    }
+  }
+
   const savedId = searchParams.get('saved_id')
+  const dashboardName = savedDashboard?.name ?? 'Policy Scorecard'
+
+  const handleDashboardButtonClick = async () => {
+    if (savedId) {
+      await repo.updateDashboardState(savedId, getDashboardState())
+      await loadSavedDashboard(savedId)
+    } else {
+      setShowSaveModal(true)
+    }
+  }
+
   // Load saved dashboard on mount if saved_id parameter is present
   useEffect(() => {
     if (savedId) {
-      const loadSavedDashboard = async () => {
-        try {
-          const savedDashboard = await repo.getSavedDashboard(savedId)
-          if (savedDashboard.dashboard_state) {
-            await restoreDashboardState(savedDashboard.dashboard_state as DashboardState)
-          }
-        } catch (error) {
-          console.error('Failed to load saved dashboard:', error)
-        }
-      }
-
-      loadSavedDashboard()
+      loadSavedDashboard(savedId)
     }
   }, [savedId, repo])
 
@@ -277,9 +308,9 @@ export function Dashboard({ repo }: DashboardProps) {
     <div className={styles.dashboardContainer}>
       <div className={styles.dashboardContent}>
         <div className={styles.dashboardHeader}>
-          <h1 className={styles.dashboardTitle}>Policy Heatmap Dashboard</h1>
+          <h1 className={styles.dashboardTitle}>{dashboardName}</h1>
           <p className={styles.dashboardSubtitle}>
-            Select policies and evaluations to generate interactive heatmaps for analysis.
+            Select policies and evaluations to generate interactive scorecards for analysis.
           </p>
         </div>
 
@@ -367,35 +398,30 @@ export function Dashboard({ repo }: DashboardProps) {
           )}
         </div>
 
-        {/* Generate Heatmap Button */}
-        <div className={styles.generateHeatmapContainer}>
-          <div className={styles.generateHeatmapButtonWrapper}>
+        {/* Generate Scorecard Button */}
+        <div className={styles.generateScorecardContainer}>
+          <div className={styles.generateScorecardButtonWrapper}>
             <div className={styles.dashboardActions}>
               <button
-                onClick={generateHeatmapCallback}
-                disabled={!canGenerateHeatmap}
-                className={styles.generateHeatmapButton}
+                onClick={generateScorecardCallback}
+                disabled={!canGenerateScorecard}
+                className={styles.generateScorecardButton}
               >
-                {loading.heatmap ? (
+                {loading.scorecard ? (
                   <>
                     <span className={styles.loadingSpinner}></span>
-                    Generating Heatmap...
+                    Generating Scorecard...
                   </>
                 ) : (
-                  'Generate Heatmap'
+                  'Generate Scorecard'
                 )}
               </button>
               <button
-                onClick={() => setShowSaveModal(true)}
-                disabled={!heatmapData}
+                onClick={handleDashboardButtonClick}
+                disabled={!isDashboardStateChanged()}
                 className={styles.saveDashboardButton}
-                title={
-                  heatmapData
-                    ? 'Save current dashboard configuration'
-                    : 'Generate a heatmap first to save the dashboard'
-                }
               >
-                Save Dashboard
+                {savedId ? 'Update Dashboard' : 'Save Dashboard'}
               </button>
             </div>
             <div className={styles.buttonHelpText}>
@@ -403,7 +429,7 @@ export function Dashboard({ repo }: DashboardProps) {
               evaluations
               {selectedMetric && `, using ${selectedMetric} metric`}
             </div>
-            {!canGenerateHeatmap && (
+            {!canGenerateScorecard && (
               <div className={styles.validationMessage}>
                 {selectedTrainingRunIds.length === 0 &&
                   selectedRunFreePolicyIds.length === 0 &&
@@ -421,15 +447,15 @@ export function Dashboard({ repo }: DashboardProps) {
           </div>
         </div>
 
-        {/* Heatmap Display */}
-        {heatmapData && (
-          <div className={styles.heatmapContainer}>
-            <Heatmap
-              data={heatmapData}
+        {/* Scorecard Display */}
+        {scorecardData && (
+          <div className={styles.scorecardContainer}>
+            <Scorecard
+              data={scorecardData}
               selectedMetric={selectedMetric}
               setSelectedCell={setSelectedCell}
               openReplayUrl={openReplayUrl}
-              numPoliciesToShow={heatmapData.policyNames.length} // Show all policies
+              numPoliciesToShow={scorecardData.policyNames.length} // Show all policies
             />
 
             <MapViewer
@@ -446,7 +472,7 @@ export function Dashboard({ repo }: DashboardProps) {
         <SaveDashboardModal
           isOpen={showSaveModal}
           onClose={() => setShowSaveModal(false)}
-          onSave={handleSaveDashboard}
+          onSave={handleCreateDashboard}
         />
       </div>
     </div>

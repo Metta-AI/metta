@@ -15,10 +15,10 @@ import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.factory import create_container_manager
 from metta.app_backend.container_managers.models import WorkerInfo
-from metta.app_backend.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
     TaskResponse,
@@ -26,6 +26,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
 )
 from metta.common.util.collections import group_by
+from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.logging_helpers import init_logging
 
 
@@ -191,7 +192,7 @@ async def main() -> None:
 
     logger = logging.getLogger(__name__)
 
-    backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
+    backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "1200"))

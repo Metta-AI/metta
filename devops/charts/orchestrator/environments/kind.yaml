@@ -1,7 +1,8 @@
 image:
-  repository: metta-policy-evaluator-local
+  registry: ""
+  name: metta-policy-evaluator-local
   tag: "latest"
-  pullPolicy: Never
+  pullPolicy: IfNotPresent
 
 env:
   BACKEND_URL: "http://host.docker.internal:8000"

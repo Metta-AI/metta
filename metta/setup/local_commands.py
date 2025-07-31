@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from metta.common.util.constants import METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info
 
@@ -124,9 +125,9 @@ class LocalCommands:
     @property
     def kind_manager(self):
         if self._kind_manager is None:
-            from metta.setup.tools.local.kind import Kind
+            from metta.setup.tools.local.kind import KindLocal
 
-            self._kind_manager = Kind()
+            self._kind_manager = KindLocal()
         return self._kind_manager
 
     def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
@@ -187,8 +188,7 @@ class LocalCommands:
                 error("No W&B entity found. Please login with 'wandb login'")
                 sys.exit(1)
 
-        # Use provided project or default to 'metta'
-        project = args.project if args.project else "metta"
+        project = args.project if args.project else METTA_WANDB_PROJECT
 
         info(f"Using entity: {entity}, project: {project}")
         if not args.stats_db_uri:

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import traceback
@@ -21,19 +20,20 @@ from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
-from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
+from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
-from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -59,15 +59,15 @@ from metta.rl.util.rollout import (
     get_observation,
     run_policy_inference,
 )
-from metta.rl.util.stats import (
+from metta.rl.vecenv import make_vecenv
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+from metta.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -788,13 +788,11 @@ class MettaTrainer:
                 if not stats_server_policy_id:
                     logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
                 else:
-                    task = asyncio.run(
-                        self._stats_client.create_task(
-                            TaskCreateRequest(
-                                policy_id=stats_server_policy_id,
-                                git_hash=self.trainer_cfg.simulation.git_hash,
-                                sim_suite=self._sim_suite_config.name,
-                            )
+                    task = self._stats_client.create_task(
+                        TaskCreateRequest(
+                            policy_id=stats_server_policy_id,
+                            git_hash=self.trainer_cfg.simulation.git_hash,
+                            sim_suite=self._sim_suite_config.name,
                         )
                     )
                     logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
@@ -857,13 +855,13 @@ class MettaTrainer:
             for name, urls in replay_groups.items():
                 if len(urls) == 1:
                     # Single episode - just show the name
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                    player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={urls[0]}"
                     links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
                 else:
                     # Multiple episodes - show with numbers
                     episode_links = []
                     for i, url in enumerate(urls, 1):
-                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                        player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={url}"
                         episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
                     links.append(f"{name} [{' '.join(episode_links)}]")
 
@@ -879,7 +877,7 @@ class MettaTrainer:
         # Also log individual link for backward compatibility
         if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
             training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
+            player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={training_url}"
             link_summary = {
                 "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
             }

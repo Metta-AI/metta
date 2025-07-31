@@ -11,6 +11,7 @@ import mettascope.server as server
 from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -65,7 +66,7 @@ def main(cfg: DictConfig):
             if not replay_url.startswith("http"):
                 # Remove ./ prefix if it exists
                 clean_path = replay_url.removeprefix("./")
-                local_url = f"http://localhost:8000/local/{clean_path}"
+                local_url = f"{DEV_METTASCOPE_FRONTEND_URL}/local/{clean_path}"
                 full_url = f"/?replayUrl={quote(local_url)}"
 
                 # Run a metascope server that serves the replay

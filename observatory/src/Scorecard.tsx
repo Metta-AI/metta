@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import Plot from 'react-plotly.js'
-import { HeatmapData } from './repo'
+import { ScorecardData } from './repo'
+import { METTA_WANDB_ENTITY, METTA_WANDB_PROJECT } from './constants'
 
-interface HeatmapProps {
-  data: HeatmapData
+interface ScorecardProps {
+  data: ScorecardData
   selectedMetric: string
   setSelectedCell: (cell: { policyUri: string; evalName: string }) => void
   openReplayUrl: (policyUri: string, evalName: string) => void
@@ -61,8 +62,8 @@ const getShortName = (evalName: string) => {
 }
 
 const wandb_url = (policyName: string) => {
-  const entity = 'metta-research'
-  const project = 'metta'
+  const entity = METTA_WANDB_ENTITY
+  const project = METTA_WANDB_PROJECT
   let policyKey = policyName
   if (policyName.includes(':v')) {
     policyKey = policyName.split(':v')[0]
@@ -70,13 +71,13 @@ const wandb_url = (policyName: string) => {
   return `https://wandb.ai/${entity}/${project}/runs/${policyKey}`
 }
 
-export function Heatmap({
+export function Scorecard({
   data,
   selectedMetric,
   setSelectedCell,
   openReplayUrl,
   numPoliciesToShow = 20,
-}: HeatmapProps) {
+}: ScorecardProps) {
   const [lastHoveredCell, setLastHoveredCell] = useState<{
     policyUri: string
     evalName: string

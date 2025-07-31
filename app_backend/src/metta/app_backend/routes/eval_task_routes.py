@@ -53,6 +53,8 @@ class TaskResponse(BaseModel):
     attributes: dict[str, Any]
     policy_name: str | None = None
     retries: int
+    user_id: str | None = None
+    updated_at: datetime
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
@@ -78,11 +80,13 @@ class TaskResponse(BaseModel):
             attributes=task["attributes"] or {},
             policy_name=task.get("policy_name"),
             retries=task["retries"],
+            user_id=task.get("user_id"),
+            updated_at=task["updated_at"],
         )
 
 
 class TaskUpdateResponse(BaseModel):
-    statuses: dict[uuid.UUID, str]
+    statuses: dict[uuid.UUID, TaskStatus]
 
 
 class TasksResponse(BaseModel):
@@ -113,6 +117,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             policy_id=request.policy_id,
             sim_suite=request.sim_suite,
             attributes=attributes,
+            user_id=user,
         )
         return TaskResponse.from_db(task)
 
@@ -151,7 +156,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_all_tasks(
         limit: int = Query(default=500, ge=1, le=1000),
-        statuses: list[str] | None = Query(default=None),
+        statuses: list[TaskStatus] | None = Query(default=None),
         git_hash: str | None = Query(default=None),
         policy_ids: list[uuid.UUID] | None = Query(default=None),
         sim_suites: list[str] | None = Query(default=None),
