@@ -13,20 +13,15 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-
 setup: |
   set -e
-  echo "[SETUP] Starting setup..."
-
   cd /workspace/metta
 
   git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
   git checkout "$METTA_GIT_REF"
-  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
+  echo "Checked out: $(git rev-parse HEAD)"
 
   bash ./devops/skypilot/config/setup-common.sh
-
-  echo "[SETUP] Setup complete."
 
 run: |
   set -e
