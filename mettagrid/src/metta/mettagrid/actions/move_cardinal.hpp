@@ -10,7 +10,7 @@
 
 class MoveCardinal : public ActionHandler {
 public:
-  explicit MoveCardinal(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
+  explicit MoveCardinal(const ActionConfig& cfg) : ActionHandler(cfg, "move_cardinal") {}
 
   unsigned char max_arg() const override {
     return 3;  // 0 = North (Up), 1 = South (Down), 2 = West (Left), 3 = East (Right)
