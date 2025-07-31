@@ -83,7 +83,7 @@ export function Scorecard({
     evalName: string
   } | null>(null)
 
-  // Convert to heatmap format
+  // Convert to scorecard format
   const policies = Object.keys(data.cells)
 
   // In the new system, eval names are already properly formatted (e.g. "navigation/maze1")

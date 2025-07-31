@@ -13,7 +13,7 @@ set -euo pipefail
 
 # Configuration
 readonly MD5SUMS_FILE=".md5sums"
-readonly COMPILED_JS="heatmap_widget/static/index.js"
+readonly COMPILED_JS="scorecard_widget/static/index.js"
 
 # Get command-line arguments
 readonly SHOULD_BUILD="${1:-0}"
