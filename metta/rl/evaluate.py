@@ -37,13 +37,13 @@ def evaluate_policy(
     epoch: int,
 ) -> EvalRewardSummary:
     """Evaluate policy using the eval service and handle remote evaluation, scoring, and replay uploads.
-    
+
     This function orchestrates policy evaluation including:
     - Remote evaluation via stats server if configured
     - Local evaluation using the eval service
     - Policy metadata scoring for sweep evaluations
     - Replay HTML upload to wandb
-    
+
     Returns:
         EvalRewardSummary containing the evaluation scores
     """
@@ -94,9 +94,9 @@ def evaluate_policy(
         logger=logger,
     )
     logger.info("Simulation complete")
-    
+
     eval_scores = evaluation_results.scores
-    
+
     # Get target metric (for logging) from sweep config
     # and write top-level score for policy selection.
     # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
@@ -104,11 +104,8 @@ def evaluate_policy(
     category_scores = list(eval_scores.category_scores.values())
     if category_scores and policy_record:
         policy_record.metadata["score"] = float(np.mean(category_scores))
-        logger.info(
-            f"Set policy metadata score to "
-            f"{policy_record.metadata['score']} using {target_metric} metric"
-        )
-    
+        logger.info(f"Set policy metadata score to {policy_record.metadata['score']} using {target_metric} metric")
+
     # Generate and upload replay HTML if we have wandb
     if wandb_run is not None and evaluation_results.replay_urls:
         upload_replay_html(
@@ -117,7 +114,7 @@ def evaluate_policy(
             epoch=epoch,
             wandb_run=wandb_run,
         )
-    
+
     return eval_scores
 
 
@@ -132,7 +129,7 @@ def upload_replay_html(
     if replay_urls:
         # Group replays by base name
         replay_groups = {}
-        
+
         for sim_name, urls in sorted(replay_urls.items()):
             if "training_task" in sim_name:
                 # Training replays
@@ -145,7 +142,7 @@ def upload_replay_html(
                 if display_name not in replay_groups:
                     replay_groups[display_name] = []
                 replay_groups[display_name].extend(urls)
-        
+
         # Build HTML with episode numbers
         links = []
         for name, urls in replay_groups.items():
@@ -160,19 +157,17 @@ def upload_replay_html(
                     player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={url}"
                     episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
                 links.append(f"{name} [{' '.join(episode_links)}]")
-        
+
         # Log all links in a single HTML entry
         html_content = " | ".join(links)
         wandb_run.log(
             {"replays/all": wandb.Html(html_content)},
             step=agent_step,
         )
-    
+
     # Maintain backward compatibility - log training task separately if available
     if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
         training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
         player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={training_url}"
-        link_summary = {
-            "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')
-        }
+        link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
         wandb_run.log(link_summary, step=agent_step)

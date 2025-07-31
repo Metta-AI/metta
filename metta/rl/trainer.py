@@ -16,13 +16,13 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.distributed import setup_distributed_vars
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv
-from metta.rl.evaluate import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -36,11 +36,6 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_lstm_config
-from metta.stats import (
-    StatsTracker,
-    accumulate_rollout_stats,
-    process_stats,
-)
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
@@ -55,6 +50,11 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
     upload_policy_artifact,
+)
+from metta.stats import (
+    StatsTracker,
+    accumulate_rollout_stats,
+    process_stats,
 )
 
 try:
@@ -431,7 +431,7 @@ def train(
                     agent_step=agent_step,
                     epoch=epoch,
                 )
-                
+
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
         # Compute gradient stats
