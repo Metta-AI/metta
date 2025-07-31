@@ -3,7 +3,7 @@ import type { HoverBubble } from './hoverbubbles.js'
 import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
-import { Replay } from './replay.js'
+import { Entity, Replay } from './replay.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
@@ -100,7 +100,7 @@ export const ui = {
 export const state = {
   // Replay data and player state
   replay: new Replay(),
-  selectedGridObject: null as any,
+  selectedGridObject: null as Entity | null,
   followSelection: false, // Flag to follow the selected entity.
 
   // Playback state

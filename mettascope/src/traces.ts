@@ -62,15 +62,17 @@ export function drawTrace(panel: PanelInfo) {
           agentId < state.replay.numAgents
         ) {
           updateSelection(state.replay.agents[agentId])
-          console.info('Selected an agent on a trace:', state.selectedGridObject)
-          const location = state.selectedGridObject.location.get()
-          ui.mapPanel.focusPos(
-            location[0] * Common.TILE_SIZE,
-            location[1] * Common.TILE_SIZE,
-            Common.DEFAULT_ZOOM_LEVEL
-          )
-          // Update the step to the clicked step.
-          updateStep(selectedStep)
+          if (state.selectedGridObject != null) {
+            console.info('Selected an agent on a trace:', state.selectedGridObject)
+            const location = state.selectedGridObject.location.get()
+            ui.mapPanel.focusPos(
+              location[0] * Common.TILE_SIZE,
+              location[1] * Common.TILE_SIZE,
+              Common.DEFAULT_ZOOM_LEVEL
+            )
+            // Update the step to the clicked step.
+            updateStep(selectedStep)
+          }
         }
       }
     }

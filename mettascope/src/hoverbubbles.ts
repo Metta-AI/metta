@@ -186,8 +186,8 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
 
   let displayedResources = 0
 
-  const inputResources = object.recipeInput
-  const outputResources = object.recipeOutput
+  const inputResources = object.inputResources
+  const outputResources = object.outputResources
 
   // If config has input_resources or output_resources use that,
   // otherwise use input_{resource} and output_{resource}.

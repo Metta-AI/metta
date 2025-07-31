@@ -410,10 +410,7 @@ function drawSelection() {
 
 /** Draws the trajectory of the selected object, with footprints or a future arrow. */
 function drawTrajectory() {
-  if (state.selectedGridObject === null) {
-    return
-  }
-  if (state.selectedGridObject.location.length > 0) {
+  if (state.selectedGridObject != null && state.selectedGridObject!.location.length() > 1) {
     // Draw both past and future trajectories.
     for (let i = 1; i < state.replay.maxSteps; i++) {
       const location0 = state.selectedGridObject.location.get(i - 1)
@@ -797,7 +794,7 @@ export function drawMap(panel: PanelInfo) {
       if (objectUnderMouse !== undefined && objectUnderMouse !== null) {
         updateSelection(objectUnderMouse)
         console.info('Selected object on the map:', state.selectedGridObject)
-        if (state.selectedGridObject.isAgent) {
+        if (state.selectedGridObject !== null && state.selectedGridObject.isAgent) {
           // If selecting an agent, focus the trace panel on the agent.
           ui.tracePanel.focusPos(
             state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,

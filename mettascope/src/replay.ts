@@ -66,15 +66,21 @@ export class Sequence<T> {
   /** Adds a value to the sequence. */
   add(value: T) {
     if (this.sequence == null) {
-      this.value = value as T
-    } else {
-      this.sequence.push(value)
+      this.sequence = []
     }
+    this.sequence.push(value)
   }
 
   /** Checks if the sequence is a sequence of values. */
   isSequence(): boolean {
     return this.sequence != null
+  }
+
+  length(): number {
+    if (this.sequence == null) {
+      return 1
+    }
+    return this.sequence.length
   }
 
   /** Checks if the sequence is a single value . */
@@ -108,8 +114,8 @@ export class Entity {
   visionSize: number = 0
 
   // Building specific keys.
-  recipeInput: [number, number][] = []
-  recipeOutput: [number, number][] = []
+  inputResources: [number, number][] = []
+  outputResources: [number, number][] = []
   recipeMax: number = 0
   productionProgress: Sequence<number> = new Sequence(0)
   productionTime: number = 0
@@ -485,6 +491,8 @@ function convertReplayV1ToV2(replayData: any) {
 function loadReplayJson(url: string, replayJson: any) {
   let replayData = replayJson
 
+  console.info('Replay data: ', replayData)
+
   // If the replay is version 1, convert it to version 2.
   if (replayData.version === 1) {
     replayData = convertReplayV1ToV2(replayData)
@@ -512,7 +520,6 @@ function loadReplayJson(url: string, replayJson: any) {
     object.typeId = gridObject.type_id
     object.location.expand(gridObject.location, replayData.max_steps, [0, 0, 0])
     object.orientation.expand(gridObject.orientation, replayData.max_steps, 0)
-    console.log('gridObject.inventory: ', gridObject.inventory)
     object.inventory.expand(gridObject.inventory, replayData.max_steps, [])
     object.inventoryMax = gridObject.inventory_max
     object.color.expand(gridObject.color, replayData.max_steps, 0)
@@ -531,9 +538,9 @@ function loadReplayJson(url: string, replayJson: any) {
       object.visionSize = Common.DEFAULT_VISION_SIZE // TODO Fix this
     }
 
-    if ("recipe_input" in gridObject) {
-      object.recipeInput = gridObject.recipe_input
-      object.recipeOutput = gridObject.recipe_output
+    if ("input_resources" in gridObject) {
+      object.inputResources = gridObject.input_resources
+      object.outputResources = gridObject.output_resources
       object.recipeMax = gridObject.recipe_max
       object.productionProgress.expand(gridObject.production_progress, replayData.max_steps, 0)
       object.productionTime = gridObject.production_time
@@ -547,7 +554,7 @@ function loadReplayJson(url: string, replayJson: any) {
   fixReplay()
 
 
-  console.log('Replay data: ', state.replay)
+  console.log('Replay: ', state.replay)
 
   if (state.replay.fileName) {
     html.fileName.textContent = state.replay.fileName
@@ -583,14 +590,14 @@ export function loadReplayStep(replayStep: any) {
     object.id = gridObject.id
     object.typeId = gridObject.type_id
     object.groupId = gridObject.group_id
-    object.agentId = gridObject.agent_id
-    object.visionSize = gridObject.vision_size
     object.isFrozen.add(gridObject.is_frozen)
     object.location.add(gridObject.location)
     object.orientation.add(gridObject.orientation)
     object.inventory.add(gridObject.inventory)
     object.color.add(gridObject.color)
     if ("agent_id" in gridObject) {
+      object.agentId = gridObject.agent_id
+      object.visionSize = gridObject.vision_size
       object.actionId.add(gridObject.action_id)
       object.actionParameter.add(gridObject.action_param)
       object.actionSuccess.add(gridObject.action_success)
@@ -642,6 +649,9 @@ export function initWebSocket(wsUrl: string) {
 export function sendAction(actionName: string, actionParam: number) {
   if (state.ws === null) {
     console.error('WebSocket is not connected')
+    return
+  }
+  if (state.selectedGridObject === null) {
     return
   }
   const agentId = state.selectedGridObject.agentId
