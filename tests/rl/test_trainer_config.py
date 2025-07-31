@@ -19,7 +19,6 @@ valid_optimizer_config = {
 
 # Complete valid trainer config with all required fields
 valid_trainer_config = {
-    "_target_": "metta.rl.trainer.MettaTrainer",
     "total_timesteps": 1000000,
     "batch_size": 1024,
     "minibatch_size": 256,
@@ -215,7 +214,6 @@ class TestTypedConfigs:
 
         # Test that we can convert the entire config back to dict for hydra.utils.instantiate
         config_dict = validated_config.model_dump(by_alias=True)
-        assert config_dict["_target_"] == "metta.rl.trainer.MettaTrainer"
         assert config_dict["batch_size"] == 1024
         assert config_dict["env_overrides"]["max_steps"] == 1000
 

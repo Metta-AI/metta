@@ -25,7 +25,6 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
     """
     # Create pre-built navigation evaluation configs
     base_nav_config = _get_default_env_config()
-    base_nav_config["sampling"] = 0  # Disable sampling for evaluation
 
     # Create evaluation configs for different terrain sizes
     simulations = {}
@@ -85,7 +84,6 @@ def create_replay_config(terrain_dir: str = "varied_terrain/balanced_medium") ->
     """
     # Create pre-built navigation config for replay
     replay_config = _get_default_env_config()
-    replay_config["sampling"] = 0  # Disable sampling for replay
 
     # Create simulation config with pre-built config in env_overrides
     replay_sim_config = SingleEnvSimulationConfig(

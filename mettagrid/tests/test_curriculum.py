@@ -32,9 +32,9 @@ from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
 from metta.mettagrid.curriculum.multi_task import MultiTaskCurriculum
 from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
-from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum, ProgressiveMultiTaskCurriculum
+from metta.mettagrid.curriculum.progressive import ProgressiveMultiTaskCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
-from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum, SamplingCurriculum
+from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
 
@@ -106,35 +106,6 @@ def test_prioritize_regressed_curriculum_updates(monkeypatch, env_cfg):
     # Task "b" now has max/avg = 1.0/1.0 = 1.0, similar to task "a"
     # But weight should have increased from epsilon
     assert curr._task_weights["b"] > prev_b, "Weight should increase when task gets its first score"
-
-
-def test_sampling_curriculum(monkeypatch, env_cfg):
-    monkeypatch.setattr(
-        "metta.mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg
-    )
-
-    curr = SamplingCurriculum("dummy")
-    t1 = curr.get_task()
-    t2 = curr.get_task()
-
-    assert t1.id() == "sample(0)"
-    assert t1.env_cfg().game.map.width == 10
-    assert t1.id() == t2.id()
-    assert t1 is not t2
-
-
-def test_progressive_curriculum(monkeypatch, env_cfg):
-    monkeypatch.setattr(
-        "metta.mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg
-    )
-
-    curr = ProgressiveCurriculum("dummy")
-    t1 = curr.get_task()
-    assert t1.env_cfg().game.map.width == 10
-
-    curr.complete_task(t1.id(), 0.6)
-    t2 = curr.get_task()
-    assert t2.env_cfg().game.map.width == 20
 
 
 def test_bucketed_curriculum(monkeypatch, env_cfg):
@@ -513,7 +484,7 @@ def create_mock_curricula(task_names: List[str]) -> Dict[str, float]:
 # ============================================================================
 
 
-class TestProgressiveCurriculumScenarios:
+class TestProgressiveMultiTaskCurriculumScenarios:
     """Test the specific Progressive Curriculum scenarios requested."""
 
     def test_scenario_1_monotonic_linear_advances_correctly(self, monkeypatch):
