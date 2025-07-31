@@ -100,6 +100,8 @@ def train(
     is_master, world_size, rank = setup_distributed_vars()
     device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
 
+    print(f"cfg.device = {cfg.device}, torch.cuda.current_device() = {torch.cuda.current_device()}")
+
     # Create timer
     timer = Stopwatch(logger)
     timer.start()
