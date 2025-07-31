@@ -24,7 +24,8 @@ from metta.monitoring import (
     setup_monitoring,
 )
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.evaluate import evaluate_policy, generate_policy_replay
+from metta.replays import generate_policy_replay
+from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
