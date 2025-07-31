@@ -34,7 +34,8 @@ from metta.rl.policy_management import (
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
-from metta.rl.rollout import get_lstm_config
+from metta.rl.ppo import ppo
+from metta.rl.rollout import get_lstm_config, rollout
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -45,7 +46,6 @@ from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.training_loop import (
     log_training_progress,
-    run_training_epoch,
     should_run,
 )
 from metta.rl.vecenv import make_vecenv
@@ -189,14 +189,8 @@ def train(
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
-
-        # Ensure all ranks are ready before wrapping
         torch.distributed.barrier()
-
-        # Use the wrap_agent_distributed function which handles CPU vs GPU correctly
         policy = wrap_agent_distributed(policy, device)
-
-        # Ensure all ranks have wrapped before proceeding
         torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
@@ -228,20 +222,25 @@ def train(
 
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
-    opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
-    # ForeachMuon expects int for weight_decay, Adam expects float
-    weight_decay = trainer_cfg.optimizer.weight_decay
-    if optimizer_type != "adam":
-        # Ensure weight_decay is int for ForeachMuon
-        weight_decay = int(weight_decay)
-
-    optimizer = opt_cls(
-        policy.parameters(),
-        lr=trainer_cfg.optimizer.learning_rate,
-        betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
-        eps=trainer_cfg.optimizer.eps,
-        weight_decay=weight_decay,  # type: ignore - ForeachMuon type annotation issue
-    )
+    if optimizer_type == "adam":
+        optimizer = torch.optim.Adam(
+            policy.parameters(),
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=trainer_cfg.optimizer.weight_decay,
+        )
+    elif optimizer_type == "muon":
+        # ForeachMuon expects int for weight_decay
+        optimizer = ForeachMuon(
+            policy.parameters(),
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=int(trainer_cfg.optimizer.weight_decay),
+        )
+    else:
+        raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
     if checkpoint and checkpoint.optimizer_state_dict:
         try:
@@ -250,11 +249,9 @@ def train(
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-    if is_master:
-        logger.info("Starting training")
-
     # Set up monitoring (master only)
     if is_master:
+        logger.info("Starting training")
         memory_monitor, system_monitor = setup_monitoring(
             policy=policy,
             experience=experience,
@@ -293,21 +290,30 @@ def train(
         record_heartbeat()
 
         with torch_profiler:
-            # Run training epoch using new functional interface
-            agent_step, epochs_trained, raw_infos = run_training_epoch(
-                vecenv=vecenv,
-                policy=policy,
-                optimizer=optimizer,
-                experience=experience,
-                kickstarter=kickstarter,
-                losses=losses,
-                trainer_cfg=trainer_cfg,
-                agent_step=agent_step,
-                epoch=epoch,
-                device=device,
-                timer=timer,
-                world_size=world_size,
-            )
+            # Rollout phase
+            with timer("_rollout"):
+                num_steps, raw_infos = rollout(
+                    vecenv=vecenv,
+                    policy=policy,
+                    experience=experience,
+                    device=device,
+                    timer=timer,
+                )
+                agent_step += num_steps * world_size
+
+            # Training phase
+            with timer("_train"):
+                epochs_trained = ppo(
+                    policy=policy,
+                    optimizer=optimizer,
+                    experience=experience,
+                    kickstarter=kickstarter,
+                    losses=losses,
+                    trainer_cfg=trainer_cfg,
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    device=device,
+                )
             epoch += epochs_trained
 
             # Process rollout stats
