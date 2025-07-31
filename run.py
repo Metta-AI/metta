@@ -35,8 +35,10 @@ from metta.interface.training import (
     load_checkpoint,
     save_checkpoint,
 )
-from metta.mettagrid import mettagrid_c  # noqa: F401
-from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.mettagrid import (
+    dtype_actions,
+    mettagrid_c,  # noqa: F401
+)
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -64,15 +66,15 @@ from metta.rl.util.rollout import (
     get_observation,
     run_policy_inference,
 )
-from metta.rl.util.stats import (
+from metta.rl.util.utils import should_run as should_run_on_interval
+from metta.sim.simulation import Simulation
+from metta.sim.simulation_suite import SimulationSuite
+from metta.stats import (
     accumulate_rollout_stats,
     build_wandb_stats,
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.util.utils import should_run as should_run_on_interval
-from metta.sim.simulation import Simulation
-from metta.sim.simulation_suite import SimulationSuite
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")

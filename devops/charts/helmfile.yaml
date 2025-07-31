@@ -99,6 +99,8 @@ releases:
             oidc-issuer-url: https://accounts.google.com
             use-https: true
             email-domain: stem.ai,softmax.com
+            # Skypilot uses `redis` by default, but its redis chart doesn't have persistence, so loses sessions on restart.
+            session-store-type: cookie
             # This secret must be created manually.
             # (it's not possible to automate it because it's not possible to terraform oauth clients in GCP)
             client-details-from-secret: skypilot-oauth2-proxy-details
