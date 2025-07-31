@@ -35,17 +35,6 @@ export interface Atlas {
   margin: number // Pixel margin added around sprites to prevent texture bleeding
 }
 
-export function validateAtlas(atlas: Atlas): boolean {
-  return (
-    typeof atlas.margin === 'number' &&
-    atlas.size instanceof Vec2f &&
-    atlas.texture !== null &&
-    Object.values(atlas.data).every(
-      (bounds) => Array.isArray(bounds) && bounds.length === 4 && bounds.every((n) => typeof n === 'number')
-    )
-  )
-}
-
 export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, AtlasMetadata] | null> {
   try {
     const res = await fetch(url)
@@ -54,14 +43,21 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
     }
 
     const raw = await res.json()
-
     const metadata = (raw.metadata ?? {}) as AtlasMetadata
 
-    const spriteEntries = Object.entries(raw).filter(([k, v]) => k !== 'metadata' && isSpriteBounds(v))
-
+    // Extract only valid sprite bounds entries
+    const spriteEntries = Object.entries(raw).filter(
+      ([k, v]) => k !== 'metadata' && Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === 'number')
+    )
     const sprites = Object.fromEntries(spriteEntries) as AtlasSpriteMap
 
-    return [sprites as AtlasSpriteMap, metadata as AtlasMetadata]
+    // Inline validation: make sure the atlas JSON at least has valid sprites
+    if (!sprites || Object.keys(sprites).length === 0) {
+      console.error(`Atlas ${url} has no valid sprite entries.`)
+      return null
+    }
+
+    return [sprites, metadata]
   } catch (err) {
     console.error(`Error loading atlas ${url}:`, err)
     return null

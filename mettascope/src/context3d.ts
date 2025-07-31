@@ -210,22 +210,12 @@ export class Context3d {
       magFilter: this.gl.LINEAR,
     })
 
-    if (!this.mainAtlas) {
-      this.fail('Failed to load main atlas')
-      return false
-    }
-
     this.fontAtlas = await loadAtlas(this.gl, fontJsonUrl, fontImageUrl, {
       wrapS: this.gl.REPEAT,
       wrapT: this.gl.REPEAT,
       minFilter: this.gl.LINEAR_MIPMAP_LINEAR,
       magFilter: this.gl.LINEAR,
     })
-
-    if (!this.fontAtlas) {
-      this.fail('Failed to load font atlas')
-      return false
-    }
 
     // Create and compile shaders
     const vertexShader = this.createShader(this.gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE)
@@ -395,39 +385,39 @@ export class Context3d {
 
   /* Draws a sprite from the texture atlas with its center at (centerX, centerY). */
   drawSprite(
-    imageName: string, // Name of the image in the atlas (e.g., 'player.png')
-    centerX: number, // X coordinate of the sprite's center
-    centerY: number, // Y coordinate of the sprite's center
-    color: RGBA = [1, 1, 1, 1], // RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
-    scale: number | [number, number] = 1, // Uniform scale (number) or non-uniform scale [scaleX, scaleY]
-    rotation = 0 // Rotation angle in radians (positive = clockwise)
+    imageName: string,
+    centerX: number,
+    centerY: number,
+    color: RGBA = [1, 1, 1, 1],
+    scale: number | [number, number] = 1,
+    rotation: number = 0
   ) {
     if (!this.ready || !this.mainAtlas) {
       throw new Error('Drawer not initialized')
     }
-
     this.ensureMeshSelected()
 
+    // lookup sprite bounds
     const bounds = getSpriteBounds(this.mainAtlas, imageName)
     if (!bounds) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
+    // calculate scale components
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
 
-    // Apply transformations if needed (scale or rotation)
+    // draw (with or without transform)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(centerX, centerY) // Move origin to sprite center
-      this.rotate(rotation) // Apply rotation
-      this.scale(scaleX, scaleY) // Apply scaling
+      this.translate(centerX, centerY)
+      this.rotate(rotation)
+      this.scale(scaleX, scaleY)
       this.drawRect(
-        -bounds.width / 2, // Left edge: center minus half width
-        -bounds.height / 2, // Top edge: center minus half height
-        bounds.width, // Total width including margins
-        bounds.height, // Total height including margins
+        -bounds.width / 2,
+        -bounds.height / 2,
+        bounds.width,
+        bounds.height,
         bounds.u0,
         bounds.v0,
         bounds.u1,
@@ -436,12 +426,11 @@ export class Context3d {
       )
       this.restore()
     } else {
-      // Fast path: no transformations needed, draw centered
       this.drawRect(
-        centerX - bounds.width / 2, // Left edge position
-        centerY - bounds.height / 2, // Top edge position
-        bounds.width, // Total width including margins
-        bounds.height, // Total height including margins
+        centerX - bounds.width / 2,
+        centerY - bounds.height / 2,
+        bounds.width,
+        bounds.height,
         bounds.u0,
         bounds.v0,
         bounds.u1,
@@ -493,8 +482,8 @@ export class Context3d {
     if (!this.ready) {
       throw new Error('Context not ready')
     }
-    if (!this.fontAtlas) {
-      console.error('Font atlas not loaded')
+    if (!this.fontAtlas || !this.fontAtlas.texture) {
+      console.error('Font atlas not loaded or texture missing')
       return
     }
 
@@ -503,13 +492,10 @@ export class Context3d {
 
     // Switch to font mesh or create it if needed
     this.useMesh('font')
-
-    // Set the font texture on the font mesh
     this.currentMesh!.texture = this.fontAtlas.texture
 
     // Cast fontAtlasData to any to access our custom structure
-    const metadata = this.fontAtlas.metadata
-    const data = this.fontAtlas.data
+    const metadata = this.fontAtlas.metadata as any
 
     // Get emoji codes from font data
     const emojiCodes = metadata.emojiCodes || {}
@@ -522,32 +508,15 @@ export class Context3d {
     const emojiPattern = emojiCodePattern ? new RegExp(`^(${emojiCodePattern})`) : null
 
     // Helper function to get character info with emoji code support
-    const getCharInfo = (char: string) => {
-      console.log(`getCharInfo called with char: "${char}" (code: ${char.charCodeAt(0)})`)
-
+    const getCharInfo = (char: string): SpriteBounds | undefined => {
       // First check if it's an emoji code
       if (emojiCodes[char]) {
         const emojiChar = emojiCodes[char]
-        console.log(`Found emoji code mapping: "${char}" -> "${emojiChar}"`)
-        const emojiData = this.fontAtlas?.data[emojiChar]
-        console.log(`Emoji data lookup result:`, emojiData)
-        return emojiData
+        return this.fontAtlas!.data[emojiChar]
       }
 
-      // For regular characters, try both the character and its char code
-      let charData = this.data?[char]
-      console.log(`Direct lookup for "${char}":`, charData)
-
-      if (!charData) {
-        // Try using the character code as the key
-        const charCode = char.charCodeAt(0).toString()
-        console.log(`Trying char code lookup with key "${charCode}"`)
-        charData = this.fontAtlas?.data[charCode]
-        console.log(`Char code lookup result:`, charData)
-      }
-
-      console.log(`Final result for "${char}":`, charData)
-      return charData
+      // For regular characters, look them up directly
+      return this.fontAtlas!.data[char]
     }
 
     // Parse text to handle multi-character emoji codes
@@ -581,10 +550,6 @@ export class Context3d {
     // Parse the text into characters/emoji codes
     const textChars = parseText(text)
 
-  console.log('textChars', textChars)
-  console.log('fontAtlas sample keys:', Object.keys(this.fontAtlas).slice(0, 10))
-  console.log('checking for "L" in fontAtlas:', this.fontAtlas['L'])
-
     // Calculate actual text dimensions using real character widths
     let textWidth = 0
     const textHeight = metadata.cellHeight // Use cell height as text height
@@ -595,7 +560,7 @@ export class Context3d {
     for (const char of textChars) {
       const info = getCharInfo(char)
       if (!info) {
-        console.warn(`Character not found in font atlas: ${char}`)
+        console.warn(`Character not found in font atlas: "${char}" (code: ${char.charCodeAt(0)})`)
         continue
       }
       const [_x, _y, width, _height] = info
@@ -608,28 +573,34 @@ export class Context3d {
       textWidth += (charInfos.length - 1) * spacing
     }
 
+    // Handle case where no valid characters were found
+    if (textWidth === 0 || charInfos.length === 0) {
+      console.warn('No valid characters found to render')
+      if (previousMeshName) {
+        this.useMesh(previousMeshName)
+      }
+      return
+    }
+
     // Calculate scale factors based on mode
     const [bx, by, bw, bh] = bbox
-    let scaleX = 1
-    let scaleY = 1
+    let scaleFactorX = 1
+    let scaleFactorY = 1
 
     if (mode === 'scale') {
       // Scale as large as possible while maintaining aspect ratio
       const widthScale = bw / textWidth
       const heightScale = bh / textHeight
-      scaleX = scaleY = Math.min(widthScale, heightScale)
+      scaleFactorX = scaleFactorY = Math.min(widthScale, heightScale)
     } else if (mode === 'stretch') {
       // Stretch to fill entire bbox (may distort)
-      scaleX = bw / textWidth
-      scaleY = bh / textHeight
+      scaleFactorX = bw / textWidth
+      scaleFactorY = bh / textHeight
     }
 
     // Calculate actual rendered dimensions
-    const scaledWidth = textWidth * scaleX
-    const scaledHeight = textHeight * scaleY
-
-    console.log('scaledWidth', scaledWidth)
-    console.log('scaledHeight', scaledHeight)
+    const scaledWidth = textWidth * scaleFactorX
+    const scaledHeight = textHeight * scaleFactorY
 
     // Calculate starting position based on alignment
     let cursorX = bx
@@ -646,25 +617,32 @@ export class Context3d {
       cursorY = by + bh - scaledHeight
     }
 
-    console.log('charInfos', charInfos)
-
     // Draw each character
     for (const { char, info, width } of charInfos) {
-      console.log(char)
-
       const [sx, sy, sw, sh] = info
+
+      // Check if this is an emoji code and convert to emoji character
+      const spriteChar = emojiCodes[char] || char
+
+      // Check if this is an emoji
+      const isEmoji = emojiValues.has(spriteChar) || emojiCodes.hasOwnProperty(char)
+      const drawColor: RGBA = isEmoji ? [1, 1, 1, 1] : color
+
+      // Calculate UV coordinates
       const u0 = sx / this.fontAtlas.size.x()
       const v0 = sy / this.fontAtlas.size.y()
       const u1 = (sx + sw) / this.fontAtlas.size.x()
       const v1 = (sy + sh) / this.fontAtlas.size.y()
 
-      // Check if this is an emoji
-      const isEmoji = emojiValues.has(char) || emojiCodes.hasOwnProperty(char)
-      const drawColor: RGBA = isEmoji ? [1, 1, 1, 1] : color
+      // Debug: Check if UV coordinates are valid
+      if (u0 < 0 || u0 > 1 || v0 < 0 || v0 > 1 || u1 < 0 || u1 > 1 || v1 < 0 || v1 > 1) {
+        console.warn(`Invalid UV coordinates for char "${char}": u0=${u0}, v0=${v0}, u1=${u1}, v1=${v1}`)
+      }
 
-      this.drawRect(cursorX, cursorY, sw * scaleX, sh * scaleY, u0, v0, u1, v1, drawColor)
+      // Draw the character rectangle
+      this.drawRect(cursorX, cursorY, width * scaleFactorX, textHeight * scaleFactorY, u0, v0, u1, v1, drawColor)
 
-      cursorX += width * scaleX + spacing * scaleX
+      cursorX += width * scaleFactorX + spacing * scaleFactorX
     }
 
     // Restore previous mesh
