@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from codebot.codeclip.cli import cli
+from manybot.codebot.codeclip.cli import cli
 
 
 class TestCodeclipCLI(unittest.TestCase):
