@@ -15,7 +15,7 @@ import sys
 import time
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.lock import run_once
 from metta.sweep.sweep_lifecycle import evaluate_rollout, prepare_sweep_run, setup_sweep
@@ -81,12 +81,21 @@ def run_single_rollout(cfg: DictConfig) -> int:
 
     # All ranks participate in training
     # The train.sh script handles distributed coordination
+    # Extract GPU list from config if specified
+    gpu_list = cfg.get("gpu_list", None)
+
+    # wandb_run_id can be None if WandB is disabled
+    if wandb_run_id is None:
+        logger.warning("No WandB run ID provided - WandB logging may be disabled")
+        wandb_run_id = ""  # Use empty string as fallback
+
     train_for_run(
         run_name=run_name,
         train_job_cfg=train_job_cfg,
         wandb_run_id=wandb_run_id,
         original_args=ORIGINAL_ARGS,
         logger=logger,
+        gpu_list=gpu_list,
     )
     logger.info("Training completed...")
 
@@ -118,8 +127,18 @@ def train_for_run(
     wandb_run_id: str,
     original_args: list[str] | None = None,
     logger: logging.Logger | None = None,
+    gpu_list: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Launch training as a subprocess and wait for completion."""
+    """Launch training as a subprocess and wait for completion.
+
+    Args:
+        run_name: Name of the run
+        train_job_cfg: Training configuration
+        wandb_run_id: WandB run ID
+        original_args: Original command line arguments to pass through
+        logger: Logger instance
+        gpu_list: Optional comma-separated GPU list (e.g., "0,1" or "2,3,4,5")
+    """
 
     # Build the command exactly like the bash script
     cmd = [
@@ -143,6 +162,7 @@ def train_for_run(
             "wandb.run_id=",
             "wandb.group=",
             "wandb.name=",
+            "gpu_list=",  # Filter out GPU assignment as it's handled via environment
         ]
         for arg in original_args:
             # Skip arguments we're already setting
@@ -156,9 +176,21 @@ def train_for_run(
     else:
         print(f"[SWEEP:{run_name}] Running: {' '.join(cmd)}")
 
+    # Set up environment for GPU configuration if specified
+    env = os.environ.copy()
+    if gpu_list is not None:
+        # Handle both string and list formats
+        if isinstance(gpu_list, (list, ListConfig)):
+            gpu_list_str = ",".join(str(g) for g in gpu_list)
+        else:
+            gpu_list_str = str(gpu_list)
+        env["GPU_LIST"] = gpu_list_str
+        if logger:
+            logger.info(f"[SWEEP:{run_name}] Using GPUs: {gpu_list_str}")
+
     try:
         # Launch and wait (no capture_output to maintain real-time logging)
-        result = subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, check=True, env=env)
         return result
 
     except subprocess.CalledProcessError as e:

@@ -5,6 +5,17 @@ set -e
 # Parse arguments
 args="${@:1}"
 
+# Handle GPU configuration
+# GPU_LIST: comma-separated list of GPU indices (e.g., "0,1,2,3" or "4,5,6,7")
+# If not set, all GPUs are visible
+if [ -n "$GPU_LIST" ]; then
+  export CUDA_VISIBLE_DEVICES=$GPU_LIST
+  echo "[INFO] GPU configuration: CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+  # Count GPUs in the list
+  NUM_GPUS=$(echo "$GPU_LIST" | tr ',' '\n' | wc -l | tr -d ' ')
+  echo "[INFO] Number of GPUs from list: $NUM_GPUS"
+fi
+
 source ./devops/setup.env
 
 # Start heartbeat monitor if available
@@ -39,6 +50,9 @@ NODE_INDEX=${NODE_INDEX:-0}
 # Display configuration
 echo "[CONFIG] Training configuration:"
 echo "  - GPUs: $NUM_GPUS"
+if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+  echo "  - CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+fi
 echo "  - Nodes: $NUM_NODES"
 echo "  - Master address: $MASTER_ADDR"
 echo "  - Master port: $MASTER_PORT"
