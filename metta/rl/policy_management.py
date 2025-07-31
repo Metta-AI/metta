@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Any, Tuple, cast
 
 import torch
-import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.distribution_utils import get_from_master
 from metta.common.util.fs import wait_for_file
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
@@ -323,10 +323,12 @@ def load_or_initialize_policy(
             cfg, checkpoint, policy_store, metta_grid_env
         )
 
-    # Pack them in a list and broadcast *once*
-    obj_list: list[Any] = [policy, initial_policy_record, latest_saved_policy_record]
-    dist.broadcast_object_list(obj_list, src=0)
-    policy, initial_policy_record, latest_saved_policy_record = obj_list  # unpack on every rank
+    # receive policy from master using NCCL broadcasting
+    policy, initial_policy_record, latest_saved_policy_record = (
+        get_from_master(policy),
+        get_from_master(initial_policy_record),
+        get_from_master(latest_saved_policy_record),
+    )
 
     # cast to the correct type
     policy = cast(MettaAgent | DistributedMettaAgent, policy)
