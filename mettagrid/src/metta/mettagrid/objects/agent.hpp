@@ -5,6 +5,7 @@
 #include <cassert>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
@@ -82,7 +83,7 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::Up),
-        inventory(config.initial_inventory), // Note: not filtering out potential 0's, which would be propogated to agent features
+        inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -91,16 +92,24 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
-        glyph(0),
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
         reward(nullptr) {
+    populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+  }
+
+  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
+    for (const auto& [item, amount] : initial_inventory) {
+      if (amount > 0) {
+        this->inventory[item] = amount;
+      }
+    }
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
