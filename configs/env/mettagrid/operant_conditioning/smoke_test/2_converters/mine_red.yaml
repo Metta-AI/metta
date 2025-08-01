@@ -1,0 +1,31 @@
+defaults:
+  - /env/mettagrid/operant_conditioning/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    root:
+      params:
+        objects:
+          mine_red: 1
+          generator_red: 1
+          generator_blue: 1
+  objects:
+    generator_red:
+      cooldown: 1
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_red: 0
+        heart: 1
+    generator_blue:
+      cooldown: 1
+      input_resources:
+        ore_red: 1
+        ore_blue: 0
+      output_resources:
+        battery_blue: 0
+    mine_red:
+      cooldown: 100

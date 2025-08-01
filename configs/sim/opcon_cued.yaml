@@ -1,0 +1,21 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: operantconditioning
+
+simulations:
+
+  operantconditioning/multiday/cued_operant/match_mine_blue:
+    env: env/mettagrid/multiday/cued_operant/match_mine_blue
+  operantconditioning/multiday/cued_operant/match_mine_red:
+    env: env/mettagrid/multiday/cued_operant/match_mine_red
+  operantconditioning/multiday/cued_operant/mismatch_mine_blue:
+    env: env/mettagrid/multiday/cued_operant/mismatch_mine_blue
+  operantconditioning/multiday/cued_operant/mismatch_mine_red:
+    env: env/mettagrid/multiday/cued_operant/mismatch_mine_red
+
+env_overrides:
+  game:
+    max_steps: 100
+    num_agents: 1
