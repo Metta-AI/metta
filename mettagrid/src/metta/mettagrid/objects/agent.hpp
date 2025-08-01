@@ -203,7 +203,7 @@ public:
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
-    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0); 
+    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
 
     std::vector<PartialObservationToken> features;
     features.reserve(num_tokens);
