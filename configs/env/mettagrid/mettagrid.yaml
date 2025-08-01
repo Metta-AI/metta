@@ -69,5 +69,4 @@ game:
 
   termination:
     max_reward: null #if set, terminate when overall reward = max_reward
-    end_of_episode_boost: 1.0 #if set, boost reward at end of episode
     condition: null #if set, terminate when condition is met
