@@ -107,7 +107,8 @@ class TestSweepConfigLoading:
                 assert trainer_config.batch_size == 3200
                 assert trainer_config.minibatch_size == 1600
                 assert trainer_config.num_workers == 1
-                assert trainer_config.curriculum == "/env/mettagrid/curriculum/simple"
+                assert trainer_config.curriculum.name == "simple"
+                assert trainer_config.curriculum.env_paths == ["/env/mettagrid/arena/basic"]
                 assert trainer_config.checkpoint.checkpoint_interval == 1000
                 assert trainer_config.checkpoint.wandb_checkpoint_interval == 1000
                 assert trainer_config.simulation.evaluate_interval == 1000

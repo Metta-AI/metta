@@ -1,6 +1,6 @@
 from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.room.random import Random
 from metta.mettagrid.util.hydra import get_cfg
@@ -16,7 +16,7 @@ def test_env_map():
     level_builder = Random(width=3, height=4, objects=OmegaConf.create({}), agents=1, border_width=1)
     level = level_builder.build()
 
-    curriculum = SingleTaskCurriculum("benchmark", cfg)
+    curriculum = single_task("benchmark", cfg)
     env = MettaGridEnv(curriculum, render_mode="human", level=level)
 
     assert env.map_width == 3 + 2 * 1

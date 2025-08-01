@@ -1,6 +1,10 @@
-_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+name: nav_navsequence_backchain
+algorithm:
+  type: discrete_random
+  params:
+    initial_weights: [1, 1, 1]
 
-tasks:
-  /env/mettagrid/curriculum/navigation/learning_progress: 1
-  /env/mettagrid/curriculum/navsequence/navsequence_all: 1
-  /env/mettagrid/curriculum/navsequence/backchain_seq: 1
+children:
+  - /env/mettagrid/curriculum/navigation/learning_progress
+  - /env/mettagrid/curriculum/navsequence/navsequence_all
+  - /env/mettagrid/curriculum/navsequence/backchain_seq

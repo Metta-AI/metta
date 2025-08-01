@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
 
 
@@ -65,7 +65,7 @@ def simple_config():
 def test_multi_agent_gym_env(simple_config):
     """Test multi-agent Gymnasium environment."""
     # Create config and curriculum
-    curriculum = SingleTaskCurriculum("gym_multi_test", simple_config)
+    curriculum = single_task("gym_multi_test", simple_config)
 
     # Create environment
     env = MettaGridGymEnv(
@@ -105,7 +105,7 @@ def test_single_agent_gym_env(simple_config):
     # Modify config for single agent
     simple_config.game.num_agents = 1
     simple_config.game.map_builder.agents = 1
-    curriculum = SingleTaskCurriculum("gym_single_test", simple_config)
+    curriculum = single_task("gym_single_test", simple_config)
 
     # Create environment
     env = SingleAgentMettaGridGymEnv(
@@ -141,7 +141,7 @@ def test_single_agent_gym_env(simple_config):
 
 def test_gym_env_episode_termination(simple_config):
     """Test that environment terminates properly."""
-    curriculum = SingleTaskCurriculum("gym_termination_test", simple_config)
+    curriculum = single_task("gym_termination_test", simple_config)
     env = MettaGridGymEnv(
         curriculum=curriculum,
         render_mode=None,

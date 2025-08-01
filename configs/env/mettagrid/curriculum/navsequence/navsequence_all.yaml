@@ -1,16 +1,16 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
-
-tasks:
-  /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_maze: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
-  /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy: 1
-  /env/mettagrid/navigation_sequence/experiments/sequence_sparse: 1
-  /env/mettagrid/navigation_sequence/experiments/sequence_balanced: 1
-  /env/mettagrid/navigation_sequence/experiments/sequence_maze: 1
-  /env/mettagrid/navigation_sequence/experiments/sequence_dense: 1
-  /env/mettagrid/navigation_sequence/experiments/hard_mem_sparse: 1
-  /env/mettagrid/navigation_sequence/experiments/hard_mem_balanced: 1
-  /env/mettagrid/navigation_sequence/experiments/hard_mem_maze: 1
-  /env/mettagrid/navigation_sequence/experiments/hard_mem_dense: 1
+name: navsequence_all
+algorithm: prioritize_regressed
+env_paths:
+  - /env/mettagrid/navigation_sequence/experiments/mem_balanced
+  - /env/mettagrid/navigation_sequence/experiments/mem_sparse
+  - /env/mettagrid/navigation_sequence/experiments/mem_maze
+  - /env/mettagrid/navigation_sequence/experiments/mem_dense
+  - /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy
+  - /env/mettagrid/navigation_sequence/experiments/sequence_sparse
+  - /env/mettagrid/navigation_sequence/experiments/sequence_balanced
+  - /env/mettagrid/navigation_sequence/experiments/sequence_maze
+  - /env/mettagrid/navigation_sequence/experiments/sequence_dense
+  - /env/mettagrid/navigation_sequence/experiments/hard_mem_sparse
+  - /env/mettagrid/navigation_sequence/experiments/hard_mem_balanced
+  - /env/mettagrid/navigation_sequence/experiments/hard_mem_maze
+  - /env/mettagrid/navigation_sequence/experiments/hard_mem_dense

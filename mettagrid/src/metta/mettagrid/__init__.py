@@ -19,7 +19,7 @@ from metta.mettagrid.base_env import MettaGridEnv as MettaGridBaseEnv
 from metta.mettagrid.core import MettaGridCore
 
 # Import other commonly used classes
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum.curriculum import Curriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
 from metta.mettagrid.level_builder import Level
 

@@ -1,21 +1,19 @@
-_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+name: arena_random
+algorithm: discrete_random
 
-tasks:
-  /env/mettagrid/arena/basic: 1
-  /env/mettagrid/arena/basic_easy: 1
-  /env/mettagrid/arena/basic_easy_shaped: 1
-  /env/mettagrid/arena/basic_poor: 1
-
-  /env/mettagrid/arena/combat: 1
-  /env/mettagrid/arena/combat_easy: 1
-  /env/mettagrid/arena/combat_easy_shaped: 1
-  /env/mettagrid/arena/combat_poor: 1
-
-  /env/mettagrid/arena/advanced: 1
-  /env/mettagrid/arena/advanced_easy: 1
-  /env/mettagrid/arena/advanced_easy_shaped: 1
-  /env/mettagrid/arena/advanced_poor: 1
-
-  /env/mettagrid/arena/tag: 1
-  /env/mettagrid/arena/tag_easy: 1
-  /env/mettagrid/arena/tag_easy_shaped: 1
+env_paths:
+  - /env/mettagrid/arena/basic
+  - /env/mettagrid/arena/basic_easy
+  - /env/mettagrid/arena/basic_easy_shaped
+  - /env/mettagrid/arena/basic_poor
+  - /env/mettagrid/arena/combat
+  - /env/mettagrid/arena/combat_easy
+  - /env/mettagrid/arena/combat_easy_shaped
+  - /env/mettagrid/arena/combat_poor
+  - /env/mettagrid/arena/advanced
+  - /env/mettagrid/arena/advanced_easy
+  - /env/mettagrid/arena/advanced_easy_shaped
+  - /env/mettagrid/arena/advanced_poor
+  - /env/mettagrid/arena/tag
+  - /env/mettagrid/arena/tag_easy
+  - /env/mettagrid/arena/tag_easy_shaped

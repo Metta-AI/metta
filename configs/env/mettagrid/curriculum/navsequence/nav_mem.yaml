@@ -1,8 +1,12 @@
-_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+name: nav_mem_curriculum
+algorithm:
+  type: discrete_random
+  params:
+    initial_weights: [5, 5]
 
-#use this environment pretrained on a policy that is the best at navigation sequence already
-#gd_backchain_mem_pretained:v18
-tasks:
-  /env/mettagrid/curriculum/navigation/learning_progress: 5
-  /env/mettagrid/curriculum/navsequence/mem_medium: 5
-  # /env/mettagrid/curriculum/navsequence/mem_hard: 2
+# Use this environment pretrained on a policy that is the best at navigation sequence already
+# gd_backchain_mem_pretained:v18
+children:
+  - /env/mettagrid/curriculum/navigation/learning_progress
+  - /env/mettagrid/curriculum/navsequence/mem_medium
+  # - /env/mettagrid/curriculum/navsequence/mem_hard

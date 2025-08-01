@@ -1,6 +1,5 @@
-# BBC Learning Progress Curriculum
-
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+name: bbc_agents_defaults
+algorithm: learning_progress
 
 env_overrides:
   game:
@@ -33,10 +32,10 @@ env_overrides:
           armor_max: 1
           blueprint_max: 1
 
-tasks:
-  /env/mettagrid/curriculum/bbc/tasks/basic: 1
-  /env/mettagrid/curriculum/bbc/tasks/altar: 1
-  /env/mettagrid/curriculum/bbc/tasks/laser: 1
-  /env/mettagrid/curriculum/bbc/tasks/armor: 1
-  /env/mettagrid/curriculum/bbc/tasks/combat: 1
-  /env/mettagrid/curriculum/bbc/tasks/tag: 1
+children:
+  - /env/mettagrid/curriculum/bbc/tasks/basic
+  - /env/mettagrid/curriculum/bbc/tasks/altar
+  - /env/mettagrid/curriculum/bbc/tasks/laser
+  - /env/mettagrid/curriculum/bbc/tasks/armor
+  - /env/mettagrid/curriculum/bbc/tasks/combat
+  - /env/mettagrid/curriculum/bbc/tasks/tag

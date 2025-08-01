@@ -1,0 +1,5 @@
+name: simple
+algorithm: discrete_random
+
+env_paths:
+  - /env/mettagrid/arena/basic

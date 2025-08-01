@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.curriculum import CurriculumConfig
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
@@ -186,9 +187,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
-    env: str | None = None  # Environment config path
-    # Default curriculum: Simple environment for initial experiments
-    curriculum: str | None = "/env/mettagrid/curriculum/simple"
+    curriculum: CurriculumConfig | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
@@ -215,8 +214,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
 
-        if not self.curriculum and not self.env:
-            raise ValueError("curriculum or env must be set")
+        # Apply default curriculum if not set
+        if not self.curriculum:
+            # Create default curriculum config
+            self.curriculum = CurriculumConfig(name="default", env_paths=["/env/mettagrid/arena/basic_easy_shaped"])
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -249,14 +250,6 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
         return self
 
-    @property
-    def curriculum_or_env(self) -> str:
-        if self.curriculum:
-            return self.curriculum
-        if self.env:
-            return self.env
-        raise ValueError("curriculum or env must be set")
-
 
 def create_trainer_config(
     cfg: DictConfig,
@@ -283,6 +276,22 @@ def create_trainer_config(
     if cfg.vectorization == "serial":
         config_dict["async_factor"] = 1
         config_dict["zero_copy"] = False
+
+    # Handle curriculum config
+    if "curriculum" in config_dict:
+        curriculum = config_dict["curriculum"]
+
+        # Handle string path reference
+        if isinstance(curriculum, str):
+            # Import the curriculum loading function
+            from metta.mettagrid.curriculum import curriculum_config_from_path
+
+            # Load the curriculum config from path
+            curriculum_config = curriculum_config_from_path(curriculum)
+
+            # Convert to dict for serialization using the custom method
+            # that properly handles algorithm serialization
+            config_dict["curriculum"] = curriculum_config.to_serializable_dict()
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):

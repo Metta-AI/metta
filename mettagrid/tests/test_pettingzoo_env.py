@@ -9,7 +9,7 @@ import pytest
 from omegaconf import DictConfig
 from pettingzoo.test import parallel_api_test
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
@@ -65,7 +65,7 @@ def simple_config():
 
 def test_pettingzoo_env_creation(simple_config):
     """Test PettingZoo environment creation and properties."""
-    curriculum = SingleTaskCurriculum("pettingzoo_test", simple_config)
+    curriculum = single_task("pettingzoo_test", simple_config)
 
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
@@ -85,7 +85,7 @@ def test_pettingzoo_env_creation(simple_config):
 
 def test_pettingzoo_env_reset(simple_config):
     """Test PettingZoo environment reset functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_reset_test", simple_config)
+    curriculum = single_task("pettingzoo_reset_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -112,7 +112,7 @@ def test_pettingzoo_env_reset(simple_config):
 
 def test_pettingzoo_env_step(simple_config):
     """Test PettingZoo environment step functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_step_test", simple_config)
+    curriculum = single_task("pettingzoo_step_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -156,7 +156,7 @@ def test_pettingzoo_env_step(simple_config):
 
 def test_pettingzoo_env_agent_removal(simple_config):
     """Test that agents are properly removed when terminated."""
-    curriculum = SingleTaskCurriculum("pettingzoo_removal_test", simple_config)
+    curriculum = single_task("pettingzoo_removal_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -189,7 +189,7 @@ def test_pettingzoo_env_agent_removal(simple_config):
 
 def test_pettingzoo_env_spaces(simple_config):
     """Test PettingZoo environment observation and action spaces."""
-    curriculum = SingleTaskCurriculum("pettingzoo_spaces_test", simple_config)
+    curriculum = single_task("pettingzoo_spaces_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -213,7 +213,7 @@ def test_pettingzoo_env_spaces(simple_config):
 
 def test_pettingzoo_env_state(simple_config):
     """Test PettingZoo environment state functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_state_test", simple_config)
+    curriculum = single_task("pettingzoo_state_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -236,7 +236,7 @@ def test_pettingzoo_env_state(simple_config):
 
 def test_pettingzoo_api_compliance(simple_config):
     """Test official PettingZoo API compliance."""
-    curriculum = SingleTaskCurriculum("pettingzoo_compliance_test", simple_config)
+    curriculum = single_task("pettingzoo_compliance_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -251,7 +251,7 @@ def test_pettingzoo_api_compliance(simple_config):
 
 def test_pettingzoo_episode_lifecycle(simple_config):
     """Test the complete episode lifecycle with PettingZoo API."""
-    curriculum = SingleTaskCurriculum("pettingzoo_lifecycle_test", simple_config)
+    curriculum = single_task("pettingzoo_lifecycle_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -313,7 +313,7 @@ def test_pettingzoo_episode_lifecycle(simple_config):
 
 def test_pettingzoo_action_observation_spaces(simple_config):
     """Test that action and observation spaces are properly configured."""
-    curriculum = SingleTaskCurriculum("pettingzoo_spaces_validation_test", simple_config)
+    curriculum = single_task("pettingzoo_spaces_validation_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -347,7 +347,7 @@ def test_pettingzoo_action_observation_spaces(simple_config):
 
 def test_pettingzoo_render_functionality(simple_config):
     """Test that rendering works with PettingZoo interface."""
-    curriculum = SingleTaskCurriculum("pettingzoo_render_test", simple_config)
+    curriculum = single_task("pettingzoo_render_test", simple_config)
     env = MettaGridPettingZooEnv(
         curriculum=curriculum,
         render_mode="human",
