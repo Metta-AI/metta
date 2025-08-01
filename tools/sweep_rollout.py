@@ -8,17 +8,22 @@ This module replaces sweep_rollout.sh with a Python implementation that:
 - Maintains compatibility with existing sweep infrastructure
 """
 
+import json
 import logging
 import os
-import subprocess
 import sys
 import time
+from pathlib import Path
 
 import hydra
+import torch
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.lock import run_once
+from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.sweep_lifecycle import evaluate_rollout, prepare_sweep_run, setup_sweep
+from tools.train import setup_device_and_distributed, train
 
 logger = logging.getLogger(__name__)
 
@@ -29,144 +34,146 @@ ORIGINAL_ARGS = []
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     """Main entry point for sweep rollout."""
-    # Store original command-line arguments for later use
-    global ORIGINAL_ARGS
-    ORIGINAL_ARGS = sys.argv[1:]  # Skip the script name
+    record_heartbeat()
+    logger.info(
+        "Sweep rollout starting on "
+        + f"{os.environ.get('NODE_INDEX', '0')}: "
+        + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
+    )
 
-    logger.info(f"Starting sweep rollout with config: {list(cfg.keys())}")
+    # Use shared distributed setup function
+    device, is_master, world_size, rank = setup_device_and_distributed(cfg.device)
 
-    # Setup the sweep - only rank 0 does this, others wait
+    # Update cfg.device to include the local rank if distributed
+    cfg.device = str(device)
+
+    # Setup the sweep - run_once ensures only master does this
     try:
-        run_once(
-            lambda: setup_sweep(cfg, logger),
-        )
+        run_once(lambda: setup_sweep(cfg, logger))
+        logger.info("Sweep setup completed")
     except Exception as e:
         logger.error(f"Sweep setup failed: {e}", exc_info=True)
         return 1
 
+    # Configuration for rollout loop
+    max_consecutive_failures = int(os.environ.get("MAX_CONSECUTIVE_FAILURES", "3"))
+    rollout_retry_delay = int(os.environ.get("ROLLOUT_RETRY_DELAY", "60"))
     num_consecutive_failures = 0
-    exit_code = 0
 
+    # Main rollout loop
     while True:
-        err_occurred = False
-        # Run the rollout
         try:
-            run_single_rollout(cfg)
+            run_single_rollout(cfg, str(device), is_master, world_size, rank)
+            logger.info("Rollout completed successfully")
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            num_consecutive_failures = 0
         except Exception as e:
             logger.error(f"Rollout failed: {e}", exc_info=True)
-            err_occurred = True
-            logger.info(f"Waiting {cfg.rollout_retry_delay} seconds before retry...")
-            time.sleep(cfg.rollout_retry_delay)
-
-        if err_occurred:
             num_consecutive_failures += 1
-            if num_consecutive_failures > cfg.max_consecutive_failures:
-                logger.error(f"Max consecutive failures reached: {cfg.max_consecutive_failures}")
-                exit_code = 1
-                break
-        else:
-            num_consecutive_failures = 0
 
-    return exit_code
+            if num_consecutive_failures >= max_consecutive_failures:
+                logger.error(f"Max consecutive failures reached: {num_consecutive_failures}")
+                if torch.distributed.is_initialized():
+                    torch.distributed.destroy_process_group()
+                return 1
+
+            logger.info(f"Consecutive failures: {num_consecutive_failures}/{max_consecutive_failures}")
+            logger.info(f"Waiting {rollout_retry_delay} seconds before retry...")
+            time.sleep(rollout_retry_delay)
+
+    # This should never be reached
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+    return 0
 
 
-def run_single_rollout(cfg: DictConfig) -> int:
+def run_single_rollout(cfg: DictConfig, device: str, is_master: bool, world_size: int, rank: int) -> int:
     """Run a single rollout."""
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
+    record_heartbeat()
 
-    # Master node only
-    run_name, train_job_cfg, protein_suggestion, wandb_run_id = run_once(
-        lambda: prepare_sweep_run(cfg, logger),
+    # Prepare the sweep run - run_once ensures only master does this
+    prepare_result = run_once(lambda: prepare_sweep_run(cfg, logger))
+    if prepare_result is not None:
+        run_name, train_job_cfg, protein_suggestion, _ = prepare_result
+    else:
+        run_name = train_job_cfg = protein_suggestion = None
+
+    # Ensure we have valid config after broadcast
+    if train_job_cfg is None:
+        raise RuntimeError("Failed to get train_job_cfg from master")
+
+    train_job_cfg_final = _build_train_cfg(train_job_cfg)
+    logger.info(
+        f"Training with config: {json.dumps(OmegaConf.to_container(train_job_cfg_final, resolve=True), indent=2)}"
     )
 
     # All ranks participate in training
-    # The train.sh script handles distributed coordination
-    train_for_run(
-        run_name=run_name,
-        train_job_cfg=train_job_cfg,
-        wandb_run_id=wandb_run_id,
-        original_args=ORIGINAL_ARGS,
-        logger=logger,
-    )
-    logger.info("Training completed...")
+    # Only master gets the wandb_run, others get None
+    logger.info(f"Rank {rank} starting training")
 
-    config_path = os.path.join(train_job_cfg.run_dir, "sweep_eval_config.yaml")
-    full_train_job_cfg = OmegaConf.load(config_path)
-    assert isinstance(full_train_job_cfg, DictConfig)
-    # Master node only
+    # Master handles WandB context
+    if is_master:
+        logger.info(f"Rank {rank} creating WandB context")
+        with WandbContext(train_job_cfg_final.wandb, train_job_cfg_final) as wandb_run:
+            logger.info(f"Rank {rank} starting training with WandB")
+            train(train_job_cfg_final, wandb_run, logger)
+            logger.info(f"Rank {rank} completed training with wandb context")
+        logger.info(f"Rank {rank} exited WandB context")
+    else:
+        # Non-master ranks train without WandB
+        train(train_job_cfg_final, None, logger)
+        logger.info(f"Rank {rank} completed training")
+
+    # Flush logs to ensure we see where we are
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    # Evaluate the rollout - run_once ensures only master does this
+    # protein_suggestion is guaranteed to be valid after broadcast
+    assert protein_suggestion is not None
+    logger.info(f"Rank {rank} starting evaluation phase")
     eval_results = run_once(
         lambda: evaluate_rollout(
-            full_train_job_cfg,
+            train_job_cfg_final,
             protein_suggestion,
             metric=cfg.sweep.metric,
             sweep_name=cfg.sweep_name,
             logger=logger,
-        ),
+        )
     )
+    logger.info(f"Rank {rank} completed evaluation phase")
 
     if eval_results is None:
         logger.error("Evaluation failed")
         raise RuntimeError("Evaluation failed")
 
     logger.info(f"Rollout completed successfully for run: {run_name}")
+
     return 0
 
 
-def train_for_run(
-    run_name: str,
-    train_job_cfg: DictConfig,
-    wandb_run_id: str,
-    original_args: list[str] | None = None,
-    logger: logging.Logger | None = None,
-) -> subprocess.CompletedProcess:
-    """Launch training as a subprocess and wait for completion."""
+def _build_train_cfg(train_job_cfg: DictConfig) -> DictConfig:
+    """
+    Build the training configuration by loading common.yaml and merging with sweep_train_job.
+    """
+    # Get the path to common.yaml
+    current_file_path = Path(__file__).resolve()
+    config_dir = current_file_path.parent.parent / "configs"
 
-    # Build the command exactly like the bash script
-    cmd = [
-        "./devops/train.sh",
-        f"run={run_name}",
-        f"data_dir={train_job_cfg.data_dir}",
-        f"wandb.run_id={wandb_run_id}",
-        f"wandb.group={train_job_cfg.sweep_name}",
-        f"wandb.name={run_name}",
-    ]
+    # Load common.yaml directly
+    common_cfg = OmegaConf.load(config_dir / "common.yaml")
 
-    # Pass through relevant arguments from the original command line
-    # Filter out arguments that we're already setting explicitly
-    if original_args:
-        # TODO: Skim those keys
-        skip_prefixes = [
-            "run=",
-            "sweep_name=",
-            "data_dir=",
-            "sweep_dir=",
-            "wandb.run_id=",
-            "wandb.group=",
-            "wandb.name=",
-        ]
-        for arg in original_args:
-            # Skip arguments we're already setting
-            if any(arg.startswith(prefix) for prefix in skip_prefixes):
-                continue
-            # Pass through everything else (like hardware configs, wandb settings, etc.)
-            cmd.append(arg)
+    # Merge common with sweep_train_job (sweep_train_job takes precedence)
+    train_cfg = OmegaConf.merge(common_cfg, train_job_cfg)
 
-    if logger:
-        logger.info(f"[SWEEP:{run_name}] Running: {' '.join(cmd)}")
-    else:
-        print(f"[SWEEP:{run_name}] Running: {' '.join(cmd)}")
+    # Set cmd to 'train' since we're training, not sweeping
+    train_cfg.cmd = "train"
 
-    try:
-        # Launch and wait (no capture_output to maintain real-time logging)
-        result = subprocess.run(cmd, check=True)
-        return result
-
-    except subprocess.CalledProcessError as e:
-        if logger:
-            logger.error(f"[ERROR] Training failed for run: {run_name}")
-        else:
-            print(f"[ERROR] Training failed for run: {run_name}")
-        raise Exception(f"Training failed for {run_name} with exit code {e.returncode}") from e
+    # Ensure we return a DictConfig
+    assert isinstance(train_cfg, DictConfig)
+    return train_cfg
 
 
 if __name__ == "__main__":
