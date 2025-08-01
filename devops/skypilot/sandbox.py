@@ -8,6 +8,7 @@ import sky
 import sky.exceptions
 import yaml
 
+from devops.skypilot.utils import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.cost_monitor import get_instance_cost
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
@@ -34,6 +35,24 @@ def load_sandbox_config(config_path: str):
     """Load the sandbox YAML configuration file."""
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
+
+
+def get_current_git_ref():
+    """Get the current git branch or commit hash."""
+    try:
+        # Try to get the current branch name
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True
+        )
+        branch = result.stdout.strip()
+        if branch != "HEAD":
+            return branch
+
+        # If in detached HEAD state, get the commit hash
+        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+        return result.stdout.strip()[:8]  # First 8 chars of commit hash
+    except Exception:
+        return "main"  # Fallback to main
 
 
 def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
@@ -72,9 +91,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     else:
         estimated_multiplier = 1
 
-    # Calculate cost (using spot pricing as indicated in the original code)
+    # Calculate cost for on-demand instances, since sandboxes don't use spot.
     with spinner(f"Calculating cost for {instance_type}", style=cyan):
-        hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=True)
+        hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
 
     if hourly_cost is not None:
         hourly_cost *= estimated_multiplier
@@ -89,6 +108,9 @@ def main():
     parser.add_argument("--gpus", type=int, default=1, help="Number of L4 GPUs to use.")
     parser.add_argument("--retry-until-up", action="store_true", help="Keep retrying until cluster is up")
     args = parser.parse_args()
+
+    # Get git ref - use current branch/commit if not specified
+    git_ref = args.git_ref or get_current_git_ref()
 
     existing_clusters = get_existing_clusters()
 
@@ -128,6 +150,7 @@ def main():
 
     cluster_name = get_next_name(existing_clusters)
     print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+    print(f"📌 Git ref: {cyan(git_ref)}")
 
     # Load the sandbox configuration
     config_path = "./devops/skypilot/config/sandbox.yaml"
@@ -147,20 +170,32 @@ def main():
 
     if hourly_cost is not None:
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
-        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (spot pricing)")
+        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
     else:
-        print("Unable to determine exact cost, but typical L4 spot instances cost ~$0.50-$1.50/hour per GPU")
+        print("Unable to determine exact cost, but typical L4 on-demand instances cost ~$0.70-$2.00/hour per GPU")
 
     autostop_hours = 48
 
     with spinner("Preparing task configuration", style=cyan):
         task = sky.Task.from_yaml(config_path)
+        set_task_secrets(task)
         task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
+
+        # Set the git ref in the environment variables
+        task.update_envs({"METTA_GIT_REF": git_ref})
+
         time.sleep(1)
 
     print("\n⏳ This will take a few minutes...")
 
     try:
+        sky_info = sky.api_info()
+        if sky_info["status"] == "healthy" and sky_info["user"] is None:
+            print(red("✗ You are not authenticated with SkyPilot."))
+            print(f"  {green('metta install skypilot')}")
+            print("to authenticate before launching a sandbox.")
+            return
+
         request_id = sky.launch(
             task,
             cluster_name=cluster_name,

@@ -1,6 +1,4 @@
-_target_: metta.rl.trainer.MettaTrainer
-num_workers: null  # determined by train.py if not specified
-
+num_workers: null
 curriculum: ???
 env_overrides: {}
 
@@ -34,12 +32,6 @@ optimizer:
   eps: 1e-12
   learning_rate: 0.000457
   weight_decay: 0
-
-lr_scheduler:
-  enabled: false
-  anneal_lr: false
-  warmup_steps: null
-  schedule_type: null
 
 ppo:
   # Core PPO hyperparameters

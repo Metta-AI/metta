@@ -175,11 +175,23 @@ jobs:
           - name: "app_backend-shard-0"
             package: "app_backend"
             shard_id: 0
-            num_shards: 2
+            num_shards: 5
           - name: "app_backend-shard-1"
             package: "app_backend"
             shard_id: 1
-            num_shards: 2
+            num_shards: 5
+          - name: "app_backend-shard-2"
+            package: "app_backend"
+            shard_id: 2
+            num_shards: 5
+          - name: "app_backend-shard-3"
+            package: "app_backend"
+            shard_id: 3
+            num_shards: 5
+          - name: "app_backend-shard-4"
+            package: "app_backend"
+            shard_id: 4
+            num_shards: 5
 
           # Mettagrid with sharding
           - name: "mettagrid-shard-0"
@@ -316,13 +328,23 @@ jobs:
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
-          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
+          runtime_issues=${{ steps.mettagrid_build_check.outputs.runtime_issues }}
+          max_warnings=50
 
-          echo "Build Summary: $errors errors, $warnings warnings"
+          # Fail if any of the values are not set
+          if [ -z "$errors" ] || [ -z "$warnings" ] || [ -z "$runtime_issues" ]; then
+            echo "❌ Missing value for errors, warnings, or runtime issues!"
+            exit 1
+          fi
+
+          echo "Build Summary: $errors errors, $warnings warnings, $runtime_issues runtime issues"
           echo "Maximum allowed warnings: $max_warnings"
 
           if [ "$errors" -gt 0 ]; then
             echo "❌ MettaGrid has build errors!"
+            exit 1
+          elif [ "$runtime_issues" -gt 0 ]; then
+            echo "❌ MettaGrid has runtime issues (segfaults, test failures)!"
             exit 1
           elif [ "$warnings" -gt "$max_warnings" ]; then
             echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
@@ -336,7 +358,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./mettagrid/build-coverage/coverage.info
+          files: ./mettagrid/build-debug/coverage.info
           flags: mettagrid_cpp
           name: mettagrid-cpp-coverage
           fail_ci_if_error: false
@@ -387,7 +409,7 @@ jobs:
       - name: Run super fast training
         if: matrix.test_type == 'replay'
         run: |
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +hardware=github wandb=off
+          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +user=ci wandb=off
 
       - name: Replay smoke test
         if: matrix.test_type == 'replay'
@@ -541,11 +563,10 @@ jobs:
         run: |
           source .venv/bin/activate
           cd mettagrid
-          cmake --preset release
-          cmake --build build-release
+          make benchmark
 
           mkdir -p benchmark_output
-          for f in build-release/benchmarks/*_benchmark; do
+          for f in build-release/*_benchmark; do
             "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
           done
 

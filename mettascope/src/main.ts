@@ -1,7 +1,16 @@
 import { initActionButtons, processActions, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import * as Common from './common.js'
-import { ctx, html, setFollowSelection, state, ui } from './common.js'
+import {
+  ctx,
+  html,
+  setFollowSelection,
+  state,
+  ui,
+  METTA_GITHUB_ORGANIZATION,
+  METTA_GITHUB_REPO,
+  METTA_GITHUB_PRIMARY_BRANCH,
+} from './common.js'
 import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
 import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
 import {
@@ -18,7 +27,7 @@ import { initObjectMenu } from './objmenu.js'
 import { fetchReplay, initWebSocket, readFile } from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
-import { drawTrace } from './traces.js'
+import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
 
@@ -144,6 +153,7 @@ function hideUi() {
   state.showTraces = false
   state.showAgentPanel = false
   state.showActionButtons = false
+  invalidateTrace()
   onResize()
 }
 
@@ -252,7 +262,14 @@ onEvent('pointermove', 'body', (_target: HTMLElement, e: Event) => {
     onTraceMinimapChange(event)
   }
 
-  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
+  const isOverBubble = ui.mouseTargets.includes('.hover-panel')
+  const isOverObject = ui.hoverObject !== null
+  const hasBubble = ui.delayedHoverObject !== null
+
+  const shouldKeepBubble = isOverBubble || isOverObject
+  const shouldHide = !shouldKeepBubble && hasBubble
+
+  if (shouldHide) {
     // Start a timer to hide the hover bubble after a delay
     if (ui.hideHoverTimer === null) {
       ui.hideHoverTimer = setTimeout(() => {
@@ -501,6 +518,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
       state.showTraces = false
       localStorage.setItem('showTraces', state.showTraces.toString())
       toggleOpacity(html.tracesToggle, state.showTraces)
+      invalidateTrace()
       onResize()
     } else if (state.showActionButtons) {
       state.showActionButtons = false
@@ -846,7 +864,10 @@ onEvent('click', '#share-button', () => {
   onShareButtonClick()
 })
 onEvent('click', '#help-button', () => {
-  window.open('https://github.com/Metta-AI/metta/blob/main/mettascope/README.md', '_blank')
+  window.open(
+    `https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/blob/${METTA_GITHUB_PRIMARY_BRANCH}/mettascope/README.md`,
+    '_blank'
+  )
 })
 
 onEvent('click', '#rewind-to-start', () => {
@@ -997,6 +1018,12 @@ onEvent('click', '#traces-toggle', () => {
   state.showTraces = !state.showTraces
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+
+  // Invalidate trace cache when hiding to ensure proper regeneration when shown again
+  if (!state.showTraces) {
+    invalidateTrace()
+  }
+
   onResize()
   requestFrame()
 })
@@ -1030,6 +1057,7 @@ onEvent('click', '#trace-panel .close', () => {
   state.showTraces = false
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+  invalidateTrace()
   onResize()
   requestFrame()
 })

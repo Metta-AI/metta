@@ -23,7 +23,11 @@ private:
   GridType grid;
 
 public:
-  Grid(GridCoord height, GridCoord width) : height(height), width(width) {
+  Grid(GridCoord height, GridCoord width)
+      : height(height),
+        width(width),
+        objects(),  // Initialize objects in member init list
+        grid() {    // Initialize grid in member init list
     grid.resize(height,
                 std::vector<std::vector<GridObjectId>>(width, std::vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
@@ -137,8 +141,8 @@ public:
     const int r = static_cast<int>(loc.r);
     const int c = static_cast<int>(loc.c);
 
-    int new_r;
-    int new_c;
+    int new_r = loc.r;
+    int new_c = loc.c;
 
     switch (facing) {
       case Orientation::Up:

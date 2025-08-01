@@ -3,7 +3,6 @@ env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_def
 
 buckets:
   game.map_builder.room.dir:
-    values:
-      - terrain_maps_nohearts
+    - terrain_maps_nohearts
   game.map_builder.room.objects.altar:
     range: [3, 50]
