@@ -6,10 +6,21 @@
 set -e
 
 # Configuration
-RUN_NAME="${1:-$USER.dual_policy_local.$(date +%m-%d)}"
-WANDB_CHECKPOINT_URI="${2:-wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2}"
-TOTAL_TIMESTEPS="${3:-1000000000}"
-NUM_WORKERS="${4:-4}"
+BASE_RUN_NAME="dual_policy_local"
+WANDB_CHECKPOINT_URI="${1:-wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2}"
+TOTAL_TIMESTEPS="${2:-1000000000}"
+NUM_WORKERS="${3:-4}"
+
+# Generate unique run name with counter
+TIMESTAMP=$(date +%m-%d)
+COUNTER=1
+RUN_NAME="${BASE_RUN_NAME}.${TIMESTAMP}.${COUNTER}"
+
+# Find the next available counter
+while [ -d "./train_dir/$RUN_NAME" ]; do
+    COUNTER=$((COUNTER + 1))
+    RUN_NAME="${BASE_RUN_NAME}.${TIMESTAMP}.${COUNTER}"
+done
 
 echo "Starting dual-policy training with WandB checkpoint NPC locally"
 echo "Run name: $RUN_NAME"
@@ -38,7 +49,7 @@ python run.py \
     trainer.num_workers="$NUM_WORKERS" \
     trainer.dual_policy.enabled=true \
     trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
-    "$@"
+    "${@:4}"
 
 echo "Training completed!"
 echo "Results available at: $RUN_DIR/"
