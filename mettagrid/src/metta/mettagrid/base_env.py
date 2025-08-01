@@ -107,6 +107,10 @@ class MettaGridEnv(ABC):
             from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
             self._renderer_class = MiniscopeRenderer
+        elif self._render_mode == "raylib":
+            from metta.mettagrid.mettagrid_c import Metta2D
+
+            self._renderer_class = Metta2D
 
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
@@ -165,8 +169,10 @@ class MettaGridEnv(ABC):
         core_env = MettaGridCore(c_cfg, level.grid.tolist(), current_seed)
 
         # Initialize renderer if needed
-        if self._render_mode is not None and self._renderer is None:
-            self._renderer = self._renderer_class(core_env.object_type_names)
+        if self._render_mode is not None:
+            if self._renderer is None:
+                self._renderer = self._renderer_class()
+            self._renderer.update(core_env._c_env)
 
         return core_env
 
@@ -416,10 +422,9 @@ class MettaGridEnv(ABC):
 
     def render(self) -> Optional[str]:
         """Render the environment."""
-        if self._renderer is None or self._core_env is None:
-            return None
-
-        return self._renderer.render(self._core_env.current_step, self._core_env.grid_objects())
+        if self._renderer is not None and self._core_env is not None:
+            self._renderer.render()
+        return None
 
     def close(self) -> None:
         """Close the environment."""

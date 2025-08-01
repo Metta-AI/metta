@@ -127,7 +127,7 @@ def demo_puffer_env():
     # Create PufferLib environment
     env = MettaGridPufferEnv(
         curriculum=curriculum,
-        render_mode=None,
+        render_mode="raylib",
         is_training=False,
     )
 
@@ -160,6 +160,7 @@ def demo_puffer_env():
 
     _, rewards, terminals, truncations, _ = env.step(actions)
     print(f"   - Step successful: obs {observations.shape}, rewards {rewards.shape}")
+    env.render()
 
     env.close()
 
@@ -175,7 +176,7 @@ def demo_random_rollout():
     # Create PufferLib environment
     env = MettaGridPufferEnv(
         curriculum=curriculum,
-        render_mode=None,
+        render_mode="raylib",
         is_training=True,
     )
 
@@ -208,6 +209,7 @@ def demo_random_rollout():
         _, rewards, terminals, truncations, _ = env.step(actions)
         total_reward += rewards.sum()
         steps += 1
+        env.render()
 
         # Check for episode termination
         if terminals.any() or truncations.any():
@@ -244,7 +246,7 @@ def demo_pufferlib_training():
 
     env = MettaGridPufferEnv(
         curriculum=curriculum,
-        render_mode=None,
+        render_mode="raylib",
         is_training=True,
     )
 
@@ -305,6 +307,7 @@ def demo_pufferlib_training():
             _, rewards, terminals, truncations, _ = env.step(actions)
             total_reward += rewards.sum()
             steps += 1
+            env.render()
 
             # Simple "learning": increase preference for actions that led to positive rewards
             if isinstance(env.action_space, spaces.MultiDiscrete):
@@ -359,8 +362,8 @@ def main():
         start_time = time.time()
 
         # Run pure PufferLib demos
-        demo_puffer_env()
-        demo_random_rollout()
+        # demo_puffer_env()
+        # demo_random_rollout()
         demo_pufferlib_training()
 
         # Summary

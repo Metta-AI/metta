@@ -1,13 +1,5 @@
 #include "mettagrid_c.hpp"
 
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-
-#include <algorithm>
-#include <cmath>
-#include <numeric>
-#include <random>
-
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_color.hpp"
@@ -28,8 +20,17 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
+#include "renderer/raylib.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
+
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h>
+
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <random>
 
 namespace py = pybind11;
 
@@ -1059,4 +1060,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // This can be fixed, but until we do that, we're not exposing these.
   // .def_readwrite("actions", &GameConfig::actions)
   // .def_readwrite("objects", &GameConfig::objects);
+
+  py::class_<Metta2DPy>(m, "Metta2D")
+      .def(py::init<>())
+      .def("update", &Metta2DPy::update, py::arg("env"))
+      .def("render", &Metta2DPy::render);
 }

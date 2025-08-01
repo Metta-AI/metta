@@ -70,6 +70,10 @@ class MettaGridPufferEnv(MettaGridEnv, PufferEnv):
             **kwargs,
         )
 
+        # Initialize renderer if needed (this sets up _renderer_class)
+        if self._render_mode is not None:
+            self._initialize_renderer()
+
         # Create initial core environment so PufferEnv can access observation space
         self._core_env = self._create_core_env(0)
 
