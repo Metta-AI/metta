@@ -48,7 +48,9 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
         agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+        print(f"Calling super().__init__ with device_ids={device}")
         super().__init__(agent, device_ids=[device], output_device=device)
+        print(f"DistributedMettaAgent initialized with device_ids={device}")
 
     def __getattr__(self, name):
         try:
