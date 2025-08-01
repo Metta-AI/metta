@@ -10,8 +10,6 @@ defaults:
 run: eval.metta.new
 run_dir: ${data_dir}/${run}
 
-
-policy_uri: pytorch://checkpoints/metta-new/metta.pt
 npc_policy_uri: null
 
 pytorch:
@@ -29,8 +27,8 @@ trainer:
   simulation:
     evaluate_interval: 300
     #env: /env/mettagrid/navigation/training/multienv
-  #initial_policy:
-  #  uri: pytorch://checkpoints/metta-example/model_019074.pt
+  initial_policy:
+   uri: pytorch://checkpoints/metta-new/metta.pt
   #  #uri: pytorch://checkpoints/metta-example/model_019074.pt
   #env: /env/mettagrid//training/multienv_nc
 

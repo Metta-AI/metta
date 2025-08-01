@@ -16,6 +16,16 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
         super().__init__(env, policy, input_size, hidden_size)
 
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
+    ):
+        self.activate_actions(action_names, action_max_params, device)
+
     def activate_actions(self, action_names, action_max_params, device):
         """
         Initialize the action space, similar to MettaAgent.activate_actions.
