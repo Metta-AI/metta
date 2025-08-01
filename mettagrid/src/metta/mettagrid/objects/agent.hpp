@@ -5,7 +5,6 @@
 #include <cassert>
 #include <string>
 #include <vector>
-#include <iostream>
 
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
