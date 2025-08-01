@@ -73,6 +73,7 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
+  int how_long_blue_battery_held;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -92,7 +93,8 @@ public:
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
-        reward(nullptr) {
+        reward(nullptr),
+        how_long_blue_battery_held(0) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 

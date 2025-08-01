@@ -129,6 +129,7 @@ private:
   std::unique_ptr<StatsTracker> _stats;
 
   size_t _num_observation_tokens;
+  int _blue_battery_item;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.

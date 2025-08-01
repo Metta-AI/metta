@@ -22,6 +22,7 @@
 #include "grid.hpp"
 #include "hash.hpp"
 #include "objects/agent.hpp"
+#include "objects/box.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/production_handler.hpp"
@@ -74,6 +75,15 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
 
   _action_success.resize(num_agents);
+
+  // Find the index of the blue battery item
+  _blue_battery_item = -1;
+  for (size_t i = 0; i < inventory_item_names.size(); ++i) {
+    if (inventory_item_names[i] == "battery_blue") {
+      _blue_battery_item = static_cast<int>(i);
+      break;
+    }
+  }
 
   for (const auto& [action_name, action_config] : cfg.actions) {
     std::string action_name_str = action_name;
@@ -448,6 +458,20 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
+    }
+  }
+
+  // Update rewards based on holding blue battery too long
+  if (_blue_battery_item != -1) {
+    for (auto& agent : _agents) {
+      auto it = agent->inventory.find(_blue_battery_item);
+      if (it != agent->inventory.end() && it->second > 0) {
+        (agent->how_long_blue_battery_held)++;
+        // Debug print for battery holding duration
+      }
+      if (agent->how_long_blue_battery_held > 0 && agent->how_long_blue_battery_held % 20 == 0) {
+        *agent->reward -= 1.0f;
+      }
     }
   }
 
