@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 tasks:
   /env/mettagrid/operant_conditioning/multiday/2_converters/match_mine_red: 1
