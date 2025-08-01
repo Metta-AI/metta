@@ -358,6 +358,8 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
 
     # Test with uncommitted changes but skip_git_check=True
     caplog.clear()
+    # Need to mock is_commit_pushed to avoid git command with fake commit hash
+    monkeypatch.setattr("metta.common.util.git.is_commit_pushed", lambda x: True)
     result = get_git_hash_for_remote_task(skip_git_check=True, logger=logger)
     assert result == "abc123"
     assert "Proceeding with uncommitted changes" in caplog.text
