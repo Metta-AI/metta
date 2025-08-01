@@ -12,7 +12,7 @@ class K8sPodManager(AbstractContainerManager):
         self._logger = logging.getLogger(__name__)
         self._namespace = namespace or os.environ.get("KUBERNETES_NAMESPACE", "orchestrator")
         self._kubeconfig = kubeconfig or os.environ.get("KUBERNETES_KUBECONFIG", None)
-        self._wandb_api_key = wandb_api_key or os.environ.get("WANDB_API_KEY", None)
+        self._wandb_api_key = wandb_api_key or os.environ.get("WANDB_API_KEY", "")
 
     def _get_kubectl_cmd(self) -> list[str]:
         cmd = ["kubectl"]
@@ -51,7 +51,7 @@ class K8sPodManager(AbstractContainerManager):
                             {"name": "WORKER_ASSIGNEE", "value": pod_name},
                             {"name": "WANDB_API_KEY", "value": self._wandb_api_key},
                             {"name": "MACHINE_TOKEN", "value": machine_token},
-                            *[{"name": k, "value": v} for k, v in datadog_config.to_env_dict().items()],
+                            *[{"name": k, "value": str(v)} for k, v in datadog_config.to_env_dict().items()],
                             {"name": "DD_SERVICE", "value": "eval-worker"},
                         ],
                         "resources": {
@@ -86,11 +86,13 @@ class K8sPodManager(AbstractContainerManager):
         pod_manifest = self._get_pod_manifest(backend_url, docker_image, machine_token)
         pod_name = pod_manifest["metadata"]["name"]
         cmd = self._get_kubectl_cmd() + ["create", "-f", "-"]
+        manifest_str = json.dumps(pod_manifest)
+        self._logger.info(f"Pod manifest: \n {manifest_str}")
 
         self._logger.info("Starting worker pod")
 
         try:
-            subprocess.run(cmd, input=json.dumps(pod_manifest), capture_output=True, text=True, check=True)
+            subprocess.run(cmd, input=manifest_str, capture_output=True, text=True, check=True)
             self._logger.info(f"Started worker pod {pod_name}")
             return pod_name
         except subprocess.CalledProcessError as e:

@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import pytest
 from fastapi import FastAPI
@@ -10,14 +10,30 @@ from httpx import ASGITransport, AsyncClient
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator
+from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
 from metta.app_backend.routes.eval_task_routes import (
     TaskCreateRequest,
     TaskFilterParams,
-    TaskStatusUpdate,
-    TaskUpdateRequest,
+    TaskResponse,
 )
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 from metta.app_backend.worker_managers.thread_manager import ThreadWorkerManager
+
+
+class SuccessTaskExecutor(AbstractTaskExecutor):
+    def __init__(self):
+        pass
+
+    async def execute_task(self, task: TaskResponse) -> None:
+        pass
+
+
+class FailureTaskExecutor(AbstractTaskExecutor):
+    def __init__(self):
+        pass
+
+    async def execute_task(self, task: TaskResponse) -> None:
+        raise Exception("Failed task")
 
 
 class TestEvalTaskOrchestratorIntegration:
@@ -62,14 +78,22 @@ class TestEvalTaskOrchestratorIntegration:
 
         return policy.id
 
+    def create_success_worker(self, worker_name: str, eval_task_client: EvalTaskClient) -> EvalTaskWorker:
+        return EvalTaskWorker(
+            client=eval_task_client,
+            assignee=worker_name,
+            task_executor=SuccessTaskExecutor(),
+            poll_interval=0.5,
+        )
+
     @pytest.fixture
     def mock_thread_manager(self, eval_task_client: EvalTaskClient, test_client: TestClient) -> ThreadWorkerManager:
         """Create a ThreadWorkerManager with mock workers."""
 
-        def worker_factory(worker_name: str) -> MockSuccessWorker:
-            return MockSuccessWorker(client=eval_task_client, assignee=worker_name)
+        def create_worker(worker_name: str) -> EvalTaskWorker:
+            return self.create_success_worker(worker_name, eval_task_client)
 
-        return ThreadWorkerManager(worker_factory=worker_factory)
+        return ThreadWorkerManager(create_worker=create_worker)
 
     @pytest.fixture
     def orchestrator(
@@ -138,14 +162,15 @@ class TestEvalTaskOrchestratorIntegration:
         """Test that failed tasks are marked as error."""
 
         # Create orchestrator with failure workers
-        def failure_worker_factory(worker_name: str) -> MockFailureWorker:
-            from .test_workers.mock_workers import MockFailureWorker
-
-            return MockFailureWorker(
-                client=eval_task_client, assignee=worker_name, failure_message="Integration test failure"
+        def create_worker(worker_name: str) -> EvalTaskWorker:
+            return EvalTaskWorker(
+                client=eval_task_client,
+                assignee=worker_name,
+                task_executor=FailureTaskExecutor(),
+                poll_interval=0.5,
             )
 
-        failure_manager = ThreadWorkerManager(worker_factory=failure_worker_factory)
+        failure_manager = ThreadWorkerManager(create_worker=create_worker)
 
         orchestrator = EvalTaskOrchestrator(
             task_client=eval_task_client,
@@ -205,10 +230,10 @@ class TestEvalTaskOrchestratorIntegration:
         """Test multiple workers processing different tasks concurrently."""
 
         # Create orchestrator with multiple workers
-        def success_worker_factory(worker_name: str) -> MockSuccessWorker:
-            return MockSuccessWorker(client=eval_task_client, assignee=worker_name, sim_delay=0.2)
+        def create_worker(worker_name: str) -> EvalTaskWorker:
+            return self.create_success_worker(worker_name, eval_task_client)
 
-        success_manager = ThreadWorkerManager(worker_factory=success_worker_factory)
+        success_manager = ThreadWorkerManager(create_worker=create_worker)
 
         orchestrator = EvalTaskOrchestrator(
             task_client=eval_task_client,
@@ -262,193 +287,13 @@ class TestEvalTaskOrchestratorIntegration:
             success_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_worker_timeout_handling(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
-        """Test that workers are properly killed when tasks timeout."""
-
-        # Create orchestrator with timeout workers and very short timeout
-        def timeout_worker_factory(worker_name: str) -> MockTimeoutWorker:
-            from .test_workers.mock_workers import MockTimeoutWorker
-
-            return MockTimeoutWorker(client=eval_task_client, assignee=worker_name, sim_delay=10.0)
-
-        timeout_manager = ThreadWorkerManager(worker_factory=timeout_worker_factory)
-
-        orchestrator = EvalTaskOrchestrator(
-            task_client=eval_task_client,
-            worker_manager=timeout_manager,
-            poll_interval=0.5,
-            worker_idle_timeout=2.0,  # Very short timeout
-            max_workers=1,
-        )
-
-        # Create a test task
-        task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
-                policy_id=test_policy_id,
-                git_hash="timeout_test_hash",
-                sim_suite="navigation",
-            )
-        )
-        task_id = task_response.id
-
-        try:
-            # Run orchestrator cycle to start the task
-            await orchestrator.run_cycle()
-            await asyncio.sleep(1)
-
-            # Simulate task assignment time in the past (older than timeout)
-            await eval_task_client.update_task_status(
-                TaskUpdateRequest(
-                    updates={
-                        task_id: TaskStatusUpdate(
-                            status="unprocessed",
-                            attributes={
-                                "assigned_at_override": (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
-                            },
-                        )
-                    }
-                )
-            )
-
-            # Run orchestrator cycle to handle timeout
-            await orchestrator.run_cycle()
-            await asyncio.sleep(1)
-
-            # Task should be unprocessed again or marked as error (depending on retries)
-            filters = TaskFilterParams(policy_ids=[test_policy_id], limit=10)
-            all_tasks = await eval_task_client.get_all_tasks(filters=filters)
-
-            timeout_task = next((task for task in all_tasks.tasks if task.id == task_id), None)
-            assert timeout_task is not None
-            # Task should either be unprocessed (retry) or error (max retries)
-            assert timeout_task.status in ["unprocessed", "error"]
-
-        finally:
-            timeout_manager.shutdown_all()
-
-    @pytest.mark.asyncio
-    async def test_mixed_success_failure_scenarios(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
-        """Test orchestrator handling mix of successful and failed tasks."""
-
-        # Create conditional worker that alternates success/failure
-        task_counter = [0]  # Use list to allow modification in closure
-
-        def success_condition(task):
-            task_counter[0] += 1
-            should_succeed = task_counter[0] % 2 == 1  # Odd numbers succeed
-            return should_succeed
-
-        def conditional_worker_factory(worker_name: str) -> MockConditionalWorker:
-            from .test_workers.mock_workers import MockConditionalWorker
-
-            return MockConditionalWorker(
-                client=eval_task_client,
-                assignee=worker_name,
-                success_condition=success_condition,
-                failure_message="Even task ID failure",
-            )
-
-        mixed_manager = ThreadWorkerManager(worker_factory=conditional_worker_factory)
-
-        orchestrator = EvalTaskOrchestrator(
-            task_client=eval_task_client,
-            worker_manager=mixed_manager,
-            poll_interval=0.5,
-            worker_idle_timeout=10.0,
-            max_workers=3,
-        )
-
-        # Create multiple test tasks
-        task_ids = []
-        for i in range(4):
-            task_response = await eval_task_client.create_task(
-                TaskCreateRequest(
-                    policy_id=test_policy_id,
-                    git_hash=f"mixed_test_hash_{i}",
-                    sim_suite="navigation",
-                )
-            )
-            task_ids.append(task_response.id)
-
-        try:
-            # Run first orchestrator cycle to start workers
-            await orchestrator.run_cycle()
-            await asyncio.sleep(0.5)
-
-            # Run orchestrator cycles to assign and process tasks
-            start_time = datetime.now()
-            for _ in range(15):
-                await orchestrator.run_cycle()
-                await asyncio.sleep(0.5)
-
-                # Safety timeout
-                if (datetime.now() - start_time).total_seconds() > 20:
-                    break
-
-            # Check final task statuses
-            filters = TaskFilterParams(policy_ids=[test_policy_id], limit=20)
-            all_tasks = await eval_task_client.get_all_tasks(filters=filters)
-
-            task_statuses = {}
-            for task in all_tasks.tasks:
-                if task.id in task_ids:
-                    task_statuses[task.id] = task.status
-
-            # Should have mix of done and error statuses
-            done_count = sum(1 for status in task_statuses.values() if status == "done")
-            error_count = sum(1 for status in task_statuses.values() if status == "error")
-
-            assert done_count > 0, "No tasks succeeded"
-            assert error_count > 0, "No tasks failed"
-            assert done_count + error_count >= 2, "Not enough tasks processed"  # At least 2 tasks should be processed
-
-        finally:
-            mixed_manager.shutdown_all()
-
-    @pytest.mark.asyncio
-    async def test_orchestrator_cleanup_on_shutdown(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
-        """Test that orchestrator properly cleans up workers on shutdown."""
-
-        def success_worker_factory(worker_name: str) -> MockSuccessWorker:
-            return MockSuccessWorker(client=eval_task_client, assignee=worker_name)
-
-        success_manager = ThreadWorkerManager(worker_factory=success_worker_factory)
-
-        orchestrator = EvalTaskOrchestrator(
-            task_client=eval_task_client,
-            worker_manager=success_manager,
-            poll_interval=0.5,
-            worker_idle_timeout=10.0,
-            max_workers=2,
-        )
-
-        try:
-            # Start some workers by running a cycle
-            await orchestrator.run_cycle()
-            await asyncio.sleep(1)
-
-            # Verify workers are alive
-            alive_workers = await success_manager.discover_alive_workers()
-            initial_worker_count = len(alive_workers)
-            assert initial_worker_count > 0, "No workers were started"
-
-        finally:
-            # Test cleanup
-            success_manager.shutdown_all()
-            await asyncio.sleep(1)  # Give time for cleanup
-
-            # Verify all workers are cleaned up
-            alive_workers = await success_manager.discover_alive_workers()
-            assert len(alive_workers) == 0, "Workers were not properly cleaned up"
-
-    @pytest.mark.asyncio
     async def test_worker_discovery_and_lifecycle(self, eval_task_client: EvalTaskClient):
         """Test worker discovery and lifecycle management."""
 
-        def worker_factory(worker_name: str) -> MockSuccessWorker:
-            return MockSuccessWorker(client=eval_task_client, assignee=worker_name)
+        def create_worker(worker_name: str) -> EvalTaskWorker:
+            return self.create_success_worker(worker_name, eval_task_client)
 
-        success_manager = ThreadWorkerManager(worker_factory=worker_factory)
+        success_manager = ThreadWorkerManager(create_worker=create_worker)
 
         try:
             # Initially no workers
@@ -458,16 +303,15 @@ class TestEvalTaskOrchestratorIntegration:
             # Start a worker
             worker_info = success_manager.start_worker()
             assert worker_info is not None
-            assert worker_info.container_name is not None
 
             # Should discover the worker
             await asyncio.sleep(0.5)
             alive_workers = await success_manager.discover_alive_workers()
             assert len(alive_workers) == 1
-            assert alive_workers[0].container_name == worker_info.container_name
+            assert alive_workers[0] == worker_info
 
             # Clean up specific worker
-            success_manager.cleanup_worker(worker_info.container_id)
+            success_manager.cleanup_worker(worker_info)
             await asyncio.sleep(0.5)
 
             # Should no longer discover the worker

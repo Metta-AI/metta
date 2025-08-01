@@ -6,7 +6,6 @@ import threading
 from datetime import datetime, timezone
 from typing import Callable
 
-from metta.app_backend.container_managers.models import WorkerInfo
 from metta.app_backend.eval_task_worker import EvalTaskWorker
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 
@@ -26,15 +25,15 @@ class ThreadWorkerManager(AbstractWorkerManager):
 
     def __init__(
         self,
-        worker_factory: Callable[[str], EvalTaskWorker],  # Now takes worker_name as parameter
+        create_worker: Callable[[str], EvalTaskWorker],
         logger: logging.Logger | None = None,
     ):
-        self._worker_factory = worker_factory
+        self._create_worker = create_worker
         self._logger = logger or logging.getLogger(__name__)
         self._workers: dict[str, dict] = {}  # worker_name -> {thread, worker, stop_event}
         self._lock = threading.Lock()
 
-    def start_worker(self) -> WorkerInfo:
+    def start_worker(self) -> str:
         """Start a worker on a new thread."""
         worker_name = self._format_worker_name()
 
@@ -43,7 +42,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
                 raise ValueError(f"Worker {worker_name} already exists")
 
             # Create worker instance with the generated worker name
-            worker = self._worker_factory(worker_name)
+            worker = self._create_worker(worker_name)
 
             # Create stop event for graceful shutdown
             stop_event = threading.Event()
@@ -62,12 +61,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
             thread.start()
             self._logger.info(f"Started worker {worker_name} on thread {thread.name}")
 
-            return WorkerInfo(
-                git_hashes=[],  # Will be populated by orchestrator
-                container_id=worker_name,  # Use worker name as ID
-                container_name=worker_name,
-                assigned_task=None,
-            )
+            return worker_name
 
     def _run_worker(self, worker: EvalTaskWorker, stop_event: threading.Event) -> None:
         """Run worker in a thread with event loop."""
@@ -110,14 +104,14 @@ class ThreadWorkerManager(AbstractWorkerManager):
         finally:
             loop.close()
 
-    def cleanup_worker(self, worker_id: str) -> None:
+    def cleanup_worker(self, worker_name: str) -> None:
         """Stop and cleanup a worker."""
         with self._lock:
-            if worker_id not in self._workers:
-                self._logger.warning(f"Worker {worker_id} not found for cleanup")
+            if worker_name not in self._workers:
+                self._logger.warning(f"Worker {worker_name} not found for cleanup")
                 return
 
-            worker_info = self._workers[worker_id]
+            worker_info = self._workers[worker_name]
             stop_event = worker_info["stop_event"]
             thread = worker_info["thread"]
 
@@ -128,14 +122,14 @@ class ThreadWorkerManager(AbstractWorkerManager):
             thread.join(timeout=10.0)
 
             if thread.is_alive():
-                self._logger.warning(f"Worker thread {worker_id} did not stop gracefully")
+                self._logger.warning(f"Worker thread {worker_name} did not stop gracefully")
             else:
-                self._logger.info(f"Worker {worker_id} stopped successfully")
+                self._logger.info(f"Worker {worker_name} stopped successfully")
 
             # Remove from tracking
-            del self._workers[worker_id]
+            del self._workers[worker_name]
 
-    async def discover_alive_workers(self) -> list[WorkerInfo]:
+    async def discover_alive_workers(self) -> list[str]:
         """Discover all alive workers."""
         alive_workers = []
 
@@ -147,14 +141,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
             thread = worker_info["thread"]
 
             if thread.is_alive():
-                alive_workers.append(
-                    WorkerInfo(
-                        git_hashes=[],  # Will be populated by orchestrator
-                        container_id=worker_name,
-                        container_name=worker_name,
-                        assigned_task=None,
-                    )
-                )
+                alive_workers.append(worker_name)
             else:
                 # Clean up dead workers
                 self._logger.info(f"Removing dead worker {worker_name}")

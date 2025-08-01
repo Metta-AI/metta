@@ -232,4 +232,4 @@ class StatsClient:
 
     def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
         params = filters.model_dump(mode="json", exclude_none=True) if filters else {}
-        return self._make_sync_request(TasksResponse, "GET", "/tasks", params=params)
+        return self._make_sync_request(TasksResponse, "GET", "/tasks/all", params=params)
