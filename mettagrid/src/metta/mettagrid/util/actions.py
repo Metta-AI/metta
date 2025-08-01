@@ -145,21 +145,44 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
     try:
         action_names = env.action_names()
 
-        # Check if we have cardinal movement
+        # Check if we have cardinal or 8-way movement
         if "move_cardinal" in action_names:
             # Use cardinal movement directly
             move_action_idx = action_names.index("move_cardinal")
+            movement_mode = "cardinal"
+        elif "move_8way" in action_names:
+            # For 8-way movement, we can only move in cardinal directions with this function
+            # since it takes an Orientation enum which only has 4 values
+            move_action_idx = action_names.index("move_8way")
+            movement_mode = "8way"
+        else:
+            movement_mode = None
             
-            print(f"Moving agent {agent_idx} {direction_name} (cardinal mode)")
+        if movement_mode:
+            print(f"Moving agent {agent_idx} {direction_name} ({movement_mode} mode)")
             
             # Get initial state
             result["obs_before"] = get_current_observation(env, agent_idx)
             result["position_before"] = get_agent_position(env, agent_idx)
             result["orientation_before"] = get_agent_orientation(env, agent_idx)
             
-            # Cardinal move - orientation value directly maps to direction
+            # Map orientation to action argument
+            if movement_mode == "cardinal":
+                # Cardinal: 0=North, 1=South, 2=West, 3=East
+                action_arg = orientation.value
+            else:  # 8way
+                # 8-way: 0=North, 2=East, 4=South, 6=West (only cardinal directions)
+                # Map Orientation enum to 8-way cardinal indices
+                orientation_to_8way = {
+                    Orientation.UP: 0,    # North
+                    Orientation.DOWN: 4,  # South
+                    Orientation.LEFT: 6,  # West
+                    Orientation.RIGHT: 2  # East
+                }
+                action_arg = orientation_to_8way[orientation]
+            
             move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-            move_action[agent_idx] = [move_action_idx, orientation.value]
+            move_action[agent_idx] = [move_action_idx, action_arg]
             
             obs_after, rewards, terminals, truncations, info = env.step(move_action)
             move_success = env.action_success()
