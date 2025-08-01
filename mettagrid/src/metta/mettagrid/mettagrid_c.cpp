@@ -448,6 +448,13 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
+
+      // Record the action outcome (failed actions count as noop)
+      if (_action_success[agent_idx]) {
+        agent->record_action(action, arg);
+      } else {
+        agent->record_action(0, 0);
+      }
     }
   }
 
