@@ -1,7 +1,6 @@
-import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -10,13 +9,11 @@ from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.models import WorkerInfo
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator
 from metta.app_backend.routes.eval_task_routes import (
+    GitHashesResponse,
     TaskClaimRequest,
     TaskClaimResponse,
     TaskResponse,
-    TaskStatusUpdate,
-    TaskUpdateRequest,
     TasksResponse,
-    GitHashesResponse,
 )
 
 
@@ -93,9 +90,9 @@ class TestEvalTaskOrchestrator:
     async def test_attempt_claim_task_success(self, orchestrator, sample_task, sample_worker):
         """Test successful task claiming."""
         orchestrator._task_client.claim_tasks.return_value = TaskClaimResponse(claimed=[sample_task.id])
-        
+
         result = await orchestrator._attempt_claim_task(sample_task, sample_worker)
-        
+
         assert result is True
         orchestrator._task_client.claim_tasks.assert_called_once_with(
             TaskClaimRequest(tasks=[sample_task.id], assignee=sample_worker.container_name)
@@ -105,9 +102,9 @@ class TestEvalTaskOrchestrator:
     async def test_attempt_claim_task_failure(self, orchestrator, sample_task, sample_worker):
         """Test failed task claiming."""
         orchestrator._task_client.claim_tasks.return_value = TaskClaimResponse(claimed=[])
-        
+
         result = await orchestrator._attempt_claim_task(sample_task, sample_worker)
-        
+
         assert result is False
 
     @pytest.mark.asyncio
@@ -116,15 +113,15 @@ class TestEvalTaskOrchestrator:
         # Setup
         claimed_task = TaskResponse(**sample_task.model_dump())
         claimed_task.assignee = sample_worker.container_name
-        
+
         orchestrator._container_manager.discover_alive_workers.return_value = [sample_worker]
         orchestrator._task_client.get_git_hashes_for_workers.return_value = GitHashesResponse(
             git_hashes={sample_worker.container_name: ["abc123", "def456"]}
         )
-        
+
         # Execute
         result = await orchestrator._get_available_workers([claimed_task])
-        
+
         # Verify
         assert len(result) == 1
         worker = result[sample_worker.container_name]
@@ -139,18 +136,18 @@ class TestEvalTaskOrchestrator:
         overdue_task.assignee = sample_worker.container_name
         overdue_task.assigned_at = datetime.now(timezone.utc) - timedelta(minutes=15)
         overdue_task.retries = 1
-        
+
         alive_workers = {sample_worker.container_name: sample_worker}
-        
+
         # Execute
         await orchestrator._kill_dead_workers_and_tasks([overdue_task], alive_workers)
-        
+
         # Verify task status update
         orchestrator._task_client.update_task_status.assert_called_once()
         call_args = orchestrator._task_client.update_task_status.call_args[0][0]
         assert call_args.updates[overdue_task.id].status == "unprocessed"
         assert call_args.updates[overdue_task.id].clear_assignee is True
-        
+
         # Verify worker cleanup
         orchestrator._container_manager.cleanup_container.assert_called_once_with(sample_worker.container_id)
         assert sample_worker.container_name not in alive_workers
@@ -163,12 +160,12 @@ class TestEvalTaskOrchestrator:
         overdue_task.assignee = sample_worker.container_name
         overdue_task.assigned_at = datetime.now(timezone.utc) - timedelta(minutes=15)
         overdue_task.retries = 3
-        
+
         alive_workers = {sample_worker.container_name: sample_worker}
-        
+
         # Execute
         await orchestrator._kill_dead_workers_and_tasks([overdue_task], alive_workers)
-        
+
         # Verify task marked as error
         call_args = orchestrator._task_client.update_task_status.call_args[0][0]
         assert call_args.updates[overdue_task.id].status == "error"
@@ -178,10 +175,10 @@ class TestEvalTaskOrchestrator:
     async def test_assign_task_to_worker_matching_hash(self, orchestrator, sample_task, sample_worker):
         """Test task assignment prioritizing worker's git hashes."""
         available_tasks = {"abc123": [sample_task], "def456": []}
-        
-        with patch.object(orchestrator, '_attempt_claim_task', return_value=True) as mock_claim:
+
+        with patch.object(orchestrator, "_attempt_claim_task", return_value=True) as mock_claim:
             await orchestrator._assign_task_to_worker(sample_worker, available_tasks)
-            
+
             mock_claim.assert_called_once_with(sample_task, sample_worker)
             assert len(available_tasks["abc123"]) == 0
 
@@ -191,10 +188,10 @@ class TestEvalTaskOrchestrator:
         other_task = TaskResponse(**sample_task.model_dump())
         other_task.id = uuid.uuid4()
         available_tasks = {"xyz789": [other_task]}
-        
-        with patch.object(orchestrator, '_attempt_claim_task', return_value=True) as mock_claim:
+
+        with patch.object(orchestrator, "_attempt_claim_task", return_value=True) as mock_claim:
             await orchestrator._assign_task_to_worker(sample_worker, available_tasks)
-            
+
             mock_claim.assert_called_once_with(other_task, sample_worker)
 
     @pytest.mark.asyncio
@@ -203,24 +200,24 @@ class TestEvalTaskOrchestrator:
         # Setup worker without assigned task
         sample_worker.assigned_task = None
         alive_workers = {sample_worker.container_name: sample_worker}
-        
+
         orchestrator._task_client.get_available_tasks.return_value = TasksResponse(tasks=[sample_task])
-        
-        with patch.object(orchestrator, '_assign_task_to_worker') as mock_assign:
+
+        with patch.object(orchestrator, "_assign_task_to_worker") as mock_assign:
             await orchestrator._assign_tasks_to_workers(alive_workers)
-            
+
             mock_assign.assert_called_once_with(sample_worker, {"abc123": [sample_task]})
 
     @pytest.mark.asyncio
     async def test_start_new_workers(self, orchestrator, sample_worker):
         """Test starting new workers when below max capacity."""
         alive_workers = {sample_worker.container_name: sample_worker}  # Only 1 worker
-        
+
         await orchestrator._start_new_workers(alive_workers)
-        
+
         # Should start 2 more workers (max_workers=3, current=1)
         assert orchestrator._container_manager.start_worker_container.call_count == 2
-        
+
         # Verify call arguments
         expected_call_args = {
             "backend_url": "http://test.backend",
@@ -240,16 +237,16 @@ class TestEvalTaskOrchestrator:
             git_hashes={sample_worker.container_name: ["abc123"]}
         )
         orchestrator._task_client.get_available_tasks.return_value = TasksResponse(tasks=[sample_task])
-        
-        with patch.object(orchestrator, '_assign_task_to_worker') as mock_assign:
+
+        with patch.object(orchestrator, "_assign_task_to_worker") as mock_assign:
             await orchestrator.run_cycle()
-            
+
             # Verify all main steps were called
             orchestrator._task_client.get_claimed_tasks.assert_called_once()
             orchestrator._container_manager.discover_alive_workers.assert_called_once()
             orchestrator._task_client.get_available_tasks.assert_called_once()
             mock_assign.assert_called_once()
-            
+
             # Should start 2 more workers (max=3, current=1)
             assert orchestrator._container_manager.start_worker_container.call_count == 2
 
@@ -258,8 +255,7 @@ class TestEvalTaskOrchestrator:
         """Test that run loop handles exceptions gracefully."""
         # Mock run_cycle to raise exception once, then work normally
         call_count = 0
-        original_run_cycle = orchestrator.run_cycle
-        
+
         async def failing_run_cycle():
             nonlocal call_count
             call_count += 1
@@ -267,22 +263,19 @@ class TestEvalTaskOrchestrator:
                 raise Exception("Test exception")
             # Stop the loop after second call
             raise KeyboardInterrupt()
-        
+
         orchestrator.run_cycle = failing_run_cycle
-        
+
         # Should not crash, but should handle exception
         with pytest.raises(KeyboardInterrupt):
             await orchestrator.run()
-        
+
         assert call_count == 2  # Exception on first call, KeyboardInterrupt on second
 
     def test_init_defaults(self):
         """Test orchestrator initialization with defaults."""
-        orch = EvalTaskOrchestrator(
-            backend_url="http://test.backend",
-            machine_token="test-token"
-        )
-        
+        orch = EvalTaskOrchestrator(backend_url="http://test.backend", machine_token="test-token")
+
         assert orch._backend_url == "http://test.backend"
         assert orch._machine_token == "test-token"
         assert orch._docker_image == "metta-policy-evaluator-local:latest"
@@ -297,10 +290,10 @@ class TestEvalTaskOrchestrator:
         """Test behavior when no tasks are available."""
         alive_workers = {sample_worker.container_name: sample_worker}
         orchestrator._task_client.get_available_tasks.return_value = TasksResponse(tasks=[])
-        
-        with patch.object(orchestrator, '_assign_task_to_worker') as mock_assign:
+
+        with patch.object(orchestrator, "_assign_task_to_worker") as mock_assign:
             await orchestrator._assign_tasks_to_workers(alive_workers)
-            
+
             # Should call assign_task_to_worker but with empty task dict
             mock_assign.assert_called_once_with(sample_worker, {})
 
@@ -309,11 +302,11 @@ class TestEvalTaskOrchestrator:
         """Test that workers with assigned tasks don't get new tasks."""
         sample_worker.assigned_task = sample_task
         alive_workers = {sample_worker.container_name: sample_worker}
-        
+
         orchestrator._task_client.get_available_tasks.return_value = TasksResponse(tasks=[sample_task])
-        
-        with patch.object(orchestrator, '_assign_task_to_worker') as mock_assign:
+
+        with patch.object(orchestrator, "_assign_task_to_worker") as mock_assign:
             await orchestrator._assign_tasks_to_workers(alive_workers)
-            
+
             # Should not assign task to worker that already has one
             mock_assign.assert_not_called()
