@@ -121,8 +121,6 @@ def _set_min(cfg: DictConfig, path: str, value: float) -> None:
 
 def apply_mac_overrides(cfg: DictConfig) -> None:
     if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
-        cfg.device = "cpu"
-        cfg.vectorization = "serial"
         _set_min(cfg, "trainer.batch_size", 1024)
         _set_min(cfg, "trainer.minibatch_size", 1024)
         _set_min(cfg, "trainer.forward_pass_minibatch_target_size", 2)

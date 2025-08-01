@@ -31,6 +31,11 @@ import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
 
+// Expose state to window for testing purposes (e.g., Playwright tests)
+if (typeof window !== 'undefined') {
+  ;(window as any).state = state
+}
+
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
 
