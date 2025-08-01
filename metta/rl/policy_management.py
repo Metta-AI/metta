@@ -335,11 +335,6 @@ def load_or_initialize_policy(
         if not is_master:
             policy.load_state_dict(state_dict)
 
-    # receive policy from master using NCCL broadcasting
-    # print(f"Getting policy from master on rank {rank}")
-    # policy = get_from_master(policy)
-    # print(f"Got policy from master on rank {rank}")
-
     # policy, initial_policy_record, latest_saved_policy_record = (
     #     get_from_master(policy),
     #     get_from_master(initial_policy_record),
