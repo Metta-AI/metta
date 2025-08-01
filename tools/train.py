@@ -122,7 +122,6 @@ def main(cfg: DictConfig) -> int:
 
     # Update cfg.device to include the local rank if distributed
     cfg.device = str(device)
-    print(f"Setting cfg.device to {cfg.device}")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if is_master:
