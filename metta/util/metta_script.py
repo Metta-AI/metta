@@ -4,6 +4,7 @@ import functools
 import inspect
 import logging
 import os
+import platform
 import signal
 import sys
 from types import FrameType
@@ -18,6 +19,12 @@ from metta.common.util.resolvers import register_resolvers
 from metta.util.init.mettagrid_environment import init_mettagrid_environment
 
 logger = logging.getLogger(__name__)
+
+
+def apply_mac_device_overrides(cfg: DictConfig) -> None:
+    if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
+        cfg.device = "cpu"
+        cfg.vectorization = "serial"
 
 
 def metta_script(
@@ -44,15 +51,16 @@ def metta_script(
 
     This wrapper:
     1. Configures Hydra to load the `config_name` config and pass it to the `main` function
-    2. Calls the optional `pre_main` if provided
-    3. Initializes logging to both stdout and run_dir/logs/
-    4. Initializes the runtime environment for MettaGrid simulations:
+    2. Applies device overrides for Mac
+    3. Calls the optional `pre_main` if provided
+    4. Initializes logging to both stdout and run_dir/logs/
+    5. Initializes the runtime environment for MettaGrid simulations:
        - Create required directories (including run_dir)
        - Configure CUDA settings
        - Set up environment variables
        - Initialize random seeds
        - Register OmegaConf resolvers
-    5. Performs device validation and sets the device to "cpu" if CUDA is not available
+    6. Performs device validation and sets the device to "cpu" if CUDA is not available
     """
 
     # If not running as a script, there's nothing to do.
@@ -71,6 +79,8 @@ def metta_script(
 
         if pre_main:
             pre_main(cfg)
+
+        apply_mac_device_overrides(cfg)
 
         run_dir = cfg.get("run_dir")
         if run_dir:
