@@ -330,7 +330,7 @@ function drawInventory(useSearch = false) {
       numItems += num
     }
     // If object has one output resource, and its in the inventory,
-    // draw it in the center. This is used to draw the hard over an altar.
+    // draw it in the center. This is used to draw the heart over an altar.
     if (
       gridObject.outputResources.length === 1 &&
       inventory.length === 1 &&
