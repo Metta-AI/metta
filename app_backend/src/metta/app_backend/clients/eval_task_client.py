@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.eval_task_routes import (
+    GitHashesRequest,
     GitHashesResponse,
     TaskClaimRequest,
     TaskClaimResponse,
@@ -38,7 +39,10 @@ class EvalTaskClient(BaseAppBackendClient):
         )
 
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> GitHashesResponse:
-        return await self._make_request(GitHashesResponse, "GET", "/tasks/git-hashes", params={"assignees": assignees})
+        request = GitHashesRequest(assignees=assignees)
+        return await self._make_request(
+            GitHashesResponse, "POST", "/tasks/git-hashes", json=request.model_dump(mode="json")
+        )
 
     async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse:
         return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
