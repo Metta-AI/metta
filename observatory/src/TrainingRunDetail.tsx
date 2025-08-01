@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Plot from 'react-plotly.js'
-import { TrainingRun, HeatmapData, Repo } from './repo'
+import { TrainingRun, PolicyScorecardData, TrainingRunPolicy, Repo } from './repo'
 import { MapViewer } from './MapViewer'
-import { SuiteTabs } from './SuiteTabs'
+import { EvalSelector } from './components/EvalSelector'
+import { MetricSelector } from './components/MetricSelector'
 import { TagEditor } from './TagEditor'
 import { DescriptionEditor } from './DescriptionEditor'
+import { METTASCOPE_REPLAY_URL } from './constants'
 
 const TRAINING_RUN_DETAIL_CSS = `
 .training-run-detail-container {
@@ -93,7 +95,7 @@ const TRAINING_RUN_DETAIL_CSS = `
 }
 
 
-.heatmap-controls {
+.scorecard-controls {
   display: grid;
   gridTemplateColumns: 1fr 1fr;
   gap: 20px;
@@ -193,14 +195,23 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
   // Data state
   const [trainingRun, setTrainingRun] = useState<TrainingRun | null>(null)
-  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null)
-  const [metrics, setMetrics] = useState<string[]>([])
-  const [suites, setSuites] = useState<string[]>([])
+  const [scorecardData, setScorecardData] = useState<PolicyScorecardData | null>(null)
+  const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
+  const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
+  const [trainingRunPolicies, setTrainingRunPolicies] = useState<TrainingRunPolicy[]>([])
+
+  // Selection state
+  const [selectedEvalNames, setSelectedEvalNames] = useState<Set<string>>(new Set())
+  const [selectedMetric, setSelectedMetric] = useState<string>('')
 
   // UI state
-  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
-  const [selectedSuite, setSelectedSuite] = useState<string>('navigation')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState({
+    initial: true,
+    policies: false,
+    evalNames: false,
+    metrics: false,
+    scorecard: false,
+  })
   const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{
@@ -220,59 +231,132 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!runId) return
 
       try {
-        setLoading(true)
-        const [runData, suitesData, userResponse] = await Promise.all([
+        setLoading((prev) => ({ ...prev, initial: true }))
+        const [runData, userResponse] = await Promise.all([
           repo.getTrainingRun(runId),
-          repo.getSuites(),
           repo.whoami().catch(() => ({ user_email: '' })),
         ])
 
         setTrainingRun(runData)
-        setSuites(suitesData)
-        setSelectedSuite(suitesData[0])
         setCurrentUser(userResponse.user_email)
         setError(null)
       } catch (err: any) {
         setError(`Failed to load training run: ${err.message}`)
       } finally {
-        setLoading(false)
+        setLoading((prev) => ({ ...prev, initial: false }))
       }
     }
 
     initializeData()
   }, [runId, repo])
 
-  // Load metrics when suite changes
+  // Load training run policies with epoch information
   useEffect(() => {
-    const loadSuiteData = async () => {
-      if (!selectedSuite) return
+    const loadPolicies = async () => {
+      if (!runId) return
 
       try {
-        const metricsData = await repo.getAllMetrics()
-        setMetrics(metricsData)
-      } catch (err: any) {
-        setError(`Failed to load suite data: ${err.message}`)
+        setLoading((prev) => ({ ...prev, policies: true }))
+        setError(null)
+        const policiesData = await repo.getTrainingRunPolicies(runId)
+        setTrainingRunPolicies(policiesData)
+      } catch (err) {
+        setError(`Failed to load policies: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setTrainingRunPolicies([])
+      } finally {
+        setLoading((prev) => ({ ...prev, policies: false }))
       }
     }
 
-    loadSuiteData()
-  }, [selectedSuite, repo])
+    loadPolicies()
+  }, [runId, repo])
 
-  // Load heatmap data when parameters change
+  // Load eval names when training run is loaded
   useEffect(() => {
-    const loadHeatmapData = async () => {
-      if (!runId || !selectedSuite || !selectedMetric) return
+    const loadEvalNames = async () => {
+      if (!runId) return
 
       try {
-        const heatmapData = await repo.getTrainingRunHeatmapData(runId, selectedMetric, selectedSuite)
-        setHeatmapData(heatmapData)
-      } catch (err: any) {
-        setError(`Failed to load heatmap data: ${err.message}`)
+        setLoading((prev) => ({ ...prev, evalNames: true }))
+        setError(null)
+        const evalNamesData = await repo.getEvalNames({
+          training_run_ids: [runId],
+          run_free_policy_ids: [],
+        })
+        setEvalNames(evalNamesData)
+
+        // Clear eval selections that are no longer valid
+        setSelectedEvalNames((prev) => new Set([...prev].filter((evalName) => evalNamesData.has(evalName))))
+      } catch (err) {
+        setError(`Failed to load eval names: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setEvalNames(new Set())
+        setSelectedEvalNames(new Set())
+      } finally {
+        setLoading((prev) => ({ ...prev, evalNames: false }))
       }
     }
 
-    loadHeatmapData()
-  }, [runId, selectedSuite, selectedMetric, repo])
+    loadEvalNames()
+  }, [runId, repo])
+
+  // Load available metrics when evaluations are selected
+  useEffect(() => {
+    const loadMetrics = async () => {
+      if (!runId || selectedEvalNames.size === 0) {
+        setAvailableMetrics([])
+        setSelectedMetric('')
+        return
+      }
+
+      try {
+        setLoading((prev) => ({ ...prev, metrics: true }))
+        setError(null)
+        const metricsData = await repo.getAvailableMetrics({
+          training_run_ids: [runId],
+          run_free_policy_ids: [],
+          eval_names: Array.from(selectedEvalNames),
+        })
+        setAvailableMetrics(metricsData)
+
+        // Clear metric selection if it's no longer available
+        if (selectedMetric && !metricsData.includes(selectedMetric)) {
+          setSelectedMetric('')
+        }
+      } catch (err) {
+        setError(`Failed to load metrics: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setAvailableMetrics([])
+        setSelectedMetric('')
+      } finally {
+        setLoading((prev) => ({ ...prev, metrics: false }))
+      }
+    }
+
+    loadMetrics()
+  }, [runId, selectedEvalNames, selectedMetric, repo])
+
+  // Load scorecard data when parameters change
+  useEffect(() => {
+    const loadScorecardData = async () => {
+      if (!runId || selectedEvalNames.size === 0 || !selectedMetric) return
+
+      try {
+        setLoading((prev) => ({ ...prev, scorecard: true }))
+        setError(null)
+        const scorecardData = await repo.generateTrainingRunScorecard(runId, {
+          eval_names: Array.from(selectedEvalNames),
+          metric: selectedMetric,
+        })
+        setScorecardData(scorecardData)
+      } catch (err: any) {
+        setError(`Failed to load scorecard data: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setScorecardData(null)
+      } finally {
+        setLoading((prev) => ({ ...prev, scorecard: false }))
+      }
+    }
+
+    loadScorecardData()
+  }, [runId, selectedEvalNames, selectedMetric, repo])
 
   const setSelectedCellIfNotLocked = (cell: { policyUri: string; evalName: string }) => {
     if (!isViewLocked) {
@@ -281,10 +365,10 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   }
 
   const openReplayUrl = (policyUri: string, evalName: string) => {
-    const evalData = heatmapData?.cells[policyUri]?.[evalName]
+    const evalData = scorecardData?.cells[policyUri]?.[evalName]
     if (!evalData?.replayUrl) return
 
-    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
     window.open(replay_url_prefix + evalData.replayUrl, '_blank')
   }
 
@@ -343,19 +427,43 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     }
   }
 
-  // Create the modified heatmap with policies on X-axis and evals on Y-axis
-  const renderHeatmap = () => {
-    if (!heatmapData) return null
+  // Create the modified scorecard with policies on X-axis and evals on Y-axis
+  const renderScorecard = () => {
+    if (!scorecardData) return null
 
-    const policies = Object.keys(heatmapData.cells)
-    const evalNames = heatmapData.evalNames
+    const policies = scorecardData.policyNames
+    const evalNames = scorecardData.evalNames
 
-    // Sort policies by version number
-    const policyVersionToPolicy = new Map<string, string>()
-    policies.forEach((policy) => {
-      policyVersionToPolicy.set(policy.split(':v')[1], policy)
+    if (policies.length === 0) {
+      return <div style={{ textAlign: 'center', padding: '20px' }}>No policies found for this training run.</div>
+    }
+
+    if (evalNames.length === 0) {
+      return <div style={{ textAlign: 'center', padding: '20px' }}>No evaluations found for selected criteria.</div>
+    }
+
+    if (trainingRunPolicies.length === 0) {
+      return <div style={{ textAlign: 'center', padding: '20px' }}>No policy epoch data available. Loading...</div>
+    }
+
+    // Sort policies by epoch information instead of parsing names
+    const policyNameToEpoch = new Map<string, number>()
+    trainingRunPolicies.forEach((policy) => {
+      // Use epoch_start for sorting, fallback to 0 if null
+      policyNameToEpoch.set(policy.policy_name, policy.epoch_end ?? 0)
     })
-    const sortedPolicyVersions = [...policyVersionToPolicy.keys()].sort((a, b) => parseInt(a) - parseInt(b))
+
+    // Sort policies by epoch_start, then by name for consistent ordering
+    const sortedPolicies = policies
+      .filter((policy) => policyNameToEpoch.has(policy)) // Only include policies we have epoch data for
+      .sort((a, b) => {
+        const epochA = policyNameToEpoch.get(a) ?? 0
+        const epochB = policyNameToEpoch.get(b) ?? 0
+        if (epochA !== epochB) {
+          return epochA - epochB
+        }
+        return a.localeCompare(b) // Secondary sort by name
+      })
 
     const shortNameToEvalName = new Map<string, string>()
     evalNames.forEach((evalName) => {
@@ -363,14 +471,16 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     })
     const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => b.localeCompare(a))
 
-    const xLabels = sortedPolicyVersions
+    const xLabels = sortedPolicies.map((policy) => {
+      const epoch = policyNameToEpoch.get(policy) ?? 0
+      return `Step ${epoch}` // Use epoch as the label
+    })
     const yLabels = sortedShortNames
 
     const z = yLabels.map((shortName) =>
-      xLabels.map((policyVersion) => {
+      sortedPolicies.map((policy) => {
         const evalName = shortNameToEvalName.get(shortName)!
-        const policy = policyVersionToPolicy.get(policyVersion)!
-        const cell = heatmapData.cells[policy]?.[evalName]
+        const cell = scorecardData.cells[policy]?.[evalName]
         return cell ? cell.value : 0
       })
     )
@@ -378,12 +488,17 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     const onHover = (event: any) => {
       if (!event.points?.[0]) return
 
-      const policyUri = event.points[0].x
+      const epochLabel = event.points[0].x
       const shortName = event.points[0].y
       const evalName = shortNameToEvalName.get(shortName)!
 
-      setLastHoveredCell({ policyUri, evalName })
-      setSelectedCellIfNotLocked({ policyUri, evalName })
+      // Find the policy by epoch label index
+      const policyIndex = xLabels.indexOf(epochLabel)
+      if (policyIndex >= 0 && policyIndex < sortedPolicies.length) {
+        const policyUri = sortedPolicies[policyIndex]
+        setLastHoveredCell({ policyUri, evalName })
+        setSelectedCellIfNotLocked({ policyUri, evalName })
+      }
     }
 
     const onDoubleClick = () => {
@@ -435,11 +550,11 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     )
   }
 
-  const selectedCellData = selectedCell ? heatmapData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
+  const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
 
-  if (loading) {
+  if (loading.initial) {
     return (
       <div className="training-run-detail-container">
         <style>{TRAINING_RUN_DETAIL_CSS}</style>
@@ -540,29 +655,36 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           </div>
         </div>
 
-        <SuiteTabs suites={suites} selectedSuite={selectedSuite} onSuiteChange={setSelectedSuite} />
-
-        {heatmapData && renderHeatmap()}
-
-        <div className="heatmap-controls">
+        <div className="scorecard-controls">
           <div className="control-section">
-            <h3>Heatmap Controls</h3>
-            <div className="control-row">
-              <div className="control-label">Heatmap Metric</div>
-              <select
-                value={selectedMetric}
-                onChange={(e) => setSelectedMetric(e.target.value)}
-                className="control-select"
-              >
-                {metrics.map((metric) => (
-                  <option key={metric} value={metric}>
-                    {metric}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <h3>Evaluation Selection</h3>
+            <EvalSelector
+              evalNames={evalNames}
+              selectedEvalNames={selectedEvalNames}
+              onSelectionChange={setSelectedEvalNames}
+              loading={loading.evalNames}
+            />
+          </div>
+
+          <div className="control-section">
+            <h3>Metric Selection</h3>
+            <MetricSelector
+              metrics={availableMetrics}
+              selectedMetric={selectedMetric}
+              onSelectionChange={setSelectedMetric}
+              loading={loading.metrics}
+              disabled={selectedEvalNames.size === 0}
+            />
           </div>
         </div>
+
+        {loading.scorecard && (
+          <div className="loading-container">
+            <div>Loading scorecard...</div>
+          </div>
+        )}
+
+        {!loading.scorecard && scorecardData && renderScorecard()}
 
         <MapViewer
           selectedEval={selectedEval}

@@ -1,4 +1,3 @@
-import os
 import subprocess
 
 import pytest
@@ -6,12 +5,14 @@ import pytest
 from metta.common.util.git import (
     GitError,
     get_branch_commit,
+    get_commit_count,
     get_commit_message,
     get_current_branch,
     get_current_commit,
-    has_unstaged_changes,
+    get_file_list,
     is_commit_pushed,
     run_git,
+    run_git_in_dir,
     validate_git_ref,
 )
 
@@ -61,31 +62,27 @@ def test_get_commit_message():
         get_commit_message("invalid-commit-hash")
 
 
-def test_has_unstaged_changes():
-    # First, ensure we have a clean state
-    had_changes = has_unstaged_changes()
-    if had_changes:
-        subprocess.run(["git", "stash", "push", "-m", "test_stash"], check=True)
+def test_has_unstaged_changes(tmp_path):
+    # Create a temporary git repo for clean testing
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
 
-    try:
-        # Test clean state
-        assert not has_unstaged_changes()
+    # Create initial commit
+    (tmp_path / "initial.txt").write_text("initial")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_path, check=True)
 
-        # Create a temporary file to test unstaged changes
-        test_file = "test_temp_file.txt"
-        with open(test_file, "w") as f:
-            f.write("test content")
+    # Test clean state
+    result = run_git_in_dir(tmp_path, "status", "--porcelain")
+    assert result == ""
 
-        try:
-            # Should detect untracked file
-            assert has_unstaged_changes()
-        finally:
-            os.remove(test_file)
+    # Create a new file to test unstaged changes
+    (tmp_path / "test_file.txt").write_text("test content")
 
-    finally:
-        # Restore state if we stashed
-        if had_changes:
-            subprocess.run(["git", "stash", "pop"], check=False)
+    # Should detect untracked file
+    result = run_git_in_dir(tmp_path, "status", "--porcelain")
+    assert "test_file.txt" in result
 
 
 def test_is_commit_pushed():
@@ -176,3 +173,43 @@ def test_detached_head_fallback():
     finally:
         # Restore original branch
         run_git("checkout", original_branch)
+
+
+def test_get_file_list():
+    # Test in current repo
+    files = get_file_list()
+    assert isinstance(files, list)
+    assert len(files) > 0
+    assert all(isinstance(f, str) for f in files)
+
+
+def test_get_commit_count():
+    # Test in current repo
+    count = get_commit_count()
+    assert isinstance(count, int)
+    assert count > 0
+
+
+def test_run_git_with_cwd(tmp_path):
+    # Create a temporary git repo
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+
+    # Create and commit a file
+    (tmp_path / "test.txt").write_text("test")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_path, check=True)
+
+    # Test run_git_in_dir
+    result = run_git_in_dir(tmp_path, "rev-parse", "HEAD")
+    assert isinstance(result, str)
+    assert len(result) == 40
+
+    # Test get_file_list with repo_path
+    files = get_file_list(tmp_path)
+    assert files == ["test.txt"]
+
+    # Test get_commit_count with repo_path
+    count = get_commit_count(tmp_path)
+    assert count == 1

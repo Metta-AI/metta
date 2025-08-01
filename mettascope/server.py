@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
 import mettascope.replays as replays
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.util.metta_script import metta_script
 
 # Set up logging
@@ -160,22 +161,56 @@ def make_app(cfg: DictConfig):
         actions = np.zeros((env.num_agents, 2))
         total_rewards = np.zeros(env.num_agents)
 
+        def inventory_format(inventory: dict) -> list:
+            result = []
+            for item_id, amount in inventory.items():
+                result.append([item_id, amount])
+            return result
+
         async def send_replay_step():
             grid_objects = []
             for i, grid_object in enumerate(env.grid_objects.values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
-                for key, value in grid_object.items():
-                    grid_objects[i][key] = value
+                update_object = {}
+                update_object["id"] = grid_object["id"]
+                update_object["type_id"] = grid_object["type_id"]
+                update_object["location"] = grid_object["location"]
+                update_object["orientation"] = grid_object.get("orientation", 0)
+                update_object["inventory"] = inventory_format(grid_object.get("inventory", {}))
+                update_object["inventory_max"] = grid_object.get("inventory_max", 0)
+                update_object["color"] = grid_object.get("color", 0)
+                update_object["is_swappable"] = grid_object.get("is_swappable", False)
+
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
-                    grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
-                    grid_objects[i]["action"] = actions[agent_id].tolist()
-                    grid_objects[i]["reward"] = env.rewards[agent_id].item()
+                    update_object["agent_id"] = agent_id
+                    update_object["vision_size"] = 11  # TODO: Waiting for env to support this
+                    update_object["action_id"] = int(actions[agent_id][0])
+                    update_object["action_param"] = int(actions[agent_id][1])
+                    update_object["action_success"] = bool(env.action_success[agent_id])
+                    update_object["current_reward"] = env.rewards[agent_id].item()
                     total_rewards[agent_id] += env.rewards[agent_id]
-                    grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
+                    update_object["total_reward"] = total_rewards[agent_id].item()
+                    update_object["freeze_remaining"] = grid_object["freeze_remaining"]
+                    update_object["is_frozen"] = grid_object["is_frozen"]
+                    update_object["freeze_duration"] = grid_object["freeze_duration"]
+                    update_object["group_id"] = grid_object["group_id"]
 
-            await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
+                elif "input_resources" in grid_object:
+                    update_object["input_resources"] = inventory_format(grid_object["input_resources"])
+                    update_object["output_resources"] = inventory_format(grid_object["output_resources"])
+                    update_object["output_limit"] = grid_object["output_limit"]
+                    update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
+                    update_object["is_converting"] = grid_object["is_converting"]
+                    update_object["conversion_duration"] = grid_object["conversion_duration"]
+                    update_object["cooldown_remaining"] = 0  # TODO: Waiting for env to support this
+                    update_object["is_cooling_down"] = grid_object["is_cooling_down"]
+                    update_object["cooldown_duration"] = grid_object["cooldown_duration"]
+
+                grid_objects[i] = update_object
+
+            await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
 
         # Send the first replay step.
         await send_replay_step()
@@ -220,8 +255,8 @@ def make_app(cfg: DictConfig):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id][0] = action_message["action"][0]
-                    actions[agent_id][1] = action_message["action"][1]
+                    actions[agent_id][0] = action_message["action_id"]
+                    actions[agent_id][1] = action_message["action_param"]
                 sim.step_simulation(actions)
 
                 await send_replay_step()
@@ -239,7 +274,7 @@ def run(cfg: DictConfig, open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
-        server_url = "http://localhost:8000"
+        server_url = DEV_METTASCOPE_FRONTEND_URL
 
         @app.on_event("startup")
         async def _open_browser():

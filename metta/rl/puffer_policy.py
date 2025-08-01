@@ -192,12 +192,9 @@ class PytorchAgent(nn.Module):
         if hasattr(target_policy, "max_vec") and hasattr(target_policy, "num_layers"):
             self._update_max_vec_normalizations(target_policy, features, device)
 
-        # Forward to wrapped policy if it has initialize_to_environment
+        # Forward to wrapped policy
         if hasattr(self.policy, "initialize_to_environment"):
             self.policy.initialize_to_environment(features, action_names, action_max_params, device)
-        elif hasattr(self.policy, "activate_actions"):
-            # Fallback to old interface if available
-            self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
 
     def _get_inner_policy(self):
