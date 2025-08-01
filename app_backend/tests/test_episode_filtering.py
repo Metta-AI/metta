@@ -125,6 +125,7 @@ class TestEpisodeFiltering:
             "episode_configs": episode_configs,
         }
 
+    @pytest.mark.slow
     def test_episode_filtering_no_filter(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
     ) -> None:
@@ -166,6 +167,7 @@ class TestEpisodeFiltering:
             for field in required_fields:
                 assert field in episode
 
+    @pytest.mark.slow
     def test_episode_filtering_with_policy_name_filter(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
     ) -> None:
@@ -436,6 +438,7 @@ class TestEpisodeFiltering:
         assert episode["training_run_name"] == "training_run_alpha"
         assert episode["training_run_user_id"] == "test_user@example.com"
 
+    @pytest.mark.slow
     def test_episode_filtering_invalid_filter(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
     ) -> None:
@@ -447,6 +450,7 @@ class TestEpisodeFiltering:
         assert response.status_code == 500
         assert "Failed to filter episodes" in response.json()["detail"]
 
+    @pytest.mark.slow
     def test_episode_filtering_malformed_sql_filter(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
     ) -> None:
@@ -458,6 +462,7 @@ class TestEpisodeFiltering:
         assert response.status_code == 500
         assert "Failed to filter episodes" in response.json()["detail"]
 
+    @pytest.mark.slow
     def test_episode_filtering_empty_result(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
     ) -> None:
@@ -509,6 +514,7 @@ class TestEpisodeFiltering:
         assert data["total_count"] >= 6
         assert len(data["episodes"]) >= 6
 
+    @pytest.mark.slow
     def test_episode_filtering_whitespace_filter(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
     ) -> None:

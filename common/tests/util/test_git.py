@@ -37,6 +37,7 @@ def test_run_git_error_propagation():
     assert "malformed object name" in str(e.value).lower()
 
 
+@pytest.mark.slow
 def test_get_branch_commit():
     # Test with current branch
     current_branch = get_current_branch()

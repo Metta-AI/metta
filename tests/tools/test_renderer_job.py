@@ -41,6 +41,7 @@ class TestRendererJob:
         assert config_path.exists(), "Renderer job config not found"
         assert config_path.is_file(), "Renderer job config path is not a file"
 
+    @pytest.mark.slow
     def test_renderer_with_debug_environments(self):
         """Test that renderer can load and initialize debug environments."""
         # Simple renderer test with very short duration
@@ -108,6 +109,7 @@ class TestRendererJob:
             agent_count = content.count("@")
             assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"
 
+    @pytest.mark.slow
     @pytest.mark.parametrize("env_name,map_path", DEBUG_ENVIRONMENTS.items())
     def test_basic_training_validation(self, env_name, map_path):
         """Test very basic training validation - just that the environment loads."""
