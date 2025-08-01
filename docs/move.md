@@ -35,16 +35,16 @@ Metta supports three movement systems configurable through command-line override
 ### Training
 ```bash
 # Tank (default - no overrides needed)
-uv run ./tools/train.py run=tank_test trainer.total_timesteps=500000
+./tools/train.py run=tank_test trainer.total_timesteps=500000
 
 # Cardinal
-uv run ./tools/train.py run=cardinal_test \
+./tools/train.py run=cardinal_test \
   ++trainer.env_overrides.game.actions.move.enabled=false \
   ++trainer.env_overrides.game.actions.rotate.enabled=false \
   ++trainer.env_overrides.game.actions.move_cardinal.enabled=true
 
 # 8-Way
-uv run ./tools/train.py run=8way_test \
+./tools/train.py run=8way_test \
   ++trainer.env_overrides.game.actions.move.enabled=false \
   ++trainer.env_overrides.game.actions.rotate.enabled=false \
   ++trainer.env_overrides.game.actions.move_8way.enabled=true
@@ -53,18 +53,18 @@ uv run ./tools/train.py run=8way_test \
 ### Evaluation
 ```bash
 # Tank (default - no overrides needed)
-uv run ./tools/play.py run=play_tank \
+./tools/play.py run=play_tank \
   policy_uri=file://./train_dir/tank_test/checkpoints
 
 # Cardinal
-uv run ./tools/play.py run=play_cardinal \
+./tools/play.py run=play_cardinal \
   policy_uri=file://./train_dir/cardinal_test/checkpoints \
   +replay_job.sim.env_overrides.game.actions.move.enabled=false \
   +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
   +replay_job.sim.env_overrides.game.actions.move_cardinal.enabled=true
 
 # 8-Way
-uv run ./tools/play.py run=play_8way \
+./tools/play.py run=play_8way \
   policy_uri=file://./train_dir/8way_test/checkpoints \
   +replay_job.sim.env_overrides.game.actions.move.enabled=false \
   +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
