@@ -19,4 +19,9 @@ trainer:
 # you can opt out of those by setting this to true
 bypass_mac_overrides: false
 
+# If you want your runs to be automatically named, set this to a pattern.
+# You can use alphanumeric characters, ., _, -, and {user}, {now}, {curriculum} in the pattern.
+# If you don't want your runs to be automatically named, set this to null
+run_name_pattern: "{user}.{curriculum}.{now}"
+
 cmd: train
