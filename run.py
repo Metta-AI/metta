@@ -744,6 +744,22 @@ while agent_step < trainer_config.total_timesteps:
         if wandb_run:
             wandb_run.log(all_stats, step=agent_step)
 
+            # Add dual-policy specific logging if enabled
+            if trainer_config.dual_policy.enabled and npc_policy_record is not None:
+                # Log dual-policy configuration and status
+                dual_policy_stats = {
+                    "dual_policy/enabled": True,
+                    "dual_policy/training_agents_pct": trainer_config.dual_policy.training_agents_pct,
+                    "dual_policy/npc_policy_uri": trainer_config.dual_policy.checkpoint_npc.uri,
+                    "dual_policy/npc_policy_run_name": npc_policy_record.run_name,
+                    "dual_policy/npc_policy_generation": npc_policy_record.metadata.get("generation", 0),
+                }
+                wandb_run.log(dual_policy_stats, step=agent_step)
+
+                # Set dual-policy flag on environment for stats logging
+                if hasattr(env, "_dual_policy_enabled"):
+                    env._dual_policy_enabled = True
+
     # Clear stats for next iteration
     stats_tracker.clear_rollout_stats()
     stats_tracker.clear_grad_stats()

@@ -101,62 +101,45 @@ def run_dual_policy_rollout(
         npc_policy_record: The NPC policy record loaded from wandb URI
         observations: Observations tensor of shape (total_agents, *obs_shape)
         experience: Experience buffer (only used for training policy)
-        training_env_id_start: Starting environment ID
+        training_env_id_start: Starting environment ID for training
         device: Device to run inference on
         training_agents_pct: Percentage of agents that use training policy
         num_agents_per_env: Number of agents per environment
         num_envs: Number of environments
 
     Returns:
-        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
-        Only includes data from training policy agents, NPC data is excluded
+        Tuple of (actions, log_probs, values, lstm_state) for training agents only
     """
-    with torch.no_grad():
-        # Calculate agent indices for training vs NPC policies
-        training_agents_per_env = max(1, int(num_agents_per_env * training_agents_pct))
-        npc_agents_per_env = num_agents_per_env - training_agents_per_env
+    total_agents = observations.shape[0]
+    num_training_agents = int(total_agents * training_agents_pct)
 
-        # Create index matrices for all environments
-        total_agents = num_envs * num_agents_per_env
-        idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
+    # Split observations for training vs NPC agents
+    training_obs = observations[:num_training_agents]
+    npc_obs = observations[num_training_agents:]
 
-        # Training policy agents: first training_agents_per_env agents in each env
-        training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
-        # NPC agents: remaining agents in each env
-        npc_idxs = (
-            idx_matrix[:, training_agents_per_env:].reshape(-1)
-            if npc_agents_per_env > 0
-            else torch.tensor([], device=device, dtype=torch.long)
-        )
+    # Run training policy inference (with experience buffer interaction)
+    training_actions, training_log_probs, training_values, lstm_state = run_policy_inference(
+        policy=training_policy,
+        observations=training_obs,
+        experience=experience,
+        training_env_id_start=training_env_id_start,
+        device=device,
+    )
 
-        # Get observations for training policy agents
-        training_obs = observations[training_idxs]
-        npc_obs = (
-            observations[npc_idxs] if len(npc_idxs) > 0 else torch.empty(0, *observations.shape[1:], device=device)
-        )
+    # Run NPC policy inference (without experience buffer interaction)
+    npc_actions, npc_log_probs, npc_values = run_npc_policy_inference(
+        npc_policy=npc_policy_record.policy,
+        observations=npc_obs,
+        device=device,
+    )
 
-        # Run inference for training policy (interacts with experience buffer)
-        training_actions, training_log_probs, training_values, training_lstm_state = run_policy_inference(
-            training_policy, training_obs, experience, training_env_id_start, device
-        )
+    # Combine actions, log_probs, values (only training agents contribute to learning)
+    all_actions = torch.cat([training_actions, npc_actions], dim=0)
+    all_log_probs = torch.cat([training_log_probs, npc_log_probs], dim=0)
+    all_values = torch.cat([training_values, npc_values], dim=0)
 
-        # Run inference for NPC policy (no experience buffer interaction)
-        if len(npc_idxs) > 0:
-            npc_policy = npc_policy_record.policy
-            npc_actions, npc_log_probs, npc_values = run_npc_policy_inference(npc_policy, npc_obs, device)
-        else:
-            # No NPC agents, create empty tensors
-            npc_actions = torch.empty(0, device=device, dtype=torch.long)
-
-        # Stitch actions back together in original order
-        all_actions = torch.zeros(total_agents, device=device, dtype=torch.long)
-        all_actions[training_idxs] = training_actions
-        if len(npc_idxs) > 0:
-            all_actions[npc_idxs] = npc_actions
-
-        # Return only training policy data for experience storage
-        # NPC actions are sent to environment but not stored in experience buffer
-        return all_actions, training_log_probs, training_values, training_lstm_state
+    # Return combined results and LSTM state from training policy only
+    return all_actions, all_log_probs, all_values, lstm_state
 
 
 def run_policy_inference(

@@ -313,6 +313,39 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._c_env.num_agents
 
+        # Add dual-policy specific logging if enabled
+        if hasattr(self, "_dual_policy_enabled") and self._dual_policy_enabled:
+            # Get agent groups (assuming first group is NPC, second is trained policy)
+            agent_groups = self._get_agent_groups()
+            if len(agent_groups) >= 2:
+                npc_group = agent_groups[0]  # First group is NPC
+                trained_group = agent_groups[1]  # Second group is trained policy
+
+                # NPC group stats
+                npc_rewards = trial_rewards[npc_group]
+                npc_hearts = self._get_agent_hearts(npc_group)
+                infos["dual_policy/npc/reward_mean"] = npc_rewards.mean().item()
+                infos["dual_policy/npc/reward_sum"] = npc_rewards.sum().item()
+                infos["dual_policy/npc/hearts_mean"] = npc_hearts.mean().item()
+                infos["dual_policy/npc/hearts_sum"] = npc_hearts.sum().item()
+                infos["dual_policy/npc/num_agents"] = len(npc_group)
+
+                # Trained policy group stats
+                trained_rewards = trial_rewards[trained_group]
+                trained_hearts = self._get_agent_hearts(trained_group)
+                infos["dual_policy/trained/reward_mean"] = trained_rewards.mean().item()
+                infos["dual_policy/trained/reward_sum"] = trained_rewards.sum().item()
+                infos["dual_policy/trained/hearts_mean"] = trained_hearts.mean().item()
+                infos["dual_policy/trained/hearts_sum"] = trained_hearts.sum().item()
+                infos["dual_policy/trained/num_agents"] = len(trained_group)
+
+                # Combined stats
+                infos["dual_policy/combined/reward_mean"] = trial_rewards_mean
+                infos["dual_policy/combined/reward_sum"] = trial_rewards_sum
+                infos["dual_policy/combined/hearts_mean"] = self._get_agent_hearts().mean().item()
+                infos["dual_policy/combined/hearts_sum"] = self._get_agent_hearts().sum().item()
+                infos["dual_policy/combined/num_agents"] = self._c_env.num_agents
+
         attributes: dict[str, int] = {
             "seed": self._current_seed,
             "map_w": self.map_width,
@@ -553,3 +586,57 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def initial_grid_hash(self) -> int:
         """Returns the hash of the initial grid configuration."""
         return self._c_env.initial_grid_hash
+
+    def _get_agent_groups(self) -> list[list[int]]:
+        """Get agent groups for dual-policy logging.
+
+        Returns:
+            List of agent groups, where each group is a list of agent IDs.
+            First group is assumed to be NPC, second group is trained policy.
+        """
+        # Get agent groups from grid objects
+        grid_objects: Dict[int, Any] = self._c_env.grid_objects()
+        agent_groups: Dict[int, int] = {
+            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+        }
+
+        if not agent_groups:
+            return []
+
+        # Group agents by their group ID
+        group_agent_ids = {}
+        for agent_id, group_id in agent_groups.items():
+            if group_id not in group_agent_ids:
+                group_agent_ids[group_id] = []
+            group_agent_ids[group_id].append(agent_id)
+
+        # Return groups sorted by group ID
+        return [group_agent_ids[group_id] for group_id in sorted(group_agent_ids.keys())]
+
+    def _get_agent_hearts(self, agent_ids: Optional[list[int]] = None) -> np.ndarray:
+        """Get hearts for specified agents or all agents.
+
+        Args:
+            agent_ids: List of agent IDs to get hearts for. If None, gets all agents.
+
+        Returns:
+            Array of heart counts for the specified agents.
+        """
+        # Get agent stats
+        agent_stats = self._c_env.get_agent_stats()
+
+        if agent_ids is None:
+            # Get hearts for all agents
+            hearts = []
+            for agent_stat in agent_stats:
+                hearts.append(agent_stat.get("inventory.heart", 0))
+            return np.array(hearts)
+        else:
+            # Get hearts for specified agents
+            hearts = []
+            for agent_id in agent_ids:
+                if agent_id < len(agent_stats):
+                    hearts.append(agent_stats[agent_id].get("inventory.heart", 0))
+                else:
+                    hearts.append(0)
+            return np.array(hearts)
