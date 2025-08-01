@@ -311,7 +311,7 @@ def load_or_initialize_policy(
     metta_grid_env: Any,
     is_master: bool,
     rank: int,
-) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
+) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord | None, PolicyRecord | None]:
     """
     Load or initialize policy with distributed coordination.
     This is called from all ranks.
@@ -324,16 +324,18 @@ def load_or_initialize_policy(
         )
 
     # receive policy from master using NCCL broadcasting
-    policy, initial_policy_record, latest_saved_policy_record = (
-        get_from_master(policy),
-        get_from_master(initial_policy_record),
-        get_from_master(latest_saved_policy_record),
-    )
+    policy = get_from_master(policy)
+
+    # policy, initial_policy_record, latest_saved_policy_record = (
+    #     get_from_master(policy),
+    #     get_from_master(initial_policy_record),
+    #     get_from_master(latest_saved_policy_record),
+    # )
 
     # cast to the correct type
     policy = cast(MettaAgent | DistributedMettaAgent, policy)
-    initial_policy_record = cast(PolicyRecord, initial_policy_record)
-    latest_saved_policy_record = cast(PolicyRecord, latest_saved_policy_record)
+    initial_policy_record = cast(PolicyRecord | None, initial_policy_record)
+    latest_saved_policy_record = cast(PolicyRecord | None, latest_saved_policy_record)
 
     return policy, initial_policy_record, latest_saved_policy_record
 
