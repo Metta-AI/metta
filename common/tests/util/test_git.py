@@ -317,7 +317,7 @@ def test_get_matched_pr(monkeypatch):
     # Mock 404 response
     mock_404 = Mock()
     mock_404.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "Not found", request=Mock(), response=Mock(status_code=404)
+        "Not found", request=Mock(), response=Mock(status_code=404, text="Not found")
     )
     with patch("httpx.get", return_value=mock_404):
         result = get_matched_pr("fake-commit-hash")
