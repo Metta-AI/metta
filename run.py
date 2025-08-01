@@ -333,6 +333,13 @@ if trainer_config.dual_policy.enabled:
 # Get LSTM config from the agent
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
+# For dual-policy training, NPC policies don't interact with experience buffer
+# so we only need to consider the training policy's LSTM dimensions
+if trainer_config.dual_policy.enabled and npc_policy_record is not None:
+    logger.info(f"Training policy LSTM config: hidden_size={hidden_size}, num_layers={num_lstm_layers}")
+    logger.info(f"Dual-policy training enabled: {trainer_config.dual_policy.training_agents_pct:.1%} training agents")
+    logger.info("NPC policies operate in open loop and don't interact with experience buffer")
+
 # Validate that policy matches environment
 validate_policy_environment_match(agent, metta_grid_env)  # type: ignore
 
@@ -497,25 +504,60 @@ while agent_step < trainer_config.total_timesteps:
                 num_agents_per_env=env.num_agents,  # type: ignore
                 num_envs=env.num_envs,  # type: ignore
             )
+
+            # In dual-policy mode, we need to filter experience to only include training policy agents
+            # Calculate which agents are training agents
+            num_agents_per_env = env.num_agents  # type: ignore
+            num_envs = env.num_envs  # type: ignore
+            training_agents_per_env = max(1, int(num_agents_per_env * trainer_config.dual_policy.training_agents_pct))
+
+            # Create masks for training agents only
+            total_agents = num_envs * num_agents_per_env
+            idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
+            training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
+
+            # Filter observations, actions, logprobs, values, rewards, dones, truncations to only training agents
+            training_obs = o[training_idxs]
+            training_actions = actions[training_idxs]
+            training_logprobs = selected_action_log_probs  # Already filtered in run_dual_policy_rollout
+            training_values = values  # Already filtered in run_dual_policy_rollout
+            training_rewards = r[training_idxs]
+            training_dones = d[training_idxs]
+            training_truncations = t[training_idxs]
+            training_mask = mask[training_idxs] if mask is not None else torch.ones(len(training_idxs), device=device)
+
+            # Store only training policy experience
+            experience.store(
+                obs=training_obs,
+                actions=training_actions,
+                logprobs=training_logprobs,
+                rewards=training_rewards,
+                dones=training_dones,
+                truncations=training_truncations,
+                values=training_values,
+                env_id=training_env_id,
+                mask=training_mask,
+                lstm_state=lstm_state_to_store,
+            )
         else:
             # Single-policy training: all agents use training policy
             actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
                 agent, o, experience, training_env_id.start, device
             )
 
-        # Store experience (only from training policy agents in dual-policy mode)
-        experience.store(
-            obs=o,
-            actions=actions,
-            logprobs=selected_action_log_probs,
-            rewards=r,
-            dones=d,
-            truncations=t,
-            values=values,
-            env_id=training_env_id,
-            mask=mask,
-            lstm_state=lstm_state_to_store,
-        )
+            # Store experience (all agents are training agents)
+            experience.store(
+                obs=o,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r,
+                dones=d,
+                truncations=t,
+                values=values,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
+            )
 
         # Send actions back to environment
         with timer("_rollout.env"):

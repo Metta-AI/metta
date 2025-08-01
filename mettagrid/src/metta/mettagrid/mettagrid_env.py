@@ -141,7 +141,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True)
+                # Check if map_builder_config is already an instantiated object
+                if hasattr(map_builder_config, "build"):
+                    # Already instantiated
+                    map_builder = map_builder_config
+                else:
+                    # Need to instantiate from config
+                    map_builder = instantiate(map_builder_config, _recursive_=True)
                 level = map_builder.build()
 
         # Validate the level
@@ -458,7 +464,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     @property
     def feature_normalizations(self) -> dict[int, float]:
-        return self._c_env.feature_normalizations()
+        # Extract normalizations from feature_spec
+        feature_spec = self._c_env.feature_spec()
+        normalizations = {}
+        for _feature_name, feature_info in feature_spec.items():
+            if "normalization" in feature_info:
+                feature_id = feature_info.get("id", 0)
+                normalizations[feature_id] = feature_info["normalization"]
+        return normalizations
 
     def get_observation_features(self) -> dict[str, dict]:
         """

@@ -48,6 +48,41 @@ def send_observation(
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
 
+def run_npc_policy_inference(
+    npc_policy: torch.nn.Module,
+    observations: Tensor,
+    device: torch.device,
+) -> Tuple[Tensor, Tensor, Tensor]:
+    """Run NPC policy inference without interacting with experience buffer.
+
+    NPC policies operate in open loop and don't contribute to learning.
+    They don't need LSTM state management from the experience buffer.
+
+    Args:
+        npc_policy: The NPC policy
+        observations: Observations tensor
+        device: Device to run inference on
+
+    Returns:
+        Tuple of (actions, log_probs, values) - no LSTM state needed
+    """
+    with torch.no_grad():
+        # Create empty policy state for NPC (no LSTM state management)
+        from metta.agent.policy_state import PolicyState
+
+        state = PolicyState(lstm_h=None, lstm_c=None)
+
+        # Get policy outputs
+        policy_outputs = npc_policy(observations, state)
+
+        # Extract actions and log probabilities
+        actions = policy_outputs[0]  # actions
+        log_probs = policy_outputs[1]  # log_probs
+        values = policy_outputs[2]  # values
+
+        return actions, log_probs, values
+
+
 def run_dual_policy_rollout(
     training_policy: torch.nn.Module,
     npc_policy_record: PolicyRecord,
@@ -65,7 +100,7 @@ def run_dual_policy_rollout(
         training_policy: The policy being trained
         npc_policy_record: The NPC policy record loaded from wandb URI
         observations: Observations tensor of shape (total_agents, *obs_shape)
-        experience: Experience buffer
+        experience: Experience buffer (only used for training policy)
         training_env_id_start: Starting environment ID
         device: Device to run inference on
         training_agents_pct: Percentage of agents that use training policy
@@ -100,17 +135,15 @@ def run_dual_policy_rollout(
             observations[npc_idxs] if len(npc_idxs) > 0 else torch.empty(0, *observations.shape[1:], device=device)
         )
 
-        # Run inference for training policy
+        # Run inference for training policy (interacts with experience buffer)
         training_actions, training_log_probs, training_values, training_lstm_state = run_policy_inference(
             training_policy, training_obs, experience, training_env_id_start, device
         )
 
-        # Run inference for NPC policy if there are NPC agents
+        # Run inference for NPC policy (no experience buffer interaction)
         if len(npc_idxs) > 0:
             npc_policy = npc_policy_record.policy
-            npc_actions, npc_log_probs, npc_values, npc_lstm_state = run_policy_inference(
-                npc_policy, npc_obs, experience, training_env_id_start, device
-            )
+            npc_actions, npc_log_probs, npc_values = run_npc_policy_inference(npc_policy, npc_obs, device)
         else:
             # No NPC agents, create empty tensors
             npc_actions = torch.empty(0, device=device, dtype=torch.long)
@@ -122,6 +155,7 @@ def run_dual_policy_rollout(
             all_actions[npc_idxs] = npc_actions
 
         # Return only training policy data for experience storage
+        # NPC actions are sent to environment but not stored in experience buffer
         return all_actions, training_log_probs, training_values, training_lstm_state
 
 
@@ -134,20 +168,26 @@ def run_policy_inference(
 ) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
     """Run policy inference and return actions, log probs, values, and LSTM state."""
     with torch.no_grad():
+        # Create policy state with LSTM state from experience
+        from metta.agent.policy_state import PolicyState
+
+        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
+        state = PolicyState(lstm_h=lstm_h, lstm_c=lstm_c)
+
         # Get policy outputs
-        policy_outputs = policy(observations)
+        policy_outputs = policy(observations, state)
 
         # Extract actions and log probabilities
-        actions = policy_outputs.actions
-        selected_action_log_probs = policy_outputs.selected_action_log_probs
-        values = policy_outputs.values
+        actions = policy_outputs[0]  # actions
+        selected_action_log_probs = policy_outputs[1]  # log_probs
+        values = policy_outputs[2]  # values
 
         # Get LSTM state if available
         lstm_state_to_store = None
-        if hasattr(policy_outputs, "lstm_state") and policy_outputs.lstm_state is not None:
+        if state.lstm_h is not None and state.lstm_c is not None:
             lstm_state_to_store = {
-                "h": policy_outputs.lstm_state[0].detach(),
-                "c": policy_outputs.lstm_state[1].detach(),
+                "lstm_h": state.lstm_h.detach(),
+                "lstm_c": state.lstm_c.detach(),
             }
 
         return actions, selected_action_log_probs, values, lstm_state_to_store
@@ -155,11 +195,15 @@ def run_policy_inference(
 
 def get_lstm_config(policy: PolicyAgent) -> Tuple[int, int]:
     """Get LSTM configuration from policy."""
-    # Check if policy has LSTM layers
-    if hasattr(policy, "_core_") and "_core_" in policy._modules:
-        core_module = policy._core_
-        if hasattr(core_module, "_net") and hasattr(core_module._net, "num_layers"):
-            return core_module._net.hidden_size, core_module._net.num_layers
+    # For MettaAgent, access LSTM through the lstm property
+    if hasattr(policy, "lstm"):
+        lstm = policy.lstm
+        if hasattr(lstm, "hidden_size") and hasattr(lstm, "num_layers"):
+            return lstm.hidden_size, lstm.num_layers
+
+    # Alternative: check if policy has direct LSTM attributes
+    if hasattr(policy, "hidden_size") and hasattr(policy, "num_lstm_layers"):
+        return policy.hidden_size, policy.num_lstm_layers
 
     # Default values if no LSTM found
     return 256, 1
