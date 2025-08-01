@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
@@ -451,8 +451,10 @@ def train(
                     ).id
 
                 # Create extended simulation suite that includes the training task
-                # Merge trainer env_overrides with sim_suite_config env_overrides
-                merged_env_overrides = {**sim_suite_config.env_overrides, **trainer_cfg.env_overrides}
+                # Deep merge trainer env_overrides with sim_suite_config env_overrides
+                merged_env_overrides = OmegaConf.to_container(
+                    OmegaConf.merge(sim_suite_config.env_overrides, trainer_cfg.env_overrides)
+                )
                 extended_suite_config = SimulationSuiteConfig(
                     name=sim_suite_config.name,
                     simulations=dict(sim_suite_config.simulations),

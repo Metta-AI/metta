@@ -9,7 +9,9 @@ from tests.test_utils import make_test_config
 
 
 def test_cardinal_movement_basic():
-    """Test basic cardinal movement in all four directions."""
+    """Test basic cardinal movement in all four directions.
+    
+    Cardinal movement always changes orientation to match the direction of movement."""
     config = make_test_config(
         num_agents=1,
         map=[
@@ -52,7 +54,7 @@ def test_cardinal_movement_basic():
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 2)
-    assert objects[agent_id]["orientation"] == initial_orientation  # Orientation unchanged
+    assert objects[agent_id]["orientation"] == 0  # Orientation changes to North
 
     # Move South (Down)
     actions[0] = [move_cardinal_idx, 1]  # 1 = South
@@ -60,7 +62,7 @@ def test_cardinal_movement_basic():
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 2)
-    assert objects[agent_id]["orientation"] == initial_orientation  # Orientation unchanged
+    assert objects[agent_id]["orientation"] == 1  # Orientation changes to South
 
     # Move West (Left)
     actions[0] = [move_cardinal_idx, 2]  # 2 = West
@@ -68,7 +70,7 @@ def test_cardinal_movement_basic():
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 1)
-    assert objects[agent_id]["orientation"] == initial_orientation  # Orientation unchanged
+    assert objects[agent_id]["orientation"] == 2  # Orientation changes to West
 
     # Move East (Right)
     actions[0] = [move_cardinal_idx, 3]  # 3 = East
@@ -76,7 +78,7 @@ def test_cardinal_movement_basic():
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 2)
-    assert objects[agent_id]["orientation"] == initial_orientation  # Orientation unchanged
+    assert objects[agent_id]["orientation"] == 3  # Orientation changes to East
 
 
 def test_cardinal_movement_obstacles():
@@ -143,19 +145,18 @@ def test_cardinal_movement_obstacles():
 
 
 def test_orientation_preserved_in_cardinal_mode():
-    """Test that agent orientation is preserved for other actions like attack."""
+    """Test interaction between cardinal movement and orientation when both are enabled."""
     config = make_test_config(
-        num_agents=2,
+        num_agents=1,
         map=[
-            [".", ".", ".", ".", "."],
-            [".", "agent.player", ".", "agent.enemy", "."],
-            [".", ".", ".", ".", "."],
+            [".", ".", "."],
+            [".", "agent.player", "."],
+            [".", ".", "."],
         ],
         actions={
             "move": {"enabled": False},
-            "rotate": {"enabled": False},
+            "rotate": {"enabled": True},  # Enable both rotate and move_cardinal
             "move_cardinal": {"enabled": True},
-            "attack": {"enabled": True, "consumed_resources": {}},
         },
     )
 
@@ -164,20 +165,61 @@ def test_orientation_preserved_in_cardinal_mode():
     env.reset()
 
     objects = env.grid_objects()
-    agent_ids = [id for id, obj in objects.items() if obj["type_id"] == 0]
-    player_id = next(id for id in agent_ids if objects[id]["group_id"] == 0)  # player group
-    enemy_id = next(id for id in agent_ids if objects[id]["group_id"] == 1)  # enemy group
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
-    # Check initial orientations
-    assert objects[player_id]["orientation"] == 0  # Up
-    assert objects[enemy_id]["orientation"] == 0  # Up
+    # Check initial orientation and position
+    assert objects[agent_id]["orientation"] == 0  # Up
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
-    # Cardinal movement doesn't change orientation,
-    # so orientation still affects directional actions like attack
+    action_names = env.action_names()
+    move_cardinal_idx = action_names.index("move_cardinal")
+    rotate_idx = action_names.index("rotate")
+
+    actions = np.zeros((1, 2), dtype=dtype_actions)
+
+    # First rotate to face East
+    actions[0] = [rotate_idx, 3]  # Rotate to East
+    env.step(actions)
+    
+    objects = env.grid_objects()
+    assert objects[agent_id]["orientation"] == 3  # Now facing East
+
+    # Move North using cardinal movement
+    actions[0] = [move_cardinal_idx, 0]  # North
+    env.step(actions)
+
+    # When both rotate and move_cardinal are enabled, cardinal movement changes orientation
+    objects = env.grid_objects()
+    assert objects[agent_id]["orientation"] == 0  # Changed to North (direction of movement)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 1)  # Moved North
+
+    # Move East using cardinal movement
+    actions[0] = [move_cardinal_idx, 3]  # East
+    env.step(actions)
+
+    objects = env.grid_objects()
+    assert objects[agent_id]["orientation"] == 3  # Changed to East (direction of movement)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 2)  # Moved East
+
+    # Move South using cardinal movement
+    actions[0] = [move_cardinal_idx, 1]  # South
+    env.step(actions)
+
+    objects = env.grid_objects()
+    assert objects[agent_id]["orientation"] == 1  # Changed to South (direction of movement)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 2)  # Moved South
+
+    # Move West using cardinal movement
+    actions[0] = [move_cardinal_idx, 2]  # West
+    env.step(actions)
+
+    objects = env.grid_objects()
+    assert objects[agent_id]["orientation"] == 2  # Changed to West (direction of movement)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)  # Back to start position
 
 
-def test_orientation_not_changed_by_cardinal_movement():
-    """Test that agent orientation is NOT changed by cardinal movement."""
+def test_orientation_changes_with_cardinal_movement():
+    """Test that agent orientation changes to match the cardinal movement direction."""
     config = make_test_config(
         num_agents=1,
         map=[
