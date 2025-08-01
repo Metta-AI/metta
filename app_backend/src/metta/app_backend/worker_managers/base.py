@@ -1,13 +1,11 @@
 from abc import ABC, abstractmethod
 
-from metta.app_backend.container_managers.models import WorkerInfo
-
 
 class AbstractWorkerManager(ABC):
     """Abstract base class for managing eval task workers."""
 
     @abstractmethod
-    def start_worker(self) -> WorkerInfo:
+    def start_worker(self) -> str:
         """Start a worker
 
         Args:
@@ -20,16 +18,16 @@ class AbstractWorkerManager(ABC):
         pass
 
     @abstractmethod
-    def cleanup_worker(self, worker_id: str) -> None:
+    def cleanup_worker(self, worker_name: str) -> None:
         """Remove/cleanup a worker.
 
         Args:
-            worker_id: The worker ID to cleanup
+            worker_name: The worker name to cleanup
         """
         pass
 
     @abstractmethod
-    async def discover_alive_workers(self) -> list[WorkerInfo]:
+    async def discover_alive_workers(self) -> list[str]:
         """Discover all alive workers.
 
         Returns:

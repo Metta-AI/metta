@@ -1,7 +1,6 @@
 import logging
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
-from metta.app_backend.container_managers.models import WorkerInfo
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 
 
@@ -22,7 +21,7 @@ class ContainerWorkerManager(AbstractWorkerManager):
         self._machine_token = machine_token
         self._logger = logger or logging.getLogger(__name__)
 
-    def start_worker(self) -> WorkerInfo:
+    def start_worker(self) -> str:
         """Start a worker using the underlying container manager."""
         return self._container_manager.start_worker_container(
             backend_url=self._backend_url,
@@ -34,6 +33,6 @@ class ContainerWorkerManager(AbstractWorkerManager):
         """Cleanup a worker using the underlying container manager."""
         self._container_manager.cleanup_container(worker_id)
 
-    async def discover_alive_workers(self) -> list[WorkerInfo]:
+    async def discover_alive_workers(self) -> list[str]:
         """Discover alive workers using the underlying container manager."""
         return await self._container_manager.discover_alive_workers()

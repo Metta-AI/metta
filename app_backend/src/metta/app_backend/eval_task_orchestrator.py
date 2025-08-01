@@ -15,10 +15,10 @@ import os
 from datetime import datetime, timedelta, timezone
 
 from ddtrace.trace import tracer
+from pydantic import BaseModel
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.factory import create_container_manager
-from metta.app_backend.container_managers.models import WorkerInfo
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
     TaskResponse,
@@ -31,6 +31,12 @@ from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.logging_helpers import init_logging
+
+
+class WorkerInfo(BaseModel):
+    name: str
+    git_hashes: list[str] = []
+    assigned_task: TaskResponse | None = None
 
 
 class EvalTaskOrchestrator:
@@ -52,10 +58,10 @@ class EvalTaskOrchestrator:
 
     @trace("orchestrator.claim_task")
     async def _attempt_claim_task(self, task: TaskResponse, worker: WorkerInfo) -> bool:
-        claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.container_name)
+        claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.name)
         claimed_ids = await self._task_client.claim_tasks(claim_request)
         if task.id in claimed_ids.claimed:
-            self._logger.info(f"Assigned task {task.id} to worker {worker.container_name}")
+            self._logger.info(f"Assigned task {task.id} to worker {worker.name}")
             return True
         else:
             self._logger.debug("Failed to claim task; someone else must have it")
@@ -64,10 +70,8 @@ class EvalTaskOrchestrator:
     async def _get_available_workers(self, claimed_tasks: list[TaskResponse]) -> dict[str, WorkerInfo]:
         alive_workers = await self._worker_manager.discover_alive_workers()
 
-        git_hashes_by_assignee = await self._task_client.get_git_hashes_for_workers(
-            [w.container_name for w in alive_workers]
-        )
-        alive_workers_by_name: dict[str, WorkerInfo] = {w.container_name: w for w in alive_workers}
+        git_hashes_by_assignee = await self._task_client.get_git_hashes_for_workers(alive_workers)
+        alive_workers_by_name: dict[str, WorkerInfo] = {w: WorkerInfo(name=w) for w in alive_workers}
 
         for task in claimed_tasks:
             if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
@@ -110,8 +114,8 @@ class EvalTaskOrchestrator:
                     self._logger.info(f"Not retrying task {task.id} because it has exceeded max retries")
                 if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
                     self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
-                    self._worker_manager.cleanup_worker(worker.container_id)
-                    del alive_workers_by_name[worker.container_name]
+                    self._worker_manager.cleanup_worker(worker.name)
+                    del alive_workers_by_name[worker.name]
 
     async def _assign_task_to_worker(
         self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[TaskResponse]]

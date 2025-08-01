@@ -19,13 +19,6 @@ from metta.app_backend.routes.eval_task_routes import (
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 from metta.app_backend.worker_managers.thread_manager import ThreadWorkerManager
 
-from .test_workers.mock_workers import (
-    MockConditionalWorker,
-    MockFailureWorker,
-    MockSuccessWorker,
-    MockTimeoutWorker,
-)
-
 
 class TestEvalTaskOrchestratorIntegration:
     """Integration tests for EvalTaskOrchestrator with real database and FastAPI client."""
@@ -44,7 +37,6 @@ class TestEvalTaskOrchestratorIntegration:
         client = EvalTaskClient.__new__(EvalTaskClient)
         client._http_client = AsyncClient(transport=ASGITransport(app=test_app), base_url=test_client.base_url)
         client._machine_token = token
-        client._base_url = str(test_client.base_url)
 
         return client
 
@@ -138,7 +130,7 @@ class TestEvalTaskOrchestratorIntegration:
 
         finally:
             # Clean up workers
-            if hasattr(orchestrator._worker_manager, "shutdown_all"):
+            if isinstance(orchestrator._worker_manager, ThreadWorkerManager):
                 orchestrator._worker_manager.shutdown_all()
 
     @pytest.mark.asyncio

@@ -158,6 +158,7 @@ class EvalTaskWorker:
         client: EvalTaskClient,
         task_executor: AbstractTaskExecutor,
         assignee: str,
+        poll_interval: float = 5.0,
         logger: logging.Logger | None = None,
     ):
         self._client = client
@@ -165,7 +166,7 @@ class EvalTaskWorker:
         self._assignee = assignee
 
         self._logger = logger or logging.getLogger(__name__)
-        self._poll_interval = 5.0
+        self._poll_interval = poll_interval
 
     async def __aenter__(self):
         return self
@@ -245,7 +246,7 @@ async def main() -> None:
 
     client = EvalTaskClient(backend_url)
     task_executor = SimTaskExecutor(backend_url, machine_token, logger)
-    async with EvalTaskWorker(client, task_executor, assignee, logger) as worker:
+    async with EvalTaskWorker(client, task_executor, assignee, logger=logger) as worker:
         await worker.run()
 
 
