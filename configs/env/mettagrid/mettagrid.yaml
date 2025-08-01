@@ -69,4 +69,4 @@ game:
 
   termination:
     max_reward: null #if set, terminate when overall reward = max_reward
-    condition: null #if set, terminate when condition is met
+    condition: null #either any (any agent achieves max_reward), all (all agents achieve max_reward) or a pct of agents
