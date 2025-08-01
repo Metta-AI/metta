@@ -47,7 +47,6 @@ setup: |
 
 run: |
   set -e
-  bash ./devops/skypilot/config/setup-common.sh
   echo "[RUN] Starting run..."
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
