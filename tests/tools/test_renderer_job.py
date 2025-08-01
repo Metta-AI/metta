@@ -127,7 +127,7 @@ class TestRendererJob:
 
             # Detect if running in CI
             is_ci = os.environ.get("CI", "").lower() == "true"
-            hardware_config = "+hardware=github" if is_ci else "+hardware=macbook"
+            hardware_config = "+hardware=github" if is_ci else ""
 
             cmd = [
                 "python",

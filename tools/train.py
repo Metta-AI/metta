@@ -3,6 +3,7 @@
 import logging
 import multiprocessing
 import os
+import platform
 from logging import Logger
 
 import torch
@@ -107,6 +108,29 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     )
 
 
+def _set_min(cfg: DictConfig, path: str, value: float) -> None:
+    """Set config value to the minimum of the current value and the provided value.
+    If current value is None, use the provided value."""
+    current = OmegaConf.select(cfg, path)
+    if current is None:
+        OmegaConf.update(cfg, path, value)
+    else:
+        OmegaConf.update(cfg, path, min(value, current))
+
+
+def apply_mac_overrides(cfg: DictConfig) -> None:
+    if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
+        cfg.device = "cpu"
+        cfg.vectorization = "serial"
+        _set_min(cfg, "trainer.batch_size", 1024)
+        _set_min(cfg, "trainer.minibatch_size", 1024)
+        _set_min(cfg, "trainer.forward_pass_minibatch_target_size", 2)
+        _set_min(cfg, "trainer.checkpoint.checkpoint_interval", 10)
+        _set_min(cfg, "trainer.checkpoint.wandb_checkpoint_interval", 10)
+        _set_min(cfg, "trainer.bptt_horizon", 8)
+        _set_min(cfg, "trainer.simulation.evaluate_interval", 10)
+
+
 @record
 def main(cfg: DictConfig) -> int:
     record_heartbeat()
@@ -117,6 +141,7 @@ def main(cfg: DictConfig) -> int:
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
     )
 
+    apply_mac_overrides(cfg)
     # Use shared distributed setup function
     device, is_master, world_size, rank = setup_device_and_distributed(cfg.device)
 
