@@ -140,8 +140,5 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
     """Print duration warnings at end of test session"""
     _duration_monitor.print_warnings()
 
-    """Print duration warnings at end of test session"""
-    _duration_monitor.print_warnings()
-
 
 docker_client = docker_client_fixture()
