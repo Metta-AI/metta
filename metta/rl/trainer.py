@@ -482,6 +482,9 @@ class MettaTrainer:
             # Prepare the input TensorDict for the policy
             td = buffer_step[training_env_id].clone()
             td["env_obs"] = o
+            td["rewards"] = r
+            td["dones"] = d.float()
+            td["truncateds"] = t.float()
             td.training_env_id = training_env_id
 
             # Run policy inference
@@ -489,11 +492,6 @@ class MettaTrainer:
                 td = self.policy(td)
             if str(self.device).startswith("cuda"):
                 torch.cuda.synchronize()
-
-            # Update buffer with data from the env that the policy doesn't get.
-            td["rewards"] = r
-            td["dones"] = d.float()
-            td["truncateds"] = t.float()
 
             experience.store(
                 data_td=td,
