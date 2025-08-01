@@ -178,12 +178,12 @@ class TestConverterObservations:
 
         # Calculate dynamic offsets based on inventory item count
         inventory_item_count = 4  # ore_red, ore_blue, battery_red, heart
-        input_recipe_offset = 15 + inventory_item_count  
-        output_recipe_offset = input_recipe_offset + inventory_item_count 
+        input_recipe_offset = 15 + inventory_item_count
+        output_recipe_offset = input_recipe_offset + inventory_item_count
 
         # Altar expects: battery_red=3 (feature ID is input_recipe_offset + 2)
-        battery_red_input_id = input_recipe_offset + 2 
-        heart_output_id = output_recipe_offset + 3  
+        battery_red_input_id = input_recipe_offset + 2
+        heart_output_id = output_recipe_offset + 3
 
         assert battery_red_input_id in feature_map, (
             f"Should have battery_red recipe input at offset {battery_red_input_id}"
