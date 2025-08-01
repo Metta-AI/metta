@@ -1,12 +1,16 @@
 """PPO training functionality."""
 
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 import torch
 from torch import Tensor
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage
+from metta.rl.experience import Experience
+from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update
+from metta.rl.trainer_config import TrainerConfig
 from metta.utils.batch import calculate_prioritized_sampling_params
 
 
@@ -17,7 +21,7 @@ def compute_ppo_losses(
     newvalue: Tensor,
     importance_sampling_ratio: Tensor,
     adv: Tensor,
-    trainer_cfg: Any,
+    trainer_cfg: TrainerConfig,
     device: torch.device,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
     """Compute PPO losses for policy and value functions."""
@@ -55,21 +59,17 @@ def compute_ppo_losses(
 
 
 def ppo(
-    policy: Any,
-    optimizer: Any,
-    experience: Any,
-    kickstarter: Any,
+    policy: PolicyAgent,
+    optimizer: torch.optim.Optimizer,
+    experience: Experience,
+    kickstarter: Kickstarter,
     losses: Losses,
-    trainer_cfg: Any,
+    trainer_cfg: TrainerConfig,
     agent_step: int,
     epoch: int,
     device: torch.device,
 ) -> int:
-    """Perform training for one or more epochs on collected experience.
-
-    Returns:
-        Number of epochs trained
-    """
+    """Perform PPO training on collected experience."""
     losses.zero()
     experience.reset_importance_sampling_ratios()
 

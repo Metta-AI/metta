@@ -32,6 +32,7 @@ def log_training_progress(
     rollout_time: float,
     stats_time: float,
     is_master: bool,
+    run_name: str | None = None,
 ) -> None:
     """Log training progress with timing breakdown.
 
@@ -44,6 +45,7 @@ def log_training_progress(
         rollout_time: Time spent in rollout
         stats_time: Time spent processing stats
         is_master: Whether this is the master rank
+        run_name: Name of the current training run
     """
     if not is_master:
         return
@@ -63,6 +65,7 @@ def log_training_progress(
             train_pct=train_pct,
             rollout_pct=rollout_pct,
             stats_pct=stats_pct,
+            run_name=run_name,
         )
     else:
         # Format total timesteps for readability
@@ -71,8 +74,9 @@ def log_training_progress(
         else:
             total_steps_str = f"{total_timesteps:,}"
 
+        run_info = f" [{run_name}]" if run_name else ""
         logger.info(
-            f"Epoch {epoch}- "
+            f"Epoch {epoch}{run_info}- "
             f"{steps_per_sec:.0f} SPS- "
             f"step {agent_step}/{total_steps_str}- "
             f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"

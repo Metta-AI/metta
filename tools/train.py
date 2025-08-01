@@ -3,6 +3,7 @@
 import logging
 import multiprocessing
 import os
+import platform
 from logging import Logger
 
 import torch
@@ -14,6 +15,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
@@ -99,12 +101,52 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
 
     # Use the functional train interface directly
     functional_train(
-        cfg=cfg,
+        cfg=cfg,  # type: ignore
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
         stats_client=stats_client,
     )
+
+
+def _set_min(cfg: DictConfig, path: str, value: float) -> None:
+    """Set config value to the minimum of the current value and the provided value.
+    If current value is None, use the provided value."""
+    current = OmegaConf.select(cfg, path)
+    if current is None:
+        OmegaConf.update(cfg, path, value)
+    else:
+        OmegaConf.update(cfg, path, min(value, current))
+
+
+def apply_mac_overrides(cfg: DictConfig) -> None:
+    if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
+        cfg.device = "cpu"
+        cfg.vectorization = "serial"
+        _set_min(cfg, "trainer.batch_size", 1024)
+        _set_min(cfg, "trainer.minibatch_size", 1024)
+        _set_min(cfg, "trainer.forward_pass_minibatch_target_size", 2)
+        _set_min(cfg, "trainer.checkpoint.checkpoint_interval", 10)
+        _set_min(cfg, "trainer.checkpoint.wandb_checkpoint_interval", 10)
+        _set_min(cfg, "trainer.bptt_horizon", 8)
+        _set_min(cfg, "trainer.simulation.evaluate_interval", 10)
+
+
+def set_run_name_if_missing(cfg: DictConfig) -> None:
+    """Set up cfg.run if it's not already set."""
+    if (OmegaConf.is_missing(cfg, "run") or not cfg.get("run")) and cfg.run_name_pattern:
+        generated_name = cfg.run_name_pattern
+        replacements = {
+            "user": os.getenv("USER", "unknown_user"),
+            "now": oc_date_format("YYYYMMDD_HHmmss"),
+            "curriculum": cfg.trainer.curriculum.split("/")[-1],
+        }
+        for key, replacement in replacements.items():
+            generated_name = generated_name.replace(f"{{{key}}}", replacement)
+        if not all(c.isalnum() or c in [".", "_", "-"] for c in generated_name):
+            raise ValueError(f"Invalid run name pattern: {cfg.run_name_pattern} -> {generated_name}")
+        print(f"Setting run name to {generated_name}")
+        cfg.run = generated_name
 
 
 @record
@@ -117,6 +159,7 @@ def main(cfg: DictConfig) -> int:
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
     )
 
+    apply_mac_overrides(cfg)
     # Use shared distributed setup function
     device, is_master, world_size, rank = setup_device_and_distributed(cfg.device)
 
@@ -139,4 +182,4 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-metta_script(main, "train_job")
+metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)

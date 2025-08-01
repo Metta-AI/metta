@@ -65,7 +65,7 @@ class TestSweepScriptIntegration:
 
         # Test cases
         test_cases = [
-            ("run=test_sweep +hardware=macbook", "test_sweep", "sweep_name=test_sweep +hardware=macbook"),
+            ("run=test_sweep", "test_sweep", "sweep_name=test_sweep"),
             ("other_arg=value run=my_sweep", "my_sweep", "other_arg=value sweep_name=my_sweep"),
             ("+hardware=gpu run=dist_sweep debug=true", "dist_sweep", "+hardware=gpu sweep_name=dist_sweep debug=true"),
         ]
@@ -189,7 +189,7 @@ class TestSweepScriptIntegration:
             match = re.search(pattern, args_string)
             return match.group(2) if match else None
 
-        test_args = "sweep_name=test_sweep +hardware=macbook debug=false"
+        test_args = "sweep_name=test_sweep debug=false"
 
         # Test extracting different arguments
         assert extract_argument(test_args, "sweep_name") == "test_sweep"
@@ -208,8 +208,8 @@ class TestSweepScriptIntegration:
             return True, None
 
         # Test cases
-        valid_args = "run=test_sweep +hardware=macbook"
-        invalid_args = "+hardware=macbook debug=true"
+        valid_args = "run=test_sweep"
+        invalid_args = "debug=true"
 
         is_valid, error = validate_sweep_args(valid_args)
         assert is_valid is True
