@@ -145,7 +145,7 @@ metta install aws wandb              # Install specific components
 
 1. **Training**: `tools/train.py` - Main training script using Hydra configuration
    ```bash
-   uv run ./tools/train.py run=my_experiment +hardware=macbook
+   uv run ./tools/train.py run=my_experiment
    ```
 
 2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
@@ -166,7 +166,7 @@ metta install aws wandb              # Install specific components
 
 4. **Interactive Play**: `tools/play.py` - Manual testing and exploration
    ```bash
-   uv run ./tools/play.py run=play +hardware=macbook
+   uv run ./tools/play.py run=play
    ```
 
 #### Visualization Tools
@@ -217,7 +217,6 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `agent/`: Agent architecture configurations (latent_attn_tiny, latent_attn_small, latent_attn_med, fast, reference_design)
 - `trainer/`: Training configurations
 - `sim/`: Simulation configurations (navigation, memory, arena, etc.)
-- `hardware/`: Hardware-specific settings (macbook, github)
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
 
@@ -236,7 +235,7 @@ uv run ./tools/train.py wandb=off
 
 #### Hydra Configuration Patterns
 
-- Use `+` prefix to add new config groups: `+hardware=macbook`
+- Use `+` prefix to add new config groups: `+user=your-custom-config-name`
 - Use `++` prefix to force override: `++trainer.device=cpu`
 - Config composition order matters - later overrides take precedence
 
