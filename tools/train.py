@@ -99,7 +99,7 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
 
     # Use the functional train interface directly
     functional_train(
-        cfg=cfg,
+        cfg=cfg,  # type: ignore
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
