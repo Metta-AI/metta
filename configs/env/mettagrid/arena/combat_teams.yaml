@@ -1,34 +1,17 @@
-#defaults:
-#  - /env/mettagrid/arena/basic_teams
-#  - /env/mettagrid/game/objects/combat@game.objects
-#  - _self_
-
-#sampling: 0
-
-#game:
-#  map_builder:
-#    root:
-#      params:
-#        objects:
-#          lasery: 1
-#          armory: 1
-
-
 defaults:
   - /env/mettagrid/arena/basic_teams
+  - /env/mettagrid/game/map_builder/combat_objects@game.map_builder
   - /env/mettagrid/game/objects/combat@game.objects
   - _self_
 
-# deep-merge the existing `game` dict with your small patch
-game: "${merge_dicts:${game}, {
-  map_builder: {
-    root: {
-      params: {
-        objects: {
-          lasery: 1,
+sampling: 0
+
+game:
+  map_builder:
+    root:
+      params:
+        objects:
+          lasery: 1
           armory: 1
-        }
-      }
-    }
-  }
-}}"
+
+
