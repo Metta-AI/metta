@@ -58,6 +58,11 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
             if not torch.distributed.is_initialized():
                 torch.distributed.init_process_group(backend="nccl")
                 logger.info(f"Initialized NCCL distributed training on {device}")
+
+            # Set the device for the current process
+            # this prevents problems with collective operations that happen before the policy is wrapped
+            logger.info(f"Setting device to {device}")
+            torch.cuda.set_device(device)
         else:
             # CPU distributed training
             device = torch.device(base_device)
@@ -71,9 +76,6 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
 
     # Get distributed vars using the shared function
     is_master, world_size, rank = setup_distributed_vars()
-
-    logger.info(f"Setting device to {base_device}:{local_rank}")
-    torch.cuda.set_device(f"{base_device}:{local_rank}")
 
     return device, is_master, world_size, rank
 

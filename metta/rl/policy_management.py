@@ -323,7 +323,8 @@ def load_or_initialize_policy(
         )
 
     if torch.distributed.is_initialized():
-        # Non-master ranks create a policy instance to receive the broadcasted state
+        # Non-master ranks create a throwaway policy instance to receive the broadcasted state
+        # during the DDP wrapping of the policy.
         policy = make_policy(metta_grid_env, cfg)
 
     # cast to the correct type
