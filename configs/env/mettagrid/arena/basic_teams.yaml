@@ -10,6 +10,8 @@ defaults:
       - generators
   - _self_
 
+sampling: 0
+
 game:
   num_agents: 24
   map_builder:

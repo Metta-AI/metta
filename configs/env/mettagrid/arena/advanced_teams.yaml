@@ -3,6 +3,8 @@ defaults:
   - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
+sampling: 0
+
 game:
   map_builder:
     root:
