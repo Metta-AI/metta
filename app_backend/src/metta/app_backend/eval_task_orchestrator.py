@@ -17,7 +17,6 @@ from datetime import datetime, timedelta, timezone
 from ddtrace.trace import tracer
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.factory import create_container_manager
 from metta.app_backend.container_managers.models import WorkerInfo
 from metta.app_backend.routes.eval_task_routes import (
@@ -26,6 +25,8 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.app_backend.worker_managers.base import AbstractWorkerManager
+from metta.app_backend.worker_managers.container_manager import ContainerWorkerManager
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
@@ -35,24 +36,19 @@ from metta.common.util.logging_helpers import init_logging
 class EvalTaskOrchestrator:
     def __init__(
         self,
-        backend_url: str,
-        machine_token: str,
-        docker_image: str = "metta-policy-evaluator-local:latest",
+        task_client: EvalTaskClient,
+        worker_manager: AbstractWorkerManager,
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 1200.0,
         max_workers: int = 5,
-        container_manager: AbstractContainerManager | None = None,
         logger: logging.Logger | None = None,
     ):
-        self._backend_url = backend_url
-        self._docker_image = docker_image
+        self._task_client = task_client
+        self._worker_manager = worker_manager
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
         self._max_workers = max_workers
-        self._machine_token = machine_token
         self._logger = logger or logging.getLogger(__name__)
-        self._task_client = EvalTaskClient(backend_url)
-        self._container_manager = container_manager or create_container_manager()
 
     @trace("orchestrator.claim_task")
     async def _attempt_claim_task(self, task: TaskResponse, worker: WorkerInfo) -> bool:
@@ -66,7 +62,8 @@ class EvalTaskOrchestrator:
             return False
 
     async def _get_available_workers(self, claimed_tasks: list[TaskResponse]) -> dict[str, WorkerInfo]:
-        alive_workers = await self._container_manager.discover_alive_workers()
+        alive_workers = await self._worker_manager.discover_alive_workers()
+
         git_hashes_by_assignee = await self._task_client.get_git_hashes_for_workers(
             [w.container_name for w in alive_workers]
         )
@@ -113,7 +110,7 @@ class EvalTaskOrchestrator:
                     self._logger.info(f"Not retrying task {task.id} because it has exceeded max retries")
                 if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
                     self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
-                    self._container_manager.cleanup_container(worker.container_id)
+                    self._worker_manager.cleanup_worker(worker.container_id)
                     del alive_workers_by_name[worker.container_name]
 
     async def _assign_task_to_worker(
@@ -149,11 +146,9 @@ class EvalTaskOrchestrator:
     async def _start_new_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
         # Todo: start workers on demand.  For now just start fixed number of workers
         for _ in range(self._max_workers - len(alive_workers_by_name)):
-            self._container_manager.start_worker_container(
-                backend_url=self._backend_url,
-                docker_image=self._docker_image,
-                machine_token=self._machine_token,
-            )
+            # Reuse the orchestrator's client for workers to maintain test setup
+            # Note: worker manager implementations should store necessary tokens/config
+            self._worker_manager.start_worker()
 
     @trace("orchestrator.run_cycle")
     async def run_cycle(self) -> None:
@@ -167,7 +162,7 @@ class EvalTaskOrchestrator:
         await self._start_new_workers(alive_workers_by_name)
 
     async def run(self) -> None:
-        self._logger.info(f"Backend URL: {self._backend_url}")
+        self._logger.info(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
         self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
 
         with tracer.trace("orchestrator.startup"):
@@ -199,10 +194,18 @@ async def main() -> None:
     max_workers = int(os.environ.get("MAX_WORKERS", "5"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
-    orchestrator = EvalTaskOrchestrator(
+    task_client = EvalTaskClient(backend_url)
+    container_manager = create_container_manager()
+    worker_manager = ContainerWorkerManager(
+        container_manager=container_manager,
         backend_url=backend_url,
-        machine_token=machine_token,
         docker_image=docker_image,
+        machine_token=machine_token,
+        logger=logger,
+    )
+    orchestrator = EvalTaskOrchestrator(
+        task_client=task_client,
+        worker_manager=worker_manager,
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,
         max_workers=max_workers,

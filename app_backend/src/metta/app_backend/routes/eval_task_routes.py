@@ -93,6 +93,10 @@ class TasksResponse(BaseModel):
     tasks: list[TaskResponse]
 
 
+class GitHashesRequest(BaseModel):
+    assignees: list[str]
+
+
 class GitHashesResponse(BaseModel):
     git_hashes: dict[str, list[str]]
 
@@ -156,10 +160,10 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
-    @router.get("/git-hashes")
+    @router.post("/git-hashes")
     @timed_http_handler
-    async def get_git_hashes_for_workers(assignees: list[str]) -> GitHashesResponse:
-        git_hashes = await stats_repo.get_git_hashes_for_workers(assignees=assignees)
+    async def get_git_hashes_for_workers(request: GitHashesRequest) -> GitHashesResponse:
+        git_hashes = await stats_repo.get_git_hashes_for_workers(assignees=request.assignees)
         return GitHashesResponse(git_hashes=git_hashes)
 
     @router.get("/all", response_model=TasksResponse)

@@ -30,11 +30,20 @@ from metta.common.util.logging_helpers import init_logging
 
 
 class EvalTaskWorker:
-    def __init__(self, backend_url: str, assignee: str, machine_token: str, logger: logging.Logger | None = None):
-        self._backend_url = backend_url
+    def __init__(
+        self,
+        client: EvalTaskClient,
+        assignee: str,
+        backend_url: str,
+        machine_token: str | None = None,
+        logger: logging.Logger | None = None,
+    ):
+        self._client = client
         self._assignee = assignee
-        CLIAuthenticator(self._backend_url).save_token(machine_token)
-        self._client = EvalTaskClient(backend_url)
+        self._backend_url = backend_url
+        if machine_token:
+            # Only save token if provided (for backward compatibility)
+            CLIAuthenticator(backend_url).save_token(machine_token)
         self._logger = logger or logging.getLogger(__name__)
         self._poll_interval = 5.0
 
@@ -220,7 +229,8 @@ async def main() -> None:
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
 
-    async with EvalTaskWorker(backend_url, assignee, machine_token, logger) as worker:
+    client = EvalTaskClient(backend_url)
+    async with EvalTaskWorker(client, assignee, backend_url, machine_token, logger) as worker:
         await worker.run()
 
 
