@@ -7,7 +7,7 @@ from typing import Any, Dict
 import numpy as np
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum, Task
+from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class SampledTaskCurriculum(Curriculum):
         cfg = self._task_cfg_template.copy()
         for k, v in self._sampling_parameters.items():
             OmegaConf.update(cfg, k, _sample(v), merge=False)
-        return Task(self._task_id, self, cfg)
+        return SingleTrialTask(self._task_id, self, cfg)
 
 
 def _sample(dist: Any) -> Any:

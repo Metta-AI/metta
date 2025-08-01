@@ -10,7 +10,6 @@
 import * as Common from './common.js'
 import { state, ui } from './common.js'
 import { requestFrame, setIsPlaying } from './main.js'
-import { getAttr } from './replay.js'
 import { focusFullMap, focusMap } from './worldmap.js'
 
 enum ShotType {
@@ -91,12 +90,13 @@ export function doDemoMode() {
         const agent = state.replay.agents[i]
         let actionFound = false
         for (let j = 0; j < 10; j++) {
-          const action = getAttr(agent, 'action', state.step + j)
-          if (action == null || action[0] == null || action[1] == null) {
+          const actionId = agent.actionId.get(state.step + j)
+          const actionParam = agent.actionParameter.get(state.step + j)
+          if (actionId == null || actionParam == null) {
             continue
           }
-          const actionName = state.replay.action_names[action[0]]
-          const actionSuccess = getAttr(agent, 'action_success', state.step + j)
+          const actionName = state.replay.actionNames[actionId]
+          const actionSuccess = agent.actionSuccess.get(state.step + j)
           if (
             actionName !== 'noop' &&
             actionName !== 'rotate' &&

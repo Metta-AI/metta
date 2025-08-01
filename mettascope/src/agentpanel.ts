@@ -12,7 +12,7 @@ import {
   showMenu,
 } from './htmlutils.js'
 import { updateSelection } from './main.js'
-import { getAttr, propertyIcon, propertyName } from './replay.js'
+import { Entity, Sequence, propertyIcon, propertyName } from './replay.js'
 
 enum SortDirection {
   None = 0,
@@ -25,16 +25,13 @@ class ColumnDefinition {
   field: string
   isFinal: boolean
   sortDirection: SortDirection
+  itemId: number
 
-  constructor(
-    field: string,
-    isFinal: boolean,
-    sortDirection: SortDirection = SortDirection.None,
-    _isStepColumn = false
-  ) {
+  constructor(field: string, isFinal: boolean, sortDirection: SortDirection = SortDirection.None, itemId: number = -1) {
     this.field = field
     this.isFinal = isFinal
     this.sortDirection = sortDirection
+    this.itemId = itemId
   }
 
   generateName() {
@@ -74,9 +71,9 @@ const columnOptionTemplate = find('#new-column-dropdown .column-option')
 const typeahead = find('#new-column-input') as HTMLInputElement
 
 let columns = [
-  new ColumnDefinition('agent_id', false),
-  new ColumnDefinition('total_reward', false),
-  new ColumnDefinition('total_reward', true),
+  new ColumnDefinition('agentId', false),
+  new ColumnDefinition('totalReward', false),
+  new ColumnDefinition('totalReward', true),
 ]
 let mainSort: ColumnDefinition = columns[1]
 let typeaheadValue = ''
@@ -231,12 +228,12 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, _e: Event) =
 
 /** Clicking on a data cell should select the agent. */
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, _e: Event) => {
-  const agentId = findAttr(target, 'data-agent-id')
-  if (agentId !== '') {
-    state.replay.grid_objects.forEach((gridObject: any) => {
-      if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') === agentId) {
-        updateSelection(gridObject, true)
-        // Note: can't use break with forEach
+  const agentIdStr = findAttr(target, 'data-agent-id')
+  if (agentIdStr !== '') {
+    const agentId = parseInt(agentIdStr)
+    state.replay.objects.forEach((object: Entity) => {
+      if (object.agentId == agentId) {
+        updateSelection(object, true)
       }
     })
   }
@@ -308,22 +305,25 @@ export function updateAvailableColumns() {
   typeaheadValue = typeahead.value
   const noMatchFound = find('#new-column-dropdown .no-match-found')
 
-  // All agent keys:
-  const agentKeys = new Set<string>()
-  for (const agent of state.replay.agents) {
-    for (const key in agent) {
-      agentKeys.add(key)
-    }
+  // Add object fields as available columns.
+  const availableColumnNames = [
+    'agentId',
+    'totalReward',
+    'totalReward',
+    'actionId',
+    'actionParameter',
+    'actionSuccess',
+    'currentReward',
+    'orientation',
+    'isFrozen',
+  ]
+  for (const name of availableColumnNames) {
+    availableColumns.push(new ColumnDefinition(name, false))
   }
-  // All inventory keys:
-  for (const key of agentKeys) {
-    if (key !== 'agent' && key !== 'c' && key !== 'r' && key !== 'reward') {
-      // If there is a typeahead value, only show columns that match the typeahead value.
-      if (typeaheadValue !== '' && !key.toLowerCase().includes(typeaheadValue.toLowerCase())) {
-        continue
-      }
-      availableColumns.push(new ColumnDefinition(key, false))
-    }
+  // Add resources as available columns.
+  for (let itemId = 0; itemId < state.replay.itemNames.length; itemId++) {
+    const itemName = state.replay.itemNames[itemId]
+    availableColumns.push(new ColumnDefinition(itemName, false, itemId))
   }
 
   if (availableColumns.length === 0) {
@@ -359,6 +359,32 @@ export function updateAvailableColumns() {
   }
 }
 
+/** Get the amount of an item in the inventory. */
+function getInventoryAmount(agent: any, itemName: string, step: number) {
+  const itemId = state.replay.itemNames.indexOf(itemName)
+  const inventory = agent.inventory.get(step)
+  for (const [inventoryId, inventoryAmount] of inventory) {
+    if (inventoryId === itemId) {
+      console.log('getInventoryAmount:', itemName, inventoryAmount)
+      return inventoryAmount
+    }
+  }
+  return 0
+}
+
+/** Try to load a value from the agent or return 0. */
+function getColumnValue(agent: any, field: string, step: number) {
+  if (state.replay.itemNames.includes(field)) {
+    return getInventoryAmount(agent, field, step)
+  }
+  if (typeof agent[field] === 'number') {
+    return agent[field]
+  } else if (agent[field] instanceof Sequence) {
+    return agent[field].get(step)
+  }
+  return 0
+}
+
 /** Update the agent table. */
 export function updateAgentTable() {
   // The agent table might change due to changes in:
@@ -376,12 +402,12 @@ export function updateAgentTable() {
     let bValue: number
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
-      aValue = getAttr(a, mainSort.field, state.replay.max_steps - 1)
-      bValue = getAttr(b, mainSort.field, state.replay.max_steps - 1)
+      aValue = getColumnValue(a, mainSort.field, state.replay.maxSteps - 1)
+      bValue = getColumnValue(b, mainSort.field, state.replay.maxSteps - 1)
     } else {
       // Uses the current step for the sort.
-      aValue = getAttr(a, mainSort.field)
-      bValue = getAttr(b, mainSort.field)
+      aValue = getColumnValue(a, mainSort.field, state.step)
+      bValue = getColumnValue(b, mainSort.field, state.step)
     }
     // Sort direction adjustment.
     if (mainSort.sortDirection === SortDirection.Descending) {
@@ -418,9 +444,9 @@ export function updateAgentTable() {
 
         let value: number
         if (columnDef.isFinal) {
-          value = getAttr(agent, columnDef.field, state.replay.max_steps - 1)
+          value = getColumnValue(agent, columnDef.field, state.replay.maxSteps - 1)
         } else {
-          value = getAttr(agent, columnDef.field)
+          value = getColumnValue(agent, columnDef.field, state.step)
         }
         if (value == null) {
           value = 0
@@ -431,9 +457,9 @@ export function updateAgentTable() {
         }
 
         dataCell.children[0].textContent = valueStr
-        const agentId = getAttr(agent, 'agent_id')
+        const agentId = agent.agentId
         dataCell.setAttribute('data-agent-id', agentId.toString())
-        if (state.selectedGridObject != null && agentId === getAttr(state.selectedGridObject, 'agent_id')) {
+        if (state.selectedGridObject != null && agentId === state.selectedGridObject.agentId) {
           dataCell.classList.add('selected')
         }
         column.appendChild(dataCell)
@@ -448,9 +474,9 @@ export function updateAgentTable() {
   newColumn.appendChild(headerCell)
   agents.forEach((agent: any) => {
     const dataCell = newColumnDataCell.cloneNode(true) as HTMLElement
-    const agentId = getAttr(agent, 'agent_id')
+    const agentId = agent.agentId
     dataCell.setAttribute('data-agent-id', agentId.toString())
-    if (state.selectedGridObject != null && agentId === getAttr(state.selectedGridObject, 'agent_id')) {
+    if (state.selectedGridObject != null && agentId === state.selectedGridObject.agentId) {
       dataCell.classList.add('selected')
     }
     newColumn.appendChild(dataCell)
