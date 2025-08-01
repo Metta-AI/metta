@@ -102,7 +102,8 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
 
     # Use the functional train interface directly
     train(
-        cfg=cfg,
+        hydra_cfg=cfg,
+        device=torch.device(cfg.device),
         trainer_cfg=create_trainer_config(cfg),
         run_dir=cfg.run_dir,
         wandb_run=wandb_run,

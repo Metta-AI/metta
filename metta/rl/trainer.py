@@ -78,7 +78,8 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 def train(
-    cfg: DictConfig,
+    hydra_cfg: DictConfig,
+    device: torch.device,
     trainer_cfg: TrainerConfig,
     run_dir: str,
     wandb_run: WandbRun | None,
@@ -98,7 +99,6 @@ def train(
 
     # Set up distributed
     is_master, world_size, rank = setup_distributed_vars()
-    device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
 
     # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(logger)
@@ -119,7 +119,7 @@ def train(
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
-        cfg.vectorization,
+        hydra_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
         num_workers=trainer_cfg.num_workers,
@@ -127,7 +127,7 @@ def train(
         is_training=True,
     )
 
-    seed = cfg.get("seed")
+    seed = hydra_cfg.get("seed")
     if seed is None:
         seed = np.random.randint(0, 1000000)
     vecenv.async_reset(seed + rank)
@@ -145,7 +145,7 @@ def train(
         device=device,
         is_master=is_master,
         rank=rank,
-        run_name=cfg.run,
+        run_name=hydra_cfg.run,
     )
 
     # Load checkpoint if it exists
@@ -161,7 +161,7 @@ def train(
     # Load or initialize policy with distributed coordination
     policy: PolicyAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
-        cfg=cfg,
+        cfg=hydra_cfg,
         checkpoint=checkpoint,
         policy_store=policy_store,
         metta_grid_env=metta_grid_env,
@@ -393,7 +393,7 @@ def train(
                 rollout_time=rollout_time,
                 stats_time=stats_time,
                 is_master=is_master,
-                run_name=cfg.run,
+                run_name=hydra_cfg.run,
             )
 
         # Update L2 weights if configured
@@ -470,7 +470,7 @@ def train(
                     policy_record=latest_saved_policy_record,
                     sim_suite_config=extended_suite_config,
                     device=device,
-                    vectorization=cfg.vectorization,
+                    vectorization=hydra_cfg.vectorization,
                     replay_dir=trainer_cfg.simulation.replay_dir,
                     stats_epoch_id=stats_tracker.stats_epoch_id,
                     wandb_policy_name=wandb_policy_name,
