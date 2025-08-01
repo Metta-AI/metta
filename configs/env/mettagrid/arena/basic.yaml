@@ -10,11 +10,6 @@ defaults:
   - _self_
 
 game:
-  agent:
-    initial_inventory:
-      ore_red: 2
-      laser: 1
-      armor: 0
 
   num_agents: 24
   map_builder:
