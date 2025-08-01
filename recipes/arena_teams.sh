@@ -1,6 +1,6 @@
 ./devops/skypilot/launch.py train \
-  --gpus=1 \
-  --nodes=1 \
+  --gpus=4 \
+  --nodes=8 \
   --no-spot \
   run=$USER.recipes.arena.teams.no.rs.$(date +%m-%d) \
   +user=krishnakanth \
