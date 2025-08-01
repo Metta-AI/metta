@@ -24,9 +24,36 @@ spec:
         {{- range .Values.oauth2_proxy.email_domains | required "oauth2_proxy.email_domains is required" }}
         - --email-domain={{ . }}
         {{- end }}
-        envFrom:
-        - secretRef:
-            name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+        env:
+        - name: OAUTH2_PROXY_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+              key: client-id
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+              key: client-secret
+        # idea from skypilot chart: generate a stable cookie secret if no existing one is found
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          {{- /* Look up existing deployment to get the current cookie secret if available */}}
+          {{- $deploymentName := printf "%s-oauth2-proxy" .Release.Name }}
+          {{- $existingDeployment := lookup "apps/v1" "Deployment" .Release.Namespace $deploymentName }}
+          {{- if and $existingDeployment $existingDeployment.spec.template.spec.containers }}
+            {{- range $container := $existingDeployment.spec.template.spec.containers }}
+              {{- if eq $container.name "oauth2-proxy" }}
+                {{- range $env := $container.env }}
+                  {{- if eq $env.name "OAUTH2_PROXY_COOKIE_SECRET" }}
+          value: {{ $env.value }}
+                  {{- end }}
+                {{- end }}
+              {{- end }}
+            {{- end }}
+          {{- else }}
+          # Generate a random cookie secret if no existing one is found
+          value: {{ randAlphaNum 32 | b64enc | quote }}
+          {{- end }}
         ports:
         - containerPort: 4180
           protocol: TCP
