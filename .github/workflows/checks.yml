@@ -87,7 +87,7 @@ jobs:
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp"
+          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
