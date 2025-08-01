@@ -1,6 +1,10 @@
 import asyncio
+import datetime
 import logging
+import random
+import string
 import threading
+from datetime import datetime, timezone
 from typing import Callable
 
 from metta.app_backend.container_managers.models import WorkerInfo
@@ -10,6 +14,16 @@ from metta.app_backend.worker_managers.base import AbstractWorkerManager
 
 class ThreadWorkerManager(AbstractWorkerManager):
     """Manages EvalTaskWorker instances running on separate threads."""
+
+    _worker_prefix = "eval-worker-"
+
+    def _format_worker_name(self) -> str:
+        return f"{self._worker_prefix}-{self._generate_worker_suffix()}"
+
+    def _generate_worker_suffix(self) -> str:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        return f"{timestamp}-{random_suffix}"
 
     def __init__(
         self,

@@ -1,23 +1,10 @@
-import random
-import string
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 
 from metta.app_backend.container_managers.models import WorkerInfo
 
 
 class AbstractWorkerManager(ABC):
     """Abstract base class for managing eval task workers."""
-
-    _worker_prefix = "eval-worker-"
-
-    def _format_worker_name(self) -> str:
-        return f"{self._worker_prefix}-{self._generate_worker_suffix()}"
-
-    def _generate_worker_suffix(self) -> str:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-        random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
-        return f"{timestamp}-{random_suffix}"
 
     @abstractmethod
     def start_worker(self) -> WorkerInfo:
