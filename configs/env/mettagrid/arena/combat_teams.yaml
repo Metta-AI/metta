@@ -20,7 +20,7 @@ defaults:
   - _self_
 
 # deep-merge the existing `game` dict with your small patch
-game: ${merge_dicts:${game}, {
+game: "${merge_dicts:${game}, {
   map_builder: {
     root: {
       params: {
@@ -31,4 +31,4 @@ game: ${merge_dicts:${game}, {
       }
     }
   }
-}}
+}}"

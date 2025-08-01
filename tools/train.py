@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+
+
 import logging
 import multiprocessing
 import os
@@ -25,6 +27,8 @@ from tools.sweep_config_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+OmegaConf.register_new_resolver("merge_dicts", lambda base, override: {**base, **override})
 
 
 # TODO: populate this more
