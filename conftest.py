@@ -32,7 +32,7 @@ def verbose(request):
 
 # Properly handle output capture for verbose tests
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):  # noqa: ARG001
+def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
 
