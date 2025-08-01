@@ -3,7 +3,7 @@
   --nodes=1 \
   --no-spot \
   run=$USER.recipes.arena.teams.no.rs.$(date +%m-%d) \
-  user=krishnakanth \
+  +user=krishnakanth \
   trainer.curriculum=/env/mettagrid/curriculum/arena/teams \
   trainer.optimizer.learning_rate=0.0045 \
   trainer.optimizer.type=muon \
