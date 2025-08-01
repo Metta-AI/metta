@@ -133,8 +133,8 @@ class TestConverterObservations:
 
         # Calculate dynamic offsets based on inventory item count
         inventory_item_count = 4  # ore_red, ore_blue, battery_red, heart
-        input_recipe_offset = 15 + inventory_item_count  # 19 (was 18, but ObservationFeatureCount is now 15)
-        output_recipe_offset = input_recipe_offset + inventory_item_count  # 23 (was 22)
+        input_recipe_offset = 15 + inventory_item_count  # 19
+        output_recipe_offset = input_recipe_offset + inventory_item_count  # 23
 
         # Recipe inputs are shown at dynamic offsets
         # ore_red=input_recipe_offset+0, ore_blue=input_recipe_offset+1, etc.
