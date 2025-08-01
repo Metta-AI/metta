@@ -285,12 +285,15 @@ jobs:
           # Check for slow tests
           echo "::group::Checking for slow tests"
           echo "$PYTEST_OUTPUT" | awk '
+          BEGIN {
+              found_slow = 0
+          }
           /===+ slowest [0-9]+ durations ===+/ {
               print "Found slow tests in Phase 1:"
-              slow_found = 1
+              slow_section = 1
               next
           }
-          slow_found && /^[0-9]+\.[0-9]+s/ {
+          slow_section && /^[0-9]+\.[0-9]+s/ {
               # Extract duration
               duration = $1
               gsub("s", "", duration)
@@ -310,11 +313,11 @@ jobs:
                   found_slow = 1
               }
           }
-          /^===/ && slow_found {
-              slow_found = 0
+          /^===/ && slow_section {
+              slow_section = 0
           }
           END {
-              if (!found_slow) {
+              if (found_slow == 0) {
                   print "✅ No slow tests found in Phase 1"
               }
           }
