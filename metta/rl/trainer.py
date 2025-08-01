@@ -3,7 +3,6 @@ import os
 from collections import defaultdict
 from typing import cast
 
-import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
@@ -24,6 +23,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -78,10 +78,12 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 def train(
+    run_dir: str,
+    run: str,
     hydra_cfg: DictConfig,
+    env_cfg: EnvConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
-    run_dir: str,
     wandb_run: WandbRun | None,
     policy_store: PolicyStore,
     sim_suite_config: SimulationSuiteConfig,
@@ -119,7 +121,7 @@ def train(
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
-        hydra_cfg.vectorization,
+        env_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
         num_workers=trainer_cfg.num_workers,
@@ -127,10 +129,7 @@ def train(
         is_training=True,
     )
 
-    seed = hydra_cfg.get("seed")
-    if seed is None:
-        seed = np.random.randint(0, 1000000)
-    vecenv.async_reset(seed + rank)
+    vecenv.async_reset(env_cfg.seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -145,7 +144,7 @@ def train(
         device=device,
         is_master=is_master,
         rank=rank,
-        run_name=hydra_cfg.run,
+        run_name=run,
     )
 
     # Load checkpoint if it exists
@@ -161,7 +160,7 @@ def train(
     # Load or initialize policy with distributed coordination
     policy: PolicyAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
-        cfg=hydra_cfg,
+        hydra_cfg=hydra_cfg,
         checkpoint=checkpoint,
         policy_store=policy_store,
         metta_grid_env=metta_grid_env,
@@ -393,7 +392,7 @@ def train(
                 rollout_time=rollout_time,
                 stats_time=stats_time,
                 is_master=is_master,
-                run_name=hydra_cfg.run,
+                run_name=run,
             )
 
         # Update L2 weights if configured
@@ -470,7 +469,7 @@ def train(
                     policy_record=latest_saved_policy_record,
                     sim_suite_config=extended_suite_config,
                     device=device,
-                    vectorization=hydra_cfg.vectorization,
+                    vectorization=env_cfg.vectorization,
                     replay_dir=trainer_cfg.simulation.replay_dir,
                     stats_epoch_id=stats_tracker.stats_epoch_id,
                     wandb_policy_name=wandb_policy_name,

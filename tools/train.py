@@ -19,6 +19,7 @@ from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
+from metta.rl.env_config import create_env_config
 from metta.rl.trainer import train
 from metta.rl.trainer_config import create_trainer_config
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -62,11 +63,14 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
 def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
+    # Create env config early to use it throughout
+    env_cfg = create_env_config(cfg)
+
     # Validation must be done after merging
     # otherwise trainer's default num_workers: null will be override the values
     # set by _calculate_default_num_workers, and the validation will fail
     if not cfg.trainer.num_workers:
-        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
+        cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
 
     # Determine git hash for remote simulations
     if cfg.trainer.simulation.evaluate_remote and not cfg.trainer.simulation.git_hash:
@@ -103,7 +107,8 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     # Use the functional train interface directly
     train(
         hydra_cfg=cfg,
-        device=torch.device(cfg.device),
+        env_cfg=env_cfg,
+        device=torch.device(env_cfg.device),
         trainer_cfg=create_trainer_config(cfg),
         run_dir=cfg.run_dir,
         wandb_run=wandb_run,
