@@ -130,7 +130,9 @@ def train(
         is_training=True,
     )
 
-    seed = cfg.get("seed", np.random.randint(0, 1000000))
+    seed = cfg.get("seed")
+    if seed is None:
+        seed = np.random.randint(0, 1000000)
     vecenv.async_reset(seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
@@ -394,6 +396,7 @@ def train(
                 rollout_time=rollout_time,
                 stats_time=stats_time,
                 is_master=is_master,
+                run_name=cfg.run,
             )
 
         # Update L2 weights if configured
