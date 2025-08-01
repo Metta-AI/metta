@@ -1,13 +1,5 @@
 #include "mettagrid_c.hpp"
 
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-
-#include <algorithm>
-#include <cmath>
-#include <numeric>
-#include <random>
-
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_color.hpp"
@@ -30,8 +22,17 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
+#include "renderer/raylib.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
+
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h>
+
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <random>
 
 namespace py = pybind11;
 
@@ -1092,4 +1093,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.attr("dtype_actions") = dtype_actions();
   m.attr("dtype_masks") = dtype_masks();
   m.attr("dtype_success") = dtype_success();
+
+  py::class_<Metta2DPy>(m, "Metta2D")
+      .def(py::init<>())
+      .def("update", &Metta2DPy::update, py::arg("env"))
+      .def("render", &Metta2DPy::render);
 }

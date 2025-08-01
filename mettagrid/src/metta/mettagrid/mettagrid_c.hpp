@@ -109,6 +109,8 @@ public:
 
   uint64_t initial_grid_hash;
 
+  Grid& grid() const { return *_grid; }
+
 private:
   // Member variables
   GlobalObsConfig _global_obs_config;
