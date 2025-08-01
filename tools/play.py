@@ -8,14 +8,11 @@ from omegaconf import DictConfig, OmegaConf
 import mettascope.server as server
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.util.metta_script import metta_script
-from tools.train import apply_mac_overrides
 
 
 def main(cfg: DictConfig):
     logger = logging.getLogger("tools.play")
     logger.info(f"tools.play job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
-
-    apply_mac_overrides(cfg)
 
     open_browser = OmegaConf.select(cfg, "replay_job.open_browser_on_start", default=True)
 
