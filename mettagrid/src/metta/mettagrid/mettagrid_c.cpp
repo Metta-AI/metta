@@ -193,8 +193,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
-        // Initialize visitation grid with grid dimensions
-        agent->init_visitation_grid(height, width);
+        // Only initialize visitation grid if visitation counts are enabled
+        if (_global_obs_config.visitation_counts) {
+          agent->init_visitation_grid(height, width);
+        }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -501,9 +503,11 @@ py::tuple MettaGrid::reset() {
     handler->clear_tracking();
   }
 
-  // Reset visitation counts for all agents
-  for (auto& agent : _agents) {
-    agent->reset_visitation_counts();
+  // Reset visitation counts for all agents (only if enabled)
+  if (_global_obs_config.visitation_counts) {
+    for (auto& agent : _agents) {
+      agent->reset_visitation_counts();
+    }
   }
 
   // Reset all buffers

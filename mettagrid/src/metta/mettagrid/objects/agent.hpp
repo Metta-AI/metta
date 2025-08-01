@@ -75,6 +75,7 @@ public:
   RewardType* reward;
   // Visitation count grid: tracks how many times the agent has visited each position
   std::vector<std::vector<unsigned int>> visitation_grid;
+  bool visitation_counts_enabled = false;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -104,6 +105,7 @@ public:
 
   void init_visitation_grid(GridCoord height, GridCoord width) {
     visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
+    visitation_counts_enabled = true;
   }
 
   void reset_visitation_counts() {
@@ -115,7 +117,7 @@ public:
   }
 
   void increment_visitation_count(GridCoord r, GridCoord c) {
-    if (r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) &&
+    if (visitation_counts_enabled && r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) &&
         c >= 0 && c < static_cast<GridCoord>(visitation_grid[0].size())) {
       visitation_grid[r][c]++;
     }

@@ -1,11 +1,95 @@
 #!/usr/bin/env python3
 
 import copy
+import time
 
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+
+
+def create_test_env(visitation_counts_enabled=True):
+    """Create test environment with or without visitation counts."""
+    game_config = {
+        "max_steps": 1000,
+        "num_agents": 1,
+        "episode_truncates": True,
+        "obs_width": 11,
+        "obs_height": 11,
+        "inventory_item_names": ["wood", "stone"],
+        "num_observation_tokens": 200,
+        "actions": {
+            "move": {"enabled": True},
+        },
+        "objects": {"wall": {"type_id": 1}},
+        "agent": {},
+        "groups": {"test_group": {"id": 0, "props": {}}},
+        "global_obs": {
+            "episode_completion_pct": True,
+            "last_action": True,
+            "last_reward": True,
+            "resource_rewards": False,
+            "visitation_counts": visitation_counts_enabled,
+        },
+    }
+
+    # Create a simple map with agent in the middle
+    map_data = [
+        ["empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+        ["empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+        ["empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+        ["empty", "empty", "empty", "agent.test_group", "empty", "empty", "empty"],
+        ["empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+        ["empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+        ["empty", "empty", "empty", "empty", "empty", "empty", "empty"],
+    ]
+
+    return MettaGrid(from_mettagrid_config(game_config), map_data, 42)
+
+
+def test_visitation_performance():
+    """Test performance difference between enabled and disabled visitation counts."""
+
+    print("Testing performance with visitation counts enabled...")
+    env_enabled = create_test_env(visitation_counts_enabled=True)
+    obs, _ = env_enabled.reset()
+
+    # Run some steps to warm up
+    actions = np.array([[0, 0]], dtype=np.int32)  # move forward
+    for _ in range(10):
+        obs, rewards, terminals, truncations, info = env_enabled.step(actions)
+
+    # Time the performance
+    start_time = time.time()
+    for _ in range(100):
+        obs, rewards, terminals, truncations, info = env_enabled.step(actions)
+    enabled_time = time.time() - start_time
+
+    print(f"With visitation counts enabled: {enabled_time:.4f} seconds for 100 steps")
+
+    print("\nTesting performance with visitation counts disabled...")
+    env_disabled = create_test_env(visitation_counts_enabled=False)
+    obs, _ = env_disabled.reset()
+
+    # Run some steps to warm up
+    for _ in range(10):
+        obs, rewards, terminals, truncations, info = env_disabled.step(actions)
+
+    # Time the performance
+    start_time = time.time()
+    for _ in range(100):
+        obs, rewards, terminals, truncations, info = env_disabled.step(actions)
+    disabled_time = time.time() - start_time
+
+    print(f"With visitation counts disabled: {disabled_time:.4f} seconds for 100 steps")
+
+    # Calculate performance improvement
+    if enabled_time > 0:
+        improvement = ((enabled_time - disabled_time) / enabled_time) * 100
+        print(f"\nPerformance improvement: {improvement:.2f}% faster when disabled")
+
+    print("\nPerformance test completed!")
 
 
 def test_visitation_counts():
@@ -269,4 +353,5 @@ if __name__ == "__main__":
     test_visitation_counts()
     test_visitation_counts_configurable()
     test_visitation_counts_default_behavior()
+    test_visitation_performance()
     print("All tests passed!")
