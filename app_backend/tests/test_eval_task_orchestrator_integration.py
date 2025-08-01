@@ -77,9 +77,7 @@ class TestEvalTaskOrchestratorIntegration:
         def worker_factory(worker_name: str) -> MockSuccessWorker:
             return MockSuccessWorker(
                 client=eval_task_client,
-                assignee=worker_name,
-                backend_url=str(test_client.base_url),
-                machine_token="test-token"
+                assignee=worker_name
             )
         return ThreadWorkerManager(worker_factory=worker_factory)
 
@@ -154,8 +152,6 @@ class TestEvalTaskOrchestratorIntegration:
             return MockFailureWorker(
                 client=eval_task_client,
                 assignee=worker_name,
-                backend_url=str(eval_task_client._base_url),
-                machine_token="test-token",
                 failure_message="Integration test failure"
             )
         failure_manager = ThreadWorkerManager(worker_factory=failure_worker_factory)
@@ -221,8 +217,6 @@ class TestEvalTaskOrchestratorIntegration:
             return MockSuccessWorker(
                 client=eval_task_client,
                 assignee=worker_name,
-                backend_url=str(eval_task_client._base_url),
-                machine_token="test-token",
                 sim_delay=0.2
             )
         success_manager = ThreadWorkerManager(worker_factory=success_worker_factory)
@@ -287,8 +281,6 @@ class TestEvalTaskOrchestratorIntegration:
             return MockTimeoutWorker(
                 client=eval_task_client,
                 assignee=worker_name,
-                backend_url=str(eval_task_client._base_url),
-                machine_token="test-token",
                 sim_delay=10.0
             )
         timeout_manager = ThreadWorkerManager(worker_factory=timeout_worker_factory)
@@ -362,8 +354,6 @@ class TestEvalTaskOrchestratorIntegration:
             return MockConditionalWorker(
                 client=eval_task_client,
                 assignee=worker_name,
-                backend_url=str(eval_task_client._base_url),
-                machine_token="test-token",
                 success_condition=success_condition,
                 failure_message="Even task ID failure"
             )
@@ -430,9 +420,7 @@ class TestEvalTaskOrchestratorIntegration:
         def success_worker_factory(worker_name: str) -> MockSuccessWorker:
             return MockSuccessWorker(
                 client=eval_task_client,
-                assignee=worker_name,
-                backend_url=str(eval_task_client._base_url),
-                machine_token="test-token"
+                assignee=worker_name
             )
         success_manager = ThreadWorkerManager(worker_factory=success_worker_factory)
 
@@ -469,9 +457,7 @@ class TestEvalTaskOrchestratorIntegration:
         def worker_factory(worker_name: str) -> MockSuccessWorker:
             return MockSuccessWorker(
                 client=eval_task_client,
-                assignee=worker_name,
-                backend_url=str(eval_task_client._base_url),
-                machine_token="test-token"
+                assignee=worker_name
             )
         success_manager = ThreadWorkerManager(worker_factory=worker_factory)
 
