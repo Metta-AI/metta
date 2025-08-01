@@ -1,29 +1,83 @@
-# Movement Types in Metta
+# Movement Systems in Metta
 
-This document describes the three movement systems available in Metta and provides commands for training and playing with each type.
+This document describes the three movement systems available in Metta: tank-style, cardinal, and 8-way movement.
 
-## Movement Types Overview
+## Overview
 
-### 1. Tank Movement (Default)
-- **Actions**: `move` (forward/backward) + `rotate` (turn left/right)
+Metta supports multiple movement systems that can be configured through command-line overrides:
+
+1. **Tank Movement** (Default): Classic forward/backward + rotate controls
+2. **Cardinal Movement**: Direct 4-directional movement (N/S/E/W)
+3. **8-Way Movement**: Direct 8-directional movement including diagonals
+
+All movement types can coexist in the same environment, giving maximum flexibility for different game mechanics and AI behaviors.
+
+## Movement Types
+
+### Tank Movement (Default)
+- **Actions**: 
+  - `move` (arg 0: forward, arg 1: backward) - moves relative to agent's facing direction
+  - `rotate` (args 0-3: Up/Down/Left/Right) - changes agent orientation
 - **Behavior**: Agents move in the direction they're facing, must rotate to change direction
 - **Use Case**: Classic tank-style controls, good for combat scenarios where facing matters
 
-### 2. Cardinal Movement
-- **Actions**: `move_cardinal` (4 directions: N, E, S, W)
+### Cardinal Movement (4-directional)
+- **Actions**: `move_cardinal` with arguments:
+  - arg 0: Move North (Up)
+  - arg 1: Move South (Down)
+  - arg 2: Move West (Left)
+  - arg 3: Move East (Right)
 - **Behavior**: Direct movement in 4 cardinal directions, no rotation needed
-- **Use Case**: Simplified movement for navigation tasks
+- **Use Case**: Simplified movement for navigation tasks, grid-aligned environments
 
-### 3. 8-Way Movement
-- **Actions**: `move_8way` (8 directions: N, NE, E, SE, S, SW, W, NW)
+### 8-Way Movement
+- **Actions**: `move_8way` with arguments:
+  - arg 0: North
+  - arg 1: Northeast
+  - arg 2: East
+  - arg 3: Southeast
+  - arg 4: South
+  - arg 5: Southwest
+  - arg 6: West
+  - arg 7: Northwest
 - **Behavior**: Direct movement in 8 directions including diagonals, no rotation needed
-- **Use Case**: Most flexible movement for complex navigation
+- **Use Case**: Most flexible movement for complex navigation, open environments
+
+## Key Concepts
+
+### Agent Orientation
+
+**Important**: Direct movement actions (`move_cardinal` and `move_8way`) perform single atomic movements:
+- They do NOT change the agent's orientation
+- Only the `rotate` action changes orientation
+- This ensures each action does exactly one thing
+- Orientation still affects directional actions like `attack`
+
+### Action Space Changes
+
+The enabled movement types affect the action space:
+
+```python
+# Tank-style only
+action_names = ["noop", "move", "rotate", "attack"]  
+# move is index 1, rotate is index 2
+
+# Cardinal only
+action_names = ["noop", "move_cardinal", "attack"]
+# move_cardinal is index 1, attack is index 2
+
+# Both enabled (hybrid mode)
+action_names = ["noop", "move", "rotate", "move_cardinal", "attack"]
+# move is index 1, rotate is index 2, move_cardinal is index 3
+```
 
 ## Training Commands
 
-### Tank Movement Training
+Use command-line overrides to configure movement types during training:
+
+### Tank Movement Training (Default)
 ```bash
-./tools/train.py run=tank_movement_test +hardware=macbook \
+uv run ./tools/train.py run=tank_movement_test \
   trainer.curriculum=/env/mettagrid/navigation/training/small \
   trainer.total_timesteps=500000 \
   trainer.num_workers=2
@@ -31,7 +85,7 @@ This document describes the three movement systems available in Metta and provid
 
 ### Cardinal Movement Training
 ```bash
-./tools/train.py run=cardinal_movement_test +hardware=macbook \
+uv run ./tools/train.py run=cardinal_movement_test \
   trainer.curriculum=/env/mettagrid/navigation/training/small \
   ++trainer.env_overrides.game.actions.move.enabled=false \
   ++trainer.env_overrides.game.actions.rotate.enabled=false \
@@ -42,7 +96,7 @@ This document describes the three movement systems available in Metta and provid
 
 ### 8-Way Movement Training
 ```bash
-./tools/train.py run=8way_movement_test +hardware=macbook \
+uv run ./tools/train.py run=8way_movement_test \
   trainer.curriculum=/env/mettagrid/navigation/training/small \
   ++trainer.env_overrides.game.actions.move.enabled=false \
   ++trainer.env_overrides.game.actions.rotate.enabled=false \
@@ -53,98 +107,96 @@ This document describes the three movement systems available in Metta and provid
 
 ## Play/Evaluation Commands
 
+Use similar overrides during evaluation to match the training configuration:
+
 ### Tank Movement Play
 ```bash
-./tools/play.py run=play_tank \
+uv run ./tools/play.py run=play_tank \
   policy_uri=file://./train_dir/tank_movement_test/checkpoints \
   replay_job.sim.env=/env/mettagrid/arena/basic \
-  +hardware=macbook \
   device=cpu
 ```
 
 ### Cardinal Movement Play
 ```bash
-./tools/play.py run=play_cardinal \
+uv run ./tools/play.py run=play_cardinal \
   policy_uri=file://./train_dir/cardinal_movement_test/checkpoints \
   replay_job.sim.env=/env/mettagrid/arena/basic \
   +replay_job.sim.env_overrides.game.actions.move.enabled=false \
   +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
   +replay_job.sim.env_overrides.game.actions.move_cardinal.enabled=true \
-  +hardware=macbook \
   device=cpu
 ```
 
 ### 8-Way Movement Play
 ```bash
-./tools/play.py run=play_8way \
+uv run ./tools/play.py run=play_8way \
   policy_uri=file://./train_dir/8way_movement_test/checkpoints \
   replay_job.sim.env=/env/mettagrid/arena/basic \
   +replay_job.sim.env_overrides.game.actions.move.enabled=false \
   +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
   +replay_job.sim.env_overrides.game.actions.move_8way.enabled=true \
-  +hardware=macbook \
   device=cpu
 ```
 
-## Using Pre-configured Environments
+## Performance Considerations
 
-You can also use the example configuration files:
+Each movement system offers different trade-offs:
 
-### Cardinal Movement Example
-```bash
-# Training
-./tools/train.py run=cardinal_example +hardware=macbook \
-  trainer.env=/env/mettagrid/cardinal_movement_example \
-  trainer.total_timesteps=500000
+### Cardinal Movement (4-directional)
+- Smaller action space than tank-style (4 vs 2+4 for move+rotate)
+- More direct pathfinding than tank-style
+- Eliminates need for rotation actions
+- Good for grid-aligned environments
 
-# Playing
-./tools/play.py run=play_cardinal_example \
-  policy_uri=file://./train_dir/cardinal_example/checkpoints \
-  replay_job.sim.env=/env/mettagrid/cardinal_movement_example \
-  +hardware=macbook device=cpu
-```
+### 8-Way Movement
+- Larger action space (8 directions)
+- Most efficient pathfinding (diagonal shortcuts)
+- Best for open environments with fewer obstacles
+- Highest flexibility but more complex action space
 
-### 8-Way Movement Example
-```bash
-# Training
-./tools/train.py run=8way_example +hardware=macbook \
-  trainer.env=/env/mettagrid/8way_movement_example \
-  trainer.total_timesteps=500000
+### Tank-Style Movement
+- Smallest individual action spaces (2 for move, 4 for rotate)
+- Requires action sequences for diagonal movement
+- Natural for environments with facing-dependent mechanics
+- Best for combat scenarios where orientation matters
 
-# Playing
-./tools/play.py run=play_8way_example \
-  policy_uri=file://./train_dir/8way_example/checkpoints \
-  replay_job.sim.env=/env/mettagrid/8way_movement_example \
-  +hardware=macbook device=cpu
-```
+## Training Tips
 
-## Movement Configuration Details
+### Behavioral Differences
+- **Efficiency**: Direct movement can be more efficient as it eliminates rotation actions
+- **Exploration**: Random action policies behave differently - cardinal/8-way move in all directions equally rather than mostly forward/backward
+- **Strategies**: Policies may need different strategies that don't rely on maintaining specific orientations
 
-### Action Space Changes
+### Best Practices
+1. **Curriculum Learning**: Start with simple navigation tasks before complex scenarios
+2. **Reward Shaping**: Consider rewards that encourage efficient pathfinding
+3. **Action Masking**: Mask invalid directions (e.g., into walls) to speed up learning
+4. **Consistent Configuration**: Always use the same movement configuration for training and evaluation
 
-Each movement type modifies the action space:
+## Important Notes
 
-| Movement Type | Actions Enabled | Action Space Size |
-|--------------|----------------|-------------------|
-| Tank | move, rotate, noop, attack, etc. | Varies by config |
-| Cardinal | move_cardinal, noop, attack, etc. | 4 directions + other actions |
-| 8-Way | move_8way, noop, attack, etc. | 8 directions + other actions |
-
-### Important Notes
-
-1. **Orientation**: 
+1. **Orientation Behavior**: 
    - Tank movement changes agent orientation with rotate action
    - Cardinal and 8-way movement do NOT change orientation
    - Attack action always uses the agent's current facing direction
 
-2. **Training**: 
+2. **Training Compatibility**: 
    - Use `++trainer.env_overrides` (double plus) to force override action settings during training
    - Use `+replay_job.sim.env_overrides` (single plus) to add overrides during play/eval
+   - Policies trained with one movement type won't work well with different movement types
 
-3. **Device**: 
+3. **Device Configuration**: 
    - Always specify `device=cpu` on macOS to avoid MPS issues
    - Remove this parameter when running on machines with CUDA GPUs
 
 4. **Checkpoints**: 
-   - Policies trained with one movement type won't work well with different movement types
    - The action space dimensions must match between training and evaluation
+   - Store your movement configuration with your checkpoints for reproducibility
+
+## Backward Compatibility
+
+The system maintains full backward compatibility:
+- Existing configurations work unchanged (tank-style movement is the default)
+- New movement actions are disabled by default
+- Policies trained before these changes continue to work exactly as before

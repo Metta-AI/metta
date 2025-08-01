@@ -13,35 +13,27 @@ public:
   explicit MoveCardinal(const ActionConfig& cfg) : ActionHandler(cfg, "move_cardinal") {}
 
   unsigned char max_arg() const override {
-    return 3;  // 0 = North (Up), 1 = South (Down), 2 = West (Left), 3 = East (Right)
+    return 3;  // 4 cardinal directions
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Cardinal movement: agents move directly in cardinal directions
-    // and update their orientation to face the direction of movement
-    // arg == 0: Move North (Up)
-    // arg == 1: Move South (Down)
-    // arg == 2: Move West (Left)
-    // arg == 3: Move East (Right)
-
-    // Map action argument to movement direction
+    // Cardinal movement: direct movement in 4 cardinal directions
     Orientation move_direction;
     switch (arg) {
-      case 0:
+      case 0:  // North (Up)
         move_direction = Orientation::Up;
         break;
-      case 1:
+      case 1:  // South (Down)
         move_direction = Orientation::Down;
         break;
-      case 2:
+      case 2:  // West (Left)
         move_direction = Orientation::Left;
         break;
-      case 3:
+      case 3:  // East (Right)
         move_direction = Orientation::Right;
         break;
       default:
-        // Invalid argument, should be caught by max_arg() check
         return false;
     }
 
