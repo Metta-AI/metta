@@ -211,7 +211,7 @@ def test_orientation_not_changed_by_cardinal_movement():
         actions = np.zeros((1, 2), dtype=dtype_actions)
         actions[0] = [rotate_idx, 2]  # Face Left
         env.step(actions)
-        
+
         objects = env.grid_objects()
         assert objects[agent_id]["orientation"] == 2  # Left
 

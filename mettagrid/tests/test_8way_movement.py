@@ -59,7 +59,7 @@ def test_8way_movement_all_directions():
         objects = env.grid_objects()
         actual_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
         assert actual_pos == expected_pos, f"Direction {direction}: expected {expected_pos}, got {actual_pos}"
-        
+
         # Verify orientation hasn't changed (atomic action principle)
         assert objects[agent_id]["orientation"] == initial_orientation
 
@@ -153,7 +153,7 @@ def test_orientation_unchanged_with_8way():
     for direction in range(8):
         actions[0] = [move_8dir_idx, direction]
         env.step(actions)
-        
+
         objects = env.grid_objects()
         assert objects[agent_id]["orientation"] == 3, f"Orientation changed after moving in direction {direction}"
 

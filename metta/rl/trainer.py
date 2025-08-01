@@ -440,10 +440,12 @@ def train(
                     ).id
 
                 # Create extended simulation suite that includes the training task
+                # Merge trainer env_overrides with sim_suite_config env_overrides
+                merged_env_overrides = {**sim_suite_config.env_overrides, **trainer_cfg.env_overrides}
                 extended_suite_config = SimulationSuiteConfig(
                     name=sim_suite_config.name,
                     simulations=dict(sim_suite_config.simulations),
-                    env_overrides=sim_suite_config.env_overrides,
+                    env_overrides=merged_env_overrides,
                     num_episodes=sim_suite_config.num_episodes,
                 )
 

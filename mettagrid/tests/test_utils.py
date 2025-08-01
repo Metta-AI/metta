@@ -7,16 +7,16 @@ def make_test_config(
     num_agents: int = 1,
     map: Optional[list[list[str]]] = None,
     actions: Optional[dict[str, dict[str, Any]]] = None,
-    **kwargs
+    **kwargs,
 ) -> dict[str, Any]:
     """Create a test configuration for MettaGrid.
-    
+
     Args:
         num_agents: Number of agents in the environment
         map: 2D list of strings representing the map
         actions: Action configuration overrides
         **kwargs: Additional configuration parameters
-    
+
     Returns:
         Complete configuration dictionary for MettaGrid
     """
@@ -26,7 +26,7 @@ def make_test_config(
             [".", "agent.player", "."],
             [".", ".", "."],
         ]
-    
+
     # Default actions configuration
     default_actions = {
         "noop": {"enabled": True},
@@ -39,7 +39,7 @@ def make_test_config(
         "change_color": {"enabled": False},
         "change_glyph": {"enabled": False, "number_of_glyphs": 4},
     }
-    
+
     # Override with provided actions
     if actions:
         for action_name, action_config in actions.items():
@@ -47,7 +47,7 @@ def make_test_config(
                 default_actions[action_name].update(action_config)
             else:
                 default_actions[action_name] = action_config
-    
+
     config = {
         "num_agents": num_agents,
         "max_steps": 1000,
@@ -115,13 +115,13 @@ def make_test_config(
             },
         },
     }
-    
+
     # Apply any additional kwargs (except map which is handled separately)
     for k, v in kwargs.items():
         if k != "map":
             config[k] = v
-    
+
     # Store map separately for MettaGrid constructor
     config["map"] = map
-    
+
     return config
