@@ -127,7 +127,7 @@ class TestRendererJob:
 
             # Detect if running in CI
             is_ci = os.environ.get("CI", "").lower() == "true"
-            ci_config = "+user=ci" if is_ci else ""
+            ci_config = "+user=ci" if is_ci else "bypass_mac_overrides=false"
 
             cmd = [
                 "python",
