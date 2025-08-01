@@ -497,12 +497,6 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
-  // Clear action tracking from previous episodes
-  ActionHandler::clear_all_tracking();
-  for (auto& handler : _action_handlers) {
-    handler->clear_tracking();
-  }
-
   // Reset visitation counts for all agents (only if enabled)
   if (_global_obs_config.visitation_counts) {
     for (auto& agent : _agents) {
