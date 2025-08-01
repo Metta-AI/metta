@@ -316,7 +316,6 @@ def load_or_initialize_policy(
     Load or initialize policy with distributed coordination.
     This is called from all ranks.
     """
-    print(f"Loading or initializing policy on rank {rank}")
     policy, initial_policy_record, latest_saved_policy_record = None, None, None
 
     if is_master:
@@ -327,19 +326,6 @@ def load_or_initialize_policy(
     if torch.distributed.is_initialized():
         # Non-master ranks create a policy instance to receive the broadcasted state
         policy = make_policy(metta_grid_env, cfg)
-
-        # The master's policy state is broadcast to all other ranks.
-        state_dict = policy.state_dict()
-        get_from_master(state_dict)
-
-        if not is_master:
-            policy.load_state_dict(state_dict)
-
-    # policy, initial_policy_record, latest_saved_policy_record = (
-    #     get_from_master(policy),
-    #     get_from_master(initial_policy_record),
-    #     get_from_master(latest_saved_policy_record),
-    # )
 
     # cast to the correct type
     policy = cast(MettaAgent | DistributedMettaAgent, policy)
