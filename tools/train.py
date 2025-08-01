@@ -106,11 +106,12 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
 
     # Use the functional train interface directly
     train(
-        hydra_cfg=cfg,
+        run=cfg.run,
+        run_dir=cfg.run_dir,
         env_cfg=env_cfg,
+        agent_cfg=cfg.agent,
         device=torch.device(env_cfg.device),
         trainer_cfg=create_trainer_config(cfg),
-        run_dir=cfg.run_dir,
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,

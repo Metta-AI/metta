@@ -80,8 +80,8 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 def train(
     run_dir: str,
     run: str,
-    hydra_cfg: DictConfig,
     env_cfg: EnvConfig,
+    agent_cfg: DictConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
@@ -160,7 +160,9 @@ def train(
     # Load or initialize policy with distributed coordination
     policy: PolicyAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
-        hydra_cfg=hydra_cfg,
+        agent_cfg=agent_cfg,
+        env_cfg=env_cfg,
+        trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
         policy_store=policy_store,
         metta_grid_env=metta_grid_env,
