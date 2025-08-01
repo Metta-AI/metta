@@ -7,7 +7,7 @@ import platform
 from logging import Logger
 
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
@@ -19,7 +19,8 @@ from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
-from metta.rl.trainer import train as functional_train
+from metta.rl.trainer import train
+from metta.rl.trainer_config import create_trainer_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
 from tools.sweep_config_utils import (
@@ -58,7 +59,7 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
+def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
     # Validation must be done after merging
@@ -100,8 +101,10 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
         stats_client.validate_authenticated()
 
     # Use the functional train interface directly
-    functional_train(
-        cfg=cfg,  # type: ignore
+    train(
+        cfg=cfg,
+        trainer_cfg=create_trainer_config(cfg),
+        run_dir=cfg.run_dir,
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
@@ -170,9 +173,9 @@ def main(cfg: DictConfig) -> int:
 
         # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            train(cfg, wandb_run, logger)
+            handle_train(cfg, wandb_run, logger)
     else:
-        train(cfg, None, logger)
+        handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()

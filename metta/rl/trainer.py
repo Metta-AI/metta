@@ -1,8 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import numpy as np
 import torch
@@ -47,7 +46,7 @@ from metta.rl.stats import (
 )
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import create_trainer_config
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import (
     log_training_progress,
     should_run,
@@ -80,24 +79,22 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 def train(
     cfg: DictConfig,
+    trainer_cfg: TrainerConfig,
+    run_dir: str,
     wandb_run: WandbRun | None,
     policy_store: PolicyStore,
     sim_suite_config: SimulationSuiteConfig,
     stats_client: StatsClient | None,
-    **kwargs: Any,
 ) -> None:
     """Main training loop for Metta agents."""
-    logger.info(f"run_dir = {cfg.run_dir}")
+    logger.info(f"run_dir = {run_dir}")
 
     # Log recent checkpoints for debugging
-    checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
-    if checkpoints_dir.exists():
+    checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
+    if os.path.exists(checkpoints_dir):
         files = sorted(os.listdir(checkpoints_dir))[-3:]
         if files:
             logger.info(f"Recent checkpoints: {', '.join(files)}")
-
-    # Create trainer config from Hydra config
-    trainer_cfg = create_trainer_config(cfg)
 
     # Set up distributed
     is_master, world_size, rank = setup_distributed_vars()
@@ -107,7 +104,7 @@ def train(
     timer = Stopwatch(logger)
     timer.start()
     losses = Losses()
-    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
+    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
     # Calculate batch sizes
@@ -152,7 +149,7 @@ def train(
     )
 
     # Load checkpoint if it exists
-    checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+    checkpoint = TrainerCheckpoint.load(run_dir)
     agent_step = checkpoint.agent_step if checkpoint else 0
     epoch = checkpoint.epoch if checkpoint else 0
 
@@ -425,7 +422,7 @@ def train(
                         optimizer=optimizer,
                         policy_path=saved_record.uri,
                         timer=timer,
-                        run_dir=cfg.run_dir,
+                        run_dir=run_dir,
                         kickstarter=kickstarter,
                     )
 
@@ -479,7 +476,6 @@ def train(
                     wandb_policy_name=wandb_policy_name,
                     policy_store=policy_store,
                     stats_client=stats_client,
-                    cfg=cfg,
                     wandb_run=wandb_run,
                     trainer_cfg=trainer_cfg,
                     agent_step=agent_step,
@@ -528,7 +524,7 @@ def train(
                 optimizer=optimizer,
                 policy_path=saved_record.uri,
                 timer=timer,
-                run_dir=cfg.run_dir,
+                run_dir=run_dir,
                 kickstarter=kickstarter,
                 force=True,
             )
@@ -538,7 +534,7 @@ def train(
         torch.distributed.barrier()
 
     if wandb_run and latest_saved_policy_record:
-        upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record, force=True)
+        upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
 
     # Final synchronization before cleanup
     if torch.distributed.is_initialized():
