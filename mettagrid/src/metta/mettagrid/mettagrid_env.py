@@ -163,7 +163,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         return False
 
-
     def _make_id(self):
         return str(uuid.uuid4())
 
