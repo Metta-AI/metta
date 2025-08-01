@@ -1,0 +1,8 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/operant_conditioning/cued_operant/match_mine_red: 1
+  /env/mettagrid/operant_conditioning/cued_operant/match_mine_blue: 1
+  /env/mettagrid/operant_conditioning/cued_operant/mismatch_mine_red: 1
+  /env/mettagrid/operant_conditioning/cued_operant/mismatch_mine_blue: 1
+
