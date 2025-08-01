@@ -20,6 +20,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.common.util.lock import run_once
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.env_config import create_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.wandb_utils import record_protein_observation_to_wandb
@@ -46,6 +47,9 @@ def load_file(run_dir, name):
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
+
+    # Create env config
+    env_cfg = create_env_config(cfg)
 
     # Load run information from dist_cfg_path
     dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
@@ -87,7 +91,7 @@ def main(cfg: DictConfig) -> int:
                 policy_pr,
                 policy_store,
                 device=cfg.device,
-                vectorization=cfg.vectorization,
+                vectorization=env_cfg.vectorization,
             )
 
             # Start evaluation process
