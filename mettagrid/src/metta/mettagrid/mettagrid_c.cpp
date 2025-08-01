@@ -935,6 +935,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned char,
                     float,
                     const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, RewardType>&,
                     const std::map<InventoryItem, RewardType>&,
                     const std::map<std::string, RewardType>&,
@@ -946,6 +947,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,
            py::arg("action_failure_penalty") = 0,
+           py::arg("starting_inventory") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
            py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
@@ -958,6 +960,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("group_id", &AgentConfig::group_id)
       .def_readwrite("freeze_duration", &AgentConfig::freeze_duration)
       .def_readwrite("action_failure_penalty", &AgentConfig::action_failure_penalty)
+      .def_readwrite("starting_inventory", &AgentConfig::starting_inventory)
       .def_readwrite("resource_limits", &AgentConfig::resource_limits)
       .def_readwrite("resource_rewards", &AgentConfig::resource_rewards)
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)

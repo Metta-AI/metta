@@ -4,7 +4,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0; do
    python3 tools/train.py \
-    run=$USER.navigation.ffa_building_to_BOXES_v2 \
+    run=$USER.navigation.ffa_building_to_BOXES_v3 \
     trainer.curriculum=env/mettagrid/curriculum/autocurricula/random \
     ++trainer.ppo.gamma=0.999 \
     ++trainer.minibatch_size=16384 \
