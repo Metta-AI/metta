@@ -194,7 +194,7 @@ def load_or_initialize_policy(
     metta_grid_env: MettaGridEnv,
     is_master: bool,
     rank: int,
-) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord | None, PolicyRecord | None]:
+) -> tuple[PolicyAgent, PolicyRecord | None, PolicyRecord | None]:
     """
     Load or initialize policy with distributed coordination.
     This is called from all ranks.
@@ -224,13 +224,10 @@ def load_or_initialize_policy_master(
     checkpoint: Any | None,
     policy_store: PolicyStore,
     metta_grid_env: Any,
-) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
+) -> tuple[PolicyAgent, PolicyRecord, PolicyRecord]:
     """
     Load or initialize policy with distributed coordination.
     This is only called from the master rank.
-
-    Returns:
-        Tuple of (policy, initial_policy_record, latest_saved_policy_record)
     """
     trainer_cfg = cfg.trainer
 
