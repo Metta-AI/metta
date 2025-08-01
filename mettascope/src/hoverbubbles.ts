@@ -150,7 +150,7 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
   }
 
   // Add various parameters.
-  addParam("ID", object.id.toString())
+  addParam('ID', object.id.toString())
   const typeName = state.replay.typeNames[object.typeId]
   addParam('Type', typeName)
   if (object.isAgent) {

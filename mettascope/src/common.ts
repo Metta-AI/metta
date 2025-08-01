@@ -8,7 +8,6 @@ import { Entity, Replay } from './replay.js'
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
 
-
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
 export const MAX_ZOOM_LEVEL = 2.5

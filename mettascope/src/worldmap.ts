@@ -592,9 +592,7 @@ function drawVisibility() {
       const location = gridObject.location.get()
       const x = location[0]
       const y = location[1]
-      const visionSize = Math.floor(
-        gridObject.visionSize / 2
-      )
+      const visionSize = Math.floor(gridObject.visionSize / 2)
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
           visibilityMap.set(x + dx, y + dy, true)

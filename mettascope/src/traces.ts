@@ -205,7 +205,8 @@ export function drawTrace(panel: PanelInfo) {
             ctx.drawSprite(
               inventoryImage,
               j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-              i * Common.TRACE_HEIGHT + y, [1, 1, 1, 1],
+              i * Common.TRACE_HEIGHT + y,
+              [1, 1, 1, 1],
               1 / 4
             )
             y += step

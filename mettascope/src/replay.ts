@@ -364,15 +364,19 @@ function convertReplayV1ToV2(replayData: any) {
   }
   data.action_names = replayData.action_names
   data.action_names = data.action_names.map((name: string) => {
-    if (name === "put_recipe_items") {
-      return "put_items"
+    if (name === 'put_recipe_items') {
+      return 'put_items'
     }
-    if (name === "get_output") {
-      return "get_items"
+    if (name === 'get_output') {
+      return 'get_items'
     }
     return name
   })
-  if (replayData.inventory_items != null && replayData.inventory_items != undefined && replayData.inventory_items.length > 0) {
+  if (
+    replayData.inventory_items != null &&
+    replayData.inventory_items != undefined &&
+    replayData.inventory_items.length > 0
+  ) {
     data.item_names = replayData.inventory_items
   } else {
     data.item_names = ['ore.red', 'ore.blue', 'ore.green', 'battery', 'heart', 'armor', 'laser', 'blueprint']
@@ -416,9 +420,9 @@ function convertReplayV1ToV2(replayData: any) {
   let maxY = 0
   for (const gridObject of replayData.grid_objects) {
     const location = []
-    gridObject["c"] = expandSequenceV2(gridObject["c"], replayData.max_steps)
-    gridObject["r"] = expandSequenceV2(gridObject["r"], replayData.max_steps)
-    gridObject["layer"] = expandSequenceV2(gridObject["layer"], replayData.max_steps)
+    gridObject['c'] = expandSequenceV2(gridObject['c'], replayData.max_steps)
+    gridObject['r'] = expandSequenceV2(gridObject['r'], replayData.max_steps)
+    gridObject['layer'] = expandSequenceV2(gridObject['layer'], replayData.max_steps)
     for (let step = 0; step < replayData.max_steps; step++) {
       const x = getAttrV1(gridObject, 'c', step, 0)
       const y = getAttrV1(gridObject, 'r', step, 0)
@@ -431,18 +435,21 @@ function convertReplayV1ToV2(replayData: any) {
     const inventory = []
     for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
       const inventoryName = data.item_names[inventoryId]
-      if ("inv:" + inventoryName in gridObject) {
-        gridObject["inv:" + inventoryName] = expandSequenceV2(gridObject["inv:" + inventoryName], replayData.max_steps)
+      if ('inv:' + inventoryName in gridObject) {
+        gridObject['inv:' + inventoryName] = expandSequenceV2(gridObject['inv:' + inventoryName], replayData.max_steps)
       }
-      if ("agent:inv:" + inventoryName in gridObject) {
-        gridObject["inv:" + inventoryName] = expandSequenceV2(gridObject["agent:inv:" + inventoryName], replayData.max_steps)
+      if ('agent:inv:' + inventoryName in gridObject) {
+        gridObject['inv:' + inventoryName] = expandSequenceV2(
+          gridObject['agent:inv:' + inventoryName],
+          replayData.max_steps
+        )
       }
     }
     for (let step = 0; step < replayData.max_steps; step++) {
       const inventoryList = []
       for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
         const inventoryName = data.item_names[inventoryId]
-        const inventoryAmount = getAttrV1(gridObject, "inv:" + inventoryName, step, 0)
+        const inventoryAmount = getAttrV1(gridObject, 'inv:' + inventoryName, step, 0)
         if (inventoryAmount != 0) {
           inventoryList.push([inventoryId, inventoryAmount])
         }
@@ -461,18 +468,18 @@ function convertReplayV1ToV2(replayData: any) {
     if (gridObject.agent_id != null) {
       object.agent_id = gridObject.agent_id
       object.is_object = true
-      object.is_frozen = gridObject["agent:frozen"]
-      object.color = gridObject["agent:color"]
-      object.action_success = gridObject["action_success"]
-      object.group_id = gridObject["agent:group"]
-      object.orientation = gridObject["agent:orientation"]
-      object.hp = gridObject["agent:hp"]
-      object.current_reward = gridObject["agent:reward"]
-      object.total_reward = gridObject["agent:total_reward"]
+      object.is_frozen = gridObject['agent:frozen']
+      object.color = gridObject['agent:color']
+      object.action_success = gridObject['action_success']
+      object.group_id = gridObject['agent:group']
+      object.orientation = gridObject['agent:orientation']
+      object.hp = gridObject['agent:hp']
+      object.current_reward = gridObject['agent:reward']
+      object.total_reward = gridObject['agent:total_reward']
 
       const action_id = []
       const action_param = []
-      gridObject["action"] = expandSequenceV2(gridObject["action"], replayData.max_steps)
+      gridObject['action'] = expandSequenceV2(gridObject['action'], replayData.max_steps)
       for (let step = 0; step < replayData.max_steps; step++) {
         const action = getAttrV1(gridObject, 'action', step)
         if (action != null) {
@@ -527,7 +534,7 @@ function loadReplayJson(url: string, replayJson: any) {
     object.inventoryMax = gridObject.inventory_max
     object.color.expand(gridObject.color, replayData.max_steps, 0)
 
-    if ("agent_id" in gridObject) {
+    if ('agent_id' in gridObject) {
       object.agentId = gridObject.agent_id
       object.groupId = gridObject.group_id
       object.isFrozen.expand(gridObject.is_frozen, replayData.max_steps, false)
@@ -541,7 +548,7 @@ function loadReplayJson(url: string, replayJson: any) {
       object.visionSize = Common.DEFAULT_VISION_SIZE // TODO Fix this
     }
 
-    if ("input_resources" in gridObject) {
+    if ('input_resources' in gridObject) {
       object.inputResources = gridObject.input_resources
       object.outputResources = gridObject.output_resources
       object.recipeMax = gridObject.recipe_max
@@ -555,7 +562,6 @@ function loadReplayJson(url: string, replayJson: any) {
   }
 
   fixReplay()
-
 
   console.log('Replay: ', state.replay)
 
@@ -598,7 +604,7 @@ export function loadReplayStep(replayStep: any) {
     object.orientation.add(gridObject.orientation, step)
     object.inventory.add(gridObject.inventory, step)
     object.color.add(gridObject.color, step)
-    if ("agent_id" in gridObject) {
+    if ('agent_id' in gridObject) {
       object.agentId = gridObject.agent_id
       object.visionSize = gridObject.vision_size
       object.actionId.add(gridObject.action_id, step)
@@ -609,7 +615,7 @@ export function loadReplayStep(replayStep: any) {
       object.isFrozen.add(gridObject.isFrozen, step)
       object.frozenProgress.add(gridObject.frozen_progress, step)
     }
-    if ("input_resources" in gridObject) {
+    if ('input_resources' in gridObject) {
       object.inputResources = gridObject.input_resources
       object.outputResources = gridObject.output_resources
       object.recipeMax = gridObject.recipe_max

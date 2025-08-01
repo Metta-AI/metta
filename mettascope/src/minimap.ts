@@ -11,13 +11,7 @@ export function renderMinimapObjects(offset: Vec2f) {
   }
 
   // Draw a background rect that's the size of the map.
-  ctx.drawSolidRect(
-    offset.x(),
-    offset.y(),
-    state.replay.mapSize[0],
-    state.replay.mapSize[1],
-    parseHtmlColor('#E7D4B7')
-  )
+  ctx.drawSolidRect(offset.x(), offset.y(), state.replay.mapSize[0], state.replay.mapSize[1], parseHtmlColor('#E7D4B7'))
 
   // Draw the grid objects on the minimap.
   for (const gridObject of state.replay.objects) {

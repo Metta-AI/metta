@@ -27,12 +27,7 @@ class ColumnDefinition {
   sortDirection: SortDirection
   itemId: number
 
-  constructor(
-    field: string,
-    isFinal: boolean,
-    sortDirection: SortDirection = SortDirection.None,
-    itemId: number = -1
-  ) {
+  constructor(field: string, isFinal: boolean, sortDirection: SortDirection = SortDirection.None, itemId: number = -1) {
     this.field = field
     this.isFinal = isFinal
     this.sortDirection = sortDirection
@@ -312,15 +307,15 @@ export function updateAvailableColumns() {
 
   // Add object fields as available columns.
   const availableColumnNames = [
-    "agentId",
-    "totalReward",
-    "totalReward",
-    "actionId",
-    "actionParameter",
-    "actionSuccess",
-    "currentReward",
-    "orientation",
-    "isFrozen",
+    'agentId',
+    'totalReward',
+    'totalReward',
+    'actionId',
+    'actionParameter',
+    'actionSuccess',
+    'currentReward',
+    'orientation',
+    'isFrozen',
   ]
   for (const name of availableColumnNames) {
     availableColumns.push(new ColumnDefinition(name, false))
@@ -370,7 +365,7 @@ function getInventoryAmount(agent: any, itemName: string, step: number) {
   const inventory = agent.inventory.get(step)
   for (const [inventoryId, inventoryAmount] of inventory) {
     if (inventoryId === itemId) {
-      console.log("getInventoryAmount:", itemName, inventoryAmount)
+      console.log('getInventoryAmount:', itemName, inventoryAmount)
       return inventoryAmount
     }
   }
