@@ -131,17 +131,17 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     Omitted actions are disabled by default.
     """
 
-    attack: Optional[PyAttackActionConfig] = None
-    change_color: Optional[PyActionConfig] = None
-    change_glyph: Optional[PyChangeGlyphActionConfig] = None
-    get_items: Optional[PyActionConfig] = None
+    noop: Optional[PyActionConfig] = None
     move: Optional[PyActionConfig] = None
     move_8way: Optional[PyActionConfig] = None
     move_cardinal: Optional[PyActionConfig] = None
-    noop: Optional[PyActionConfig] = None
-    put_items: Optional[PyActionConfig] = None
     rotate: Optional[PyActionConfig] = None
+    put_items: Optional[PyActionConfig] = None
+    get_items: Optional[PyActionConfig] = None
+    attack: Optional[PyAttackActionConfig] = None
     swap: Optional[PyActionConfig] = None
+    change_color: Optional[PyActionConfig] = None
+    change_glyph: Optional[PyChangeGlyphActionConfig] = None
 
 
 class PyGlobalObsConfig(BaseModelWithForbidExtra):
