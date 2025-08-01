@@ -127,14 +127,14 @@ class TestRendererJob:
 
             # Detect if running in CI
             is_ci = os.environ.get("CI", "").lower() == "true"
-            hardware_config = "+hardware=github" if is_ci else ""
+            ci_config = "+user=ci" if is_ci else ""
 
             cmd = [
                 "python",
                 "-m",
                 "tools.train",
                 f"run={run_name}",
-                hardware_config,
+                ci_config,
                 f"data_dir={temp_dir}",
                 "trainer.simulation.replay_dir=${run_dir}/replays/",
                 "trainer.curriculum=/env/mettagrid/debug",
