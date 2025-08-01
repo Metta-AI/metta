@@ -291,16 +291,22 @@ jobs:
               next
           }
           slow_found && /^[0-9]+\.[0-9]+s/ {
-              # Extract duration and test name
+              # Extract duration
               duration = $1
               gsub("s", "", duration)
 
-              # Get the test path (everything after the duration and phase)
-              test_path = $0
-              sub(/^[0-9]+\.[0-9]+s +[a-z]+ +/, "", test_path)
+              # Extract phase (setup, call, teardown, etc.)
+              phase = $2
 
+              # Get the test path (third field onwards)
+              test_path = $3
+              for (i = 4; i <= NF; i++) {
+                  test_path = test_path " " $i
+              }
+
+              # Check if duration exceeds threshold
               if (duration > 2.0) {
-                  print "::warning::" test_path " takes " duration " seconds - should be marked with @pytest.mark.slow"
+                  print "::warning::" test_path " (" phase " phase) takes " duration " seconds - should be marked with @pytest.mark.slow"
                   found_slow = 1
               }
           }
