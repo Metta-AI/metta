@@ -314,8 +314,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
           chmod +x .github/scripts/upload_codecov.py
-          # Use the matrix name for codecov flags
-          SUBPACKAGES="${{ matrix.name }}" .github/scripts/upload_codecov.py
+          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
   tests-summary:
     name: "Tests"
