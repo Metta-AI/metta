@@ -5,7 +5,6 @@
 #include <cassert>
 #include <string>
 #include <vector>
-#include <iostream>
 
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
@@ -26,7 +25,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<std::string, RewardType>& stat_rewards,
               const std::map<std::string, RewardType>& stat_reward_max,
               float group_reward_pct,
-              const std::map<InventoryItem, InventoryQuantity>& initial_inventory = {})
+              const std::map<InventoryItem, InventoryQuantity>& initial_inventory)
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
