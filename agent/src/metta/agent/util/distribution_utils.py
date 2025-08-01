@@ -1,7 +1,6 @@
-from typing import Any, Tuple
+from typing import Tuple
 
 import torch
-import torch.distributed as dist
 import torch.jit
 import torch.nn.functional as F
 from torch import Tensor
@@ -78,4 +77,3 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
 
     return log_probs, entropy, action_log_probs
-
