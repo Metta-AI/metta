@@ -16,7 +16,7 @@ data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/arena/learning_progress
+  curriculum: /env/mettagrid/curriculum/arena/teams
   num_workers: 4
  # optimizer:
  #   type: muon
