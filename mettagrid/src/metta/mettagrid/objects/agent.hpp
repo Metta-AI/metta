@@ -82,7 +82,7 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::Up),
-        inventory(config.initial_inventory), //note: not filtering out potential 0's, which would be propogated to agent features
+        inventory(config.initial_inventory), // Note: not filtering out potential 0's, which would be propogated to agent features
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
