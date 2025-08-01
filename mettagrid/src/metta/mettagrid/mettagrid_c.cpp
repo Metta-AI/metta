@@ -80,14 +80,26 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   for (const auto& [action_name, action_config] : cfg.actions) {
     std::string action_name_str = action_name;
 
-    if (action_name_str == "attack") {
+    if (action_name_str == "put_items") {
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+    } else if (action_name_str == "get_items") {
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
+    } else if (action_name_str == "noop") {
+      _action_handlers.push_back(std::make_unique<Noop>(*action_config));
+    } else if (action_name_str == "move") {
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
+    } else if (action_name_str == "move_8way") {
+      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config));
+    } else if (action_name_str == "move_cardinal") {
+      _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
+    } else if (action_name_str == "rotate") {
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
+    } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
       if (!attack_config) {
         throw std::runtime_error("AttackActionConfig is not a valid action config");
       }
       _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
-    } else if (action_name_str == "change_color") {
-      _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
     } else if (action_name_str == "change_glyph") {
       const ChangeGlyphActionConfig* change_glyph_config =
           dynamic_cast<const ChangeGlyphActionConfig*>(action_config.get());
@@ -95,22 +107,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         throw std::runtime_error("ChangeGlyphActionConfig is not a valid action config");
       }
       _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
-    } else if (action_name_str == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
-    } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
-    } else if (action_name_str == "move_8way") {
-      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config));
-    } else if (action_name_str == "move_cardinal") {
-      _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
-    } else if (action_name_str == "noop") {
-      _action_handlers.push_back(std::make_unique<Noop>(*action_config));
-    } else if (action_name_str == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
-    } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
+    } else if (action_name_str == "change_color") {
+      _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
     } else {
       throw std::runtime_error("Unknown action: " + action_name_str);
     }
