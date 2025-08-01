@@ -1,4 +1,6 @@
+import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -16,10 +18,74 @@ for i, path in enumerate(sys.path):
 print("===== END DEBUG: Python sys.path =====\n")
 
 
+class TestDurationMonitor:
+    """Simple test duration monitor that warns about slow tests"""
+
+    def __init__(self):
+        self.slow_threshold = float(os.environ.get("PYTEST_SLOW_THRESHOLD", "5.0"))
+        self.test_durations = {}
+        self.slow_unmarked_tests = []
+        self._start_times = {}
+
+    def test_started(self, nodeid):
+        """Record test start time"""
+        self._start_times[nodeid] = time.time()
+
+    def test_finished(self, nodeid, item):
+        """Record test duration and check if properly marked"""
+        if nodeid not in self._start_times:
+            return
+
+        duration = time.time() - self._start_times.pop(nodeid)
+        self.test_durations[nodeid] = duration
+
+        # Check if test is marked as slow
+        is_marked_slow = any(marker.name == "slow" for marker in item.iter_markers())
+
+        # Warn if test is slow but not marked
+        if duration > self.slow_threshold and not is_marked_slow:
+            self.slow_unmarked_tests.append((nodeid, duration))
+
+    def print_warnings(self):
+        """Print warnings about slow unmarked tests"""
+        if not self.slow_unmarked_tests:
+            return
+
+        print("\n" + "=" * 80)
+        print(
+            f"⚠️  WARNING: Found {len(self.slow_unmarked_tests)} test(s) taking "
+            + f">{self.slow_threshold}s without @pytest.mark.slow"
+        )
+        print("=" * 80)
+
+        # Sort by duration (slowest first)
+        self.slow_unmarked_tests.sort(key=lambda x: x[1], reverse=True)
+
+        for node_id, duration in self.slow_unmarked_tests:
+            print(f"  {duration:6.2f}s - {node_id}")
+
+            # GitHub Actions annotation if in CI
+            if os.environ.get("GITHUB_ACTIONS"):
+                # Extract file path from nodeid
+                file_path = node_id.split("::")[0] if "::" in node_id else node_id
+                print(
+                    f"::warning file={file_path}::Test '{node_id}' took {duration:.2f}s "
+                    + "but is not marked with @pytest.mark.slow"
+                )
+
+        print("\nTo fix: Add @pytest.mark.slow decorator to these tests")
+        print("=" * 80 + "\n")
+
+
+# Global instance
+_duration_monitor = TestDurationMonitor()
+
+
 def pytest_configure(config):
     # Add multiple markers correctly
     config.addinivalue_line("markers", "benchmark: mark a test as a benchmark test")
     config.addinivalue_line("markers", "verbose: mark a test to display verbose output")
+    config.addinivalue_line("markers", "slow: mark a test as slow (runs in second phase)")
 
 
 @pytest.fixture
@@ -31,7 +97,7 @@ def verbose(request):
 
 # Properly handle output capture for verbose tests
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):
+def pytest_runtest_makereport(item, _call):
     outcome = yield
     report = outcome.get_result()
 
@@ -48,6 +114,28 @@ def pytest_runtest_makereport(item, call):
                 print("--- STDERR ---")
                 print(report.capstderr)
             print(f"===== END VERBOSE OUTPUT FOR: {item.name} =====\n")
+
+
+# Hook for test duration monitoring
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_protocol(item, _nextitem):
+    """Monitor test execution time"""
+    nodeid = item.nodeid
+
+    # Record start time
+    _duration_monitor.test_started(nodeid)
+
+    # Run the test
+    _outcome = yield
+
+    # Record duration and check categorization
+    _duration_monitor.test_finished(nodeid, item)
+
+
+# Print warnings at the end of the session
+def pytest_sessionfinish(_session, _exitstatus):
+    """Print duration warnings at end of test session"""
+    _duration_monitor.print_warnings()
 
 
 # Register the docker_client fixture
