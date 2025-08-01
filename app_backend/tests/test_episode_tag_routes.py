@@ -215,6 +215,7 @@ class TestEpisodeTagRoutes:
         )
         assert response.status_code == 422
 
+    @pytest.mark.slow
     def test_episode_tag_auth_required(self, test_client: TestClient):
         """Test that episode tag routes require authentication."""
         # Try to add tags without authentication
@@ -242,6 +243,7 @@ class TestEpisodeTagRoutes:
         response = test_client.get("/episodes/tags/all")
         assert response.status_code == 401
 
+    @pytest.mark.slow
     def test_get_all_episode_tags(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_policy_id: str
     ):

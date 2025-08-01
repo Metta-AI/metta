@@ -187,6 +187,7 @@ class TestEpisodeFiltering:
         for episode in data["episodes"]:
             assert episode["policy_name"] == "policy_alpha_early"
 
+    @pytest.mark.slow
     def test_episode_filtering_with_training_run_name_filter(
         self, test_client: TestClient, test_user_headers: Dict[str, str], test_data: Dict
     ) -> None:
@@ -497,6 +498,7 @@ class TestEpisodeFiltering:
         response = test_client.get("/episodes", params={"page": 1, "page_size": 101}, headers=test_user_headers)
         assert response.status_code == 422  # Validation error
 
+    @pytest.mark.slow
     def test_episode_filtering_authentication_required(self, test_client: TestClient, test_data: Dict) -> None:
         """Test that episode filtering requires authentication."""
         response = test_client.get("/episodes")

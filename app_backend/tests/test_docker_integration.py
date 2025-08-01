@@ -175,6 +175,7 @@ class TestDockerIntegration:
         except Exception as e:
             pytest.fail(f"Failed to start app_backend container: {e}")
 
+    @pytest.mark.slow
     def test_whoami_endpoint_no_auth(self, app_backend_container):
         """Test /whoami endpoint without authentication returns 'unknown'."""
         container, host, port = app_backend_container
@@ -185,6 +186,7 @@ class TestDockerIntegration:
         data = response.json()
         assert data["user_email"] == "unknown"
 
+    @pytest.mark.slow
     def test_whoami_endpoint_with_email_auth(self, app_backend_container):
         """Test /whoami endpoint with email authentication."""
         container, host, port = app_backend_container
@@ -196,6 +198,7 @@ class TestDockerIntegration:
         data = response.json()
         assert data["user_email"] == "test@example.com"
 
+    @pytest.mark.slow
     def test_container_health_check(self, app_backend_container):
         """Test that the container is healthy and responding."""
         container, host, port = app_backend_container
@@ -209,6 +212,7 @@ class TestDockerIntegration:
         assert "user_email" in data
         assert isinstance(data["user_email"], str)
 
+    @pytest.mark.slow
     def test_protected_endpoint_without_auth(self, app_backend_container):
         """Test that protected endpoints require authentication."""
         container, host, port = app_backend_container
@@ -218,6 +222,7 @@ class TestDockerIntegration:
 
         assert response.status_code == 401
 
+    @pytest.mark.slow
     def test_protected_endpoint_with_auth(self, app_backend_container):
         """Test that protected endpoints work with authentication."""
         container, host, port = app_backend_container

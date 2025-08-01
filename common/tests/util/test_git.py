@@ -144,7 +144,6 @@ def test_validate_git_ref_with_commit():
     assert commit_hash == current_commit  # Git should resolve short hash to full hash
 
 
-@pytest.mark.slow
 def test_remote_operations():
     # Test operations with remote branches if available
     for remote_ref in ["origin/HEAD", "origin/main", "origin/master"]:
@@ -273,11 +272,20 @@ def test_get_remote_url_no_remote(git_repo):
 
 
 def test_is_metta_ai_repo(monkeypatch):
-    # Test with metta-ai repo URLs
-    monkeypatch.setattr("metta.common.util.git.get_remote_url", lambda: "https://github.com/metta-ai/metta.git")
+    # Import the constants to get the exact repo name
+    from metta.common.util.git import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
+
+    # Test with metta-ai repo URLs (using exact format from constants)
+    monkeypatch.setattr(
+        "metta.common.util.git.get_remote_url",
+        lambda: f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git",
+    )
     assert is_metta_ai_repo() is True
 
-    monkeypatch.setattr("metta.common.util.git.get_remote_url", lambda: "git@github.com:metta-ai/metta.git")
+    monkeypatch.setattr(
+        "metta.common.util.git.get_remote_url",
+        lambda: f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git",
+    )
     assert is_metta_ai_repo() is True
 
     # Test with different repo

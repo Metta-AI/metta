@@ -360,6 +360,7 @@ class TestEvalTaskRoutes:
         assert update_response.statuses[task_ids[1]] == "error"
         assert update_response.statuses[task_ids[2]] == "canceled"
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_error_reason_stored_in_db(
         self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_repo: MettaRepo
