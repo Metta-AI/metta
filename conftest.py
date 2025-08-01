@@ -143,7 +143,12 @@ def pytest_runtest_protocol(item, _nextitem):
 
 
 # Print warnings at the end of the session
+
+@pytest.hookimpl
 def pytest_sessionfinish(_session, _exitstatus):
+    """Print duration warnings at end of test session"""
+    _duration_monitor.print_warnings()
+
     """Print duration warnings at end of test session"""
     _duration_monitor.print_warnings()
 
