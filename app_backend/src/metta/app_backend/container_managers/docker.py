@@ -90,7 +90,6 @@ class DockerContainerManager(AbstractContainerManager):
                     container_id, container_name = parts
                     if container_name.startswith("eval-worker-"):
                         try:
-                            git_hash, _ = self._parse_container_name(container_name)
                             workers.append(
                                 WorkerInfo(
                                     container_id=container_id,

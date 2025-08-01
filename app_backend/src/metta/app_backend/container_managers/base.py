@@ -12,10 +12,6 @@ class AbstractContainerManager(ABC):
     def _format_container_name(self) -> str:
         return f"{self._container_prefix}-{self._generate_container_suffix()}"
 
-    def _parse_container_name(self, container_name: str) -> tuple[str, str]:
-        git_hash, suffix = container_name.replace(self._container_prefix, "").split("-", 1)
-        return git_hash, suffix
-
     def _generate_container_suffix(self) -> str:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
