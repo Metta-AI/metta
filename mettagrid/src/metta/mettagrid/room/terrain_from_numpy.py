@@ -162,13 +162,7 @@ class TerrainFromNumpy(Room):
 
         for obj_name, count in self._objects.items():
             count = count - np.where(level == obj_name, 1, 0).sum()
-            # Remove objects if count is negative
             if count < 0:
-                positions = list(zip(*np.where(level == obj_name), strict=False))
-                positions_to_remove = random.sample(positions, min(abs(count), len(positions)))
-                for pos in positions_to_remove:
-                    level[pos] = "empty"
-                    valid_positions_set.add(pos)
                 continue
             # Sample from remaining valid positions
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
