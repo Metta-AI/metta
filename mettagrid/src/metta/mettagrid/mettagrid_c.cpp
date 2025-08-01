@@ -490,12 +490,6 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
-  // Clear action tracking from previous episodes
-  ActionHandler::clear_all_tracking();
-  for (auto& handler : _action_handlers) {
-    handler->clear_tracking();
-  }
-
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
