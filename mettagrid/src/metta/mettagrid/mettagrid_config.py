@@ -179,7 +179,6 @@ class PyTerminationConfig(BaseModelWithForbidExtra):
     """Python termination configuration."""
 
     max_reward: Optional[int] = Field(default=None)
-    end_of_episode_boost: Optional[float] = Field(default=None)
     condition: Optional[float | str] = Field(default=None)
 
 
