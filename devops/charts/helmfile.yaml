@@ -9,6 +9,16 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
 
 releases:
+  ########## System configurations ##########
+  - name: system
+    chart: ./system
+    version: 0.1.0
+    namespace: kube-system
+    values:
+      - nodePools:
+          jobs:
+            enabled: true
+
   ########## Core infrastructure ##########
   - name: external-dns
     chart: external-dns/external-dns
