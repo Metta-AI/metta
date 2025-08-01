@@ -243,9 +243,13 @@ jobs:
           # Base pytest arguments (without coverage file specification)
           PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
+          COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
+
           # Handle sharding for larger packages
           if [ -n "${{ matrix.shard_id }}" ] && [ -n "${{ matrix.num_shards }}" ]; then
             echo "Running shard ${{ matrix.shard_id }} of ${{ matrix.num_shards }}"
+
+            COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
 
             # Set environment variables for the sharding plugin
             export PYTEST_SHARD_ID=${{ matrix.shard_id }}
@@ -269,7 +273,7 @@ jobs:
           # Phase 1: Run fast tests (not marked as slow)
           echo "::group::Phase 1 - Running fast tests"
           echo "Running tests not marked as slow..."
-          pytest $PYTEST_BASE_ARGS -m "not slow" --cov-report=xml:coverage-fast.xml || FAST_TESTS_FAILED=$?
+          pytest $PYTEST_BASE_ARGS -m "not slow" --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml || FAST_TESTS_FAILED=$?
           echo "::endgroup::"
 
           # Exit early if fast tests failed
@@ -283,7 +287,7 @@ jobs:
           echo "Fast tests passed! Now running slow tests..."
 
           # For slow tests, we need to append coverage data
-          pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow.xml || SLOW_TESTS_EXIT=$?
+          pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow${COVERAGE_SUFFIX}.xml || SLOW_TESTS_EXIT=$?
 
           # Exit code 5 means no tests were collected (which is fine - not all packages have slow tests)
           if [ "${SLOW_TESTS_EXIT:-0}" -eq 5 ]; then
