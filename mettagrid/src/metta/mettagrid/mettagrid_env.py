@@ -95,6 +95,39 @@ class MettaGridEnv(MettaGridPufferBase):
 
         return str(uuid.uuid4())
 
+    def _reset_trial(self) -> None:
+        """Reset the environment for a new trial within the same episode."""
+        # Get new task from curriculum (for new trial)
+        self._task = self._curriculum.get_task()
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        # Create new C++ environment for new trial
+        self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
+
+        # Reset counters for new trial
+        self._steps = 0
+
+        # Set up new trial tracking
+        self._trial_id = self._make_episode_id()
+        import datetime
+
+        self._reset_at = datetime.datetime.now()
+
+        # Start replay recording for new trial if enabled
+        if self._replay_writer and self._trial_id:
+            self._replay_writer.start_episode(self._trial_id, self)
+
+        # Set buffers in C++ environment for direct writes
+        if self._c_env_instance and hasattr(self, "observations"):
+            self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+
+        # Get initial observations for new trial
+        if self._c_env_instance is None:
+            raise RuntimeError("Core environment not initialized")
+        self._c_env_instance.reset()
+
     @override
     @with_instance_timer("reset")
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -187,7 +220,14 @@ class MettaGridEnv(MettaGridPufferBase):
 
         if self.terminals.all() or self.truncations.all():
             self._process_episode_completion(infos)
-            self._should_reset = True
+            # Note: _process_episode_completion already calls complete_trial()
+            if self._task.is_complete():
+                self._should_reset = True
+                # Add curriculum task probabilities to infos for distributed logging
+                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            else:
+                # Continue with new trial in same episode (like upstream)
+                self._reset_trial()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
