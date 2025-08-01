@@ -11,7 +11,6 @@ from torch.nn.parallel import DistributedDataParallel
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.agent.util.distribution_utils import get_from_master
 from metta.common.util.fs import wait_for_file
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
