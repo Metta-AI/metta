@@ -1,64 +1,43 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
   - /env/mettagrid/game/objects/generators@game.objects
+  - /env/mettagrid/game/objects/combat@game.objects
+  - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
 game:
-  max_steps: 200
-  num_agents: 4
+  num_agents: 24
+  max_steps: 400
   agent:
-    resource_limits:
-      ore_red: 1
-      ore_blue: 1
-      ore_green: 1
-      battery_red: 1
-      battery_blue: 1
-      battery_green: 1
+    default_resource_limit: 1
     rewards:
       inventory:
-        ore_red: 0.01
-        battery_red: 0.1
-        ore_blue: 0.01
-        battery_blue: 0.1
-        ore_green: 0.01
-        battery_green: 0.1
-        heart: 1
-
+        heart: 1.0
+        battery_red: 0
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
+    _target_: metta.map.mapgen.MapGen
+    instances: ${..num_agents}
+    width: 7
+    height: 7
 
-    room:
-      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: 15
-      height: 15
-      border_width: 3
-      agents: 1
-      style: all-sparse
-
-      objects:
-        altar: 2
-        mine_red: 0
-        generator_red: 2
-        mine_blue: 0
-        generator_blue: 0
-        mine_green: 0
-        generator_green: 0
+    root:
+      type: metta.map.scenes.random.Random
+      params:
+        agents: 1
+        objects:
+          altar: 1
+          generator_red: 1
   objects:
     altar:
-      cooldown: 10
+      cooldown: 1
       input_resources:
         battery_red: 1
       output_resources:
         heart: 1
-      max_output: 1
-      conversion_ticks: 1
-      initial_resource_count: 0
     generator_red:
-      cooldown: 3
+      cooldown: 255
+      input_resources:
+        ore_red: 0
       output_resources:
         battery_red: 1
-      max_output: 1
-      conversion_ticks: 1
-      initial_resource_count: 1

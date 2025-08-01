@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: /env/mettagrid/arena/advanced
+    env: /env/mettagrid/operant_conditioning/4_converters/mine_green
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats

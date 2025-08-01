@@ -1,0 +1,40 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: operantconditioning
+
+simulations:
+  operantconditioning/backchain1:
+    env: env/mettagrid/extended_sequence/backchain1
+  operantconditioning/backchain2:
+    env: env/mettagrid/extended_sequence/backchain2
+  operantconditioning/backchain3:
+    env: env/mettagrid/extended_sequence/backchain3
+  operantconditioning/backchain4:
+    env: env/mettagrid/extended_sequence/backchain4
+  operantconditioning/backchain5:
+    env: env/mettagrid/extended_sequence/backchain5
+  operantconditioning/2_converters_blue:
+    env: env/mettagrid/operant_conditioning/2_converters/mine_blue
+  operantconditioning/2_converters_red:
+    env: env/mettagrid/operant_conditioning/2_converters/mine_red
+  operantconditioning/3_converters_blue:
+    env: env/mettagrid/operant_conditioning/3_converters/mine_blue
+  operantconditioning/3_converters_red:
+    env: env/mettagrid/operant_conditioning/3_converters/mine_red
+  operantconditioning/3_converters_green:
+    env: env/mettagrid/operant_conditioning/3_converters/mine_green
+  operantconditioning/4_converters_blue:
+    env: env/mettagrid/operant_conditioning/4_converters/mine_blue
+  operantconditioning/4_converters_red:
+    env: env/mettagrid/operant_conditioning/4_converters/mine_red
+  operantconditioning/4_converters_green:
+    env: env/mettagrid/operant_conditioning/4_converters/mine_green
+  operantconditioning/4_converters_factory:
+    env: env/mettagrid/operant_conditioning/4_converters/factory
+
+env_overrides:
+  game:
+    max_steps: 100
+    num_agents: 1
