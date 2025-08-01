@@ -29,10 +29,10 @@ export class Sequence<T> {
       } else {
         // Expand the sequence.
         // A sequence of pairs is expanded to a sequence of values.
-        var expanded: any[] = []
-        var i = 0
-        var j = 0
-        var v: any = null
+        const expanded: any[] = []
+        let i = 0
+        let j = 0
+        let v: any = null
         for (i = 0; i < numSteps; i++) {
           if (j < data.length && data[j][0] == i) {
             v = data[j][1]
@@ -359,7 +359,7 @@ function fixReplay() {
 function convertReplayV1ToV2(replayData: any) {
   console.info('Converting replay from version 1 to version 2...')
   console.info('Replay data: ', replayData)
-  let data: any = {
+  const data: any = {
     version: 2,
   }
   data.action_names = replayData.action_names
@@ -415,22 +415,22 @@ function convertReplayV1ToV2(replayData: any) {
   let maxX = 0
   let maxY = 0
   for (const gridObject of replayData.grid_objects) {
-    let location = []
+    const location = []
     gridObject["c"] = expandSequenceV2(gridObject["c"], replayData.max_steps)
     gridObject["r"] = expandSequenceV2(gridObject["r"], replayData.max_steps)
     gridObject["layer"] = expandSequenceV2(gridObject["layer"], replayData.max_steps)
     for (let step = 0; step < replayData.max_steps; step++) {
-      let x = getAttrV1(gridObject, 'c', step, 0)
-      let y = getAttrV1(gridObject, 'r', step, 0)
-      let z = getAttrV1(gridObject, 'layer', step, 0)
+      const x = getAttrV1(gridObject, 'c', step, 0)
+      const y = getAttrV1(gridObject, 'r', step, 0)
+      const z = getAttrV1(gridObject, 'layer', step, 0)
       location.push([step, [x, y, z]])
       maxX = Math.max(maxX, x)
       maxY = Math.max(maxY, y)
     }
 
-    let inventory = []
+    const inventory = []
     for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
-      let inventoryName = data.item_names[inventoryId]
+      const inventoryName = data.item_names[inventoryId]
       if ("inv:" + inventoryName in gridObject) {
         gridObject["inv:" + inventoryName] = expandSequenceV2(gridObject["inv:" + inventoryName], replayData.max_steps)
       }
@@ -439,10 +439,10 @@ function convertReplayV1ToV2(replayData: any) {
       }
     }
     for (let step = 0; step < replayData.max_steps; step++) {
-      let inventoryList = []
+      const inventoryList = []
       for (let inventoryId = 0; inventoryId < data.item_names.length; inventoryId++) {
-        let inventoryName = data.item_names[inventoryId]
-        let inventoryAmount = getAttrV1(gridObject, "inv:" + inventoryName, step, 0)
+        const inventoryName = data.item_names[inventoryId]
+        const inventoryAmount = getAttrV1(gridObject, "inv:" + inventoryName, step, 0)
         if (inventoryAmount != 0) {
           inventoryList.push([inventoryId, inventoryAmount])
         }
@@ -450,7 +450,7 @@ function convertReplayV1ToV2(replayData: any) {
       inventory.push([step, inventoryList])
     }
 
-    let object: any = {
+    const object: any = {
       id: gridObject.id,
       type_id: gridObject.type,
       location: location,
@@ -470,11 +470,11 @@ function convertReplayV1ToV2(replayData: any) {
       object.current_reward = gridObject["agent:reward"]
       object.total_reward = gridObject["agent:total_reward"]
 
-      let action_id = []
-      let action_param = []
+      const action_id = []
+      const action_param = []
       gridObject["action"] = expandSequenceV2(gridObject["action"], replayData.max_steps)
       for (let step = 0; step < replayData.max_steps; step++) {
-        let action = getAttrV1(gridObject, 'action', step)
+        const action = getAttrV1(gridObject, 'action', step)
         if (action != null) {
           action_id.push([step, action[0]])
           action_param.push([step, action[1]])
@@ -518,7 +518,7 @@ function loadReplayJson(url: string, replayJson: any) {
 
   // Go through each grid object and expand its key sequence.
   for (const gridObject of replayData.objects) {
-    let object = new Entity()
+    const object = new Entity()
     object.id = gridObject.id
     object.typeId = gridObject.type_id
     object.location.expand(gridObject.location, replayData.max_steps, [0, 0, 0])
