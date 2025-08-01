@@ -273,7 +273,46 @@ jobs:
           # Phase 1: Run fast tests (not marked as slow)
           echo "::group::Phase 1 - Running fast tests"
           echo "Running tests not marked as slow..."
-          pytest $PYTEST_BASE_ARGS -m "not slow" --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml || FAST_TESTS_FAILED=$?
+
+          # Capture pytest output
+          PYTEST_OUTPUT=$(pytest $PYTEST_BASE_ARGS -m "not slow" --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1)
+          FAST_TESTS_FAILED=$?
+
+          # Display the output
+          echo "$PYTEST_OUTPUT"
+          echo "::endgroup::"
+
+          # Check for slow tests
+          echo "::group::Checking for slow tests"
+          echo "$PYTEST_OUTPUT" | awk '
+          /===+ slowest [0-9]+ durations ===+/ {
+              print "Found slow tests in Phase 1:"
+              slow_found = 1
+              next
+          }
+          slow_found && /^[0-9]+\.[0-9]+s/ {
+              # Extract duration and test name
+              duration = $1
+              gsub("s", "", duration)
+
+              # Get the test path (everything after the duration and phase)
+              test_path = $0
+              sub(/^[0-9]+\.[0-9]+s +[a-z]+ +/, "", test_path)
+
+              if (duration > 2.0) {
+                  print "::warning::" test_path " takes " duration " seconds - should be marked with @pytest.mark.slow"
+                  found_slow = 1
+              }
+          }
+          /^===/ && slow_found {
+              slow_found = 0
+          }
+          END {
+              if (!found_slow) {
+                  print "✅ No slow tests found in Phase 1"
+              }
+          }
+          '
           echo "::endgroup::"
 
           # Exit early if fast tests failed
