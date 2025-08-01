@@ -48,14 +48,24 @@ class TestDurationMonitor:
 
     def print_warnings(self):
         """Print warnings about slow unmarked tests"""
+        print("\n" + "=" * 80)
+        print("📊 Test Duration Monitor Summary")
+        print("=" * 80)
+
+        # Always print stats
+        total_tests = len(self.test_durations)
+        slow_tests = len([d for d in self.test_durations.values() if d > self.slow_threshold])
+
+        print(f"Total tests monitored: {total_tests}")
+        print(f"Slow threshold: {self.slow_threshold}s")
+        print(f"Tests exceeding threshold: {slow_tests}")
+
         if not self.slow_unmarked_tests:
+            print("\n✅ All slow tests are properly marked with @pytest.mark.slow")
+            print("=" * 80 + "\n")
             return
 
-        print("\n" + "=" * 80)
-        print(
-            f"⚠️  WARNING: Found {len(self.slow_unmarked_tests)} test(s) taking "
-            + f">{self.slow_threshold}s without @pytest.mark.slow"
-        )
+        print(f"\n⚠️  WARNING: Found {len(self.slow_unmarked_tests)} unmarked slow test(s)")
         print("=" * 80)
 
         # Sort by duration (slowest first)
