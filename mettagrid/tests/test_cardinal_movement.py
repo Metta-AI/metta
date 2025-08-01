@@ -10,7 +10,7 @@ from tests.test_utils import make_test_config
 
 def test_cardinal_movement_basic():
     """Test basic cardinal movement in all four directions.
-    
+
     Cardinal movement always changes orientation to match the direction of movement."""
     config = make_test_config(
         num_agents=1,
@@ -36,7 +36,7 @@ def test_cardinal_movement_basic():
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
-    initial_orientation = objects[agent_id]["orientation"]
+    _ = objects[agent_id]["orientation"]
     assert initial_pos == (2, 2)
 
     # Test movement in each cardinal direction
@@ -180,7 +180,7 @@ def test_orientation_preserved_in_cardinal_mode():
     # First rotate to face East
     actions[0] = [rotate_idx, 3]  # Rotate to East
     env.step(actions)
-    
+
     objects = env.grid_objects()
     assert objects[agent_id]["orientation"] == 3  # Now facing East
 
