@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional, Union
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
@@ -13,6 +13,7 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.instantiate import instantiate
+from metta.rl.env_config import EnvConfig
 from metta.rl.puffer_policy import PytorchAgent
 
 if TYPE_CHECKING:
@@ -21,16 +22,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: dict) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
             "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
     )
-
-    # Convert agent config to dict for unpacking as kwargs
-    agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
 
     # Create MettaAgent directly without Hydra
     return MettaAgent(
@@ -40,7 +38,7 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
-        device=cfg.device,  # cfg.device is required
+        device=env_cfg.device,
         **agent_cfg,
     )
 

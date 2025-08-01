@@ -108,6 +108,7 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     train(
         hydra_cfg=cfg,
         env_cfg=env_cfg,
+        agent_cfg=OmegaConf.to_container(cfg.agent, resolve=True),
         device=torch.device(env_cfg.device),
         trainer_cfg=create_trainer_config(cfg),
         run_dir=cfg.run_dir,
