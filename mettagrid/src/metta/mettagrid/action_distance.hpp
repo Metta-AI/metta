@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -220,9 +221,107 @@ public:
     return builder.get_distance(enc1, enc2);
   }
 
+  // Get distance between encoded actions
+  uint8_t get_encoded_distance(uint8_t enc1, uint8_t enc2) const {
+    if (!built) return 0;
+    return builder.get_distance(enc1, enc2);
+  }
+
   // Get encoded action value
   uint8_t encode_action(ActionType type, ActionArg arg) const {
     return builder.encode_action(type, arg);
+  }
+
+  // Decode encoded action back to (type, arg)
+  std::pair<ActionType, ActionArg> decode_action(uint8_t encoded) const {
+    if (!built || encoded >= builder.total_encoded_actions) {
+      return {0, 0};  // Default to NOOP
+    }
+
+    for (size_t type = 0; type < builder.actions.size(); type++) {
+      const auto& action = builder.actions[type];
+      uint8_t next_offset =
+          (type + 1 < builder.actions.size()) ? builder.actions[type + 1].start_offset : builder.total_encoded_actions;
+      if (encoded < next_offset) {
+        return {static_cast<ActionType>(type), static_cast<ActionArg>(encoded - action.start_offset)};
+      }
+    }
+    return {0, 0};  // Invalid -> NOOP
+  }
+
+  // Get human-readable string for an encoded action
+  std::string decode_to_string(uint8_t encoded) const {
+    if (!built) return "uninitialized";
+
+    auto [type, arg] = decode_action(encoded);
+    if (type >= builder.actions.size()) return "invalid";
+
+    const auto& action = builder.actions[type];
+    std::string result = action.name;
+
+    // Add argument details for specific actions
+    if (action.name == "move") {
+      result += (arg == 0 ? "_fwd" : "_back");
+    } else if (action.name == "rotate") {
+      const char* dirs[] = {"_up", "_down", "_left", "_right"};
+      if (arg < 4) result += dirs[arg];
+    } else if (action.name == "attack") {
+      result += "(" + std::to_string(arg / 3) + "," + std::to_string(arg % 3) + ")";
+    } else if (action.name == "change_color") {
+      const char* modes[] = {"++", "--", "+=step", "-=step"};
+      if (arg < 4) result += modes[arg];
+    } else if (action.name == "change_glyph" && arg > 0) {
+      result += "_" + std::to_string(arg);
+    }
+
+    return result;
+  }
+
+  // Decode a sequence of encoded actions to human-readable string
+  std::string decode_sequence_to_string(const std::vector<uint8_t>& encoded_sequence,
+                                        const std::string& separator = " → ") const {
+    if (!built || encoded_sequence.empty()) return "";
+
+    std::stringstream ss;
+    for (size_t i = 0; i < encoded_sequence.size(); i++) {
+      if (i > 0) ss << separator;
+      ss << decode_to_string(encoded_sequence[i]);
+    }
+    return ss.str();
+  }
+
+  // Encode a sequence of (type, arg) pairs
+  std::vector<uint8_t> encode_sequence(const std::vector<ActionType>& types, const std::vector<ActionArg>& args) const {
+    if (!built || types.size() != args.size()) return {};
+
+    std::vector<uint8_t> encoded;
+    encoded.reserve(types.size());
+
+    for (size_t i = 0; i < types.size(); i++) {
+      encoded.push_back(encode_action(types[i], args[i]));
+    }
+
+    return encoded;
+  }
+
+  // Compute distance between two encoded sequences
+  uint32_t sequence_distance(const std::vector<uint8_t>& seq1, const std::vector<uint8_t>& seq2) const {
+    if (!built || seq1.size() != seq2.size()) return UINT32_MAX;
+
+    uint32_t total_dist = 0;
+    for (size_t i = 0; i < seq1.size(); i++) {
+      total_dist += get_encoded_distance(seq1[i], seq2[i]);
+    }
+
+    return total_dist;
+  }
+
+  // Check if two patterns are similar within a threshold
+  bool patterns_similar(const std::vector<uint8_t>& p1, const std::vector<uint8_t>& p2, uint32_t threshold) const {
+    if (!built || p1.size() != p2.size()) return false;
+
+    uint32_t dist = sequence_distance(p1, p2);
+    return dist <= threshold;
   }
 
   // Get the full distance table for GPU upload
@@ -237,6 +336,16 @@ public:
   // Get total number of encoded actions
   uint8_t get_total_encoded_actions() const {
     return builder.total_encoded_actions;
+  }
+
+  // Get action names for debugging
+  std::vector<std::string> get_action_names() const {
+    std::vector<std::string> names;
+    names.reserve(builder.actions.size());
+    for (const auto& action : builder.actions) {
+      names.push_back(action.name);
+    }
+    return names;
   }
 };
 
