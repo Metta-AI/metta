@@ -112,110 +112,130 @@ def generate_valid_random_actions(
 
 def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
     """
-    Move an agent in a specific direction.
-
-    This function handles both relative (tank-style) and cardinal movement modes.
+    Move agent in specified direction with full validation.
 
     Args:
-        env: The MettaGrid environment
-        orientation: The direction to move (UP, DOWN, LEFT, RIGHT)
-        agent_idx: Index of the agent to move (default: 0)
+        env: MettaGrid environment
+        orientation: Orientation enum, string ("up", "down", "left", "right"), or int (0=Up, 1=Down, 2=Left, 3=Right)
+        agent_idx: Agent index (default 0)
 
     Returns:
-        Dict with movement results including success status and positions
+        Dict with movement results and validation
     """
     direction_name = str(orientation)
 
     result = {
-        "action": f"move_{direction_name}",
-        "agent_idx": agent_idx,
         "success": False,
-        "error": None,
+        "rotate_success": False,
+        "move_success": False,
+        "obs_before": None,
+        "obs_after": None,
         "position_before": None,
         "position_after": None,
         "orientation_before": None,
         "orientation_after": None,
-        "rotate_success": None,
-        "move_success": None,
-        "obs_before": None,
-        "obs_after": None,
+        "moved": False,
+        "moved_correctly": False,
+        "obs_changed": False,
+        "error": None,
+        "direction": direction_name,
+        "target_orientation": orientation.value,
     }
 
     try:
         action_names = env.action_names()
 
-        # Check if we're in cardinal movement mode
-        movement_mode = getattr(env._c_env, "movement_mode", "relative")
-
-        if movement_mode == "cardinal":
-            # Cardinal movement - direct movement without rotation
-            if "move" not in action_names:
-                result["error"] = "Move action not available"
-                return result
-
-            move_action_idx = action_names.index("move")
-
+        # Check if we have cardinal movement
+        if "move_cardinal" in action_names:
+            # Use cardinal movement directly
+            move_action_idx = action_names.index("move_cardinal")
+            
             print(f"Moving agent {agent_idx} {direction_name} (cardinal mode)")
-
+            
             # Get initial state
             result["obs_before"] = get_current_observation(env, agent_idx)
             result["position_before"] = get_agent_position(env, agent_idx)
             result["orientation_before"] = get_agent_orientation(env, agent_idx)
-
+            
             # Cardinal move - orientation value directly maps to direction
             move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
             move_action[agent_idx] = [move_action_idx, orientation.value]
-
+            
             obs_after, rewards, terminals, truncations, info = env.step(move_action)
             move_success = env.action_success()
             result["move_success"] = bool(move_success[agent_idx])
+            result["rotate_success"] = True  # No rotation needed
+            
+            # Get final state
+            result["obs_after"] = obs_after.copy()
+            result["position_after"] = get_agent_position(env, agent_idx)
+            result["orientation_after"] = get_agent_orientation(env, agent_idx)
+            
+            # Check if move was successful
+            if result["position_before"] != result["position_after"]:
+                result["moved"] = True
+                expected_delta = orientation.movement_delta
+                actual_delta = (
+                    result["position_after"][0] - result["position_before"][0],
+                    result["position_after"][1] - result["position_before"][1],
+                )
+                result["moved_correctly"] = expected_delta == actual_delta
+            
+            result["obs_changed"] = not np.array_equal(result["obs_before"], result["obs_after"])
+            result["success"] = result["move_success"] and result["moved"]
+            
+            print(f"  After: pos={result['position_after']}, orient={result['orientation_after']}")
+            print(f"  Move action success: {result['move_success']}")
+            
+            return result
+            
+        # Tank-style movement
+        if "move" not in action_names:
+            result["error"] = "Move action not available"
+            return result
+        if "rotate" not in action_names:
+            result["error"] = "Rotate action not available"
+            return result
 
-        else:
-            # Tank-style movement - rotate then move
-            if "rotate" not in action_names:
-                result["error"] = "Rotate action not available"
-                return result
-            if "move" not in action_names:
-                result["error"] = "Move action not available"
-                return result
+        move_action_idx = action_names.index("move")
+        rotate_action_idx = action_names.index("rotate")
 
-            rotate_action_idx = action_names.index("rotate")
-            move_action_idx = action_names.index("move")
+        print(f"Moving agent {agent_idx} {direction_name} (orientation {orientation.value})")
 
-            print(f"Moving agent {agent_idx} {direction_name} (tank mode)")
+        # Get initial state
+        result["obs_before"] = get_current_observation(env, agent_idx)
+        result["position_before"] = get_agent_position(env, agent_idx)
+        result["orientation_before"] = get_agent_orientation(env, agent_idx)
 
-            # Get initial state
-            result["obs_before"] = get_current_observation(env, agent_idx)
-            result["position_before"] = get_agent_position(env, agent_idx)
-            result["orientation_before"] = get_agent_orientation(env, agent_idx)
+        print(f"  Before: pos={result['position_before']}, orient={result['orientation_before']}")
 
-            # Step 1: Rotate to face target direction
-            rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-            rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
+        # Step 1: Rotate to face target direction
+        rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+        rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
 
-            env.step(rotate_action)
-            rotate_success = env.action_success()
-            result["rotate_success"] = bool(rotate_success[agent_idx])
+        env.step(rotate_action)
+        rotate_success = env.action_success()
+        result["rotate_success"] = bool(rotate_success[agent_idx])
 
-            if not result["rotate_success"]:
-                result["error"] = f"Failed to rotate to {direction_name}"
-                return result
+        if not result["rotate_success"]:
+            result["error"] = f"Failed to rotate to {direction_name}"
+            return result
 
-            # Verify rotation worked
-            current_orientation = get_agent_orientation(env, agent_idx)
-            if current_orientation != orientation.value:
-                result["error"] = f"Rotation failed: expected {orientation.value}, got {current_orientation}"
-                return result
+        # Verify rotation worked
+        current_orientation = get_agent_orientation(env, agent_idx)
+        if current_orientation != orientation.value:
+            result["error"] = f"Rotation failed: expected {orientation.value}, got {current_orientation}"
+            return result
 
-            print(f"  Rotated to face {direction_name}")
+        print(f"  Rotated to face {direction_name}")
 
-            # Step 2: Move forward
-            move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-            move_action[agent_idx] = [move_action_idx, 0]  # Move forward
+        # Step 2: Move forward
+        move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+        move_action[agent_idx] = [move_action_idx, 0]  # Move forward
 
-            obs_after, rewards, terminals, truncations, info = env.step(move_action)
-            move_success = env.action_success()
-            result["move_success"] = bool(move_success[agent_idx])
+        obs_after, rewards, terminals, truncations, info = env.step(move_action)
+        move_success = env.action_success()
+        result["move_success"] = bool(move_success[agent_idx])
 
         # Get final state
         result["obs_after"] = obs_after.copy()
