@@ -76,6 +76,7 @@ public:
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;
+  int how_long_blue_battery_held;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -98,7 +99,8 @@ public:
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
-        steps_without_motion(0) {
+        steps_without_motion(0),
+        how_long_blue_battery_held(0) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
