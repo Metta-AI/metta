@@ -144,6 +144,7 @@ def test_validate_git_ref_with_commit():
     assert commit_hash == current_commit  # Git should resolve short hash to full hash
 
 
+@pytest.mark.slow
 def test_remote_operations():
     # Test operations with remote branches if available
     for remote_ref in ["origin/HEAD", "origin/main", "origin/master"]:
@@ -224,9 +225,6 @@ def test_run_git_with_cwd(git_repo):
     # Test get_commit_count with repo_path
     count = get_commit_count(git_repo)
     assert count == 1
-
-
-# New tests for previously untested functions
 
 
 def test_run_gh():
