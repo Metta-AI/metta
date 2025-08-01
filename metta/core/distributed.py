@@ -42,6 +42,8 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
     Returns:
         Tuple of (device, is_master, world_size, rank)
     """
+    local_rank = 0
+
     # Check CUDA availability
     if base_device.startswith("cuda") and not torch.cuda.is_available():
         logger.warning("CUDA requested but not available, falling back to CPU")
@@ -70,7 +72,8 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
 
     # Get distributed vars using the shared function
     is_master, world_size, rank = setup_distributed_vars()
-    torch.cuda.set_device(device)
+    logger.info(f"Setting device to {device}:{local_rank}")
+    torch.cuda.set_device(f"{device}:{local_rank}")
 
     return device, is_master, world_size, rank
 
