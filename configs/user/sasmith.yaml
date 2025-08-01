@@ -4,12 +4,12 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navsequence/navsequence_all
+  curriculum: /env/mettagrid/curriculum/navigation/learning_progress
 
 replay_job:
   sim:
     env: /env/mettagrid/curriculum/navsequence/navsequence_all
 
 seed: null
-run_id: 20250729.02
+run_id: 20250730.17
 run: ${oc.env:USER}.local.${run_id}

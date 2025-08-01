@@ -6,64 +6,46 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 from torch import Tensor
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_state import PolicyState
-from metta.agent.util.debug import assert_shape
-from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.common.profiling.stopwatch import Stopwatch
 from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)
 
 
-def rollout(
-    vecenv: Any,
-    policy: Any,
-    experience: Any,
+def get_observation(
+    vecenv: Any,  # pufferlib VecEnv instance
     device: torch.device,
+    timer: Stopwatch,
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+    """Get observations from vectorized environment and convert to tensors."""
+    with timer("_rollout.env"):
+        o, r, d, t, info, env_id, mask = vecenv.recv()
+
+    training_env_id = slice(env_id[0], env_id[-1] + 1)
+
+    mask = torch.as_tensor(mask)
+    num_steps = int(mask.sum().item())
+
+    # Convert to tensors
+    o = torch.as_tensor(o).to(device, non_blocking=True)
+    r = torch.as_tensor(r).to(device, non_blocking=True)
+    d = torch.as_tensor(d).to(device, non_blocking=True)
+    t = torch.as_tensor(t).to(device, non_blocking=True)
+
+    return o, r, d, t, info, training_env_id, mask, num_steps
+
+
+def send_observation(
+    vecenv: Any,
+    actions: Tensor,
+    dtype_actions: Any,
     timer: Any,
-) -> tuple[int, list]:
-    """Perform a complete rollout phase.
-
-    Returns:
-        Tuple of (total_steps, raw_infos)
-    """
-    raw_infos = []
-    experience.reset_for_rollout()
-    total_steps = 0
-
-    while not experience.ready_for_training:
-        # Get observation
-        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
-        total_steps += num_steps
-
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            policy, o, experience, training_env_id.start, device
-        )
-
-        # Store experience
-        experience.store(
-            obs=o,
-            actions=actions,
-            logprobs=selected_action_log_probs,
-            rewards=r,
-            dones=d,
-            truncations=t,
-            values=values,
-            env_id=training_env_id,
-            mask=mask,
-            lstm_state=lstm_state_to_store,
-        )
-
-        # Send actions back to environment
-        with timer("_rollout.env"):
-            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-        # Collect info for batch processing
-        if info:
-            raw_infos.extend(info)
-
-    return total_steps, raw_infos
+) -> None:
+    """Send actions back to the vectorized environment."""
+    with timer("_rollout.env"):
+        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
 
 def run_dual_policy_rollout(
@@ -112,128 +94,72 @@ def run_dual_policy_rollout(
             else torch.tensor([], device=device, dtype=torch.long)
         )
 
-        # Get training policy actions for training agents
+        # Get observations for training policy agents
         training_obs = observations[training_idxs]
-        training_state = PolicyState()
-        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
-        if lstm_h is not None:
-            training_state.lstm_h = lstm_h
-            training_state.lstm_c = lstm_c
+        npc_obs = (
+            observations[npc_idxs] if len(npc_idxs) > 0 else torch.empty(0, *observations.shape[1:], device=device)
+        )
 
-        training_actions, training_log_probs, _, training_values, _ = training_policy(training_obs, training_state)
+        # Run inference for training policy
+        training_actions, training_log_probs, training_values, training_lstm_state = run_policy_inference(
+            training_policy, training_obs, experience, training_env_id_start, device
+        )
 
-        # Get NPC policy actions for NPC agents (if any)
+        # Run inference for NPC policy if there are NPC agents
         if len(npc_idxs) > 0:
-            npc_obs = observations[npc_idxs]
             npc_policy = npc_policy_record.policy
-            npc_state = PolicyState()
-
-            # Initialize NPC policy to environment if needed
-            if not hasattr(npc_policy, "_initialized_to_env"):
-                # This would need to be done during setup, but for now we'll assume it's already done
-                pass
-
-            npc_actions, npc_log_probs, _, npc_values, _ = npc_policy(npc_obs, npc_state)
-
-            # Combine actions: training agents first, then NPC agents
-            # Reshape to (num_envs, agents_per_env, action_dim)
-            training_actions_reshaped = training_actions.reshape(num_envs, training_agents_per_env, -1)
-            npc_actions_reshaped = npc_actions.reshape(num_envs, npc_agents_per_env, -1)
-
-            # Concatenate along agents dimension
-            all_actions = torch.cat([training_actions_reshaped, npc_actions_reshaped], dim=1)
-            # Flatten back to (total_agents, action_dim)
-            actions = all_actions.reshape(-1, all_actions.shape[-1])
+            npc_actions, npc_log_probs, npc_values, npc_lstm_state = run_policy_inference(
+                npc_policy, npc_obs, experience, training_env_id_start, device
+            )
         else:
-            # No NPC agents, use only training actions
-            actions = training_actions
+            # No NPC agents, create empty tensors
+            npc_actions = torch.empty(0, device=device, dtype=torch.long)
 
-        # Store LSTM state for training policy only
-        lstm_state_to_store = None
-        if training_state.lstm_h is not None and training_state.lstm_c is not None:
-            lstm_state_to_store = {"lstm_h": training_state.lstm_h.detach(), "lstm_c": training_state.lstm_c.detach()}
+        # Stitch actions back together in original order
+        all_actions = torch.zeros(total_agents, device=device, dtype=torch.long)
+        all_actions[training_idxs] = training_actions
+        if len(npc_idxs) > 0:
+            all_actions[npc_idxs] = npc_actions
 
-        if str(device).startswith("cuda"):
-            torch.cuda.synchronize()
-
-    # Return only training policy data (actions, log_probs, values)
-    # The actions tensor contains all agents' actions for environment step
-    # But we only return training policy's log_probs and values for experience storage
-    return actions, training_log_probs, training_values.flatten(), lstm_state_to_store
-
-
-def get_observation(
-    vecenv: Any,
-    device: torch.device,
-    timer: Any,
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
-    """Get observations and other data from the vectorized environment and convert to tensors.
-
-    Returns:
-        Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
-    """
-    # Receive environment data
-    with timer("_rollout.env"):
-        o, r, d, t, info, env_id, mask = vecenv.recv()
-
-    training_env_id = slice(env_id[0], env_id[-1] + 1)
-
-    mask = torch.as_tensor(mask)
-    num_steps = int(mask.sum().item())
-
-    # Convert to tensors
-    o = torch.as_tensor(o).to(device, non_blocking=True)
-    r = torch.as_tensor(r).to(device, non_blocking=True)
-    d = torch.as_tensor(d).to(device, non_blocking=True)
-    t = torch.as_tensor(t).to(device, non_blocking=True)
-
-    return o, r, d, t, info, training_env_id, mask, num_steps
+        # Return only training policy data for experience storage
+        return all_actions, training_log_probs, training_values, training_lstm_state
 
 
 def run_policy_inference(
-    policy: torch.nn.Module,
+    policy: PolicyAgent,
     observations: Tensor,
     experience: Experience,
     training_env_id_start: int,
     device: torch.device,
 ) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
-    """Run the policy to get actions and value estimates.
-
-    Returns:
-        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
-    """
+    """Run policy inference and return actions, log probs, values, and LSTM state."""
     with torch.no_grad():
-        state = PolicyState()
-        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
-        if lstm_h is not None:
-            state.lstm_h = lstm_h
-            state.lstm_c = lstm_c
+        # Get policy outputs
+        policy_outputs = policy(observations)
 
-        actions, selected_action_log_probs, _, value, _ = policy(observations, state)
+        # Extract actions and log probabilities
+        actions = policy_outputs.actions
+        selected_action_log_probs = policy_outputs.selected_action_log_probs
+        values = policy_outputs.values
 
-        if __debug__:
-            assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
-            assert_shape(actions, ("BT", 2), "actions")
-
+        # Get LSTM state if available
         lstm_state_to_store = None
-        if state.lstm_h is not None and state.lstm_c is not None:
-            lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
+        if hasattr(policy_outputs, "lstm_state") and policy_outputs.lstm_state is not None:
+            lstm_state_to_store = {
+                "h": policy_outputs.lstm_state[0].detach(),
+                "c": policy_outputs.lstm_state[1].detach(),
+            }
 
-        if str(device).startswith("cuda"):
-            torch.cuda.synchronize()
-
-    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
+        return actions, selected_action_log_probs, values, lstm_state_to_store
 
 
-def get_lstm_config(policy: Any) -> Tuple[int, int]:
-    """Extract LSTM configuration from policy."""
-    hidden_size = getattr(policy, "hidden_size", 256)
-    num_lstm_layers = 2  # Default value
+def get_lstm_config(policy: PolicyAgent) -> Tuple[int, int]:
+    """Get LSTM configuration from policy."""
+    # Check if policy has LSTM layers
+    if hasattr(policy, "_core_") and "_core_" in policy._modules:
+        core_module = policy._core_
+        if hasattr(core_module, "_net") and hasattr(core_module._net, "num_layers"):
+            return core_module._net.hidden_size, core_module._net.num_layers
 
-    # Try to get actual number of LSTM layers from policy
-    if hasattr(policy, "components") and "_core_" in policy.components:
-        lstm_module = policy.components["_core_"]
-        if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
-            num_lstm_layers = lstm_module._net.num_layers
-
-    return hidden_size, num_lstm_layers
+    # Default values if no LSTM found
+    return 256, 1

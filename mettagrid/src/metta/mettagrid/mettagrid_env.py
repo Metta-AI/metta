@@ -34,6 +34,22 @@ from metta.mettagrid.util.dict_utils import unroll_nested_dict
 # Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
 # controls the type of self.actions) -- creating an opportunity for type confusion.
 
+# Vocab:
+#   We aim to match the ADA paper for trial and episode.
+#   trial: the unit of environmental reset. The MettaGrid C env lasts for one trial.
+#   episode: a sequence of trials.
+#   epoch: the unit of a training batch. At the time of writing, this is made up of segments of 64 agent steps. This
+#     many agents each taking 64 steps steps, or fewer agents taking higher multiples of 64 steps.
+#   curriculum: dispenses Tasks. A curriculum's duration is a training run. A curriculum is shared across processes
+#     / MettaGridEnvs.
+#   Task: dispenses trials. A task's duration is one episode.
+#   lifetime: the unit of agent reset. Ideally this would be a single episode -- that's very much the intent. However,
+#     we currently reset the agent (i.e., its LSTM state) every epoch. So the agent's lifetime is actually much shorter
+#     than a typical episode / trial.
+#
+#   We originally didn't have a distinction between trials and episodes. I.e., all episodes were a single trial.
+#   Because of this, in some places we use the term "episode" where we would now use "trial".
+
 dtype_observations = np.dtype(np.uint8)
 dtype_terminals = np.dtype(bool)
 dtype_truncations = np.dtype(bool)
@@ -57,6 +73,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
     truncations: np.ndarray
     rewards: np.ndarray
     actions: np.ndarray
+    _current_step: int = 0  # reset every trial
+    _current_trial: int = 0  # reset every episode
+    _current_episode: int = 0  # not reset for the duration of this MettaGridEnv
+    # a reset is a new episode.
+    _should_reset: bool = False
 
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
@@ -73,8 +94,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
-        self._steps = 0
-        self._resets = 0
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -84,12 +103,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._map_labels: list[str] = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
-        self._episode_id: str | None = None
-        self._reset_at = datetime.datetime.now()
+        self._trial_id: str | None = None
+        self._trial_reset_at: datetime.datetime | None = None
         self._current_seed: int = 0  # must be unsigned
 
+        # This isn't great, since the env_cfg can change between trials / episodes.
         self.labels: list[str] = self._task.env_cfg().get("labels", [])
-        self._should_reset = False
 
         self._is_training = is_training
 
@@ -106,12 +125,16 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
 
-    def _make_episode_id(self):
+    def _make_id(self):
         return str(uuid.uuid4())
 
     @with_instance_timer("_initialize_c_env")
     def _initialize_c_env(self) -> None:
-        """Initialize the C++ environment."""
+        """Initialize the C++ environment.
+
+        This creates a new c environment with a fixed configuration / map, which will last for one trial. This should
+        be called whenever a new trial starts.
+        """
         task = self._task
         level = self._level
 
@@ -136,7 +159,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if self._is_training and self._resets == 0:
+        if self._is_training and self._current_trial == 0 and self._current_episode == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
             # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
@@ -161,13 +184,31 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @override  # pufferlib.PufferEnv.reset
     @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        """Reset the environment.
+
+        This is called by PufferLib, to get a new episode.
+        """
         self.timer.stop("thread_idle")
 
-        self._task = self._curriculum.get_task()
+        self._current_trial = 0
+        self._current_episode += 1
 
+        self._task = self._curriculum.get_task()
+        self._should_reset = False
+        self._current_seed = seed or 0
+
+        obs, infos = self.reset_trial()
+
+        self.timer.start("thread_idle")
+
+        return obs, infos
+
+    @with_instance_timer("reset_trial")
+    def reset_trial(self) -> tuple[np.ndarray, dict]:
+        """Reset the environment for a new trial."""
         self._initialize_c_env()
-        self._steps = 0
-        self._resets += 1
+        self._current_step = 0
+        self._current_trial += 1
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -176,16 +217,15 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
-        self._episode_id = self._make_episode_id()
-        self._current_seed = seed or 0
-        self._reset_at = datetime.datetime.now()
+        self._trial_id = self._make_id()
+        self._trial_reset_at = datetime.datetime.now()
         if self._replay_writer:
-            self._replay_writer.start_episode(self._episode_id, self)
+            # The replay writer only knows about single-trial episodes, so we say we're starting an episode.
+            # Ideally we'd have a smoother way to string replays together.
+            self._replay_writer.start_episode(self._trial_id, self)
 
         obs, infos = self._c_env.reset()
-        self._should_reset = False
 
-        self.timer.start("thread_idle")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -212,29 +252,22 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         with self.timer("_c_env.step"):
             self._c_env.step(actions)
-            self._steps += 1
+            self._current_step += 1
 
-        if self._replay_writer and self._episode_id:
+        if self._replay_writer and self._trial_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
+                self._replay_writer.log_step(self._trial_id, actions, self.rewards)
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
-            # TODO: re-enable diversity bonus
-            # if self._task.env_cfg().game.diversity_bonus.enabled:
-            #     self.rewards *= calculate_diversity_bonus(
-            #         self._c_env.get_episode_rewards(),
-            #         self._c_env.get_agent_groups(),
-            #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
-            #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
-            #     )
-
-            self.process_episode_stats(infos)
-            self._should_reset = True
-            self._task.complete(self._c_env.get_episode_rewards().mean())
-
-            # Add curriculum task probabilities to infos for distributed logging
-            infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            self.process_trial_stats(infos)
+            self._task.complete_trial(self._c_env.get_episode_rewards().mean())
+            if self._task.is_complete():
+                self._should_reset = True
+                # Add curriculum task probabilities to infos for distributed logging
+                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            else:
+                self.reset_trial()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
@@ -243,17 +276,18 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def close(self):
         pass
 
-    def process_episode_stats(self, infos: Dict[str, Any]):
-        self.timer.start("process_episode_stats")
+    def process_trial_stats(self, infos: Dict[str, Any]):
+        self.timer.start("process_trial_stats")
 
         infos.clear()
 
-        episode_rewards = self._c_env.get_episode_rewards()
-        episode_rewards_sum = episode_rewards.sum()
-        episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
+        # The c env calls this "episode" but we call it "trial"
+        trial_rewards = self._c_env.get_episode_rewards()
+        trial_rewards_sum = trial_rewards.sum()
+        trial_rewards_mean = trial_rewards_sum / self._c_env.num_agents
 
         for label in self._map_labels + self.labels:
-            infos[f"map_reward/{label}"] = episode_rewards_mean
+            infos[f"map_reward/{label}"] = trial_rewards_mean
 
         infos.update(self._curriculum.get_completion_rates())
 
@@ -278,8 +312,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "map_w": self.map_width,
             "map_h": self.map_height,
             "initial_grid_hash": self.initial_grid_hash,
-            "steps": self._steps,
-            "resets": self._resets,
+            "steps": self._current_step,
+            "trials": self._current_trial,
+            "resets": self._current_episode,
             "max_steps": self.max_steps,
             "completion_time": time.time(),
         }
@@ -289,13 +324,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         with self.timer("_replay_writer"):
             if self._replay_writer:
-                assert self._episode_id is not None, "Episode ID must be set before writing a replay"
-                replay_url = self._replay_writer.write_replay(self._episode_id)
+                assert self._trial_id is not None, "Trial ID must be set before writing a replay"
+                replay_url = self._replay_writer.write_replay(self._trial_id)
                 infos["replay_url"] = replay_url
 
         with self.timer("_stats_writer"):
             if self._stats_writer:
-                assert self._episode_id is not None, "Episode ID must be set before writing stats"
+                assert self._trial_id is not None, "Trial ID must be set before writing stats"
 
                 env_cfg_flattened: dict[str, str] = {}
                 env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
@@ -305,7 +340,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 agent_metrics = {}
                 for agent_idx, agent_stats in enumerate(stats["agent"]):
                     agent_metrics[agent_idx] = {}
-                    agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
+                    agent_metrics[agent_idx]["reward"] = float(trial_rewards[agent_idx])
                     for k, v in agent_stats.items():
                         agent_metrics[agent_idx][k] = float(v)
 
@@ -316,16 +351,16 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 }
 
                 self._stats_writer.record_episode(
-                    self._episode_id,
+                    self._trial_id,
                     env_cfg_flattened,
                     agent_metrics,
                     agent_groups,
                     self.max_steps,
                     replay_url,
-                    self._reset_at,
+                    self._trial_reset_at,
                 )
 
-        self.timer.stop("process_episode_stats")
+        self.timer.stop("process_trial_stats")
 
         elapsed_times = self.timer.get_all_elapsed()
         thread_idle_time = elapsed_times.pop("thread_idle", 0)
@@ -357,12 +392,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
         task_init_time_msec = lap_times.get("_initialize_c_env", 0) * 1000
         infos.update(
             {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+                f"task_reward/{self._task.short_name()}/rewards.mean": trial_rewards_mean,
                 f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
             }
         )
 
-        self._episode_id = None
+        self._trial_id = None
 
     @property
     def max_steps(self) -> int:
@@ -410,8 +445,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.num_agents
 
     def render(self) -> str | None:
-        if self._renderer is None:
-            return None
+        # Use the configured renderer if available
+        if self._renderer is not None and hasattr(self._renderer, "render"):
+            return self._renderer.render(self._current_step, self.grid_objects)
 
         return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 

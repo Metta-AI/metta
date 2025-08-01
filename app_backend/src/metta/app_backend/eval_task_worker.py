@@ -30,11 +30,8 @@ from metta.common.util.logging_helpers import init_logging
 
 
 class EvalTaskWorker:
-    def __init__(
-        self, backend_url: str, git_hash: str, assignee: str, machine_token: str, logger: logging.Logger | None = None
-    ):
+    def __init__(self, backend_url: str, assignee: str, machine_token: str, logger: logging.Logger | None = None):
         self._backend_url = backend_url
-        self._git_hash = git_hash
         self._assignee = assignee
         CLIAuthenticator(self._backend_url).save_token(machine_token)
         self._client = EvalTaskClient(backend_url)
@@ -72,8 +69,8 @@ class EvalTaskWorker:
         return result
 
     @trace("worker.setup_checkout")
-    def _setup_versioned_checkout(self) -> None:
-        self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
+    def _setup_versioned_checkout(self, git_hash: str) -> None:
+        self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
         if os.path.exists(self._versioned_path):
             self._logger.info(f"Versioned checkout already exists at {self._versioned_path}")
             return
@@ -92,13 +89,13 @@ class EvalTaskWorker:
 
         # Checkout the specific commit
         result = subprocess.run(
-            ["git", "checkout", self._git_hash],
+            ["git", "checkout", git_hash],
             cwd=self._versioned_path,
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
-            raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
+            raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
 
         # Install dependencies in the versioned checkout
         self._logger.info("Installing dependencies in versioned checkout...")
@@ -120,6 +117,11 @@ class EvalTaskWorker:
         sim_suite: str,
         env_overrides: dict,
     ) -> None:
+        if not task.git_hash:
+            raise RuntimeError(f"Git hash not found for task {task.id}")
+
+        self._setup_versioned_checkout(task.git_hash)
+
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
@@ -172,13 +174,11 @@ class EvalTaskWorker:
         )
 
     async def run(self) -> None:
-        self._logger.info(f"Starting eval worker for git hash {self._git_hash}")
+        self._logger.info("Starting eval worker")
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Worker id: {self._assignee}")
 
-        self._setup_versioned_checkout()
-
-        self._logger.info(f"Worker running from main branch, sim.py will use git hash {self._git_hash}")
+        self._logger.info("Worker running from main branch, sim.py will use git hash")
 
         while True:
             loop_start_time = datetime.now()
@@ -217,11 +217,10 @@ async def main() -> None:
     logger = logging.getLogger(__name__)
 
     backend_url = os.environ["BACKEND_URL"]
-    git_hash = os.environ["GIT_HASH"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
 
-    async with EvalTaskWorker(backend_url, git_hash, assignee, machine_token, logger) as worker:
+    async with EvalTaskWorker(backend_url, assignee, machine_token, logger) as worker:
         await worker.run()
 
 

@@ -67,7 +67,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-%(prog)s --run b.username.test_run +hardware=macbook
+%(prog)s --run b.username.test_run
 """,
     )
 

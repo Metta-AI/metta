@@ -156,7 +156,7 @@ class Experience:
         mask: Tensor,
         lstm_state: Optional[Dict[str, Tensor]] = None,
     ) -> int:
-        """Store a batch of experience."""
+        """Store a batch of experience data."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
@@ -229,7 +229,7 @@ class Experience:
         minibatch_idx: int,
         total_minibatches: int,
     ) -> Dict[str, Tensor]:
-        """Sample a prioritized minibatch."""
+        """Sample a prioritized minibatch for training."""
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)
         prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
@@ -266,19 +266,7 @@ class Experience:
         self.ratio[indices] = new_ratio.detach()
 
     def stats(self) -> Dict[str, float]:
-        """Get mean values of all tracked buffers.
-
-        Returns:
-            Dictionary containing mean values for:
-            - rewards: Mean reward across all stored experiences
-            - values: Mean value estimates
-            - advantages: Mean advantages (if computed)
-            - logprobs: Mean log probabilities of actions
-            - dones: Fraction of episodes that ended
-            - truncateds: Fraction of episodes that were truncated
-            - ratio: Mean importance sampling ratio
-            - ep_lengths: Mean episode length for active episodes
-        """
+        """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.rewards.mean().item(),
             "values": self.values.mean().item(),
