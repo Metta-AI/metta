@@ -9,6 +9,7 @@ from cogweb.cogweb_client import CogwebClient
 from metta.agent.policy_store import PolicyStore
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.env_config import create_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
@@ -180,6 +181,10 @@ def _evaluate_sweep_run(
     train_job_cfg: DictConfig,
 ) -> dict[str, Any]:
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(train_job_cfg.sim, resolve=True))  # type: ignore[arg-type]
+
+    # Create env config
+    env_cfg = create_env_config(train_job_cfg)
+
     policy_store = PolicyStore(train_job_cfg, wandb_run)
     policy_pr = policy_store.policy_record("wandb://run/" + wandb_run.name, selector_type="latest")
 
@@ -194,7 +199,7 @@ def _evaluate_sweep_run(
         policy_pr=policy_pr,
         policy_store=policy_store,
         device=train_job_cfg.device,
-        vectorization=train_job_cfg.vectorization,
+        vectorization=env_cfg.vectorization,
     )
 
     # Start evaluation

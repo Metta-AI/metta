@@ -12,6 +12,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import wait_for_file
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.rl.env_config import EnvConfig
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
 
@@ -187,7 +188,9 @@ def maybe_load_checkpoint(
 
 
 def load_or_initialize_policy(
-    cfg: DictConfig,
+    agent_cfg: DictConfig,
+    env_cfg: EnvConfig,
+    trainer_cfg: TrainerConfig,
     checkpoint: TrainerCheckpoint | None,
     policy_store: PolicyStore,
     metta_grid_env: MettaGridEnv,
@@ -195,7 +198,6 @@ def load_or_initialize_policy(
     rank: int,
 ) -> tuple[PolicyAgent, PolicyRecord, PolicyRecord]:
     """Load or initialize policy with distributed coordination."""
-    trainer_cfg = cfg.trainer
 
     # Check if policy already exists at default path - all ranks check this
     default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
@@ -261,7 +263,7 @@ def load_or_initialize_policy(
         logger.info("No existing policy found, creating new one")
         name = policy_store.make_model_name(0)
         pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
+        pr.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
