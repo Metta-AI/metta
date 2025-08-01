@@ -170,25 +170,26 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._c_env_instance is None:
             raise RuntimeError("Environment not initialized. Call reset() first.")
 
-        # Execute step in core environment
+        # Execute step directly on C++ environment to maintain buffer sharing
+        # This is critical for PufferEnv performance - we must use the shared buffers
         with self.timer("_c_env.step"):
-            obs, rewards, terminals, truncations, _ = self.c_env.step(actions)
+            self._c_env_instance.step(actions)
             self._steps += 1
 
-        # Record step for replay
+        # Record step for replay (use shared PufferEnv buffers)
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, actions, rewards)
+                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
-        # Check for episode completion
+        # Check for episode completion (use shared PufferEnv buffers)
         infos = {}
 
-        if terminals.all() or truncations.all():
+        if self.terminals.all() or self.truncations.all():
             self._process_episode_completion(infos)
             self._should_reset = True
 
         self.timer.start("thread_idle")
-        return obs, rewards, terminals, truncations, infos
+        return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
         """

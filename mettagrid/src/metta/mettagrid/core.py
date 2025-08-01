@@ -257,9 +257,14 @@ class MettaGridCore:
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:
-        """Get feature normalizations from feature spec."""
-        feature_spec = self.c_env.feature_spec()
-        return {int(spec["id"]): float(spec["normalization"]) for spec in feature_spec.values()}
+        """Get feature normalizations from C++ environment."""
+        # Check if the C++ environment has the direct method
+        if hasattr(self.c_env, "feature_normalizations"):
+            return self.c_env.feature_normalizations()
+        else:
+            # Fallback to extracting from feature_spec (slower)
+            feature_spec = self.c_env.feature_spec()
+            return {int(spec["id"]): float(spec["normalization"]) for spec in feature_spec.values()}
 
     @property
     def initial_grid_hash(self) -> int:
