@@ -107,7 +107,7 @@ def verbose(request):
 
 # Properly handle output capture for verbose tests
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, _call):
+def pytest_runtest_makereport(item, call):  # noqa: ARG001
     outcome = yield
     report = outcome.get_result()
 
@@ -126,26 +126,17 @@ def pytest_runtest_makereport(item, _call):
             print(f"===== END VERBOSE OUTPUT FOR: {item.name} =====\n")
 
 
-# Hook for test duration monitoring
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_protocol(item, _nextitem):
+def pytest_runtest_protocol(item, nextitem):  # noqa: ARG001
     """Monitor test execution time"""
-    nodeid = item.nodeid
-
-    # Record start time
-    _duration_monitor.test_started(nodeid)
-
-    # Run the test
+    node_id = item.nodeid
+    _duration_monitor.test_started(node_id)
     _outcome = yield
+    _duration_monitor.test_finished(node_id, item)
 
-    # Record duration and check categorization
-    _duration_monitor.test_finished(nodeid, item)
-
-
-# Print warnings at the end of the session
 
 @pytest.hookimpl
-def pytest_sessionfinish(_session, _exitstatus):
+def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
     """Print duration warnings at end of test session"""
     _duration_monitor.print_warnings()
 
@@ -153,5 +144,4 @@ def pytest_sessionfinish(_session, _exitstatus):
     _duration_monitor.print_warnings()
 
 
-# Register the docker_client fixture
 docker_client = docker_client_fixture()
