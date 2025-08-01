@@ -19,7 +19,7 @@ public:
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
     // Cardinal movement: agents move directly in cardinal directions
-    // WITHOUT changing orientation (single atomic action)
+    // and update their orientation to face the direction of movement
     // arg == 0: Move North (Up)
     // arg == 1: Move South (Down)
     // arg == 2: Move West (Left)
@@ -53,7 +53,10 @@ protected:
       return false;
     }
 
-    // Move the agent - orientation remains unchanged
+    // Update orientation to face movement direction
+    actor->orientation = move_direction;
+
+    // Move the agent with new orientation
     return _grid->move_object(actor->id, target_location);
   }
 };

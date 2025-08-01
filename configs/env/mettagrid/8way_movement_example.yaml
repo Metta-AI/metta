@@ -1,5 +1,5 @@
 defaults:
-  - mettagrid
+  - arena/basic  # Inherit from a complete environment config
   - _self_
 
 # Example configuration showing 8-way movement
