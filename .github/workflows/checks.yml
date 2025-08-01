@@ -175,11 +175,23 @@ jobs:
           - name: "app_backend-shard-0"
             package: "app_backend"
             shard_id: 0
-            num_shards: 2
+            num_shards: 5
           - name: "app_backend-shard-1"
             package: "app_backend"
             shard_id: 1
-            num_shards: 2
+            num_shards: 5
+          - name: "app_backend-shard-2"
+            package: "app_backend"
+            shard_id: 2
+            num_shards: 5
+          - name: "app_backend-shard-3"
+            package: "app_backend"
+            shard_id: 3
+            num_shards: 5
+          - name: "app_backend-shard-4"
+            package: "app_backend"
+            shard_id: 4
+            num_shards: 5
 
           # Mettagrid with sharding
           - name: "mettagrid-shard-0"
@@ -397,7 +409,7 @@ jobs:
       - name: Run super fast training
         if: matrix.test_type == 'replay'
         run: |
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +hardware=github wandb=off
+          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +user=ci wandb=off
 
       - name: Replay smoke test
         if: matrix.test_type == 'replay'

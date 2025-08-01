@@ -324,7 +324,9 @@ class MettaGridEnv(ABC):
                 self._write_episode_stats(stats, episode_rewards, replay_url)
 
         # Update curriculum
-        self._task.complete(episode_rewards_mean)
+        # Note: mettagrid/src/metta/mettagrid/mettagrid_env.py has been updated to work with multiple trials per
+        # episode, but we haven't. That should be okay as long as we're only dealing with single-trial episodes.
+        self._task.complete_trial(episode_rewards_mean)
 
         # Add curriculum task probabilities
         infos["curriculum_task_probs"] = self._curriculum.get_task_probs()

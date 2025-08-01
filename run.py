@@ -69,7 +69,7 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
-from metta.rl.training_loop import should_run
+from metta.rl.utils import should_run
 from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
@@ -92,11 +92,6 @@ dirs = setup_run_directories()
 
 # Set up device and distributed training
 device, is_master, world_size, rank = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
-
-# Configuration using individual component configs
-# Note: batch_size must be >= total_agents * bptt_horizon
-# With navigation curriculum: 4 agents per env * many envs = ~2048 total agents
-# Required batch_size >= 2048 * 64 (bptt_horizon) = 131072
 
 # Core training parameters
 num_workers = 4
@@ -316,20 +311,25 @@ initial_policy_record = policy_record
 
 # Create optimizer like bad_run.py does
 optimizer_type = trainer_config.optimizer.type
-opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
-# ForeachMuon expects int for weight_decay, Adam expects float
-weight_decay = trainer_config.optimizer.weight_decay
-if optimizer_type != "adam":
-    # Ensure weight_decay is int for ForeachMuon
-    weight_decay = int(weight_decay)
-
-optimizer = opt_cls(
-    agent.parameters(),  # type: ignore - agent is MettaAgent from factory
-    lr=trainer_config.optimizer.learning_rate,
-    betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
-    eps=trainer_config.optimizer.eps,
-    weight_decay=weight_decay,  # type: ignore - ForeachMuon type annotation issue
-)
+if optimizer_type == "adam":
+    optimizer = torch.optim.Adam(
+        agent.parameters(),  # type: ignore - agent is MettaAgent from factory
+        lr=trainer_config.optimizer.learning_rate,
+        betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+        eps=trainer_config.optimizer.eps,
+        weight_decay=trainer_config.optimizer.weight_decay,
+    )
+elif optimizer_type == "muon":
+    # ForeachMuon expects int for weight_decay
+    optimizer = ForeachMuon(
+        agent.parameters(),  # type: ignore - agent is MettaAgent from factory
+        lr=trainer_config.optimizer.learning_rate,
+        betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+        eps=trainer_config.optimizer.eps,
+        weight_decay=int(trainer_config.optimizer.weight_decay),
+    )
+else:
+    raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
 if checkpoint and checkpoint.optimizer_state_dict:
     try:
@@ -540,11 +540,21 @@ while agent_step < trainer_config.total_timesteps:
                 device=device,
             )
 
-            if optimizer_type == "adam":
+            # Optimizer step
+            optimizer.zero_grad()
+            loss.backward()
+
+            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                torch.nn.utils.clip_grad_norm_(agent.parameters(), trainer_config.ppo.max_grad_norm)
                 optimizer.step()
-            else:
-                # ForeachMuon has custom step signature
-                optimizer.step(loss, epoch, experience.accumulate_minibatches)
+
+                # Optional weight clipping
+                if hasattr(agent, "clip_weights"):
+                    agent.clip_weights()
+
+                if str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+
             minibatch_idx += 1
         epoch += 1
 
@@ -553,9 +563,6 @@ while agent_step < trainer_config.total_timesteps:
             average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
             if average_approx_kl > trainer_config.ppo.target_kl:
                 break
-
-    if minibatch_idx > 0 and str(device).startswith("cuda"):
-        torch.cuda.synchronize()
 
     # Calculate explained variance
     y_pred = experience.values.flatten()

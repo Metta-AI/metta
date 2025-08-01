@@ -24,12 +24,11 @@ class K8sPodManager(AbstractContainerManager):
 
     def _get_pod_manifest(
         self,
-        git_hash: str,
         backend_url: str,
         docker_image: str,
         machine_token: str,
     ) -> dict:
-        pod_name = self._format_container_name(git_hash)
+        pod_name = self._format_container_name()
         return {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -37,7 +36,6 @@ class K8sPodManager(AbstractContainerManager):
                 "name": pod_name,
                 "labels": {
                     "app": "eval-worker",
-                    "git-hash": git_hash,
                     "created-by": "eval-task-orchestrator",
                 },
             },
@@ -51,7 +49,6 @@ class K8sPodManager(AbstractContainerManager):
                         "command": ["uv", "run", "python", "-m", "metta.app_backend.eval_task_worker"],
                         "env": [
                             {"name": "BACKEND_URL", "value": backend_url},
-                            {"name": "GIT_HASH", "value": git_hash},
                             {"name": "WORKER_ASSIGNEE", "value": pod_name},
                             {"name": "WANDB_API_KEY", "value": self._wandb_api_key},
                             {"name": "MACHINE_TOKEN", "value": machine_token},
@@ -60,28 +57,38 @@ class K8sPodManager(AbstractContainerManager):
                         ],
                         "resources": {
                             "requests": {
-                                "cpu": "1",
+                                "cpu": "3",
                                 "memory": "1Gi",
                             },
                         },
                     }
                 ],
+                "tolerations": [
+                    {
+                        "key": "workload-type",
+                        "operator": "Equal",
+                        "value": "eval-worker",
+                        "effect": "NoSchedule",
+                    }
+                ],
+                "nodeSelector": {
+                    "workload-type": "eval-worker",
+                },
             },
         }
 
     def start_worker_container(
         self,
-        git_hash: str,
         backend_url: str,
         docker_image: str,
         machine_token: str,
     ) -> WorkerInfo:
         # Create pod via kubectl
-        pod_manifest = self._get_pod_manifest(git_hash, backend_url, docker_image, machine_token)
+        pod_manifest = self._get_pod_manifest(backend_url, docker_image, machine_token)
         pod_name = pod_manifest["metadata"]["name"]
         cmd = self._get_kubectl_cmd() + ["create", "-f", "-"]
 
-        self._logger.info(f"Starting worker pod for git hash {git_hash}")
+        self._logger.info("Starting worker pod")
 
         try:
             subprocess.run(cmd, input=json.dumps(pod_manifest), capture_output=True, text=True, check=True)
@@ -93,7 +100,6 @@ class K8sPodManager(AbstractContainerManager):
 
             self._logger.info(f"Started worker pod {pod_name} (UID: {pod_uid[:12]})")
             return WorkerInfo(
-                git_hash=git_hash,
                 container_id=pod_uid,
                 container_name=pod_name,
             )
@@ -154,7 +160,6 @@ class K8sPodManager(AbstractContainerManager):
                 if pod_name.startswith("eval-worker-") and git_hash:
                     workers.append(
                         WorkerInfo(
-                            git_hash=git_hash,
                             container_id=pod_uid,
                             container_name=pod_name,
                         )

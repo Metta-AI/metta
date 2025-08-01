@@ -13,6 +13,7 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.instantiate import instantiate
+from metta.rl.puffer_policy import PytorchAgent
 
 if TYPE_CHECKING:
     from metta.mettagrid import MettaGridEnv
@@ -48,7 +49,14 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
         agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        super().__init__(agent, device_ids=[device], output_device=device)
+
+        # Handle CPU vs GPU initialization
+        if device.type == "cpu":
+            # For CPU, don't pass device_ids
+            super().__init__(agent)
+        else:
+            # For GPU, pass device_ids
+            super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):
         try:
@@ -609,3 +617,6 @@ class MettaAgent(nn.Module):
 
         metrics_list = [metrics for metrics in results.values() if metrics is not None]
         return metrics_list
+
+
+PolicyAgent = MettaAgent | DistributedMettaAgent | PytorchAgent

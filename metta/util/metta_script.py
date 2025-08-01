@@ -20,7 +20,11 @@ from metta.util.init.mettagrid_environment import init_mettagrid_environment
 logger = logging.getLogger(__name__)
 
 
-def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> None:
+def metta_script(
+    main: Callable[[DictConfig], int | None],
+    config_name: str,
+    pre_main: Callable[[DictConfig], None] | None = None,
+) -> None:
     """
     Wrapper for Metta script entry points that performs environment setup and
     configuration before calling the `main` function.
@@ -40,14 +44,15 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
 
     This wrapper:
     1. Configures Hydra to load the `config_name` config and pass it to the `main` function
-    2. Initializes logging to both stdout and run_dir/logs/
-    3. Initializes the runtime environment for MettaGrid simulations:
+    2. Calls the optional `pre_main` if provided
+    3. Initializes logging to both stdout and run_dir/logs/
+    4. Initializes the runtime environment for MettaGrid simulations:
        - Create required directories (including run_dir)
        - Configure CUDA settings
        - Set up environment variables
        - Initialize random seeds
        - Register OmegaConf resolvers
-    4. Performs device validation and sets the device to "cpu" if CUDA is not available
+    5. Performs device validation and sets the device to "cpu" if CUDA is not available
     """
 
     # If not running as a script, there's nothing to do.
@@ -63,6 +68,9 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
     def extended_main(cfg: ListConfig | DictConfig) -> None:
         if not isinstance(cfg, DictConfig):
             raise ValueError("Metta scripts must be run with a DictConfig")
+
+        if pre_main:
+            pre_main(cfg)
 
         run_dir = cfg.get("run_dir")
         if run_dir:
