@@ -3,15 +3,17 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Tuple
 
 import torch
+from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import wait_for_file
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
         logger.warning(f"Error during policy cleanup: {e}")
 
 
-def validate_policy_environment_match(policy: Any, env: Any) -> None:
+def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):
@@ -77,16 +79,7 @@ def validate_policy_environment_match(policy: Any, env: Any) -> None:
             )
 
 
-def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
-    """Wrap agent in DistributedMettaAgent if distributed training is initialized.
-
-    Args:
-        agent: The agent to potentially wrap
-        device: The device to use
-
-    Returns:
-        The agent, possibly wrapped in DistributedMettaAgent
-    """
+def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAgent:
     if torch.distributed.is_initialized():
         # Always use DistributedMettaAgent for its __getattr__ forwarding
         agent = DistributedMettaAgent(agent, device)
@@ -96,31 +89,13 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
 
 def maybe_load_checkpoint(
     run_dir: str,
-    policy_store: Any,
-    trainer_cfg: Any,
-    metta_grid_env: Any,
-    cfg: Any,
-    device: torch.device,
+    policy_store: PolicyStore,
+    trainer_cfg: TrainerConfig,
+    metta_grid_env: MettaGridEnv,
+    cfg: DictConfig,
     is_master: bool,
     rank: int,
-) -> Tuple[Any | None, Any, int, int]:
-    """Load checkpoint and policy if they exist, or create new ones.
-
-    This unifies the checkpoint loading logic from trainer.py and run.py.
-
-    Args:
-        run_dir: Directory containing checkpoints
-        policy_store: PolicyStore instance
-        trainer_cfg: TrainerConfig with checkpoint settings
-        metta_grid_env: MettaGridEnv instance for policy creation
-        cfg: Full config for policy creation
-        device: Device to load on
-        is_master: Whether this is the master process
-        rank: Process rank for distributed training
-
-    Returns:
-        Tuple of (checkpoint, policy_record, agent_step, epoch)
-    """
+) -> tuple[TrainerCheckpoint | None, PolicyRecord, int, int]:
     # Try to load checkpoint
     checkpoint = TrainerCheckpoint.load(run_dir)
     agent_step = 0
@@ -211,104 +186,15 @@ def maybe_load_checkpoint(
         return checkpoint, saved_pr, agent_step, epoch
 
 
-def ensure_initial_policy(
-    agent: Any,
-    policy_store: Any,
-    checkpoint_path: str,
-    loaded_policy_path: str | None,
-    device: torch.device,
-) -> None:
-    """Ensure all ranks have the same initial policy in distributed training.
-
-    If no checkpoint exists, master creates and saves the initial policy,
-    then all ranks synchronize. In single GPU mode, just saves the initial policy.
-
-    Args:
-        agent: The agent to initialize
-        policy_store: PolicyStore instance
-        checkpoint_path: Directory for checkpoints
-        loaded_policy_path: Path to already loaded policy (None if no checkpoint)
-        device: Training device
-    """
-    # If we already loaded a policy, nothing to do
-    if loaded_policy_path is not None:
-        return
-
-    # Get distributed info
-    if torch.distributed.is_initialized():
-        rank = torch.distributed.get_rank()
-        is_master = rank == 0
-    else:
-        rank = 0
-        is_master = True
-
-    if torch.distributed.is_initialized():
-        if is_master:
-            # Master creates and saves initial policy
-            # Extract the actual policy module from distributed wrapper if needed
-            policy_to_save = agent
-            if isinstance(agent, DistributedMettaAgent):
-                policy_to_save = agent.module
-
-            # Create policy record directly
-            name = policy_store.make_model_name(0)
-            policy_record = policy_store.create_empty_policy_record(name)
-            policy_record.metadata = {
-                "agent_step": 0,
-                "epoch": 0,
-                "initial": True,
-            }
-            policy_record.policy = policy_to_save
-
-            # Save through policy store
-            saved_policy_record = policy_store.save(policy_record)
-            logger.info(f"Master saved initial policy to {saved_policy_record.uri}")
-
-            # Master waits at barrier after saving
-            torch.distributed.barrier()
-        else:
-            # Non-master ranks wait at barrier first
-            torch.distributed.barrier()
-
-            # Then load the policy master created
-            default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
-            if not wait_for_file(default_policy_path, timeout=300):
-                raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
-
-            # Load the policy
-            policy_pr = policy_store.policy_record(default_policy_path)
-            agent.load_state_dict(policy_pr.policy.state_dict())  # type: ignore
-    else:
-        # Single GPU mode creates and saves initial policy
-        # Create policy record directly
-        name = policy_store.make_model_name(0)
-        policy_record = policy_store.create_empty_policy_record(name)
-        policy_record.metadata = {
-            "agent_step": 0,
-            "epoch": 0,
-            "initial": True,
-        }
-        policy_record.policy = agent
-
-        # Save through policy store
-        saved_policy_record = policy_store.save(policy_record)
-        logger.info(f"Saved initial policy to {saved_policy_record.uri}")
-
-
 def load_or_initialize_policy(
-    cfg: Any,
-    checkpoint: Any | None,
+    cfg: DictConfig,
+    checkpoint: TrainerCheckpoint | None,
     policy_store: PolicyStore,
-    metta_grid_env: Any,
+    metta_grid_env: MettaGridEnv,
     is_master: bool,
     rank: int,
-) -> tuple[MettaAgent | DistributedMettaAgent, PolicyRecord, PolicyRecord]:
-    """
-    Load or initialize policy with distributed coordination.
-
-    Returns:
-        Tuple of (policy, initial_policy_record, latest_saved_policy_record)
-    """
+) -> tuple[PolicyAgent, PolicyRecord, PolicyRecord]:
+    """Load or initialize policy with distributed coordination."""
     trainer_cfg = cfg.trainer
 
     # Check if policy already exists at default path - all ranks check this

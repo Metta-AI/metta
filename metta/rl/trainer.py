@@ -2,7 +2,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -10,16 +10,19 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import PolicyAgent
+from metta.agent.policy_store import PolicyStore
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
+from metta.common.wandb.wandb_context import WandbRun
 from metta.core.distributed import setup_distributed_vars
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid import MettaGridEnv
+from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import evaluate_policy
@@ -36,7 +39,7 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.ppo import ppo
-from metta.rl.rollout import get_lstm_config, rollout
+from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference, send_observation
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -77,13 +80,13 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 def train(
     cfg: DictConfig,
-    wandb_run: Any | None,
-    policy_store: Any,
-    sim_suite_config: Any,
-    stats_client: Any | None,
+    wandb_run: WandbRun | None,
+    policy_store: PolicyStore,
+    sim_suite_config: SimulationSuiteConfig,
+    stats_client: StatsClient | None,
     **kwargs: Any,
 ) -> None:
-    """Functional training loop."""
+    """Main training loop for Metta agents."""
     logger.info(f"run_dir = {cfg.run_dir}")
 
     # Log recent checkpoints for debugging
@@ -127,7 +130,9 @@ def train(
         is_training=True,
     )
 
-    seed = cfg.get("seed", np.random.randint(0, 1000000))
+    seed = cfg.get("seed")
+    if seed is None:
+        seed = np.random.randint(0, 1000000)
     vecenv.async_reset(seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
@@ -157,7 +162,7 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
-    policy: MettaAgent | DistributedMettaAgent
+    policy: PolicyAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
         cfg=cfg,
         checkpoint=checkpoint,
@@ -172,14 +177,15 @@ def train(
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
-        policy = torch.compile(policy, mode=trainer_cfg.compile_mode)
+        # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
+        policy = cast(PolicyAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
 
     # Create kickstarter
     kickstarter = Kickstarter(
-        trainer_cfg.kickstart,
-        str(device),
-        policy_store,
-        metta_grid_env,
+        cfg=trainer_cfg.kickstart,
+        device=device,
+        policy_store=policy_store,
+        metta_grid_env=metta_grid_env,
     )
 
     # Wrap in DDP if distributed
@@ -262,10 +268,14 @@ def train(
     stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
     if stats_client is not None:
         # Extract wandb attributes with defaults
-        name = getattr(wandb_run, "name", "unknown") or "unknown"
-        url = getattr(wandb_run, "url", None)
-        tags = list(wandb_run.tags) if wandb_run and wandb_run.tags else None
-        description = getattr(wandb_run, "notes", None)
+        name = url = description = "unknown"
+        tags: list[str] | None = None
+        if wandb_run:
+            name = wandb_run.name or name
+            url = wandb_run.url
+            if wandb_run.tags:
+                tags = list(wandb_run.tags)
+        description = wandb_run.notes if wandb_run else None
 
         try:
             stats_tracker.stats_run_id = stats_client.create_training_run(
@@ -286,14 +296,41 @@ def train(
         with torch_profiler:
             # ---- ROLLOUT PHASE ----
             with timer("_rollout"):
-                num_steps, raw_infos = rollout(
-                    vecenv=vecenv,
-                    policy=policy,
-                    experience=experience,
-                    device=device,
-                    timer=timer,
-                )
-                agent_step += num_steps * world_size
+                raw_infos = []
+                experience.reset_for_rollout()
+                total_steps = 0
+
+                while not experience.ready_for_training:
+                    # Get observation
+                    o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
+                    total_steps += num_steps
+
+                    # Inference
+                    actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                        policy, o, experience, training_env_id.start, device
+                    )
+
+                    # Store experience
+                    experience.store(
+                        obs=o,
+                        actions=actions,
+                        logprobs=selected_action_log_probs,
+                        rewards=r,
+                        dones=d,
+                        truncations=t,
+                        values=values,
+                        env_id=training_env_id,
+                        mask=mask,
+                        lstm_state=lstm_state_to_store,
+                    )
+
+                    # Send observation
+                    send_observation(vecenv, actions, dtype_actions, timer)
+
+                    if info:
+                        raw_infos.extend(info)
+
+                agent_step += total_steps * world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
             # ---- TRAINING PHASE ----
@@ -359,6 +396,7 @@ def train(
                 rollout_time=rollout_time,
                 stats_time=stats_time,
                 is_master=is_master,
+                run_name=cfg.run,
             )
 
         # Update L2 weights if configured

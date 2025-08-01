@@ -125,6 +125,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Set up episode tracking
         self._episode_id = self._make_episode_id()
+        self._trial_id = self._episode_id  # For compatibility with trial-based logic
         self._current_seed = seed or 0
         import datetime
 
@@ -179,7 +180,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Record step for replay (use shared PufferEnv buffers)
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
+                self._replay_writer.log_step(self._trial_id, actions, self.rewards)
 
         # Check for episode completion (use shared PufferEnv buffers)
         infos = {}
@@ -277,7 +278,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 self._write_episode_stats(stats, episode_rewards, replay_url)
 
         # Update curriculum
-        self._task.complete(episode_rewards_mean)
+        self._task.complete_trial(episode_rewards_mean)
 
         # Add curriculum task probabilities
         infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
@@ -297,7 +298,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Clear episode ID
         self._episode_id = None
 
-        self.timer.stop("process_episode_stats")
+        self.timer.stop("process_trial_stats")
 
     def _write_episode_stats(
         self, stats: Dict[str, Any], episode_rewards: np.ndarray, replay_url: Optional[str]

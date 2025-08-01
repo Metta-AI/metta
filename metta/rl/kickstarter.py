@@ -10,7 +10,9 @@ from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
 
 
 class Kickstarter:
-    def __init__(self, cfg: KickstartConfig, device: str, policy_store: PolicyStore, metta_grid_env: MettaGridEnv):
+    def __init__(
+        self, cfg: KickstartConfig, device: torch.device, policy_store: PolicyStore, metta_grid_env: MettaGridEnv
+    ):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
