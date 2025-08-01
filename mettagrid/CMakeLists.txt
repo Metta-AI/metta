@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.15...3.30)
-project(mettagrid LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,6 +38,13 @@ find_package(
   COMPONENTS Interpreter Development NumPy
   REQUIRED)
 
+find_library(RAYLIB_LIBRARY raylib
+  PATHS /opt/homebrew/lib /usr/local/lib /usr/lib
+  REQUIRED)
+find_path(RAYLIB_INCLUDE_DIR raylib.h
+  PATHS /opt/homebrew/include /usr/local/include /usr/include
+  REQUIRED)
+
 set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 
 # ========================= METTAGRID LIBRARY =========================
@@ -53,6 +59,7 @@ add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
 target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 target_include_directories(mettagrid_obj PUBLIC
   ${NUMPY_INCLUDE_DIR}
+  ${RAYLIB_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
 )
 
@@ -64,6 +71,8 @@ pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
 # Python module needs sanitizer link flags in debug builds
 target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers)
+
+target_link_libraries(mettagrid_c PUBLIC ${RAYLIB_LIBRARY})
 
 install(TARGETS mettagrid_c DESTINATION "metta/mettagrid")
 
