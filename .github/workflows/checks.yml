@@ -335,6 +335,7 @@ jobs:
           echo "Fast tests passed! Now running slow tests..."
 
           # For slow tests, we need to append coverage data
+          SLOW_TESTS_EXIT=0
           pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow${COVERAGE_SUFFIX}.xml || SLOW_TESTS_EXIT=$?
 
           # Exit code 5 means no tests were collected (which is fine - not all packages have slow tests)
