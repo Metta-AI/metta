@@ -282,7 +282,7 @@ jobs:
           echo "::group::Phase 2 - Running slow tests"
           echo "Fast tests passed! Now running slow tests..."
 
-          # For slow tests, we append coverage data
+          # For slow tests, we need to append coverage data
           pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow.xml || SLOW_TESTS_EXIT=$?
 
           # Exit code 5 means no tests were collected (which is fine - not all packages have slow tests)
@@ -291,21 +291,6 @@ jobs:
             SLOW_TESTS_EXIT=0
           elif [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
             echo "::warning::Slow tests failed with exit code $SLOW_TESTS_EXIT"
-          fi
-          echo "::endgroup::"
-
-          # Combine coverage reports
-          echo "::group::Combining coverage reports"
-          if [ -f "coverage-slow.xml" ]; then
-            # Both files exist, need to combine them
-            echo "Combining fast and slow test coverage..."
-            # Use coverage combine to merge the data
-            coverage combine --append
-            coverage xml -o coverage.xml
-          else
-            # Only fast tests ran, just rename the file
-            echo "Only fast tests ran, using fast coverage report..."
-            mv coverage-fast.xml coverage.xml
           fi
           echo "::endgroup::"
 
