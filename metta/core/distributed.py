@@ -70,6 +70,7 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
 
     # Get distributed vars using the shared function
     is_master, world_size, rank = setup_distributed_vars()
+    torch.cuda.set_device(device)
 
     return device, is_master, world_size, rank
 
