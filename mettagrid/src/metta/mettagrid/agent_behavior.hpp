@@ -232,8 +232,8 @@ public:
 
       for (size_t i = 0; i < agent->history_count; i++) {
         auto action_names = distance_lut_.get_action_names();
-        if (actions[i] < action_names.size()) {
-          action_counts[action_names[actions[i]]]++;
+        if (actions[i] >= 0 && static_cast<size_t>(actions[i]) < action_names.size()) {
+          action_counts[action_names[static_cast<size_t>(actions[i])]]++;
           total_actions++;
         }
       }
@@ -312,7 +312,7 @@ private:
       // Extract and encode the pattern
       std::vector<uint8_t> pattern;
       for (int i = 0; i < window_size; i++) {
-        if (top_motif.start_idx + i < actions.size()) {
+        if (top_motif.start_idx + static_cast<size_t>(i) < actions.size()) {
           uint8_t encoded =
               distance_lut_.encode_action(actions[top_motif.start_idx + i], args[top_motif.start_idx + i]);
           pattern.push_back(encoded);
@@ -373,6 +373,8 @@ private:
   std::vector<AgentCluster> cluster_agents_by_behavior(const std::vector<Agent*>& agents, int window_size) {
     // TODO: Implement proper clustering based on matrix profiles
     // For now, return empty to keep the interface clean
+    (void)agents;  // Suppress unused parameter warning
+    (void)window_size;
     std::vector<AgentCluster> clusters;
     return clusters;
   }

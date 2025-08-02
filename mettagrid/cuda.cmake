@@ -57,9 +57,6 @@ if(NOT METTAGRID_CUDA_AVAILABLE)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/matrix_profile_cpu.cpp
   )
 
-  # Define macro to disable CUDA code paths
-  add_compile_definitions(CUDA_BEHAVIORAL_ANALYSIS_DISABLED)
-
   # Check for OpenMP for CPU parallelization
   find_package(OpenMP QUIET)
   if(OpenMP_CXX_FOUND)
@@ -69,8 +66,19 @@ if(NOT METTAGRID_CUDA_AVAILABLE)
   endif()
 endif()
 
+# Create an interface library for CUDA configuration
+add_library(mettagrid_cuda_config INTERFACE)
+
+# Set compile definitions based on CUDA availability
+if(NOT METTAGRID_CUDA_AVAILABLE)
+  target_compile_definitions(mettagrid_cuda_config INTERFACE CUDA_DISABLED)
+endif()
+
 # Function to configure CUDA properties for a target
 function(configure_cuda_target target)
+  # Always link the configuration
+  target_link_libraries(${target} PUBLIC mettagrid_cuda_config)
+
   if(METTAGRID_CUDA_AVAILABLE)
     set_target_properties(${target} PROPERTIES
       CUDA_SEPARABLE_COMPILATION ON

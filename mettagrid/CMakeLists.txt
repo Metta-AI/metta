@@ -63,6 +63,9 @@ target_include_directories(mettagrid_obj PUBLIC
 # Apply all flags to the object library
 target_link_libraries(mettagrid_obj PRIVATE mettagrid_all_flags)
 
+# Link the CUDA configuration (this provides CUDA_DISABLED macro if needed)
+target_link_libraries(mettagrid_obj PUBLIC mettagrid_cuda_config)
+
 # Configure CUDA if available
 if(METTAGRID_CUDA_AVAILABLE)
   configure_cuda_target(mettagrid_obj)
@@ -78,6 +81,9 @@ pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
 # Python module needs sanitizer link flags in debug builds
 target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers)
+
+# Link CUDA configuration to ensure macros are available
+target_link_libraries(mettagrid_c PRIVATE mettagrid_cuda_config)
 
 # If CUDA is available, link CUDA runtime to Python module
 if(METTAGRID_CUDA_AVAILABLE)

@@ -15,6 +15,13 @@
 
 namespace MatrixProfile {
 
+// Forward declaration of CPU motif finding function
+std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs_cpu(const std::vector<uint16_t>& matrix_profile,
+                                                                         const std::vector<uint32_t>& profile_indices,
+                                                                         int window_size,
+                                                                         int top_k = 10,
+                                                                         float exclusion_zone_factor = 0.5f);
+
 // CPU implementation of distance computation
 inline uint32_t compute_distance_cpu(const uint8_t* seq1,
                                      const uint8_t* seq2,
@@ -34,7 +41,7 @@ private:
   std::array<std::array<uint8_t, 256>, 256> distance_lut_;
 
   // Performance tracking
-  mutable PerformanceStats last_stats_;
+  mutable MatrixProfiler::PerformanceStats last_stats_;
 
 public:
   MatrixProfileCPU(const MatrixProfileConfig& config) : config_(config) {}
@@ -95,7 +102,7 @@ public:
     last_stats_.comparisons_per_second = (total_comparisons / last_stats_.total_time_ms) * 1000.0f;
   }
 
-  PerformanceStats get_last_performance_stats() const {
+  MatrixProfiler::PerformanceStats get_last_performance_stats() const {
     return last_stats_;
   }
 
@@ -106,7 +113,7 @@ private:
                                    uint16_t* profile,
                                    uint32_t* indices,
                                    size_t& total_comparisons) {
-    size_t profile_length = seq_length - window_size + 1;
+    size_t profile_length = seq_length - static_cast<size_t>(window_size) + 1;
     int exclusion_zone = window_size / 2;
 
     // Use STOMP-like approach with sliding window optimization
@@ -129,7 +136,7 @@ private:
 
         if (dist < min_distance) {
           min_distance = dist;
-          min_index = j;
+          min_index = static_cast<uint32_t>(j);
         }
       }
 
@@ -140,14 +147,11 @@ private:
 };
 
 // Update MatrixProfiler implementation to support CPU fallback
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
-
-// Define PerformanceStats type alias for CPU mode
-using PerformanceStats = MatrixProfiler::PerformanceStats;
+#ifdef CUDA_DISABLED
 
 MatrixProfiler::MatrixProfiler(const MatrixProfileConfig& config) : config_(config) {
-  // Use CPU implementation when CUDA is not available
-  gpu_impl_ = std::make_unique<MatrixProfileCPU>(config);
+  // Create CPU implementation
+  impl_ = std::make_unique<MatrixProfileCPU>(config);
 
   std::cout << "MatrixProfiler initialized with CPU implementation\n";
 
@@ -170,7 +174,7 @@ void MatrixProfiler::initialize(const ActionDistance::ActionDistanceLUT& distanc
   std::memcpy(distance_lut_.data(), lut, sizeof(lut));
 
   // Upload to CPU implementation
-  static_cast<MatrixProfileCPU*>(gpu_impl_.get())->upload_distance_lut(lut);
+  static_cast<MatrixProfileCPU*>(impl_.get())->upload_distance_lut(lut);
 
   lut_initialized_ = true;
 
@@ -229,7 +233,7 @@ std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vect
   std::vector<std::vector<uint32_t>> indices(encoded.sequences.size());
 
   // Compute profiles on CPU
-  static_cast<MatrixProfileCPU*>(gpu_impl_.get())
+  static_cast<MatrixProfileCPU*>(impl_.get())
       ->compute_profiles(encoded.sequences, encoded.valid_lengths, windows, profiles, indices);
 
   // Build result structures
@@ -247,8 +251,8 @@ std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vect
       window_result.distances = profiles[i];
       window_result.indices = indices[i];
 
-      // Find top motifs
-      window_result.top_motifs = Analysis::find_top_motifs(profiles[i], indices[i], window_size);
+      // Find top motifs - use the CPU implementation
+      window_result.top_motifs = find_top_motifs_cpu(profiles[i], indices[i], window_size);
 
       agent_profile.window_results.push_back(std::move(window_result));
     }
@@ -258,7 +262,7 @@ std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vect
 
   // Update performance stats
   auto end_time = std::chrono::high_resolution_clock::now();
-  last_stats_ = static_cast<MatrixProfileCPU*>(gpu_impl_.get())->get_last_performance_stats();
+  last_stats_ = static_cast<MatrixProfileCPU*>(impl_.get())->get_last_performance_stats();
   last_stats_.total_time_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();
 
   // Log performance info
@@ -286,16 +290,16 @@ std::vector<CrossAgentPatterns::SharedMotif> find_shared_motifs_cpu(
   }
 
   // Simple sliding window comparison
-  for (size_t i = 0; i <= seq1.size() - window_size; i++) {
-    for (size_t j = 0; j <= seq2.size() - window_size; j++) {
+  for (size_t i = 0; i <= seq1.size() - static_cast<size_t>(window_size); i++) {
+    for (size_t j = 0; j <= seq2.size() - static_cast<size_t>(window_size); j++) {
       uint32_t dist = compute_distance_cpu(seq1.data() + i, seq2.data() + j, window_size, distance_lut);
 
       if (dist <= distance_threshold) {
         CrossAgentPatterns::SharedMotif motif;
         motif.agent1_id = agent1_id;
         motif.agent2_id = agent2_id;
-        motif.agent1_idx = i;
-        motif.agent2_idx = j;
+        motif.agent1_idx = static_cast<uint32_t>(i);
+        motif.agent2_idx = static_cast<uint32_t>(j);
         motif.length = window_size;
         motif.distance = static_cast<uint16_t>(dist);
         motifs.push_back(motif);
@@ -360,13 +364,11 @@ void MatrixProfiler::clear_cache() {
 }
 
 // Implementation of Analysis functions for CPU
-namespace Analysis {
-
-std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::vector<uint16_t>& matrix_profile,
-                                                                     const std::vector<uint32_t>& profile_indices,
-                                                                     int window_size,
-                                                                     int top_k,
-                                                                     float exclusion_zone_factor) {
+std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs_cpu(const std::vector<uint16_t>& matrix_profile,
+                                                                         const std::vector<uint32_t>& profile_indices,
+                                                                         int window_size,
+                                                                         int top_k = 10,
+                                                                         float exclusion_zone_factor = 0.5f) {
   if (matrix_profile.empty()) return {};
 
   std::vector<AgentMatrixProfile::WindowResult::Motif> motifs;
@@ -391,7 +393,7 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::
 
     // Create motif
     AgentMatrixProfile::WindowResult::Motif motif;
-    motif.start_idx = min_idx;
+    motif.start_idx = static_cast<uint32_t>(min_idx);
     motif.match_idx = profile_indices[min_idx];
     motif.distance = min_dist;
     motif.length = window_size;
@@ -401,22 +403,20 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::
     for (int i = std::max(0, static_cast<int>(min_idx) - exclusion_zone);
          i < std::min(static_cast<int>(matrix_profile.size()), static_cast<int>(min_idx) + exclusion_zone + 1);
          i++) {
-      used[i] = true;
+      used[static_cast<size_t>(i)] = true;
     }
 
     // Also mark around the match
     for (int i = std::max(0, static_cast<int>(motif.match_idx) - exclusion_zone);
          i < std::min(static_cast<int>(matrix_profile.size()), static_cast<int>(motif.match_idx) + exclusion_zone + 1);
          i++) {
-      used[i] = true;
+      used[static_cast<size_t>(i)] = true;
     }
   }
 
   return motifs;
 }
 
-}  // namespace Analysis
-
-#endif  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#endif  // CUDA_DISABLED
 
 }  // namespace MatrixProfile

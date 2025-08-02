@@ -77,8 +77,14 @@ struct CrossAgentPatterns {
   std::vector<BehaviorCluster> clusters;
 };
 
-// Forward declaration of CUDA implementation
+// Forward declaration of implementation class
+#ifndef CUDA_DISABLED
 class MatrixProfileGPU;
+using MatrixProfileImpl = MatrixProfileGPU;
+#else
+class MatrixProfileCPU;
+using MatrixProfileImpl = MatrixProfileCPU;
+#endif
 
 class MatrixProfiler {
 public:
@@ -121,7 +127,7 @@ public:
 
 private:
   MatrixProfileConfig config_;
-  std::unique_ptr<MatrixProfileGPU> gpu_impl_;
+  std::unique_ptr<MatrixProfileImpl> impl_;
   PerformanceStats last_stats_{};
 
   // Action encoding cache
@@ -138,90 +144,6 @@ private:
   bool lut_initialized_ = false;
 };
 
-#ifdef CUDA_DISABLED
-
-// ======================= STUB IMPLEMENTATIONS =======================
-// Used when CUDA is not available (e.g., on macOS)
-
-// Stub implementation of MatrixProfileGPU
-class MatrixProfileGPU {
-public:
-  MatrixProfileGPU(const MatrixProfileConfig&) {
-    throw std::runtime_error("Matrix Profile GPU implementation requires CUDA support");
-  }
-
-  void upload_distance_lut(const uint8_t[256][256]) {
-    throw std::runtime_error("CUDA support not available");
-  }
-
-  void allocate_memory(size_t, size_t) {
-    throw std::runtime_error("CUDA support not available");
-  }
-
-  void compute_profiles(const std::vector<std::vector<uint8_t>>&,
-                        const std::vector<size_t>&,
-                        const std::vector<int>&,
-                        std::vector<std::vector<uint16_t>>&,
-                        std::vector<std::vector<uint32_t>>&) {
-    throw std::runtime_error("CUDA support not available");
-  }
-};
-
-// MatrixProfiler stub implementation
-inline MatrixProfiler::MatrixProfiler(const MatrixProfileConfig& config) : config_(config) {
-  std::cerr << "WARNING: MatrixProfiler created without CUDA support. "
-            << "Behavioral analysis features will not be available.\n";
-}
-
-inline MatrixProfiler::~MatrixProfiler() = default;
-
-inline void MatrixProfiler::initialize(const ActionDistance::ActionDistanceLUT& distance_lut) {
-  // Store the LUT even in stub mode
-  distance_lut.get_distance_table(distance_lut_.data());
-  lut_initialized_ = true;
-
-  std::cerr << "WARNING: MatrixProfiler initialized in stub mode (no CUDA).\n";
-}
-
-inline MatrixProfiler::EncodedSequences MatrixProfiler::encode_agent_histories(const std::vector<Agent*>&) const {
-  return EncodedSequences{};
-}
-
-inline std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vector<Agent*>&,
-                                                                        const std::vector<int>&) {
-  throw std::runtime_error(
-      "Matrix Profile computation requires CUDA support. "
-      "Please build with CUDA enabled on a system with NVIDIA GPU.");
-}
-
-inline CrossAgentPatterns MatrixProfiler::find_cross_agent_patterns(const std::vector<Agent*>&, int, float) {
-  throw std::runtime_error("Cross-agent pattern discovery requires CUDA support");
-}
-
-inline void MatrixProfiler::update_agent(const Agent*) {
-  // No-op in stub mode
-}
-
-inline void MatrixProfiler::batch_update(const std::vector<Agent*>&) {
-  // No-op in stub mode
-}
-
-inline size_t MatrixProfiler::get_gpu_memory_usage() const {
-  return 0;
-}
-
-inline void MatrixProfiler::clear_cache() {
-  // No-op in stub mode
-}
-
-#else  // CUDA_DISABLED
-
-// ======================= CUDA IMPLEMENTATIONS =======================
-// These are defined in matrix_profile.cu when CUDA is available
-// Just declare them here - the actual implementations are in the .cu file
-
-#endif  // CUDA_DISABLED
-
 // Utility functions for behavioral analysis
 namespace Analysis {
 
@@ -233,11 +155,14 @@ inline std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(
     int top_k = 10,
     float exclusion_zone_factor = 0.5f) {
 #ifdef CUDA_DISABLED
-  return {};
+  // Forward to CPU implementation
+  std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs_cpu(
+      const std::vector<uint16_t>&, const std::vector<uint32_t>&, int, int, float);
+  return find_top_motifs_cpu(matrix_profile, profile_indices, window_size, top_k, exclusion_zone_factor);
 #else
-  // Implementation would be in matrix_profile.cu
+  // GPU implementation would be in matrix_profile.cu
   std::vector<AgentMatrixProfile::WindowResult::Motif> motifs;
-  // TODO: Implement proper motif discovery algorithm
+  // TODO: Implement proper motif discovery algorithm for GPU
   return motifs;
 #endif
 }
@@ -246,6 +171,11 @@ inline std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(
 inline float compute_agent_similarity(const AgentMatrixProfile& profile1,
                                       const AgentMatrixProfile& profile2,
                                       int window_size) {
+  // Suppress unused parameter warnings
+  (void)profile1;
+  (void)profile2;
+  (void)window_size;
+
 #ifdef CUDA_DISABLED
   return 0.0f;
 #else
@@ -257,6 +187,11 @@ inline float compute_agent_similarity(const AgentMatrixProfile& profile1,
 // Cluster agents by behavioral patterns
 inline std::vector<CrossAgentPatterns::BehaviorCluster>
 cluster_by_behavior(const std::vector<AgentMatrixProfile>& profiles, int window_size, int num_clusters = 0) {
+  // Suppress unused parameter warnings
+  (void)profiles;
+  (void)window_size;
+  (void)num_clusters;
+
 #ifdef CUDA_DISABLED
   return {};
 #else
@@ -276,6 +211,10 @@ struct EmergentStrategy {
 
 inline std::vector<EmergentStrategy> detect_strategies(const std::vector<AgentMatrixProfile>& profiles,
                                                        const ActionDistance::ActionDistanceLUT& lut) {
+  // Suppress unused parameter warnings
+  (void)profiles;
+  (void)lut;
+
 #ifdef CUDA_DISABLED
   return {};
 #else

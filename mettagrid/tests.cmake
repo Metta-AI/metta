@@ -79,7 +79,13 @@ if(BUILD_TESTS)
       GTest::gtest_main
       mettagrid_all_flags           # Full flags including sanitizers
       mettagrid_test_suppressions   # Warning suppressions
+      mettagrid_cuda_config         # CUDA configuration (includes CUDA_DISABLED macro if needed)
     )
+
+    # If CUDA is available, configure CUDA properties
+    if(METTAGRID_CUDA_AVAILABLE)
+      configure_cuda_target(${test_name})
+    endif()
 
     add_test(NAME ${test_name} COMMAND ${test_name} --gtest_color=yes)
 
@@ -127,7 +133,13 @@ if(BUILD_BENCHMARKS)
       benchmark::benchmark_main
       mettagrid_common_flags        # Base flags WITHOUT sanitizers
       mettagrid_test_suppressions   # Warning suppressions
+      mettagrid_cuda_config         # CUDA configuration
     )
+
+    # If CUDA is available, configure CUDA properties
+    if(METTAGRID_CUDA_AVAILABLE)
+      configure_cuda_target(${bench_name})
+    endif()
 
     # Explicitly disable sanitizers for benchmarks in all builds
     target_compile_options(${bench_name} PRIVATE
