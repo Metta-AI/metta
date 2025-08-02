@@ -20,6 +20,7 @@ def pytest_configure(config):
     # Add multiple markers correctly
     config.addinivalue_line("markers", "benchmark: mark a test as a benchmark test")
     config.addinivalue_line("markers", "verbose: mark a test to display verbose output")
+    config.addinivalue_line("markers", "slow: mark a test as slow (runs in second phase)")
 
 
 @pytest.fixture
@@ -50,5 +51,4 @@ def pytest_runtest_makereport(item, call):
             print(f"===== END VERBOSE OUTPUT FOR: {item.name} =====\n")
 
 
-# Register the docker_client fixture
 docker_client = docker_client_fixture()

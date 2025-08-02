@@ -109,6 +109,7 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+console_output_style = "progress"
 
 [tool.uv]
 cache-keys = [
@@ -130,4 +131,3 @@ pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef
 
 [tool.ruff]
 exclude = ["*.ipynb"]
-

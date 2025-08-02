@@ -9,7 +9,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
 
+
+@pytest.mark.slow
 def test_puffer_cli_compatibility():
     """Test PufferLib CLI compatibility with Metta environment."""
     with tempfile.TemporaryDirectory() as tmpdir:
