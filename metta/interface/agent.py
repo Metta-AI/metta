@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import TYPE_CHECKING, Any, Optional
 
 import gymnasium as gym
@@ -11,8 +10,10 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.mettagrid import MettaGridEnv
+from metta.rl.env_config import DeviceType, EnvConfig
 
 if TYPE_CHECKING:
     from .environment import Environment
@@ -198,20 +199,18 @@ def create_or_load_agent(
     metta_grid_env = env.driver_env
     assert isinstance(metta_grid_env, MettaGridEnv)
 
+    device_str: DeviceType = str(device)  # type: ignore
+    if device_str not in DeviceType.__args__:
+        raise ValueError(f"Invalid device: {device_str}")
+
     # Load checkpoint and policy
     checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
         run_dir=run_dir,
         policy_store=policy_store,
         trainer_cfg=trainer_config,
         metta_grid_env=metta_grid_env,
-        cfg=DictConfig(
-            {
-                "device": str(device),
-                "run": os.path.basename(run_dir),
-                "run_dir": run_dir,
-                "agent": _get_default_agent_config(str(device))["agent"],
-            }
-        ),
+        env_cfg=EnvConfig(device=device_str),
+        agent_cfg=AgentConfig.model_validate(_get_default_agent_config(device_str)["agent"]),
         is_master=is_master,
         rank=rank,
     )

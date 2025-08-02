@@ -7,12 +7,14 @@ from pydantic import ConfigDict, Field
 from metta.common.util.collections import remove_none_values
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 
+DeviceType = Literal["cpu", "cuda"]
+
 
 class EnvConfig(BaseModelWithForbidExtra):
     vectorization: Literal["serial", "multiprocessing"] = "multiprocessing"
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
-    device: Literal["cpu", "cuda"] = "cuda"
+    device: DeviceType = "cuda"
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",

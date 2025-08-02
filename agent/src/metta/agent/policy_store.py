@@ -23,11 +23,13 @@ import torch
 import wandb
 from omegaconf import DictConfig
 
+from metta.agent.agent_config import create_agent_config
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.common.wandb.wandb_context import WandbRun
+from metta.rl.env_config import create_env_config
 from metta.rl.puffer_policy import load_pytorch_policy
 from metta.rl.trainer_config import TrainerConfig, create_trainer_config
 
@@ -493,7 +495,7 @@ class PolicyStore:
                     feature_normalizations=checkpoint.get("feature_normalizations", {}),
                 )
 
-                policy = make_policy(env, self._cfg)  # type: ignore
+                policy = make_policy(env, create_env_config(self._cfg), create_agent_config(self._cfg))
 
                 # Load state dict from checkpoint
                 state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)

@@ -10,6 +10,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
+from metta.agent.agent_config import create_agent_config
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
@@ -109,7 +110,7 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
         run=cfg.run,
         run_dir=cfg.run_dir,
         env_cfg=env_cfg,
-        agent_cfg=cfg.agent,
+        agent_cfg=create_agent_config(cfg.agent),
         device=torch.device(env_cfg.device),
         trainer_cfg=create_trainer_config(cfg),
         wandb_run=wandb_run,

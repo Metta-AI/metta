@@ -1,13 +1,14 @@
 import logging
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
@@ -22,17 +23,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv | SimpleNamespace", env_cfg: EnvConfig, agent_cfg: AgentConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
             "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
     )
-
-    # We know this will be a dict
-    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)  # type: ignore
-
     # Create MettaAgent directly without Hydra
     return MettaAgent(
         obs_space=obs_space,
@@ -41,7 +38,7 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
         device=env_cfg.device,
-        **dict_agent_cfg,
+        cfg=agent_cfg,
     )
 
 
@@ -88,17 +85,14 @@ class MettaAgent(nn.Module):
         action_space: gym.spaces.Space,
         feature_normalizations: dict[int, float],
         device: str,
-        **cfg,
+        cfg: AgentConfig,
     ):
         super().__init__()
-        # Note that this doesn't instantiate the components -- that will happen later once
-        # we've built up the right parameters for them.
-        cfg = OmegaConf.create(cfg)
 
         logger.info(f"obs_space: {obs_space} ")
 
-        self.hidden_size = cfg.components._core_.output_size
-        self.core_num_layers = cfg.components._core_.nn_params.num_layers
+        self.hidden_size = cfg.components["_core_"]["output_size"]
+        self.core_num_layers = cfg.components["_core_"]["nn_params"]["num_layers"]
         self.clip_range = cfg.clip_range
 
         assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (

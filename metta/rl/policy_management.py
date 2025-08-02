@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
@@ -93,7 +93,8 @@ def maybe_load_checkpoint(
     policy_store: PolicyStore,
     trainer_cfg: TrainerConfig,
     metta_grid_env: MettaGridEnv,
-    cfg: DictConfig,
+    env_cfg: EnvConfig,
+    agent_cfg: AgentConfig,
     is_master: bool,
     rank: int,
 ) -> tuple[TrainerCheckpoint | None, PolicyRecord, int, int]:
@@ -177,7 +178,7 @@ def maybe_load_checkpoint(
         # Master creates new policy
         name = policy_store.make_model_name(0)
         pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
+        pr.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
@@ -188,7 +189,7 @@ def maybe_load_checkpoint(
 
 
 def load_or_initialize_policy(
-    agent_cfg: DictConfig,
+    agent_cfg: AgentConfig,
     env_cfg: EnvConfig,
     trainer_cfg: TrainerConfig,
     checkpoint: TrainerCheckpoint | None,
