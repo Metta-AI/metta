@@ -3,7 +3,6 @@ import os
 import subprocess
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
-from metta.app_backend.container_managers.models import WorkerInfo
 from metta.common.datadog.config import datadog_config
 
 
@@ -17,7 +16,7 @@ class DockerContainerManager(AbstractContainerManager):
         docker_image: str,
         machine_token: str,
         dd_env_vars: dict[str, str] | None = None,
-    ) -> WorkerInfo:
+    ) -> str:
         container_name = self._format_container_name()
         env_vars = {
             "BACKEND_URL": backend_url,
@@ -44,30 +43,26 @@ class DockerContainerManager(AbstractContainerManager):
         cmd.extend([docker_image, "uv", "run", "python", "-m", "metta.app_backend.eval_task_worker"])
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            container_id = result.stdout.strip()
-            self._logger.info(f"Started worker container {container_name} ({container_id[:12]})")
-            return WorkerInfo(
-                container_id=container_id,
-                container_name=container_name,
-            )
+            _ = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            self._logger.info(f"Started worker container {container_name}")
+            return container_name
         except subprocess.CalledProcessError as e:
             self._logger.error(f"Failed to start worker container: {e.stderr}")
             raise
 
-    def cleanup_container(self, container_id: str) -> None:
+    def cleanup_container(self, name: str) -> None:
         try:
             subprocess.run(
-                ["docker", "rm", "-f", container_id],
+                ["docker", "rm", "-f", name],
                 capture_output=True,
                 check=False,
             )
         except Exception as e:
-            self._logger.warning(f"Failed to cleanup container {container_id}: {e}")
+            self._logger.warning(f"Failed to cleanup container {name}: {e}")
         else:
-            self._logger.info(f"Cleaned up container {container_id}")
+            self._logger.info(f"Cleaned up container {name}")
 
-    async def discover_alive_workers(self) -> list[WorkerInfo]:
+    async def discover_alive_workers(self) -> list[str]:
         result = subprocess.run(
             [
                 "docker",
@@ -87,15 +82,10 @@ class DockerContainerManager(AbstractContainerManager):
             for line in result.stdout.strip().split("\n"):
                 parts = line.split("\t")
                 if len(parts) == 2:
-                    container_id, container_name = parts
+                    container_name = parts[1]
                     if container_name.startswith("eval-worker-"):
                         try:
-                            workers.append(
-                                WorkerInfo(
-                                    container_id=container_id,
-                                    container_name=container_name,
-                                )
-                            )
+                            workers.append(container_name)
                         except ValueError:
                             self._logger.warning(f"Skipping container with invalid name: {container_name}")
         return workers
