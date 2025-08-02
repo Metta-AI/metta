@@ -11,17 +11,17 @@ Metta supports three movement systems configurable through command-line override
 
 ### 2. Cardinal Movement
 - **Actions**: `move_cardinal` (0=North, 1=South, 2=West, 3=East)
-- **Behavior**: Direct 4-directional movement without rotation
+- **Behavior**: Direct 4-directional movement that updates orientation to match movement direction
 - **Use Case**: Navigation tasks, grid-aligned environments
 
 ### 3. 8-Way Movement
 - **Actions**: `move_8way` (0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
-- **Behavior**: Direct 8-directional movement including diagonals
+- **Behavior**: Direct 8-directional movement including diagonals; orientation updates to nearest cardinal direction
 - **Use Case**: Complex navigation, open environments
 
 ## Key Concepts
 
-**Orientation**: Only `rotate` changes agent orientation. Direct movement actions (`move_cardinal`, `move_8way`) do NOT change orientation, but orientation still affects actions like `attack`.
+**Orientation**: Both `rotate` and direct movement actions (`move_cardinal`, `move_8way`) change agent orientation. With direct movement, orientation is automatically updated to match the movement direction. Orientation affects actions like `attack`.
 
 **Action Space**: Enabled actions determine the action space indices:
 ```python

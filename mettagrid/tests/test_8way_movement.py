@@ -60,8 +60,21 @@ def test_8way_movement_all_directions():
         actual_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
         assert actual_pos == expected_pos, f"Direction {direction}: expected {expected_pos}, got {actual_pos}"
 
-        # Verify orientation hasn't changed (atomic action principle)
-        assert objects[agent_id]["orientation"] == initial_orientation
+        # Verify orientation has changed to match movement direction
+        # For 8-way movement, diagonal directions map to nearest cardinal
+        expected_orientations = {
+            0: 0,  # North -> Up
+            1: 0,  # Northeast -> Up
+            2: 3,  # East -> Right
+            3: 1,  # Southeast -> Down
+            4: 1,  # South -> Down
+            5: 1,  # Southwest -> Down
+            6: 2,  # West -> Left
+            7: 0,  # Northwest -> Up
+        }
+        if direction in expected_orientations:
+            assert objects[agent_id]["orientation"] == expected_orientations[direction], \
+                f"Direction {direction}: orientation should be {expected_orientations[direction]}"
 
 
 def test_8way_movement_obstacles():
@@ -114,8 +127,8 @@ def test_8way_movement_obstacles():
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 
-def test_orientation_unchanged_with_8way():
-    """Test that orientation is never changed by 8-way movement."""
+def test_orientation_changes_with_8way():
+    """Test that orientation changes to match movement direction with 8-way movement."""
     config = make_test_config(
         num_agents=1,
         map=[
@@ -149,17 +162,34 @@ def test_orientation_unchanged_with_8way():
     objects = env.grid_objects()
     assert objects[agent_id]["orientation"] == 3  # Right
 
-    # Now move in various directions and verify orientation stays at 3
+    # Now move in various directions and verify orientation changes appropriately
+    expected_orientations = {
+        0: 0,  # North -> Up
+        1: 0,  # Northeast -> Up  
+        2: 3,  # East -> Right
+        3: 1,  # Southeast -> Down
+        4: 1,  # South -> Down
+        5: 1,  # Southwest -> Down
+        6: 2,  # West -> Left
+        7: 0,  # Northwest -> Up
+    }
+    
     for direction in range(8):
+        # Skip if movement would go out of bounds
+        if direction in [0, 1, 7]:  # Skip north-facing movements from top row
+            continue
+            
         actions[0] = [move_8dir_idx, direction]
         env.step(actions)
 
         objects = env.grid_objects()
-        assert objects[agent_id]["orientation"] == 3, f"Orientation changed after moving in direction {direction}"
+        expected_orient = expected_orientations[direction]
+        assert objects[agent_id]["orientation"] == expected_orient, \
+            f"Direction {direction}: expected orientation {expected_orient}, got {objects[agent_id]['orientation']}"
 
 
-def test_cardinal_movement_no_orientation_change():
-    """Test that the updated cardinal movement doesn't change orientation."""
+def test_cardinal_movement_changes_orientation():
+    """Test that cardinal movement changes orientation to match movement direction."""
     config = make_test_config(
         num_agents=1,
         map=[
@@ -199,5 +229,5 @@ def test_cardinal_movement_no_orientation_change():
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 1)
-    # Orientation should still be right (3), not up (0)
-    assert objects[agent_id]["orientation"] == 3
+    # Orientation should change to match movement direction (north = 0)
+    assert objects[agent_id]["orientation"] == 0
