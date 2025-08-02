@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/bbc/bbc
+  curriculum: /env/mettagrid/curriculum/navigation/bucketed
 
 policy_uri: wandb://run/george.navigation.bucketed.07-10
 
