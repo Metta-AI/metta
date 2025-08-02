@@ -15,9 +15,10 @@ trainer:
   # curriculum: /env/mettagrid/navigation/training/multienv
   # curriculum: /env/mettagrid/curriculum/arena/learning_progress
   checkpoint:
-    checkpoint_interval: 5
-    wandb_checkpoint_interval: 5
+    checkpoint_interval: 10
+    wandb_checkpoint_interval: 10
   simulation:
     evaluate_interval: 10 # must be ≥ both checkpoint intervals (policies needed for eval)
+    evaluate_local: false
     evaluate_remote: true
     skip_git_check: true
