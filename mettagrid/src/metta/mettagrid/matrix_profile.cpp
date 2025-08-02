@@ -1,4 +1,6 @@
-// matrix_profile_cpu.cpp - CPU implementation of Matrix Profile
+// matrix_profile.cpp - Combined CPU and GPU implementation
+#include "matrix_profile.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -7,10 +9,12 @@
 #include <thread>
 #include <vector>
 
-#include "matrix_profile.hpp"
-
 #ifdef _OPENMP
 #include <omp.h>
+#endif
+
+#ifndef CUDA_DISABLED
+#include <cuda_runtime.h>
 #endif
 
 namespace MatrixProfile {
@@ -40,7 +44,7 @@ public:
 private:
   MatrixProfileConfig config_;
   std::array<std::array<uint8_t, 256>, 256> distance_lut_;
-  ActionDistance::ActionDistanceLUT* action_lut_ = nullptr;  // Store pointer to action LUT
+  ActionDistance::ActionDistanceLUT* action_lut_ = nullptr;
 
   // Performance tracking
   mutable MatrixProfiler::PerformanceStats last_stats_;
@@ -184,12 +188,12 @@ private:
   }
 };
 
-// MatrixProfilerCPU implementation
-MatrixProfilerCPU::MatrixProfilerCPU(const MatrixProfileConfig& config) : config_(config) {
-  // Create CPU implementation
-  cpu_impl_ = std::make_unique<MatrixProfileCPU>(config);
+// MatrixProfiler implementation
+MatrixProfiler::MatrixProfiler(const MatrixProfileConfig& config) : config_(config) {
+  // Always create CPU implementation
+  impl_ = std::make_unique<MatrixProfileCPU>(config);
 
-  std::cout << "MatrixProfiler CPU implementation initialized\n";
+  std::cout << "MatrixProfiler initialized with CPU implementation\n";
 
 #ifdef _OPENMP
   int num_threads = omp_get_max_threads();
@@ -197,11 +201,23 @@ MatrixProfilerCPU::MatrixProfilerCPU(const MatrixProfileConfig& config) : config
 #else
   std::cout << "  OpenMP not available - using single-threaded computation\n";
 #endif
+
+// Check for GPU availability
+#ifndef CUDA_DISABLED
+  if (!config.force_cpu) {
+    int device_count = 0;
+    cudaError_t err = cudaGetDeviceCount(&device_count);
+
+    if (err == cudaSuccess && device_count > 0) {
+      std::cout << "  CUDA devices available: " << device_count << " (GPU support can be added)\n";
+    }
+  }
+#endif
 }
 
-MatrixProfilerCPU::~MatrixProfilerCPU() = default;
+MatrixProfiler::~MatrixProfiler() = default;
 
-void MatrixProfilerCPU::initialize(const ActionDistance::ActionDistanceLUT& distance_lut) {
+void MatrixProfiler::initialize(const ActionDistance::ActionDistanceLUT& distance_lut) {
   // Get the distance table
   uint8_t lut[256][256];
   distance_lut.get_distance_table(lut);
@@ -210,23 +226,26 @@ void MatrixProfilerCPU::initialize(const ActionDistance::ActionDistanceLUT& dist
   std::memcpy(distance_lut_.data(), lut, sizeof(lut));
 
   // Upload to CPU implementation
-  cpu_impl_->upload_distance_lut(lut);
+  static_cast<MatrixProfileCPU*>(impl_.get())->upload_distance_lut(lut);
 
   // Store reference to action LUT for encoding
-  cpu_impl_->set_action_lut(const_cast<ActionDistance::ActionDistanceLUT*>(&distance_lut));
+  static_cast<MatrixProfileCPU*>(impl_.get())
+      ->set_action_lut(const_cast<ActionDistance::ActionDistanceLUT*>(&distance_lut));
 
   lut_initialized_ = true;
 
-  std::cout << "MatrixProfiler CPU: Distance LUT initialized\n";
+  std::cout << "MatrixProfiler: Distance LUT initialized for CPU computation\n";
 }
 
-MatrixProfilerCPU::EncodedSequences MatrixProfilerCPU::encode_agent_histories(
-    const std::vector<Agent*>& agents,
-    const ActionDistance::ActionDistanceLUT& distance_lut) const {
+MatrixProfiler::EncodedSequences MatrixProfiler::encode_agent_histories(const std::vector<Agent*>& agents) const {
   EncodedSequences encoded;
   encoded.sequences.reserve(agents.size());
   encoded.valid_lengths.reserve(agents.size());
   encoded.agent_ids.reserve(agents.size());
+
+  // Get the action LUT from implementation
+  auto* cpu_impl = static_cast<MatrixProfileCPU*>(impl_.get());
+  auto* action_lut = cpu_impl->get_action_lut();
 
   for (const auto* agent : agents) {
     size_t history_length = agent->history_count;
@@ -240,7 +259,13 @@ MatrixProfilerCPU::EncodedSequences MatrixProfilerCPU::encode_agent_histories(
     // Encode to uint8 using the actual distance LUT encoding
     std::vector<uint8_t> encoded_seq(history_length);
     for (size_t i = 0; i < history_length; i++) {
-      encoded_seq[i] = distance_lut.encode_action(actions[i], args[i]);
+      // Use the proper encoding from the distance LUT
+      if (action_lut) {
+        encoded_seq[i] = action_lut->encode_action(actions[i], args[i]);
+      } else {
+        // Fallback encoding if LUT not available
+        encoded_seq[i] = static_cast<uint8_t>((actions[i] & 0x0F) << 4 | (args[i] & 0x0F));
+      }
     }
 
     encoded.sequences.push_back(std::move(encoded_seq));
@@ -251,10 +276,8 @@ MatrixProfilerCPU::EncodedSequences MatrixProfilerCPU::encode_agent_histories(
   return encoded;
 }
 
-std::vector<AgentMatrixProfile> MatrixProfilerCPU::compute_profiles_cpu(
-    const std::vector<Agent*>& agents,
-    const std::vector<int>& window_sizes,
-    const ActionDistance::ActionDistanceLUT& distance_lut) {
+std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vector<Agent*>& agents,
+                                                                 const std::vector<int>& window_sizes) {
   if (!lut_initialized_) {
     throw std::runtime_error("MatrixProfiler not initialized. Call initialize() first.");
   }
@@ -262,7 +285,7 @@ std::vector<AgentMatrixProfile> MatrixProfilerCPU::compute_profiles_cpu(
   auto start_time = std::chrono::high_resolution_clock::now();
 
   // Encode agent histories
-  auto encoded = encode_agent_histories(agents, distance_lut);
+  auto encoded = encode_agent_histories(agents);
   if (encoded.sequences.empty()) {
     return {};
   }
@@ -270,15 +293,16 @@ std::vector<AgentMatrixProfile> MatrixProfilerCPU::compute_profiles_cpu(
   // Use provided window sizes or defaults
   const auto& windows = window_sizes.empty() ? config_.window_sizes : window_sizes;
 
-  // Prepare output structures (these are for compatibility with the compute_profiles interface)
+  // Prepare output structures
   std::vector<std::vector<uint16_t>> profiles(encoded.sequences.size());
   std::vector<std::vector<uint32_t>> indices(encoded.sequences.size());
 
   // Compute profiles on CPU
-  cpu_impl_->compute_profiles(encoded.sequences, encoded.valid_lengths, windows, profiles, indices);
+  static_cast<MatrixProfileCPU*>(impl_.get())
+      ->compute_profiles(encoded.sequences, encoded.valid_lengths, windows, profiles, indices);
 
   // Get the full results with all window sizes
-  const auto& full_results = cpu_impl_->get_last_full_results();
+  const auto& full_results = static_cast<MatrixProfileCPU*>(impl_.get())->get_last_full_results();
 
   // Build result structures
   std::vector<AgentMatrixProfile> results;
@@ -314,14 +338,14 @@ std::vector<AgentMatrixProfile> MatrixProfilerCPU::compute_profiles_cpu(
 
   // Update performance stats
   auto end_time = std::chrono::high_resolution_clock::now();
-  last_stats_cpu_ = cpu_impl_->get_last_performance_stats();
-  last_stats_cpu_.total_time_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();
+  last_stats_ = static_cast<MatrixProfileCPU*>(impl_.get())->get_last_performance_stats();
+  last_stats_.total_time_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();
 
   // Log performance info
   std::cout << "MatrixProfiler CPU Performance:\n"
-            << "  Total time: " << last_stats_cpu_.total_time_ms << " ms\n"
-            << "  Total comparisons: " << last_stats_cpu_.total_comparisons << "\n"
-            << "  Comparisons/second: " << last_stats_cpu_.comparisons_per_second << "\n";
+            << "  Total time: " << last_stats_.total_time_ms << " ms\n"
+            << "  Total comparisons: " << last_stats_.total_comparisons << "\n"
+            << "  Comparisons/second: " << last_stats_.comparisons_per_second << "\n";
 
   return results;
 }
@@ -362,25 +386,17 @@ static std::vector<CrossAgentPatterns::SharedMotif> find_shared_motifs_cpu(
   return motifs;
 }
 
-CrossAgentPatterns MatrixProfilerCPU::find_cross_agent_patterns_cpu(
-    const std::vector<Agent*>& agents,
-    int window_size,
-    float distance_threshold,
-    const ActionDistance::ActionDistanceLUT& distance_lut) {
+CrossAgentPatterns MatrixProfiler::find_cross_agent_patterns(const std::vector<Agent*>& agents,
+                                                             int window_size,
+                                                             float distance_threshold) {
   CrossAgentPatterns patterns;
 
   if (!lut_initialized_ || agents.size() < 2) {
     return patterns;
   }
 
-  // Get distance table
-  uint8_t lut[256][256];
-  distance_lut.get_distance_table(lut);
-  std::array<std::array<uint8_t, 256>, 256> distance_lut_array;
-  std::memcpy(distance_lut_array.data(), lut, sizeof(lut));
-
   // Encode agent histories
-  auto encoded = encode_agent_histories(agents, distance_lut);
+  auto encoded = encode_agent_histories(agents);
 
   // Simple CPU implementation: compare all pairs of agents
   for (size_t i = 0; i < encoded.sequences.size(); i++) {
@@ -391,13 +407,36 @@ CrossAgentPatterns MatrixProfilerCPU::find_cross_agent_patterns_cpu(
                                            distance_threshold,
                                            encoded.agent_ids[i],
                                            encoded.agent_ids[j],
-                                           distance_lut_array);
+                                           distance_lut_);
 
       patterns.shared_motifs.insert(patterns.shared_motifs.end(), shared.begin(), shared.end());
     }
   }
 
   return patterns;
+}
+
+void MatrixProfiler::update_agent(const Agent* agent) {
+  // For CPU version, we don't maintain incremental state
+  // Just log that update was called
+  if (agent) {
+    std::cout << "MatrixProfiler: Agent " << agent->agent_id << " updated (CPU mode - no incremental update)\n";
+  }
+}
+
+void MatrixProfiler::batch_update(const std::vector<Agent*>& updated_agents) {
+  // For CPU version, we don't maintain incremental state
+  std::cout << "MatrixProfiler: Batch update of " << updated_agents.size()
+            << " agents (CPU mode - no incremental update)\n";
+}
+
+size_t MatrixProfiler::get_gpu_memory_usage() const {
+  return 0;  // No GPU memory in CPU mode
+}
+
+void MatrixProfiler::clear_cache() {
+  // Nothing to clear in CPU mode
+  std::cout << "MatrixProfiler: Cache cleared (CPU mode)\n";
 }
 
 // Implementation of Analysis functions
