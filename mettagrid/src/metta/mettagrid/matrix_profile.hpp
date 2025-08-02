@@ -138,7 +138,7 @@ private:
   bool lut_initialized_ = false;
 };
 
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#ifdef CUDA_DISABLED
 
 // ======================= STUB IMPLEMENTATIONS =======================
 // Used when CUDA is not available (e.g., on macOS)
@@ -214,13 +214,13 @@ inline void MatrixProfiler::clear_cache() {
   // No-op in stub mode
 }
 
-#else  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#else  // CUDA_DISABLED
 
 // ======================= CUDA IMPLEMENTATIONS =======================
 // These are defined in matrix_profile.cu when CUDA is available
 // Just declare them here - the actual implementations are in the .cu file
 
-#endif  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#endif  // CUDA_DISABLED
 
 // Utility functions for behavioral analysis
 namespace Analysis {
@@ -232,7 +232,7 @@ inline std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(
     int window_size,
     int top_k = 10,
     float exclusion_zone_factor = 0.5f) {
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#ifdef CUDA_DISABLED
   return {};
 #else
   // Implementation would be in matrix_profile.cu
@@ -246,7 +246,7 @@ inline std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(
 inline float compute_agent_similarity(const AgentMatrixProfile& profile1,
                                       const AgentMatrixProfile& profile2,
                                       int window_size) {
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#ifdef CUDA_DISABLED
   return 0.0f;
 #else
   // TODO: Implement similarity computation
@@ -257,7 +257,7 @@ inline float compute_agent_similarity(const AgentMatrixProfile& profile1,
 // Cluster agents by behavioral patterns
 inline std::vector<CrossAgentPatterns::BehaviorCluster>
 cluster_by_behavior(const std::vector<AgentMatrixProfile>& profiles, int window_size, int num_clusters = 0) {
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#ifdef CUDA_DISABLED
   return {};
 #else
   std::vector<CrossAgentPatterns::BehaviorCluster> clusters;
@@ -276,7 +276,7 @@ struct EmergentStrategy {
 
 inline std::vector<EmergentStrategy> detect_strategies(const std::vector<AgentMatrixProfile>& profiles,
                                                        const ActionDistance::ActionDistanceLUT& lut) {
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#ifdef CUDA_DISABLED
   return {};
 #else
   std::vector<EmergentStrategy> strategies;

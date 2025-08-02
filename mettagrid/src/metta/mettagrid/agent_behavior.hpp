@@ -11,16 +11,16 @@
 #include "objects/agent.hpp"
 #include "types.hpp"
 
-#ifndef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#ifndef CUDA_DISABLED
 #include <cuda_runtime.h>
 
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
+#endif
 
 #include "action_distance.hpp"
 #include "matrix_profile.hpp"
-#endif
 
 namespace AgentBehavior {
 
@@ -42,79 +42,6 @@ struct BehaviorStats {
   std::map<std::string, std::vector<GridObjectId>> clusters;
 };
 
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
-
-// ======================= STUB IMPLEMENTATION =======================
-// Used when CUDA is not available (e.g., on macOS)
-
-class BehaviorAnalyzer {
-public:
-  BehaviorAnalyzer() = default;
-
-  template <typename ActionHandlerContainer>
-  void initialize(const ActionHandlerContainer&, int) {
-    throw std::runtime_error(
-        "Behavioral analysis requires CUDA support. "
-        "Please build with CUDA enabled on a system with NVIDIA GPU.");
-  }
-
-  std::vector<DominantMotif> get_dominant_motifs(const std::vector<Agent*>&, const std::vector<int>&) {
-    throw std::runtime_error("Behavioral analysis requires CUDA support.");
-  }
-
-  BehaviorStats get_behavior_stats(const std::vector<Agent*>&) {
-    throw std::runtime_error("Behavioral analysis requires CUDA support.");
-  }
-
-  struct PerformanceStats {
-    float total_time_ms = 0;
-    float gpu_compute_time_ms = 0;
-    float memory_transfer_time_ms = 0;
-    float pattern_discovery_time_ms = 0;
-    size_t total_comparisons = 0;
-    float comparisons_per_second = 0;
-  };
-
-  PerformanceStats get_performance_stats() const {
-    return PerformanceStats{};
-  }
-};
-
-// Stub MatrixProfile namespace
-namespace MatrixProfile {
-
-struct MatrixProfileConfig {
-  std::vector<int> window_sizes = {10, 25, 50, 100};
-  int min_window_size = 4;
-  int max_window_size = 200;
-  bool use_multi_gpu = false;
-  int gpu_device_id = 0;
-  size_t max_agents_per_gpu = 128;
-};
-
-class MatrixProfiler {
-public:
-  struct PerformanceStats {
-    float total_time_ms = 0;
-    float gpu_compute_time_ms = 0;
-    float memory_transfer_time_ms = 0;
-    float pattern_discovery_time_ms = 0;
-    size_t total_comparisons = 0;
-    float comparisons_per_second = 0;
-  };
-
-  MatrixProfiler(const MatrixProfileConfig& = MatrixProfileConfig{}) {
-    throw std::runtime_error("Matrix Profile requires CUDA support.");
-  }
-};
-
-}  // namespace MatrixProfile
-
-#else  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
-
-// ======================= FULL IMPLEMENTATION =======================
-// Used when CUDA is available
-
 class BehaviorAnalyzer {
 private:
   ActionDistance::ActionDistanceLUT distance_lut_;
@@ -122,6 +49,7 @@ private:
   MatrixProfile::MatrixProfileConfig config_;
   bool initialized_ = false;
 
+#ifndef CUDA_DISABLED
   // Check for GPU availability and configure
   static MatrixProfile::MatrixProfileConfig configure_for_gpus(int num_agents) {
     // Check for CUDA devices
@@ -193,6 +121,7 @@ private:
 
     return cfg;
   }
+#endif
 
 public:
   BehaviorAnalyzer() = default;
@@ -205,13 +134,21 @@ public:
       return;
     }
 
+#ifdef CUDA_DISABLED
+    // Configure for CPU
+    config_.use_multi_gpu = false;
+
+    std::cout << "BehaviorAnalyzer initialized with CPU fallback\n";
+    std::cout << "Note: CPU implementation will be slower than GPU for large datasets\n";
+#else
     // Configure for available GPUs (will exit if none found)
     config_ = configure_for_gpus(num_agents);
+#endif
 
     // Build distance LUT
     distance_lut_.register_actions(action_handlers);
 
-    // Create profiler with GPU configuration
+    // Create profiler with configuration
     profiler_ = std::make_unique<MatrixProfile::MatrixProfiler>(config_);
     profiler_->initialize(distance_lut_);
 
@@ -248,9 +185,13 @@ public:
     // Log analysis info
     std::cout << "Analyzing " << valid_agents.size() << " agents with window sizes: ";
     for (int ws : windows) std::cout << ws << " ";
+#ifdef CUDA_DISABLED
+    std::cout << " (CPU mode)\n";
+#else
     std::cout << "\n";
+#endif
 
-    // Compute matrix profiles on GPU
+    // Compute matrix profiles
     auto profiles = profiler_->compute_profiles(valid_agents, windows);
 
     // Extract dominant motifs
@@ -437,13 +378,11 @@ private:
   }
 };
 
-#endif  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
-
 }  // namespace AgentBehavior
 
 // Utility functions available regardless of CUDA support
 inline bool is_cuda_available() {
-#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+#ifdef CUDA_DISABLED
   return false;
 #else
   int device_count = 0;
@@ -454,21 +393,46 @@ inline bool is_cuda_available() {
 
 inline std::string get_cuda_unavailable_message() {
 #ifdef __APPLE__
-  return "CUDA is not supported on macOS. Behavioral analysis features are disabled.";
-#elif defined(CUDA_BEHAVIORAL_ANALYSIS_DISABLED)
-  return "CUDA not found. Please install CUDA Toolkit and rebuild with CUDA support.";
+  return "CUDA is not supported on macOS. Using CPU implementation for behavioral analysis.";
+#elif defined(CUDA_DISABLED)
+  return "CUDA not found. Using CPU implementation for behavioral analysis (may be slower for large datasets).";
 #else
   int device_count = 0;
   cudaError_t err = cudaGetDeviceCount(&device_count);
 
   if (err != cudaSuccess) {
-    return std::string("CUDA error: ") + cudaGetErrorString(err);
+    return std::string("CUDA error: ") + cudaGetErrorString(err) +
+           ". Using CPU implementation for behavioral analysis.";
   } else if (device_count == 0) {
-    return "No CUDA-capable devices found. Please ensure NVIDIA GPU drivers are installed.";
+    return "No CUDA-capable devices found. Using CPU implementation for behavioral analysis.";
   }
 
   return "CUDA is available";
 #endif
+}
+
+inline std::string get_behavior_analysis_info() {
+  std::stringstream info;
+
+#ifdef CUDA_DISABLED
+  info << "Behavioral Analysis: CPU implementation\n";
+#ifdef _OPENMP
+  info << "  Parallelization: OpenMP enabled\n";
+#else
+  info << "  Parallelization: Single-threaded\n";
+#endif
+  info << "  Performance: Suitable for small to medium datasets (<1000 agents)\n";
+  info << "  Note: For large-scale analysis, consider using a CUDA-enabled system\n";
+#else
+  if (is_cuda_available()) {
+    info << "Behavioral Analysis: GPU-accelerated (CUDA)\n";
+    info << "  Performance: Optimized for large datasets\n";
+  } else {
+    info << "Behavioral Analysis: CPU fallback (CUDA runtime not available)\n";
+  }
+#endif
+
+  return info.str();
 }
 
 #endif  // AGENT_BEHAVIOR_HPP_
