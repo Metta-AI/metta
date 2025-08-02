@@ -148,6 +148,14 @@ class MettaAgent(nn.Module):
             if hasattr(component, "_memory"):
                 self.components_with_memory.append(name)
 
+        all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
+        if len(all_names) > len(set(all_names)):
+            from collections import Counter
+
+            counts = Counter(all_names)
+            duplicates = [name for name, count in counts.items() if count > 1]
+            raise ValueError(f"Duplicate component names found: {duplicates}")
+
         self.components = self.components.to(device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
@@ -158,9 +166,7 @@ class MettaAgent(nn.Module):
             self.components[name].reset_memory()
 
     def get_agent_experience_spec(self) -> TensorDict:
-        """Get the specification for the experience buffer."""
-        # Note: These tensors are unbatched and on CPU.
-        # The experience buffer will expand and move them to the correct device.
+        """Get the specification to pass in for the init of experience buffer."""
         return TensorDict(
             {
                 "env_obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
@@ -370,7 +376,7 @@ class MettaAgent(nn.Module):
             assert_shape(logits, ("BT", "A"), "inference_logits")
 
         # Sample actions
-        action_logit_index, action_log_prob, _, _ = sample_actions(logits)
+        action_logit_index, action_log_prob, _, full_log_probs = sample_actions(logits)
 
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "action_logit_index")
@@ -385,6 +391,7 @@ class MettaAgent(nn.Module):
         td["actions"] = action
         td["act_log_prob"] = action_log_prob
         td["values"] = value.flatten()
+        td["full_log_probs"] = full_log_probs
 
         return td
 

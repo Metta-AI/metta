@@ -27,7 +27,6 @@ class ObsTokenPadStrip(LayerBase):
     ) -> None:
         super().__init__(**cfg)
         self._obs_shape = obs_shape
-        self._M = obs_shape[0]
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
@@ -52,16 +51,7 @@ class ObsTokenPadStrip(LayerBase):
     def _forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td["env_obs"]
-
-        B = observations.shape[0]
-        TT = 1
-        td["_B_"] = B
-        td["_TT_"] = TT
-        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = observations.shape[1]
-            td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-        td["_BxTT_"] = B * TT
+        M = observations.shape[1]
 
         # Apply feature remapping if active
         if self._remapping_active:
@@ -79,10 +69,10 @@ class ObsTokenPadStrip(LayerBase):
         # find the global max flip‐point as a 0‐d tensor
         max_flip = flip_pts.max()
         if max_flip == 0:
-            max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
+            max_flip = max_flip + M  # hack to avoid 0. should instead grab
 
         # build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(self._M, device=obs_mask.device)
+        positions = torch.arange(M, device=obs_mask.device)
 
         # make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool

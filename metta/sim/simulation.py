@@ -25,7 +25,6 @@ from omegaconf import OmegaConf
 from tensordict import TensorDict
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
@@ -236,8 +235,6 @@ class Simulation:
         logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
         self._obs, _ = self._vecenv.reset()
-        self._policy_state = PolicyState()
-        self._npc_state = PolicyState()
         self._env_done_flags = [False] * self._num_envs
 
         self._t0 = time.time()
@@ -289,14 +286,14 @@ class Simulation:
             my_obs = obs_t[self._policy_idxs]
             my_obs = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[:-1])
             policy = self._policy_pr.policy
-            policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
+            policy_actions, _, _, _, _ = policy(my_obs)
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
                 npc_obs = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[:-1])
                 npc_policy = self._npc_pr.policy
                 try:
-                    npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
+                    npc_actions, _, _, _, _ = npc_policy(npc_obs)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
@@ -481,10 +478,6 @@ class Simulation:
         if len(self._vecenv.envs) != 1:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
-
-    def get_policy_state(self):
-        """Get the policy state."""
-        return self._policy_state
 
 
 @dataclass

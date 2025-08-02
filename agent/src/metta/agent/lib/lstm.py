@@ -29,9 +29,8 @@ class LSTM(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, obs_shape, hidden_size, **cfg):
+    def __init__(self, hidden_size, **cfg):
         super().__init__(**cfg)
-        self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self.hidden_size = hidden_size
         self.num_layers = self._nn_params["num_layers"]
 
