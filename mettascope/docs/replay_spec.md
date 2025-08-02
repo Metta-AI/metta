@@ -30,6 +30,7 @@ These are the constants that are stored at the top of the replay.
 - `num_agents` - The number of agents in the replay.
 - `max_steps` - The maximum number of steps in the replay.
 - `map_size` - The size of the map. No object may move outside of the map bounds.
+- `file_name` - The name of the replay file. This helps identify the replay when processing multiple files.
 
 ```json
 {
@@ -37,6 +38,7 @@ These are the constants that are stored at the top of the replay.
   "num_agents": 24,
   "max_steps": 1000,
   "map_size": [62, 62],
+  "file_name": "example_replay.json.z",
   ...
 }
 ```
@@ -80,8 +82,8 @@ number, boolean, or a list of numbers.
 
 ```json
 {
-  "type_id": 2,
   "id": 99,
+  "type_id": 2,
   "agent_id": 0,
   "rotation": [[0, 1], [10, 2], [20, 3]],
   "position": [[0, [10, 10]], [1, [11, 10]], [2, [12, 11]]],
@@ -117,11 +119,10 @@ of item_IDs. It starts empty and then adds items at steps 100, 200, etc.
 
 Here are the keys supported for both agents and objects:
 
-- `type_id` - Usually a constant. The type of the object that references the `type_names` array.
 - `id` - Usually a constant. The id of the object.
-- `position` - The [x, y] position of the object (sometimes called the column and row)
-- `layer` - The layer of the object.
-- `rotation` - The rotation of the object.
+- `type_id` - Usually a constant. The type of the object that references the `type_names` array.
+- `position` - The [x, y, z] position of the object (sometimes called the column and row)
+- `orientation` - The rotation of the object.
 
 - `inventory` - The current list of item_IDs that map to the `item_names` array. Example: `[0, 0, 1]`. If
   `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread. The count is how many times the item
@@ -130,6 +131,7 @@ Here are the keys supported for both agents and objects:
   and the inventory state at that time and into the future.
 
 - `inventory_max` - Usually a constant. Maximum number of items that can be in the inventory.
+- `color` - The color of the object. Must be an integer between 0 and 255.
 
 Agent specific keys:
 
