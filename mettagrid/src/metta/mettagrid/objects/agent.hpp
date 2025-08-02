@@ -73,6 +73,9 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
+  GridLocation prev_location;
+  std::string prev_action_name;
+  unsigned int steps_without_motion;
 
   // Action history tracking with ring buffer
   static constexpr size_t MAX_HISTORY_LENGTH = 1024;
@@ -97,6 +100,9 @@ public:
         stats(),  // default constructor
         current_stat_reward(0),
         reward(nullptr),
+        prev_location(r, c, GridLayer::AgentLayer),
+        prev_action_name(""),
+        steps_without_motion(0),
         history_count(0),
         action_history{},
         action_arg_history{},
