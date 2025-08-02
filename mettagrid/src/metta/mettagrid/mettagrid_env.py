@@ -338,7 +338,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Clear episode ID
         self._episode_id = None
 
-        self.timer.stop("process_trial_stats")
+        self.timer.stop("process_episode_stats")
 
     def _write_episode_stats(
         self, stats: Dict[str, Any], episode_rewards: np.ndarray, replay_url: Optional[str]
