@@ -58,11 +58,11 @@ class PolicyBase(nn.Module, ABC):
 class MettaAgent(nn.Module):
     """Clean and simplified MettaAgent implementation."""
 
-    def __init__(self, components: nn.ModuleDict, config: DictConfig, policy: Optional[PolicyBase] = None):
+    def __init__(self, components: nn.ModuleDict, config: DictConfig, policy: Optional[PolicyBase] = None, device = 'cpu'):
         super().__init__()
         self.components = components
         self.config = config
-        self.device = 'cpu'
+        self.device = device
 
         # Extract key configuration values
         self.hidden_size = self.config.components._core_.output_size
@@ -384,6 +384,7 @@ class MettaAgentBuilder:
         self.hidden_size = self.cfg.components._core_.output_size
         self.core_num_layers = self.cfg.components._core_.nn_params.num_layers
         self.clip_range = self.cfg.clip_range
+        self.device = device
 
         # Validate and extract observation key
         if not (hasattr(self.cfg.observations, "obs_key") and self.cfg.observations.obs_key is not None):
@@ -463,7 +464,7 @@ class MettaAgentBuilder:
                 else:
                     raise TypeError("Policy must be PolicyBase instance or have '_target_' field")
 
-            agent = MettaAgent(components=self.components, config=self.cfg, policy=policy)
+            agent = MettaAgent(components=self.components, config=self.cfg, policy=policy, device=self.device)
             logger.info(f"Built MettaAgent with {len(self.components)} components")
             return agent
 
