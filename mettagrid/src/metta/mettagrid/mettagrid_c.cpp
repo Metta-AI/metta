@@ -484,12 +484,6 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
-  // Clear action tracking from previous episodes
-  ActionHandler::clear_all_tracking();
-  for (auto& handler : _action_handlers) {
-    handler->clear_tracking();
-  }
-
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
@@ -626,7 +620,10 @@ py::dict MettaGrid::grid_objects() {
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
-    obj_dict["location"] = py::make_tuple(obj->location.r, obj->location.c, obj->location.layer);
+    // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
+    // We define that for location: x is column, y is row, and z is layer.
+    // Note: it might be different for matrix computations.
+    obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r, obj->location.layer);
     obj_dict["is_swappable"] = obj->swappable();
 
     obj_dict["r"] = obj->location.r;          // To remove
