@@ -277,7 +277,7 @@ private:
       for (int window_size : window_sizes) {
         if (window_size > static_cast<int>(seq_length)) continue;
 
-        size_t profile_length = seq_length - window_size + 1;
+        size_t profile_length = seq_length - static_cast<size_t>(window_size) + 1;
         std::vector<uint16_t> profile(profile_length, UINT16_MAX);
         std::vector<uint32_t> indices(profile_length, 0);
 

@@ -78,12 +78,13 @@ private:
               << "  Compute capability: " << prop.major << "." << prop.minor << "\n";
 
     // Calculate agents per GPU
-    size_t agents_per_gpu = (num_agents + device_count - 1) / device_count;
+    size_t agents_per_gpu =
+        (static_cast<size_t>(num_agents) + static_cast<size_t>(device_count) - 1) / static_cast<size_t>(device_count);
 
     // Verify memory is sufficient
     size_t memory_per_agent = 5 * 1024;  // 5KB per agent (data + workspace)
     size_t required_memory = agents_per_gpu * memory_per_agent;
-    size_t available_memory = prop.totalGlobalMem * 0.8;  // Use 80% of memory
+    size_t available_memory = static_cast<size_t>(prop.totalGlobalMem * 0.8);  // Use 80% of memory
 
     if (required_memory > available_memory) {
       std::cerr << "ERROR: Insufficient GPU memory for " << agents_per_gpu << " agents per GPU\n";
@@ -128,7 +129,7 @@ public:
 
   // Initialize with action handlers from MettaGrid
   template <typename ActionHandlerContainer>
-  void initialize(const ActionHandlerContainer& action_handlers, int num_agents) {
+  void initialize(const ActionHandlerContainer& action_handlers, int /* num_agents */) {
     if (initialized_) {
       std::cerr << "Warning: BehaviorAnalyzer already initialized\n";
       return;
@@ -137,6 +138,7 @@ public:
 #ifdef CUDA_DISABLED
     // Configure for CPU
     config_.use_multi_gpu = false;
+    config_.force_cpu = true;
 
     std::cout << "BehaviorAnalyzer initialized with CPU fallback\n";
     std::cout << "Note: CPU implementation will be slower than GPU for large datasets\n";
@@ -252,7 +254,8 @@ public:
           entropy -= freq * std::log2(freq);
         }
       }
-      stats.behavioral_diversity = entropy / std::log2(distance_lut_.get_action_names().size());
+      stats.behavioral_diversity =
+          static_cast<float>(entropy / std::log2(static_cast<double>(distance_lut_.get_action_names().size())));
     }
 
     return stats;
@@ -312,9 +315,9 @@ private:
       // Extract and encode the pattern
       std::vector<uint8_t> pattern;
       for (int i = 0; i < window_size; i++) {
-        if (top_motif.start_idx + static_cast<size_t>(i) < actions.size()) {
-          uint8_t encoded =
-              distance_lut_.encode_action(actions[top_motif.start_idx + i], args[top_motif.start_idx + i]);
+        size_t idx = static_cast<size_t>(top_motif.start_idx + static_cast<uint32_t>(i));
+        if (idx < actions.size()) {
+          uint8_t encoded = distance_lut_.encode_action(actions[idx], args[idx]);
           pattern.push_back(encoded);
         }
       }
