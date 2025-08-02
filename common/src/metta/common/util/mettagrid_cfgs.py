@@ -21,16 +21,36 @@ class MettagridCfgFileMetadata:
 
     @staticmethod
     def from_path(path: str) -> "MettagridCfgFileMetadata":
-        kind = "unknown"
-
-        # Detect config kind with heuristics.
-        # We could load the cfg and parse it, but Hydra takes too long for 150+ configs.
+        # Fast path-based classification first
         if path.startswith("game/map_builder/"):
             kind = "map"
         elif path.startswith("curriculum/"):
             kind = "curriculum"
         else:
             kind = "env"
+
+        # Only do expensive content-based detection for files that might be misclassified
+        # This includes files in navigation/training/ that might be curriculums
+        if (
+            path.startswith("navigation/training/")
+            or path.startswith("multiagent/experiments/")
+            or path.startswith("cooperation/experimental/")
+            or path.startswith("navigation_sequence/experiments/")
+        ):
+            try:
+                with hydra.initialize(config_path="../../../../../configs", version_base=None):
+                    cfg = config_from_path(METTAGRID_CFG_ROOT + "/" + path)
+                    if isinstance(cfg, DictConfig):
+                        target = cfg.get("_target_", "")
+                        # Check if it's a curriculum
+                        if "curriculum" in target.lower():
+                            kind = "curriculum"
+                        # Check if it's a map generator
+                        elif "MapGen" in target or ("map" in target.lower() and "scene" in target.lower()):
+                            kind = "map"
+            except Exception:
+                # If we can't load the config, keep the path-based classification
+                pass
 
         return MettagridCfgFileMetadata(path=path, kind=kind)
 
@@ -96,8 +116,14 @@ class MettagridCfgFile:
         if self.metadata.kind == "map":
             map_cfg = self.cfg
         elif self.metadata.kind == "env":
-            map_cfg = self.cfg.game.map_builder
+            # Check if the config has a game section before trying to access it
+            if hasattr(self.cfg, "game") and hasattr(self.cfg.game, "map_builder"):
+                map_cfg = self.cfg.game.map_builder
+            else:
+                raise ValueError(
+                    f"Config {self.metadata.path} is an environment config but doesn't have a game.map_builder section"
+                )
         else:
-            raise ValueError(f"Config {self.metadata.path} is not a map or env")
+            raise ValueError(f"Config {self.metadata.path} is not a map or env (it's a {self.metadata.kind})")
 
         return map_cfg
