@@ -243,6 +243,12 @@ jobs:
           # Base pytest arguments (without coverage file specification)
           PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
 
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS/-v/-vv}"  # upgrade verbosity
+            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS} --full-trace"
+            export PYTHONFAULTHANDLER=1
+          fi
+
           COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
 
           # Handle sharding for larger packages
