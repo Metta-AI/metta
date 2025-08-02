@@ -5,7 +5,7 @@ from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.util.hydra import config_from_path
 
 
-def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> "Curriculum":
+def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> Curriculum:
     if "_target_" in config_from_path(config_path, None):
         return hydra.utils.instantiate(
             # (a) Don't recurse here. We want one level of instantiation so we get the curriculum object, but
