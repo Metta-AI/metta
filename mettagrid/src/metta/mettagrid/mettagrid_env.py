@@ -493,10 +493,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return features
 
     @property
-    def global_features(self):
-        return []
-
-    @property
     @override
     def render_mode(self):
         return self._render_mode

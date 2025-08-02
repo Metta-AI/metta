@@ -536,11 +536,6 @@ class MettaGridEnv(ABC):
             raise RuntimeError("Environment not initialized")
         return self._core_env.action_success
 
-    @property
-    def global_features(self) -> List[Any]:
-        """Global features for compatibility."""
-        return []
-
     # Backward compatibility properties
     @property
     def _c_env(self):

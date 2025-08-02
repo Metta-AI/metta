@@ -40,7 +40,6 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
         obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
-        global_features=env.global_features,
         device=env_cfg.device,
         **dict_agent_cfg,
     )
