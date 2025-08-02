@@ -17,6 +17,7 @@ from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
+from metta.rl.curriculum import CurriculumManager
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
 from tools.sweep_config_utils import (
@@ -91,6 +92,18 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
+    # Create CurriculumManager on rank 0
+    curriculum_manager = None
+    if os.environ.get("RANK", "0") == "0" and hasattr(cfg, "curriculum") and cfg.curriculum.get("enabled", False):
+        curriculum_manager = CurriculumManager(
+            pool_size=cfg.curriculum.get("pool_size", 1024),
+            min_runs=cfg.curriculum.get("min_runs", 10),
+            name=cfg.curriculum.get("name", "metta/curriculum/tasks"),
+        )
+        logger.info(f"Created CurriculumManager with name: {curriculum_manager.name}")
+        # Share the curriculum name via environment variable for workers
+        os.environ["METTA_CURRICULUM_NAME"] = curriculum_manager.get_shared_memory_names()
+
     policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client is not None:
@@ -107,6 +120,11 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     )
     trainer.train()
     trainer.close()
+
+    # Clean up curriculum manager
+    if curriculum_manager is not None:
+        curriculum_manager.cleanup()
+        logger.info("Cleaned up CurriculumManager")
 
 
 @record

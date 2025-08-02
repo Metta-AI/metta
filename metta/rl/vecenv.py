@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Optional
 
 import pufferlib
@@ -11,6 +12,7 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.curriculum import CurriculumClient, CurriculumEnv, create_task_generator_from_config
 
 logger = logging.getLogger("vecenv")
 
@@ -25,6 +27,7 @@ def make_env_func(
     is_training: bool = False,
     is_serial: bool = False,
     run_dir: str | None = None,
+    curriculum_config: dict | None = None,
     **kwargs,
 ):
     if not is_serial:
@@ -32,16 +35,50 @@ def make_env_func(
         register_resolvers()
         init_logging(run_dir=run_dir)
 
-    # Create the environment instance
-    env = MettaGridEnv(
-        curriculum,
-        render_mode=render_mode,
-        buf=buf,
-        stats_writer=stats_writer,
-        replay_writer=replay_writer,
-        is_training=is_training,
-        **kwargs,
-    )
+    # Check if curriculum learning is enabled via environment variable
+    curriculum_name = os.environ.get("METTA_CURRICULUM_NAME")
+
+    if curriculum_name and curriculum_config:
+        # Create CurriculumClient for this worker
+        client = CurriculumClient(
+            curriculum_name=curriculum_name,
+            pool_size=curriculum_config.get("pool_size", 1024),
+            num_samples=curriculum_config.get("num_samples", 20),
+            min_runs=curriculum_config.get("min_runs", 10),
+            selection_strategy=curriculum_config.get("selection_strategy", "epsilon_greedy"),
+            epsilon=curriculum_config.get("epsilon", 0.1),
+            temperature=curriculum_config.get("temperature", 1.0),
+            ucb_c=curriculum_config.get("ucb_c", 2.0),
+        )
+
+        # Create TaskGenerator from config
+        generator_config = curriculum_config.get("generator", {})
+        task_generator = create_task_generator_from_config(generator_config)
+
+        # Create CurriculumEnv
+        env = CurriculumEnv(
+            curriculum_client=client,
+            task_generator=task_generator,
+            render_mode=render_mode,
+            buf=buf,
+            stats_writer=stats_writer,
+            replay_writer=replay_writer,
+            is_training=is_training,
+            **kwargs,
+        )
+        logger.info(f"Created CurriculumEnv with curriculum '{curriculum_name}'")
+    else:
+        # Create regular MettaGridEnv
+        env = MettaGridEnv(
+            curriculum,
+            render_mode=render_mode,
+            buf=buf,
+            stats_writer=stats_writer,
+            replay_writer=replay_writer,
+            is_training=is_training,
+            **kwargs,
+        )
+
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
         raise ValueError("MettaGridEnv._c_env is None after hydra instantiation")
@@ -60,6 +97,7 @@ def make_vecenv(
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
     run_dir: str | None = None,
+    curriculum_config: dict | None = None,
     **kwargs,
 ):
     # Determine the vectorization class
@@ -86,6 +124,7 @@ def make_vecenv(
         "is_training": is_training,
         "is_serial": is_serial,
         "run_dir": run_dir,
+        "curriculum_config": curriculum_config,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
