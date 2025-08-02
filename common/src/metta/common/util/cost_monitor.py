@@ -131,9 +131,9 @@ def main():
     cost_info = get_cost_info()
     if cost_info:
         instance_hourly_cost = cost_info["instance_hourly_cost"]
-        num_nodes_env = os.environ.get("NUM_NODES")
+        num_nodes_env = os.environ.get("SKYPILOT_NUM_NODES")
         if num_nodes_env is None:
-            logger.warning("NUM_NODES environment variable not set; cost info will not be provided.")
+            logger.warning("SKYPILOT_NUM_NODES environment variable not set; cost info will not be provided.")
             return
         num_nodes = int(num_nodes_env)
         total_hourly_cost = instance_hourly_cost * num_nodes
