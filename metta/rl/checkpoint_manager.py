@@ -8,7 +8,8 @@ from typing import Any, Tuple
 import numpy as np
 import torch
 
-from metta.agent.metta_agent import DistributedMettaAgent, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.metta_agent_builder import make_policy
 from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalRewardSummary

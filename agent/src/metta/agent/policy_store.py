@@ -23,7 +23,7 @@ import torch
 import wandb
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import make_policy
+from metta.agent.metta_agent_builder import make_policy
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord

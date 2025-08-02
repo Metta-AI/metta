@@ -4,7 +4,7 @@ import torch
 from gym import spaces
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import PufferlibRecurrentPolicy, MettaAgentBuilder
+from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger("policy")
@@ -179,7 +179,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         policy = Recurrent(env=env, policy=policy, input_size=512, hidden_size=hidden_size)
     else:
         # Use provided configuration
-        policy = instantiate(pytorch_cfg, env=env, policy=None)
+        policy = instantiate(pytorch_cfg, env=env)
 
     try:
         policy.load_state_dict(weights)
@@ -199,8 +199,8 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         **agent_cfg,
     )
 
-    base_policy = PufferlibRecurrentPolicy(env)
-    metta_agent_policy = builder.build(policy=base_policy)
+    # base_policy = PufferlibRecurrentPolicy(env)
+    metta_agent_policy = builder.build(policy=policy)
 
     logger.info(f"Successfully loaded policy from {path}")
     return metta_agent_policy

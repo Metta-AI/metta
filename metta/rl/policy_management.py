@@ -7,7 +7,8 @@ from pathlib import Path
 import torch
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
+from metta.agent.metta_agent_builder import make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import wait_for_file
@@ -44,6 +45,9 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
 
 def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
+
+    logger.info(f"Env Match {env}")
+
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):
         agent = policy
