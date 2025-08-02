@@ -1,0 +1,565 @@
+check-context	UNKNOWN STEP	﻿2025-07-29T14:12:40.8321834Z Current runner version: '2.326.0'
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8346503Z ##[group]Runner Image Provisioner
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8347327Z Hosted Compute Agent
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8347861Z Version: 20250711.363
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8348569Z Commit: 6785254374ce925a23743850c1cb91912ce5c14c
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8349574Z Build Date: 2025-07-11T20:04:25Z
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8350153Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8350767Z ##[group]Operating System
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8351334Z Ubuntu
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8351776Z 24.04.2
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8352292Z LTS
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8352773Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8353214Z ##[group]Runner Image
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8353833Z Image: ubuntu-24.04
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8354303Z Version: 20250720.1.0
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8355283Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250720.1/images/ubuntu/Ubuntu2404-Readme.md
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8356859Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250720.1
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8357964Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8359512Z ##[group]GITHUB_TOKEN Permissions
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8361625Z Contents: read
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8362223Z Metadata: read
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8362700Z Packages: read
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8363193Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8365158Z Secret source: Actions
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8366260Z Prepare workflow directory
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8703045Z Prepare all required actions
+check-context	UNKNOWN STEP	2025-07-29T14:12:40.8743255Z Getting action download info
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.2287499Z ##[group]Download immutable action package 'actions/checkout@v4'
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.2288452Z Version: 4.2.2
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.2289693Z Digest: sha256:ccb2698953eaebd21c7bf6268a94f9c26518a7e38e27e0b83c1fe1ad049819b1
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.2290860Z Source commit SHA: 11bd71901bbe5b1630ceea73d27597364c9af683
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.2291563Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.3970005Z Complete job name: check-context
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4643047Z ##[group]Run actions/checkout@v4
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4643862Z with:
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4644270Z   repository: Metta-AI/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4644870Z   token: ***
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4645233Z   ssh-strict: true
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4645619Z   ssh-user: git
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4646010Z   persist-credentials: true
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4646447Z   clean: true
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4646827Z   sparse-checkout-cone-mode: true
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4647295Z   fetch-depth: 1
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4647670Z   fetch-tags: false
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4648054Z   show-progress: true
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4648444Z   lfs: false
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4648800Z   submodules: false
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4649507Z   set-safe-directory: true
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.4650215Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5707773Z Syncing repository: Metta-AI/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5709775Z ##[group]Getting Git version info
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5710430Z Working directory is '/home/runner/work/metta/metta'
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5711392Z [command]/usr/bin/git version
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5746334Z git version 2.50.1
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5772000Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5785816Z Temporarily overriding HOME='/home/runner/work/_temp/af57ce84-1a93-4106-8b83-28cf4f0f8b89' before making global git config changes
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5787975Z Adding repository directory to the temporary git global config as a safe directory
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5790767Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5823007Z Deleting the contents of '/home/runner/work/metta/metta'
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5826492Z ##[group]Initializing the repository
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5830605Z [command]/usr/bin/git init /home/runner/work/metta/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5890821Z hint: Using 'master' as the name for the initial branch. This default branch name
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5892096Z hint: is subject to change. To configure the initial branch name to use in all
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5893046Z hint: of your new repositories, which will suppress this warning, call:
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5894131Z hint:
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5894943Z hint: 	git config --global init.defaultBranch <name>
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5895529Z hint:
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5896083Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5897004Z hint: 'development'. The just-created branch can be renamed via this command:
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5897734Z hint:
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5898116Z hint: 	git branch -m <name>
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5898723Z hint:
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5899869Z hint: Disable this message with "git config set advice.defaultBranchName false"
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5900847Z Initialized empty Git repository in /home/runner/work/metta/metta/.git/
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5904360Z [command]/usr/bin/git remote add origin https://github.com/Metta-AI/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5933658Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5934351Z ##[group]Disabling automatic garbage collection
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5937597Z [command]/usr/bin/git config --local gc.auto 0
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5964325Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5964980Z ##[group]Setting up auth
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5971189Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.5999684Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.6263904Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.6292282Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.6510644Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.6545867Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.6546872Z ##[group]Fetching the repository
+check-context	UNKNOWN STEP	2025-07-29T14:12:41.6554991Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +82960b16ae7dc35384de00f7887aca7e889f0ea7:refs/remotes/pull/1774/merge
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5577997Z From https://github.com/Metta-AI/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5579875Z  * [new ref]         82960b16ae7dc35384de00f7887aca7e889f0ea7 -> pull/1774/merge
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5609871Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5611150Z ##[group]Determining the checkout info
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5612655Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5614860Z [command]/usr/bin/git sparse-checkout disable
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5657369Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5686515Z ##[group]Checking out the ref
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.5690080Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1774/merge
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7181208Z Note: switching to 'refs/remotes/pull/1774/merge'.
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7182350Z 
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7183021Z You are in 'detached HEAD' state. You can look around, make experimental
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7184601Z changes and commit them, and you can discard any commits you make in this
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7185826Z state without impacting any branches by switching back to a branch.
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7186427Z 
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7186870Z If you want to create a new branch to retain commits you create, you may
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7187742Z do so (now or later) by using -c with the switch command. Example:
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7188252Z 
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7188458Z   git switch -c <new-branch-name>
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7188805Z 
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7189262Z Or undo this operation with:
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7189632Z 
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7189803Z   git switch -
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7190096Z 
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7190587Z Turn off this advice by setting config variable advice.detachedHead to false
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7191356Z 
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7192084Z HEAD is now at 82960b1 Merge 061d163aab14f12f028a36e880118314dbb01622 into 6932e08ffdb7e72a31b602634662fe4170fc143d
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7195189Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7233645Z [command]/usr/bin/git log -1 --format=%H
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7255139Z 82960b16ae7dc35384de00f7887aca7e889f0ea7
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7533273Z Prepare all required actions
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7613873Z ##[group]Run ./.github/actions/detect-external-pr
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7614631Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7745462Z ##[group]Run # Detect the context
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7746190Z [36;1m# Detect the context[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7746775Z [36;1mIS_FORK="false"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7747345Z [36;1mIS_DEPENDABOT="false"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7747990Z [36;1mHEAD_REPO="Metta-AI/metta"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7748664Z [36;1mBASE_REPO="Metta-AI/metta"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7749471Z [36;1m[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7749906Z [36;1m# Determine if external[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7751012Z [36;1mif [[ "$IS_FORK" == "true" ]] || [[ "$IS_DEPENDABOT" == "true" ]] || [[ "$HEAD_REPO" != "$BASE_REPO" && -n "$HEAD_REPO" ]]; then[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7752240Z [36;1m  echo "is_external=true" >> $GITHUB_OUTPUT[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7753412Z [36;1m  echo "::notice::🔓 Running on external PR - external services will be skipped"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7754406Z [36;1melse[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7754956Z [36;1m  echo "is_external=false" >> $GITHUB_OUTPUT[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7755934Z [36;1m  echo "::notice::🔒 Running on internal PR - all services enabled"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7756802Z [36;1mfi[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7757237Z [36;1m[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7757699Z [36;1m# Detailed logging for debugging[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7758420Z [36;1mecho "::group::PR Context Details"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7759205Z [36;1mecho "Is Fork: $IS_FORK"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7759870Z [36;1mecho "Is Dependabot: $IS_DEPENDABOT"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7760560Z [36;1mecho "Actor: badjacent"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7761161Z [36;1mecho "Head Repo: $HEAD_REPO"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7761793Z [36;1mecho "Base Repo: $BASE_REPO"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7762458Z [36;1mecho "Event Name: pull_request"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7763108Z [36;1mecho "PR Number: 1774"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7763673Z [36;1mecho "::endgroup::"[0m
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7797074Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7797913Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7886656Z ##[notice]🔒 Running on internal PR - all services enabled
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7888079Z ##[group]PR Context Details
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7888624Z Is Fork: false
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7889358Z Is Dependabot: false
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7889832Z Actor: badjacent
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7890290Z Head Repo: Metta-AI/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7890836Z Base Repo: Metta-AI/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7891366Z Event Name: pull_request
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7891860Z PR Number: 1774
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.7892642Z ##[endgroup]
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.8075901Z Post job cleanup.
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.8997393Z [command]/usr/bin/git version
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9033004Z git version 2.50.1
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9075722Z Temporarily overriding HOME='/home/runner/work/_temp/4d17dfd0-fab6-4583-b47e-86baa44cbc92' before making global git config changes
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9078220Z Adding repository directory to the temporary git global config as a safe directory
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9087957Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9121673Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9154472Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9380487Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9400455Z http.https://github.com/.extraheader
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9413997Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9446395Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9776336Z Evaluate and set job outputs
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9782734Z Set output 'is_external'
+check-context	UNKNOWN STEP	2025-07-29T14:12:42.9785167Z Cleaning up orphan processes
+asana_integration	UNKNOWN STEP	﻿2025-07-29T14:12:48.0571141Z Current runner version: '2.326.0'
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0608320Z ##[group]Runner Image Provisioner
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0609884Z Hosted Compute Agent
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0610868Z Version: 20250711.363
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0611803Z Commit: 6785254374ce925a23743850c1cb91912ce5c14c
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0613019Z Build Date: 2025-07-11T20:04:25Z
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0614246Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0615164Z ##[group]Operating System
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0616265Z Ubuntu
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0617054Z 24.04.2
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0617737Z LTS
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0618614Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0619469Z ##[group]Runner Image
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0620321Z Image: ubuntu-24.04
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0621247Z Version: 20250720.1.0
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0622990Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250720.1/images/ubuntu/Ubuntu2404-Readme.md
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0625975Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250720.1
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0627929Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0630137Z ##[group]GITHUB_TOKEN Permissions
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0633042Z Actions: read
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0634243Z Contents: read
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0635085Z Metadata: read
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0636145Z PullRequests: write
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0637037Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0640821Z Secret source: Actions
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.0642368Z Prepare workflow directory
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.1160811Z Prepare all required actions
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.1220274Z Getting action download info
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.5035831Z ##[group]Download immutable action package 'actions/checkout@v4'
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.5037147Z Version: 4.2.2
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.5038286Z Digest: sha256:ccb2698953eaebd21c7bf6268a94f9c26518a7e38e27e0b83c1fe1ad049819b1
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.5039528Z Source commit SHA: 11bd71901bbe5b1630ceea73d27597364c9af683
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.5040328Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.6713133Z Complete job name: asana_integration
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7414307Z ##[group]Run actions/checkout@v4
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7415320Z with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7415783Z   repository: Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7416524Z   token: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7416949Z   ssh-strict: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7417389Z   ssh-user: git
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7417829Z   persist-credentials: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7418311Z   clean: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7418762Z   sparse-checkout-cone-mode: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7419302Z   fetch-depth: 1
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7419728Z   fetch-tags: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7420163Z   show-progress: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7420610Z   lfs: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7421023Z   submodules: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7421469Z   set-safe-directory: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.7422179Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8498059Z Syncing repository: Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8500082Z ##[group]Getting Git version info
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8500818Z Working directory is '/home/runner/work/metta/metta'
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8502151Z [command]/usr/bin/git version
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8539071Z git version 2.50.1
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8566203Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8581398Z Temporarily overriding HOME='/home/runner/work/_temp/6cbe56d0-51d0-42ca-b69f-47847ffa77b3' before making global git config changes
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8584452Z Adding repository directory to the temporary git global config as a safe directory
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8587643Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8621536Z Deleting the contents of '/home/runner/work/metta/metta'
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8625367Z ##[group]Initializing the repository
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8630212Z [command]/usr/bin/git init /home/runner/work/metta/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8707544Z hint: Using 'master' as the name for the initial branch. This default branch name
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8709560Z hint: is subject to change. To configure the initial branch name to use in all
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8710800Z hint: of your new repositories, which will suppress this warning, call:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8712683Z hint:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8713709Z hint: 	git config --global init.defaultBranch <name>
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8715128Z hint:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8716288Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8718176Z hint: 'development'. The just-created branch can be renamed via this command:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8719614Z hint:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8720361Z hint: 	git branch -m <name>
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8721300Z hint:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8722552Z hint: Disable this message with "git config set advice.defaultBranchName false"
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8724779Z Initialized empty Git repository in /home/runner/work/metta/metta/.git/
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8727731Z [command]/usr/bin/git remote add origin https://github.com/Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8758413Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8759795Z ##[group]Disabling automatic garbage collection
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8763185Z [command]/usr/bin/git config --local gc.auto 0
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8792039Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8793512Z ##[group]Setting up auth
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8800083Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.8831117Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.9110283Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.9141440Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.9360427Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.9395600Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.9397218Z ##[group]Fetching the repository
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:48.9404498Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +82960b16ae7dc35384de00f7887aca7e889f0ea7:refs/remotes/pull/1774/merge
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5836933Z From https://github.com/Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5839460Z  * [new ref]         82960b16ae7dc35384de00f7887aca7e889f0ea7 -> pull/1774/merge
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5862164Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5863739Z ##[group]Determining the checkout info
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5865586Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5868781Z [command]/usr/bin/git sparse-checkout disable
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5906365Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5933001Z ##[group]Checking out the ref
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.5936588Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1774/merge
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7442563Z Note: switching to 'refs/remotes/pull/1774/merge'.
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7444781Z 
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7446008Z You are in 'detached HEAD' state. You can look around, make experimental
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7449593Z changes and commit them, and you can discard any commits you make in this
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7452320Z state without impacting any branches by switching back to a branch.
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7453439Z 
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7454351Z If you want to create a new branch to retain commits you create, you may
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7456254Z do so (now or later) by using -c with the switch command. Example:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7457231Z 
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7457587Z   git switch -c <new-branch-name>
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7458223Z 
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7458575Z Or undo this operation with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7459153Z 
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7459452Z   git switch -
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7459871Z 
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7460816Z Turn off this advice by setting config variable advice.detachedHead to false
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7462094Z 
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7463617Z HEAD is now at 82960b1 Merge 061d163aab14f12f028a36e880118314dbb01622 into 6932e08ffdb7e72a31b602634662fe4170fc143d
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7468681Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7498047Z [command]/usr/bin/git log -1 --format=%H
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7521471Z 82960b16ae7dc35384de00f7887aca7e889f0ea7
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7949208Z Prepare all required actions
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.7950516Z Getting action download info
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:49.9634598Z Download action repository 'astral-sh/setup-uv@v6' (SHA:e92bafb6253dcd438e0484186d7669ea7a8ca1cc)
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.2252864Z ##[group]Download immutable action package 'actions/upload-artifact@v4'
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.2254692Z Version: 4.6.2
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.2256114Z Digest: sha256:290722aa3281d5caf23d0acdc3dbeb3424786a1a01a9cc97e72f147225e37c38
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.2258019Z Source commit SHA: ea165f8d65b6e75b540449e92b4886f43607fa02
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.2259344Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3845407Z ##[group]Run ./.github/actions/asana/pr_gh_to_asana
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3846537Z with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3847448Z   title: add a change so that a pull request can be created
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3848668Z   pr_state: open
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3849457Z   project_id: 1210348820405981
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3850364Z   workspace_id: 1209016784099267
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3924842Z   asana_token: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3926810Z   github_url: https://github.com/Metta-AI/metta/pull/1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3928819Z   github_url_field_id: 1210578228718257
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3930544Z   roster_project_id: 1209948553419016
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3932243Z   gh_login_field_id: 1210594297567963
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3937658Z   asana_email_field_id: 1209050603577235
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3939480Z   pr_author_field_id: 1210679003513019
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3942255Z   asana_attachment_secret: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3943208Z   pr_number: 1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3944254Z   github_repo: Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3945521Z   github_token: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.3946284Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4133024Z ##[group]Run astral-sh/setup-uv@v6
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4134160Z with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4134894Z   version: 0.7.3
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4135670Z   enable-cache: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4136511Z   activate-environment: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4137576Z   working-directory: /home/runner/work/metta/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4138738Z   server-url: https://github.com
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4140059Z   github-token: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4141845Z   cache-dependency-glob: **/*requirements*.txt
+asana_integration	UNKNOWN STEP	**/*requirements*.in
+asana_integration	UNKNOWN STEP	**/*constraints*.txt
+asana_integration	UNKNOWN STEP	**/*constraints*.in
+asana_integration	UNKNOWN STEP	**/pyproject.toml
+asana_integration	UNKNOWN STEP	**/uv.lock
+asana_integration	UNKNOWN STEP	
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4143832Z   prune-cache: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4144857Z   ignore-nothing-to-cache: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4145815Z   ignore-empty-workdir: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.4146712Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.6556538Z manifest-file not provided, reading from local file.
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.6599560Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.7.3/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:50.9689575Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/5fc37905-4c0f-4335-b405-54850efeaf7a -f /home/runner/work/_temp/268bd1f2-c560-4dff-89f6-84f1b5d9175b
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3374116Z Added /home/runner/.local/bin to the path
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3377981Z Added /opt/hostedtoolcache/uv/0.7.3/x86_64 to the path
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3398312Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3398744Z Successfully installed uv version 0.7.3
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3400093Z Searching files using cache dependency glob: /home/runner/work/metta/metta/**/*requirements*.txt,/home/runner/work/metta/metta/**/*requirements*.in,/home/runner/work/metta/metta/**/*constraints*.txt,/home/runner/work/metta/metta/**/*constraints*.in,/home/runner/work/metta/metta/**/pyproject.toml,/home/runner/work/metta/metta/**/uv.lock
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3597837Z /home/runner/work/metta/metta/.github/actions/asana/pr_gh_to_asana/test/requirements.txt
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3752179Z /home/runner/work/metta/metta/agent/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3834352Z /home/runner/work/metta/metta/app_backend/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.3924768Z /home/runner/work/metta/metta/common/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.4773075Z /home/runner/work/metta/metta/experiments/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.5079274Z /home/runner/work/metta/metta/metta/setup/tools/codeclip/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.5151906Z /home/runner/work/metta/metta/mettagrid/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.5777529Z /home/runner/work/metta/metta/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.6100193Z /home/runner/work/metta/metta/uv.lock
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.6115344Z Found 9 files to hash.
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.7167975Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.8348595Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9131901Z Received 1050256 of 1050256 (100.0%), 24.4 MBs/sec
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9132436Z Cache Size: ~1 MB (1050256 B)
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9154319Z [command]/usr/bin/tar -xf /home/runner/work/_temp/44612aa2-0f7d-496d-ba18-b2c66e24ecd3/cache.tzst -P -C /home/runner/work/metta/metta --use-compress-program unzstd
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9306069Z Cache restored successfully
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9313541Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9512473Z ##[group]Run uv run /home/runner/work/metta/metta/./.github/actions/asana/pr_gh_to_asana/pr_gh_to_asana.py
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9513258Z [36;1muv run /home/runner/work/metta/metta/./.github/actions/asana/pr_gh_to_asana/pr_gh_to_asana.py[0m
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9546753Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9547117Z env:
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9547364Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9547767Z   INPUT_TITLE: add a change so that a pull request can be created
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9548094Z   INPUT_PR_STATE: open
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9548349Z   INPUT_PROJECT_ID: 1210348820405981
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9548649Z   INPUT_WORKSPACE_ID: 1209016784099267
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9549275Z   INPUT_ASANA_TOKEN: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9549702Z   INPUT_GITHUB_URL: https://github.com/Metta-AI/metta/pull/1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9550064Z   INPUT_GITHUB_URL_FIELD_ID: 1210578228718257
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9550346Z   INPUT_ROSTER_PROJECT_ID: 1209948553419016
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9550621Z   INPUT_GH_LOGIN_FIELD_ID: 1210594297567963
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9550892Z   INPUT_ASANA_EMAIL_FIELD_ID: 1209050603577235
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9551238Z   INPUT_PR_AUTHOR_FIELD_ID: 1210679003513019
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9551705Z   INPUT_ASANA_ATTACHMENT_SECRET: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9551964Z   INPUT_PR_NUMBER: 1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9552190Z   INPUT_GITHUB_REPO: Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9552584Z   INPUT_GITHUB_TOKEN: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:51.9552831Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:52.0903150Z Downloading cpython-3.11.7-linux-x86_64-gnu (download) (28.0MiB)
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:52.6014654Z  Downloading cpython-3.11.7-linux-x86_64-gnu (download)
+asana_integration	UNKNOWN STEP	2025-07-29T14:12:52.8832378Z Installed 11 packages in 10ms
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4445441Z VCR record mode: new_episodes
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4446263Z Starting VCR recording with cassette: http_interactions_16598640248.yaml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4447180Z Current working directory: /home/runner/work/metta/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4447982Z Environment variable 'INPUT_PROJECT_ID' = '1210348820405981'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4448869Z Environment variable 'INPUT_WORKSPACE_ID' = '1209016784099267'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4450149Z Environment variable 'INPUT_ASANA_TOKEN' = '***'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4450824Z Environment variable 'INPUT_GITHUB_URL' = 'https://github.com/Metta-AI/metta/pull/1774'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4451499Z Environment variable 'INPUT_GITHUB_URL_FIELD_ID' = '1210578228718257'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4452468Z Environment variable 'INPUT_GH_LOGIN_FIELD_ID' = '1210594297567963'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4453011Z Environment variable 'INPUT_ASANA_EMAIL_FIELD_ID' = '1209050603577235'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4453792Z Environment variable 'INPUT_ROSTER_PROJECT_ID' = '1209948553419016'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4454837Z Environment variable 'INPUT_PR_AUTHOR_FIELD_ID' = '1210679003513019'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4455611Z Environment variable 'INPUT_ASANA_ATTACHMENT_SECRET' = '***'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4456054Z Environment variable 'INPUT_PR_NUMBER' = '1774'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4456496Z Environment variable 'INPUT_GITHUB_REPO' = 'Metta-AI/metta'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4457157Z Environment variable 'INPUT_GITHUB_TOKEN' = '***'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4457611Z github_login_to_asana_email: {'badjacent': 'mh.next@gmail.com'}
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4458004Z assignees: []
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4458233Z author: badjacent
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4458463Z reviewers: []
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4458729Z commenters: []
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4458977Z github_logins: {'badjacent'}
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4459253Z event stream: []
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4459482Z last event: None
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4459936Z [__init__] Initializing AsanaTask with project_id=1210348820405981, workspace_id=1209016784099267
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4460853Z [ensure] ensure() called with title='add a change so that a pull request can be created', github_url='https://github.com/Metta-AI/metta/pull/1774', urls=[]
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4461773Z [ensure] Searching for existing task with github_url: https://github.com/Metta-AI/metta/pull/1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4462474Z [search] search() called with github_url='https://github.com/Metta-AI/metta/pull/1774'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4463185Z [search] Making search request to: https://app.asana.com/api/1.0/workspaces/1209016784099267/tasks/search
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4464786Z [search] Search params: {'opt_fields': 'permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email', 'limit': 100, 'sort_by': 'created_at', 'projects.any': '1210348820405981', 'custom_fields.1210578228718257.value': 'https://github.com/Metta-AI/metta/pull/1774'}
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4466665Z [search] Search response status: 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4466957Z [search] Search returned 0 results
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4467237Z [ensure] No existing task found via search
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4467657Z [ensure] Creating new task with title: add a change so that a pull request can be created
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4468411Z [create] create() called with title='add a change so that a pull request can be created', assignee='None', collaborators=['mh.next@gmail.com']
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4469762Z [create] Creating task with payload: {'data': {'name': 'add a change so that a pull request can be created', 'notes': '', 'workspace': '1209016784099267', 'projects': ['1210348820405981'], 'followers': ['mh.next@gmail.com'], 'custom_fields': {'1210578228718257': 'https://github.com/Metta-AI/metta/pull/1774', '1210679003513019': 'mh.next@gmail.com'}}}
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4470834Z [create] Create response status: 201
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4471364Z [create] Task created successfully: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4472451Z [ensure_github_url_in_task] ensure_github_url_in_task() called with url='https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624', title='add a change so that a pull request can be created'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4473310Z [ensure_github_url_in_task] PR number extracted: 1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4474907Z [ensure_github_url_in_task] Making attachment request with payload: {'allowedProjects': ['1210348820405981'], 'blockedProjects': [], 'pullRequestName': 'add a change so that a pull request can be created', 'pullRequestDescription': 'https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624', 'pullRequestNumber': 1774, 'pullRequestURL': 'https://github.com/Metta-AI/metta/pull/1774'}
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4476355Z [ensure_github_url_in_task] Attachment response status: 201
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4476906Z [ensure_github_url_in_task] GitHub attachment successful
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4477578Z [task_url.setter] Setting task_url to: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4478175Z [synchronize_comments_in_asana_as_multiple_blocks] Starting with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4478592Z [asana_comments_with_links] asana_comments_with_links() called
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4479238Z [extract_gid_from_url] extract_gid_from_url() called with task_url='https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4479893Z [extract_gid_from_url] Extracted GID using Format 2: 1210917200277624
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4480530Z [task_gid] Extracted task_gid: 1210917200277624 from URL: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4481156Z [get_comments] get_comments() called with task_id='1210917200277624'
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4481654Z [get_comments] Making GET request to: https://app.asana.com/api/1.0/tasks/1210917200277624/stories
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4482109Z [get_comments] Get comments response status: 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4482469Z [get_comments] Found 0 comment stories out of 3 total stories
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4482807Z [get_comments] Processed 0 comments
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4483059Z comments in asana: []
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4483364Z [asana_comments_with_links] Found 0 comments with review links of 0
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4483722Z   asana_comments_with_links: 0 comments
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4484140Z   comments_from_github: 0 reviews
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4484521Z [synchronize_comments_in_asana_as_multiple_blocks] No GitHub comments to process
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4485004Z Recorded 9 HTTP interactions in http_interactions_16598640248.yaml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4485439Z   1. GET https://api.github.com/repos/Metta-AI/metta/pulls/1774 -> 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4485903Z   2. GET https://api.github.com/repos/Metta-AI/metta/issues/1774/comments -> 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4486396Z   3. GET https://api.github.com/repos/Metta-AI/metta/pulls/1774/reviews -> 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4486880Z   4. GET https://api.github.com/repos/Metta-AI/metta/issues/1774/timeline -> 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4487515Z   5. GET https://app.asana.com/api/1.0/projects/1209948553419016/tasks?limit=100&opt_fields=custom_fields -> 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4489030Z   6. GET https://app.asana.com/api/1.0/workspaces/1209016784099267/tasks/search?custom_fields.1210578228718257.value=https%3A%2F%2Fgithub.com%2FMetta-AI%2Fmetta%2Fpull%2F1774&limit=100&opt_fields=permalink_url%2Ccustom_fields%2Cname%2Cnotes%2Cmodified_at%2Ccompleted%2Cassignee.email%2Cfollowers.email&projects.any=1210348820405981&sort_by=created_at -> 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4490388Z   7. POST https://app.asana.com/api/1.0/tasks -> 201
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4490825Z   8. POST https://github.integrations.asana.plus/custom/v1/actions/widget -> 201
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4491685Z   9. GET https://app.asana.com/api/1.0/tasks/1210917200277624/stories?opt_fields=text%2Chtml_text%2Ccreated_by.name%2Ccreated_by.email%2Ccreated_at%2Ctype%2Cresource_subtype%2Cis_pinned -> 200
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4811859Z ##[group]Run actions/upload-artifact@v4
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4812141Z with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4812342Z   name: http-interactions-16598640248
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4812616Z   path: http_interactions_*.yaml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4812854Z   retention-days: 7
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4813063Z   if-no-files-found: warn
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4813287Z   compression-level: 6
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4813493Z   overwrite: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4813707Z   include-hidden-files: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4814157Z env:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4814378Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.4814677Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.7042181Z With the provided path, there will be 1 file uploaded
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.7048092Z Artifact name is valid!
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.7048958Z Root directory input is valid!
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.8344364Z Beginning upload of artifact content to blob storage
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.9107466Z Uploaded bytes 11498
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.9292503Z Finished uploading artifact content to blob storage!
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.9295163Z SHA256 digest of uploaded artifact zip is c635884d24e86a46af765f78f741cd68fcd5e178bbc2bf605008a60692d8c477
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:01.9296760Z Finalizing artifact upload
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.0255433Z Artifact http-interactions-16598640248.zip successfully finalized. Artifact ID 3639621835
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.0256655Z Artifact http-interactions-16598640248 has been successfully uploaded! Final size is 11498 bytes. Artifact ID is 3639621835
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.0265470Z Artifact download URL: https://github.com/Metta-AI/metta/actions/runs/16598640248/artifacts/3639621835
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.0402176Z Prepare all required actions
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.0402524Z Getting action download info
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2300811Z ##[group]Run ./.github/actions/asana/pr_description_asana_to_gh
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2301171Z with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2301354Z   pr_number: 1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2301565Z   repo: Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2301940Z   token: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2302333Z   task_url: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2302766Z env:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2303000Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2303300Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2365614Z ##[group]Run astral-sh/setup-uv@v6
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2365900Z with:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2366085Z   version: 0.7.3
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2366299Z   enable-cache: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2366540Z   activate-environment: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2366835Z   working-directory: /home/runner/work/metta/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2367206Z   server-url: https://github.com
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2373071Z   github-token: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2373653Z   cache-dependency-glob: **/*requirements*.txt
+asana_integration	UNKNOWN STEP	**/*requirements*.in
+asana_integration	UNKNOWN STEP	**/*constraints*.txt
+asana_integration	UNKNOWN STEP	**/*constraints*.in
+asana_integration	UNKNOWN STEP	**/pyproject.toml
+asana_integration	UNKNOWN STEP	**/uv.lock
+asana_integration	UNKNOWN STEP	
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2374392Z   prune-cache: true
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2374626Z   ignore-nothing-to-cache: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2374897Z   ignore-empty-workdir: false
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2375141Z env:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2375374Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.2375670Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.4751627Z Found uv in tool-cache for 0.7.3
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.4756717Z Added /home/runner/.local/bin to the path
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.4762762Z Added /opt/hostedtoolcache/uv/0.7.3/x86_64 to the path
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.4772069Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.4772689Z Successfully installed uv version 0.7.3
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.4775210Z Searching files using cache dependency glob: /home/runner/work/metta/metta/**/*requirements*.txt,/home/runner/work/metta/metta/**/*requirements*.in,/home/runner/work/metta/metta/**/*constraints*.txt,/home/runner/work/metta/metta/**/*constraints*.in,/home/runner/work/metta/metta/**/pyproject.toml,/home/runner/work/metta/metta/**/uv.lock
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.5024301Z /home/runner/work/metta/metta/.github/actions/asana/pr_gh_to_asana/test/requirements.txt
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.5196137Z /home/runner/work/metta/metta/agent/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.5280186Z /home/runner/work/metta/metta/app_backend/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.5369918Z /home/runner/work/metta/metta/common/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.6354737Z /home/runner/work/metta/metta/experiments/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.6684378Z /home/runner/work/metta/metta/metta/setup/tools/codeclip/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.6755699Z /home/runner/work/metta/metta/mettagrid/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.7330725Z /home/runner/work/metta/metta/pyproject.toml
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.7602572Z /home/runner/work/metta/metta/uv.lock
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.7619105Z Found 9 files to hash.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.7878694Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.8653159Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.9650219Z Received 1644471 of 1644471 (100.0%), 26.6 MBs/sec
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.9650911Z Cache Size: ~2 MB (1644471 B)
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.9677469Z [command]/usr/bin/tar -xf /home/runner/work/_temp/ff7a6378-f70e-460c-8758-09553e96965f/cache.tzst -P -C /home/runner/work/metta/metta --use-compress-program unzstd
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.9878671Z Cache restored successfully
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.9889088Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.9990981Z ##[group]Run uv run /home/runner/work/metta/metta/./.github/actions/asana/pr_description_asana_to_gh/pr_description_asana_to_gh.py
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:02.9991895Z [36;1muv run /home/runner/work/metta/metta/./.github/actions/asana/pr_description_asana_to_gh/pr_description_asana_to_gh.py[0m
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0019967Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0020323Z env:
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0020572Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0020897Z   INPUT_REPO: Metta-AI/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0021144Z   INPUT_PR_NUMBER: 1774
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0021589Z   INPUT_TASK_URL: https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0022252Z   INPUT_TOKEN: ***
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0022473Z ##[endgroup]
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:03.0967308Z Installed 5 packages in 11ms
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.5758009Z Updating PR description for Metta-AI/metta #1774 with task https://app.asana.com/1/1209016784099267/project/1210348820405981/task/1210917200277624
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.5988842Z Post job cleanup.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.6028660Z Post job cleanup.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.7590926Z Cache hit occurred on key setup-uv-1-x86_64-unknown-linux-gnu-3.11.7-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c, not saving cache.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.7705643Z Post job cleanup.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.7744447Z Post job cleanup.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.9440753Z Cache hit occurred on key setup-uv-1-x86_64-unknown-linux-gnu-unknown-pruned-f31d0ded8f4bdf30f7c278585dbd2bb5dfd62d818fb3293fbab368bf16ff989c, not saving cache.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:04.9602395Z Post job cleanup.
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0549595Z [command]/usr/bin/git version
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0586357Z git version 2.50.1
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0629759Z Temporarily overriding HOME='/home/runner/work/_temp/4fcdba1c-2524-4ed5-b6e9-a625499bb16a' before making global git config changes
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0631138Z Adding repository directory to the temporary git global config as a safe directory
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0643636Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/metta/metta
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0691826Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0724571Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0950916Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0971705Z http.https://github.com/.extraheader
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.0984496Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.1015092Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+asana_integration	UNKNOWN STEP	2025-07-29T14:13:05.1340338Z Cleaning up orphan processes
