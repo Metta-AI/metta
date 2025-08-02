@@ -96,14 +96,23 @@ def is_commit_pushed(commit_hash: str) -> bool:
     Check if `commit_hash` has been pushed to the remote tracking branch.
 
     Fast path:
-      - If the current branch has an upstream (e.g. origin/main), we do:
-          git merge-base --is-ancestor <commit_hash> <upstream>
-        which is a constant-time check.
+    - If the current branch has an upstream (e.g. origin/main), we do:
+      git merge-base --is-ancestor <commit_hash> <upstream>
+      which is a constant-time check.
 
     Fallback:
-      - If no upstream is set, we fall back to the old:
-          git branch -r --contains <commit_hash>
+    - If no upstream is set, we fall back to the old:
+      git branch -r --contains <commit_hash>
+
+    Raises:
+        GitError: If the commit hash is invalid or doesn't exist
     """
+    # First validate the commit exists
+    try:
+        run_git("rev-parse", "--verify", commit_hash)
+    except GitError as e:
+        raise GitError(f"Invalid commit hash: {commit_hash}") from e
+
     try:
         # Figure out the upstream ref for the current branch (e.g. "origin/main")
         branch = get_current_branch()
