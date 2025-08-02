@@ -33,7 +33,7 @@ def test_8way_movement_all_directions():
     objects = env.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
-    initial_orientation = objects[agent_id]["orientation"]
+    _ = objects[agent_id]["orientation"]
     assert initial_pos == (2, 2)
 
     action_names = env.action_names()
@@ -73,8 +73,9 @@ def test_8way_movement_all_directions():
             7: 0,  # Northwest -> Up
         }
         if direction in expected_orientations:
-            assert objects[agent_id]["orientation"] == expected_orientations[direction], \
+            assert objects[agent_id]["orientation"] == expected_orientations[direction], (
                 f"Direction {direction}: orientation should be {expected_orientations[direction]}"
+            )
 
 
 def test_8way_movement_obstacles():
@@ -165,7 +166,7 @@ def test_orientation_changes_with_8way():
     # Now move in various directions and verify orientation changes appropriately
     expected_orientations = {
         0: 0,  # North -> Up
-        1: 0,  # Northeast -> Up  
+        1: 0,  # Northeast -> Up
         2: 3,  # East -> Right
         3: 1,  # Southeast -> Down
         4: 1,  # South -> Down
@@ -173,19 +174,20 @@ def test_orientation_changes_with_8way():
         6: 2,  # West -> Left
         7: 0,  # Northwest -> Up
     }
-    
+
     for direction in range(8):
         # Skip if movement would go out of bounds
         if direction in [0, 1, 7]:  # Skip north-facing movements from top row
             continue
-            
+
         actions[0] = [move_8dir_idx, direction]
         env.step(actions)
 
         objects = env.grid_objects()
         expected_orient = expected_orientations[direction]
-        assert objects[agent_id]["orientation"] == expected_orient, \
+        assert objects[agent_id]["orientation"] == expected_orient, (
             f"Direction {direction}: expected orientation {expected_orient}, got {objects[agent_id]['orientation']}"
+        )
 
 
 def test_cardinal_movement_changes_orientation():

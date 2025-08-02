@@ -133,7 +133,7 @@ def test_move_all_directions(configured_env, movement_game_map):
         direction_name = str(orientation)
 
         print(f"Testing move {direction_name} (orientation {orientation.value})")
-        
+
         position_before = get_agent_position(env, 0)
         result = move(env, orientation)
         position_after = get_agent_position(env, 0)
@@ -159,11 +159,11 @@ def test_move_up(configured_env, small_movement_game_map):
 
     # Get position before move
     position_before = get_agent_position(env, 0)
-    
+
     result = move(env, Orientation.UP)  # Use Orientation enum
 
     assert result["success"], f"Move up should succeed. Error: {result.get('error')}"
-    
+
     # Get position after move and verify
     position_after = get_agent_position(env, 0)
     assert position_before[0] - position_after[0] == 1, "Should move up by 1 row"
@@ -189,11 +189,11 @@ def test_move_blocked_by_wall(configured_env, blocked_game_map):
         # Movement should fail or position should remain unchanged
         if result["success"]:
             # This shouldn't happen for blocked movement
-            assert False, f"Move {direction_name} should fail when blocked by wall"
+            raise AssertionError(f"Move {direction_name} should fail when blocked by wall")
         else:
             # Action failed, which is expected for blocked movement
             assert result["error"] is not None, f"Failed move {direction_name} should have an error message"
-            assert position_before == position_after, f"Position should not change when blocked"
+            assert position_before == position_after, "Position should not change when blocked"
 
 
 def test_move_returns_to_center(configured_env, movement_game_map):

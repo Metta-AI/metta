@@ -152,7 +152,7 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
     rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
     rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
     env.step(rotate_action)
-    
+
     if not env.action_success()[agent_idx]:
         result["error"] = f"Failed to rotate to {orientation}"
         return result
@@ -161,7 +161,7 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
     move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
     move_action[agent_idx] = [move_action_idx, 0]  # Move forward
     env.step(move_action)
-    
+
     if not env.action_success()[agent_idx]:
         result["error"] = "Failed to move forward"
         return result
@@ -172,7 +172,7 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
         result["success"] = True
     else:
         result["error"] = "Position unchanged (likely blocked)"
-    
+
     return result
 
 
