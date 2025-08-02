@@ -80,66 +80,11 @@ struct CrossAgentPatterns {
   std::vector<BehaviorCluster> clusters;
 };
 
-// Forward declarations
-class MatrixProfileGPU;
-class MatrixProfileCPU;
+// Forward declaration of implementation
+class MatrixProfileImpl;
 
-// CPU implementation is always available
-class MatrixProfilerCPU {
-public:
-  MatrixProfilerCPU(const MatrixProfileConfig& config = MatrixProfileConfig());
-  ~MatrixProfilerCPU();
-
-  // Initialize with action distance LUT
-  void initialize(const ActionDistance::ActionDistanceLUT& distance_lut);
-
-  // Process agents' action histories using CPU
-  std::vector<AgentMatrixProfile> compute_profiles_cpu(const std::vector<Agent*>& agents,
-                                                       const std::vector<int>& window_sizes,
-                                                       const ActionDistance::ActionDistanceLUT& distance_lut);
-
-  // Cross-agent pattern discovery using CPU
-  CrossAgentPatterns find_cross_agent_patterns_cpu(const std::vector<Agent*>& agents,
-                                                   int window_size,
-                                                   float distance_threshold,
-                                                   const ActionDistance::ActionDistanceLUT& distance_lut);
-
-  // Performance monitoring
-  struct PerformanceStats {
-    float total_time_ms = 0;
-    float gpu_compute_time_ms = 0;
-    float memory_transfer_time_ms = 0;
-    float pattern_discovery_time_ms = 0;
-    size_t total_comparisons = 0;
-    float comparisons_per_second = 0;
-  };
-
-  PerformanceStats get_last_performance_stats() const {
-    return last_stats_cpu_;
-  }
-
-protected:
-  MatrixProfileConfig config_;
-  std::unique_ptr<MatrixProfileCPU> cpu_impl_;
-  PerformanceStats last_stats_cpu_{};
-
-  // Action encoding cache
-  struct EncodedSequences {
-    std::vector<std::vector<uint8_t>> sequences;
-    std::vector<size_t> valid_lengths;
-    std::vector<GridObjectId> agent_ids;
-  };
-
-  EncodedSequences encode_agent_histories(const std::vector<Agent*>& agents,
-                                          const ActionDistance::ActionDistanceLUT& distance_lut) const;
-
-  // Distance LUT storage
-  std::array<std::array<uint8_t, 256>, 256> distance_lut_;
-  bool lut_initialized_ = false;
-};
-
-// Main MatrixProfiler class that can use either CPU or GPU
-class MatrixProfiler : public MatrixProfilerCPU {
+// Main MatrixProfiler class
+class MatrixProfiler {
 public:
   MatrixProfiler(const MatrixProfileConfig& config = MatrixProfileConfig());
   ~MatrixProfiler();
@@ -147,7 +92,7 @@ public:
   // Initialize with action distance LUT
   void initialize(const ActionDistance::ActionDistanceLUT& distance_lut);
 
-  // Process agents' action histories (automatically selects CPU or GPU)
+  // Process agents' action histories
   std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
                                                    const std::vector<int>& window_sizes = {});
 
@@ -160,10 +105,17 @@ public:
   void update_agent(const Agent* agent);
   void batch_update(const std::vector<Agent*>& updated_agents);
 
-  // Get combined performance stats
-  PerformanceStats get_last_performance_stats() const {
-    return last_stats_;
-  }
+  // Performance monitoring
+  struct PerformanceStats {
+    float total_time_ms = 0;
+    float gpu_compute_time_ms = 0;
+    float memory_transfer_time_ms = 0;
+    float pattern_discovery_time_ms = 0;
+    size_t total_comparisons = 0;
+    float comparisons_per_second = 0;
+  };
+
+  PerformanceStats get_last_performance_stats() const;
 
   // Memory management
   size_t get_gpu_memory_usage() const;
@@ -174,13 +126,46 @@ public:
     return using_gpu_;
   }
 
-private:
-#ifndef CUDA_DISABLED
-  std::unique_ptr<MatrixProfileGPU> gpu_impl_;
-#endif
+  // Action encoding cache
+  struct EncodedSequences {
+    std::vector<std::vector<uint8_t>> sequences;
+    std::vector<size_t> valid_lengths;
+    std::vector<GridObjectId> agent_ids;
+  };
+
+protected:
+  MatrixProfileConfig config_;
+  std::unique_ptr<MatrixProfileImpl> impl_;
   bool using_gpu_ = false;
-  PerformanceStats last_stats_{};
+  mutable PerformanceStats last_stats_{};
 };
+
+// Abstract base class for implementations
+class MatrixProfileImpl {
+public:
+  virtual ~MatrixProfileImpl() = default;
+
+  virtual void initialize(const ActionDistance::ActionDistanceLUT& distance_lut) = 0;
+
+  virtual std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
+                                                           const std::vector<int>& window_sizes,
+                                                           const ActionDistance::ActionDistanceLUT& distance_lut) = 0;
+
+  virtual CrossAgentPatterns find_cross_agent_patterns(const std::vector<Agent*>& agents,
+                                                       int window_size,
+                                                       float distance_threshold,
+                                                       const ActionDistance::ActionDistanceLUT& distance_lut) = 0;
+
+  virtual void update_agent(const Agent* agent) = 0;
+  virtual void batch_update(const std::vector<Agent*>& updated_agents) = 0;
+
+  virtual MatrixProfiler::PerformanceStats get_last_performance_stats() const = 0;
+  virtual size_t get_gpu_memory_usage() const = 0;
+  virtual void clear_cache() = 0;
+};
+
+// Factory function to create appropriate implementation
+std::unique_ptr<MatrixProfileImpl> create_matrix_profile_impl(const MatrixProfileConfig& config);
 
 // Utility functions for behavioral analysis
 namespace Analysis {

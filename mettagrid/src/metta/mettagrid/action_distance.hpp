@@ -70,10 +70,13 @@ inline uint8_t calculate_attack_distance(uint8_t arg1, uint8_t arg2) {
   if (arg1 > 8 || arg2 > 8) {
     return (arg1 == arg2) ? 0 : 1;
   }
-  uint8_t r1 = arg1 / 3, c1 = arg1 % 3;
-  uint8_t r2 = arg2 / 3, c2 = arg2 % 3;
+  int r1 = static_cast<int>(arg1) / 3;
+  int c1 = static_cast<int>(arg1) % 3;
+  int r2 = static_cast<int>(arg2) / 3;
+  int c2 = static_cast<int>(arg2) % 3;
   // Manhattan distance in the attack grid
-  return std::abs(r1 - r2) + std::abs(c1 - c2);
+  int distance = std::abs(r1 - r2) + std::abs(c1 - c2);
+  return static_cast<uint8_t>(distance);
 }
 
 inline uint8_t calculate_color_distance(uint8_t arg1, uint8_t arg2) {
@@ -116,14 +119,19 @@ public:
     info.start_offset = total_encoded_actions;
 
     actions.push_back(info);
-    total_encoded_actions += (max_arg + 1);
+    total_encoded_actions =
+        static_cast<uint8_t>(static_cast<uint16_t>(total_encoded_actions) + static_cast<uint16_t>(max_arg) + 1);
   }
 
   // Build the distance table after all actions are registered
   void build() {
     // Fill in distances for all valid action encodings
-    for (uint8_t enc1 = 0; enc1 < total_encoded_actions && enc1 < 256; enc1++) {
-      for (uint8_t enc2 = 0; enc2 < total_encoded_actions && enc2 < 256; enc2++) {
+    // Note: The enc1 < 256 check is redundant since enc1 is uint8_t, but keeping for clarity
+    uint16_t limit = std::min(static_cast<uint16_t>(total_encoded_actions), static_cast<uint16_t>(256));
+    for (uint16_t e1 = 0; e1 < limit; e1++) {
+      for (uint16_t e2 = 0; e2 < limit; e2++) {
+        uint8_t enc1 = static_cast<uint8_t>(e1);
+        uint8_t enc2 = static_cast<uint8_t>(e2);
         table[enc1][enc2] = compute_distance(enc1, enc2);
       }
     }
@@ -131,10 +139,10 @@ public:
 
   // Convert (action_type, action_arg) to encoded value
   uint8_t encode_action(ActionType type, ActionArg arg) const {
-    if (type >= actions.size()) return 0;  // Invalid -> NOOP
-    const auto& action = actions[type];
+    if (type < 0 || static_cast<size_t>(type) >= actions.size()) return 0;  // Invalid -> NOOP
+    const auto& action = actions[static_cast<size_t>(type)];
     if (arg > action.max_arg) arg = action.max_arg;  // Clamp to valid range
-    return action.start_offset + arg;
+    return static_cast<uint8_t>(action.start_offset + arg);
   }
 
   // Get distance from the table
@@ -149,7 +157,7 @@ private:
       const auto& action = actions[type];
       uint8_t next_offset = (type + 1 < actions.size()) ? actions[type + 1].start_offset : total_encoded_actions;
       if (encoded < next_offset) {
-        return {static_cast<uint8_t>(type), encoded - action.start_offset};
+        return {static_cast<uint8_t>(type), static_cast<uint8_t>(encoded - action.start_offset)};
       }
     }
     return {0, 0};  // Invalid -> NOOP
@@ -254,9 +262,9 @@ public:
     if (!built) return "uninitialized";
 
     auto [type, arg] = decode_action(encoded);
-    if (type >= builder.actions.size()) return "invalid";
+    if (static_cast<size_t>(type) >= builder.actions.size()) return "invalid";
 
-    const auto& action = builder.actions[type];
+    const auto& action = builder.actions[static_cast<size_t>(type)];
     std::string result = action.name;
 
     // Add argument details for specific actions
@@ -328,7 +336,7 @@ public:
   void get_distance_table(uint8_t out[256][256]) const {
     for (int i = 0; i < 256; i++) {
       for (int j = 0; j < 256; j++) {
-        out[i][j] = builder.table[i][j];
+        out[i][j] = builder.table[static_cast<size_t>(i)][static_cast<size_t>(j)];
       }
     }
   }
