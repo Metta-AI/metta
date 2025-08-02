@@ -48,8 +48,6 @@ set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/behavioral/*.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/behavioral/*.hpp
 )
 
 # CUDA sources are added by cuda.cmake if available
@@ -60,7 +58,6 @@ target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 target_include_directories(mettagrid_obj PUBLIC
   ${NUMPY_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/behavioral
 )
 
 # Apply all flags to the object library
@@ -105,5 +102,8 @@ message(STATUS "  Enable Coverage: ${ENABLE_COVERAGE}")
 message(STATUS "  CUDA Support: ${BUILD_WITH_CUDA}")
 if(METTAGRID_CUDA_AVAILABLE)
   message(STATUS "  CUDA Version: ${METTAGRID_CUDA_VERSION}")
+  message(STATUS "  Behavioral Analysis: GPU-accelerated")
+else()
+  message(STATUS "  Behavioral Analysis: CPU stub (GPU required for full features)")
 endif()
 message(STATUS "")
