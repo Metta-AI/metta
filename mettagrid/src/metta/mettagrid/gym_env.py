@@ -184,6 +184,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
 
     # Gymnasium space properties
     @property
+    @override  # gymnasium.Env.observation_space
     def observation_space(self):
         """Get observation space."""
         if self._single_agent:
@@ -193,6 +194,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
             return self._observation_space
 
     @property
+    @override  # gymnasium.Env.action_space
     def action_space(self):
         """Get action space."""
         if self._single_agent:
@@ -201,14 +203,15 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
             # Multi-agent case - return the multi-agent space
             return self._action_space
 
+    # PufferLib compatibility properties
     @property
     def single_observation_space(self):
-        """Single agent observation space."""
+        """Single agent observation space (PufferLib compatibility)."""
         return self._observation_space
 
     @property
     def single_action_space(self):
-        """Single agent action space."""
+        """Single agent action space (PufferLib compatibility)."""
         return self._action_space
 
 

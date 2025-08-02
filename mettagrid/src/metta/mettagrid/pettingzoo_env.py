@@ -129,7 +129,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
 
     # Buffer management is handled by base MettaGridEnv class
 
-    @override
+    @override  # pettingzoo.ParallelEnv.reset
     def reset(
         self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, Dict[str, Any]]]:
@@ -163,7 +163,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
 
         return observations, infos
 
-    @override
+    @override  # pettingzoo.ParallelEnv.step
     def step(
         self, actions: Dict[str, np.ndarray]
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, float], Dict[str, bool], Dict[str, bool], Dict[str, Dict[str, Any]]]:
@@ -206,18 +206,21 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         return obs_dict, reward_dict, terminal_dict, truncation_dict, info_dict
 
     # PettingZoo required methods
+    @override  # pettingzoo.ParallelEnv.observation_space
     def observation_space(self, agent: str) -> spaces.Box:
         """Get observation space for a specific agent."""
         del agent  # Unused parameter - all agents have same space
         # Return the same space object instance (PettingZoo requirement)
         return self._observation_space_obj
 
+    @override  # pettingzoo.ParallelEnv.action_space
     def action_space(self, agent: str) -> spaces.MultiDiscrete:
         """Get action space for a specific agent."""
         del agent  # Unused parameter - all agents have same space
         # Return the same space object instance (PettingZoo requirement)
         return self._action_space_obj
 
+    @override  # pettingzoo.ParallelEnv.state
     def state(self) -> np.ndarray:
         """
         Get global state (optional for PettingZoo).
@@ -245,11 +248,13 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
             dtype=obs_space.dtype.type,
         )
 
+    @override  # pettingzoo.ParallelEnv.render
     def render(self, mode: str = "human") -> Optional[str]:
         """Render the environment."""
         del mode  # Unused parameter
         return super().render()
 
+    @override  # pettingzoo.ParallelEnv.close
     def close(self) -> None:
         """Close the environment."""
         super().close()
