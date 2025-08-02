@@ -134,6 +134,7 @@
       "fstream": "cpp",
       "future": "cpp",
       "__config": "cpp",
+      "cstddef": "cpp",
     },
     "vim.textwidth": 120,
     "eslint.useFlatConfig": true,

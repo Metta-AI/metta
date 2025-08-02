@@ -77,6 +77,10 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
 
+  // Action history tracking with ring buffer
+  static constexpr size_t MAX_HISTORY_LENGTH = 1024;
+  size_t history_count = 0;  // Total actions recorded (capped at MAX_HISTORY_LENGTH)
+
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
         frozen(0),
@@ -98,7 +102,11 @@ public:
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
-        steps_without_motion(0) {
+        steps_without_motion(0),
+        history_count(0),
+        action_history{},
+        action_arg_history{},
+        history_write_pos(0) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
@@ -196,7 +204,46 @@ public:
     return features;
   }
 
+  void record_action(ActionType action, ActionArg arg) {
+    action_history[history_write_pos] = action;
+    action_arg_history[history_write_pos] = arg;
+    // Update position and count
+    history_write_pos = (history_write_pos + 1) % MAX_HISTORY_LENGTH;
+    if (history_count < MAX_HISTORY_LENGTH) {
+      history_count++;
+    }
+  }
+
+  void copy_history_to_buffers(ActionType* action_dest, ActionArg* arg_dest) const {
+    if (history_count == 0) return;
+
+    if (history_count < MAX_HISTORY_LENGTH) {
+      if (action_dest) {
+        std::memcpy(action_dest, action_history.data(), history_count * sizeof(ActionType));
+      }
+      if (arg_dest) {
+        std::memcpy(arg_dest, action_arg_history.data(), history_count * sizeof(ActionArg));
+      }
+    } else {
+      size_t first_part = MAX_HISTORY_LENGTH - history_write_pos;
+      size_t second_part = history_write_pos;
+
+      if (action_dest) {
+        std::memcpy(action_dest, action_history.data() + history_write_pos, first_part * sizeof(ActionType));
+        std::memcpy(action_dest + first_part, action_history.data(), second_part * sizeof(ActionType));
+      }
+      if (arg_dest) {
+        std::memcpy(arg_dest, action_arg_history.data() + history_write_pos, first_part * sizeof(ActionArg));
+        std::memcpy(arg_dest + first_part, action_arg_history.data(), second_part * sizeof(ActionArg));
+      }
+    }
+  }
+
 private:
+  std::array<ActionType, MAX_HISTORY_LENGTH> action_history;
+  std::array<ActionArg, MAX_HISTORY_LENGTH> action_arg_history;
+  size_t history_write_pos = 0;  // Current write position in ring buffer
+
   inline void _update_resource_reward(InventoryItem item, InventoryQuantity old_amount, InventoryQuantity new_amount) {
     // Early exit if this item doesn't contribute to rewards
     auto reward_it = this->resource_rewards.find(item);
