@@ -3,7 +3,9 @@
 
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include "action_distance.hpp"
@@ -101,12 +103,12 @@ public:
 
   // Performance monitoring
   struct PerformanceStats {
-    float total_time_ms;
-    float gpu_compute_time_ms;
-    float memory_transfer_time_ms;
-    float pattern_discovery_time_ms;
-    size_t total_comparisons;
-    float comparisons_per_second;
+    float total_time_ms = 0;
+    float gpu_compute_time_ms = 0;
+    float memory_transfer_time_ms = 0;
+    float pattern_discovery_time_ms = 0;
+    size_t total_comparisons = 0;
+    float comparisons_per_second = 0;
   };
 
   PerformanceStats get_last_performance_stats() const {
@@ -120,7 +122,7 @@ public:
 private:
   MatrixProfileConfig config_;
   std::unique_ptr<MatrixProfileGPU> gpu_impl_;
-  PerformanceStats last_stats_;
+  PerformanceStats last_stats_{};
 
   // Action encoding cache
   struct EncodedSequences {
@@ -136,23 +138,133 @@ private:
   bool lut_initialized_ = false;
 };
 
+#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+
+// ======================= STUB IMPLEMENTATIONS =======================
+// Used when CUDA is not available (e.g., on macOS)
+
+// Stub implementation of MatrixProfileGPU
+class MatrixProfileGPU {
+public:
+  MatrixProfileGPU(const MatrixProfileConfig&) {
+    throw std::runtime_error("Matrix Profile GPU implementation requires CUDA support");
+  }
+
+  void upload_distance_lut(const uint8_t[256][256]) {
+    throw std::runtime_error("CUDA support not available");
+  }
+
+  void allocate_memory(size_t, size_t) {
+    throw std::runtime_error("CUDA support not available");
+  }
+
+  void compute_profiles(const std::vector<std::vector<uint8_t>>&,
+                        const std::vector<size_t>&,
+                        const std::vector<int>&,
+                        std::vector<std::vector<uint16_t>>&,
+                        std::vector<std::vector<uint32_t>>&) {
+    throw std::runtime_error("CUDA support not available");
+  }
+};
+
+// MatrixProfiler stub implementation
+inline MatrixProfiler::MatrixProfiler(const MatrixProfileConfig& config) : config_(config) {
+  std::cerr << "WARNING: MatrixProfiler created without CUDA support. "
+            << "Behavioral analysis features will not be available.\n";
+}
+
+inline MatrixProfiler::~MatrixProfiler() = default;
+
+inline void MatrixProfiler::initialize(const ActionDistance::ActionDistanceLUT& distance_lut) {
+  // Store the LUT even in stub mode
+  distance_lut.get_distance_table(distance_lut_.data());
+  lut_initialized_ = true;
+
+  std::cerr << "WARNING: MatrixProfiler initialized in stub mode (no CUDA).\n";
+}
+
+inline MatrixProfiler::EncodedSequences MatrixProfiler::encode_agent_histories(const std::vector<Agent*>&) const {
+  return EncodedSequences{};
+}
+
+inline std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vector<Agent*>&,
+                                                                        const std::vector<int>&) {
+  throw std::runtime_error(
+      "Matrix Profile computation requires CUDA support. "
+      "Please build with CUDA enabled on a system with NVIDIA GPU.");
+}
+
+inline CrossAgentPatterns MatrixProfiler::find_cross_agent_patterns(const std::vector<Agent*>&, int, float) {
+  throw std::runtime_error("Cross-agent pattern discovery requires CUDA support");
+}
+
+inline void MatrixProfiler::update_agent(const Agent*) {
+  // No-op in stub mode
+}
+
+inline void MatrixProfiler::batch_update(const std::vector<Agent*>&) {
+  // No-op in stub mode
+}
+
+inline size_t MatrixProfiler::get_gpu_memory_usage() const {
+  return 0;
+}
+
+inline void MatrixProfiler::clear_cache() {
+  // No-op in stub mode
+}
+
+#else  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+
+// ======================= CUDA IMPLEMENTATIONS =======================
+// These are defined in matrix_profile.cu when CUDA is available
+// Just declare them here - the actual implementations are in the .cu file
+
+#endif  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+
 // Utility functions for behavioral analysis
 namespace Analysis {
 
 // Find recurring patterns within a single agent
-std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::vector<uint16_t>& matrix_profile,
-                                                                     const std::vector<uint32_t>& profile_indices,
-                                                                     int window_size,
-                                                                     int top_k = 10,
-                                                                     float exclusion_zone_factor = 0.5f);
+inline std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(
+    const std::vector<uint16_t>& matrix_profile,
+    const std::vector<uint32_t>& profile_indices,
+    int window_size,
+    int top_k = 10,
+    float exclusion_zone_factor = 0.5f) {
+#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+  return {};
+#else
+  // Implementation would be in matrix_profile.cu
+  std::vector<AgentMatrixProfile::WindowResult::Motif> motifs;
+  // TODO: Implement proper motif discovery algorithm
+  return motifs;
+#endif
+}
 
 // Compute behavioral similarity between agents
-float compute_agent_similarity(const AgentMatrixProfile& profile1, const AgentMatrixProfile& profile2, int window_size);
+inline float compute_agent_similarity(const AgentMatrixProfile& profile1,
+                                      const AgentMatrixProfile& profile2,
+                                      int window_size) {
+#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+  return 0.0f;
+#else
+  // TODO: Implement similarity computation
+  return 0.0f;
+#endif
+}
 
 // Cluster agents by behavioral patterns
-std::vector<CrossAgentPatterns::BehaviorCluster> cluster_by_behavior(const std::vector<AgentMatrixProfile>& profiles,
-                                                                     int window_size,
-                                                                     int num_clusters = 0);  // 0 = auto-detect
+inline std::vector<CrossAgentPatterns::BehaviorCluster>
+cluster_by_behavior(const std::vector<AgentMatrixProfile>& profiles, int window_size, int num_clusters = 0) {
+#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+  return {};
+#else
+  std::vector<CrossAgentPatterns::BehaviorCluster> clusters;
+  // TODO: Implement clustering algorithm
+  return clusters;
+#endif
+}
 
 // Detect emergent strategies
 struct EmergentStrategy {
@@ -162,8 +274,16 @@ struct EmergentStrategy {
   float prevalence;  // Percentage of agents using this strategy
 };
 
-std::vector<EmergentStrategy> detect_strategies(const std::vector<AgentMatrixProfile>& profiles,
-                                                const ActionDistance::ActionDistanceLUT& lut);
+inline std::vector<EmergentStrategy> detect_strategies(const std::vector<AgentMatrixProfile>& profiles,
+                                                       const ActionDistance::ActionDistanceLUT& lut) {
+#ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+  return {};
+#else
+  std::vector<EmergentStrategy> strategies;
+  // TODO: Implement strategy detection
+  return strategies;
+#endif
+}
 
 }  // namespace Analysis
 

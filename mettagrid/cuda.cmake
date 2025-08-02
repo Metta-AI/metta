@@ -111,16 +111,33 @@ target_compile_definitions(mettagrid_cuda_flags INTERFACE
 )
 
 # ========================= CUDA SOURCES =========================
-# Find CUDA source files - look in mettagrid directory
+# Find CUDA source files in the mettagrid directory
 file(GLOB_RECURSE CUDA_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.cuh
 )
 
-if(CUDA_SOURCES)
+# Add behavioral analysis CUDA sources if they exist
+set(BEHAVIORAL_CUDA_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/matrix_profile.cu
+)
+
+# Check which behavioral CUDA sources actually exist
+set(EXISTING_BEHAVIORAL_CUDA_SOURCES)
+foreach(source ${BEHAVIORAL_CUDA_SOURCES})
+  if(EXISTS ${source})
+    list(APPEND EXISTING_BEHAVIORAL_CUDA_SOURCES ${source})
+  endif()
+endforeach()
+
+if(EXISTING_BEHAVIORAL_CUDA_SOURCES)
   # Add CUDA sources to the main source list
-  set(METTAGRID_SOURCES ${METTAGRID_SOURCES} ${CUDA_SOURCES} PARENT_SCOPE)
-  message(STATUS "Found CUDA sources: ${CUDA_SOURCES}")
+  set(METTAGRID_SOURCES ${METTAGRID_SOURCES} ${EXISTING_BEHAVIORAL_CUDA_SOURCES} PARENT_SCOPE)
+  message(STATUS "Found behavioral CUDA sources: ${EXISTING_BEHAVIORAL_CUDA_SOURCES}")
+else()
+  message(WARNING "No behavioral CUDA sources found, but CUDA is enabled. Matrix profile will use stub implementation.")
+  # Still define CUDA as enabled so the header knows to expect CUDA
+  # but the implementation will fall back to stubs
 endif()
 
 # ========================= CUDA LIBRARIES =========================

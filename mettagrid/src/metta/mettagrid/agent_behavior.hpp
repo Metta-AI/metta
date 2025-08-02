@@ -455,8 +455,19 @@ inline bool is_cuda_available() {
 inline std::string get_cuda_unavailable_message() {
 #ifdef __APPLE__
   return "CUDA is not supported on macOS. Behavioral analysis features are disabled.";
-#else
+#elif defined(CUDA_BEHAVIORAL_ANALYSIS_DISABLED)
   return "CUDA not found. Please install CUDA Toolkit and rebuild with CUDA support.";
+#else
+  int device_count = 0;
+  cudaError_t err = cudaGetDeviceCount(&device_count);
+
+  if (err != cudaSuccess) {
+    return std::string("CUDA error: ") + cudaGetErrorString(err);
+  } else if (device_count == 0) {
+    return "No CUDA-capable devices found. Please ensure NVIDIA GPU drivers are installed.";
+  }
+
+  return "CUDA is available";
 #endif
 }
 
