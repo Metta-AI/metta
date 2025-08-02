@@ -133,6 +133,8 @@ class PyActionsConfig(BaseModelWithForbidExtra):
 
     noop: Optional[PyActionConfig] = None
     move: Optional[PyActionConfig] = None
+    move_8way: Optional[PyActionConfig] = None
+    move_cardinal: Optional[PyActionConfig] = None
     rotate: Optional[PyActionConfig] = None
     put_items: Optional[PyActionConfig] = None
     get_items: Optional[PyActionConfig] = None
