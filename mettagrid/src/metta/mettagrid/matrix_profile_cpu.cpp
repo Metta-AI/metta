@@ -15,13 +15,6 @@
 
 namespace MatrixProfile {
 
-// Forward declaration of CPU motif finding function
-std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs_cpu(const std::vector<uint16_t>& matrix_profile,
-                                                                         const std::vector<uint32_t>& profile_indices,
-                                                                         int window_size,
-                                                                         int top_k = 10,
-                                                                         float exclusion_zone_factor = 0.5f);
-
 // CPU implementation of distance computation
 inline uint32_t compute_distance_cpu(const uint8_t* seq1,
                                      const uint8_t* seq2,
@@ -251,8 +244,8 @@ std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vect
       window_result.distances = profiles[i];
       window_result.indices = indices[i];
 
-      // Find top motifs - use the CPU implementation
-      window_result.top_motifs = find_top_motifs_cpu(profiles[i], indices[i], window_size);
+      // Find top motifs
+      window_result.top_motifs = Analysis::find_top_motifs(profiles[i], indices[i], window_size);
 
       agent_profile.window_results.push_back(std::move(window_result));
     }
@@ -364,11 +357,13 @@ void MatrixProfiler::clear_cache() {
 }
 
 // Implementation of Analysis functions for CPU
-std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs_cpu(const std::vector<uint16_t>& matrix_profile,
-                                                                         const std::vector<uint32_t>& profile_indices,
-                                                                         int window_size,
-                                                                         int top_k = 10,
-                                                                         float exclusion_zone_factor = 0.5f) {
+namespace Analysis {
+
+std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::vector<uint16_t>& matrix_profile,
+                                                                     const std::vector<uint32_t>& profile_indices,
+                                                                     int window_size,
+                                                                     int top_k,
+                                                                     float exclusion_zone_factor) {
   if (matrix_profile.empty()) return {};
 
   std::vector<AgentMatrixProfile::WindowResult::Motif> motifs;
@@ -416,6 +411,20 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs_cpu(const s
 
   return motifs;
 }
+
+float compute_agent_similarity(const AgentMatrixProfile& profile1,
+                               const AgentMatrixProfile& profile2,
+                               int window_size) {
+  // Suppress unused parameter warnings
+  (void)profile1;
+  (void)profile2;
+  (void)window_size;
+
+  // TODO: Implement similarity computation for CPU
+  return 0.0f;
+}
+
+}  // namespace Analysis
 
 #endif  // CUDA_DISABLED
 

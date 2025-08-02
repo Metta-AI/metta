@@ -148,41 +148,14 @@ private:
 namespace Analysis {
 
 // Find recurring patterns within a single agent
-inline std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(
-    const std::vector<uint16_t>& matrix_profile,
-    const std::vector<uint32_t>& profile_indices,
-    int window_size,
-    int top_k = 10,
-    float exclusion_zone_factor = 0.5f) {
-#ifdef CUDA_DISABLED
-  // Forward to CPU implementation
-  std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs_cpu(
-      const std::vector<uint16_t>&, const std::vector<uint32_t>&, int, int, float);
-  return find_top_motifs_cpu(matrix_profile, profile_indices, window_size, top_k, exclusion_zone_factor);
-#else
-  // GPU implementation would be in matrix_profile.cu
-  std::vector<AgentMatrixProfile::WindowResult::Motif> motifs;
-  // TODO: Implement proper motif discovery algorithm for GPU
-  return motifs;
-#endif
-}
+std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::vector<uint16_t>& matrix_profile,
+                                                                     const std::vector<uint32_t>& profile_indices,
+                                                                     int window_size,
+                                                                     int top_k = 10,
+                                                                     float exclusion_zone_factor = 0.5f);
 
 // Compute behavioral similarity between agents
-inline float compute_agent_similarity(const AgentMatrixProfile& profile1,
-                                      const AgentMatrixProfile& profile2,
-                                      int window_size) {
-  // Suppress unused parameter warnings
-  (void)profile1;
-  (void)profile2;
-  (void)window_size;
-
-#ifdef CUDA_DISABLED
-  return 0.0f;
-#else
-  // TODO: Implement similarity computation
-  return 0.0f;
-#endif
-}
+float compute_agent_similarity(const AgentMatrixProfile& profile1, const AgentMatrixProfile& profile2, int window_size);
 
 // Cluster agents by behavioral patterns
 inline std::vector<CrossAgentPatterns::BehaviorCluster>

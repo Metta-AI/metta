@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "action_distance.hpp"
+#include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
@@ -11,6 +12,7 @@
 #include "agent_behavior.hpp"
 #include "grid.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 // Test fixture for behavioral analysis tests
 class BehavioralAnalysisTest : public ::testing::Test {
@@ -210,13 +212,13 @@ TEST_F(BehavioralAnalysisTest, BehaviorAnalyzer_Initialization) {
   EXPECT_NO_THROW(analyzer->initialize(action_handlers, 10));
 
   // Verify we can get behavior info
-  auto info = AgentBehavior::get_behavior_analysis_info();
+  auto info = get_behavior_analysis_info();
   EXPECT_FALSE(info.empty());
 
   // Check CUDA availability
-  bool cuda_available = AgentBehavior::is_cuda_available();
+  bool cuda_available = is_cuda_available();
   std::cout << "CUDA available: " << (cuda_available ? "Yes" : "No") << std::endl;
-  std::cout << AgentBehavior::get_cuda_unavailable_message() << std::endl;
+  std::cout << get_cuda_unavailable_message() << std::endl;
 }
 
 TEST_F(BehavioralAnalysisTest, BehaviorAnalyzer_SimplePattern) {

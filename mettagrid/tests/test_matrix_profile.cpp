@@ -5,27 +5,27 @@
 #include <random>
 
 #include "action_distance.hpp"
+#include "action_handler.hpp"
 #include "matrix_profile.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 // Mock action handlers for testing
 class MockActionHandler : public ActionHandler {
 public:
   MockActionHandler(const std::string& name, uint8_t max_arg_val)
-      : ActionHandler(ActionConfig({}, {})), name_(name), max_arg_(max_arg_val) {}
+      : ActionHandler(ActionConfig({}, {}), name), max_arg_(max_arg_val) {}
 
-  bool handle_action(GridObjectId, ActionArg) override {
-    return true;
-  }
-  const std::string& action_name() const override {
-    return name_;
-  }
   uint8_t max_arg() const override {
     return max_arg_;
   }
 
+protected:
+  bool _handle_action(Agent*, ActionArg) override {
+    return true;
+  }
+
 private:
-  std::string name_;
   uint8_t max_arg_;
 };
 
@@ -82,7 +82,7 @@ protected:
       const std::vector<std::pair<ActionType, ActionArg>>& pattern,
       int repeats) {
     std::vector<std::pair<ActionType, ActionArg>> result;
-    result.reserve(pattern.size() * repeats);
+    result.reserve(pattern.size() * static_cast<size_t>(repeats));
 
     for (int i = 0; i < repeats; i++) {
       result.insert(result.end(), pattern.begin(), pattern.end());
@@ -93,12 +93,12 @@ protected:
 
   // Generate random actions
   std::vector<std::pair<ActionType, ActionArg>> GenerateRandomActions(int count, int seed = 42) {
-    std::mt19937 rng(seed);
+    std::mt19937 rng(static_cast<unsigned int>(seed));
     std::uniform_int_distribution<int> action_dist(0, 3);
     std::uniform_int_distribution<int> arg_dist(0, 3);
 
     std::vector<std::pair<ActionType, ActionArg>> result;
-    result.reserve(count);
+    result.reserve(static_cast<size_t>(count));
 
     for (int i = 0; i < count; i++) {
       result.push_back({action_dist(rng), arg_dist(rng)});
@@ -172,7 +172,7 @@ TEST_F(MatrixProfileTest, MultipleAgentsIdenticalPatterns) {
 
   for (int i = 0; i < 5; i++) {
     auto history = GenerateRepeatingPattern(pattern, 15);
-    auto agent = CreateMockAgent(i + 1, history);
+    auto agent = CreateMockAgent(static_cast<GridObjectId>(i + 1), history);
     agents.push_back(agent.get());
     agent_objects.push_back(std::move(agent));
   }
@@ -202,7 +202,7 @@ TEST_F(MatrixProfileTest, RandomVsPatternedBehavior) {
   // Create agents with random behavior
   for (int i = 0; i < 3; i++) {
     auto history = GenerateRandomActions(100, i);
-    auto agent = CreateMockAgent(i + 1, history);
+    auto agent = CreateMockAgent(static_cast<GridObjectId>(i + 1), history);
     agents.push_back(agent.get());
     agent_objects.push_back(std::move(agent));
   }
@@ -212,7 +212,7 @@ TEST_F(MatrixProfileTest, RandomVsPatternedBehavior) {
 
   for (int i = 0; i < 3; i++) {
     auto history = GenerateRepeatingPattern(pattern, 16);
-    auto agent = CreateMockAgent(i + 4, history);
+    auto agent = CreateMockAgent(static_cast<GridObjectId>(i + 4), history);
     agents.push_back(agent.get());
     agent_objects.push_back(std::move(agent));
   }
@@ -225,7 +225,7 @@ TEST_F(MatrixProfileTest, RandomVsPatternedBehavior) {
   // Random agents should have higher average distances
   float avg_random_dist = 0;
   for (int i = 0; i < 3; i++) {
-    const auto& dists = profiles[i].window_results[0].distances;
+    const auto& dists = profiles[static_cast<size_t>(i)].window_results[0].distances;
     float sum = std::accumulate(dists.begin(), dists.end(), 0.0f);
     avg_random_dist += sum / dists.size();
   }
@@ -234,7 +234,7 @@ TEST_F(MatrixProfileTest, RandomVsPatternedBehavior) {
   // Patterned agents should have lower average distances
   float avg_pattern_dist = 0;
   for (int i = 3; i < 6; i++) {
-    const auto& dists = profiles[i].window_results[0].distances;
+    const auto& dists = profiles[static_cast<size_t>(i)].window_results[0].distances;
     float sum = std::accumulate(dists.begin(), dists.end(), 0.0f);
     avg_pattern_dist += sum / dists.size();
   }
@@ -302,7 +302,7 @@ TEST_F(MatrixProfileTest, PerformanceScaling) {
     // Create agents with moderate-length histories
     for (int i = 0; i < count; i++) {
       auto history = GenerateRandomActions(100, i);
-      auto agent = CreateMockAgent(i + 1, history);
+      auto agent = CreateMockAgent(static_cast<GridObjectId>(i + 1), history);
       agents.push_back(agent.get());
       agent_objects.push_back(std::move(agent));
     }
