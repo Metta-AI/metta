@@ -5,6 +5,7 @@ defaults:
   - sim: sweep_eval
   - trainer: trainer
   - sweep: full
+
   - _self_
 
 cmd: sweep
@@ -34,6 +35,9 @@ sim:
 sweep_train_job:
   sim: ${sim}
   trainer: ${trainer}
+  train_job:
+    map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
+    evals: ${sim}
   agent: ${agent}
   wandb: ${wandb} # Modified by sweep_lifecycle.py
   run: ${run}
