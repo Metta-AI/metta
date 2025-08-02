@@ -43,6 +43,11 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
     This class handles the common PufferLib integration logic that is shared
     between user adapters and training environments. It combines MettaGridCore
     with PufferEnv to provide PufferLib compatibility.
+
+    Inherits from:
+    - MettaGridCore: Core C++ environment wrapper functionality
+    - pufferlib.PufferEnv: High-performance vectorized environment interface
+      https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments.py
     """
 
     def __init__(

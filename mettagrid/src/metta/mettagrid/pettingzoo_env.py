@@ -35,6 +35,11 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
     This class provides a PettingZoo-compatible interface for MettaGrid environments,
     using the parallel environment API for multi-agent scenarios.
     No training features are included - this is purely for PettingZoo compatibility.
+
+    Inherits from:
+    - MettaGridCore: Core C++ environment wrapper functionality
+    - pettingzoo.ParallelEnv: Parallel multi-agent environment interface
+      https://github.com/Farama-Foundation/PettingZoo/blob/405e71c912dc3f787bb12c7f8463f18fcce31bb1/pettingzoo/utils/env.py#L281
     """
 
     def __init__(

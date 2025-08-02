@@ -21,6 +21,9 @@ class MettaGridPufferEnv(MettaGridPufferBase):
     This class provides a clean PufferLib interface for users who want to use
     MettaGrid environments with their own PufferLib training setup.
     No training features are included - this is purely for PufferLib compatibility.
+
+    Inherits from:
+    - MettaGridPufferBase: Base PufferLib integration with shared functionality
     """
 
     def __init__(
