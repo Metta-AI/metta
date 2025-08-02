@@ -12,12 +12,14 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.rl.puffer_policy import PytorchAgent
 from metta.common.util.instantiate import instantiate
 
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Tuple
 from abc import ABC, abstractmethod
+
+from metta.agent.external.example import Recurrent
+from gym import spaces
 
 
 
@@ -504,6 +506,7 @@ class DistributedMettaAgent(DistributedDataParallel):
 # =============================================================================
 
 def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
+
     """Factory function to create MettaAgent from environment and config."""
     obs_space = gym.spaces.Dict({
         "grid_obs": env.single_observation_space,
@@ -512,6 +515,8 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
 
     agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
     logger.info(f"Agent Config: {OmegaConf.create(agent_cfg)}")
+
+    logger.info(f"Feature Normalizations: {env.feature_normalizations}")
 
     builder = MettaAgentBuilder(
         obs_space=obs_space,
@@ -523,9 +528,47 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
         **agent_cfg,
     )
 
-    return builder.build()
+    policy = PufferlibRecurrentPolicy(env)
+
+    return builder.build(policy=policy)
+
+
+# External Policy Wrapper
+class PufferlibRecurrentPolicy(PolicyBase):
+    def __init__(self, env):
+        super().__init__("PufferlibRecurrent")
+        self.action_space = env.single_action_space
+
+        if isinstance(self.action_space, spaces.Discrete):
+            # treat Discrete(N) as a 1-D MultiDiscrete([N])
+            self.action_nvec = np.array([self.action_space.n], dtype=int)
+        elif isinstance(self.action_space, spaces.multi_discrete.MultiDiscrete):
+            self.action_nvec = self.action_space.nvec
+        else:
+            self.action_nvec = self.action_space.nvec
+            # raise NotImplementedError(f"Unsupported action space: {type(self.action_space)}")
+
+        self.recurrent_agent = Recurrent(env, input_size=128, hidden_size=128)
+        self.recurrent_agent.device = "cpu"
+        self.recurrent_agent.eval()  # Optional: set eval mode
+
+    def forward(
+        self,
+        agent: MettaAgent,
+        obs: Dict[str, torch.Tensor],
+        state: Optional[dict] = None,
+        action: Optional[torch.Tensor] = None,
+    ):
+        """
+        MettaAgent's obs -> Tensor: (B, M, 3) or (B, TT, M, 3)
+        You must convert the dictionary to the tensor format expected by the pufferlib agent.
+        """
+        observations = obs # Use correct key based on env
+        output = self.recurrent_agent(observations, state=state, action=action)
+        return output
 
 
 
 
-PolicyAgent = MettaAgent | DistributedMettaAgent | PytorchAgent
+
+PolicyAgent = MettaAgent | DistributedMettaAgent
