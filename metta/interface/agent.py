@@ -155,7 +155,6 @@ class Agent:
             obs_height=metta_grid_env.obs_height,
             action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
-            global_features=metta_grid_env.global_features,
             device=str(device),
             **agent_cfg,
         )
