@@ -121,8 +121,7 @@ public:
   }
 
   std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
-                                                   const std::vector<int>& window_sizes,
-                                                   const ActionDistance::ActionDistanceLUT& distance_lut) override {
+                                                   const std::vector<int>& window_sizes) override {
     if (!lut_initialized_) {
       throw std::runtime_error("MatrixProfiler not initialized. Call initialize() first.");
     }
@@ -130,7 +129,7 @@ public:
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // Encode agent histories
-    auto encoded = encode_agent_histories(agents, distance_lut);
+    auto encoded = encode_agent_histories(agents, *action_lut_);
     if (encoded.sequences.empty()) {
       return {};
     }
@@ -195,8 +194,7 @@ public:
 
   CrossAgentPatterns find_cross_agent_patterns(const std::vector<Agent*>& agents,
                                                int window_size,
-                                               float distance_threshold,
-                                               const ActionDistance::ActionDistanceLUT& distance_lut) override {
+                                               float distance_threshold) override {
     CrossAgentPatterns patterns;
 
     if (!lut_initialized_ || agents.size() < 2) {
@@ -204,7 +202,7 @@ public:
     }
 
     // Encode agent histories
-    auto encoded = encode_agent_histories(agents, distance_lut);
+    auto encoded = encode_agent_histories(agents, *action_lut_);
 
     // Simple CPU implementation: compare all pairs of agents
     for (size_t i = 0; i < encoded.sequences.size(); i++) {
@@ -439,17 +437,13 @@ void MatrixProfiler::initialize(const ActionDistance::ActionDistanceLUT& distanc
 
 std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vector<Agent*>& agents,
                                                                  const std::vector<int>& window_sizes) {
-  // Create a local reference to distance_lut that we can pass to the implementation
-  // This is a bit of a hack, but necessary since we don't store the LUT in MatrixProfiler
-  ActionDistance::ActionDistanceLUT dummy_lut;
-  return impl_->compute_profiles(agents, window_sizes, dummy_lut);
+  return impl_->compute_profiles(agents, window_sizes);
 }
 
 CrossAgentPatterns MatrixProfiler::find_cross_agent_patterns(const std::vector<Agent*>& agents,
                                                              int window_size,
                                                              float distance_threshold) {
-  ActionDistance::ActionDistanceLUT dummy_lut;
-  return impl_->find_cross_agent_patterns(agents, window_size, distance_threshold, dummy_lut);
+  return impl_->find_cross_agent_patterns(agents, window_size, distance_threshold);
 }
 
 void MatrixProfiler::update_agent(const Agent* agent) {

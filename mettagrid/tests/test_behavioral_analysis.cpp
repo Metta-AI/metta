@@ -65,24 +65,24 @@ protected:
     std::map<uint8_t, RewardType> rewards;
     std::map<uint8_t, RewardType> resource_reward_max;
 
-    return AgentConfig(0,                    // type_id
-                       "test_agent",         // type_name
-                       group_id,             // group_id
-                       "test_group",         // group_name
-                       0,                    // freeze_duration
-                       0.0f,                 // action_failure_penalty
-                       resource_limits,      // resource_limits
-                       rewards,              // resource_rewards
-                       resource_reward_max,  // resource_reward_max
-                       {},                   // stat_rewards
-                       {},                   // stat_reward_max
-                       0.0f                  // group_reward_pct
+    return AgentConfig(0,                               // type_id
+                       "test_agent",                    // type_name
+                       static_cast<uint8_t>(group_id),  // group_id
+                       "test_group",                    // group_name
+                       0,                               // freeze_duration
+                       0.0f,                            // action_failure_penalty
+                       resource_limits,                 // resource_limits
+                       rewards,                         // resource_rewards
+                       resource_reward_max,             // resource_reward_max
+                       {},                              // stat_rewards
+                       {},                              // stat_reward_max
+                       0.0f                             // group_reward_pct
     );
   }
 
   Agent* CreateAndAddAgent(int row, int col, int group_id = 1) {
     auto config = CreateTestAgentConfig(group_id);
-    Agent* agent = new Agent(row, col, config);
+    Agent* agent = new Agent(static_cast<GridCoord>(row), static_cast<GridCoord>(col), config);
     float reward = 0.0f;
     agent->init(&reward);
     grid->add_object(agent);

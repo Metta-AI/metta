@@ -148,13 +148,11 @@ public:
   virtual void initialize(const ActionDistance::ActionDistanceLUT& distance_lut) = 0;
 
   virtual std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
-                                                           const std::vector<int>& window_sizes,
-                                                           const ActionDistance::ActionDistanceLUT& distance_lut) = 0;
+                                                           const std::vector<int>& window_sizes) = 0;
 
   virtual CrossAgentPatterns find_cross_agent_patterns(const std::vector<Agent*>& agents,
                                                        int window_size,
-                                                       float distance_threshold,
-                                                       const ActionDistance::ActionDistanceLUT& distance_lut) = 0;
+                                                       float distance_threshold) = 0;
 
   virtual void update_agent(const Agent* agent) = 0;
   virtual void batch_update(const std::vector<Agent*>& updated_agents) = 0;

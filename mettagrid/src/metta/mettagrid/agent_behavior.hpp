@@ -251,11 +251,11 @@ public:
       float entropy = 0.0f;
       for (const auto& [action, freq] : stats.action_frequencies) {
         if (freq > 0) {
-          entropy -= freq * std::log2(freq);
+          entropy -= freq * std::log2f(freq);
         }
       }
-      stats.behavioral_diversity =
-          static_cast<float>(entropy / std::log2(static_cast<double>(distance_lut_.get_action_names().size())));
+      float log_base = std::log2f(static_cast<float>(distance_lut_.get_action_names().size()));
+      stats.behavioral_diversity = entropy / log_base;
     }
 
     return stats;

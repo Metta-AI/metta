@@ -182,6 +182,7 @@ private:
   std::vector<std::unique_ptr<GPUData>> gpu_data_;
   std::vector<int> gpu_devices_;
   std::array<std::array<uint8_t, 256>, 256> distance_lut_;
+  ActionDistance::ActionDistanceLUT* action_lut_ = nullptr;
   bool lut_initialized_ = false;
   mutable MatrixProfiler::PerformanceStats last_stats_;
 
@@ -227,6 +228,9 @@ public:
     // Store locally
     std::memcpy(distance_lut_.data(), lut, sizeof(lut));
 
+    // Store reference to action LUT for encoding
+    action_lut_ = const_cast<ActionDistance::ActionDistanceLUT*>(&distance_lut);
+
     // Upload to constant memory on all devices
     for (int device : gpu_devices_) {
       cudaSetDevice(device);
@@ -238,8 +242,7 @@ public:
   }
 
   std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
-                                                   const std::vector<int>& window_sizes,
-                                                   const ActionDistance::ActionDistanceLUT& distance_lut) override {
+                                                   const std::vector<int>& window_sizes) override {
     if (!lut_initialized_) {
       throw std::runtime_error("MatrixProfiler not initialized. Call initialize() first.");
     }
@@ -247,7 +250,7 @@ public:
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // Encode agent histories
-    auto encoded = encode_agent_histories(agents, distance_lut);
+    auto encoded = encode_agent_histories(agents, *action_lut_);
     if (encoded.sequences.empty()) {
       return {};
     }
@@ -272,8 +275,7 @@ public:
 
   CrossAgentPatterns find_cross_agent_patterns(const std::vector<Agent*>& agents,
                                                int window_size,
-                                               float distance_threshold,
-                                               const ActionDistance::ActionDistanceLUT& distance_lut) override {
+                                               float distance_threshold) override {
     // TODO: Implement GPU version
     CrossAgentPatterns patterns;
     return patterns;
