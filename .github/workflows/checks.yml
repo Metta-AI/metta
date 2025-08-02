@@ -280,9 +280,18 @@ jobs:
           echo "::group::Phase 1 - Running fast tests"
           echo "Running tests not marked as slow..."
 
-          # Capture pytest output
-          PYTEST_OUTPUT=$(pytest $PYTEST_BASE_ARGS -m "not slow" --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1)
-          FAST_TESTS_FAILED=$?
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            # Stream output to log immediately for debugging crashes
+            pytest $PYTEST_BASE_ARGS -m "not slow" \
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml
+            FAST_TESTS_FAILED=$?
+          else
+            # Capture output for PRs
+            PYTEST_OUTPUT=$(pytest $PYTEST_BASE_ARGS -m "not slow" \
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1)
+            FAST_TESTS_FAILED=$?
+            echo "$PYTEST_OUTPUT"
+          fi
 
           # Display the output
           echo "$PYTEST_OUTPUT"
