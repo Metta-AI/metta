@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
+from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
@@ -21,6 +21,44 @@ from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 logger = logging.getLogger(__name__)
+
+
+def evaluate_policy_remote(
+    policy_record: PolicyRecord,
+    sim_suite_config: SimulationSuiteConfig,
+    stats_epoch_id: uuid.UUID | None,
+    wandb_policy_name: str | None,
+    stats_client: StatsClient | None,
+    wandb_run: WandbRun | None,
+    trainer_cfg: TrainerConfig,
+) -> TaskResponse | None:
+    # Handle remote evaluation if configured
+    # ensures it was uploaded to wandb
+    if wandb_run and stats_client and policy_record and wandb_policy_name:
+        # Need to upload policy artifact to wandb first and make sure our name
+        # reflects that in the version
+        if ":" not in wandb_policy_name:
+            logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
+        else:
+            internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
+            stats_server_policy_id = get_or_create_policy_ids(
+                stats_client,
+                [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
+                stats_epoch_id,
+            ).get(internal_wandb_policy_name)
+            if not stats_server_policy_id:
+                logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
+            else:
+                task = stats_client.create_task(
+                    TaskCreateRequest(
+                        policy_id=stats_server_policy_id,
+                        git_hash=trainer_cfg.simulation.git_hash,
+                        sim_suite=sim_suite_config.name,
+                    )
+                )
+                logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
+                return task
+        return None
 
 
 def evaluate_policy(
@@ -51,38 +89,6 @@ def evaluate_policy(
     Returns:
         EvalRewardSummary containing the evaluation scores
     """
-    # Handle remote evaluation if configured
-    if (
-        trainer_cfg.simulation.evaluate_remote
-        and wandb_run
-        and stats_client
-        and policy_record
-        and wandb_policy_name  # ensures it was uploaded to wandb
-    ):
-        # Need to upload policy artifact to wandb first and make sure our name
-        # reflects that in the version
-        if ":" not in wandb_policy_name:
-            logger.warning(f"Remote evaluation: {wandb_policy_name} does not specify a version")
-        else:
-            internal_wandb_policy_name, wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
-            stats_server_policy_id = get_or_create_policy_ids(
-                stats_client,
-                [(internal_wandb_policy_name, wandb_uri, wandb_run.notes)],
-                stats_epoch_id,
-            ).get(internal_wandb_policy_name)
-            if not stats_server_policy_id:
-                logger.warning(f"Remote evaluation: failed to get or register policy ID for {wandb_policy_name}")
-            else:
-                task = stats_client.create_task(
-                    TaskCreateRequest(
-                        policy_id=stats_server_policy_id,
-                        git_hash=trainer_cfg.simulation.git_hash,
-                        sim_suite=sim_suite_config.name,
-                    )
-                )
-                logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
-                # TODO: need policy evaluator to generate replays and push stats to wandb
-
     # Local evaluation
     evaluation_results = eval_service_evaluate_policy(
         policy_record=policy_record,
@@ -96,7 +102,7 @@ def evaluate_policy(
         stats_client=stats_client,
         logger=logger,
     )
-    logger.info("Simulation complete")
+    logger.info("Evaluation complete")
 
     eval_scores = evaluation_results.scores
 

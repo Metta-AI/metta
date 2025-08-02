@@ -25,7 +25,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.evaluate import evaluate_policy
+from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -468,25 +468,36 @@ def train(
                 )
                 extended_suite_config.simulations["eval/training_task"] = training_task_config
 
-                # Evaluate policy using the extracted evaluation function
-                eval_scores = evaluate_policy(
-                    policy_record=latest_saved_policy_record,
-                    sim_suite_config=extended_suite_config,
-                    device=device,
-                    vectorization=cfg.vectorization,
-                    replay_dir=trainer_cfg.simulation.replay_dir,
-                    stats_epoch_id=stats_tracker.stats_epoch_id,
-                    wandb_policy_name=wandb_policy_name,
-                    policy_store=policy_store,
-                    stats_client=stats_client,
-                    cfg=cfg,
-                    wandb_run=wandb_run,
-                    trainer_cfg=trainer_cfg,
-                    agent_step=agent_step,
-                    epoch=epoch,
-                )
+                if trainer_cfg.simulation.evaluate_remote:
+                    evaluate_policy_remote(
+                        policy_record=latest_saved_policy_record,
+                        sim_suite_config=extended_suite_config,
+                        stats_epoch_id=stats_tracker.stats_epoch_id,
+                        wandb_policy_name=wandb_policy_name,
+                        stats_client=stats_client,
+                        wandb_run=wandb_run,
+                        trainer_cfg=trainer_cfg,
+                    )
 
-                stats_tracker.update_epoch_tracking(epoch + 1)
+                if trainer_cfg.simulation.evaluate_local:
+                    eval_scores = evaluate_policy(
+                        policy_record=latest_saved_policy_record,
+                        sim_suite_config=extended_suite_config,
+                        device=device,
+                        vectorization=cfg.vectorization,
+                        replay_dir=trainer_cfg.simulation.replay_dir,
+                        stats_epoch_id=stats_tracker.stats_epoch_id,
+                        wandb_policy_name=wandb_policy_name,
+                        policy_store=policy_store,
+                        stats_client=stats_client,
+                        cfg=cfg,
+                        wandb_run=wandb_run,
+                        trainer_cfg=trainer_cfg,
+                        agent_step=agent_step,
+                        epoch=epoch,
+                    )
+
+                    stats_tracker.update_epoch_tracking(epoch + 1)
 
         # Compute gradient stats
         if should_run(epoch, trainer_cfg.grad_mean_variance_interval, is_master):
