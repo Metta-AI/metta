@@ -13,6 +13,7 @@ from metta.rl.losses import Losses
 class TestLosses:
     """Test suite for the Losses class."""
 
+    @pytest.mark.hourly
     def test_initialization(self):
         """Test that a new Losses instance is properly initialized with zeros."""
         losses = Losses()
@@ -31,6 +32,7 @@ class TestLosses:
         assert losses.explained_variance == 0.0
         assert losses.minibatches_processed == 0
 
+    @pytest.mark.hourly
     def test_zero_method(self):
         """Test that the zero method resets all loss values."""
         losses = Losses()
