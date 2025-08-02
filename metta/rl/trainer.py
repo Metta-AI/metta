@@ -8,6 +8,7 @@ import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
@@ -81,7 +82,7 @@ def train(
     run_dir: str,
     run: str,
     env_cfg: EnvConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: AgentConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,

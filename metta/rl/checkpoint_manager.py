@@ -1,15 +1,13 @@
 """Checkpoint management for Metta training."""
 
 import logging
-import os
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 import numpy as np
 import torch
 
-from metta.agent.metta_agent import DistributedMettaAgent, make_policy
-from metta.common.util.fs import wait_for_file
+from metta.agent.metta_agent import DistributedMettaAgent
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.policy_management import cleanup_old_policies
@@ -52,79 +50,6 @@ class CheckpointManager:
 
         # Ensure checkpoint directory exists
         Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-
-    def load_checkpoint(
-        self,
-        run_dir: str,
-        metta_grid_env: Any,
-        cfg: Any,
-    ) -> Tuple[TrainerCheckpoint | None, Any, int, int]:
-        """Load checkpoint and policy if they exist, or create new ones.
-
-        Args:
-            run_dir: Directory containing checkpoints
-            metta_grid_env: MettaGridEnv instance for policy creation
-            cfg: Full config for policy creation
-
-        Returns:
-            Tuple of (checkpoint, policy_record, agent_step, epoch)
-        """
-        # Try to load trainer checkpoint
-        checkpoint = TrainerCheckpoint.load(run_dir)
-        agent_step = 0
-        epoch = 0
-
-        if checkpoint:
-            agent_step = checkpoint.agent_step
-            epoch = checkpoint.epoch
-            logger.info(f"Restored from checkpoint at {agent_step} steps")
-
-        # Try to load policy from checkpoint
-        if checkpoint and checkpoint.policy_path:
-            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            policy_record = self.policy_store.policy_record(checkpoint.policy_path)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-
-        # Try to load initial policy from config
-        if self.trainer_cfg.initial_policy and self.trainer_cfg.initial_policy.uri:
-            logger.info(f"Loading initial policy URI: {self.trainer_cfg.initial_policy.uri}")
-            policy_record = self.policy_store.policy_record(self.trainer_cfg.initial_policy.uri)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-
-        # Check for existing policy at default path
-        default_path = os.path.join(self.checkpoint_dir, self.policy_store.make_model_name(0))
-        if os.path.exists(default_path):
-            logger.info(f"Loading policy from default path: {default_path}")
-            policy_record = self.policy_store.policy_record(default_path)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-
-        # Create new policy with distributed coordination
-        if torch.distributed.is_initialized() and not self.is_master:
-            # Non-master waits for master to create
-            logger.info(f"Rank {self.rank}: Waiting for master to create policy at {default_path}")
-            torch.distributed.barrier()
-
-            if not wait_for_file(default_path, timeout=300):
-                raise RuntimeError(f"Rank {self.rank}: Timeout waiting for policy at {default_path}")
-
-            policy_record = self.policy_store.policy_record(default_path)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-        else:
-            # Master creates new policy
-            name = self.policy_store.make_model_name(0)
-            pr = self.policy_store.create_empty_policy_record(name)
-            pr.policy = make_policy(metta_grid_env, cfg)
-            saved_pr = self.policy_store.save(pr)
-            logger.info(f"Created and saved new policy to {saved_pr.uri}")
-
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-
-            return checkpoint, saved_pr, agent_step, epoch
 
     def save_checkpoint(
         self,
