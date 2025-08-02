@@ -3,9 +3,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
-#include <execution>
 #include <numeric>
 #include <thread>
+#include <vector>
 
 #include "matrix_profile.hpp"
 
@@ -58,7 +58,7 @@ public:
     size_t total_comparisons = 0;
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic) reduction(+ : total_comparisons)
 #endif
     for (size_t agent_idx = 0; agent_idx < num_agents; agent_idx++) {
       const auto& seq = sequences[agent_idx];
@@ -73,8 +73,11 @@ public:
         std::vector<uint32_t> indices(profile_length, 0);
 
         // Compute matrix profile for this sequence and window size
+        size_t local_comparisons = 0;
         compute_self_matrix_profile(
-            seq.data(), seq_length, window_size, profile.data(), indices.data(), total_comparisons);
+            seq.data(), seq_length, window_size, profile.data(), indices.data(), local_comparisons);
+
+        total_comparisons += local_comparisons;
 
         // Store results (for simplicity, we overwrite with last window size)
         out_profiles[agent_idx] = std::move(profile);
@@ -138,6 +141,9 @@ private:
 
 // Update MatrixProfiler implementation to support CPU fallback
 #ifdef CUDA_BEHAVIORAL_ANALYSIS_DISABLED
+
+// Define PerformanceStats type alias for CPU mode
+using PerformanceStats = MatrixProfiler::PerformanceStats;
 
 MatrixProfiler::MatrixProfiler(const MatrixProfileConfig& config) : config_(config) {
   // Use CPU implementation when CUDA is not available
@@ -264,6 +270,42 @@ std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vect
   return results;
 }
 
+// Helper function for cross-agent pattern finding
+std::vector<CrossAgentPatterns::SharedMotif> find_shared_motifs_cpu(
+    const std::vector<uint8_t>& seq1,
+    const std::vector<uint8_t>& seq2,
+    int window_size,
+    float distance_threshold,
+    GridObjectId agent1_id,
+    GridObjectId agent2_id,
+    const std::array<std::array<uint8_t, 256>, 256>& distance_lut) {
+  std::vector<CrossAgentPatterns::SharedMotif> motifs;
+
+  if (seq1.size() < static_cast<size_t>(window_size) || seq2.size() < static_cast<size_t>(window_size)) {
+    return motifs;
+  }
+
+  // Simple sliding window comparison
+  for (size_t i = 0; i <= seq1.size() - window_size; i++) {
+    for (size_t j = 0; j <= seq2.size() - window_size; j++) {
+      uint32_t dist = compute_distance_cpu(seq1.data() + i, seq2.data() + j, window_size, distance_lut);
+
+      if (dist <= distance_threshold) {
+        CrossAgentPatterns::SharedMotif motif;
+        motif.agent1_id = agent1_id;
+        motif.agent2_id = agent2_id;
+        motif.agent1_idx = i;
+        motif.agent2_idx = j;
+        motif.length = window_size;
+        motif.distance = static_cast<uint16_t>(dist);
+        motifs.push_back(motif);
+      }
+    }
+  }
+
+  return motifs;
+}
+
 CrossAgentPatterns MatrixProfiler::find_cross_agent_patterns(const std::vector<Agent*>& agents,
                                                              int window_size,
                                                              float distance_threshold) {
@@ -284,7 +326,8 @@ CrossAgentPatterns MatrixProfiler::find_cross_agent_patterns(const std::vector<A
                                            window_size,
                                            distance_threshold,
                                            encoded.agent_ids[i],
-                                           encoded.agent_ids[j]);
+                                           encoded.agent_ids[j],
+                                           distance_lut_);
 
       patterns.shared_motifs.insert(patterns.shared_motifs.end(), shared.begin(), shared.end());
     }
@@ -314,40 +357,6 @@ size_t MatrixProfiler::get_gpu_memory_usage() const {
 void MatrixProfiler::clear_cache() {
   // Nothing to clear in CPU mode
   std::cout << "MatrixProfiler: Cache cleared (CPU mode)\n";
-}
-
-// Helper function for cross-agent pattern finding
-std::vector<CrossAgentPatterns::SharedMotif> MatrixProfiler::find_shared_motifs_cpu(const std::vector<uint8_t>& seq1,
-                                                                                    const std::vector<uint8_t>& seq2,
-                                                                                    int window_size,
-                                                                                    float distance_threshold,
-                                                                                    GridObjectId agent1_id,
-                                                                                    GridObjectId agent2_id) const {
-  std::vector<CrossAgentPatterns::SharedMotif> motifs;
-
-  if (seq1.size() < static_cast<size_t>(window_size) || seq2.size() < static_cast<size_t>(window_size)) {
-    return motifs;
-  }
-
-  // Simple sliding window comparison
-  for (size_t i = 0; i <= seq1.size() - window_size; i++) {
-    for (size_t j = 0; j <= seq2.size() - window_size; j++) {
-      uint32_t dist = compute_distance_cpu(seq1.data() + i, seq2.data() + j, window_size, distance_lut_);
-
-      if (dist <= distance_threshold) {
-        CrossAgentPatterns::SharedMotif motif;
-        motif.agent1_id = agent1_id;
-        motif.agent2_id = agent2_id;
-        motif.agent1_idx = i;
-        motif.agent2_idx = j;
-        motif.length = window_size;
-        motif.distance = static_cast<uint16_t>(dist);
-        motifs.push_back(motif);
-      }
-    }
-  }
-
-  return motifs;
 }
 
 // Implementation of Analysis functions for CPU
@@ -407,16 +416,6 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::
 }
 
 }  // namespace Analysis
-
-private:
-// Helper function for CPU implementation
-std::vector<CrossAgentPatterns::SharedMotif> find_shared_motifs_cpu(const std::vector<uint8_t>& seq1,
-                                                                    const std::vector<uint8_t>& seq2,
-                                                                    int window_size,
-                                                                    float distance_threshold,
-                                                                    GridObjectId agent1_id,
-                                                                    GridObjectId agent2_id) const;
-};
 
 #endif  // CUDA_BEHAVIORAL_ANALYSIS_DISABLED
 
