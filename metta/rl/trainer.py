@@ -1,10 +1,8 @@
 import logging
 import os
 from collections import defaultdict
-from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
-import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
@@ -25,6 +23,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -47,7 +46,7 @@ from metta.rl.stats import (
 )
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import create_trainer_config
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import (
     log_training_progress,
     should_run,
@@ -79,35 +78,35 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 def train(
-    cfg: DictConfig,
+    run_dir: str,
+    run: str,
+    env_cfg: EnvConfig,
+    agent_cfg: DictConfig,
+    device: torch.device,
+    trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
     policy_store: PolicyStore,
     sim_suite_config: SimulationSuiteConfig,
     stats_client: StatsClient | None,
-    **kwargs: Any,
 ) -> None:
     """Main training loop for Metta agents."""
-    logger.info(f"run_dir = {cfg.run_dir}")
+    logger.info(f"run_dir = {run_dir}")
 
     # Log recent checkpoints for debugging
-    checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
-    if checkpoints_dir.exists():
+    checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
+    if os.path.exists(checkpoints_dir):
         files = sorted(os.listdir(checkpoints_dir))[-3:]
         if files:
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
-    # Create trainer config from Hydra config
-    trainer_cfg = create_trainer_config(cfg)
-
     # Set up distributed
     is_master, world_size, rank = setup_distributed_vars()
-    device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
 
     # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
     losses = Losses()
-    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
+    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
     # Calculate batch sizes
@@ -122,7 +121,7 @@ def train(
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
-        cfg.vectorization,
+        env_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
         num_workers=trainer_cfg.num_workers,
@@ -130,10 +129,7 @@ def train(
         is_training=True,
     )
 
-    seed = cfg.get("seed")
-    if seed is None:
-        seed = np.random.randint(0, 1000000)
-    vecenv.async_reset(seed + rank)
+    vecenv.async_reset(env_cfg.seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -148,11 +144,11 @@ def train(
         device=device,
         is_master=is_master,
         rank=rank,
-        run_name=cfg.run,
+        run_name=run,
     )
 
     # Load checkpoint if it exists
-    checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+    checkpoint = TrainerCheckpoint.load(run_dir)
     agent_step = checkpoint.agent_step if checkpoint else 0
     epoch = checkpoint.epoch if checkpoint else 0
 
@@ -164,7 +160,9 @@ def train(
     # Load or initialize policy with distributed coordination
     policy: PolicyAgent
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
-        cfg=cfg,
+        agent_cfg=agent_cfg,
+        env_cfg=env_cfg,
+        trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
         policy_store=policy_store,
         metta_grid_env=metta_grid_env,
@@ -396,7 +394,7 @@ def train(
                 rollout_time=rollout_time,
                 stats_time=stats_time,
                 is_master=is_master,
-                run_name=cfg.run,
+                run_name=run,
             )
 
         # Update L2 weights if configured
@@ -425,7 +423,7 @@ def train(
                         optimizer=optimizer,
                         policy_path=saved_record.uri,
                         timer=timer,
-                        run_dir=cfg.run_dir,
+                        run_dir=run_dir,
                         kickstarter=kickstarter,
                     )
 
@@ -477,13 +475,12 @@ def train(
                     policy_record=latest_saved_policy_record,
                     sim_suite_config=extended_suite_config,
                     device=device,
-                    vectorization=cfg.vectorization,
+                    vectorization=env_cfg.vectorization,
                     replay_dir=trainer_cfg.simulation.replay_dir,
                     stats_epoch_id=stats_tracker.stats_epoch_id,
                     wandb_policy_name=wandb_policy_name,
                     policy_store=policy_store,
                     stats_client=stats_client,
-                    cfg=cfg,
                     wandb_run=wandb_run,
                     trainer_cfg=trainer_cfg,
                     agent_step=agent_step,
@@ -532,7 +529,7 @@ def train(
                 optimizer=optimizer,
                 policy_path=saved_record.uri,
                 timer=timer,
-                run_dir=cfg.run_dir,
+                run_dir=run_dir,
                 kickstarter=kickstarter,
                 force=True,
             )
@@ -542,7 +539,7 @@ def train(
         torch.distributed.barrier()
 
     if wandb_run and latest_saved_policy_record:
-        upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record, force=True)
+        upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
 
     # Final synchronization before cleanup
     if torch.distributed.is_initialized():
