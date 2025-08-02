@@ -67,9 +67,16 @@ class EvalTaskOrchestrator:
 
     async def _get_available_workers(self, claimed_tasks: list[TaskResponse]) -> dict[str, WorkerInfo]:
         alive_workers = await self._container_manager.discover_alive_workers()
-        git_hashes_by_assignee = await self._task_client.get_git_hashes_for_workers(
-            [w.container_name for w in alive_workers]
-        )
+
+        # Only fetch git hashes if we have alive workers
+        if alive_workers:
+            git_hashes_by_assignee = await self._task_client.get_git_hashes_for_workers(
+                [w.container_name for w in alive_workers]
+            )
+        else:
+            from metta.app_backend.routes.eval_task_routes import GitHashesResponse
+
+            git_hashes_by_assignee = GitHashesResponse(git_hashes={})
         alive_workers_by_name: dict[str, WorkerInfo] = {w.container_name: w for w in alive_workers}
 
         for task in claimed_tasks:
@@ -87,9 +94,21 @@ class EvalTaskOrchestrator:
     ) -> None:
         for task in claimed_tasks:
             # Unclaim all assigned tasks that are overdue and kill their workers
-            assigned_at = task.assigned_at.replace(tzinfo=timezone.utc) if task.assigned_at else None
-            if assigned_at and (assigned_at < datetime.now(timezone.utc) - timedelta(minutes=10)):
-                self._logger.info(f"Killing task {task.id} because it has been running for more than 10 minutes")
+            assigned_at = task.assigned_at
+            now = datetime.now(timezone.utc)
+            cutoff = now - timedelta(minutes=20)  # Tasks assigned before this time are considered timed out
+
+            # Ensure timezone compatibility by making assigned_at timezone-aware if it's naive
+            if assigned_at and assigned_at.tzinfo is None:
+                assigned_at = assigned_at.replace(tzinfo=timezone.utc)
+
+            should_timeout = assigned_at and (assigned_at < cutoff)
+            self._logger.debug(
+                f"Task {task.id}: assigned_at={assigned_at}, cutoff={cutoff}, should_timeout={should_timeout}"
+            )
+            # Check if task has been assigned too long and reassign it
+            if should_timeout:
+                self._logger.info(f"Killing task {task.id} because it has been running for more than 20 minutes")
                 if task.retries < 3:
                     await self._task_client.update_task_status(
                         TaskUpdateRequest(
@@ -189,6 +208,7 @@ async def main() -> None:
     init_logging()
     init_tracing()
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger(__name__).setLevel(logging.DEBUG)
 
     logger = logging.getLogger(__name__)
 

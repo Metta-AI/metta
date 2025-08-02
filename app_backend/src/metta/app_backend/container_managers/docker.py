@@ -19,8 +19,18 @@ class DockerContainerManager(AbstractContainerManager):
         dd_env_vars: dict[str, str] | None = None,
     ) -> WorkerInfo:
         container_name = self._format_container_name()
+
+        # Convert localhost/127.0.0.1/0.0.0.0 URLs to host.docker.internal for containers
+        container_backend_url = backend_url
+        if "localhost" in backend_url or "127.0.0.1" in backend_url or "0.0.0.0" in backend_url:
+            container_backend_url = (
+                backend_url.replace("localhost", "host.docker.internal")
+                .replace("127.0.0.1", "host.docker.internal")
+                .replace("0.0.0.0", "host.docker.internal")
+            )
+
         env_vars = {
-            "BACKEND_URL": backend_url,
+            "BACKEND_URL": container_backend_url,
             "WORKER_ASSIGNEE": container_name,
             "MACHINE_TOKEN": machine_token,
             "WANDB_API_KEY": os.environ["WANDB_API_KEY"],

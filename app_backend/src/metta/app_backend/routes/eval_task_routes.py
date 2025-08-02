@@ -158,7 +158,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/git-hashes")
     @timed_http_handler
-    async def get_git_hashes_for_workers(assignees: list[str]) -> GitHashesResponse:
+    async def get_git_hashes_for_workers(assignees: list[str] = Query()) -> GitHashesResponse:
         git_hashes = await stats_repo.get_git_hashes_for_workers(assignees=assignees)
         return GitHashesResponse(git_hashes=git_hashes)
 

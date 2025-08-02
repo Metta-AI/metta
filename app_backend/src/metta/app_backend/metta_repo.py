@@ -1389,7 +1389,8 @@ class MettaRepo:
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
         async with self.connect() as con:
             queryRes = await con.execute(
-                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee IN %s", (assignees,)
+                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee = ANY(%s)",
+                (assignees,),
             )
             rows = await queryRes.fetchall()
             res: dict[str, list[str]] = defaultdict(list)

@@ -7,6 +7,7 @@ services:
       - CONTAINER_RUNTIME=${CONTAINER_RUNTIME:-docker}
       - WANDB_API_KEY=${WANDB_API_KEY}
       - DOCKER_IMAGE=${DOCKER_IMAGE:-metta-policy-evaluator-local:latest}
+      - MACHINE_TOKEN=${MACHINE_TOKEN:-0uxJNJvbx-TsHjEF5SHkN0OdBkKgOXkCD7Nh7OtVRtc}
     volumes:
       - ../../../:/workspace/metta/app_backend
       - /var/run/docker.sock:/var/run/docker.sock

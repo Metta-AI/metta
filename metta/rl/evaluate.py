@@ -102,7 +102,7 @@ def evaluate_policy(
         stats_client=stats_client,
         logger=logger,
     )
-    logger.info("Evaluation complete")
+    logger.info("Simulation complete")
 
     eval_scores = evaluation_results.scores
 

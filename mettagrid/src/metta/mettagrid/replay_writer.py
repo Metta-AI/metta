@@ -35,6 +35,10 @@ class ReplayWriter:
             raise ValueError(f"Episode {episode_id} not found")
         replay_path = f"{self.replay_dir}/{episode_id}.json.z"
         episode_replay.write_replay(replay_path)
+
+        if not (replay_path.startswith("s3://") or replay_path.startswith("https://")):
+            return None
+
         return http_url(replay_path)
 
 
