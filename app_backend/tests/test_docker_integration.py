@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 
 import pytest
 import requests
@@ -54,9 +55,11 @@ class TestDockerIntegration:
     @pytest.fixture(scope="class")
     def app_backend_container(self, postgres_container: PostgresContainer, docker_client):
         """Build and start the app_backend Docker container."""
-        try:
-            import docker
+        # Generate a unique network name for this test run
+        unique_id = uuid.uuid4().hex[:8]
+        network_name = f"test-app-backend-network-{unique_id}"
 
+        try:
             project_root = get_repo_root()
             client = docker_client
 
@@ -67,20 +70,10 @@ class TestDockerIntegration:
             )
             self.logger.info("Successfully built Docker image")
 
-            # Create a shared network for container communication
-            # Try to remove existing network first, then create new one
-            try:
-                existing_network = client.networks.get("test-app-backend-network")
-                self.logger.info("Found existing network, removing it")
-                existing_network.remove()
-                self.logger.info("Successfully removed existing network")
-            except docker.errors.NotFound:  # type: ignore[reportAttributeAccessIssue]
-                self.logger.info("No existing network found, proceeding with creation")
-            except Exception as e:
-                self.logger.warning(f"Failed to remove existing network: {e}")
-
-            network = client.networks.create("test-app-backend-network")
-            self.logger.info("Created Docker network")
+            # Create a unique network for this test run
+            self.logger.info(f"Creating Docker network: {network_name}")
+            network = client.networks.create(network_name, driver="bridge")
+            self.logger.info(f"Created Docker network: {network_name}")
 
             # Connect postgres container to the network
             self.logger.info("Connecting PostgreSQL container to network")
@@ -149,7 +142,7 @@ class TestDockerIntegration:
 
             # Clean up the network
             try:
-                self.logger.info("Disconnecting containers from Docker network")
+                self.logger.info(f"Disconnecting containers from Docker network: {network_name}")
                 # Disconnect the postgres container from the network
                 try:
                     network.disconnect(postgres_container._container)  # type: ignore[reportArgumentType]
@@ -157,11 +150,11 @@ class TestDockerIntegration:
                 except Exception as disconnect_error:
                     self.logger.warning(f"Failed to disconnect PostgreSQL container: {disconnect_error}")
 
-                self.logger.info("Removing Docker network")
+                self.logger.info(f"Removing Docker network: {network_name}")
                 network.remove()
-                self.logger.info("Successfully removed Docker network")
+                self.logger.info(f"Successfully removed Docker network: {network_name}")
             except Exception as e:
-                self.logger.error(f"Failed to remove Docker network: {e}")
+                self.logger.error(f"Failed to remove Docker network {network_name}: {e}")
 
             # Clean up the built image
             try:
@@ -173,6 +166,15 @@ class TestDockerIntegration:
 
             self.logger.info("Cleanup process completed")
         except Exception as e:
+            # Attempt to clean up the network if creation failed
+            try:
+                client = docker_client
+                network_to_remove = client.networks.get(network_name)
+                network_to_remove.remove()
+                self.logger.info(f"Cleaned up network {network_name} after failure")
+            except Exception:
+                pass  # Network might not exist
+
             pytest.fail(f"Failed to start app_backend container: {e}")
 
     @pytest.mark.slow
