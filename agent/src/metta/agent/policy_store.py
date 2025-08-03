@@ -491,7 +491,6 @@ class PolicyStore:
                     obs_height=obs_shape[2],
                     single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
                     feature_normalizations=checkpoint.get("feature_normalizations", {}),
-                    global_features=[],
                 )
 
                 policy = make_policy(env, self._cfg)  # type: ignore

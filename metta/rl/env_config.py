@@ -12,7 +12,7 @@ class EnvConfig(BaseModelWithForbidExtra):
     vectorization: Literal["serial", "multiprocessing"] = "multiprocessing"
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
-    device: Literal["cpu", "cuda"] = "cuda"
+    device: str = "cuda"
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
