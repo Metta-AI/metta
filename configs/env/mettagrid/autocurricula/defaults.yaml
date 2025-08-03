@@ -5,6 +5,9 @@ defaults:
 game:
   num_agents: 4
   max_steps: 1000
+  agent:
+    starting_inventory:
+      battery_blue: 1
   inventory_item_names:
     - battery_blue
   actions:
@@ -34,6 +37,4 @@ game:
     wall:
       type_id: 4
 
-# agent:
-  #   starting_inventory:
-  #     battery_blue: 1
+
