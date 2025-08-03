@@ -165,6 +165,12 @@ class PyWallConfig(BaseModelWithForbidExtra):
     swappable: bool = Field(default=False)
 
 
+class PyBoxConfig(BaseModelWithForbidExtra):
+    """Python box configuration."""
+
+    type_id: int
+
+
 class PyConverterConfig(BaseModelWithForbidExtra):
     """Python converter configuration."""
 
@@ -197,7 +203,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
-    objects: dict[str, PyConverterConfig | PyWallConfig]
+    objects: dict[str, PyConverterConfig | PyWallConfig | PyBoxConfig]
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.

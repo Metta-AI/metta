@@ -45,16 +45,19 @@ protected:
           // Creator cannot open their own box
           return false;
         }
-        // Direct lookup using creator_agent_object_id
-        Agent* creator = dynamic_cast<Agent*>(_grid->object(box->creator_agent_object_id));
-        if (!creator) {
-          return false;
+        // If the creator of the box is an agent, return blue battery to creator and penalize creator
+        if (box->creator_agent_id != 255) {
+          Agent* creator = dynamic_cast<Agent*>(_grid->object(box->creator_agent_object_id));
+          if (!creator) {
+            return false;
+          }
+          // Return blue battery to creator
+          creator->update_inventory(blue_battery_item_, 1);
+          if (creator->reward) *creator->reward -= 1.0f;
         }
-        // Return blue battery to creator
-        creator->update_inventory(blue_battery_item_, 1);
-        if (creator->reward) *creator->reward -= 1.0f;
+
+        // Reward the agent for opening the box and teleport back to top-left corner
         if (actor->reward) *actor->reward += 1.0f;
-        // _grid->remove_object(box);
         _grid->move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
         actor->box->inventory[blue_battery_item_] = 0;
         actor->stats.add("box.opened", 1.0f);

@@ -130,7 +130,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   init_action_handlers();
 
   object_type_names.resize(cfg.objects.size());
-
   for (const auto& [key, object_cfg] : cfg.objects) {
     TypeId type_id = object_cfg->type_id;
 
@@ -140,6 +139,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     }
 
     if (object_type_names[type_id] != "" && object_type_names[type_id] != object_cfg->type_name) {
+      std::cout << "cfg.objects: " << object_cfg << std::endl;
       throw std::runtime_error("Object type_id " + std::to_string(type_id) + " already exists with type_name " +
                                object_type_names[type_id] + ". Trying to add " + object_cfg->type_name + ".");
     }
@@ -182,6 +182,17 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       if (wall_config) {
         Wall* wall = new Wall(r, c, *wall_config);
         _grid->add_object(wall, true);
+        _stats->incr("objects." + cell);
+        continue;
+      }
+
+      const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
+      if (box_config) {
+        // Note: Box objects typically need creator information
+        // You might need to modify the Box constructor or create a different approach
+        Box* box = new Box(r, c, box_config->type_id, box_config->type_name,
+                          255, 255, _blue_battery_item); // Default creator values
+        _grid->add_object(box, true);
         _stats->incr("objects." + cell);
         continue;
       }
@@ -284,7 +295,7 @@ void MettaGrid::init_action_handlers() {
 
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
-  agent->box = new Box(0, 0, 3, "box", agent->id, static_cast<unsigned char>(agent->agent_id), _blue_battery_item);
+  agent->box = new Box(0, 0, 12, "box", agent->id, static_cast<unsigned char>(agent->agent_id), _blue_battery_item);
   _grid->add_object(agent->box, false);
   _agents.push_back(agent);
 }
@@ -937,6 +948,11 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("swappable", &WallConfig::swappable);
+
+  py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
+      .def(py::init<TypeId, const std::string&>(), py::arg("type_id"), py::arg("type_name"))
+      .def_readwrite("type_id", &BoxConfig::type_id)
+      .def_readwrite("type_name", &BoxConfig::type_name);
 
   // ##MettagridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

@@ -3,12 +3,13 @@ import copy
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
+from metta.mettagrid.mettagrid_c import BoxConfig as CppBoxConfig
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import PyConverterConfig, PyGameConfig, PyWallConfig
+from metta.mettagrid.mettagrid_config import PyBoxConfig, PyConverterConfig, PyGameConfig, PyWallConfig
 
 
 def convert_to_cpp_game_config(mettagrid_config_dict: dict):
@@ -123,6 +124,12 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 swappable=object_config.swappable,
             )
             objects_cpp_params[object_type] = cpp_wall_config
+        elif isinstance(object_config, PyBoxConfig):
+            cpp_box_config = CppBoxConfig(
+                type_id=object_config.type_id,
+                type_name=object_type,
+            )
+            objects_cpp_params[object_type] = cpp_box_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 

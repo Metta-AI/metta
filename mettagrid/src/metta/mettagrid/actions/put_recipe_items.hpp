@@ -42,8 +42,6 @@ protected:
             _grid->move_object(actor->box->id, target_loc);
             actor->box->inventory[blue_battery_item_] = 1;
           }
-          // Box* box = new Box(target_loc.r, target_loc.c, 3, "box", actor->id, static_cast<unsigned char>(actor->agent_id), blue_battery_item_);
-          // _grid->add_object(box);
           actor->stats.add("box.created", 1.0f);
           return true;
         }

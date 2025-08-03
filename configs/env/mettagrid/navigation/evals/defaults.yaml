@@ -31,6 +31,8 @@ game:
   objects:
     altar:
       initial_resource_count: 1
+    box:
+      type_id: 12
 
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii

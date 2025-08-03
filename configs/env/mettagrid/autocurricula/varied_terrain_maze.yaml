@@ -30,12 +30,11 @@ game:
       agents: 4
       objects:
         altar: 0
+        box: 0
   objects:
     altar:
       cooldown: 1000
       initial_resource_count: 1
       type_id: 2
     box:
-      type_id: 3
-    wall:
-      type_id: 4
+      type_id: 12
