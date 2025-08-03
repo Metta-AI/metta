@@ -93,7 +93,8 @@ def maybe_load_checkpoint(
     policy_store: PolicyStore,
     trainer_cfg: TrainerConfig,
     metta_grid_env: MettaGridEnv,
-    cfg: DictConfig,
+    agent_cfg: DictConfig,
+    env_cfg: EnvConfig,
     is_master: bool,
     rank: int,
 ) -> tuple[TrainerCheckpoint | None, PolicyRecord, int, int]:
@@ -177,7 +178,7 @@ def maybe_load_checkpoint(
         # Master creates new policy
         name = policy_store.make_model_name(0)
         pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
+        pr.policy = make_policy(metta_grid_env, env_cfg=env_cfg, agent_cfg=agent_cfg)
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
