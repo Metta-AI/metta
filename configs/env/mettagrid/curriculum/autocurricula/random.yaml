@@ -2,3 +2,5 @@ _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
   /env/mettagrid/autocurricula/terrain_from_numpy: 1
+  /env/mettagrid/autocurricula/varied_terrain_balanced: 1
+  /env/mettagrid/autocurricula/varied_terrain_maze: 1

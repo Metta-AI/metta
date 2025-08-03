@@ -16,10 +16,12 @@ The build order is:
     mini labyrinths → obstacles (large, small, crosses) → scattered walls → blocks → altars → agents.
 """
 
+import random
 from typing import List, Optional, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
+from scipy.signal import convolve2d
 
 from metta.mettagrid.room.room import Room
 
@@ -131,6 +133,59 @@ class VariedTerrain(Room):
         self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
         self._objects = objects
 
+    def positions_in_same_area(self, level, num_agents):
+        """
+        Returns num_agents positions, all with valid_mask=True, all within a 5x5 square
+        with the central 3x3 cut out (i.e., only the border of the 5x5 square), chosen randomly.
+        Uses convolution to efficiently find valid 5x5 squares.
+        If not enough such positions exist, returns [].
+        """
+
+        # Compute valid_mask as in get_valid_positions
+        empty_mask = level == "empty"
+        has_empty_neighbor = np.zeros_like(empty_mask, dtype=bool)
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            shifted = np.roll(empty_mask, shift=(dr, dc), axis=(0, 1))
+            has_empty_neighbor |= shifted
+        valid_mask = empty_mask & has_empty_neighbor
+        valid_mask[0, :] = False
+        valid_mask[-1, :] = False
+        valid_mask[:, 0] = False
+        valid_mask[:, -1] = False
+
+        # Build the 5x5 border kernel (1s on border, 0s in center 3x3)
+        kernel = np.zeros((5, 5), dtype=int)
+        kernel[0, :] = 1
+        kernel[4, :] = 1
+        kernel[:, 0] = 1
+        kernel[:, 4] = 1
+
+        # Convolve valid_mask with the kernel to find all top-left corners of valid 5x5 squares
+        conv = convolve2d(valid_mask.astype(int), kernel, mode="valid")
+        # Find all top-left corners where all border cells are valid
+        possible_squares = np.argwhere(conv >= num_agents)
+
+        if len(possible_squares) == 0:
+            return []
+
+        # Choose a random possible square
+        square_idx = random.choice(range(len(possible_squares)))
+        top_left = possible_squares[square_idx]
+        r0, c0 = top_left
+
+        # List all valid positions in the 5x5 border (excluding the central 3x3)
+        border_positions = []
+        for dr in range(5):
+            for dc in range(5):
+                # Exclude central 3x3
+                if 1 <= dr <= 3 and 1 <= dc <= 3:
+                    continue
+                rr, cc = r0 + dr, c0 + dc
+                if valid_mask[rr, cc]:
+                    border_positions.append((rr, cc))
+
+        return border_positions
+
     def _build(self) -> np.ndarray:
         # Prepare agent symbols.
         if self._teams is None:
@@ -153,9 +208,12 @@ class VariedTerrain(Room):
         grid = self._place_scattered_walls(grid)
         grid = self._place_blocks(grid)
 
+        valid_positions = self.positions_in_same_area(grid, len(agents))
+        random.shuffle(valid_positions)
+
         # Place agents.
         for agent in agents:
-            pos = self._choose_random_empty()
+            pos = valid_positions.pop()
             if pos is None:
                 break
             r, c = pos
@@ -379,13 +437,13 @@ class VariedTerrain(Room):
         if h > 3 and not self._has_gap(maze[1 : h - 1, w - 1]):
             maze[1:3, w - 1] = "empty"
 
-        # Scatter hearts in empty cells with 1% probability.
-        for i in range(h):
-            for j in range(w):
-                if maze[i, j] == "empty" and self._rng.random() < 0.03:
-                    maze[i, j] = "altar"
+        # # Scatter hearts in empty cells with 1% probability.
+        # for i in range(h):
+        #     for j in range(w):
+        #         if maze[i, j] == "empty" and self._rng.random() < 0.03:
+        #             maze[i, j] = "altar"
 
-            # Apply thickening based on a random probability between 0.3 and 1.0.
+        # Apply thickening based on a random probability between 0.3 and 1.0.
         thick_prob = 0.7 * self._rng.random()
         maze_thick = maze.copy()
         for i in range(1, h - 1):

@@ -9,6 +9,7 @@ import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from omegaconf import DictConfig
+from scipy.signal import convolve2d
 
 from metta.mettagrid.room.room import Room
 
@@ -109,6 +110,59 @@ class TerrainFromNumpy(Room):
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
+    def positions_in_same_area(self, level, num_agents):
+        """
+        Returns num_agents positions, all with valid_mask=True, all within a 5x5 square
+        with the central 3x3 cut out (i.e., only the border of the 5x5 square), chosen randomly.
+        Uses convolution to efficiently find valid 5x5 squares.
+        If not enough such positions exist, returns [].
+        """
+
+        # Compute valid_mask as in get_valid_positions
+        empty_mask = level == "empty"
+        has_empty_neighbor = np.zeros_like(empty_mask, dtype=bool)
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            shifted = np.roll(empty_mask, shift=(dr, dc), axis=(0, 1))
+            has_empty_neighbor |= shifted
+        valid_mask = empty_mask & has_empty_neighbor
+        valid_mask[0, :] = False
+        valid_mask[-1, :] = False
+        valid_mask[:, 0] = False
+        valid_mask[:, -1] = False
+
+        # Build the 5x5 border kernel (1s on border, 0s in center 3x3)
+        kernel = np.zeros((5, 5), dtype=int)
+        kernel[0, :] = 1
+        kernel[4, :] = 1
+        kernel[:, 0] = 1
+        kernel[:, 4] = 1
+
+        # Convolve valid_mask with the kernel to find all top-left corners of valid 5x5 squares
+        conv = convolve2d(valid_mask.astype(int), kernel, mode="valid")
+        # Find all top-left corners where all border cells are valid
+        possible_squares = np.argwhere(conv >= num_agents)
+
+        if len(possible_squares) == 0:
+            return []
+
+        # Choose a random possible square
+        square_idx = random.choice(range(len(possible_squares)))
+        top_left = possible_squares[square_idx]
+        r0, c0 = top_left
+
+        # List all valid positions in the 5x5 border (excluding the central 3x3)
+        border_positions = []
+        for dr in range(5):
+            for dc in range(5):
+                # Exclude central 3x3
+                if 1 <= dr <= 3 and 1 <= dc <= 3:
+                    continue
+                rr, cc = r0 + dr, c0 + dc
+                if valid_mask[rr, cc]:
+                    border_positions.append((rr, cc))
+
+        return border_positions
+
     def _build(self):
         root = self._dir.split("/")[0]
         self.labels.append(root)
@@ -149,7 +203,7 @@ class TerrainFromNumpy(Room):
             raise TypeError("Unsupported _agents type")
         num_agents = len(agent_labels)
 
-        valid_positions = self.get_valid_positions(level)
+        valid_positions = self.positions_in_same_area(level, num_agents)
         random.shuffle(valid_positions)
 
         # 5. Place agents in first slice

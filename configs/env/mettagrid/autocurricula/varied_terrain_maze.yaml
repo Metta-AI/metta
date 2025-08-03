@@ -22,7 +22,10 @@ game:
     num_rooms: 4
     border_width: 6
     room:
-      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
+      style: maze
+      width: 40
+      height: 40
       border_width: 3
       agents: 4
       objects:

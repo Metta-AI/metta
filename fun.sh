@@ -11,7 +11,7 @@
 ./tools/play.py run=test-play \
 +hardware=macbook cmd=play ++policy_uri=./train_dir/gregorypylypovych.navigation.winners_rewarded_every_10_steps.07-15/checkpoints/model_0000.pt \
 seed=0 \
-++replay_job.sim.env=env/mettagrid/autocurricula/defaults \
+++replay_job.sim.env=env/mettagrid/autocurricula/varied_terrain_balanced \
 ++replay_job.sim.env_overrides.game.max_steps=1000 \
 
 # ./tools/play.py run=test-play \

@@ -16,11 +16,15 @@ class Box : public HasInventory {
 public:
     GridObjectId creator_agent_object_id;
     unsigned char creator_agent_id;
+    std::map<InventoryItem, InventoryQuantity> input_resources;
+    std::map<InventoryItem, InventoryQuantity> output_resources;
 
     Box(GridCoord r, GridCoord c, TypeId type_id, const std::string& type_name,
-        GridObjectId creator_agent_object_id, unsigned char creator_agent_id)
+        GridObjectId creator_agent_object_id, unsigned char creator_agent_id, int blue_battery_item)
         : creator_agent_object_id(creator_agent_object_id),
-          creator_agent_id(creator_agent_id) {
+          creator_agent_id(creator_agent_id),
+          input_resources({{blue_battery_item, 1}}),
+          output_resources({{blue_battery_item, 1}}){
         GridObject::init(type_id, type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     }
 

@@ -56,6 +56,7 @@ protected:
         if (actor->reward) *actor->reward += 1.0f;
         // _grid->remove_object(box);
         _grid->move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
+        actor->box->inventory[blue_battery_item_] = 0;
         actor->stats.add("box.opened", 1.0f);
         return true;
       }

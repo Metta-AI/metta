@@ -284,7 +284,7 @@ void MettaGrid::init_action_handlers() {
 
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
-  agent->box = new Box(0, 0, 3, "box", agent->id, static_cast<unsigned char>(agent->agent_id));
+  agent->box = new Box(0, 0, 3, "box", agent->id, static_cast<unsigned char>(agent->agent_id), _blue_battery_item);
   _grid->add_object(agent->box, false);
   _agents.push_back(agent);
 }
