@@ -200,6 +200,7 @@ class TestEvalTaskRoutes:
         claimed_response = await eval_task_client.get_claimed_tasks(assignee="worker_timeout")
         assert any(task.id == task_id for task in claimed_response.tasks)
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_multiple_workers_claiming_same_task(
         self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
@@ -394,6 +395,7 @@ class TestEvalTaskRoutes:
             assert row[0] == "error"
             assert row[1]["error_reason"] == error_reason
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_with_filters(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test get_all_tasks with all filter criteria."""
@@ -496,6 +498,7 @@ class TestEvalTaskRoutes:
         assert task3.id in task_ids
         assert task4.id not in task_ids  # wrong status
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_with_multiple_statuses(
         self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
@@ -557,6 +560,7 @@ class TestEvalTaskRoutes:
         assert tasks_by_status["done"].id in task_ids
         assert tasks_by_status["error"].id in task_ids
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_with_multiple_sim_suites_and_policies(
         self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_client: StatsClient
@@ -650,6 +654,7 @@ class TestEvalTaskRoutes:
         assert tasks["policy2_navigation"].id in task_ids
         assert tasks["policy2_arena"].id in task_ids
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_sql_query_with_arrays(
         self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_client: StatsClient
