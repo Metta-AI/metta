@@ -2,7 +2,3 @@ defaults:
   - /env/mettagrid/autocurricula/defaults@
   - _self_
 
-game:
-  map_builder:
-    room:
-      dir: terrain_maps_nohearts
