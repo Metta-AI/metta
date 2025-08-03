@@ -7,6 +7,7 @@
 #include <cmath>
 #include <numeric>
 #include <random>
+#include <iostream>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -91,9 +92,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     std::string action_name_str = action_name;
 
     if (action_name_str == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config, _blue_battery_item));
     } else if (action_name_str == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config, _blue_battery_item));
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
@@ -180,7 +181,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
       if (wall_config) {
         Wall* wall = new Wall(r, c, *wall_config);
-        _grid->add_object(wall);
+        _grid->add_object(wall, true);
         _stats->incr("objects." + cell);
         continue;
       }
@@ -193,7 +194,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
         Converter* converter = new Converter(r, c, config_with_offsets);
-        _grid->add_object(converter);
+        _grid->add_object(converter, true);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
@@ -203,7 +204,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        _grid->add_object(agent);
+        _grid->add_object(agent, true);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
@@ -283,6 +284,8 @@ void MettaGrid::init_action_handlers() {
 
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
+  agent->box = new Box(0, 0, 3, "box", agent->id, static_cast<unsigned char>(agent->agent_id));
+  _grid->add_object(agent->box, false);
   _agents.push_back(agent);
 }
 
@@ -426,6 +429,19 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
+  // Print all grid objects for debugging
+  // std::cout << "Grid objects at step " << current_step << ":" << std::endl;
+  // for (const auto& obj_ptr : _grid->objects) {
+  //   if (obj_ptr) {
+  //     std::cout << "  Object ID: " << obj_ptr->id
+  //               << ", Type: " << obj_ptr->type_id
+  //               << ", Location: (" << static_cast<int>(obj_ptr->location.r)
+  //               << ", " << static_cast<int>(obj_ptr->location.c)
+  //               << ", " << static_cast<int>(obj_ptr->location.layer) << ")"
+  //               << std::endl;
+  //   }
+  // }
+
   // Increment timestep and process events
   current_step++;
   _event_manager->process_events(current_step);
@@ -470,7 +486,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   // Update rewards based on holding blue battery too long
   if (_blue_battery_item != -1) {
     for (auto& agent : _agents) {
-      auto it = agent->inventory.find(_blue_battery_item);
+      auto it = agent->inventory.find(static_cast<unsigned char>(_blue_battery_item));
       if (it != agent->inventory.end() && it->second > 0) {
         (agent->how_long_blue_battery_held)++;
         // Debug print for battery holding duration

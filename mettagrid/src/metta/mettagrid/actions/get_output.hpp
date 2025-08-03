@@ -2,17 +2,23 @@
 #define ACTIONS_GET_OUTPUT_HPP_
 
 #include <string>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
 
 #include "action_handler.hpp"
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
+#include "objects/box.hpp"
 #include "types.hpp"
 
 class GetOutput : public ActionHandler {
 public:
-  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_items") {}
+  int blue_battery_item_;
+  explicit GetOutput(const ActionConfig& cfg, int blue_battery_item)
+      : ActionHandler(cfg, "get_items"), blue_battery_item_(blue_battery_item) {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -20,13 +26,39 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
+
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::ObjectLayer;
-    // get_output only works on Converters, since only Converters have an output.
-    // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
-    // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
+
+    // Default is taking output from converter
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
     if (!converter) {
+      // no blue batteries in the game, don't process potential for picking up box
+      if (blue_battery_item_ < 0){
+        return false;
+      }
+
+      // If Box, handle special logic
+      Box* box = dynamic_cast<Box*>(_grid->object_at(target_loc));
+      if (box) {
+        if (actor->agent_id == box->creator_agent_id) {
+          // Creator cannot open their own box
+          return false;
+        }
+        // Direct lookup using creator_agent_object_id
+        Agent* creator = dynamic_cast<Agent*>(_grid->object(box->creator_agent_object_id));
+        if (!creator) {
+          return false;
+        }
+        // Return blue battery to creator
+        creator->update_inventory(blue_battery_item_, 1);
+        if (creator->reward) *creator->reward -= 1.0f;
+        if (actor->reward) *actor->reward += 1.0f;
+        // _grid->remove_object(box);
+        _grid->move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
+        actor->stats.add("box.opened", 1.0f);
+        return true;
+      }
       return false;
     }
 
@@ -36,22 +68,18 @@ protected:
 
     // Actions is only successful if we take at least one item.
     bool resources_taken = false;
-
     for (const auto& [item, _] : converter->output_resources) {
       if (converter->inventory.count(item) == 0) {
         continue;
       }
       InventoryDelta resources_available = static_cast<InventoryDelta>(converter->inventory[item]);
-
       InventoryDelta taken = actor->update_inventory(item, resources_available);
-
       if (taken > 0) {
         actor->stats.add(actor->stats.inventory_item_name(item) + ".get", static_cast<float>(taken));
         converter->update_inventory(item, -taken);
         resources_taken = true;
       }
     }
-
     return resources_taken;
   }
 };

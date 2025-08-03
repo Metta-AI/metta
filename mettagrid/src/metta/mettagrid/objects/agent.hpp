@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../grid_object.hpp"
+#include "objects/box.hpp"
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
 #include "types.hpp"
@@ -81,6 +82,7 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
   int how_long_blue_battery_held;
+  Box* box;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -104,7 +106,9 @@ public:
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
         steps_without_motion(0),
-        how_long_blue_battery_held(0) {
+        how_long_blue_battery_held(0),
+        box(nullptr){
+
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 

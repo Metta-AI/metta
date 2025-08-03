@@ -32,7 +32,7 @@ public:
                 std::vector<std::vector<GridObjectId>>(width, std::vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
     // Reserve space for objects to avoid frequent reallocations
-    // Assume ~50% of grid cells will contain objects
+    // Assume ~50% of grid cells will contain objectsx
     size_t estimated_objects = static_cast<size_t>(height) * width / 2;
 
     // Cap preallocation at ~100MB of pointer memory
@@ -54,17 +54,21 @@ public:
     return loc.r < height && loc.c < width && loc.layer < GridLayer::GridLayerCount;
   }
 
-  inline bool add_object(GridObject* obj) {
+  inline bool add_object(GridObject* obj, bool embed_in_grid = true) {
     if (!is_valid_location(obj->location)) {
       return false;
     }
-    if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
-      return false;
+    if (embed_in_grid) {
+      if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
+        return false;
+      }
     }
 
     obj->id = static_cast<GridObjectId>(this->objects.size());
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
-    this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
+    if (embed_in_grid) {
+      this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
+    }
     return true;
   }
 
