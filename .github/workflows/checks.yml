@@ -283,23 +283,22 @@ jobs:
           if [ "${{ github.event_name }}" = "merge_group" ]; then
             # Stream output to log immediately for debugging crashes
             pytest $PYTEST_BASE_ARGS -m "not slow" \
-              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml | tee pytest_output.log
             FAST_TESTS_FAILED=$?
           else
             # Capture output for PRs
-            PYTEST_OUTPUT=$(pytest $PYTEST_BASE_ARGS -m "not slow" \
-              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1)
+            pytest $PYTEST_BASE_ARGS -m "not slow" \
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1 | tee pytest_output.log
             FAST_TESTS_FAILED=$?
-            echo "$PYTEST_OUTPUT"
           fi
 
           # Display the output
-          echo "$PYTEST_OUTPUT"
+          cat pytest_output.log
           echo "::endgroup::"
 
           # Check for slow tests
           echo "::group::Checking for slow tests"
-          echo "$PYTEST_OUTPUT" | awk '
+          cat pytest_output.log | awk '
           BEGIN {
               found_slow = 0
           }
