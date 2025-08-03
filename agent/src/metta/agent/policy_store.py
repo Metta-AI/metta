@@ -422,37 +422,11 @@ class PolicyStore:
         checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
         if not isinstance(checkpoint, PolicyRecord):
-            raise Exception("Invalid checkpoint")
+            raise Exception("Invalid checkpoint, possibly in a legacy format")
 
         # New format - PolicyRecord object
         pr = checkpoint
         pr._policy_store = self
-
-        # Ensure _cached_policy attribute exists
-        if not hasattr(pr, "_cached_policy"):
-            pr._cached_policy = None
-
-        # Check if this is a legacy PolicyRecord with metadata under old names
-        if not hasattr(pr, "_metadata"):
-            # Access metadata property to trigger backwards compatibility
-            try:
-                _ = pr.metadata  # This will convert old attributes to new format
-                logger.info("Converted legacy PolicyRecord metadata to new format")
-            except AttributeError:
-                logger.warning("PolicyRecord has no metadata - creating default metadata")
-                pr._metadata = PolicyMetadata()
-
-        # Also check for policy under old attribute names
-        if not metadata_only and pr._cached_policy is None:
-            policy_cache_attributes = ["_cached_policy", "_policy", "policy_cache"]
-            for attr in policy_cache_attributes:
-                if hasattr(pr, attr):
-                    policy = getattr(pr, attr)
-                    if policy is not None:
-                        pr._cached_policy = policy
-                        if attr != "_cached_policy":
-                            logger.info(f"Found policy under legacy attribute '{attr}'")
-                        break
 
         self._cached_prs.put(path, pr)
 
