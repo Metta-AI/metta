@@ -364,9 +364,7 @@ jobs:
           # Report final status
           if [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
             echo "::warning::Some slow tests failed, but fast tests passed"
-            # You can decide whether to fail the job on slow test failures
-            # For now, let's make it non-blocking:
-            # exit $SLOW_TESTS_EXIT
+            exit $SLOW_TESTS_EXIT
           fi
 
           echo "✅ Test run complete!"
