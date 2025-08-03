@@ -25,7 +25,6 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
-from metta.rl.trainer_config import TrainerConfig, create_trainer_config
 
 logger = logging.getLogger("policy_store")
 
@@ -46,9 +45,21 @@ class PolicyMissingError(ValueError):
 
 
 class PolicyStore:
-    def __init__(self, cfg: DictConfig, wandb_run: WandbRun | None, policy_cache_size: int = 10) -> None:
-        self._cfg = cfg
-        self._device = cfg.device
+    def __init__(
+        self,
+        device: str | None = None,  # for loading policies from checkpoints
+        wandb_run: WandbRun | None = None,  # for saving artifacts to wandb
+        data_dir: str | None = None,  # for storing policy artifacts locally for cached access
+        wandb_entity: str | None = None,  # for loading policies from wandb
+        wandb_project: str | None = None,  # for loading policies from wandb
+        pytorch_cfg: DictConfig | None = None,  # for loading pytorch policies
+        policy_cache_size: int = 10,  # num policies to keep in memory
+    ) -> None:
+        self._device = device or "cpu"
+        self._data_dir = data_dir or "./train_dir"
+        self._wandb_entity = wandb_entity
+        self._wandb_project = wandb_project
+        self._pytorch_cfg = pytorch_cfg
         self._wandb_run: WandbRun | None = wandb_run
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._made_codebase_backwards_compatible = False
@@ -131,15 +142,11 @@ class PolicyStore:
 
         for prefix, artifact_type in [("run/", "model"), ("sweep/", "sweep_model")]:
             if wandb_uri.startswith(prefix):
-                if not hasattr(self._cfg, "wandb") or not all(
-                    hasattr(self._cfg.wandb, attr) for attr in ["entity", "project"]
-                ):
-                    raise ValueError(
-                        "Wandb entity and project must be specified in your config to use short policy uris"
-                    )
+                if not self._wandb_entity or not self._wandb_project:
+                    raise ValueError("Wandb entity and project must be specified to use short policy uris")
                 name = wandb_uri[len(prefix) :]
                 return self._prs_from_wandb_artifact(
-                    f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/{artifact_type}/{name}",
+                    f"{self._wandb_entity}/{self._wandb_project}/{artifact_type}/{name}",
                     version,
                 )
         else:
@@ -225,13 +232,8 @@ class PolicyStore:
     def make_model_name(self, epoch: int):
         return f"model_{epoch:04d}.pt"
 
-    def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
-        if "trainer" not in self._cfg:
-            raise AttributeError("New policies can't be created by a PolicyStore with no 'cfg.trainer' attribute.")
-
-        trainer_cfg: TrainerConfig = create_trainer_config(self._cfg)
-
-        path = override_path if override_path is not None else os.path.join(trainer_cfg.checkpoint.checkpoint_dir, name)
+    def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
+        path = os.path.join(checkpoint_dir, name)
         metadata = PolicyMetadata()
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
@@ -353,7 +355,7 @@ class PolicyStore:
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
         pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
-        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
+        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
         return pr
 
     def _make_codebase_backwards_compatible(self):
@@ -440,7 +442,7 @@ class PolicyStore:
 
         artifact = wandb.Api().artifact(qualified_name)
 
-        artifact_path = os.path.join(self._cfg.data_dir, "artifacts", artifact.name)
+        artifact_path = os.path.join(self._data_dir, "artifacts", artifact.name)
 
         if not os.path.exists(artifact_path):
             artifact.download(root=artifact_path)

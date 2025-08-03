@@ -185,7 +185,22 @@ def _evaluate_sweep_run(
     # Create env config
     env_cfg = create_env_config(train_job_cfg)
 
-    policy_store = PolicyStore(train_job_cfg, wandb_run)
+    policy_store = PolicyStore(
+        device=train_job_cfg.device,
+        wandb_run=wandb_run,
+        data_dir=getattr(train_job_cfg, "data_dir", None),
+        wandb_entity=(
+            train_job_cfg.wandb.entity
+            if hasattr(train_job_cfg, "wandb") and hasattr(train_job_cfg.wandb, "entity")
+            else None
+        ),
+        wandb_project=(
+            train_job_cfg.wandb.project
+            if hasattr(train_job_cfg, "wandb") and hasattr(train_job_cfg.wandb, "project")
+            else None
+        ),
+        pytorch_cfg=getattr(train_job_cfg, "pytorch", None),
+    )
     policy_pr = policy_store.policy_record("wandb://run/" + wandb_run.name, selector_type="latest")
 
     # Load the policy record directly using its wandb URI
