@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from metta.app_backend.clients.stats_client import StatsClient
 
 
+@pytest.mark.slow
 class TestPolicyScorecardRoutes:
     """Integration tests for policy-based scorecard routes."""
 
