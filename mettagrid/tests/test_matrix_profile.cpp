@@ -354,7 +354,7 @@ TEST_F(MatrixProfileTest, MultipleWindowSizes) {
   std::vector<Agent*> agents = {agent.get()};
 
   // Test multiple window sizes
-  std::vector<int> windows = {2, 4, 8};
+  std::vector<uint8_t> windows = {2, 4, 8};
   auto profiles = profiler->compute_profiles(agents, windows);
 
   ASSERT_EQ(profiles.size(), 1);

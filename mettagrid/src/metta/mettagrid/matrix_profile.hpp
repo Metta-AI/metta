@@ -16,9 +16,9 @@ namespace MatrixProfile {
 
 // Configuration for matrix profile computation
 struct MatrixProfileConfig {
-  std::vector<int> window_sizes = {10, 25, 50, 100};  // Multiple scales
-  int min_window_size = 4;
-  int max_window_size = 200;
+  std::vector<uint8_t> window_sizes = {10, 25, 50, 100};  // Multiple scales
+  uint8_t min_window_size = 4;
+  uint8_t max_window_size = 200;
   bool use_multi_gpu = true;
   int gpu_device_id = 0;  // For single GPU mode
   size_t max_agents_per_gpu = 128;
@@ -94,11 +94,11 @@ public:
 
   // Process agents' action histories
   std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
-                                                   const std::vector<int>& window_sizes = {});
+                                                   const std::vector<uint8_t>& window_sizes = {});
 
   // Cross-agent pattern discovery
   CrossAgentPatterns find_cross_agent_patterns(const std::vector<Agent*>& agents,
-                                               int window_size,
+                                               uint8_t window_size,
                                                float distance_threshold = 5.0f);
 
   // Real-time analysis during training
@@ -148,10 +148,10 @@ public:
   virtual void initialize(const ActionDistance::ActionDistanceLUT& distance_lut) = 0;
 
   virtual std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
-                                                           const std::vector<int>& window_sizes) = 0;
+                                                           const std::vector<uint8_t>& window_sizes) = 0;
 
   virtual CrossAgentPatterns find_cross_agent_patterns(const std::vector<Agent*>& agents,
-                                                       int window_size,
+                                                       uint8_t window_size,
                                                        float distance_threshold) = 0;
 
   virtual void update_agent(const Agent* agent) = 0;
@@ -176,7 +176,12 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::
                                                                      float exclusion_zone_factor = 0.5f);
 
 // Compute behavioral similarity between agents
-float compute_agent_similarity(const AgentMatrixProfile& profile1, const AgentMatrixProfile& profile2, int window_size);
+float compute_agent_similarity(const AgentMatrixProfile& profile1,
+                               const AgentMatrixProfile& profile2,
+                               uint8_t window_size,
+                               const Agent* agent1,
+                               const Agent* agent2,
+                               const ActionDistance::ActionDistanceLUT& action_lut);
 
 // Cluster agents by behavioral patterns
 inline std::vector<CrossAgentPatterns::BehaviorCluster>

@@ -240,7 +240,7 @@ TEST_F(BehavioralAnalysisTest, BehaviorAnalyzer_SimplePattern) {
   }
 
   // Analyze with small window sizes
-  std::vector<int> window_sizes = {4, 8};
+  std::vector<uint8_t> window_sizes = {4, 8};
   auto motifs = analyzer->get_dominant_motifs(agents, window_sizes);
 
   // We should find our pattern as a dominant motif
@@ -316,7 +316,7 @@ TEST_F(BehavioralAnalysisTest, BehaviorAnalyzer_EmergentBehavior) {
   }
 
   // Analyze with multiple window sizes
-  std::vector<int> window_sizes = {4, 10, 20};
+  std::vector<uint8_t> window_sizes = {4, 10, 20};
   auto motifs = analyzer->get_dominant_motifs(agents, window_sizes);
 
   // Should find patterns in the learned behavior
@@ -462,7 +462,7 @@ TEST_F(BehavioralAnalysisTest, Integration_FullScenario) {
   }
 
   // Analyze behaviors
-  std::vector<int> window_sizes = {5, 12, 25, 50};
+  std::vector<uint8_t> window_sizes = {5, 12, 25, 50};
   auto motifs = analyzer->get_dominant_motifs(agents, window_sizes);
 
   // Verify we found distinct patterns

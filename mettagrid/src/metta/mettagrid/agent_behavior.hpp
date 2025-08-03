@@ -161,7 +161,7 @@ public:
 
   // Main analysis function - returns dominant motifs for each window size
   std::vector<DominantMotif> get_dominant_motifs(const std::vector<Agent*>& agents,
-                                                 const std::vector<int>& window_sizes) {
+                                                 const std::vector<uint8_t>& window_sizes) {
     if (!initialized_) {
       std::cerr << "ERROR: BehaviorAnalyzer not initialized\n";
       return {};

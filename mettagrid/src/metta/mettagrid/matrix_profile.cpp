@@ -121,7 +121,7 @@ public:
   }
 
   std::vector<AgentMatrixProfile> compute_profiles(const std::vector<Agent*>& agents,
-                                                   const std::vector<int>& window_sizes) override {
+                                                   const std::vector<uint8_t>& window_sizes) override {
     if (!lut_initialized_) {
       throw std::runtime_error("MatrixProfiler not initialized. Call initialize() first.");
     }
@@ -193,7 +193,7 @@ public:
   }
 
   CrossAgentPatterns find_cross_agent_patterns(const std::vector<Agent*>& agents,
-                                               int window_size,
+                                               uint8_t window_size,
                                                float distance_threshold) override {
     CrossAgentPatterns patterns;
 
@@ -251,7 +251,7 @@ public:
 private:
   void compute_profiles_internal(const std::vector<std::vector<uint8_t>>& sequences,
                                  const std::vector<size_t>& seq_lengths,
-                                 const std::vector<int>& window_sizes,
+                                 const std::vector<uint8_t>& window_sizes,
                                  std::vector<std::vector<uint16_t>>& out_profiles,
                                  std::vector<std::vector<uint32_t>>& out_indices) {
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -272,8 +272,8 @@ private:
       size_t seq_length = seq_lengths[agent_idx];
 
       // Process each window size
-      for (int window_size : window_sizes) {
-        if (window_size > static_cast<int>(seq_length)) continue;
+      for (uint8_t window_size : window_sizes) {
+        if (window_size > static_cast<uint8_t>(seq_length)) continue;
 
         size_t profile_length = seq_length - static_cast<size_t>(window_size) + 1;
         std::vector<uint16_t> profile(profile_length, UINT16_MAX);
@@ -319,12 +319,12 @@ private:
 
   void compute_self_matrix_profile(const uint8_t* sequence,
                                    size_t seq_length,
-                                   int window_size,
+                                   uint8_t window_size,
                                    uint16_t* profile,
                                    uint32_t* indices,
                                    size_t& total_comparisons) {
     size_t profile_length = seq_length - static_cast<size_t>(window_size) + 1;
-    int exclusion_zone = window_size / 2;
+    uint8_t exclusion_zone = window_size / 2;
 
     // Initialize profile with max values
     for (size_t i = 0; i < profile_length; i++) {
@@ -436,12 +436,12 @@ void MatrixProfiler::initialize(const ActionDistance::ActionDistanceLUT& distanc
 }
 
 std::vector<AgentMatrixProfile> MatrixProfiler::compute_profiles(const std::vector<Agent*>& agents,
-                                                                 const std::vector<int>& window_sizes) {
+                                                                 const std::vector<uint8_t>& window_sizes) {
   return impl_->compute_profiles(agents, window_sizes);
 }
 
 CrossAgentPatterns MatrixProfiler::find_cross_agent_patterns(const std::vector<Agent*>& agents,
-                                                             int window_size,
+                                                             uint8_t window_size,
                                                              float distance_threshold) {
   return impl_->find_cross_agent_patterns(agents, window_size, distance_threshold);
 }
@@ -524,17 +524,141 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::
 
   return motifs;
 }
-
 float compute_agent_similarity(const AgentMatrixProfile& profile1,
                                const AgentMatrixProfile& profile2,
-                               int window_size) {
-  // Suppress unused parameter warnings
-  (void)profile1;
-  (void)profile2;
-  (void)window_size;
+                               uint8_t window_size,
+                               const Agent* agent1,
+                               const Agent* agent2,
+                               const ActionDistance::ActionDistanceLUT& action_lut) {
+  // Find window results for the specified window size
+  const AgentMatrixProfile::WindowResult* result1 = nullptr;
+  const AgentMatrixProfile::WindowResult* result2 = nullptr;
 
-  // TODO: Implement similarity computation
-  return 0.0f;
+  for (const auto& wr : profile1.window_results) {
+    if (wr.window_size == window_size) {
+      result1 = &wr;
+      break;
+    }
+  }
+
+  for (const auto& wr : profile2.window_results) {
+    if (wr.window_size == window_size) {
+      result2 = &wr;
+      break;
+    }
+  }
+
+  if (!result1 || !result2) {
+    return 0.0f;
+  }
+
+  const auto& motifs1 = result1->top_motifs;
+  const auto& motifs2 = result2->top_motifs;
+
+  if (motifs1.empty() || motifs2.empty()) {
+    return 0.0f;
+  }
+
+  // Get agent histories
+  size_t history1_len = agent1->history_count;
+  size_t history2_len = agent2->history_count;
+
+  if (history1_len < static_cast<size_t>(window_size) || history2_len < static_cast<size_t>(window_size)) {
+    return 0.0f;
+  }
+
+  // Extract histories
+  std::vector<ActionType> actions1(history1_len), actions2(history2_len);
+  std::vector<ActionArg> args1(history1_len), args2(history2_len);
+
+  agent1->copy_history_to_buffers(actions1.data(), args1.data());
+  agent2->copy_history_to_buffers(actions2.data(), args2.data());
+
+  // Encode sequences using the ActionDistanceLUT
+  std::vector<uint8_t> encoded1(history1_len), encoded2(history2_len);
+  for (size_t i = 0; i < history1_len; i++) {
+    encoded1[i] = action_lut.encode_action(actions1[i], args1[i]);
+  }
+  for (size_t i = 0; i < history2_len; i++) {
+    encoded2[i] = action_lut.encode_action(actions2[i], args2[i]);
+  }
+
+  // Get the distance lookup table
+  uint8_t lut[256][256];
+  action_lut.get_distance_table(lut);
+
+  // Compute pairwise distances between all motifs
+  struct MotifMatch {
+    size_t idx1;
+    size_t idx2;
+    float distance;
+    float rank_weight;
+  };
+
+  std::vector<MotifMatch> matches;
+
+  for (size_t i = 0; i < motifs1.size(); i++) {
+    for (size_t j = 0; j < motifs2.size(); j++) {
+      uint32_t start1 = motifs1[i].start_idx;
+      uint32_t start2 = motifs2[j].start_idx;
+
+      if (start1 + window_size > encoded1.size() || start2 + window_size > encoded2.size()) {
+        continue;
+      }
+
+      // Compute sequence distance using LUT
+      uint32_t total_dist = 0;
+      for (uint8_t k = 0; k < window_size; k++) {
+        total_dist += lut[encoded1[start1 + k]][encoded2[start2 + k]];
+      }
+
+      float normalized_dist = static_cast<float>(total_dist) / window_size;
+
+      // Rank weight: more important motifs (lower indices) get higher weight
+      float rank_weight = 1.0f / (1.0f + std::sqrt(static_cast<float>(i * j)));
+
+      matches.push_back({i, j, normalized_dist, rank_weight});
+    }
+  }
+
+  if (matches.empty()) {
+    return 0.0f;
+  }
+
+  // Sort by distance for greedy matching
+  std::sort(
+      matches.begin(), matches.end(), [](const MotifMatch& a, const MotifMatch& b) { return a.distance < b.distance; });
+
+  // Greedy matching: each motif can only be matched once
+  std::vector<bool> used1(motifs1.size(), false);
+  std::vector<bool> used2(motifs2.size(), false);
+
+  float total_weight = 0.0f;
+  float weighted_similarity = 0.0f;
+
+  for (const auto& match : matches) {
+    if (used1[match.idx1] || used2[match.idx2]) continue;
+
+    used1[match.idx1] = true;
+    used2[match.idx2] = true;
+
+    // Convert distance to similarity (assume max distance per position is 255)
+    float similarity = 1.0f - (match.distance / 255.0f);
+
+    weighted_similarity += match.rank_weight * similarity;
+    total_weight += match.rank_weight;
+  }
+
+  // Coverage: what fraction of motifs found good matches
+  float coverage =
+      static_cast<float>(std::count(used1.begin(), used1.end(), true) + std::count(used2.begin(), used2.end(), true)) /
+      (motifs1.size() + motifs2.size());
+
+  // Final score combines match quality and coverage
+  float match_quality = (total_weight > 0) ? (weighted_similarity / total_weight) : 0.0f;
+  float final_score = 0.7f * match_quality + 0.3f * coverage;
+
+  return std::max(0.0f, std::min(1.0f, final_score));
 }
 
 }  // namespace Analysis
