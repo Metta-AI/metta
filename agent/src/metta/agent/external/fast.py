@@ -27,7 +27,101 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         device,
         is_training: bool = True,
     ):
+        """
+        Initialize the policy to the current environment's features and actions.
+
+        Args:
+            features: Dictionary mapping feature names to their properties:
+                {
+                    feature_name: {
+                        "id": byte,  # The feature_id to use during this run
+                        "type": "scalar" | "categorical",
+                        "normalization": float (optional, only for scalar features)
+                    }
+                }
+            action_names: List of action names
+            action_max_params: List of maximum parameters for each action
+            device: Device to place tensors on
+            is_training: Deprecated. Training mode is now automatically detected.
+        """
+        self._initialize_observations(features, device, is_training)
         self.activate_actions(action_names, action_max_params, device)
+
+    def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
+        """Initialize observation features by storing the feature mapping."""
+        self.active_features = features
+        self.device = device
+
+        # Create quick lookup mappings
+        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
+        self.feature_normalizations = {
+            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
+        }
+
+        # Store original feature mapping on first initialization
+        if not hasattr(self, "original_feature_mapping"):
+            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
+            logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
+        else:
+            # Create remapping for subsequent initializations
+            self._create_feature_remapping(features, is_training)
+
+    def _create_feature_remapping(self, features: dict[str, dict], is_training: bool):
+        """Create a remapping dictionary to translate new feature IDs to original ones."""
+        UNKNOWN_FEATURE_ID = 255
+        self.feature_id_remap = {}
+        unknown_features = []
+
+        for name, props in features.items():
+            new_id = props["id"]
+            if name in self.original_feature_mapping:
+                # Remap known features to their original IDs
+                original_id = self.original_feature_mapping[name]
+                if new_id != original_id:
+                    self.feature_id_remap[new_id] = original_id
+            elif not is_training:
+                # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
+                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                unknown_features.append(name)
+            else:
+                # In training mode, learn new features
+                self.original_feature_mapping[name] = new_id
+
+        if self.feature_id_remap:
+            logger.info(
+                f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
+            )
+            self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+
+    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
+        """Apply feature remapping to observation processing and update normalizations."""
+        # Create remapping tensor for observation processing
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+        for new_id, original_id in self.feature_id_remap.items():
+            remap_tensor[new_id] = original_id
+
+        # Map unused feature IDs to UNKNOWN
+        current_feature_ids = {props["id"] for props in features.values()}
+        for feature_id in range(256):
+            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
+                remap_tensor[feature_id] = unknown_id
+
+        # Store remap tensor as a buffer
+        self.register_buffer("feature_remap_tensor", remap_tensor)
+
+        # Update normalization factors
+        self._update_normalization_factors(features)
+
+    def _update_normalization_factors(self, features: dict[str, dict]):
+        """Update normalization factors for observation processing."""
+        norm_tensor = torch.ones(256, dtype=torch.float32, device=self.device)
+        for name, props in features.items():
+            if name in self.original_feature_mapping and "normalization" in props:
+                original_id = self.original_feature_mapping[name]
+                norm_tensor[original_id] = props["normalization"]
+
+        # Store normalization tensor as a buffer
+        self.register_buffer("norm_factors", norm_tensor)
 
     def activate_actions(self, action_names, action_max_params, device):
         """Initialize the action space."""
