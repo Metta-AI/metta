@@ -176,25 +176,31 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::
                                                                      float exclusion_zone_factor = 0.5f);
 
 // Compute behavioral similarity between agents
-float compute_agent_similarity(const AgentMatrixProfile& profile1,
-                               const AgentMatrixProfile& profile2,
-                               uint8_t window_size,
-                               const Agent* agent1,
-                               const Agent* agent2,
-                               const ActionDistance::ActionDistanceLUT& action_lut);
+float compute_agent_similarity_coarse(const AgentMatrixProfile& profile1,
+                                      const AgentMatrixProfile& profile2,
+                                      uint8_t window_size);
 
-// Cluster agents by behavioral patterns
-inline std::vector<CrossAgentPatterns::BehaviorCluster>
-cluster_by_behavior(const std::vector<AgentMatrixProfile>& profiles, int window_size, int num_clusters = 0) {
-  // Suppress unused parameter warnings
-  (void)profiles;
-  (void)window_size;
-  (void)num_clusters;
+float compute_agent_similarity_fine(const AgentMatrixProfile& profile1,
+                                    const AgentMatrixProfile& profile2,
+                                    uint8_t window_size,
+                                    const Agent* agent1,
+                                    const Agent* agent2,
+                                    const ActionDistance::ActionDistanceLUT& action_lut);
 
-  std::vector<CrossAgentPatterns::BehaviorCluster> clusters;
-  // TODO: Implement clustering algorithm
-  return clusters;
-}
+// Cluster agents by behavioral patterns - uses balanced approach with coarse/fine similarity
+std::vector<CrossAgentPatterns::BehaviorCluster> cluster_by_behavior(
+    const std::vector<AgentMatrixProfile>& profiles,
+    const std::vector<Agent*>& agents,
+    const ActionDistance::ActionDistanceLUT& action_lut,
+    int window_size,
+    int num_clusters = 0,
+    float fine_similarity_budget = 0.1f);
+
+// Helper function to describe motif patterns in human-readable form
+std::vector<std::string> describe_motif_patterns(const AgentMatrixProfile& profile,
+                                                 const Agent* agent,
+                                                 const ActionDistance::ActionDistanceLUT& action_lut,
+                                                 uint8_t window_size);
 
 // Detect emergent strategies
 struct EmergentStrategy {

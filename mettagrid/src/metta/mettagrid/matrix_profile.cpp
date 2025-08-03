@@ -524,13 +524,79 @@ std::vector<AgentMatrixProfile::WindowResult::Motif> find_top_motifs(const std::
 
   return motifs;
 }
-float compute_agent_similarity(const AgentMatrixProfile& profile1,
-                               const AgentMatrixProfile& profile2,
-                               uint8_t window_size,
-                               const Agent* agent1,
-                               const Agent* agent2,
-                               const ActionDistance::ActionDistanceLUT& action_lut) {
-  // Find window results for the specified window size
+
+// Coarse similarity - Ultra fast, looks only at top motif statistics
+// Complexity: O(1) - just comparing numbers
+float compute_agent_similarity_coarse(const AgentMatrixProfile& profile1,
+                                      const AgentMatrixProfile& profile2,
+                                      uint8_t window_size) {
+  // Find window results
+  const AgentMatrixProfile::WindowResult* result1 = nullptr;
+  const AgentMatrixProfile::WindowResult* result2 = nullptr;
+
+  for (const auto& wr : profile1.window_results) {
+    if (wr.window_size == window_size) {
+      result1 = &wr;
+      break;
+    }
+  }
+
+  for (const auto& wr : profile2.window_results) {
+    if (wr.window_size == window_size) {
+      result2 = &wr;
+      break;
+    }
+  }
+
+  if (!result1 || !result2 || result1->top_motifs.empty() || result2->top_motifs.empty()) {
+    return 0.0f;
+  }
+
+  // Compare only the top motif distances
+  const auto& motif1 = result1->top_motifs[0];
+  const auto& motif2 = result2->top_motifs[0];
+
+  // Similarity based on how close their best motif distances are
+  float dist_diff = std::abs(static_cast<float>(motif1.distance) - static_cast<float>(motif2.distance));
+  float dist_similarity = 1.0f - (dist_diff / 15.0f);  // Normalize by max distance
+
+  // Also consider if they have similar number of good motifs
+  float motif_count_sim =
+      1.0f -
+      std::abs(static_cast<float>(result1->top_motifs.size()) - static_cast<float>(result2->top_motifs.size())) / 10.0f;
+
+  // Quick profile statistics comparison
+  float profile_mean1 = 0.0f, profile_mean2 = 0.0f;
+  if (!result1->distances.empty() && !result2->distances.empty()) {
+    // Sample first 100 distances for speed
+    size_t sample_size = std::min(size_t(100), std::min(result1->distances.size(), result2->distances.size()));
+
+    for (size_t i = 0; i < sample_size; i++) {
+      profile_mean1 += result1->distances[i];
+      profile_mean2 += result2->distances[i];
+    }
+    profile_mean1 /= sample_size;
+    profile_mean2 /= sample_size;
+
+    float mean_diff = std::abs(profile_mean1 - profile_mean2);
+    float mean_similarity = 1.0f - (mean_diff / 255.0f);
+
+    // Weighted combination
+    return 0.5f * dist_similarity + 0.3f * motif_count_sim + 0.2f * mean_similarity;
+  }
+
+  return 0.7f * dist_similarity + 0.3f * motif_count_sim;
+}
+
+// Fine similarity - Full analysis, compares actual patterns
+// This is the original compute_agent_similarity with minor optimizations
+float compute_agent_similarity_fine(const AgentMatrixProfile& profile1,
+                                    const AgentMatrixProfile& profile2,
+                                    uint8_t window_size,
+                                    const Agent* agent1,
+                                    const Agent* agent2,
+                                    const ActionDistance::ActionDistanceLUT& action_lut) {
+  // Find window results
   const AgentMatrixProfile::WindowResult* result1 = nullptr;
   const AgentMatrixProfile::WindowResult* result2 = nullptr;
 
@@ -567,27 +633,17 @@ float compute_agent_similarity(const AgentMatrixProfile& profile1,
     return 0.0f;
   }
 
-  // Extract histories
+  // Extract and encode histories
   std::vector<ActionType> actions1(history1_len), actions2(history2_len);
   std::vector<ActionArg> args1(history1_len), args2(history2_len);
 
   agent1->copy_history_to_buffers(actions1.data(), args1.data());
   agent2->copy_history_to_buffers(actions2.data(), args2.data());
 
-  // Encode sequences using the ActionDistanceLUT
-  std::vector<uint8_t> encoded1(history1_len), encoded2(history2_len);
-  for (size_t i = 0; i < history1_len; i++) {
-    encoded1[i] = action_lut.encode_action(actions1[i], args1[i]);
-  }
-  for (size_t i = 0; i < history2_len; i++) {
-    encoded2[i] = action_lut.encode_action(actions2[i], args2[i]);
-  }
+  std::vector<uint8_t> encoded1 = action_lut.encode_sequence(actions1, args1);
+  std::vector<uint8_t> encoded2 = action_lut.encode_sequence(actions2, args2);
 
-  // Get the distance lookup table
-  uint8_t lut[256][256];
-  action_lut.get_distance_table(lut);
-
-  // Compute pairwise distances between all motifs
+  // Compute pairwise distances between motifs
   struct MotifMatch {
     size_t idx1;
     size_t idx2;
@@ -596,6 +652,7 @@ float compute_agent_similarity(const AgentMatrixProfile& profile1,
   };
 
   std::vector<MotifMatch> matches;
+  matches.reserve(motifs1.size() * motifs2.size());
 
   for (size_t i = 0; i < motifs1.size(); i++) {
     for (size_t j = 0; j < motifs2.size(); j++) {
@@ -606,15 +663,15 @@ float compute_agent_similarity(const AgentMatrixProfile& profile1,
         continue;
       }
 
-      // Compute sequence distance using LUT
-      uint32_t total_dist = 0;
-      for (uint8_t k = 0; k < window_size; k++) {
-        total_dist += lut[encoded1[start1 + k]][encoded2[start2 + k]];
-      }
+      // Extract subsequences
+      std::vector<uint8_t> subseq1(encoded1.begin() + start1, encoded1.begin() + start1 + window_size);
+      std::vector<uint8_t> subseq2(encoded2.begin() + start2, encoded2.begin() + start2 + window_size);
 
+      // Use ActionDistance sequence_distance
+      uint32_t total_dist = action_lut.sequence_distance(subseq1, subseq2);
       float normalized_dist = static_cast<float>(total_dist) / window_size;
 
-      // Rank weight: more important motifs (lower indices) get higher weight
+      // Rank weight: more important motifs get higher weight
       float rank_weight = 1.0f / (1.0f + std::sqrt(static_cast<float>(i * j)));
 
       matches.push_back({i, j, normalized_dist, rank_weight});
@@ -629,7 +686,7 @@ float compute_agent_similarity(const AgentMatrixProfile& profile1,
   std::sort(
       matches.begin(), matches.end(), [](const MotifMatch& a, const MotifMatch& b) { return a.distance < b.distance; });
 
-  // Greedy matching: each motif can only be matched once
+  // Greedy matching
   std::vector<bool> used1(motifs1.size(), false);
   std::vector<bool> used2(motifs2.size(), false);
 
@@ -642,23 +699,400 @@ float compute_agent_similarity(const AgentMatrixProfile& profile1,
     used1[match.idx1] = true;
     used2[match.idx2] = true;
 
-    // Convert distance to similarity (assume max distance per position is 255)
-    float similarity = 1.0f - (match.distance / 255.0f);
-
+    float similarity = 1.0f - (match.distance / 15.0f);
     weighted_similarity += match.rank_weight * similarity;
     total_weight += match.rank_weight;
   }
 
-  // Coverage: what fraction of motifs found good matches
+  // Coverage
   float coverage =
       static_cast<float>(std::count(used1.begin(), used1.end(), true) + std::count(used2.begin(), used2.end(), true)) /
       (motifs1.size() + motifs2.size());
 
-  // Final score combines match quality and coverage
   float match_quality = (total_weight > 0) ? (weighted_similarity / total_weight) : 0.0f;
-  float final_score = 0.7f * match_quality + 0.3f * coverage;
+  return 0.7f * match_quality + 0.3f * coverage;
+}
 
-  return std::max(0.0f, std::min(1.0f, final_score));
+// find behavioral patterns using ActionDistance
+std::vector<std::string> describe_motif_patterns(const AgentMatrixProfile& profile,
+                                                 const Agent* agent,
+                                                 const ActionDistance::ActionDistanceLUT& action_lut,
+                                                 uint8_t window_size) {
+  std::vector<std::string> descriptions;
+
+  // Find the window result
+  const AgentMatrixProfile::WindowResult* result = nullptr;
+  for (const auto& wr : profile.window_results) {
+    if (wr.window_size == window_size) {
+      result = &wr;
+      break;
+    }
+  }
+
+  if (!result || result->top_motifs.empty()) {
+    return descriptions;
+  }
+
+  // Get agent history
+  size_t history_len = agent->history_count;
+  if (history_len < static_cast<size_t>(window_size)) {
+    return descriptions;
+  }
+
+  std::vector<ActionType> actions(history_len);
+  std::vector<ActionArg> args(history_len);
+  agent->copy_history_to_buffers(actions.data(), args.data());
+
+  // Encode the full sequence
+  std::vector<uint8_t> encoded = action_lut.encode_sequence(actions, args);
+
+  // Describe each top motif
+  for (const auto& motif : result->top_motifs) {
+    if (motif.start_idx + window_size <= encoded.size()) {
+      // Extract the motif subsequence
+      std::vector<uint8_t> motif_seq(encoded.begin() + motif.start_idx,
+                                     encoded.begin() + motif.start_idx + window_size);
+
+      // Use ActionDistance to decode the pattern to human-readable form
+      std::string pattern_desc = action_lut.decode_sequence_to_string(motif_seq);
+
+      // Add similarity info if there's a match
+      std::string match_info = "";
+      if (motif.match_idx < encoded.size() - window_size) {
+        std::vector<uint8_t> match_seq(encoded.begin() + motif.match_idx,
+                                       encoded.begin() + motif.match_idx + window_size);
+
+        // Check if patterns are similar using ActionDistance threshold
+        bool similar = action_lut.patterns_similar(motif_seq, match_seq, motif.distance);
+
+        if (similar) {
+          match_info = " [Similar pattern at position " + std::to_string(motif.match_idx) + " with distance " +
+                       std::to_string(motif.distance) + "]";
+        }
+      }
+
+      descriptions.push_back("Motif@" + std::to_string(motif.start_idx) + ": " + pattern_desc + match_info);
+    }
+  }
+
+  return descriptions;
+}
+
+// Balanced k-medoids clustering with adaptive coarse/fine similarity computation
+std::vector<CrossAgentPatterns::BehaviorCluster> cluster_by_behavior(
+    const std::vector<AgentMatrixProfile>& profiles,
+    const std::vector<Agent*>& agents,
+    const ActionDistance::ActionDistanceLUT& action_lut,
+    int window_size,
+    int num_clusters = 0,
+    float fine_similarity_budget = 0.1f) {  // What fraction of comparisons to do with fine similarity
+
+  if (profiles.empty() || agents.size() != profiles.size() || window_size <= 0) {
+    return {};
+  }
+
+  size_t n_agents = profiles.size();
+
+  // Auto-determine number of clusters if not specified
+  if (num_clusters == 0) {
+    num_clusters = std::max(2, static_cast<int>(std::sqrt(n_agents / 2.0)));
+    num_clusters = std::min(num_clusters, std::min(30, static_cast<int>(n_agents / 4)));
+  }
+  num_clusters = std::min(num_clusters, static_cast<int>(n_agents));
+
+  // Calculate fine similarity budget
+  size_t total_possible_comparisons = n_agents * (n_agents - 1) / 2;
+  size_t fine_similarity_budget_count = static_cast<size_t>(total_possible_comparisons * fine_similarity_budget);
+  size_t fine_similarities_used = 0;
+
+  std::cout << "Clustering " << n_agents << " agents into " << num_clusters << " clusters\n";
+  std::cout << "Fine similarity budget: " << fine_similarity_budget_count << " comparisons\n";
+
+  // Similarity cache to avoid recomputation
+  struct SimilarityCache {
+    std::map<std::pair<size_t, size_t>, float> coarse_cache;
+    std::map<std::pair<size_t, size_t>, float> fine_cache;
+
+    float get_similarity(size_t i,
+                         size_t j,
+                         const std::vector<AgentMatrixProfile>& profiles,
+                         const std::vector<Agent*>& agents,
+                         const ActionDistance::ActionDistanceLUT& lut,
+                         int window_size,
+                         bool use_fine,
+                         size_t& fine_count) {
+      if (i > j) std::swap(i, j);
+      auto key = std::make_pair(i, j);
+
+      // Check fine cache first
+      auto fine_it = fine_cache.find(key);
+      if (fine_it != fine_cache.end()) {
+        return fine_it->second;
+      }
+
+      // Check coarse cache
+      auto coarse_it = coarse_cache.find(key);
+      if (coarse_it != coarse_cache.end() && !use_fine) {
+        return coarse_it->second;
+      }
+
+      // Compute similarity
+      float sim;
+      if (use_fine && agents[i] && agents[j]) {
+        sim = compute_agent_similarity_fine(profiles[i], profiles[j], window_size, agents[i], agents[j], lut);
+        fine_cache[key] = sim;
+        fine_count++;
+      } else {
+        sim = compute_agent_similarity_coarse(profiles[i], profiles[j], window_size);
+        coarse_cache[key] = sim;
+      }
+
+      return sim;
+    }
+  };
+
+  SimilarityCache sim_cache;
+
+  // Step 1: Initialize medoids using k-means++ with smart similarity selection
+  std::vector<size_t> medoids;
+  std::vector<bool> is_medoid(n_agents, false);
+  std::mt19937 rng(42);
+
+  // First medoid: randomly selected
+  std::uniform_int_distribution<size_t> dist(0, n_agents - 1);
+  medoids.push_back(dist(rng));
+  is_medoid[medoids[0]] = true;
+
+  // Remaining medoids: k-means++ strategy
+  for (int k = 1; k < num_clusters; k++) {
+    std::vector<float> min_distances(n_agents, 0.0f);
+
+// Calculate distance to nearest medoid
+#pragma omp parallel for
+    for (size_t i = 0; i < n_agents; i++) {
+      if (is_medoid[i]) continue;
+
+      float max_sim = 0.0f;
+      for (size_t med_idx : medoids) {
+        // Use coarse similarity for initialization
+        float sim = sim_cache.get_similarity(
+            i, med_idx, profiles, agents, action_lut, window_size, false, fine_similarities_used);
+        max_sim = std::max(max_sim, sim);
+      }
+
+      min_distances[i] = 1.0f - max_sim;
+    }
+
+    // Choose next medoid probabilistically
+    std::discrete_distribution<size_t> weighted_dist(min_distances.begin(), min_distances.end());
+    size_t next_medoid = weighted_dist(rng);
+    medoids.push_back(next_medoid);
+    is_medoid[next_medoid] = true;
+  }
+
+  // Step 2: Initial assignment using coarse similarity
+  std::vector<int> assignments(n_agents, -1);
+  std::vector<float> assignment_scores(n_agents, 0.0f);
+
+  auto assign_agents = [&](bool use_fine_for_uncertain = false) {
+#pragma omp parallel for
+    for (size_t i = 0; i < n_agents; i++) {
+      float best_sim = -1.0f;
+      int best_cluster = -1;
+      float second_best_sim = -1.0f;
+
+      for (size_t k = 0; k < medoids.size(); k++) {
+        if (i == medoids[k]) {
+          best_sim = 1.0f;
+          best_cluster = static_cast<int>(k);
+          break;
+        }
+
+        // Decide whether to use fine similarity
+        bool use_fine = false;
+        if (use_fine_for_uncertain && fine_similarities_used < fine_similarity_budget_count) {
+          // Use fine similarity if previous assignment was uncertain
+          use_fine = (assignment_scores[i] < 0.6f && assignment_scores[i] > 0.0f);
+        }
+
+        float sim = sim_cache.get_similarity(
+            i, medoids[k], profiles, agents, action_lut, window_size, use_fine, fine_similarities_used);
+
+        if (sim > best_sim) {
+          second_best_sim = best_sim;
+          best_sim = sim;
+          best_cluster = static_cast<int>(k);
+        } else if (sim > second_best_sim) {
+          second_best_sim = sim;
+        }
+      }
+
+      assignments[i] = best_cluster;
+      assignment_scores[i] = best_sim;
+    }
+  };
+
+  // Initial assignment with coarse similarity
+  assign_agents(false);
+
+  // Step 3: Iterative optimization with adaptive similarity
+  const int MAX_ITERATIONS = 10;
+
+  for (int iter = 0; iter < MAX_ITERATIONS; iter++) {
+    bool changed = false;
+
+    // Update medoids
+    for (size_t k = 0; k < medoids.size(); k++) {
+      // Get cluster members
+      std::vector<size_t> members;
+      for (size_t i = 0; i < n_agents; i++) {
+        if (assignments[i] == static_cast<int>(k)) {
+          members.push_back(i);
+        }
+      }
+
+      if (members.empty()) continue;
+
+      // Find best medoid within cluster
+      size_t best_medoid = medoids[k];
+      float best_total_sim = -1.0f;
+
+      // Only check a subset of members as potential medoids
+      size_t candidates_to_check = std::min(members.size(), size_t(5));
+
+      // Always check current medoid
+      float current_total_sim = 0.0f;
+      for (size_t member : members) {
+        if (member != medoids[k]) {
+          current_total_sim += sim_cache.get_similarity(
+              medoids[k], member, profiles, agents, action_lut, window_size, false, fine_similarities_used);
+        }
+      }
+      best_total_sim = current_total_sim;
+
+      // Check random candidates
+      std::shuffle(members.begin(), members.end(), rng);
+
+      for (size_t c = 0; c < candidates_to_check; c++) {
+        size_t candidate = members[c];
+        if (candidate == medoids[k]) continue;
+
+        float total_sim = 0.0f;
+
+        // Use coarse similarity for most comparisons
+        for (size_t member : members) {
+          if (member != candidate) {
+            // Use fine similarity for small clusters or if we have budget
+            bool use_fine = (members.size() < 10 && fine_similarities_used < fine_similarity_budget_count);
+
+            total_sim += sim_cache.get_similarity(
+                candidate, member, profiles, agents, action_lut, window_size, use_fine, fine_similarities_used);
+          }
+        }
+
+        if (total_sim > best_total_sim) {
+          best_total_sim = total_sim;
+          best_medoid = candidate;
+        }
+      }
+
+      if (best_medoid != medoids[k]) {
+        medoids[k] = best_medoid;
+        changed = true;
+      }
+    }
+
+    if (!changed) break;
+
+    // Reassign with option to use fine similarity for uncertain cases
+    assign_agents(iter > 2);  // Start using fine similarity after iteration 2
+  }
+
+  // Step 4: Build final clusters
+  std::vector<CrossAgentPatterns::BehaviorCluster> clusters(num_clusters);
+
+  for (size_t i = 0; i < n_agents; i++) {
+    int cluster_id = assignments[i];
+    if (cluster_id >= 0 && cluster_id < num_clusters) {
+      clusters[cluster_id].agent_ids.push_back(profiles[i].agent_id);
+    }
+  }
+
+  // Set representative sequences and compute statistics
+  for (size_t k = 0; k < clusters.size(); k++) {
+    if (clusters[k].agent_ids.empty()) continue;
+
+    size_t medoid_idx = medoids[k];
+
+    // Extract representative sequence from medoid's top motif
+    const AgentMatrixProfile::WindowResult* result = nullptr;
+    for (const auto& wr : profiles[medoid_idx].window_results) {
+      if (wr.window_size == window_size) {
+        result = &wr;
+        break;
+      }
+    }
+
+    if (result && !result->top_motifs.empty() &&
+        agents[medoid_idx]->history_count >= static_cast<size_t>(window_size)) {
+      const auto& top_motif = result->top_motifs[0];
+
+      std::vector<ActionType> actions(agents[medoid_idx]->history_count);
+      std::vector<ActionArg> args(agents[medoid_idx]->history_count);
+      agents[medoid_idx]->copy_history_to_buffers(actions.data(), args.data());
+
+      clusters[k].representative_sequence.clear();
+      for (int i = 0; i < window_size; i++) {
+        size_t idx = top_motif.start_idx + i;
+        if (idx < actions.size()) {
+          clusters[k].representative_sequence.push_back(action_lut.encode_action(actions[idx], args[idx]));
+        }
+      }
+    }
+
+    // Compute intra-cluster distance
+    float total_dist = 0.0f;
+    int count = 0;
+
+    for (size_t i = 0; i < clusters[k].agent_ids.size(); i++) {
+      for (size_t j = i + 1; j < clusters[k].agent_ids.size(); j++) {
+        // Find indices
+        size_t idx_i = 0, idx_j = 0;
+        for (size_t a = 0; a < profiles.size(); a++) {
+          if (profiles[a].agent_id == clusters[k].agent_ids[i]) idx_i = a;
+          if (profiles[a].agent_id == clusters[k].agent_ids[j]) idx_j = a;
+        }
+
+        float sim = sim_cache.get_similarity(
+            idx_i, idx_j, profiles, agents, action_lut, window_size, false, fine_similarities_used);
+
+        total_dist += (1.0f - sim);
+        count++;
+      }
+    }
+
+    clusters[k].avg_intra_cluster_distance = count > 0 ? total_dist / count : 0.0f;
+  }
+
+  // Remove empty clusters
+  clusters.erase(std::remove_if(clusters.begin(),
+                                clusters.end(),
+                                [](const CrossAgentPatterns::BehaviorCluster& c) { return c.agent_ids.empty(); }),
+                 clusters.end());
+
+  // Report statistics
+  std::cout << "\nClustering complete:\n";
+  std::cout << "  Clusters formed: " << clusters.size() << "\n";
+  std::cout << "  Fine similarities computed: " << fine_similarities_used << " ("
+            << (100.0f * fine_similarities_used / fine_similarity_budget_count) << "% of budget)\n";
+  std::cout << "  Coarse similarities computed: " << sim_cache.coarse_cache.size() << "\n";
+
+  for (size_t i = 0; i < clusters.size(); i++) {
+    std::cout << "  Cluster " << i << ": " << clusters[i].agent_ids.size()
+              << " agents (avg dist: " << clusters[i].avg_intra_cluster_distance << ")\n";
+  }
+
+  return clusters;
 }
 
 }  // namespace Analysis
