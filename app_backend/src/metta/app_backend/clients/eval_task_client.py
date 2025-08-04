@@ -44,7 +44,7 @@ class EvalTaskClient(BaseAppBackendClient):
             GitHashesResponse, "POST", "/tasks/git-hashes", json=request.model_dump(mode="json")
         )
 
-    async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse:
+    async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse | None:
         return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
 
     async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
