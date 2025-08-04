@@ -1,0 +1,20 @@
+defaults:
+  - /env/mettagrid/operant_conditioning/trial_and_error/2_mine_2_converters/defaults@
+  - _self_
+
+game:
+  map_builder:
+    root:
+  objects:
+    generator_red:
+      cooldown: 1
+      input_resources:
+        ore_blue: 1
+        ore_red: 0
+      output_resources:
+        battery_red: 0
+    generator_blue:
+      cooldown: 1
+      output_resources:
+        battery_blue: 0
+        heart: 1
