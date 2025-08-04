@@ -377,6 +377,50 @@ class AsanaTask:
             print(f"[ensure_github_url_in_task] GitHub attachment failed: {response.text}")
             return None
 
+    def ensure_github_review_url_in_task(
+        self,
+        task_url: str,
+        review_title: str,
+        github_review_url: str,
+    ) -> dict | None:
+        print(
+            f"[ensure_github_review_url_in_task] ensure_github_review_url_in_task() called with task_url='{task_url}', review_title='{review_title}'"
+        )
+
+        # Extract review ID from the GitHub review URL
+        # GitHub review URLs typically look like: https://github.com/owner/repo/pull/123#discussion_r456789
+        review_id_match = re.search(r"#discussion_r(\d+)", github_review_url)
+        if not review_id_match:
+            print(
+                f"[ensure_github_review_url_in_task] Could not extract review ID from GitHub URL: {github_review_url}"
+            )
+            return None
+
+        review_id = review_id_match.group(1)
+        print(f"[ensure_github_review_url_in_task] Review ID extracted: {review_id}")
+
+        headers = {
+            "Authorization": f"Bearer {self.attachment_secret}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "allowedProjects": [self.project_id],
+            "blockedProjects": [],
+            "pullRequestName": review_title,
+            "pullRequestDescription": task_url,
+            "pullRequestNumber": int(review_id),
+            "pullRequestURL": github_review_url,
+        }
+        print(f"[ensure_github_review_url_in_task] Making attachment request with payload: {payload}")
+        response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
+        print(f"[ensure_github_review_url_in_task] Attachment response status: {response.status_code}")
+        if response.status_code == 201:
+            print("[ensure_github_review_url_in_task] GitHub review attachment successful")
+            return response.json()
+        else:
+            print(f"[ensure_github_review_url_in_task] GitHub review attachment failed: {response.text}")
+            return None
+
     def extract_github_review_id(self, asana_comment_text):
         """
         Extract GitHub review ID from Asana comment text
@@ -487,6 +531,7 @@ class AsanaTask:
             github_user = github_review["user"]
             review_state = github_review["action"]
             github_timestamp = github_review["timestamp"]
+            github_url = github_review.get("html_url")
 
             print(f"[s] Processing review {review_id} from {github_user} ({review_state})")
 
@@ -513,6 +558,11 @@ class AsanaTask:
                         response = requests.put(url, headers=headers, json=payload)
                         if response.status_code == 200:
                             print(f"Updated Asana comment {story_id} for review {review_id}")
+                            # Attach GitHub URL to the task if available
+                            if github_url:
+                                self.ensure_github_review_url_in_task(
+                                    self.task_url, f"Review {review_id} from {github_user}", github_url
+                                )
                         else:
                             print(
                                 f"Failed to update Asana comment {story_id}: {response.status_code} - {response.text}"
@@ -566,6 +616,11 @@ class AsanaTask:
                         response = requests.post(url, headers=headers, json=payload)
                         response.raise_for_status()
                         print(f"Added new Asana comment for review {review_id}")
+                        # Attach GitHub URL to the task if available
+                        if github_url:
+                            self.ensure_github_review_url_in_task(
+                                self.task_url, f"Review {review_id} from {github_user}", github_url
+                            )
                     except requests.exceptions.RequestException as e:
                         print(f"Error adding Asana comment for review {review_id}: {e}")
                         print(payload)
