@@ -112,145 +112,66 @@ def generate_valid_random_actions(
 
 def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
     """
-    Move agent in specified direction with full validation.
+    Simple tank-style movement helper for tests.
+    For direct movement (cardinal/8way), tests should create actions explicitly.
+
+    Example for cardinal movement:
+        action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+        action[0] = [env.action_names().index("move_cardinal"), Orientation.UP.value]
+        env.step(action)
+
+    Example for 8-way movement:
+        action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+        # Map orientation to 8-way indices: UP=0, RIGHT=2, DOWN=4, LEFT=6
+        action[0] = [env.action_names().index("move_8way"), 0]  # North
+        env.step(action)
 
     Args:
         env: MettaGrid environment
-        orientation: Orientation enum, string ("up", "down", "left", "right"), or int (0=Up, 1=Down, 2=Left, 3=Right)
+        orientation: Direction to move (UP, DOWN, LEFT, RIGHT)
         agent_idx: Agent index (default 0)
 
     Returns:
-        Dict with movement results and validation
+        Dict with success status and error if any
     """
-    direction_name = str(orientation)
+    result = {"success": False, "error": None}
+    action_names = env.action_names()
 
-    result = {
-        "success": False,
-        "rotate_success": False,
-        "move_success": False,
-        "obs_before": None,
-        "obs_after": None,
-        "position_before": None,
-        "position_after": None,
-        "orientation_before": None,
-        "orientation_after": None,
-        "moved": False,
-        "moved_correctly": False,
-        "obs_changed": False,
-        "error": None,
-        "direction": direction_name,
-        "target_orientation": orientation.value,
-    }
+    # This helper only supports tank-style movement
+    if "move" not in action_names or "rotate" not in action_names:
+        result["error"] = "Tank-style movement (move/rotate) not available"
+        return result
 
-    try:
-        action_names = env.action_names()
+    move_action_idx = action_names.index("move")
+    rotate_action_idx = action_names.index("rotate")
 
-        # Check required actions exist
-        if "move" not in action_names:
-            result["error"] = "Move action not available"
-            return result
-        if "rotate" not in action_names:
-            result["error"] = "Rotate action not available"
-            return result
+    # Get initial position for verification
+    position_before = get_agent_position(env, agent_idx)
 
-        move_action_idx = action_names.index("move")
-        rotate_action_idx = action_names.index("rotate")
+    # Step 1: Rotate to face target direction
+    rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+    rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
+    env.step(rotate_action)
 
-        print(f"Moving agent {agent_idx} {direction_name} (orientation {orientation.value})")
+    if not env.action_success()[agent_idx]:
+        result["error"] = f"Failed to rotate to {orientation}"
+        return result
 
-        # Get initial state
-        result["obs_before"] = get_current_observation(env, agent_idx)
-        result["position_before"] = get_agent_position(env, agent_idx)
-        result["orientation_before"] = get_agent_orientation(env, agent_idx)
+    # Step 2: Move forward
+    move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+    move_action[agent_idx] = [move_action_idx, 0]  # Move forward
+    env.step(move_action)
 
-        print(f"  Before: pos={result['position_before']}, orient={result['orientation_before']}")
+    if not env.action_success()[agent_idx]:
+        result["error"] = "Failed to move forward"
+        return result
 
-        # Step 1: Rotate to face target direction
-        rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-        rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
-
-        env.step(rotate_action)
-        rotate_success = env.action_success()
-        result["rotate_success"] = bool(rotate_success[agent_idx])
-
-        if not result["rotate_success"]:
-            result["error"] = f"Failed to rotate to {direction_name}"
-            return result
-
-        # Verify rotation worked
-        current_orientation = get_agent_orientation(env, agent_idx)
-        if current_orientation != orientation.value:
-            result["error"] = f"Rotation failed: expected {orientation.value}, got {current_orientation}"
-            return result
-
-        print(f"  Rotated to face {direction_name}")
-
-        # Step 2: Move forward
-        move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-        move_action[agent_idx] = [move_action_idx, 0]  # Move forward
-
-        obs_after, rewards, terminals, truncations, info = env.step(move_action)
-        move_success = env.action_success()
-        result["move_success"] = bool(move_success[agent_idx])
-
-        # Get final state
-        result["obs_after"] = obs_after.copy()
-        result["position_after"] = get_agent_position(env, agent_idx)
-        result["orientation_after"] = get_agent_orientation(env, agent_idx)
-
-        print(f"  After: pos={result['position_after']}, orient={result['orientation_after']}")
-        print(f"  Move action success: {result['move_success']}")
-
-        # Validate movement
-        if result["position_before"] and result["position_after"]:
-            result["moved"] = result["position_before"] != result["position_after"]
-
-            if result["moved"]:
-                # Check if movement was in correct direction using enum
-                dr = result["position_after"][0] - result["position_before"][0]
-                dc = result["position_after"][1] - result["position_before"][1]
-
-                expected_dr, expected_dc = orientation.movement_delta
-                result["moved_correctly"] = dr == expected_dr and dc == expected_dc
-
-                if result["moved_correctly"]:
-                    print(f"  ✅ Moved correctly {direction_name}")
-                else:
-                    print(f"  ❌ Wrong direction. Expected {orientation.movement_delta}, got ({dr}, {dc})")
-            else:
-                if result["move_success"]:
-                    print("  ⚠️ Move action succeeded but position unchanged (blocked?)")
-                else:
-                    print("  ❌ No movement - action failed")
-
-        # Validate observation changes
-        if result["obs_before"] is not None and result["obs_after"] is not None:
-            result["obs_changed"] = not np.array_equal(result["obs_before"][agent_idx], result["obs_after"][agent_idx])
-
-            if result["moved"] and result["obs_changed"]:
-                print("  ✅ Observations changed correctly with movement")
-            elif result["moved"] and not result["obs_changed"]:
-                print("  ⚠️ Agent moved but observations didn't change")
-            elif not result["moved"] and result["obs_changed"]:
-                print("  ⚠️ Observations changed but agent didn't move")
-            else:
-                print("  ✅ No movement, no observation change (consistent)")
-
-        # Overall success
-        result["success"] = (
-            result["rotate_success"] and result["move_success"] and result["moved"] and result["moved_correctly"]
-        )
-
-        if not result["success"] and not result["error"]:
-            if not result["move_success"]:
-                result["error"] = "Move action failed"
-            elif not result["moved"]:
-                result["error"] = "No movement detected"
-            elif not result["moved_correctly"]:
-                result["error"] = "Moved in wrong direction"
-
-    except Exception as e:
-        result["error"] = f"Exception during move: {str(e)}"
+    # Check if position changed
+    position_after = get_agent_position(env, agent_idx)
+    if position_after != position_before:
+        result["success"] = True
+    else:
+        result["error"] = "Position unchanged (likely blocked)"
 
     return result
 

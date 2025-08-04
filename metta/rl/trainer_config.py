@@ -303,7 +303,8 @@ def create_trainer_config(
         raise ValueError("trainer config must be a dict")
 
     # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
-    if cfg.vectorization == "serial":
+    # TODO: This should be handled via EnvConfig instead
+    if cfg.get("vectorization") == "serial":
         config_dict["async_factor"] = 1
         config_dict["zero_copy"] = False
 

@@ -12,6 +12,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import wait_for_file
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.rl.env_config import EnvConfig
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
 
@@ -49,6 +50,9 @@ def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) ->
         agent = policy
     elif isinstance(policy, DistributedMettaAgent):
         agent = policy.module
+
+    elif type(policy).__name__ == "Recurrent":
+        agent = policy
     else:
         raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(policy)}")
 
@@ -92,7 +96,8 @@ def maybe_load_checkpoint(
     policy_store: PolicyStore,
     trainer_cfg: TrainerConfig,
     metta_grid_env: MettaGridEnv,
-    cfg: DictConfig,
+    agent_cfg: DictConfig,
+    env_cfg: EnvConfig,
     is_master: bool,
     rank: int,
 ) -> tuple[TrainerCheckpoint | None, PolicyRecord, int, int]:
@@ -175,8 +180,7 @@ def maybe_load_checkpoint(
     else:
         # Master creates new policy
         name = policy_store.make_model_name(0)
-        pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
+        pr = policy_store.create_empty_policy_record(checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=name)
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
@@ -187,7 +191,9 @@ def maybe_load_checkpoint(
 
 
 def load_or_initialize_policy(
-    cfg: DictConfig,
+    agent_cfg: DictConfig,
+    env_cfg: EnvConfig,
+    trainer_cfg: TrainerConfig,
     checkpoint: TrainerCheckpoint | None,
     policy_store: PolicyStore,
     metta_grid_env: MettaGridEnv,
@@ -195,7 +201,6 @@ def load_or_initialize_policy(
     rank: int,
 ) -> tuple[PolicyAgent, PolicyRecord, PolicyRecord]:
     """Load or initialize policy with distributed coordination."""
-    trainer_cfg = cfg.trainer
 
     # Check if policy already exists at default path - all ranks check this
     default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
@@ -260,8 +265,8 @@ def load_or_initialize_policy(
         # Master creates new policy
         logger.info("No existing policy found, creating new one")
         name = policy_store.make_model_name(0)
-        pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
+        pr = policy_store.create_empty_policy_record(checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=name)
+        pr.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 

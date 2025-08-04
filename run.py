@@ -260,34 +260,30 @@ if is_master:
     wandb_ctx = WandbContext(wandb_config, global_config)
     wandb_run = wandb_ctx.__enter__()
 
-# Create policy store with config structure matching what Hydra provides
-policy_store_config = {
-    "device": str(device),
-    "run": dirs.run_name,
-    "run_dir": dirs.run_dir,
-    "vectorization": "serial",  # Set to serial for simplicity in this example
-    "trainer": trainer_config.model_dump(),
-}
 
 # Add wandb config if available (PolicyStore expects it for wandb:// URIs)
-if wandb_run and wandb_ctx:
-    # Access the wandb config from the context
+def _get_wandb_details(wandb_ctx: WandbContext) -> dict:
     try:
         wandb_cfg = wandb_ctx.cfg
         if isinstance(wandb_cfg, DictConfig):
             wandb_config_dict = OmegaConf.to_container(wandb_cfg, resolve=True)
             if isinstance(wandb_config_dict, dict) and wandb_config_dict.get("enabled"):
-                policy_store_config["wandb"] = {
+                return {
                     "entity": wandb_config_dict.get("entity"),
                     "project": wandb_config_dict.get("project"),
                 }
     except AttributeError:
-        # wandb_ctx might not have cfg attribute if wandb is disabled
-        pass
+        return {}
+    return {}
 
+
+wandb_details = _get_wandb_details(wandb_ctx) if wandb_run and wandb_ctx else {}
 policy_store = PolicyStore(
-    DictConfig(policy_store_config),
+    device=str(device),
     wandb_run=wandb_run,
+    data_dir="./train_dir",
+    wandb_entity=wandb_details.get("entity"),
+    wandb_project=wandb_details.get("project"),
 )
 
 # Create or load agent with a single function call

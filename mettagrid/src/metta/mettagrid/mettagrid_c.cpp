@@ -14,6 +14,8 @@
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
+#include "actions/move_cardinal.hpp"
+#include "actions/move_8way.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
@@ -86,6 +88,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
       _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
+    } else if (action_name_str == "move_8way") {
+      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config));
+    } else if (action_name_str == "move_cardinal") {
+      _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
     } else if (action_name_str == "rotate") {
       _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
@@ -482,12 +488,6 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 py::tuple MettaGrid::reset() {
   if (current_step > 0) {
     throw std::runtime_error("Cannot reset after stepping");
-  }
-
-  // Clear action tracking from previous episodes
-  ActionHandler::clear_all_tracking();
-  for (auto& handler : _action_handlers) {
-    handler->clear_tracking();
   }
 
   // Reset all buffers

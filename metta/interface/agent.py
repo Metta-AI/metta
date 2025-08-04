@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import TYPE_CHECKING, Any, Optional
 
 import gymnasium as gym
@@ -12,7 +11,10 @@ import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
+from metta.agent.policy_store import PolicyStore
 from metta.mettagrid import MettaGridEnv
+from metta.rl.env_config import EnvConfig
+from metta.rl.trainer_config import TrainerConfig
 
 if TYPE_CHECKING:
     from .environment import Environment
@@ -134,7 +136,7 @@ class Agent:
             config = _get_default_agent_config(device)
 
         # Get the actual MettaGridEnv from vecenv wrapper
-        metta_grid_env = env.driver_env
+        metta_grid_env = env.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
 
         # Create observation space matching what make_policy does
@@ -155,7 +157,6 @@ class Agent:
             obs_height=metta_grid_env.obs_height,
             action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
-            global_features=metta_grid_env.global_features,
             device=str(device),
             **agent_cfg,
         )
@@ -170,8 +171,8 @@ class Agent:
 def create_or_load_agent(
     env: "Environment",
     run_dir: str,
-    policy_store: Any,  # PolicyStore
-    trainer_config: Any,  # TrainerConfig
+    policy_store: PolicyStore,
+    trainer_config: TrainerConfig,
     device: str | torch.device = "cuda",
     is_master: bool = True,
     rank: int = 0,
@@ -196,7 +197,7 @@ def create_or_load_agent(
     from metta.rl.policy_management import maybe_load_checkpoint
 
     # Get the MettaGridEnv
-    metta_grid_env = env.driver_env
+    metta_grid_env = env.driver_env  # type: ignore
     assert isinstance(metta_grid_env, MettaGridEnv)
 
     # Load checkpoint and policy
@@ -205,14 +206,8 @@ def create_or_load_agent(
         policy_store=policy_store,
         trainer_cfg=trainer_config,
         metta_grid_env=metta_grid_env,
-        cfg=DictConfig(
-            {
-                "device": str(device),
-                "run": os.path.basename(run_dir),
-                "run_dir": run_dir,
-                "agent": _get_default_agent_config(str(device))["agent"],
-            }
-        ),
+        agent_cfg=_get_default_agent_config(str(device))["agent"],
+        env_cfg=EnvConfig(device=str(device)),
         is_master=is_master,
         rank=rank,
     )
@@ -224,7 +219,12 @@ def create_or_load_agent(
 
         # Initialize to environment (handles feature remapping)
         features = metta_grid_env.get_observation_features()
-        agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+        agent.initialize_to_environment(
+            features,
+            metta_grid_env.action_names,
+            metta_grid_env.max_action_args,
+            torch.device(device) if isinstance(device, str) else device,
+        )
     else:
         # Create new agent
         agent = Agent(env, device=str(device))
