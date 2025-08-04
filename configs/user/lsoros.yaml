@@ -1,5 +1,5 @@
 # @package __global__
 
-run: test-revert9
+run: test-revertt
 trainer:
   env: /env/mettagrid/debug
