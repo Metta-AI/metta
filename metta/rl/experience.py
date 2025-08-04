@@ -42,12 +42,14 @@ class Experience:
         cpu_offload: bool = False,
         num_lstm_layers: int = 2,
         agents_per_batch: Optional[int] = None,
+        reset_lstm_state_between_episodes: bool = True,
     ):
         """Initialize experience buffer with segmented storage."""
         # Store parameters
         self.total_agents = total_agents
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
+        self.reset_lstm_state_between_episodes = reset_lstm_state_between_episodes
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.cpu_offload = cpu_offload
 
@@ -197,6 +199,12 @@ class Experience:
         self.ep_lengths[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
+
+        # Optionally reset LSTM states when episodes complete
+        if self.reset_lstm_state_between_episodes and env_id.start in self.lstm_h:
+            # Reset LSTM states to zero for completed episodes
+            self.lstm_h[env_id.start].zero_()
+            self.lstm_c[env_id.start].zero_()
 
     def get_lstm_state(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
         """Get LSTM state as tensors."""

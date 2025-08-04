@@ -23,6 +23,10 @@ simulation:
 
 grad_mean_variance_interval: 0 # 0 to disable
 
+# LSTM state handling - set to false to preserve LSTM state across episodes
+# This is useful for longer memory tasks but may reduce training stability
+reset_lstm_state_between_episodes: true
+
 total_timesteps: 10_000_000_000
 
 optimizer:

@@ -365,6 +365,7 @@ experience = Experience(
     cpu_offload=trainer_config.cpu_offload,
     num_lstm_layers=num_lstm_layers,
     agents_per_batch=getattr(env, "agents_per_batch", None),  # type: ignore
+    reset_lstm_state_between_episodes=trainer_config.reset_lstm_state_between_episodes,
 )
 
 # Create kickstarter

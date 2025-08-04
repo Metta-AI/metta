@@ -215,6 +215,7 @@ def train(
         cpu_offload=trainer_cfg.cpu_offload,
         num_lstm_layers=num_lstm_layers,
         agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+        reset_lstm_state_between_episodes=trainer_cfg.reset_lstm_state_between_episodes,
     )
 
     # Create optimizer
