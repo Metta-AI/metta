@@ -180,6 +180,8 @@ class EvalTaskOrchestrator:
 
         await self._assign_tasks_to_workers(alive_workers_by_name)
 
+        await self._kill_idle_workers(alive_workers_by_name)
+
         await self._start_new_workers(alive_workers_by_name)
 
     async def run(self) -> None:
