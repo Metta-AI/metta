@@ -168,11 +168,8 @@ class EMA(BaseLoss):
             target_pred = target_pred.detach()
         shared_loss_data["BYOL"]["target_pred"] = target_pred  # add these in case other losses want them next
         shared_loss_data["BYOL"]["pred"] = pred
-        loss = F.mse_loss(pred, target_pred)
+        loss = F.mse_loss(pred, target_pred) * self.cfg.byol_loss_coef
         return loss, shared_loss_data
-
-
-# ----End BYOL loss class:----
 
 
 # ----Teacher-led kickstarter ----
@@ -508,20 +505,20 @@ class ValueDetached:
         indices: Tensor,
     ) -> Tensor:
         # feature: this loss can run every n epochs if it likes
-        if self.manager.epoch % self.manager.trainer_cfg.contrastive.update_every_n_epochs != 0:
-            return torch.tensor(0.0, device=self.manager.device, dtype=torch.float32)
+        if self.trainer.epoch % self.trainer.trainer_cfg.contrastive.update_every_n_epochs != 0:
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
         # deletes the intermediate components from the train_td
         for component in self.intermediate_components:
             del train_td[component]
 
         train_td[self.detached_component] = train_td[self.detached_component].detach()
-        train_td = self.manager.policy(train_td)
+        train_td = self.policy(train_td)
 
         newvalue = train_td["values"]
         newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-        if self.manager.trainer_cfg.ppo.clip_vloss:
+        if self.cfg.clip_vloss:
             v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
-            vf_clip_coef = self.manager.trainer_cfg.ppo.vf_clip_coef
+            vf_clip_coef = self.cfg.vf_clip_coef
             v_clipped = minibatch["values"] + torch.clamp(
                 newvalue_reshaped - minibatch["values"],
                 -vf_clip_coef,
@@ -537,7 +534,9 @@ class ValueDetached:
             {"values": newvalue.view(minibatch["values"].shape)},
             batch_size=minibatch.batch_size,
         )
-        if self.manager.experience:
-            self.manager.experience.update(indices, update_td)
+        if self.policy.experience:
+            self.policy.experience.update(indices, update_td)
 
-        return v_loss
+        self.policy.trainer.optimize()
+
+        return
