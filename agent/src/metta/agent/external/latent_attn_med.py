@@ -277,14 +277,6 @@ class Policy(nn.Module):
             for n in action_nvec
         ])
 
-        max_vec = torch.tensor([
-            9.0, 1.0, 1.0, 10.0, 3.0, 254.0, 1.0, 1.0, 235.0, 8.0, 9.0,
-            250.0, 29.0, 1.0, 1.0, 8.0, 1.0, 1.0, 6.0, 3.0, 1.0, 2.0
-        ], dtype=torch.float32)[None, :, None, None]
-        self.register_buffer("max_vec", max_vec)
-
-
-
         self.to(self.device)
 
 

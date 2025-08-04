@@ -277,14 +277,6 @@ class Policy(nn.Module):
             for n in action_nvec
         ])
 
-        max_vec = torch.tensor([
-            9.0, 1.0, 1.0, 10.0, 3.0, 254.0, 1.0, 1.0, 235.0, 8.0, 9.0,
-            250.0, 29.0, 1.0, 1.0, 8.0, 1.0, 1.0, 6.0, 3.0, 1.0, 2.0
-        ], dtype=torch.float32)[None, :, None, None]
-        self.register_buffer("max_vec", max_vec)
-
-
-
         self.to(self.device)
 
 
@@ -292,7 +284,7 @@ class Policy(nn.Module):
         x, mask, B_TT = self.obs_(x)
         x = self.obs_norm(x)
         x = self.obs_fourier(x)
-        x = self.obs_latent_query_attn(x, mask, B_TT) # output shape: [24, 10, 32]
+        x = self.obs_latent_query_attn(x, mask, B_TT)
         x = self.obs_latent_self_attn(x, mask)
         return x
 
