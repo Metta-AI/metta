@@ -1,4 +1,5 @@
 import logging
+
 import einops
 import pufferlib.models
 import pufferlib.pytorch
@@ -181,7 +182,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         selected_action_log_probs = []
         entropies = []
 
-
         for _, logits in enumerate(logits_list):
             action_log_probs = F.log_softmax(logits, dim=-1)
             action_probs = torch.exp(action_log_probs)
@@ -218,8 +218,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         )
 
 
-
-
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
@@ -233,12 +231,8 @@ class Policy(nn.Module):
         self.out_height = 11
         self.num_layers = 22
 
-        self.cnn1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3)
-        )
-        self.cnn2 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1)
-        )
+        self.cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
+        self.cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
 
         test_input = torch.zeros(1, 22, 11, 11)
         with torch.no_grad():
@@ -247,39 +241,50 @@ class Policy(nn.Module):
 
         self.flatten = nn.Flatten()
 
-        self.fc1 = pufferlib.pytorch.layer_init(
-            nn.Linear(self.flattened_size, 128)
-        )
-        self.encoded_obs = pufferlib.pytorch.layer_init(
-            nn.Linear(128, 128)
-        )
-        self.critic_1 = pufferlib.pytorch.layer_init(
-            nn.Linear(self.hidden_size, 1024)
-        )
-        self.value_head = pufferlib.pytorch.layer_init(
-            nn.Linear(1024, 1), std=1.0
-        )
-        self.actor_1 = pufferlib.pytorch.layer_init(
-            nn.Linear(self.hidden_size, 512)
-        )
+        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128))
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128))
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads - will be initialized based on action space
-        action_nvec = self.action_space.nvec if hasattr(self.action_space, 'nvec') else [100]
+        action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList([
-            pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01)
-            for n in action_nvec
-        ])
+        self.actor_heads = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        )
 
-        max_vec = torch.tensor([
-            9.0, 1.0, 1.0, 10.0, 3.0, 254.0, 1.0, 1.0, 235.0, 8.0, 9.0,
-            250.0, 29.0, 1.0, 1.0, 8.0, 1.0, 1.0, 6.0, 3.0, 1.0, 2.0
-        ], dtype=torch.float32)[None, :, None, None]
+        max_vec = torch.tensor(
+            [
+                9.0,
+                1.0,
+                1.0,
+                10.0,
+                3.0,
+                254.0,
+                1.0,
+                1.0,
+                235.0,
+                8.0,
+                9.0,
+                250.0,
+                29.0,
+                1.0,
+                1.0,
+                8.0,
+                1.0,
+                1.0,
+                6.0,
+                3.0,
+                1.0,
+                2.0,
+            ],
+            dtype=torch.float32,
+        )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
         self.to(self.device)
-
 
     def network_forward(self, x):
         logger.info(f"X shape: {x.shape}")
@@ -290,8 +295,6 @@ class Policy(nn.Module):
         x = self.fc1(x)
         x = self.encoded_obs(x)
         return x
-
-
 
     def encode_observations(self, observations, state=None):
         """
@@ -338,20 +341,16 @@ class Policy(nn.Module):
             y_coord_indices[valid_tokens],
         ] = atr_values[valid_tokens]
 
-
         return self.network_forward(box_obs)
 
     def decode_actions(self, hidden):
-
         critic_features = F.tanh(self.critic_1(hidden))
 
         value = self.value_head(critic_features)
 
         actor_features = self.actor_1(hidden)
 
-        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(
-            actor_features.shape[0], -1
-        )
+        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
         combined_features = torch.cat([actor_features, action_embed], dim=-1)
         logits = [head(combined_features) for head in self.actor_heads]
 

@@ -1,8 +1,8 @@
+from typing import Optional
 
+import einops
 import torch
 from torch import nn
-from typing import Optional
-import einops
 
 
 class ObsLatentAttn(nn.Module):
@@ -199,9 +199,6 @@ class ObsLatentAttn(nn.Module):
         return x
 
 
-
-
-
 class ObsSelfAttn(nn.Module):
     """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
     adding a GRU before the out projection..."""
@@ -309,4 +306,3 @@ class ObsSelfAttn(nn.Module):
             x = x[:, 0]
 
         return x
-

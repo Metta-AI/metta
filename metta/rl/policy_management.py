@@ -51,7 +51,7 @@ def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) ->
     elif isinstance(policy, DistributedMettaAgent):
         agent = policy.module
 
-    elif type(policy).__name__ == 'Recurrent':
+    elif type(policy).__name__ == "Recurrent":
         agent = policy
     else:
         raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(policy)}")

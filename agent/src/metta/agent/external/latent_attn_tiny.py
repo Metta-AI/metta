@@ -1,4 +1,5 @@
 import logging
+
 import einops
 import pufferlib.models
 import pufferlib.pytorch
@@ -6,8 +7,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from metta.agent.external.models.tokenizers import ObsTokenPadStrip, ObsAttrValNorm, ObsAttrEmbedFourier
-from metta.agent.external.models.encoders import ObsLatentAttn, ObsSelfAttn
+from metta.agent.external.models.encoders import ObsLatentAttn
+from metta.agent.external.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-
         # prepare lstm state
         lstm_h = state.get("lstm_h", None)
         lstm_c = state.get("lstm_c", None)
@@ -167,14 +167,11 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         else:
             lstm_state = None
 
-
-
         observations = observations.to(self.device)
         hidden = self.policy.encode_observations(observations, state)
 
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
-
 
         # LSTM forward pass
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # Shape: (TT, B, input_size)
@@ -187,7 +184,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         actions = []
         selected_action_log_probs = []
         entropies = []
-
 
         for _, logits in enumerate(logits_list):
             action_log_probs = F.log_softmax(logits, dim=-1)
@@ -225,7 +221,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         )
 
 
-
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
@@ -247,38 +242,34 @@ class Policy(nn.Module):
             feature_normalizations=[1.0] * 256,
         )
         self.obs_fourier = ObsAttrEmbedFourier(
-            attr_embed_dim=10, num_freqs=4,
+            attr_embed_dim=10,
+            num_freqs=4,
         )
 
         self.obs_latent_query_attn = ObsLatentAttn(
-            out_dim=128, _feat_dim=27, use_mask=True, num_query_tokens=1, query_token_dim=32, num_heads=4, num_layers=2,
+            out_dim=128,
+            _feat_dim=27,
+            use_mask=True,
+            num_query_tokens=1,
+            query_token_dim=32,
+            num_heads=4,
+            num_layers=2,
             qk_dim=32,
         )
 
-
-        self.critic_1 = pufferlib.pytorch.layer_init(
-            nn.Linear(self.hidden_size, 1024)
-        )
-        self.value_head = pufferlib.pytorch.layer_init(
-            nn.Linear(1024, 1), std=1.0
-        )
-        self.actor_1 = pufferlib.pytorch.layer_init(
-            nn.Linear(self.hidden_size, 512)
-        )
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads - will be initialized based on action space
-        action_nvec = self.action_space.nvec if hasattr(self.action_space, 'nvec') else [100]
+        action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList([
-            pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01)
-            for n in action_nvec
-        ])
-
-
+        self.actor_heads = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        )
 
         self.to(self.device)
-
 
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)
@@ -286,8 +277,6 @@ class Policy(nn.Module):
         x = self.obs_fourier(x)
         x = self.obs_latent_query_attn(x, mask, B_TT)
         return x
-
-
 
     def encode_observations(self, observations, state=None):
         """
@@ -306,9 +295,9 @@ class Policy(nn.Module):
         td = {"x": observations, "state": None}
 
         # Safely handle LSTM state
-        if state is not None and state.get('lstm_h') is not None and state.get('lstm_c') is not None:
-            lstm_h = state.get('lstm_h').to(observations.device)
-            lstm_c = state.get('lstm_c').to(observations.device)
+        if state is not None and state.get("lstm_h") is not None and state.get("lstm_c") is not None:
+            lstm_h = state.get("lstm_h").to(observations.device)
+            lstm_c = state.get("lstm_c").to(observations.device)
             td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         if observations.dim() == 4:
@@ -319,18 +308,14 @@ class Policy(nn.Module):
 
         return self.network_forward(td)
 
-
     def decode_actions(self, hidden):
-
         critic_features = F.tanh(self.critic_1(hidden))
 
         value = self.value_head(critic_features)
 
         actor_features = self.actor_1(hidden)
 
-        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(
-            actor_features.shape[0], -1
-        )
+        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
         combined_features = torch.cat([actor_features, action_embed], dim=-1)
         logits = [head(combined_features) for head in self.actor_heads]
 

@@ -1,12 +1,12 @@
-import torch
-from torch import nn
 from typing import Tuple
-from tensordict import TensorDict
+
 import einops
+import torch
+from tensordict import TensorDict
+from torch import nn
 
 
 class ObsTokenPadStrip(nn.Module):
-
     def __init__(
         self,
         obs_shape: Tuple[int, ...],
@@ -17,7 +17,6 @@ class ObsTokenPadStrip(nn.Module):
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
-
 
     def update_feature_remapping(self, feature_id_remap: torch.Tensor):
         """
@@ -54,14 +53,11 @@ class ObsTokenPadStrip(nn.Module):
         coords = observations[..., 0]
         obs_mask = coords == 255  # important! true means mask me
 
-
         # find each row's flip‐point ie when it goes from dense to padding
         flip_pts = obs_mask.int().argmax(dim=1)  # shape [B]
 
-
         # find the global max flip‐point as a 0‐d tensor
         max_flip = flip_pts.max()
-
 
         if max_flip == 0:
             max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
@@ -75,8 +71,7 @@ class ObsTokenPadStrip(nn.Module):
         observations = observations[:, keep_cols]  # shape [B, max_flip]
         obs_mask = obs_mask[:, keep_cols]
 
-        return observations, obs_mask, B*TT
-
+        return observations, obs_mask, B * TT
 
 
 class ObsAttrValNorm(nn.Module):
@@ -96,7 +91,6 @@ class ObsAttrValNorm(nn.Module):
                 raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
         self.register_buffer("_norm_factors", norm_tensor)
 
-
     def forward(self, td):
         observations = td
 
@@ -106,7 +100,6 @@ class ObsAttrValNorm(nn.Module):
         observations[..., 2] = observations[..., 2] / norm_factors
 
         return observations
-
 
 
 class ObsAttrEmbedFourier(nn.Module):
@@ -132,7 +125,6 @@ class ObsAttrEmbedFourier(nn.Module):
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
         self.register_buffer("frequencies", 2.0 ** torch.arange(self._num_freqs))
-
 
     def forward(self, td: torch.Tensor) -> torch.Tensor:
         observations = td
@@ -190,4 +182,3 @@ class ObsAttrEmbedFourier(nn.Module):
         feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(attr_values, "... -> ... 1")
 
         return feat_vectors
-

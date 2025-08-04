@@ -7,7 +7,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -233,10 +232,10 @@ class Policy(nn.Module):
         coords_byte = token_observations[..., 0].to(torch.uint8)
 
         # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long() # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).long() # Shape: [B_TT, M]
-        atr_indices = token_observations[..., 1].long() # Shape: [B_TT, M], ready for embedding
-        atr_values = token_observations[..., 2].float() # Shape: [B_TT, M]
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 
         box_obs = torch.zeros(
             (B * TT, self.num_layers, self.out_width, self.out_height),
@@ -275,5 +274,3 @@ class Policy(nn.Module):
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
-
-

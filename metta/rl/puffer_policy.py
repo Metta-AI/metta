@@ -69,8 +69,9 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         policy = instantiate(pytorch_cfg, env=env, policy=None)
     try:
         policy.load_state_dict(weights)
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed automatic load from weights: {e}")
+        logger.warning("Using randomly initialized weights")
 
     return policy
 
