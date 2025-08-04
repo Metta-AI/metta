@@ -116,7 +116,7 @@ class CheckpointManager:
         else:
             # Master creates new policy
             name = self.policy_store.make_model_name(0)
-            pr = self.policy_store.create_empty_policy_record(name)
+            pr = self.policy_store.create_empty_policy_record(name=name, checkpoint_dir=self.checkpoint_dir)
             pr.policy = make_policy(metta_grid_env, cfg)
             saved_pr = self.policy_store.save(pr)
             logger.info(f"Created and saved new policy to {saved_pr.uri}")
@@ -291,7 +291,7 @@ class CheckpointManager:
                 )
 
         # Create and save policy record
-        policy_record = self.policy_store.create_empty_policy_record(name)
+        policy_record = self.policy_store.create_empty_policy_record(name=name, checkpoint_dir=self.checkpoint_dir)
         policy_record.metadata = metadata
         policy_record.policy = policy_to_save
 
