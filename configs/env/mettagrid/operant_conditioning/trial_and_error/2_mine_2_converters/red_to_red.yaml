@@ -3,8 +3,6 @@ defaults:
   - _self_
 
 game:
-  map_builder:
-    root:
   objects:
     generator_red:
       cooldown: 1

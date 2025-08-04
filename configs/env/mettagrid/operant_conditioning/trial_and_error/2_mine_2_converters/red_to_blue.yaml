@@ -3,8 +3,6 @@ defaults:
   - _self_
 
 game:
-  map_builder:
-    root:
   objects:
     generator_red:
       cooldown: 1
@@ -12,7 +10,6 @@ game:
         ore_red: 1
       output_resources:
         battery_red: 0
-        heart: 0
     generator_blue:
       cooldown: 1
       input_resources:
