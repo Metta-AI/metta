@@ -4,7 +4,9 @@
 import logging
 import sys
 
-import numpy as np  # noqa: E402
+import numpy as np
+
+from tools.utils import get_policy_store_from_cfg  # noqa: E402
 
 if not hasattr(np, "byte"):
     np.byte = np.int8
@@ -16,10 +18,10 @@ import time
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.agent.policy_store import PolicyStore
 from metta.common.util.lock import run_once
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.env_config import create_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.wandb_utils import record_protein_observation_to_wandb
@@ -47,6 +49,9 @@ def load_file(run_dir, name):
 def main(cfg: DictConfig) -> int:
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
+    # Create env config
+    env_cfg = create_env_config(cfg)
+
     # Load run information from dist_cfg_path
     dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
     logger.info(f"Loaded run info from {cfg.dist_cfg_path}: run={dist_cfg.run}")
@@ -58,7 +63,7 @@ def main(cfg: DictConfig) -> int:
         logger.info(f"Starting evaluation for run: {cfg.run}")
 
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            policy_store = PolicyStore(cfg, wandb_run)
+            policy_store = get_policy_store_from_cfg(cfg, wandb_run)
             try:
                 # Fetch the latest policy record from the run
                 policy_pr = policy_store.policy_record("wandb://run/" + cfg.run, selector_type="latest")
@@ -87,7 +92,7 @@ def main(cfg: DictConfig) -> int:
                 policy_pr,
                 policy_store,
                 device=cfg.device,
-                vectorization=cfg.vectorization,
+                vectorization=env_cfg.vectorization,
             )
 
             # Start evaluation process

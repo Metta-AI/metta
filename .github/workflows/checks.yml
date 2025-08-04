@@ -87,7 +87,7 @@ jobs:
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp"
+          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -238,34 +238,143 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Free up disk space
+        id: cleanup
+        uses: ./.github/actions/disk-cleanup
+        with:
+          dry-run: "false"
+          docker-images: "false"
+
       - name: Run tests
         run: |
-          PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
+          # Base pytest arguments (without coverage file specification)
+          PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS/-v/-vv}"  # upgrade verbosity
+            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS} --full-trace"
+            export PYTHONFAULTHANDLER=1
+          fi
+
+          COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
 
           # Handle sharding for larger packages
           if [ -n "${{ matrix.shard_id }}" ] && [ -n "${{ matrix.num_shards }}" ]; then
             echo "Running shard ${{ matrix.shard_id }} of ${{ matrix.num_shards }}"
+
+            COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
 
             # Set environment variables for the sharding plugin
             export PYTEST_SHARD_ID=${{ matrix.shard_id }}
             export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
 
             # Use the sharding plugin from common package
-            PYTEST_ARGS="$PYTEST_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
+            PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
           fi
 
           if [ "${{ matrix.package }}" == "core" ]; then
             # For core package, ignore other packages
             SUBPACKAGES=(app_backend agent mettagrid common)
             for pkg in "${SUBPACKAGES[@]}"; do
-              PYTEST_ARGS="$PYTEST_ARGS --ignore=$pkg"
+              PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS --ignore=$pkg"
             done
           else
             # Navigate to package directory
             cd ${{ matrix.package }}
           fi
 
-          pytest $PYTEST_ARGS
+          # Phase 1: Run fast tests (not marked as slow)
+          echo "::group::Phase 1 - Running fast tests"
+          echo "Running tests not marked as slow..."
+
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            # Stream output to log immediately for debugging crashes
+            pytest $PYTEST_BASE_ARGS -m "not slow" \
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml | tee pytest_output.log
+            FAST_TESTS_FAILED=$?
+          else
+            # Capture output for PRs
+            pytest $PYTEST_BASE_ARGS -m "not slow" \
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1 | tee pytest_output.log
+            FAST_TESTS_FAILED=$?
+          fi
+
+          # Display the output
+          cat pytest_output.log
+          echo "::endgroup::"
+
+          # Check for slow tests
+          echo "::group::Checking for slow tests"
+          cat pytest_output.log | awk '
+          BEGIN {
+              found_slow = 0
+          }
+          /===+ slowest [0-9]+ durations ===+/ {
+              print "Found slow tests in Phase 1:"
+              slow_section = 1
+              next
+          }
+          slow_section && /^[0-9]+\.[0-9]+s/ {
+              # Extract duration
+              duration = $1
+              gsub("s", "", duration)
+
+              # Extract phase (setup, call, teardown, etc.)
+              phase = $2
+
+              # Get the test path (third field onwards)
+              test_path = $3
+              for (i = 4; i <= NF; i++) {
+                  test_path = test_path " " $i
+              }
+
+              # Check if duration exceeds threshold
+              if (duration > 2.0) {
+                  print "::warning::" test_path " (" phase " phase) takes " duration " seconds - should be marked with @pytest.mark.slow"
+                  found_slow = 1
+              }
+          }
+          /^===/ && slow_section {
+              slow_section = 0
+          }
+          END {
+              if (found_slow == 0) {
+                  print "✅ No slow tests found in Phase 1"
+              }
+          }
+          '
+          echo "::endgroup::"
+
+          # Exit early if fast tests failed
+          if [ "${FAST_TESTS_FAILED:-0}" -ne 0 ]; then
+            echo "::error::Fast tests failed! Skipping slow tests."
+            exit $FAST_TESTS_FAILED
+          fi
+
+          # Phase 2: Run slow tests (only if fast tests passed)
+          echo "::group::Phase 2 - Running slow tests"
+          echo "Fast tests passed! Now running slow tests..."
+
+          # For slow tests, we need to append coverage data
+          SLOW_TESTS_EXIT=0
+          pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow${COVERAGE_SUFFIX}.xml || SLOW_TESTS_EXIT=$?
+
+          # Exit code 5 means no tests were collected (which is fine - not all packages have slow tests)
+          if [ "${SLOW_TESTS_EXIT:-0}" -eq 5 ]; then
+            echo "No slow tests found in this package/shard - that's OK!"
+            SLOW_TESTS_EXIT=0
+          elif [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
+            echo "::warning::Slow tests failed with exit code $SLOW_TESTS_EXIT"
+          fi
+          echo "::endgroup::"
+
+          # Report final status
+          if [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
+            echo "::warning::Some slow tests failed, but fast tests passed"
+            exit $SLOW_TESTS_EXIT
+          fi
+
+          echo "✅ Test run complete!"
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
@@ -273,8 +382,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
           chmod +x .github/scripts/upload_codecov.py
-          # Use the matrix name for codecov flags
-          SUBPACKAGES="${{ matrix.name }}" .github/scripts/upload_codecov.py
+          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
   tests-summary:
     name: "Tests"

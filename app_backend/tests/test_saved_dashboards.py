@@ -172,6 +172,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard["description"] == "Updated description"
         assert dashboard["dashboard_state"] == updated_state
 
+    @pytest.mark.slow
     def test_update_saved_dashboard_route(self, test_client: TestClient, user_id: str) -> None:
         """Test the update saved dashboard API route."""
         initial_state = {
