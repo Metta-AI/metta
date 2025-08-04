@@ -1,8 +1,0 @@
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
-
-tasks:
-  /env/mettagrid/operant_conditioning/multiday/2_converters/match_mine_red: 1
-  /env/mettagrid/operant_conditioning/multiday/2_converters/match_mine_blue: 1
-  /env/mettagrid/operant_conditioning/multiday/2_converters/mismatch_mine_red: 1
-  /env/mettagrid/operant_conditioning/multiday/2_converters/mismatch_mine_blue: 1
-

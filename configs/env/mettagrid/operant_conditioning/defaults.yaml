@@ -10,7 +10,7 @@ num_trials: 16
 
 game:
   num_agents: 24
-  max_steps: 50
+  max_steps: 40
   agent:
     default_resource_limit: 1
     rewards:
