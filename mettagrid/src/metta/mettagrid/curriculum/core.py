@@ -47,7 +47,7 @@ class Task:
 
         Based on this, the task should expose a new trial, or become complete.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
     def is_complete(self):
         """True if the task is complete, false otherwise."""
@@ -56,7 +56,7 @@ class Task:
     def env_cfg(self) -> DictConfig:
         """Returns the environment configuration for the current trial."""
         # TODO: ideally we'd have a separate config for the task itself (same for a separate config for the curriculum)
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
     def id(self) -> str:
         """Returns the id of the task."""

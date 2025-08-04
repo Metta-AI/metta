@@ -21,13 +21,15 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicySelectorType, PolicyStore
+from metta.agent.policy_store import PolicySelectorType
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
+from metta.rl.env_config import create_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
+from tools.utils import get_policy_store_from_cfg
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -74,7 +76,10 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
     sim_job = SimJob(cfg.sim_job)
 
-    policy_store = PolicyStore(cfg, None)
+    # Create env config
+    env_cfg = create_env_config(cfg)
+
+    policy_store = get_policy_store_from_cfg(cfg)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client:
         stats_client.validate_authenticated()
@@ -105,7 +110,7 @@ def main(cfg: DictConfig) -> None:
                 stats_dir=sim_job.stats_dir,
                 replay_dir=f"{sim_job.replay_dir}/{pr.run_name}",
                 device=device,
-                vectorization=cfg.vectorization,
+                vectorization=env_cfg.vectorization,
                 export_stats_db_uri=sim_job.stats_db_uri,
                 policy_store=policy_store,
                 stats_client=stats_client,

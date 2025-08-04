@@ -12,7 +12,7 @@ from metta.common.util.instantiate import instantiate
 logger = logging.getLogger("policy")
 
 
-def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig = None):
+def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig | None = None) -> "PytorchAgent":
     """Load a PyTorch policy from checkpoint and wrap it in PytorchAgent.
 
     Args:

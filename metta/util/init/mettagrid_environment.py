@@ -8,6 +8,8 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from metta.rl.env_config import EnvConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,7 +52,7 @@ def seed_everything(seed, torch_deterministic, rank: int = 0):
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 
-def init_mettagrid_environment(cfg: DictConfig) -> None:
+def init_mettagrid_environment(cfg: DictConfig, env_cfg: EnvConfig | None = None) -> None:
     """
     Configure the runtime environment for MettaGrid simulations.
     Initializes CUDA, sets thread counts, and handles reproducibility settings.
@@ -59,6 +61,8 @@ def init_mettagrid_environment(cfg: DictConfig) -> None:
     -----------
     cfg : DictConfig
         Configuration containing torch_deterministic flag and other runtime settings
+    env_cfg : EnvConfig | None
+        Environment configuration. If not provided, will be extracted from cfg.
     """
 
     # Validate device configuration
@@ -99,7 +103,14 @@ def init_mettagrid_environment(cfg: DictConfig) -> None:
     cfg.device = device
     OmegaConf.set_struct(cfg, True)
 
-    if cfg.vectorization == "multiprocessing" and not is_multiprocessing_available():
+    if env_cfg and env_cfg.vectorization == "multiprocessing" and not is_multiprocessing_available():
+        logger.warning(
+            "Vectorization 'multiprocessing' was requested but multiprocessing is not "
+            "available in this environment. Overriding to 'serial'."
+        )
+        # TODO: Update env_cfg.vectorization once we make it mutable
+        cfg.vectorization = "serial"
+    elif not env_cfg and cfg.vectorization == "multiprocessing" and not is_multiprocessing_available():
         logger.warning(
             "Vectorization 'multiprocessing' was requested but multiprocessing is not "
             "available in this environment. Overriding to 'serial'."
@@ -128,4 +139,7 @@ def init_mettagrid_environment(cfg: DictConfig) -> None:
 
     # Get rank for distributed training seeding
     rank = int(os.environ.get("RANK", 0))
-    seed_everything(cfg.seed, cfg.torch_deterministic, rank)
+    if env_cfg:
+        seed_everything(env_cfg.seed, env_cfg.torch_deterministic, rank)
+    else:
+        seed_everything(cfg.seed, cfg.torch_deterministic, rank)
