@@ -530,7 +530,7 @@ class AsanaTask:
             from pr_gh_to_asana import format_github_review_body_for_asana
 
             formatted_comment = format_github_review_body_for_asana(
-                review_body, github_user, review_state, review_id, github_timestamp
+                review_body, github_user, review_state, review_id, github_timestamp, github_url
             )
 
             if review_id in existing_comments_by_review_id:
