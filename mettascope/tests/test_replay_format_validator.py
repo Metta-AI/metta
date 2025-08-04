@@ -96,37 +96,31 @@ def _validate_string_list(lst: Any, field_name: str, allow_empty: bool = False) 
 
 
 def _validate_static_value(value: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
-    """Validate that value is a static value of the expected type (never a sequence)."""
+    """Validate that value is a static value of the expected type (never a time series)."""
     _validate_type(value, expected_type, field_name)
 
 
-def _validate_dynamic_value(data: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
-    """Validate dynamic values that can be either optimized single values or sequences of [step, value] pairs."""
+def _validate_time_series(data: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
+    """Validate dynamic values: always arrays of [step, value] pairs starting with step 0."""
     if data is None:
         return
 
-    # Check if it's an optimized single value (field never changed during replay).
-    if isinstance(data, expected_type):
-        return
+    # Dynamic fields are ALWAYS arrays of [step, value] pairs
+    _validate_type(data, list, field_name)
+    assert len(data) > 0, f"'{field_name}' time series must have at least one entry"
 
-    # Check if it's a sequence format (field changed during replay).
-    if isinstance(data, list):
-        if len(data) == 0:
-            return
-        # Validate sequence of [step, value] pairs.
-        for item in data:
-            assert isinstance(item, list) and len(item) == 2, (
-                f"'{field_name}' sequence items must be [step, value] pairs"
-            )
-            assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' sequence step must be non-negative"
-            assert isinstance(item[1], expected_type), (
-                f"'{field_name}' sequence value must be {_get_type_name(expected_type)}"
-            )
-        return
+    # Validate time series of [step, value] pairs
+    for item in data:
+        assert isinstance(item, list) and len(item) == 2, (
+            f"'{field_name}' time series items must be [step, value] pairs"
+        )
+        assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' time series step must be non-negative"
+        assert isinstance(item[1], expected_type), (
+            f"'{field_name}' time series value must be {_get_type_name(expected_type)}"
+        )
 
-    # Neither single value nor valid sequence.
-    type_name = _get_type_name(expected_type)
-    assert False, f"'{field_name}' must be {type_name} or sequence of [step, {type_name}] pairs"
+    # First entry should be step 0
+    assert data[0][0] == 0, f"'{field_name}' time series must start with step 0"
 
 
 def _get_type_name(expected_type: type | tuple[type, ...]) -> str:
@@ -135,7 +129,7 @@ def _get_type_name(expected_type: type | tuple[type, ...]) -> str:
 
 
 def _validate_inventory_format(inventory: Any, field_name: str) -> None:
-    """Validate inventory format: list of [item_id, amount] pairs or sequence of such lists."""
+    """Validate inventory format: time series of [step, inventory_list] pairs."""
     if inventory is None:
         return
 
@@ -143,24 +137,13 @@ def _validate_inventory_format(inventory: Any, field_name: str) -> None:
     if len(inventory) == 0:
         return
 
-    # Check if it's a sequence format: [[step, inventory_list], ...]
-    is_sequence = (
-        len(inventory) > 0
-        and isinstance(inventory[0], list)
-        and len(inventory[0]) == 2
-        and isinstance(inventory[0][0], int)
-        and isinstance(inventory[0][1], list)
-    )
-
-    if is_sequence:
-        for item in inventory:
-            assert isinstance(item, list) and len(item) == 2, (
-                f"'{field_name}' sequence items must be [step, inventory_list] pairs"
-            )
-            assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' sequence step must be non-negative"
-            _validate_inventory_list(item[1], field_name)
-    else:
-        _validate_inventory_list(inventory, field_name)
+    # Inventory is always a time series format: [[step, inventory_list], ...]
+    for item in inventory:
+        assert isinstance(item, list) and len(item) == 2, (
+            f"'{field_name}' time series items must be [step, inventory_list] pairs"
+        )
+        assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' time series step must be non-negative"
+        _validate_inventory_list(item[1], field_name)
 
 
 def _validate_inventory_list(inventory_list: Any, field_name: str) -> None:
@@ -245,7 +228,7 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     required_fields = [
         "id",
         "type_id",
-        "location",
+        "position",
         "orientation",
         "inventory",
         "inventory_max",
@@ -254,7 +237,7 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     ]
     _require_fields(obj, required_fields, obj_name)
 
-    # Validate static fields (never change during replay).
+    # Validate static fields.
     _validate_static_value(obj["id"], f"{obj_name}.id", int)
     _validate_positive_int(obj["id"], f"{obj_name}.id")
 
@@ -265,12 +248,12 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
 
     _validate_static_value(obj["is_swappable"], f"{obj_name}.is_swappable", bool)
 
-    # Validate dynamic fields (can change during replay).
-    _validate_location(obj["location"], obj_name)
-    _validate_dynamic_value(obj["orientation"], f"{obj_name}.orientation", (int, float))
+    # Validate dynamic fields (always time series).
+    _validate_position(obj["position"], obj_name)
+    _validate_time_series(obj["orientation"], f"{obj_name}.orientation", (int, float))
     _validate_inventory_format(obj["inventory"], f"{obj_name}.inventory")
-    _validate_dynamic_value(obj["inventory_max"], f"{obj_name}.inventory_max", (int, float))
-    _validate_dynamic_value(obj["color"], f"{obj_name}.color", int)
+    _validate_time_series(obj["inventory_max"], f"{obj_name}.inventory_max", (int, float))
+    _validate_time_series(obj["color"], f"{obj_name}.color", int)
 
     # Validate specific object types.
     if obj.get("is_agent") or "agent_id" in obj:
@@ -279,27 +262,26 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
         _validate_building_fields(obj, obj_name)
 
 
-def _validate_location(location: Any, obj_name: str) -> None:
-    """Validate location field format (special case - always a sequence or optimized [x,y,z])."""
-    field_name = f"{obj_name}.location"
+def _validate_position(position: Any, obj_name: str) -> None:
+    """Validate position field format: time series of [step, [x, y, z]] pairs."""
+    field_name = f"{obj_name}.position"
 
-    if isinstance(location, list) and len(location) == 3:
-        # Optimized single location [x, y, z] (never changed during replay).
-        for i, coord in enumerate(location):
-            _validate_type(coord, (int, float), f"{field_name}[{i}]")
-    elif isinstance(location, list):
-        # Sequence of [step, [x, y, z]] pairs (changed during replay).
-        for step_data in location:
-            assert isinstance(step_data, list) and len(step_data) == 2, (
-                f"{field_name} sequence items must be [step, [x, y, z]]"
-            )
-            _validate_non_negative_number(step_data[0], f"{field_name} step")
-            coords = step_data[1]
-            assert isinstance(coords, list) and len(coords) == 3, f"{field_name} coordinates must be [x, y, z]"
-            for i, coord in enumerate(coords):
-                _validate_type(coord, (int, float), f"{field_name} coord[{i}]")
-    else:
-        assert False, f"{field_name} must be [x, y, z] or sequence of [step, [x, y, z]]"
+    _validate_type(position, list, field_name)
+    assert len(position) > 0, f"{field_name} must have at least one entry"
+
+    print("position", position)
+    # Validate time series of [step, [x, y, z]] pairs
+    for step_data in position:
+        assert isinstance(step_data, list) and len(step_data) == 2, (
+            f"{field_name} items must be [step, [x, y, z]] pairs"
+        )
+        assert isinstance(step_data[0], int) and step_data[0] >= 0, f"{field_name} step must be non-negative"
+        coords = step_data[1]
+        assert isinstance(coords, list) and len(coords) == 3, f"{field_name} coordinates must be [x, y, z]"
+        for i, coord in enumerate(coords):
+            _validate_type(coord, (int, float), f"{field_name} coord[{i}]")
+    # Must start with step 0
+    assert position[0][0] == 0, f"{field_name} must start with step 0"
 
 
 def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict[str, Any]) -> None:
@@ -320,7 +302,7 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
     ]
     _require_fields(obj, agent_fields, obj_name)
 
-    # Validate static agent fields (never change).
+    # Validate static agent fields.
     agent_id = obj["agent_id"]
     _validate_static_value(agent_id, f"{obj_name}.agent_id", int)
     _validate_non_negative_number(agent_id, f"{obj_name}.agent_id")
@@ -335,15 +317,15 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
     _validate_static_value(obj["group_id"], f"{obj_name}.group_id", int)
     _validate_non_negative_number(obj["group_id"], f"{obj_name}.group_id")
 
-    # Validate dynamic agent fields (can change during replay).
-    _validate_dynamic_value(obj["action_id"], f"{obj_name}.action_id", int)
-    _validate_dynamic_value(obj["action_param"], f"{obj_name}.action_param", int)
-    _validate_dynamic_value(obj["action_success"], f"{obj_name}.action_success", bool)
-    _validate_dynamic_value(obj["current_reward"], f"{obj_name}.current_reward", (int, float))
-    _validate_dynamic_value(obj["total_reward"], f"{obj_name}.total_reward", (int, float))
-    _validate_dynamic_value(obj["freeze_remaining"], f"{obj_name}.freeze_remaining", (int, float))
-    _validate_dynamic_value(obj["is_frozen"], f"{obj_name}.is_frozen", bool)
-    _validate_dynamic_value(obj["freeze_duration"], f"{obj_name}.freeze_duration", (int, float))
+    # Validate dynamic agent fields (always time series).
+    _validate_time_series(obj["action_id"], f"{obj_name}.action_id", int)
+    _validate_time_series(obj["action_param"], f"{obj_name}.action_param", int)
+    _validate_time_series(obj["action_success"], f"{obj_name}.action_success", bool)
+    _validate_time_series(obj["current_reward"], f"{obj_name}.current_reward", (int, float))
+    _validate_time_series(obj["total_reward"], f"{obj_name}.total_reward", (int, float))
+    _validate_time_series(obj["freeze_remaining"], f"{obj_name}.freeze_remaining", (int, float))
+    _validate_time_series(obj["is_frozen"], f"{obj_name}.is_frozen", bool)
+    _validate_time_series(obj["freeze_duration"], f"{obj_name}.freeze_duration", (int, float))
 
     # Validate action_id values are in range.
     _validate_action_id_range(obj["action_id"], obj_name, replay_data["action_names"])
@@ -351,9 +333,7 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
 
 def _validate_action_id_range(action_ids: Any, obj_name: str, action_names: list[str]) -> None:
     """Validate that action_id values are within the valid range."""
-    if isinstance(action_ids, int):
-        assert 0 <= action_ids < len(action_names), f"{obj_name}.action_id {action_ids} out of range"
-    elif isinstance(action_ids, list):
+    if isinstance(action_ids, list):
         for step_data in action_ids:
             if isinstance(step_data, list) and len(step_data) == 2:
                 action_id = step_data[1]
@@ -375,7 +355,7 @@ def _validate_building_fields(obj: dict[str, Any], obj_name: str) -> None:
     ]
     _require_fields(obj, building_fields, obj_name)
 
-    # Validate static building fields (never change).
+    # Validate static building fields.
     _validate_static_value(obj["output_limit"], f"{obj_name}.output_limit", (int, float))
     _validate_non_negative_number(obj["output_limit"], f"{obj_name}.output_limit")
 
@@ -385,13 +365,13 @@ def _validate_building_fields(obj: dict[str, Any], obj_name: str) -> None:
     _validate_static_value(obj["cooldown_duration"], f"{obj_name}.cooldown_duration", (int, float))
     _validate_non_negative_number(obj["cooldown_duration"], f"{obj_name}.cooldown_duration")
 
-    # Validate dynamic building fields (can change during replay).
+    # Validate dynamic building fields (always time series).
     _validate_inventory_format(obj["input_resources"], f"{obj_name}.input_resources")
     _validate_inventory_format(obj["output_resources"], f"{obj_name}.output_resources")
-    _validate_dynamic_value(obj["conversion_remaining"], f"{obj_name}.conversion_remaining", (int, float))
-    _validate_dynamic_value(obj["is_converting"], f"{obj_name}.is_converting", bool)
-    _validate_dynamic_value(obj["cooldown_remaining"], f"{obj_name}.cooldown_remaining", (int, float))
-    _validate_dynamic_value(obj["is_cooling_down"], f"{obj_name}.is_cooling_down", bool)
+    _validate_time_series(obj["conversion_remaining"], f"{obj_name}.conversion_remaining", (int, float))
+    _validate_time_series(obj["is_converting"], f"{obj_name}.is_converting", bool)
+    _validate_time_series(obj["cooldown_remaining"], f"{obj_name}.cooldown_remaining", (int, float))
+    _validate_time_series(obj["is_cooling_down"], f"{obj_name}.is_cooling_down", bool)
 
 
 def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
@@ -407,48 +387,52 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
         "item_names": ["wood", "stone"],
         "objects": [
             {
+                # Static fields
                 "id": 1,
                 "type_id": 0,
-                "location": [5, 5, 0],
                 "agent_id": 0,
                 "is_agent": True,
                 "vision_size": 11,
-                "action_id": 0,
-                "action_param": 0,
-                "action_success": True,
-                "current_reward": 0.0,
-                "total_reward": 0.0,
-                "freeze_remaining": 0,
-                "is_frozen": False,
-                "freeze_duration": 0,
                 "group_id": 0,
-                "orientation": 0,
-                "inventory": [],
-                "inventory_max": 10,
-                "color": 0,
                 "is_swappable": False,
+                # Dynamic fields (time series starting at step 0)
+                "position": [[0, [5, 5, 0]]],
+                "action_id": [[0, 0]],
+                "action_param": [[0, 0]],
+                "action_success": [[0, True]],
+                "current_reward": [[0, 0.0]],
+                "total_reward": [[0, 0.0]],
+                "freeze_remaining": [[0, 0]],
+                "is_frozen": [[0, False]],
+                "freeze_duration": [[0, 0]],
+                "orientation": [[0, 0]],
+                "inventory": [[0, []]],
+                "inventory_max": [[0, 10]],
+                "color": [[0, 0]],
             },
             {
+                # Static fields
                 "id": 2,
                 "type_id": 0,
-                "location": [3, 3, 0],
                 "agent_id": 1,
                 "is_agent": True,
                 "vision_size": 11,
-                "action_id": 1,
-                "action_param": 0,
-                "action_success": False,
-                "current_reward": 1.5,
-                "total_reward": 10.0,
-                "freeze_remaining": 0,
-                "is_frozen": False,
-                "freeze_duration": 0,
                 "group_id": 0,
-                "orientation": 1,
-                "inventory": [[0, 2], [1, 1]],
-                "inventory_max": 10,
-                "color": 1,
                 "is_swappable": False,
+                # Dynamic fields (time series starting at step 0)
+                "position": [[0, [3, 3, 0]]],
+                "action_id": [[0, 1]],
+                "action_param": [[0, 0]],
+                "action_success": [[0, False]],
+                "current_reward": [[0, 1.5]],
+                "total_reward": [[0, 10.0]],
+                "freeze_remaining": [[0, 0]],
+                "is_frozen": [[0, False]],
+                "freeze_duration": [[0, 0]],
+                "orientation": [[0, 1]],
+                "inventory": [[0, [[0, 2], [1, 1]]]],
+                "inventory_max": [[0, 10]],
+                "color": [[0, 1]],
             },
         ],
     }
