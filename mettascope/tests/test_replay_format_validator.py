@@ -78,48 +78,55 @@ def _validate_type(value: Any, expected_type: type | tuple[type, ...], field_nam
 def _validate_positive_int(value: Any, field_name: str) -> None:
     """Validate that value is a positive integer."""
     _validate_type(value, int, field_name)
-    if value <= 0:
-        raise ValueError(f"'{field_name}' must be positive, got {value}")
+    assert value > 0, f"'{field_name}' must be positive, got {value}"
 
 
 def _validate_non_negative_number(value: Any, field_name: str) -> None:
     """Validate that value is a non-negative number."""
     _validate_type(value, (int, float), field_name)
-    if value < 0:
-        raise ValueError(f"'{field_name}' must be non-negative, got {value}")
+    assert value >= 0, f"'{field_name}' must be non-negative, got {value}"
 
 
-def _validate_sequence_or_value(
-    data: Any, field_name: str, expected_type: type | tuple[type, ...], allow_sequences: bool = True
-) -> None:
+def _validate_string_list(lst: Any, field_name: str, allow_empty: bool = False) -> None:
+    """Validate that value is a list of non-empty strings."""
+    _validate_type(lst, list, field_name)
+    if not allow_empty:
+        assert len(lst) > 0, f"'{field_name}' must not be empty"
+    assert all(isinstance(s, str) and s for s in lst), f"'{field_name}' must contain non-empty strings"
+
+
+def _validate_sequence_or_value(data: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
     """Validate that data is either a single value or a sequence of [step, value] pairs."""
     if data is None:
         return
 
-    # Handle tuple of types.
-    if isinstance(expected_type, tuple):
-        type_check = lambda x: isinstance(x, expected_type)
-        type_name = " or ".join(t.__name__ for t in expected_type)
-    else:
-        type_check = lambda x: isinstance(x, expected_type)
-        type_name = expected_type.__name__
-
-    if type_check(data):
+    # Check if it's a single value of the expected type.
+    if isinstance(data, expected_type):
         return
-    elif allow_sequences and isinstance(data, list):
+
+    # Check if it's a sequence format.
+    if isinstance(data, list):
         if len(data) == 0:
             return
-        # Check if it's a sequence of [step, value] pairs.
+        # Validate sequence of [step, value] pairs.
         for item in data:
             assert isinstance(item, list) and len(item) == 2, (
                 f"'{field_name}' sequence items must be [step, value] pairs"
             )
-            assert isinstance(item[0], int) and item[0] >= 0, (
-                f"'{field_name}' sequence step must be non-negative integer"
+            assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' sequence step must be non-negative"
+            assert isinstance(item[1], expected_type), (
+                f"'{field_name}' sequence value must be {_get_type_name(expected_type)}"
             )
-            assert type_check(item[1]), f"'{field_name}' sequence value must be {type_name}"
-    else:
-        assert False, f"'{field_name}' must be {type_name} or sequence of [step, {type_name}] pairs"
+        return
+
+    # Neither single value nor valid sequence.
+    type_name = _get_type_name(expected_type)
+    assert False, f"'{field_name}' must be {type_name} or sequence of [step, {type_name}] pairs"
+
+
+def _get_type_name(expected_type: type | tuple[type, ...]) -> str:
+    """Get a readable name for a type or tuple of types."""
+    return expected_type.__name__ if isinstance(expected_type, type) else " or ".join(t.__name__ for t in expected_type)
 
 
 def _validate_inventory_format(inventory: Any, field_name: str) -> None:
@@ -127,50 +134,38 @@ def _validate_inventory_format(inventory: Any, field_name: str) -> None:
     if inventory is None:
         return
 
-    assert isinstance(inventory, list), f"'{field_name}' must be a list"
-
+    _validate_type(inventory, list, field_name)
     if len(inventory) == 0:
         return
 
-    # Check if it's a sequence of [step, inventory_list] pairs.
-    if (
+    # Check if it's a sequence format: [[step, inventory_list], ...]
+    is_sequence = (
         len(inventory) > 0
         and isinstance(inventory[0], list)
         and len(inventory[0]) == 2
         and isinstance(inventory[0][0], int)
         and isinstance(inventory[0][1], list)
-    ):
-        # This is a sequence format: [[step, inventory_list], ...]
+    )
+
+    if is_sequence:
         for item in inventory:
             assert isinstance(item, list) and len(item) == 2, (
                 f"'{field_name}' sequence items must be [step, inventory_list] pairs"
             )
-            assert isinstance(item[0], int) and item[0] >= 0, (
-                f"'{field_name}' sequence step must be non-negative integer"
-            )
+            assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' sequence step must be non-negative"
             _validate_inventory_list(item[1], field_name)
     else:
-        # This is a direct inventory list: [[item_id, amount], ...]
         _validate_inventory_list(inventory, field_name)
 
 
 def _validate_inventory_list(inventory_list: Any, field_name: str) -> None:
     """Validate a single inventory list: list of [item_id, amount] pairs."""
-    assert isinstance(inventory_list, list), f"'{field_name}' inventory must be a list"
-
-    if len(inventory_list) == 0:
-        return
+    _validate_type(inventory_list, list, field_name)
 
     for pair in inventory_list:
-        assert isinstance(pair, list) and len(pair) == 2, (
-            f"'{field_name}' inventory items must be [item_id, amount] pairs"
-        )
-        assert isinstance(pair[0], int) and pair[0] >= 0, (
-            f"'{field_name}' inventory item_id must be non-negative integer"
-        )
-        assert isinstance(pair[1], (int, float)) and pair[1] >= 0, (
-            f"'{field_name}' inventory amount must be non-negative number"
-        )
+        assert isinstance(pair, list) and len(pair) == 2, f"'{field_name}' must contain [item_id, amount] pairs"
+        assert isinstance(pair[0], int) and pair[0] >= 0, f"'{field_name}' item_id must be non-negative integer"
+        assert isinstance(pair[1], (int, float)) and pair[1] >= 0, f"'{field_name}' amount must be non-negative number"
 
 
 def validate_replay_schema(data: dict[str, Any]) -> None:
@@ -189,6 +184,7 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
     _validate_positive_int(data["num_agents"], "num_agents")
     _validate_non_negative_number(data["max_steps"], "max_steps")
 
+    # Validate map_size.
     map_size = data["map_size"]
     _validate_type(map_size, list, "map_size")
     assert len(map_size) == 2, "'map_size' must have exactly 2 dimensions"
@@ -201,18 +197,13 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
         _validate_type(file_name, str, "file_name")
         assert file_name and file_name.endswith(".json.z"), "'file_name' must be non-empty and end with '.json.z'"
 
-    # String list validation.
+    # Required string lists.
     for field in ["action_names", "item_names", "type_names"]:
-        lst = data[field]
-        _validate_type(lst, list, field)
-        assert len(lst) > 0, f"'{field}' must not be empty"
-        assert all(isinstance(s, str) and s for s in lst), f"'{field}' must contain non-empty strings"
+        _validate_string_list(data[field], field)
 
     # Optional string lists.
     if "group_names" in data:
-        group_names = data["group_names"]
-        _validate_type(group_names, list, "group_names")
-        assert all(isinstance(s, str) and s for s in group_names), "'group_names' must contain non-empty strings"
+        _validate_string_list(data["group_names"], "group_names", allow_empty=True)
 
     # Optional reward sharing matrix.
     if "reward_sharing_matrix" in data:
@@ -246,11 +237,17 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     obj_name = f"Object {obj_index}"
 
     # All objects have these required fields.
-    _require_fields(
-        obj,
-        ["id", "type_id", "location", "orientation", "inventory", "inventory_max", "color", "is_swappable"],
-        obj_name,
-    )
+    required_fields = [
+        "id",
+        "type_id",
+        "location",
+        "orientation",
+        "inventory",
+        "inventory_max",
+        "color",
+        "is_swappable",
+    ]
+    _require_fields(obj, required_fields, obj_name)
 
     # Validate basic object fields.
     _validate_positive_int(obj["id"], f"{obj_name}.id")
@@ -259,10 +256,8 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     _validate_non_negative_number(type_id, f"{obj_name}.type_id")
     assert type_id < len(replay_data["type_names"]), f"{obj_name}.type_id {type_id} out of range"
 
-    # Validate location format.
-    _validate_location(obj["location"], obj_name)
-
     # Validate common fields.
+    _validate_location(obj["location"], obj_name)
     _validate_sequence_or_value(obj["orientation"], f"{obj_name}.orientation", (int, float))
     _validate_inventory_format(obj["inventory"], f"{obj_name}.inventory")
     _validate_non_negative_number(obj["inventory_max"], f"{obj_name}.inventory_max")
