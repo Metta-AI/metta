@@ -100,7 +100,13 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
+<<<<<<< HEAD
     train_job = TrainJob.model_validate(OmegaConf.to_container(cfg.train_job, resolve=True))
+=======
+        with open(os.path.join(cfg.run_dir, "sweep_eval_config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f, resolve=True)
+    train_job = TrainJob(cfg.train_job)
+>>>>>>> 98e9c1222 (refactor: sweep pipeline implementation)
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
