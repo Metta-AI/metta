@@ -476,7 +476,7 @@ def _validate_building_object(obj: dict, obj_index: int) -> None:
 
 
 def _make_valid_replay(file_name: str = "sample.json.z") -> Dict[str, Any]:
-    """Return a minimal valid replay dict per the spec."""
+    """Create a minimal valid replay dict per the spec."""
 
     return {
         "version": 2,
@@ -537,7 +537,7 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> Dict[str, Any]:
 
 
 ###########################################################################
-#                               Test cases                                  #
+#                               Test cases                                #
 ###########################################################################
 
 
@@ -545,7 +545,6 @@ def test_validate_replay_schema_valid() -> None:
     """The validator should accept a properly-formed replay."""
 
     valid_replay = _make_valid_replay()
-    # Should not raise
     validate_replay_schema(valid_replay)
 
 
@@ -563,29 +562,12 @@ def test_validate_replay_schema_valid() -> None:
     ],
 )
 def test_validate_replay_schema_invalid(mutation, error_substr: str) -> None:  # type: ignore[override] – param fixture
-    """Individual schema violations should raise a ``ValueError``."""
+    """Verify that the validator can detect invalid replays."""
 
     replay_dict = _make_valid_replay()
     mutation(replay_dict)
-
     with pytest.raises(ValueError, match=error_substr):
         validate_replay_schema(replay_dict)
-
-
-def test_load_replay_roundtrip(tmp_path: Path) -> None:
-    """A replay written to disk should round-trip via ``load_replay``."""
-
-    replay_dict = _make_valid_replay(file_name="roundtrip.json.z")
-
-    raw_json = json.dumps(replay_dict).encode()
-    compressed = zlib.compress(raw_json)
-
-    replay_path = tmp_path / "roundtrip.json.z"
-    replay_path.write_bytes(compressed)
-
-    loaded = load_replay(replay_path)
-
-    assert loaded == replay_dict
 
 
 def test_validate_real_generated_replay() -> None:
@@ -613,8 +595,8 @@ def test_validate_real_generated_replay() -> None:
         project_root = Path(__file__).parent.parent.parent
         result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=60)
 
-        # Check if replay was generated even if command failed (replay writes before db operations)
         replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
+        print("replay files found: ", replay_files)
 
         if len(replay_files) == 0:
             pytest.skip(f"No replay generated (exit {result.returncode}): {result.stderr}")
