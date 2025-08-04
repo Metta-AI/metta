@@ -83,8 +83,8 @@ class PullRequest:
                 "type": "review",
                 "timestamp": r["submitted_at"],
                 "user": r["user"]["login"],
-                "text": ": " + r["body"],
-                "action": r["state"].lower(),
+                "text": r["body"],
+                "action": r["state"],
                 "id": r["id"],
                 "html_url": r["html_url"],
             }

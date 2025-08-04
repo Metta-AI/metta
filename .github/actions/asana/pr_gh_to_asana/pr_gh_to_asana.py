@@ -71,9 +71,7 @@ def log_http_interactions(cassette_name):
         traceback.print_exc()
 
 
-def format_github_review_body_for_asana(
-    review_body, github_user, review_state, review_id, github_timestamp, github_url
-):
+def format_github_review_body_for_asana(review_body, github_user, review_state, github_url):
     """
     Format GitHub review body comment for Asana
 
@@ -81,8 +79,6 @@ def format_github_review_body_for_asana(
         review_body: The review's body text (markdown string)
         github_user: GitHub username of the reviewer
         review_state: Review state (APPROVED, CHANGES_REQUESTED, COMMENTED)
-        review_id: GitHub review ID number
-        github_timestamp: When the review was submitted
         github_url: GitHub URL for the review comment
     """
     # Determine emoji based on review state
@@ -94,7 +90,9 @@ def format_github_review_body_for_asana(
         emoji = "○"
 
     # Format header with user and state as link
-    header = f'<strong>Review by {github_user}</strong>: <a href="{github_url}">{review_state.replace("_", " ")} {emoji}</a>\n'
+    state = review_state.replace("_", " ").title()
+    link_style = 'style="color: #6b7280; font-size: 12px; font-weight: 400; text-decoration: none;"'
+    header = f'{state}{emoji} by {github_user}: <a href="{github_url}" {link_style}>View in GitHub</a>\n\n'
 
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"

@@ -540,32 +540,24 @@ class AsanaTask:
 
         # Process each GitHub review
         for github_review in comments_from_github:
-            review_id = github_review["id"]
             review_body = github_review.get("text", "")
             github_user = github_review["user"]
             review_state = github_review["action"]
-            github_timestamp = github_review["timestamp"]
             github_url = github_review.get("html_url")
 
-            if not github_url:
-                print(f"[s] Skipping review {review_id} - no GitHub URL available")
-                continue
-
-            print(f"[s] Processing review {review_id} from {github_user} ({review_state})")
+            print(f"[s] Processing review from {github_user} ({review_state}) at {github_url}")
 
             # Format the review for Asana
             from pr_gh_to_asana import format_github_review_body_for_asana
 
-            formatted_comment = format_github_review_body_for_asana(
-                review_body, github_user, review_state, review_id, github_timestamp, github_url
-            )
+            formatted_comment = format_github_review_body_for_asana(review_body, github_user, review_state, github_url)
 
             if github_url in existing_comments_by_github_url:
-                print(f"[synchronize_comments_in_asana] Review {review_id} has existing Asana comment")
+                print(f"[synchronize_comments_in_asana] Review at {github_url} has existing Asana comment")
                 # Update existing comment if content differs
                 existing_comment = existing_comments_by_github_url[github_url]
                 if existing_comment["html_text"] != formatted_comment:
-                    print(f"[s] Updating existing comment for review {review_id}")
+                    print(f"[s] Updating existing comment for review at {github_url}")
                     story_id = existing_comment["id"]
                     url = f"https://app.asana.com/api/1.0/stories/{story_id}"
                     payload = {"data": {"html_text": formatted_comment}}
@@ -573,7 +565,7 @@ class AsanaTask:
                         print(payload)
                         response = requests.put(url, headers=headers, json=payload)
                         if response.status_code == 200:
-                            print(f"Updated Asana comment {story_id} for review {review_id}")
+                            print(f"Updated Asana comment {story_id} for review at {github_url}")
                         else:
                             print(
                                 f"Failed to update Asana comment {story_id}: {response.status_code} - {response.text}"
@@ -581,9 +573,9 @@ class AsanaTask:
                     except requests.exceptions.RequestException as e:
                         print(f"Error updating Asana comment {story_id}: {e}")
                 else:
-                    print(f"[synchronize_comments_in_asana] Review {review_id} comment is up to date")
+                    print(f"[synchronize_comments_in_asana] Review at {github_url} comment is up to date")
             else:
-                print(f"[s] Review {review_id} has no existing Asana comment")
+                print(f"[s] Review at {github_url} has no existing Asana comment")
                 # Create new comment
                 url = f"{api_url}/stories"
                 payload = {"data": {"html_text": formatted_comment, "type": "comment"}}
@@ -592,7 +584,7 @@ class AsanaTask:
                 try:
                     response = requests.post(url, headers=headers, json=payload)
                     response.raise_for_status()
-                    print(f"Added new Asana comment for review {review_id}")
+                    print(f"Added new Asana comment for review at {github_url}")
                 except requests.exceptions.RequestException as e:
-                    print(f"Error adding Asana comment for review {review_id}: {e}")
+                    print(f"Error adding Asana comment for review at {github_url}: {e}")
                     print(payload)
