@@ -116,15 +116,13 @@ public:
 
   void reset_visitation_counts() {
     for (auto& row : visitation_grid) {
-      for (auto& count : row) {
-        count = 0;
-      }
+      std::fill(row.begin(), row.end(), 0);
     }
   }
 
   void increment_visitation_count(GridCoord r, GridCoord c) {
-    if (visitation_counts_enabled && r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) &&
-        c >= 0 && c < static_cast<GridCoord>(visitation_grid[0].size())) {
+    if (visitation_counts_enabled && r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) && c >= 0 &&
+        c < static_cast<GridCoord>(visitation_grid[0].size())) {
       visitation_grid[r][c]++;
     }
   }
@@ -132,7 +130,7 @@ public:
   std::vector<unsigned int> get_visitation_counts() const {
     std::vector<unsigned int> counts(5, 0);
     if (!visitation_grid.empty()) {
-      counts[0] = get_visitation_count(location.r, location.c);  // center
+      counts[0] = get_visitation_count(location.r, location.c);      // center
       counts[1] = get_visitation_count(location.r - 1, location.c);  // up
       counts[2] = get_visitation_count(location.r + 1, location.c);  // down
       counts[3] = get_visitation_count(location.r, location.c - 1);  // left
@@ -258,8 +256,8 @@ private:
   }
 
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
-    if (r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) ||
-        c < 0 || c >= static_cast<GridCoord>(visitation_grid[0].size())) {
+    if (r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) || c < 0 ||
+        c >= static_cast<GridCoord>(visitation_grid[0].size())) {
       return 0;  // Return 0 for out-of-bounds positions
     }
     return visitation_grid[r][c];
