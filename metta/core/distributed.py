@@ -8,6 +8,13 @@ import torch
 
 logger = logging.getLogger(__name__)
 
+# Set critical NCCL environment variables to prevent hangs
+# NCCL_ASYNC_ERROR_HANDLING=1 allows NCCL to detect and report errors instead of hanging
+# This is crucial for preventing the "rank 0 stuck at barrier" issue
+if "NCCL_ASYNC_ERROR_HANDLING" not in os.environ:
+    os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1"
+    logger.info("Set NCCL_ASYNC_ERROR_HANDLING=1 to prevent distributed training hangs")
+
 
 def setup_distributed_vars() -> Tuple[bool, int, int]:
     """Set up distributed training variables.

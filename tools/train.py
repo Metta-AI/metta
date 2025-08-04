@@ -183,13 +183,18 @@ def main(cfg: DictConfig) -> int:
         # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             handle_train(cfg, wandb_run, logger)
+
+        # WandB context manager has exited, cleanup is complete
+        logger.info("Master rank: WandB context cleanup complete")
     else:
         handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
-        # CRITICAL: Final barrier to ensure all ranks reach this point before any destroy their process group
-        # This prevents the hang where some ranks destroy their communicators while others are still in barriers
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final train.py barrier before destroy")
+        # CRITICAL: This barrier ensures ALL ranks (including master after WandB cleanup)
+        # reach this point before ANY rank can destroy its process group
+        # This prevents the hang where some ranks destroy their NCCL communicators
+        # while rank 0 is still in WandB cleanup or other ranks are at barriers
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final train.py barrier (after all work complete)")
         torch.distributed.barrier()
         logger.info(f"Rank {torch.distributed.get_rank()}: Exited final train.py barrier, now destroying process group")
         torch.distributed.destroy_process_group()
