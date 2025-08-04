@@ -1,46 +1,27 @@
 defaults:
   - common
   - wandb: metta_research
-  - agent: fast
-  - sim: navigation
-  - trainer: trainer
   - sweep: full
   - _self_
 
+sweep_name: ??? # Will be set via command line override
+
+settings:
+  max_consecutive_failures: 5
+  rollout_retry_delay: 5
+  max_observations_to_load: 250
+  sweep_server_uri: https://api.observatory.softmax-research.net
+
+# Otherwise common will mess with us
+run: null
+
+sim_name: arena
+sweep_job_overrides:
+  trainer:
+    curriculum: /env/mettagrid/arena/advanced
+    simulation:
+      evaluate_remote: false
+      evaluate_local: true
+      replay_dir: "" # No replays for sweeps
+
 cmd: sweep
-sweep_name: ???  # Will be set via command line override
-
-# Backend URL for centralized run assignment in Observatory
-sweep_server_uri: https://api.observatory.softmax-research.net
-
-trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/bucketed
-  simulation:
-    evaluate_interval: 0  # No evaluation during training for speed
-    replay_dir: "" # No replays for sweeps
-
-# sim:
-#   name: sweep_eval  # Required field
-#   num_episodes: 5
-#   max_time_s: 240
-#   env_overrides: {}
-#   simulations:
-#     simple:
-#       env: /env/mettagrid/arena/basic_easy_shaped
-
-wandb:
-  group: ${sweep_name}
-
-sweep_job:
-  sim: ${sim}
-  trainer: ${trainer}
-  agent: ${agent}
-  wandb: ${wandb}
-  run: ???  # Will be set via command line override
-  runs_dir: "${sweep_dir}/runs"
-  stats_server_uri: null # No logging to observatory for sweeps
-
-# TODO: Remove and update references.
-sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
-runs_dir: "${.sweep_dir}/runs"
-
