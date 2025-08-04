@@ -1,15 +1,11 @@
 # @package __global__
 
-# @package __global__
-
-# trainer:
-#   env: /env/mettagrid/diversity/multi_left_or_right
-
-run: lars_sim_test_5
+run: lars_sim_test_30_07_01
 
 # policy_uri: wandb://run/sasmith.20250610.bisect.devbox
-policy_uri: wandb://run/dd_navigation_curriculum
+# policy_uri: wandb://run/jacke.cyclical_11tick_timing_study_20250729_095309
 # policy_uri: wandb://run/gd_backchain_mem_pretrained
+policy_uri: wandb://run/daphne.navigation.visitation.07-31
 
 # Doxascope configuration for collecting LSTM memory and position data
 sim_job:

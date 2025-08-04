@@ -10,6 +10,7 @@ This module provides functionality for:
 
 import json
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 # Coordinate Conversion Utilities
+@lru_cache(maxsize=128)
 def get_positions_for_manhattan_distance(d: int) -> List[Tuple[int, int]]:
     """
     Returns a canonical, sorted list of all (dr, dc) positions
@@ -37,18 +39,21 @@ def get_positions_for_manhattan_distance(d: int) -> List[Tuple[int, int]]:
     return sorted(positions)
 
 
+@lru_cache(maxsize=128)
 def get_num_classes_for_manhattan_distance(d: int) -> int:
     """Returns the number of reachable cells within a given Manhattan distance."""
     d = abs(d)
     return 2 * d * d + 2 * d + 1
 
 
+@lru_cache(maxsize=128)
 def get_pos_to_class_id_map(d: int) -> Dict[Tuple[int, int], int]:
     """Returns a mapping from (dr, dc) -> class_id for a given Manhattan distance."""
     positions = get_positions_for_manhattan_distance(d)
     return {pos: i for i, pos in enumerate(positions)}
 
 
+@lru_cache(maxsize=128)
 def get_class_id_to_pos_map(d: int) -> Dict[int, Tuple[int, int]]:
     """Returns a mapping from class_id -> (dr, dc) for a given Manhattan distance."""
     positions = get_positions_for_manhattan_distance(d)
@@ -79,26 +84,35 @@ class DoxascopeLogger:
         self,
         doxascope_config: dict,
         simulation_id: str,
-        policy_name: str,
-        object_type_names: Optional[List[str]] = None,
     ):
         self.enabled = doxascope_config.get("enabled", False)
         if not self.enabled:
             return
 
-        base_dir = Path(doxascope_config.get("output_dir", "./train_dir/doxascope/raw_data/"))
-        self.output_dir = base_dir / policy_name
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        self.output_file = self.output_dir / f"doxascope_data_{simulation_id}.json"
-        self.data = []
+        self.base_dir = Path(doxascope_config.get("output_dir", "./train_dir/doxascope/raw_data/"))
+        self.simulation_id = simulation_id
+        self.data: List = []
         self.timestep = 0
         self.agent_id_map: Optional[Dict[int, int]] = None
+        self.agent_type_id: int = 0
+        self.output_file: Optional[Path] = None
+
+    def configure(
+        self,
+        policy_name: str,
+        object_type_names: Optional[List[str]] = None,
+    ):
+        """Configure the logger with policy-specific information."""
+        if not self.enabled:
+            return
+
+        self.output_dir = self.base_dir / policy_name
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_file = self.output_dir / f"doxascope_data_{self.simulation_id}.json"
 
         if object_type_names and "agent" in object_type_names:
             self.agent_type_id = object_type_names.index("agent")
         else:
-            self.agent_type_id = 0  # Default to 0 if not found
             logger.warning("Could not find 'agent' in object_type_names, defaulting to type ID 0.")
 
         logger.info(f"Doxascope logging enabled for policy '{policy_name}', will save raw data to {self.output_file}")
@@ -156,7 +170,7 @@ class DoxascopeLogger:
 
     def save(self):
         """Save logged data to JSON file."""
-        if not self.enabled or not self.data:
+        if not self.enabled or not self.data or self.output_file is None:
             return
 
         try:
@@ -167,7 +181,7 @@ class DoxascopeLogger:
             logger.error(f"Failed to save doxascope data: {e}")
 
 
-def _extract_agent_trajectories(files: list) -> Tuple[Dict[int, list], Optional[int]]:
+def _extract_agent_trajectories(files: list) -> Dict[int, list]:
     """Loads raw data from JSON files and organizes it into per-agent trajectories."""
     agent_trajectories: Dict[int, list] = {}
     expected_dim = None
@@ -196,7 +210,7 @@ def _extract_agent_trajectories(files: list) -> Tuple[Dict[int, list], Optional[
                 position = tuple(agent_data["position"])
                 agent_trajectories[agent_id].append((memory, position))
 
-    return agent_trajectories, expected_dim
+    return agent_trajectories
 
 
 def _create_training_samples(
@@ -251,7 +265,7 @@ def preprocess_doxascope_data(
 
     logger.info(f"Processing {len(json_files)} simulation log(s)...")
 
-    agent_trajectories, expected_dim = _extract_agent_trajectories(json_files)
+    agent_trajectories = _extract_agent_trajectories(json_files)
     if not agent_trajectories:
         logger.warning("No valid agent trajectories found in the provided files.")
         return None, None

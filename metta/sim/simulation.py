@@ -161,7 +161,7 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        policy = self._policy_pr.policy
+        policy: nn.Module = self._policy_pr.policy
 
         # Restore original_feature_mapping from metadata if available
         if (
@@ -223,14 +223,14 @@ class Simulation:
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
         # ---------------- doxascope setup ---------------------------- #
-        base_policy_name = self._policy_pr.name.split(":")[0]
-        policy_name = base_policy_name.replace("/", "_")
-        self._doxascope_logger = DoxascopeLogger(
-            config.doxascope or {},
-            self._id,
-            policy_name=policy_name,
-            object_type_names=metta_grid_env.object_type_names,
-        )
+        self._doxascope_logger = DoxascopeLogger(config.doxascope or {}, self._id)
+        if self._doxascope_logger.enabled:
+            base_policy_name = self._policy_pr.run_name.split(":")[0]
+            policy_name = base_policy_name.replace("/", "_")
+            self._doxascope_logger.configure(
+                policy_name=policy_name,
+                object_type_names=metta_grid_env.object_type_names,
+            )
 
     def start_simulation(self) -> None:
         """

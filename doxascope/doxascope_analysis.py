@@ -14,7 +14,6 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import torch
 
 from .doxascope_data import class_id_to_pos
@@ -164,36 +163,45 @@ def plot_confusion_matrices(y_true: np.ndarray, y_pred: List[np.ndarray], timest
             accuracy_grid[r_idx, c_idx] = row["accuracy"]
 
         # --- Plotting ---
-        plt.figure(figsize=(12, 10))
-        ax = sns.heatmap(
-            accuracy_grid,
+        fig, ax = plt.subplots(figsize=(12, 10))
+
+        # Create a masked array to hide cells with no data
+        masked_grid = np.ma.masked_where(accuracy_grid == -1, accuracy_grid)
+
+        # To align pixels with grid, we define the extent of the image.
+        half_extent = max_dist + 0.5
+        extent = (-half_extent, half_extent, -half_extent, half_extent)
+
+        im = ax.imshow(
+            masked_grid,
             cmap="viridis",
-            annot=False,
             vmin=0,
             vmax=100,
-            cbar_kws={"label": "Predictive Accuracy (%)"},
-            mask=accuracy_grid == -1,  # Don't color cells with no data
+            interpolation="none",
+            extent=extent,
+            origin="lower",  # Puts (0,0) of the array at the bottom-left
         )
-        ax.set_facecolor("lightgray")  # Color for masked cells
-        ax.invert_yaxis()
+        ax.set_facecolor("lightgray")
 
-        # Set ticks and labels to match relative coordinates
-        tick_labels = range(-max_dist, max_dist + 1)
-        ax.set_xticks(np.arange(grid_size) + 0.5)
-        ax.set_yticks(np.arange(grid_size) + 0.5)
-        ax.set_xticklabels([str(x) for x in tick_labels])
-        ax.set_yticklabels([str(y) for y in tick_labels], rotation=0)
+        # Add colorbar
+        cbar = fig.colorbar(im, ax=ax)
+        cbar.set_label("Predictive Accuracy (%)")
 
-        # Set grid lines to delineate cells, keeping labels centered
-        ax.set_xticks(np.arange(grid_size + 1), minor=True)
-        ax.set_yticks(np.arange(grid_size + 1), minor=True)
+        # Set ticks for the center of the cells
+        ticks = range(-max_dist, max_dist + 1)
+        ax.set_xticks(ticks)
+        ax.set_yticks(ticks)
+
+        # Set grid lines to be at the boundaries of the cells
+        ax.set_xticks(np.arange(-max_dist, max_dist + 2, 1) - 0.5, minor=True)
+        ax.set_yticks(np.arange(-max_dist, max_dist + 2, 1) - 0.5, minor=True)
         ax.grid(which="minor", color="w", linestyle="-", linewidth=2)
-        ax.tick_params(which="minor", length=0)
+        ax.tick_params(which="minor", size=0)  # Hide minor tick marks
 
-        # Add text annotations for true frequency, including zeros for empty cells
-        for r_offset in range(grid_size):
-            for c_offset in range(grid_size):
-                r, c = r_offset - max_dist, c_offset - max_dist
+        # Add text annotations for true frequency
+        for r_idx in range(grid_size):
+            for c_idx in range(grid_size):
+                r, c = r_idx - max_dist, c_idx - max_dist
 
                 if abs(r) + abs(c) > max_dist:
                     continue
@@ -202,17 +210,15 @@ def plot_confusion_matrices(y_true: np.ndarray, y_pred: List[np.ndarray], timest
                 count_row = true_counts[(true_counts["true_dr"] == r) & (true_counts["true_dc"] == c)]
                 freq = count_row["true_freq"].iloc[0] if not count_row.empty else 0
 
-                # Find accuracy to determine text color
-                acc_row = accuracy_df[(accuracy_df["true_dr"] == r) & (accuracy_df["true_dc"] == c)]
-                cell_accuracy = acc_row["accuracy"].iloc[0] if not acc_row.empty else -1
-
+                # Determine text color based on cell accuracy
+                cell_accuracy = accuracy_grid[r_idx, c_idx]
                 text_color = "gray"
                 if freq > 0:
                     text_color = "white" if cell_accuracy < 60 else "black"
 
                 ax.text(
-                    c_offset + 0.5,
-                    r_offset + 0.5,
+                    c,  # x-coordinate in data space
+                    r,  # y-coordinate in data space
                     str(freq),
                     ha="center",
                     va="center",
@@ -397,6 +403,29 @@ def compare_runs(policy_dir: Path, output_dir: Path):
     print(f"Comparison plot saved to {comparison_plot_path}")
 
 
+def analyze_label_distribution(y_true: np.ndarray, timesteps: List[int]):
+    """Analyzes and prints the distribution of labels, focusing on the 'stay' action."""
+    print("\n--- Label Distribution Analysis ---")
+    for i, timestep in enumerate(timesteps):
+        labels = y_true[:, i]
+        max_dist = abs(timestep)
+
+        # Find the class ID for the 'stay' action (dr=0, dc=0)
+        try:
+            stay_id = class_id_to_pos(0, 0, max_dist)
+        except ValueError:
+            stay_id = -1  # Impossible for this timestep
+
+        if stay_id != -1:
+            stay_count = np.sum(labels == stay_id)
+            total_count = len(labels)
+            stay_percentage = (stay_count / total_count) * 100
+            print(f"Timestep t={timestep}:")
+            print(f"  - 'Stay' actions (dr=0, dc=0): {stay_count}/{total_count} ({stay_percentage:.2f}%)")
+        else:
+            print(f"Timestep t={timestep}: 'Stay' action is not possible.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Analyze a trained DoxascopeNet model.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -446,6 +475,26 @@ def main():
         help="Directory containing the policy subdirectories.",
     )
 
+    # --- Describe a dataset ---
+    parser_describe = subparsers.add_parser("describe-data", help="Describe the preprocessed dataset for a run.")
+    parser_describe.add_argument("policy_name", type=str, help="Name of the policy.")
+    parser_describe.add_argument(
+        "run_name",
+        type=str,
+        nargs="?",
+        default=None,
+        help="Name of the run. If omitted, the latest run is used.",
+    )
+    parser_describe.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("train_dir/doxascope/results"),
+        help="Directory containing the policy subdirectories.",
+    )
+    parser_describe.add_argument(
+        "--dataset", type=str, default="test", choices=["train", "test", "val"], help="Which dataset split to describe."
+    )
+
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -491,6 +540,46 @@ def main():
         for run_dir in sorted(policy_dir.iterdir()):
             if run_dir.is_dir():
                 generate_all_plots(run_dir, device)
+
+    elif args.command == "describe-data":
+        policy_dir = args.data_dir / args.policy_name
+        if args.run_name:
+            run_dir = policy_dir / args.run_name
+        else:
+            run_dir = find_latest_run(policy_dir)
+
+        if run_dir is None or not run_dir.exists():
+            print(f"Error: Could not find run directory for {args.policy_name}")
+            return
+
+        data_path = run_dir / "preprocessed_data" / f"{args.dataset}.npz"
+        if not data_path.exists():
+            print(f"Error: {args.dataset}.npz not found in {run_dir}")
+            return
+
+        data = np.load(data_path)
+        y_true = data["y"]
+
+        # We need the timesteps, which are stored in the model config or test_results
+        results_path = run_dir / "test_results.json"
+        if not results_path.exists():
+            print("Warning: test_results.json not found. Cannot determine timesteps.")
+            # As a fallback, try to infer from y_true shape if it's 2D
+            if y_true.ndim == 2:
+                num_timesteps = y_true.shape[1]
+                # This is a guess; we don't know if they are past or future.
+                # Assuming future for now as it's more common.
+                timesteps = list(range(1, num_timesteps + 1))
+                print(f"Inferred {num_timesteps} timesteps. Assuming future timesteps: {timesteps}")
+            else:
+                print("Cannot determine timesteps for analysis.")
+                return
+        else:
+            with open(results_path, "r") as f:
+                results = json.load(f)
+            timesteps = results["timesteps"]
+
+        analyze_label_distribution(y_true, timesteps)
 
 
 if __name__ == "__main__":

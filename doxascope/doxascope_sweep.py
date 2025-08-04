@@ -126,6 +126,10 @@ def main():
     parser.add_argument("--test-split", type=float, default=0.15, help="Proportion of data for the test set.")
     parser.add_argument("--val-split", type=float, default=0.15, help="Proportion of data for the validation set.")
     parser.add_argument("--device", type=str, default="auto", help="Device to use for training (e.g., 'cpu', 'cuda').")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
+    parser.add_argument(
+        "--force-reprocess", action="store_true", help="Force reprocessing of raw data even if cache exists."
+    )
 
     args = parser.parse_args()
 
@@ -143,10 +147,12 @@ def main():
     data_loaders = prepare_data(
         policy_data_dir,
         sweep_output_dir,  # Use sweep dir for preprocessed data cache
+        args.batch_size,
         args.test_split,
         args.val_split,
         args.num_future_timesteps,
         args.num_past_timesteps,
+        force_reprocess=args.force_reprocess,
     )
     if data_loaders[0] is None:
         print("❌ Failed to prepare data. Aborting sweep.")

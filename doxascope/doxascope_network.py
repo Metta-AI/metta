@@ -263,14 +263,68 @@ class DoxascopeTrainer:
         return TrainingResult(history=history, best_checkpoint=checkpoint, final_val_acc=best_val_acc)
 
 
+def create_baseline_data(preprocessed_dir: Path, batch_size: int) -> tuple:
+    """Creates baseline data loaders by loading preprocessed data and randomizing inputs."""
+    baseline_files = {
+        "train": preprocessed_dir / "train_baseline.npz",
+        "val": preprocessed_dir / "val_baseline.npz",
+        "test": preprocessed_dir / "test_baseline.npz",
+    }
+
+    # Check if baseline files already exist
+    if all(f.exists() for f in baseline_files.values()):
+        print("Loading existing baseline data files...")
+    else:
+        print("Creating baseline data files...")
+        # Load original preprocessed data
+        original_files = {
+            "train": preprocessed_dir / "train.npz",
+            "val": preprocessed_dir / "val.npz",
+            "test": preprocessed_dir / "test.npz",
+        }
+
+        for split, baseline_file in baseline_files.items():
+            original_file = original_files[split]
+            if original_file.exists():
+                data = np.load(original_file)
+                X, y = data["X"], data["y"]
+                X_random = np.random.randn(*X.shape).astype(np.float32)
+                np.savez_compressed(baseline_file, X=X_random, y=y)
+
+    # Create data loaders from baseline files
+    loaders = []
+    for split in ["train", "val", "test"]:
+        baseline_file = baseline_files[split]
+        if baseline_file.exists():
+            data = np.load(baseline_file)
+            dataset = DoxascopeDataset(data["X"], data["y"])
+            shuffle = split == "train"
+            loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+            loaders.append(loader)
+            print(f"  Baseline {split} samples: {len(dataset)}")
+        else:
+            loaders.append(None)
+
+    # Get input dimension from first available dataset
+    input_dim = None
+    for loader in loaders:
+        if loader is not None:
+            sample_x, _ = next(iter(loader))
+            input_dim = sample_x.shape[1]
+            break
+
+    return tuple(loaders) + (input_dim,)
+
+
 def prepare_data(
     raw_data_dir: Path,
     output_dir: Path,
+    batch_size: int,
     test_split: float,
     val_split: float,
     num_future_timesteps: int,
     num_past_timesteps: int,
-    randomize_X: bool = False,
+    data_split_seed: int = 42,
 ):
     """
     Prepares and splits data into training, validation, and test sets.
@@ -284,83 +338,110 @@ def prepare_data(
     if not all_json_files:
         raise ValueError(f"No JSON files found in {raw_data_dir}")
 
-    # Shuffle and split the files to prevent data leakage
+    # Shuffle files deterministically to ensure reproducible splits
     import random
 
+    random.seed(data_split_seed)
     random.shuffle(all_json_files)
 
+    # Create more balanced splits by distributing files more evenly
+    # This helps ensure similar label distributions across splits
     num_files = len(all_json_files)
-    test_idx = int(num_files * test_split)
-    val_idx = test_idx + int(num_files * val_split)
 
-    # Ensure there's at least one file for training if splits are small
-    if num_files > 2 and val_idx == test_idx:
-        val_idx = test_idx + 1
-    if num_files > 1 and test_idx == 0:
-        test_idx = 1
-    # Ensure train set is not empty if we have enough files
-    if num_files > 2 and val_idx == num_files:
-        val_idx = num_files - 1
+    # Calculate split indices
+    test_idx = max(1, int(num_files * test_split))
+    val_idx = test_idx + max(1, int(num_files * val_split))
 
-    test_files = all_json_files[:test_idx]
-    val_files = all_json_files[test_idx:val_idx]
-    train_files = all_json_files[val_idx:]
+    # Clamp indices to ensure valid splits
+    test_idx = min(test_idx, num_files)
+    val_idx = min(val_idx, num_files)
+
+    # Balance file distribution by file size to get more even label distributions
+    # while maintaining file-level separation to prevent data leakage
+
+    # Get file sizes to help balance the splits
+    file_sizes = []
+    for file in all_json_files:
+        size = file.stat().st_size
+        file_sizes.append((file, size))
+
+    # Sort by file size for better distribution
+    file_sizes.sort(key=lambda x: x[1], reverse=True)
+
+    # Distribute files across splits to balance total data volume
+    # Use a round-robin approach weighted by target split sizes
+    test_files = []
+    val_files = []
+    train_files = []
+
+    # Target ratios
+    test_ratio = test_split
+    val_ratio = val_split
+    train_ratio = 1.0 - test_split - val_split
+
+    total_size = sum(size for _, size in file_sizes)
+    target_test_size = total_size * test_ratio
+    target_val_size = total_size * val_ratio
+
+    current_test_size = 0
+    current_val_size = 0
+
+    # Distribute files to balance data volume across splits
+    for file, size in file_sizes:
+        test_need = target_test_size - current_test_size
+        val_need = target_val_size - current_val_size
+
+        # Assign to split with highest need
+        if test_need > val_need and test_need > 0:
+            test_files.append(file)
+            current_test_size += size
+        elif val_need > 0:
+            val_files.append(file)
+            current_val_size += size
+        else:
+            train_files.append(file)
 
     print(f"Data split into {len(train_files)} train, {len(val_files)} val, {len(test_files)} test files.")
+    print(
+        f"File size distribution - Train: {sum(f.stat().st_size for f in train_files) / 1024000:.1f}MB, "
+        f"Val: {sum(f.stat().st_size for f in val_files) / 1024000:.1f}MB, "
+        f"Test: {sum(f.stat().st_size for f in test_files) / 1024000:.1f}MB"
+    )
 
     # Process files for each split
-    print(f"Processing {len(train_files)} files for training...")
     X_train, y_train = preprocess_doxascope_data(
         train_files, preprocessed_dir, "train.npz", num_future_timesteps, num_past_timesteps
     )
     if X_train is None:
         print("No training data could be generated.")
         return None, None, None, None
+    input_dim = X_train.shape[1]
 
-    print(f"Processing {len(val_files)} files for validation...")
     X_val, y_val = preprocess_doxascope_data(
         val_files, preprocessed_dir, "val.npz", num_future_timesteps, num_past_timesteps
     )
     if X_val is None:
         print("Warning: No validation samples could be generated from the validation files.")
 
-    print(f"Processing {len(test_files)} files for testing...")
     X_test, y_test = preprocess_doxascope_data(
         test_files, preprocessed_dir, "test.npz", num_future_timesteps, num_past_timesteps
     )
     if X_test is None:
         print("Warning: No test samples could be generated from the test files.")
 
-    if val_loader:
-        print(f"  Validation samples: {len(val_loader.dataset)}")
-    if test_loader:
-        print(f"  Test samples: {len(test_loader.dataset)}")
-
-    input_dim = X_train.shape[1]
-
-    if randomize_X:
-        print("Randomizing input features for baseline training.")
-        if isinstance(X_train, np.ndarray):
-            print(f"Original X_train mean: {np.mean(X_train):.4f}, std: {np.std(X_train):.4f}")
-            X_train[:] = np.random.randn(*X_train.shape)
-            print(f"Randomized X_train mean: {np.mean(X_train):.4f}, std: {np.std(X_train):.4f}")
-        if X_val is not None and isinstance(X_val, np.ndarray):
-            X_val[:] = np.random.randn(*X_val.shape)
-        if X_test is not None and isinstance(X_test, np.ndarray):
-            X_test[:] = np.random.randn(*X_test.shape)
-
     # Create datasets and dataloaders
     train_dataset = DoxascopeDataset(X_train, y_train)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    print(f"  Train samples: {len(train_loader.dataset)}")
 
-    val_loader = None
     if X_val is not None and y_val is not None:
         val_dataset = DoxascopeDataset(X_val, y_val)
-        val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        print(f"  Validation samples: {len(val_loader.dataset)}")
 
-    test_loader = None
     if X_test is not None and y_test is not None:
         test_dataset = DoxascopeDataset(X_test, y_test)
-        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        print(f"  Test samples: {len(test_loader.dataset)}")
 
     return train_loader, val_loader, test_loader, input_dim

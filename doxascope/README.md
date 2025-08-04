@@ -51,9 +51,31 @@ python -m doxascope.doxascope_train <policy_name> [options]
 -   `--num-future-timesteps <n>`: Number of future positions to predict (default: 1).
 -   `--num-past-timesteps <n>`: Number of past positions to predict (default: 0).
 -   `--run-name <name>`: A unique name for this training run. If not provided, a timestamp will be used.
--   `--no-train-random-baseline`: Disable the training of a baseline model that uses random memory vectors. The baseline is trained by default and is useful for comparison.
+-   `--train-random-baseline` / `--no-train-random-baseline`: Enable/disable training of baseline model with random memory vectors (default: enabled).
+
+**Additional Options:**
+
+**Data & Training:**
+-   `--raw-data-dir <path>`: Directory containing raw data files (default: `train_dir/doxascope/raw_data`).
+-   `--output-dir <path>`: Directory to save results (default: `train_dir/doxascope/results`).
+-   `--test-split <ratio>`: Proportion of data for testing (default: 0.15).
+-   `--val-split <ratio>`: Proportion of data for validation (default: 0.15).
+-   `--batch-size <n>`: Batch size for training (default: 32).
+-   `--learning-rate <lr>`: Learning rate for optimizer (default: 0.001).
+-   `--num-epochs <n>`: Maximum number of training epochs (default: 100).
+-   `--patience <n>`: Early stopping patience (default: 10).
+-   `--device <device>`: Training device: 'cpu', 'cuda', or 'auto' (default: 'auto').
+
+**Model Architecture:**
+-   `--hidden_dim <n>`: Hidden layer dimension (default: 512).
+-   `--dropout_rate <rate>`: Dropout rate (default: 0.4).
+-   `--activation_fn <fn>`: Activation function: 'relu', 'silu', or 'gelu' (default: 'silu').
+-   `--main_net_depth <n>`: Depth of main network (default: 3).
+-   `--processor_depth <n>`: Depth of state processors (default: 1).
 
 The script will create a new run directory (e.g., `.../results/my_policy/20231027-153000/`) and save all artifacts there.
+
+**Note on Data Splitting:** The system uses file-size-based splitting to balance label distributions across train/validation/test sets while maintaining strict file-level separation to prevent data leakage. This ensures that samples from the same agent trajectory don't appear in multiple splits.
 
 ### 3. Analysis
 

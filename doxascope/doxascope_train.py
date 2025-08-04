@@ -13,15 +13,15 @@ from pathlib import Path
 import pandas as pd
 import torch
 
-from .doxascope_network import DoxascopeNet, DoxascopeTrainer, prepare_data
+from .doxascope_network import DoxascopeNet, DoxascopeTrainer, create_baseline_data, prepare_data
 
 
 def run_training_pipeline(
     policy_name: str,
-    raw_data_dir: Path,
     output_dir: Path,
     device: str,
     args: argparse.Namespace,
+    data_loaders: tuple,
     is_baseline: bool = False,
 ):
     """Manages the full pipeline for a single training run (regular or baseline)."""
@@ -30,22 +30,7 @@ def run_training_pipeline(
     print(f"    Training {model_type} Model for {policy_name}    ")
     print("=" * 50)
 
-    # Prepare data loaders
-    data_result = prepare_data(
-        raw_data_dir,
-        output_dir,
-        args.test_split,
-        args.val_split,
-        args.num_future_timesteps,
-        args.num_past_timesteps,
-        randomize_X=is_baseline,
-    )
-
-    if data_result[0] is None:
-        print(f"Failed to create data loaders for {model_type} model. Skipping.")
-        return
-
-    train_loader, val_loader, test_loader, input_dim = data_result
+    train_loader, val_loader, test_loader, input_dim = data_loaders
     assert input_dim is not None, "Input dimension cannot be None"
 
     # Initialize model and trainer
@@ -125,6 +110,7 @@ def main():
     parser.add_argument("--num-past-timesteps", type=int, default=0, help="Number of past timesteps to predict.")
 
     # Training hyperparameters
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
     parser.add_argument("--learning-rate", type=float, default=0.001, help="Learning rate for the optimizer.")
     parser.add_argument("--num-epochs", type=int, default=100, help="Number of epochs to train for.")
     parser.add_argument("--patience", type=int, default=10, help="Patience for early stopping.")
@@ -158,12 +144,52 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Saving results to: {output_dir}")
 
+    # Prepare data loaders for the main model
+    print("\n--- Preparing Data for Main Model ---")
+    data_loaders = prepare_data(
+        raw_data_dir=policy_data_dir,
+        output_dir=output_dir,
+        batch_size=args.batch_size,
+        test_split=args.test_split,
+        val_split=args.val_split,
+        num_future_timesteps=args.num_future_timesteps,
+        num_past_timesteps=args.num_past_timesteps,
+        data_split_seed=42,
+    )
+
+    if data_loaders[0] is None:
+        print("Failed to create data loaders. Aborting.")
+        return
+
     # Run the main training pipeline
-    run_training_pipeline(args.policy_name, policy_data_dir, output_dir, device, args, is_baseline=False)
+    run_training_pipeline(
+        policy_name=args.policy_name,
+        output_dir=output_dir,
+        device=device,
+        args=args,
+        data_loaders=data_loaders,
+        is_baseline=False,
+    )
 
     # Run the baseline training pipeline if requested
     if args.train_random_baseline:
-        run_training_pipeline(args.policy_name, policy_data_dir, output_dir, device, args, is_baseline=True)
+        print("\n--- Preparing Data for Baseline Model (using randomized inputs) ---")
+        # Create baseline data by randomizing the preprocessed inputs
+        preprocessed_dir = output_dir / "preprocessed_data"
+        baseline_data_loaders = create_baseline_data(preprocessed_dir, args.batch_size)
+
+        if baseline_data_loaders[0] is None:
+            print("Failed to create data loaders for the baseline model. Aborting baseline training.")
+            return
+
+        run_training_pipeline(
+            policy_name=args.policy_name,
+            output_dir=output_dir,
+            device=device,
+            args=args,
+            data_loaders=baseline_data_loaders,
+            is_baseline=True,
+        )
 
 
 if __name__ == "__main__":
