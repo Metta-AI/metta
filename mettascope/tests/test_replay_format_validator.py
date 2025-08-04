@@ -95,16 +95,21 @@ def _validate_string_list(lst: Any, field_name: str, allow_empty: bool = False) 
     assert all(isinstance(s, str) and s for s in lst), f"'{field_name}' must contain non-empty strings"
 
 
-def _validate_sequence_or_value(data: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
-    """Validate that data is either a single value or a sequence of [step, value] pairs."""
+def _validate_static_value(value: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
+    """Validate that value is a static value of the expected type (never a sequence)."""
+    _validate_type(value, expected_type, field_name)
+
+
+def _validate_dynamic_value(data: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
+    """Validate dynamic values that can be either optimized single values or sequences of [step, value] pairs."""
     if data is None:
         return
 
-    # Check if it's a single value of the expected type.
+    # Check if it's an optimized single value (field never changed during replay).
     if isinstance(data, expected_type):
         return
 
-    # Check if it's a sequence format.
+    # Check if it's a sequence format (field changed during replay).
     if isinstance(data, list):
         if len(data) == 0:
             return
@@ -249,20 +254,23 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     ]
     _require_fields(obj, required_fields, obj_name)
 
-    # Validate basic object fields.
+    # Validate static fields (never change during replay).
+    _validate_static_value(obj["id"], f"{obj_name}.id", int)
     _validate_positive_int(obj["id"], f"{obj_name}.id")
 
     type_id = obj["type_id"]
+    _validate_static_value(type_id, f"{obj_name}.type_id", int)
     _validate_non_negative_number(type_id, f"{obj_name}.type_id")
     assert type_id < len(replay_data["type_names"]), f"{obj_name}.type_id {type_id} out of range"
 
-    # Validate common fields.
+    _validate_static_value(obj["is_swappable"], f"{obj_name}.is_swappable", bool)
+
+    # Validate dynamic fields (can change during replay).
     _validate_location(obj["location"], obj_name)
-    _validate_sequence_or_value(obj["orientation"], f"{obj_name}.orientation", (int, float))
+    _validate_dynamic_value(obj["orientation"], f"{obj_name}.orientation", (int, float))
     _validate_inventory_format(obj["inventory"], f"{obj_name}.inventory")
-    _validate_non_negative_number(obj["inventory_max"], f"{obj_name}.inventory_max")
-    _validate_sequence_or_value(obj["color"], f"{obj_name}.color", int)
-    _validate_type(obj["is_swappable"], bool, f"{obj_name}.is_swappable")
+    _validate_dynamic_value(obj["inventory_max"], f"{obj_name}.inventory_max", (int, float))
+    _validate_dynamic_value(obj["color"], f"{obj_name}.color", int)
 
     # Validate specific object types.
     if obj.get("is_agent") or "agent_id" in obj:
@@ -272,15 +280,15 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
 
 
 def _validate_location(location: Any, obj_name: str) -> None:
-    """Validate location field format."""
+    """Validate location field format (special case - always a sequence or optimized [x,y,z])."""
     field_name = f"{obj_name}.location"
 
     if isinstance(location, list) and len(location) == 3:
-        # Single location [x, y, z].
+        # Optimized single location [x, y, z] (never changed during replay).
         for i, coord in enumerate(location):
             _validate_type(coord, (int, float), f"{field_name}[{i}]")
     elif isinstance(location, list):
-        # Sequence of [step, [x, y, z]] pairs.
+        # Sequence of [step, [x, y, z]] pairs (changed during replay).
         for step_data in location:
             assert isinstance(step_data, list) and len(step_data) == 2, (
                 f"{field_name} sequence items must be [step, [x, y, z]]"
@@ -312,25 +320,30 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
     ]
     _require_fields(obj, agent_fields, obj_name)
 
-    # Validate agent_id range.
+    # Validate static agent fields (never change).
     agent_id = obj["agent_id"]
+    _validate_static_value(agent_id, f"{obj_name}.agent_id", int)
     _validate_non_negative_number(agent_id, f"{obj_name}.agent_id")
     assert agent_id < replay_data["num_agents"], f"{obj_name}.agent_id {agent_id} out of range"
 
-    # Validate specific agent fields.
+    _validate_static_value(obj["is_agent"], f"{obj_name}.is_agent", bool)
     assert obj["is_agent"] is True, f"{obj_name}.is_agent must be True"
+
+    _validate_static_value(obj["vision_size"], f"{obj_name}.vision_size", int)
     _validate_positive_int(obj["vision_size"], f"{obj_name}.vision_size")
+
+    _validate_static_value(obj["group_id"], f"{obj_name}.group_id", int)
     _validate_non_negative_number(obj["group_id"], f"{obj_name}.group_id")
 
-    # Validate sequence fields.
-    _validate_sequence_or_value(obj["action_id"], f"{obj_name}.action_id", int)
-    _validate_sequence_or_value(obj["action_param"], f"{obj_name}.action_param", int)
-    _validate_sequence_or_value(obj["action_success"], f"{obj_name}.action_success", bool)
-    _validate_sequence_or_value(obj["current_reward"], f"{obj_name}.current_reward", (int, float))
-    _validate_sequence_or_value(obj["total_reward"], f"{obj_name}.total_reward", (int, float))
-    _validate_sequence_or_value(obj["freeze_remaining"], f"{obj_name}.freeze_remaining", (int, float))
-    _validate_sequence_or_value(obj["is_frozen"], f"{obj_name}.is_frozen", bool)
-    _validate_sequence_or_value(obj["freeze_duration"], f"{obj_name}.freeze_duration", (int, float))
+    # Validate dynamic agent fields (can change during replay).
+    _validate_dynamic_value(obj["action_id"], f"{obj_name}.action_id", int)
+    _validate_dynamic_value(obj["action_param"], f"{obj_name}.action_param", int)
+    _validate_dynamic_value(obj["action_success"], f"{obj_name}.action_success", bool)
+    _validate_dynamic_value(obj["current_reward"], f"{obj_name}.current_reward", (int, float))
+    _validate_dynamic_value(obj["total_reward"], f"{obj_name}.total_reward", (int, float))
+    _validate_dynamic_value(obj["freeze_remaining"], f"{obj_name}.freeze_remaining", (int, float))
+    _validate_dynamic_value(obj["is_frozen"], f"{obj_name}.is_frozen", bool)
+    _validate_dynamic_value(obj["freeze_duration"], f"{obj_name}.freeze_duration", (int, float))
 
     # Validate action_id values are in range.
     _validate_action_id_range(obj["action_id"], obj_name, replay_data["action_names"])
@@ -362,23 +375,23 @@ def _validate_building_fields(obj: dict[str, Any], obj_name: str) -> None:
     ]
     _require_fields(obj, building_fields, obj_name)
 
-    # Validate inventory resources.
+    # Validate static building fields (never change).
+    _validate_static_value(obj["output_limit"], f"{obj_name}.output_limit", (int, float))
+    _validate_non_negative_number(obj["output_limit"], f"{obj_name}.output_limit")
+
+    _validate_static_value(obj["conversion_duration"], f"{obj_name}.conversion_duration", (int, float))
+    _validate_non_negative_number(obj["conversion_duration"], f"{obj_name}.conversion_duration")
+
+    _validate_static_value(obj["cooldown_duration"], f"{obj_name}.cooldown_duration", (int, float))
+    _validate_non_negative_number(obj["cooldown_duration"], f"{obj_name}.cooldown_duration")
+
+    # Validate dynamic building fields (can change during replay).
     _validate_inventory_format(obj["input_resources"], f"{obj_name}.input_resources")
     _validate_inventory_format(obj["output_resources"], f"{obj_name}.output_resources")
-
-    # Validate numeric fields.
-    for field in [
-        "output_limit",
-        "conversion_remaining",
-        "cooldown_remaining",
-        "conversion_duration",
-        "cooldown_duration",
-    ]:
-        _validate_non_negative_number(obj[field], f"{obj_name}.{field}")
-
-    # Validate boolean sequence fields.
-    _validate_sequence_or_value(obj["is_converting"], f"{obj_name}.is_converting", bool)
-    _validate_sequence_or_value(obj["is_cooling_down"], f"{obj_name}.is_cooling_down", bool)
+    _validate_dynamic_value(obj["conversion_remaining"], f"{obj_name}.conversion_remaining", (int, float))
+    _validate_dynamic_value(obj["is_converting"], f"{obj_name}.is_converting", bool)
+    _validate_dynamic_value(obj["cooldown_remaining"], f"{obj_name}.cooldown_remaining", (int, float))
+    _validate_dynamic_value(obj["is_cooling_down"], f"{obj_name}.is_cooling_down", bool)
 
 
 def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
@@ -451,13 +464,13 @@ def test_validate_replay_schema_valid() -> None:
     "mutation, error_substr",
     [
         (lambda r: r.pop("version"), "Missing required keys"),
-        (lambda r: r.update({"unexpected": 123}), "Unexpected keys"),
-        (lambda r: r.update({"version": 1}), "must equal 2"),
-        (lambda r: r.update({"num_agents": -1}), "non-negative"),
-        (lambda r: r.update({"map_size": [0, 5]}), "positive ints"),
-        (lambda r: r.update({"file_name": "replay.txt"}), "end with '.json.z'"),
-        (lambda r: r.update({"action_names": ["", "collect"]}), "non-empty strings"),
-        (lambda r: r.update({"objects": [123]}), "must be dictionaries"),
+        (lambda r: r.update({"unexpected": 123}), "Unexpected keys present"),
+        (lambda r: r.update({"version": 1}), "'version' must equal 2"),
+        (lambda r: r.update({"num_agents": -1}), "'num_agents' must be positive"),
+        (lambda r: r.update({"map_size": [0, 5]}), "'map_size\\[0\\]' must be positive"),
+        (lambda r: r.update({"file_name": "replay.txt"}), "'file_name' must be non-empty and end with '\\.json\\.z'"),
+        (lambda r: r.update({"action_names": ["", "collect"]}), "'action_names' must contain non-empty strings"),
+        (lambda r: r.update({"objects": [123]}), "'objects' must contain dictionaries"),
     ],
 )
 def test_validate_replay_schema_invalid(mutation, error_substr: str) -> None:
@@ -465,7 +478,7 @@ def test_validate_replay_schema_invalid(mutation, error_substr: str) -> None:
     replay_dict = _make_valid_replay()
     mutation(replay_dict)
 
-    with pytest.raises(ValueError, match=error_substr):
+    with pytest.raises(AssertionError, match=error_substr):
         validate_replay_schema(replay_dict)
 
 
