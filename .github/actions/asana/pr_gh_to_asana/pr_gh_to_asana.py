@@ -91,8 +91,7 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
 
     # Format header with user and state as link
     state = review_state.replace("_", " ").title()
-    link_style = 'style="color: #6b7280; font-size: 12px; font-weight: 400; text-decoration: none;"'
-    header = f'{state}{emoji} by {github_user}: <a href="{github_url}" {link_style}>View in GitHub</a>\n\n'
+    header = f'{state}{emoji} by {github_user}: <a href="{github_url}">View in GitHub</a>\n\n'
 
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
