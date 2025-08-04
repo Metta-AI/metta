@@ -13,6 +13,10 @@ game:
   max_steps: 40
   agent:
     default_resource_limit: 1
+    resource_limits:
+      ore_red: 1
+      ore_blue: 1
+      ore_green: 1
     rewards:
       inventory:
         ore_red: 0
