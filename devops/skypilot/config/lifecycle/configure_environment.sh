@@ -69,6 +69,12 @@ export WANDB_DIR="./wandb"
 export WANDB_API_KEY="\${WANDB_PASSWORD}"
 export DATA_DIR="\${DATA_DIR:-./train_dir}"
 
+# Datadog configuration
+export DD_ENV="production"
+export DD_SERVICE="skypilot-worker"
+export DD_AGENT_HOST="localhost"
+export DD_TRACE_AGENT_PORT="8126"
+
 export NUM_GPUS="\${SKYPILOT_NUM_GPUS_PER_NODE}"
 export NUM_NODES="\${SKYPILOT_NUM_NODES}"
 export MASTER_ADDR="\$(echo "\$SKYPILOT_NODE_IPS" | head -n1)"

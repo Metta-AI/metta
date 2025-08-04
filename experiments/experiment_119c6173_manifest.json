@@ -1,0 +1,10 @@
+{
+  "training": {
+    "status": "complete",
+    "checkpoint_dir": "./experiments/experiment_119c6173/checkpoints"
+  },
+  "evaluation": {
+    "status": "complete",
+    "num_simulations": 1
+  }
+}

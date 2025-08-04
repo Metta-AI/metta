@@ -42,7 +42,7 @@ async function main() {
           "📋 Short explanation:",
           abstract.shortExplanation.slice(0, 100) + "..."
         );
-        console.log("🏷️ Concepts:", abstract.conceptsOverview.join(", "));
+        console.log("📊 Summary:", abstract.summary.slice(0, 100) + "...");
       } else {
         console.log("❌ Failed to generate abstract");
       }
@@ -54,7 +54,7 @@ async function main() {
 
       const totalPapers = await prisma.paper.count({
         where: {
-          llmAbstract: null,
+          llmAbstract: null as any,
           link: { not: null },
         },
       });

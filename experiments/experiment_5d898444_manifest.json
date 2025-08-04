@@ -1,0 +1,41 @@
+{
+  "experiment": {
+    "name": "experiment",
+    "run_name": "experiment_5d898444",
+    "total_timesteps": 1000,
+    "num_agents": "default",
+    "num_eval_episodes": 5
+  },
+  "timing": {
+    "start_time": "2025-08-26T07:23:51.676720",
+    "end_time": "2025-08-26T07:24:20.946868",
+    "duration_seconds": 29.268203735351562
+  },
+  "reproducibility": {
+    "seed": 42,
+    "torch_deterministic": true,
+    "device": "cpu",
+    "vectorization": "serial"
+  },
+  "config_files": {
+    "training": "./experiments/experiment_5d898444/configs/training.json",
+    "evaluation": "./experiments/experiment_5d898444/configs/evaluation.json",
+    "experiment_spec": "./experiments/experiment_5d898444/configs/experiment_spec.json"
+  },
+  "results": {
+    "training": {
+      "status": "complete",
+      "checkpoint_dir": "./experiments/experiment_5d898444/checkpoints"
+    },
+    "evaluation": {
+      "status": "complete",
+      "num_simulations": 1
+    }
+  },
+  "paths": {
+    "run_dir": "./experiments/experiment_5d898444",
+    "checkpoints": "./experiments/experiment_5d898444/checkpoints",
+    "manifest": "./experiments/experiment_5d898444_manifest.json",
+    "configs": "./experiments/experiment_5d898444/configs"
+  }
+}
