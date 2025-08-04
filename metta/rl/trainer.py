@@ -57,6 +57,7 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
     upload_policy_artifact,
+    
 )
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.utils.batch import calculate_batch_sizes
@@ -189,7 +190,9 @@ def train(
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
+        torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
+        torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
@@ -533,28 +536,16 @@ def train(
 
     # Synchronize after all save operations complete
     if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering post-save barrier")
         torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited post-save barrier")
 
-    # Final synchronization before cleanup
-    if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final barrier")
-        torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final barrier")
-
-    # Upload to WandB after all ranks have synchronized
-    if wandb_run and latest_saved_policy_record:
-        logger.info(
-            f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Starting WandB upload"
-        )
+    # Upload to WandB after all ranks have synchronized - only master uploads
+    if wandb_run and latest_saved_policy_record and is_master:
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
-        logger.info(
-            f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Completed WandB upload"
-        )
+
+    # Ensure all ranks wait for upload to complete
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     # Cleanup
-    logger.info(f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Starting cleanup")
     vecenv.close()
     cleanup_monitoring(memory_monitor, system_monitor)
-    logger.info(f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Cleanup complete")
