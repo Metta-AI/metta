@@ -112,7 +112,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         self._rewards = np.zeros(self.num_agents, dtype=dtype_rewards)
 
         # Set buffers in C++ environment for direct writes
-        self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
+        self._c_env_instance.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
 
     @override  # gymnasium.Env.reset
     def reset(

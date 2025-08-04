@@ -89,13 +89,13 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         self.possible_agents: List[str] = []
 
         # populate possible_agents immediately (PettingZoo spec)
-        num_agents = self.c_env.num_agents
+        num_agents = self._c_env_instance.num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
 
         # Create space objects once to avoid memory leaks
         # PettingZoo requires same space object instances to be returned
-        self._observation_space_obj = self.c_env.observation_space
-        self._action_space_obj = self.c_env.action_space
+        self._observation_space_obj = self._c_env_instance.observation_space
+        self._action_space_obj = self._c_env_instance.action_space
 
         # Initialize buffer attributes for memory management
         self._observations: Optional[np.ndarray] = None
@@ -117,12 +117,12 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         self._rewards = np.zeros(self.num_agents, dtype=dtype_rewards)
 
         # Set buffers in C++ environment for direct writes
-        self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
+        self._c_env_instance.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
 
     def _setup_agents(self) -> None:
         """Setup agent names after core environment is created."""
         # Create agent names - c_env property handles the None check
-        num_agents = self.c_env.num_agents
+        num_agents = self._c_env_instance.num_agents
         self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
         self.agents = self.possible_agents.copy()
 
@@ -229,16 +229,16 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         """
         # For state, we can return a flattened representation of all current observations
         # Since we don't store observations, we'll create a zero state of appropriate size
-        obs_space = self.c_env.observation_space
-        total_size = self.c_env.num_agents * int(np.prod(obs_space.shape))
+        obs_space = self._c_env_instance.observation_space
+        total_size = self._c_env_instance.num_agents * int(np.prod(obs_space.shape))
         return np.zeros(total_size, dtype=obs_space.dtype)
 
     @property
     def state_space(self) -> spaces.Box:
         """Get state space (optional for PettingZoo)."""
         # State space is flattened observation space
-        obs_space = self.c_env.observation_space
-        total_size = self.c_env.num_agents * int(np.prod(obs_space.shape))
+        obs_space = self._c_env_instance.observation_space
+        total_size = self._c_env_instance.num_agents * int(np.prod(obs_space.shape))
 
         return spaces.Box(
             low=obs_space.low.flatten()[0],
