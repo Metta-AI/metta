@@ -1,0 +1,9 @@
+defaults:
+  - /env/mettagrid/perfect_maze/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 100
+  map_builder:
+    width: 11
+    height: 11

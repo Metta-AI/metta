@@ -1,0 +1,19 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: perfect_maze
+
+simulations:
+  perfect_maze/tiny:
+    env: env/mettagrid/perfect_maze/evals/tiny
+  perfect_maze/small:
+    env: env/mettagrid/perfect_maze/evals/small
+  perfect_maze/medium:
+    env: env/mettagrid/perfect_maze/evals/medium
+  perfect_maze/large:
+    env: env/mettagrid/perfect_maze/evals/large
+  perfect_maze/kruskal_medium:
+    env: env/mettagrid/perfect_maze/evals/kruskal_medium
+  perfect_maze/prim_medium:
+    env: env/mettagrid/perfect_maze/evals/prim_medium

@@ -1,0 +1,54 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: ???
+
+  # Disable resource_rewards observation for backward compatibility with pre-trained policies
+  global_obs:
+    episode_completion_pct: true
+    last_action: true
+    last_reward: true
+    resource_rewards: false # This feature wasn't present when older policies were trained
+
+  # Minimal action set for maze navigation evaluations
+  actions:
+    noop: { enabled: true }
+    move: { enabled: true }
+    rotate: { enabled: true }
+    put_items: { enabled: false }
+    get_items: { enabled: true }  # For collecting rewards
+    attack: { enabled: false }
+    swap: { enabled: false }
+    change_color: { enabled: false }
+    change_glyph: { enabled: false }
+
+  agent:
+    rewards:
+      inventory:
+        heart: 1
+
+  objects:
+    altar:
+      initial_resource_count: 1
+      cooldown: 255
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    border_width: 1
+
+    root:
+      type: metta.map.scenes.perfect_maze.PerfectMaze
+      params:
+        algorithm: recursive_backtracking
+        cell_size: 1
+        wall_size: 1
+      
+      children:
+        - where: full
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              agents: 1

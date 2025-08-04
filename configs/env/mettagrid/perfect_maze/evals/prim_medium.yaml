@@ -1,0 +1,22 @@
+defaults:
+  - /env/mettagrid/perfect_maze/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 500
+  map_builder:
+    width: 31
+    height: 31
+    root:
+      type: metta.map.scenes.perfect_maze.PerfectMaze
+      params:
+        algorithm: prim
+        cell_size: 1
+        wall_size: 1
+
+      children:
+        - where: full
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              agents: 1
