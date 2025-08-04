@@ -435,6 +435,35 @@ class AsanaTask:
 
         return None
 
+    def extract_github_url_from_comment(self, asana_comment_text):
+        """
+        Extract GitHub URL from Asana comment text
+
+        Args:
+            asana_comment_text: The text content of an Asana comment
+
+        Returns:
+            str: GitHub URL if found, None otherwise
+        """
+        if not asana_comment_text:
+            return None
+
+        # Look for href="..." pattern in the comment
+        pattern = r'href="([^"]+)"'
+        match = re.search(pattern, asana_comment_text)
+
+        if match:
+            return match.group(1)
+
+        return None
+
+    def asana_comments_with_links(self):
+        print("[asana_comments_with_links] asana_comments_with_links() called")
+        comments = self.get_comments(self.task_gid)
+        linked_comments = [comment for comment in comments if comment["github_url"] is not None]
+        print(f"[asana_comments_with_links] Found {len(linked_comments)} comments with GitHub links of {len(comments)}")
+        return linked_comments
+
     def get_comments(self, task_id: str):
         """
         Fetches comments for an Asana task
@@ -475,7 +504,7 @@ class AsanaTask:
                 },
                 "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
                 "is_pinned": comment.get("is_pinned", False),
-                "review_id": self.extract_github_review_id(comment.get("text", "")),
+                "github_url": self.extract_github_url_from_comment(comment.get("html_text", "")),
             }
             for comment in comments
         ]
@@ -483,13 +512,6 @@ class AsanaTask:
         print(f"comments in asana: {ret}")
 
         return ret
-
-    def asana_comments_with_links(self):
-        print("[asana_comments_with_links] asana_comments_with_links() called")
-        comments = self.get_comments(self.task_gid)
-        linked_comments = [comment for comment in comments if comment["review_id"] is not None]
-        print(f"[asana_comments_with_links] Found {len(linked_comments)} comments with review links of {len(comments)}")
-        return linked_comments
 
     def synchronize_comments_in_asana(self, comments_from_github: list[dict]) -> None:
         """
@@ -509,11 +531,11 @@ class AsanaTask:
         api_url = f"https://app.asana.com/api/1.0/tasks/{self.task_gid}"
         headers = {"Authorization": f"Bearer {self.asana_token}", "Content-Type": "application/json"}
 
-        # Create a map of review IDs to existing Asana comments
-        existing_comments_by_review_id = {
-            comment["review_id"]: comment for comment in asana_comments_with_links if comment["review_id"] is not None
+        # Create a map of GitHub URLs to existing Asana comments
+        existing_comments_by_github_url = {
+            comment["github_url"]: comment for comment in asana_comments_with_links if comment["github_url"] is not None
         }
-        print(f"[s] Existing comments by review ID: {list(existing_comments_by_review_id.keys())}")
+        print(f"[s] Existing comments by GitHub URL: {list(existing_comments_by_github_url.keys())}")
 
         # Process each GitHub review
         for github_review in comments_from_github:
@@ -524,6 +546,10 @@ class AsanaTask:
             github_timestamp = github_review["timestamp"]
             github_url = github_review.get("html_url")
 
+            if not github_url:
+                print(f"[s] Skipping review {review_id} - no GitHub URL available")
+                continue
+
             print(f"[s] Processing review {review_id} from {github_user} ({review_state})")
 
             # Format the review for Asana
@@ -533,11 +559,11 @@ class AsanaTask:
                 review_body, github_user, review_state, review_id, github_timestamp, github_url
             )
 
-            if review_id in existing_comments_by_review_id:
+            if github_url in existing_comments_by_github_url:
                 print(f"[synchronize_comments_in_asana] Review {review_id} has existing Asana comment")
                 # Update existing comment if content differs
-                existing_comment = existing_comments_by_review_id[review_id]
-                if existing_comment["text"] != formatted_comment:
+                existing_comment = existing_comments_by_github_url[github_url]
+                if existing_comment["html_text"] != formatted_comment:
                     print(f"[s] Updating existing comment for review {review_id}")
                     story_id = existing_comment["id"]
                     url = f"https://app.asana.com/api/1.0/stories/{story_id}"
@@ -547,11 +573,6 @@ class AsanaTask:
                         response = requests.put(url, headers=headers, json=payload)
                         if response.status_code == 200:
                             print(f"Updated Asana comment {story_id} for review {review_id}")
-                            # Attach GitHub URL to the task if available
-                            if github_url:
-                                self.ensure_github_review_url_in_task(
-                                    self.task_url, f"Review {review_id} from {github_user}", github_url, str(review_id)
-                                )
                         else:
                             print(
                                 f"Failed to update Asana comment {story_id}: {response.status_code} - {response.text}"
@@ -562,54 +583,15 @@ class AsanaTask:
                     print(f"[synchronize_comments_in_asana] Review {review_id} comment is up to date")
             else:
                 print(f"[s] Review {review_id} has no existing Asana comment")
-                # Check if we should add this comment (don't add out of order)
-                # Find the last existing comment that matches a GitHub review
-                last_matching_review_id = None
-                for existing_comment in asana_comments_with_links:
-                    if existing_comment["review_id"] is not None:
-                        if existing_comment["review_id"] in {r["id"] for r in comments_from_github}:
-                            last_matching_review_id = existing_comment["review_id"]
+                # Create new comment
+                url = f"{api_url}/stories"
+                payload = {"data": {"html_text": formatted_comment, "type": "comment"}}
+                print(payload)
 
-                # Check if this review comes before the last matching review
-                should_add = True
-                if last_matching_review_id is not None:
-                    # Find the position of the last matching review in the GitHub reviews list
-                    last_matching_index = -1
-                    for i, review in enumerate(comments_from_github):
-                        if review["id"] == last_matching_review_id:
-                            last_matching_index = i
-                            break
-
-                    # Find the position of current review in the GitHub reviews list
-                    current_review_index = -1
-                    for i, review in enumerate(comments_from_github):
-                        if review["id"] == review_id:
-                            current_review_index = i
-                            break
-
-                    # Only add if current review comes after the last matching review
-                    if current_review_index <= last_matching_index:
-                        print(f"[s] Review {review_id} comes before or at last  review {last_matching_review_id}, skip")
-                        should_add = False
-
-                if should_add:
-                    print(f"[s] Adding new comment for review {review_id}")
-                    # Create new comment
-                    url = f"{api_url}/stories"
-                    payload = {"data": {"html_text": formatted_comment, "type": "comment"}}
+                try:
+                    response = requests.post(url, headers=headers, json=payload)
+                    response.raise_for_status()
+                    print(f"Added new Asana comment for review {review_id}")
+                except requests.exceptions.RequestException as e:
+                    print(f"Error adding Asana comment for review {review_id}: {e}")
                     print(payload)
-
-                    try:
-                        response = requests.post(url, headers=headers, json=payload)
-                        response.raise_for_status()
-                        print(f"Added new Asana comment for review {review_id}")
-                        # Attach GitHub URL to the task if available
-                        if github_url:
-                            self.ensure_github_review_url_in_task(
-                                self.task_url, f"Review {review_id} from {github_user}", github_url, str(review_id)
-                            )
-                    except requests.exceptions.RequestException as e:
-                        print(f"Error adding Asana comment for review {review_id}: {e}")
-                        print(payload)
-                else:
-                    print(f"[s] Skipped adding comment for review {review_id} due to ordering constraint")
