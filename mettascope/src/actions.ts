@@ -72,41 +72,66 @@ export function processActions(event: KeyboardEvent) {
     const code = event.code
 
     if (key === 'w' || key === 'ArrowUp' || code === 'Numpad8') {
-      if (orientation !== 0) {
-        // Rotate up.
-        sendAction('rotate', 0)
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 0)
+      } else if (state.replay.action_names.includes('move_cardinal')) {
+        sendAction('move_cardinal', 0)
       } else {
-        // Move forward (up).
-        sendAction('move', 0)
+        if (orientation !== 0) {
+          // Rotate up.
+          sendAction('rotate', 0)
+        } else {
+          // Move forward (up).
+          sendAction('move', 0)
+        }
       }
     }
     if (key === 'a' || key === 'ArrowLeft' || code === 'Numpad4') {
-      if (orientation !== 2) {
-        // Rotate left.
-        sendAction('rotate', 2)
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 6)
+      } else if (state.replay.action_names.includes('move_cardinal')) {
+        sendAction('move_cardinal', 2)
       } else {
-        // Move forward (left).
-        sendAction('move', 0)
+        if (orientation !== 2) {
+          // Rotate left.
+          sendAction('rotate', 2)
+        } else {
+          // Move forward (left).
+          sendAction('move', 0)
+        }
       }
     }
     if (key === 's' || key === 'ArrowDown' || code === 'Numpad2') {
-      if (orientation !== 1) {
-        // Rotate down.
-        sendAction('rotate', 1)
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 4)
+      } else if (state.replay.action_names.includes('move_cardinal')) {
+        sendAction('move_cardinal', 1)
       } else {
-        // Move forward (down).
-        sendAction('move', 0)
+        if (orientation !== 1) {
+          // Rotate down.
+          sendAction('rotate', 1)
+        } else {
+          // Move forward (down).
+          sendAction('move', 0)
+        }
       }
     }
     if (key === 'd' || key === 'ArrowRight' || code === 'Numpad6') {
-      if (orientation !== 3) {
-        // Rotate right.
-        sendAction('rotate', 3)
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 2)
+      } else if (state.replay.action_names.includes('move_cardinal')) {
+        sendAction('move_cardinal', 3)
       } else {
-        // Move forward (right).
-        sendAction('move', 0)
+        if (orientation !== 3) {
+          // Rotate right.
+          sendAction('rotate', 3)
+        } else {
+          // Move forward (right).
+          sendAction('move', 0)
+        }
       }
     }
+
     if (event.key === 'f') {
       // Just move forward.
       sendAction('move', 0)
@@ -125,32 +150,48 @@ export function processActions(event: KeyboardEvent) {
     }
     // Diagonal movement with numpad (4-action approach for true diagonal in one press)
     if (event.code === 'Numpad7') {
-      // Up-Left
-      sendAction('rotate', 0) // Rotate up
-      sendAction('move', 0) // Move up
-      sendAction('rotate', 2) // Rotate left
-      sendAction('move', 0) // Move left
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 7)
+      } else {
+        // Up-Left
+        sendAction('rotate', 0) // Rotate up
+        sendAction('move', 0) // Move up
+        sendAction('rotate', 2) // Rotate left
+        sendAction('move', 0) // Move left
+      }
     }
     if (event.code === 'Numpad9') {
-      // Up-Right
-      sendAction('rotate', 0) // Rotate up
-      sendAction('move', 0) // Move up
-      sendAction('rotate', 3) // Rotate right
-      sendAction('move', 0) // Move right
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 1)
+      } else {
+        // Up-Right
+        sendAction('rotate', 0) // Rotate up
+        sendAction('move', 0) // Move up
+        sendAction('rotate', 3) // Rotate right
+        sendAction('move', 0) // Move right
+      }
     }
     if (event.code === 'Numpad1') {
-      // Down-Left
-      sendAction('rotate', 1) // Rotate down
-      sendAction('move', 0) // Move down
-      sendAction('rotate', 2) // Rotate left
-      sendAction('move', 0) // Move left
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 5)
+      } else {
+        // Down-Left
+        sendAction('rotate', 1) // Rotate down
+        sendAction('move', 0) // Move down
+        sendAction('rotate', 2) // Rotate left
+        sendAction('move', 0) // Move left
+      }
     }
     if (event.code === 'Numpad3') {
-      // Down-Right
-      sendAction('rotate', 1) // Rotate down
-      sendAction('move', 0) // Move down
-      sendAction('rotate', 3) // Rotate right
-      sendAction('move', 0) // Move right
+      if (state.replay.action_names.includes('move_8way')) {
+        sendAction('move_8way', 3)
+      } else {
+        // Down-Right
+        sendAction('rotate', 1) // Rotate down
+        sendAction('move', 0) // Move down
+        sendAction('rotate', 3) // Rotate right
+        sendAction('move', 0) // Move right
+      }
     }
 
     if (event.key === 'x' || event.code === 'Numpad5') {
