@@ -22,12 +22,13 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses
+from metta.rl.losses import Losses, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
     maybe_update_l2_weights,
@@ -37,11 +38,7 @@ from metta.rl.policy_management import (
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
-from metta.rl.advantage import compute_advantage
-from metta.rl.losses import process_minibatch_update
-from metta.rl.ppo import compute_ppo_losses
 from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference, send_observation
-from metta.utils.batch import calculate_prioritized_sampling_params
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -62,7 +59,7 @@ from metta.rl.wandb import (
     upload_policy_artifact,
 )
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.utils.batch import calculate_batch_sizes
+from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]

@@ -5,13 +5,7 @@ from typing import Dict, Tuple
 import torch
 from torch import Tensor
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.rl.advantage import compute_advantage
-from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, process_minibatch_update
 from metta.rl.trainer_config import TrainerConfig
-from metta.utils.batch import calculate_prioritized_sampling_params
 
 
 def compute_ppo_losses(
