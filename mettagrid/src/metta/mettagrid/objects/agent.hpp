@@ -2,6 +2,7 @@
 #define OBJECTS_AGENT_HPP_
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <string>
 #include <vector>
@@ -121,14 +122,16 @@ public:
   }
 
   void increment_visitation_count(GridCoord r, GridCoord c) {
-    if (visitation_counts_enabled && r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) && c >= 0 &&
+    if (!visitation_counts_enabled) return;
+
+    if (r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) && c >= 0 &&
         c < static_cast<GridCoord>(visitation_grid[0].size())) {
       visitation_grid[r][c]++;
     }
   }
 
-  std::vector<unsigned int> get_visitation_counts() const {
-    std::vector<unsigned int> counts(5, 0);
+  std::array<unsigned int, 5> get_visitation_counts() const {
+    std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
     if (!visitation_grid.empty()) {
       counts[0] = get_visitation_count(location.r, location.c);      // center
       counts[1] = get_visitation_count(location.r - 1, location.c);  // up
@@ -256,7 +259,7 @@ private:
   }
 
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
-    if (r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) || c < 0 ||
+    if (visitation_grid.empty() || r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) || c < 0 ||
         c >= static_cast<GridCoord>(visitation_grid[0].size())) {
       return 0;  // Return 0 for out-of-bounds positions
     }
