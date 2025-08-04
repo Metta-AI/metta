@@ -9,11 +9,16 @@ import torch
 logger = logging.getLogger(__name__)
 
 # Set critical NCCL environment variables to prevent hangs
-# NCCL_ASYNC_ERROR_HANDLING=1 allows NCCL to detect and report errors instead of hanging
+# TORCH_NCCL_ASYNC_ERROR_HANDLING=1 allows NCCL to detect and report errors instead of hanging
 # This is crucial for preventing the "rank 0 stuck at barrier" issue
-if "NCCL_ASYNC_ERROR_HANDLING" not in os.environ:
-    os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1"
-    logger.info("Set NCCL_ASYNC_ERROR_HANDLING=1 to prevent distributed training hangs")
+if "TORCH_NCCL_ASYNC_ERROR_HANDLING" not in os.environ:
+    os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
+    logger.info("Set TORCH_NCCL_ASYNC_ERROR_HANDLING=1 to prevent distributed training hangs")
+
+# Also set NCCL_BLOCKING_WAIT to ensure proper synchronization
+if "NCCL_BLOCKING_WAIT" not in os.environ:
+    os.environ["NCCL_BLOCKING_WAIT"] = "1"
+    logger.info("Set NCCL_BLOCKING_WAIT=1 for proper barrier synchronization")
 
 
 def setup_distributed_vars() -> Tuple[bool, int, int]:
@@ -89,7 +94,16 @@ def cleanup_distributed() -> None:
     if torch.distributed.is_initialized():
         # Ensure all ranks synchronize before destroying process group
         logger.info(f"Rank {torch.distributed.get_rank()}: Entering cleanup barrier")
-        torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited cleanup barrier")
+
+        # Use monitored_barrier with timeout to handle crashed processes
+        from datetime import timedelta
+
+        try:
+            torch.distributed.monitored_barrier(timeout=timedelta(seconds=300))  # 5 minute timeout
+            logger.info(f"Rank {torch.distributed.get_rank()}: Exited cleanup barrier")
+        except Exception as e:
+            logger.warning(f"Rank {torch.distributed.get_rank()}: Cleanup barrier timed out or failed: {e}")
+            # Continue with cleanup even if barrier fails
+
         torch.distributed.destroy_process_group()
         logger.info("Destroyed distributed process group")

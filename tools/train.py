@@ -195,8 +195,19 @@ def main(cfg: DictConfig) -> int:
         # This prevents the hang where some ranks destroy their NCCL communicators
         # while rank 0 is still in WandB cleanup or other ranks are at barriers
         logger.info(f"Rank {torch.distributed.get_rank()}: Entering final train.py barrier (after all work complete)")
-        torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final train.py barrier, now destroying process group")
+
+        # Use monitored_barrier with timeout to handle the case where some processes may have crashed
+        # This prevents indefinite hangs
+        from datetime import timedelta
+
+        try:
+            torch.distributed.monitored_barrier(timeout=timedelta(seconds=300))  # 5 minute timeout
+            logger.info(f"Rank {torch.distributed.get_rank()}: Exited final train.py barrier")
+        except Exception as e:
+            logger.warning(f"Rank {torch.distributed.get_rank()}: Final barrier timed out or failed: {e}")
+            # Even if barrier fails, we still need to clean up
+
+        logger.info(f"Rank {torch.distributed.get_rank()}: Destroying process group")
         torch.distributed.destroy_process_group()
         logger.info("Process group destroyed successfully")
 
