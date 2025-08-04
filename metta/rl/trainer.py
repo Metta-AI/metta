@@ -172,6 +172,8 @@ def train(
         rank=rank,
     )
 
+    logger.info(f"Policy: {policy}")
+
     # Validate that policy matches environment
     validate_policy_environment_match(policy, metta_grid_env)
 
