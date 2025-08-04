@@ -87,5 +87,3 @@ experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
 tools/gdrive_upload/credentials.json
 tools/gdrive_upload/token.json
-tools/gdrive_upload/credentials.json
-tools/gdrive_upload/token.json
