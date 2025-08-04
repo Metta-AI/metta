@@ -10,6 +10,7 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAge
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.util.collections import remove_none_values
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.kickstarter import Kickstarter
@@ -17,6 +18,7 @@ from metta.rl.policy_management import cleanup_old_policies
 from metta.rl.puffer_policy import PytorchAgent
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import CheckpointConfig
+from metta.rl.utils import should_run
 
 logger = logging.getLogger(__name__)
 
@@ -80,22 +82,14 @@ class CheckpointManager:
         Returns:
             True if checkpoint was saved, False otherwise
         """
-        # Combined check: save only if (forced OR at interval) AND is master
-        checkpoint_interval = self.checkpoint_cfg.checkpoint_interval
-        should_save = force or (checkpoint_interval and epoch % checkpoint_interval == 0)
-        if not should_save or not self.is_master:
+        should_save = should_run(epoch, self.checkpoint_cfg.checkpoint_interval, self.is_master, force)
+        if not should_save:
             return False
 
         logger.info(f"Saving checkpoint at epoch {epoch}")
 
         # Record heartbeat to prevent timeout during long save operations
         record_heartbeat()
-
-        # Build extra args if kickstarter is provided
-        extra_args = {}
-        if kickstarter and hasattr(kickstarter, "enabled") and kickstarter.enabled:
-            if hasattr(kickstarter, "teacher_uri") and kickstarter.teacher_uri is not None:
-                extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
 
         # Create checkpoint
         checkpoint = TrainerCheckpoint(
@@ -104,7 +98,7 @@ class CheckpointManager:
             optimizer_state_dict=optimizer.state_dict(),
             policy_path=policy_path,
             stopwatch_state=timer.save_state(),
-            extra_args=extra_args,
+            extra_args=remove_none_values({"teacher_pr_uri": kickstarter and kickstarter.teacher_uri}),
         )
 
         # Save checkpoint
@@ -140,8 +134,7 @@ class CheckpointManager:
             Saved policy record or None
         """
         # Check if we should save based on interval (all ranks must agree)
-        checkpoint_interval = self.checkpoint_cfg.checkpoint_interval
-        if not force and checkpoint_interval and epoch % checkpoint_interval != 0:
+        if not force and not should_run(epoch, self.checkpoint_cfg.checkpoint_interval, self.is_master):
             return None
 
         # Now all ranks that should save are here
@@ -207,7 +200,7 @@ class CheckpointManager:
         logger.info(f"Successfully saved policy at epoch {epoch}")
 
         # Clean up old policies periodically
-        if epoch % 10 == 0:
+        if should_run(epoch, 10, self.is_master):
             cleanup_old_policies(self.checkpoint_cfg.checkpoint_dir)
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
@@ -215,10 +208,3 @@ class CheckpointManager:
             torch.distributed.barrier()
 
         return saved_policy_record
-
-    def should_checkpoint(self, epoch: int, force: bool = False) -> bool:
-        if force:
-            return True
-
-        checkpoint_interval = self.checkpoint_cfg.checkpoint_interval
-        return bool(checkpoint_interval and epoch % checkpoint_interval == 0)

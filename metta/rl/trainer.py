@@ -478,7 +478,7 @@ def train(
             maybe_update_l2_weights(policy, epoch, interval, is_master)
 
         # Save policy - all ranks must participate in checkpoint decision
-        if checkpoint_manager.should_checkpoint(epoch):
+        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master):
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
                 epoch=epoch,
@@ -571,8 +571,8 @@ def train(
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort every 5 epochs
-        if is_master and wandb_run and epoch % 5 == 0:
-            if abort_requested(wandb_run, min_interval_sec=60):
+        if should_run(epoch, 5, is_master):
+            if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
                 logger.info("Abort tag detected. Stopping the run.")
                 trainer_cfg.total_timesteps = int(agent_step)
                 wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)

@@ -699,7 +699,7 @@ while agent_step < trainer_config.total_timesteps:
         stats_tracker.grad_stats = compute_gradient_stats(agent)
 
     # Save checkpoint periodically - all ranks must participate in checkpoint decision
-    if checkpoint_manager.should_checkpoint(epoch):
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, is_master):
         saved_record = checkpoint_manager.save_policy(
             policy=agent,
             epoch=epoch,
@@ -834,7 +834,7 @@ while agent_step < trainer_config.total_timesteps:
         last_evaluation_epoch = epoch
 
         # Upload replay HTML if we have replay URLs
-        if is_master and wandb_run and hasattr(results, "replay_urls") and results.replay_urls:
+        if is_master and wandb_run and results.replay_urls:
             upload_replay_html(
                 replay_urls=results.replay_urls,
                 agent_step=agent_step,
