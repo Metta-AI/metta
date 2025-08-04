@@ -538,6 +538,12 @@ def train(
                 force=True,
             )
 
+    # Final synchronization before cleanup
+    if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final barrier")
+        torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final barrier")
+
     # Upload to WandB after all ranks have synchronized
     if wandb_run and latest_saved_policy_record:
         logger.info(
@@ -547,12 +553,6 @@ def train(
         logger.info(
             f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Completed WandB upload"
         )
-
-    # Final synchronization before cleanup and WandB operations
-    if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final barrier")
-        torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final barrier")
 
     # Cleanup
     logger.info(f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Starting cleanup")
