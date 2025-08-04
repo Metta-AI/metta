@@ -1,7 +1,8 @@
 """
 Tests for PufferLib integration with MettaGrid.
 
-This module tests the MettaGridPufferEnv with PufferLib's CLI interface.
+This module tests PufferLib's ability to load and run Metta environments
+through their CLI interface using their MettaPuff wrapper.
 """
 
 import subprocess
