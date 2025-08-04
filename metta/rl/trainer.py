@@ -189,9 +189,7 @@ def train(
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
-        torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
-        torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
@@ -534,13 +532,7 @@ def train(
                 force=True,
             )
 
-    # All ranks must synchronize after final save operations
-    if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering post-save barrier")
-        torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited post-save barrier")
-
-    # Final synchronization before cleanup
+    # Final synchronization before cleanup and WandB operations
     if torch.distributed.is_initialized():
         logger.info(f"Rank {torch.distributed.get_rank()}: Entering final barrier")
         torch.distributed.barrier()
