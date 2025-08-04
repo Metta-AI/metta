@@ -961,30 +961,32 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
         )
 
 # Force final saves - all ranks must participate
-if is_master:
-    saved_record = checkpoint_manager.save_policy(
-        policy=agent,
-        epoch=epoch,
+saved_record = checkpoint_manager.save_policy(
+    policy=agent,
+    epoch=epoch,
+    agent_step=agent_step,
+    evals=eval_scores,
+    timer=timer,
+    initial_policy_record=initial_policy_record,
+    force=True,
+)
+
+if saved_record:
+    latest_saved_policy_record = saved_record
+
+# Only master saves training state
+if is_master and saved_record:
+    # Save final training state
+    checkpoint_manager.save_checkpoint(
         agent_step=agent_step,
-        evals=eval_scores,
+        epoch=epoch,
+        optimizer=optimizer,
+        policy_path=saved_record.uri,
         timer=timer,
-        initial_policy_record=initial_policy_record,
+        run_dir=dirs.run_dir,
+        kickstarter=kickstarter,
         force=True,
     )
-
-    if saved_record:
-        latest_saved_policy_record = saved_record
-        # Save final training state
-        checkpoint_manager.save_checkpoint(
-            agent_step=agent_step,
-            epoch=epoch,
-            optimizer=optimizer,
-            policy_path=saved_record.uri,
-            timer=timer,
-            run_dir=dirs.run_dir,
-            kickstarter=kickstarter,
-            force=True,
-        )
 
 # All ranks must synchronize after final save operations
 if torch.distributed.is_initialized():

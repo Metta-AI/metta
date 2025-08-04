@@ -105,8 +105,7 @@ class CheckpointManager:
         if torch.distributed.is_initialized() and not self.is_master:
             # Non-master waits for master to create
             logger.info(f"Rank {self.rank}: Waiting for master to create policy at {default_path}")
-            torch.distributed.barrier()
-
+            # NOTE: Barrier removed - synchronization handled at call site
             if not wait_for_file(default_path, timeout=300):
                 raise RuntimeError(f"Rank {self.rank}: Timeout waiting for policy at {default_path}")
 
@@ -120,10 +119,7 @@ class CheckpointManager:
             pr.policy = make_policy(metta_grid_env, cfg)
             saved_pr = self.policy_store.save(pr)
             logger.info(f"Created and saved new policy to {saved_pr.uri}")
-
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-
+            # NOTE: Barrier removed - synchronization handled at call site
             return checkpoint, saved_pr, agent_step, epoch
 
     def save_checkpoint(
@@ -301,10 +297,7 @@ class CheckpointManager:
             if epoch % 10 == 0:
                 cleanup_old_policies(self.checkpoint_dir)
 
-        # Synchronize all ranks to ensure the policy is fully saved before continuing
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
+        # NOTE: Barrier removed - synchronization handled at call site
         return saved_policy_record
 
     def should_checkpoint(self, epoch: int, force: bool = False) -> bool:
