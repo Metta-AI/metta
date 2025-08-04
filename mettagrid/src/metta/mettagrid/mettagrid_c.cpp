@@ -12,6 +12,7 @@
 #include "actions/attack.hpp"
 #include "actions/change_color.hpp"
 #include "actions/change_glyph.hpp"
+#include "actions/color_tree.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/move_cardinal.hpp"
@@ -111,6 +112,13 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name_str == "change_color") {
       _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
+    } else if (action_name_str == "color_tree") {
+      const ColorTreeActionConfig* color_tree_config =
+          dynamic_cast<const ColorTreeActionConfig*>(action_config.get());
+      if (!color_tree_config) {
+        throw std::runtime_error("ColorTreeActionConfig is not a valid action config");
+      }
+      _action_handlers.push_back(std::make_unique<ColorTree>(*color_tree_config));
     } else {
       throw std::runtime_error("Unknown action: " + action_name_str);
     }
@@ -1005,6 +1013,22 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("number_of_glyphs"))
       .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
+
+  py::class_<ColorTreeActionConfig, ActionConfig, std::shared_ptr<ColorTreeActionConfig>>(m,
+                                                                                           "ColorTreeActionConfig")
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::vector<uint8_t>&,
+                    float,
+                    const std::map<uint8_t, InventoryItem>&>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("target_sequence"),
+           py::arg("sequence_reward"),
+           py::arg("color_to_item"))
+      .def_readonly("target_sequence", &ColorTreeActionConfig::target_sequence)
+      .def_readonly("sequence_reward", &ColorTreeActionConfig::sequence_reward)
+      .def_readonly("color_to_item", &ColorTreeActionConfig::color_to_item);
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())

@@ -124,6 +124,14 @@ class PyChangeGlyphActionConfig(PyActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
+class PyColorTreeActionConfig(PyActionConfig):
+    """Color tree action configuration."""
+
+    target_sequence: list[int] = Field(default_factory=list, description="Target color sequence to match")
+    sequence_reward: float = Field(default=1.0, description="Reward given for correct sequence match")
+    color_to_item: dict[int, str] = Field(default_factory=dict, description="Maps color values to inventory item names")
+
+
 class PyActionsConfig(BaseModelWithForbidExtra):
     """
     Actions configuration.
@@ -142,6 +150,7 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     swap: Optional[PyActionConfig] = None
     change_color: Optional[PyActionConfig] = None
     change_glyph: Optional[PyChangeGlyphActionConfig] = None
+    color_tree: Optional[PyColorTreeActionConfig] = None
 
 
 class PyGlobalObsConfig(BaseModelWithForbidExtra):

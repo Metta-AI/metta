@@ -1,0 +1,5 @@
+# Simple curriculum for ColorTree sequence learning
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/colortree_demo: 1.0

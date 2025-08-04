@@ -1,0 +1,7 @@
+name: colortree_nosim
+num_episodes: 1
+max_time_s: 60
+env_overrides: {}
+
+# No simulations - empty dict means no evaluations run
+simulations: {}

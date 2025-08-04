@@ -1,0 +1,56 @@
+# Simple ColorTree sequence learning environment
+defaults:
+  - mettagrid
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: 500
+  obs_width: 11
+  obs_height: 11
+
+  # Simple 3x3 map
+  map_builder:
+    _target_: metta.mettagrid.room.random.Random
+    width: 3
+    height: 3
+    border_width: 0
+    agents: 1
+    seed: 42
+    objects: {}
+
+  # Agent config
+  agent:
+    resource_limits:
+      ore_red: 10
+      ore_blue: 10
+      ore_green: 10
+
+  # Only enable ColorTree and noop actions
+  actions:
+    noop:
+      enabled: false
+    move:
+      enabled: false
+    rotate:
+      enabled: false
+    put_items:
+      enabled: false
+    get_items:
+      enabled: false
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    change_glyph:
+      enabled: false
+    color_tree:
+      enabled: true
+      target_sequence: [10, 20, 30]  # Simple sequence within embedding range
+      sequence_reward: 5.0
+      color_to_item:
+        10: ore_red     # Map color 10 to red ore
+        20: ore_green   # Map color 20 to green ore
+        30: ore_blue    # Map color 30 to blue ore

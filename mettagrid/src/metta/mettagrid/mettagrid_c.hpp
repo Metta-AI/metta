@@ -40,6 +40,7 @@ struct GameConfig;
 struct ActionConfig;
 struct AttackActionConfig;
 struct ChangeGlyphActionConfig;
+struct ColorTreeActionConfig;
 
 namespace py = pybind11;
 

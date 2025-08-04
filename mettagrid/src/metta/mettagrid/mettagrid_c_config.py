@@ -4,6 +4,7 @@ from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
+from metta.mettagrid.mettagrid_c import ColorTreeActionConfig as CppColorTreeActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
@@ -177,6 +178,15 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
         elif action_name == "change_glyph":
             action_cpp_params["number_of_glyphs"] = action_config["number_of_glyphs"]
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**action_cpp_params)
+        elif action_name == "color_tree":
+            action_cpp_params["target_sequence"] = action_config["target_sequence"]
+            action_cpp_params["sequence_reward"] = action_config["sequence_reward"]
+            action_cpp_params["color_to_item"] = {
+                color: resource_name_to_id[item_name]
+                for color, item_name in action_config["color_to_item"].items()
+                if item_name in resource_name_to_id
+            }
+            actions_cpp_params[action_name] = CppColorTreeActionConfig(**action_cpp_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 

@@ -1,0 +1,9 @@
+# No evaluations for ColorTree
+defaults:
+  - sim_suite
+  - _self_
+
+name: colortree
+
+# Empty simulations means no evaluations
+simulations: {}
