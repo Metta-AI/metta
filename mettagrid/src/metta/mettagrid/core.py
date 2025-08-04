@@ -274,11 +274,6 @@ class MettaGridCore:
     def action_success(self) -> List[bool]:
         return self.c_env.action_success()
 
-    @property
-    def global_features(self) -> List[Any]:
-        """Global features for compatibility."""
-        return []
-
     def get_observation_features(self) -> Dict[str, Dict]:
         """
         Build the features dictionary for initialize_to_environment.

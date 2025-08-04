@@ -21,7 +21,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicySelectorType, PolicyStore
+from metta.agent.policy_store import PolicySelectorType
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
@@ -29,6 +29,7 @@ from metta.eval.eval_service import evaluate_policy
 from metta.rl.env_config import create_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
+from tools.utils import get_policy_store_from_cfg
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -78,7 +79,7 @@ def main(cfg: DictConfig) -> None:
     # Create env config
     env_cfg = create_env_config(cfg)
 
-    policy_store = PolicyStore(cfg, None)
+    policy_store = get_policy_store_from_cfg(cfg)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client:
         stats_client.validate_authenticated()

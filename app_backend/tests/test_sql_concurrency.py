@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from tests.base_async_test import BaseAsyncTest
 
 
+@pytest.mark.slow
 class TestSQLConcurrency(BaseAsyncTest):
     """Tests for SQL route concurrency to validate async behavior."""
 

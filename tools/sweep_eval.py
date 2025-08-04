@@ -4,7 +4,9 @@
 import logging
 import sys
 
-import numpy as np  # noqa: E402
+import numpy as np
+
+from tools.utils import get_policy_store_from_cfg  # noqa: E402
 
 if not hasattr(np, "byte"):
     np.byte = np.int8
@@ -16,7 +18,6 @@ import time
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.agent.policy_store import PolicyStore
 from metta.common.util.lock import run_once
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -62,7 +63,7 @@ def main(cfg: DictConfig) -> int:
         logger.info(f"Starting evaluation for run: {cfg.run}")
 
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            policy_store = PolicyStore(cfg, wandb_run)
+            policy_store = get_policy_store_from_cfg(cfg, wandb_run)
             try:
                 # Fetch the latest policy record from the run
                 policy_pr = policy_store.policy_record("wandb://run/" + cfg.run, selector_type="latest")
