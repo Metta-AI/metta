@@ -493,22 +493,25 @@ class AsanaTask:
             if story.get("type") == "comment" or story.get("resource_subtype") == "comment_added"
         ]
         print(f"[get_comments] Found {len(comments)} comment stories out of {len(data['data'])} total stories")
-        ret = [
-            {
-                "id": comment.get("gid"),
-                "text": comment.get("text", ""),
-                "html_text": comment.get("html_text", ""),
-                "author": {
-                    "name": comment.get("created_by", {}).get("name", "Unknown"),
-                    "email": comment.get("created_by", {}).get("email"),
-                },
-                "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
-                "is_pinned": comment.get("is_pinned", False),
-                "github_url": self.extract_github_url_from_comment(comment.get("html_text", "")),
-            }
-            for comment in comments
-        ]
-        print(f"[get_comments] Processed {len(ret)} comments")
+        ret = []
+        for comment in comments:
+            github_url = self.extract_github_url_from_comment(comment.get("html_text", ""))
+            if github_url:  # Only include comments that have GitHub URLs
+                ret.append(
+                    {
+                        "id": comment.get("gid"),
+                        "text": comment.get("text", ""),
+                        "html_text": comment.get("html_text", ""),
+                        "author": {
+                            "name": comment.get("created_by", {}).get("name", "Unknown"),
+                            "email": comment.get("created_by", {}).get("email"),
+                        },
+                        "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
+                        "is_pinned": comment.get("is_pinned", False),
+                        "github_url": github_url,
+                    }
+                )
+        print(f"[get_comments] Processed {len(ret)} comments with GitHub URLs")
         print(f"comments in asana: {ret}")
 
         return ret
@@ -532,9 +535,7 @@ class AsanaTask:
         headers = {"Authorization": f"Bearer {self.asana_token}", "Content-Type": "application/json"}
 
         # Create a map of GitHub URLs to existing Asana comments
-        existing_comments_by_github_url = {
-            comment["github_url"]: comment for comment in asana_comments_with_links if comment["github_url"] is not None
-        }
+        existing_comments_by_github_url = {comment["github_url"]: comment for comment in asana_comments_with_links}
         print(f"[s] Existing comments by GitHub URL: {list(existing_comments_by_github_url.keys())}")
 
         # Process each GitHub review
