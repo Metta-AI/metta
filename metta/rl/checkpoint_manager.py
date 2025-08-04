@@ -54,7 +54,76 @@ class CheckpointManager:
         self.run_name = run_name
 
         # Ensure checkpoint directory exists
-        Path(self.checkpoint_cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+        Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+    def load_checkpoint(
+        self,
+        run_dir: str,
+        metta_grid_env: Any,
+        cfg: Any,
+    ) -> Tuple[TrainerCheckpoint | None, Any, int, int]:
+        """Load checkpoint and policy if they exist, or create new ones.
+
+        Args:
+            run_dir: Directory containing checkpoints
+            metta_grid_env: MettaGridEnv instance for policy creation
+            cfg: Full config for policy creation
+
+        Returns:
+            Tuple of (checkpoint, policy_record, agent_step, epoch)
+        """
+        # Try to load trainer checkpoint
+        checkpoint = TrainerCheckpoint.load(run_dir)
+        agent_step = 0
+        epoch = 0
+
+        if checkpoint:
+            agent_step = checkpoint.agent_step
+            epoch = checkpoint.epoch
+            logger.info(f"Restored from checkpoint at {agent_step} steps")
+
+        # Try to load policy from checkpoint
+        if checkpoint and checkpoint.policy_path:
+            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+            policy_record = self.policy_store.policy_record(checkpoint.policy_path)
+            self._restore_feature_mapping(policy_record)
+            return checkpoint, policy_record, agent_step, epoch
+
+        # Try to load initial policy from config
+        if self.trainer_cfg.initial_policy and self.trainer_cfg.initial_policy.uri:
+            logger.info(f"Loading initial policy URI: {self.trainer_cfg.initial_policy.uri}")
+            policy_record = self.policy_store.policy_record(self.trainer_cfg.initial_policy.uri)
+            self._restore_feature_mapping(policy_record)
+            return checkpoint, policy_record, agent_step, epoch
+
+        # Check for existing policy at default path
+        default_path = os.path.join(self.checkpoint_dir, self.policy_store.make_model_name(0))
+        if os.path.exists(default_path):
+            logger.info(f"Loading policy from default path: {default_path}")
+            policy_record = self.policy_store.policy_record(default_path)
+            self._restore_feature_mapping(policy_record)
+            return checkpoint, policy_record, agent_step, epoch
+
+        # Create new policy with distributed coordination
+        if torch.distributed.is_initialized() and not self.is_master:
+            # Non-master waits for master to create
+            logger.info(f"Rank {self.rank}: Waiting for master to create policy at {default_path}")
+            # NOTE: Barrier removed - synchronization handled at call site
+            if not wait_for_file(default_path, timeout=300):
+                raise RuntimeError(f"Rank {self.rank}: Timeout waiting for policy at {default_path}")
+
+            policy_record = self.policy_store.policy_record(default_path)
+            self._restore_feature_mapping(policy_record)
+            return checkpoint, policy_record, agent_step, epoch
+        else:
+            # Master creates new policy
+            name = self.policy_store.make_model_name(0)
+            pr = self.policy_store.create_empty_policy_record(name)
+            pr.policy = make_policy(metta_grid_env, cfg)
+            saved_pr = self.policy_store.save(pr)
+            logger.info(f"Created and saved new policy to {saved_pr.uri}")
+            # NOTE: Barrier removed - synchronization handled at call site
+            return checkpoint, saved_pr, agent_step, epoch
 
     def save_checkpoint(
         self,
@@ -82,8 +151,15 @@ class CheckpointManager:
         Returns:
             True if checkpoint was saved, False otherwise
         """
-        should_save = should_run(epoch, self.checkpoint_cfg.checkpoint_interval, self.is_master, force)
+        # Combined check: save only if (forced OR at interval) AND is master
+        checkpoint_interval = self.trainer_cfg.checkpoint.checkpoint_interval
+        should_save = force or (checkpoint_interval and epoch % checkpoint_interval == 0)
         if not should_save:
+            return False
+
+        # This method should only be called by master
+        if not self.is_master:
+            logger.warning(f"save_checkpoint called on non-master rank {self.rank}")
             return False
 
         logger.info(f"Saving checkpoint at epoch {epoch}")
@@ -140,11 +216,9 @@ class CheckpointManager:
             return None
 
         # Now all ranks that should save are here
-        # Only master saves policies, but all ranks must participate in barrier
+        # This method should only be called by master
         if not self.is_master:
-            # Non-master ranks need to participate in the barrier below
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+            logger.warning(f"save_policy called on non-master rank {self.rank}")
             return None
 
         logger.info(f"Saving policy at epoch {epoch}")
@@ -205,8 +279,5 @@ class CheckpointManager:
         if should_run(epoch, 10, self.is_master):
             cleanup_old_policies(self.checkpoint_cfg.checkpoint_dir)
 
-        # Synchronize all ranks to ensure the policy is fully saved before continuing
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
+        # NOTE: Barrier removed - synchronization handled at call site
         return saved_policy_record

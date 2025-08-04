@@ -81,6 +81,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
 
     # All ranks participate in training
     # The train.sh script handles distributed coordination
+    assert wandb_run_id is not None
     train_for_run(
         run_name=run_name,
         train_job_cfg=train_job_cfg,
