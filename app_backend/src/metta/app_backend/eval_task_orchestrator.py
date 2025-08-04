@@ -88,50 +88,58 @@ class EvalTaskOrchestrator:
     async def _kill_dead_workers_and_tasks(
         self, claimed_tasks: list[TaskResponse], alive_workers_by_name: dict[str, WorkerInfo]
     ) -> None:
-        for task in claimed_tasks:
-            if task.assignee and task.assignee not in alive_workers_by_name:
-                reason = "worker_dead"
-            elif task.assigned_at and task.assigned_at < datetime.now(timezone.utc) - timedelta(minutes=10):
-                reason = "worker_timeout"
-            else:
-                continue
+        try:
+            for task in claimed_tasks:
+                if task.assignee and task.assignee not in alive_workers_by_name:
+                    reason = "worker_dead"
+                elif task.assigned_at and task.assigned_at < datetime.now(timezone.utc) - timedelta(minutes=10):
+                    reason = "worker_timeout"
+                else:
+                    continue
 
-            if task.retries < 3:
-                status = "unprocessed"
-            else:
-                status = "error"
+                if task.retries < 3:
+                    status = "unprocessed"
+                else:
+                    status = "error"
 
-            self._logger.info(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
-            await self._task_client.update_task_status(
-                TaskUpdateRequest(
-                    updates={
-                        task.id: TaskStatusUpdate(
-                            status=status, clear_assignee=True, attributes={f"unassign_reason_{task.retries}": reason}
-                        )
-                    }
+                self._logger.info(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
+                await self._task_client.update_task_status(
+                    TaskUpdateRequest(
+                        updates={
+                            task.id: TaskStatusUpdate(
+                                status=status,
+                                clear_assignee=True,
+                                attributes={f"unassign_reason_{task.retries}": reason},
+                            )
+                        }
+                    )
                 )
-            )
 
-            if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
-                self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
-                self._worker_manager.cleanup_worker(worker.worker.name)
-                del alive_workers_by_name[worker.worker.name]
+                if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
+                    self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
+                    self._worker_manager.cleanup_worker(worker.worker.name)
+                    del alive_workers_by_name[worker.worker.name]
+        except Exception as e:
+            self._logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
 
     async def _kill_idle_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
-        for worker in alive_workers_by_name.values():
-            if worker.assigned_task:
-                continue
+        try:
+            for worker in alive_workers_by_name.values():
+                if worker.assigned_task:
+                    continue
 
-            latest_task = await self._task_client.get_latest_assigned_task_for_worker(worker.worker.name)
-            last_task_assigned_at = datetime.min
-            if latest_task and latest_task.assigned_at:
-                last_task_assigned_at = latest_task.assigned_at.replace(tzinfo=timezone.utc)
-            idle_duration = (datetime.now(timezone.utc) - last_task_assigned_at).total_seconds()
+                latest_task = await self._task_client.get_latest_assigned_task_for_worker(worker.worker.name)
+                last_task_assigned_at = datetime.min
+                if latest_task and latest_task.assigned_at:
+                    last_task_assigned_at = latest_task.assigned_at.replace(tzinfo=timezone.utc)
+                idle_duration = (datetime.now(timezone.utc) - last_task_assigned_at).total_seconds()
 
-            if idle_duration > self._worker_idle_timeout:
-                self._logger.info(f"Killing idle worker {worker.worker.name}")
-                self._worker_manager.cleanup_worker(worker.worker.name)
-                del alive_workers_by_name[worker.worker.name]
+                if idle_duration > self._worker_idle_timeout:
+                    self._logger.info(f"Killing idle worker {worker.worker.name}")
+                    self._worker_manager.cleanup_worker(worker.worker.name)
+                    del alive_workers_by_name[worker.worker.name]
+        except Exception as e:
+            self._logger.error(f"Error killing idle workers: {e}", exc_info=True)
 
     async def _assign_task_to_worker(
         self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[TaskResponse]]
@@ -167,8 +175,6 @@ class EvalTaskOrchestrator:
     async def _start_new_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
         # Todo: start workers on demand.  For now just start fixed number of workers
         for _ in range(self._max_workers - len(alive_workers_by_name)):
-            # Reuse the orchestrator's client for workers to maintain test setup
-            # Note: worker manager implementations should store necessary tokens/config
             self._worker_manager.start_worker()
 
     @trace("orchestrator.run_cycle")
