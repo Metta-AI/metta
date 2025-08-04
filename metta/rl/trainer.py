@@ -138,9 +138,8 @@ def train(
 
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
-        checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
         policy_store=policy_store,
-        trainer_cfg=trainer_cfg,
+        checkpoint_config=trainer_cfg.checkpoint,
         device=device,
         is_master=is_master,
         rank=rank,
@@ -527,7 +526,7 @@ def train(
 
                 # Create extended simulation suite that includes the training task
                 # Deep merge trainer env_overrides with sim_suite_config env_overrides
-                merged_env_overrides = OmegaConf.to_container(
+                merged_env_overrides: dict = OmegaConf.to_container(  # type: ignore
                     OmegaConf.merge(sim_suite_config.env_overrides, trainer_cfg.env_overrides)
                 )
                 extended_suite_config = SimulationSuiteConfig(
