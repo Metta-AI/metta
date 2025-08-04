@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Tuple
 
 import numpy as np
 from gymnasium.spaces import Discrete
@@ -22,7 +21,7 @@ class LearningProgressCurriculum(RandomCurriculum):
 
     def __init__(
         self,
-        tasks: Dict[str, float] | DictConfig[str, float],
+        tasks: dict[str, float] | DictConfig,
         env_overrides: DictConfig | None = None,
         ema_timescale: float = 0.001,
         progress_smoothing: float = 0.05,
@@ -73,7 +72,7 @@ class LearningProgressCurriculum(RandomCurriculum):
 
         super().complete_task(id, score)
 
-    def stats(self) -> Dict[str, float]:
+    def get_curriculum_stats(self) -> dict[str, float]:
         """Get learning progress statistics for logging."""
         return self._lp_tracker.add_stats()
 
@@ -83,13 +82,14 @@ class BidirectionalLearningProgress:
 
     def __init__(
         self,
+        /,
         search_space: int | Discrete,
-        ema_timescale: float = 0.001,
-        progress_smoothing: float = 0.05,
-        num_active_tasks: int = 16,
-        rand_task_rate: float = 0.25,
-        sample_threshold: int = 10,
-        memory: int = 25,
+        ema_timescale: float,
+        progress_smoothing: float,
+        num_active_tasks: int,
+        rand_task_rate: float,
+        sample_threshold: int,
+        memory: int,
     ) -> None:
         if isinstance(search_space, int):
             search_space = Discrete(search_space)
@@ -120,7 +120,7 @@ class BidirectionalLearningProgress:
         self._task_dist = None
         self._stale_dist = True
 
-    def add_stats(self) -> Dict[str, float]:
+    def add_stats(self) -> dict[str, float]:
         """Return learning progress statistics for logging."""
         stats = {}
         stats["lp/num_active_tasks"] = len(self._sample_levels)
@@ -295,7 +295,7 @@ class BidirectionalLearningProgress:
         self._counter = {i: 0 for i in self._sample_levels}
         return self._sample_levels
 
-    def calculate_dist(self) -> Tuple[np.ndarray, np.ndarray]:
+    def calculate_dist(self) -> tuple[np.ndarray, np.ndarray]:
         """Calculate task distribution and sample levels based on learning progress."""
         if all([v < self._sample_threshold for k, v in self._counter.items()]) and self._random_baseline is not None:
             # Ensure we have valid task_dist and sample_levels

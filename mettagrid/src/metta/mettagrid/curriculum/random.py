@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Dict
 
 from omegaconf import DictConfig, OmegaConf
 
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class RandomCurriculum(MultiTaskCurriculum):
     """Curriculum that samples from multiple environment types with fixed weights."""
 
-    def __init__(self, tasks: Dict[str, float] | DictConfig[str, float], env_overrides: DictConfig | None = None):
+    def __init__(self, tasks: dict[str, float] | DictConfig, env_overrides: DictConfig | None = None):
         if isinstance(tasks, DictConfig):
             tasks = OmegaConf.to_container(tasks)
 
