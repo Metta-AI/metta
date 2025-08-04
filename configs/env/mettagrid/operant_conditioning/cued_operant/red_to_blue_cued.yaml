@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/operant_conditioning/trial_and_error/defaults@
+  - /env/mettagrid/operant_conditioning/defaults@
   - _self_
 
 game:

@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: operantconditioning
+  - sim: operant_conditioning
   - _self_
 
 run: null # Auto-generated if not provided
@@ -10,21 +10,21 @@ policy_uri: ???
 sim_job:
   policy_uris:
     - wandb://run/george.operantconditioning.smoketestfour.2.07-31
-    - wandb://run/george.operantconditioning.backchaining.2.07-31
-    - wandb://run/george.operantconditioning.smoketestthree.2.07-31
-    - wandb://run/george.operantconditioning.smoketesttwo.2.07-31
-    - wandb://run/daphne.operantconditioning.backchaining.earlyterm.2.0.7.07-31
-    - wandb://run/daphne.operantconditioning.backchaining.earlyterm.2.any.07-31
-    - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.2.any.07-31
-    - wandb://run/daphne.operantconditioning.smoketestthree.earlyterm.2.0.7.07-31
-    - wandb://run/george.operantconditioning.smokecombined.2.07-31
-    - wandb://run/george.operantconditioning.smoketesttwo.2.07-31
-    - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.2.any.07-31
-    - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.2.0.7.07-31
-    - wandb://run/daphne.operantconditioning.smoketestthree.earlyterm.2.0.7.07-31
-    - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.2.0.7.07-31
-    - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.0.7.07-31
-    - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.0.7.07-31
+    # - wandb://run/george.operantconditioning.backchaining.2.07-31
+    # - wandb://run/george.operantconditioning.smoketestthree.2.07-31
+    # - wandb://run/george.operantconditioning.smoketesttwo.2.07-31
+    # - wandb://run/daphne.operantconditioning.backchaining.earlyterm.2.0.7.07-31
+    # - wandb://run/daphne.operantconditioning.backchaining.earlyterm.2.any.07-31
+    # - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.2.any.07-31
+    # - wandb://run/daphne.operantconditioning.smoketestthree.earlyterm.2.0.7.07-31
+    # - wandb://run/george.operantconditioning.smokecombined.2.07-31
+    # - wandb://run/george.operantconditioning.smoketesttwo.2.07-31
+    # - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.2.any.07-31
+    # - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.2.0.7.07-31
+    # - wandb://run/daphne.operantconditioning.smoketestthree.earlyterm.2.0.7.07-31
+    # - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.2.0.7.07-31
+    # - wandb://run/daphne.operantconditioning.smoketesttwo.earlyterm.0.7.07-31
+    # - wandb://run/daphne.operantconditioning.smoketestfour.earlyterm.0.7.07-31
   simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db

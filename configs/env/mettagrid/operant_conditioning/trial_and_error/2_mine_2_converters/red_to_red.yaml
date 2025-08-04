@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/operant_conditioning/trial_and_error/defaults@
+  - /env/mettagrid/operant_conditioning/defaults@
   - _self_
 
 game:
@@ -22,6 +22,3 @@ game:
         ore_blue: 0
       output_resources:
         battery_blue: 0
-    mine_blue:
-      output_resources:
-        ore_blue: 0
