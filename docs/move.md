@@ -16,7 +16,8 @@ Metta supports three movement systems configurable through command-line override
 
 ### 3. 8-Way Movement
 - **Actions**: `move_8way` (0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
-- **Behavior**: Direct 8-directional movement including diagonals; orientation updates to nearest cardinal direction
+- **Behavior**: Direct 8-directional movement including diagonals; when there is an object in the way of a diagonal move, default to moving in
+adjacent cardinal direction pointing towards the target square
 - **Use Case**: Complex navigation, open environments
 
 ## Key Concepts
