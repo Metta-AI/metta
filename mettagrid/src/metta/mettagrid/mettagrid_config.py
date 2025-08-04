@@ -133,6 +133,10 @@ class PyColorTreeActionConfig(PyActionConfig):
     num_trials: int = Field(default=1, description="Number of different sequences to test")
     trial_sequences: list[list[int]] = Field(default_factory=list, description="Different sequences for each trial")
     attempts_per_trial: int = Field(default=4, description="Number of attempts allowed per trial")
+    reward_mode: str = Field(
+        default="precise",
+        description="Reward mode: 'precise' (all or nothing), 'partial' (proportional), or 'dense' (immediate)",
+    )
 
 
 class PyActionsConfig(BaseModelWithForbidExtra):

@@ -1,0 +1,13 @@
+# ColorTree with dense reward mode - immediate rewards for each correct action
+defaults:
+  - colortree_demo
+  - _self_
+
+game:
+  actions:
+    color_tree:
+      reward_mode: "dense"  # Get immediate reward after each correct action
+      # With dense mode and sequence_reward=5.0:
+      # Each correct action gives 5.0/4 = 1.25 reward immediately
+      # No need to wait for the full sequence to complete
+      # This provides the fastest feedback for learning

@@ -45,6 +45,7 @@ game:
       target_sequence: [0, 1, 2, 3]  # Default 4-length sequence
       sequence_reward: 5.0
       num_trials: 4
+      reward_mode: "dense"  # Options: "precise" (all or nothing), "partial" (proportional), "dense" (immediate)
       trial_sequences:
         - [0, 1, 2, 3]  # Trial 1: sequential
         - [0, 1, 2, 3]  # Trial 2: reverse

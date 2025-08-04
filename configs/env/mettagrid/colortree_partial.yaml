@@ -1,0 +1,14 @@
+# ColorTree with partial reward mode - rewards proportional to correct positions
+defaults:
+  - colortree_demo
+  - _self_
+
+game:
+  actions:
+    color_tree:
+      reward_mode: "partial"  # Get reward for each correct position
+      # With partial mode and sequence_reward=5.0:
+      # - 1 correct position = 1.25 reward
+      # - 2 correct positions = 2.5 reward
+      # - 3 correct positions = 3.75 reward
+      # - 4 correct positions = 5.0 reward (full)

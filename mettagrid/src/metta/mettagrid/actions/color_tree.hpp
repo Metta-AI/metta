@@ -16,6 +16,7 @@ struct ColorTreeActionConfig : public ActionConfig {
   size_t num_trials;                     // Number of different sequences to test
   std::vector<std::vector<uint8_t>> trial_sequences;  // Different sequences for each trial
   size_t attempts_per_trial;             // Number of attempts allowed per trial
+  std::string reward_mode;               // Reward mode: "precise", "partial", or "dense"
 
   ColorTreeActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
                         const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
@@ -24,14 +25,16 @@ struct ColorTreeActionConfig : public ActionConfig {
                         const std::map<uint8_t, InventoryItem>& color_to_item,
                         int num_trials = 1,
                         const std::vector<std::vector<uint8_t>>& trial_sequences = {},
-                        int attempts_per_trial = 4)
+                        int attempts_per_trial = 4,
+                        const std::string& reward_mode = "precise")
       : ActionConfig(required_resources, consumed_resources),
         target_sequence(target_sequence),
         sequence_reward(sequence_reward),
         color_to_item(color_to_item),
         num_trials(static_cast<size_t>(num_trials)),
         trial_sequences(trial_sequences),
-        attempts_per_trial(static_cast<size_t>(attempts_per_trial)) {}
+        attempts_per_trial(static_cast<size_t>(attempts_per_trial)),
+        reward_mode(reward_mode) {}
 };
 
 class ColorTree : public ActionHandler {
@@ -44,11 +47,17 @@ public:
         _num_trials(cfg.num_trials),
         _trial_sequences(cfg.trial_sequences),
         _attempts_per_trial(cfg.attempts_per_trial),
+        _reward_mode(cfg.reward_mode),
         _current_sequence(),
         _action_count(0),
         _current_trial(0) {
     // Initialize target sequence for first trial
     _update_target_sequence();
+
+    // Validate reward mode
+    if (_reward_mode != "precise" && _reward_mode != "partial" && _reward_mode != "dense") {
+      throw std::runtime_error("Invalid reward_mode: " + _reward_mode + ". Must be 'precise', 'partial', or 'dense'");
+    }
   }
 
   unsigned char max_arg() const override {
@@ -85,6 +94,16 @@ protected:
     _current_sequence.push_back(color);
     actor->stats.add("color_tree.colors_added", 1.0f);
 
+    // Dense reward mode: give immediate reward for correct position
+    if (_reward_mode == "dense") {
+      size_t position_in_sequence = (_current_sequence.size() - 1) % _target_sequence.size();
+      if (position_in_sequence < _target_sequence.size() && color == _target_sequence[position_in_sequence]) {
+        float position_reward = _sequence_reward / _target_sequence.size();
+        *actor->reward += position_reward;
+        actor->stats.add("color_tree.correct_position", 1.0f);
+      }
+    }
+
     // Clear all color items from inventory before adding the new one
     for (const auto& [mapped_color, mapped_item] : _color_to_item) {
       auto inv_it = actor->inventory.find(mapped_item);
@@ -111,20 +130,40 @@ protected:
 
     // Check if we've completed a fixed window
     if (_current_sequence.size() == _target_sequence.size()) {
-      // Check if the current fixed window matches the target sequence
-      bool sequence_matches = true;
-      for (size_t i = 0; i < _target_sequence.size(); ++i) {
-        if (_current_sequence[i] != _target_sequence[i]) {
-          sequence_matches = false;
-          break;
+      if (_reward_mode == "precise") {
+        // Precise mode: all or nothing
+        bool sequence_matches = true;
+        for (size_t i = 0; i < _target_sequence.size(); ++i) {
+          if (_current_sequence[i] != _target_sequence[i]) {
+            sequence_matches = false;
+            break;
+          }
+        }
+
+        if (sequence_matches) {
+          *actor->reward += _sequence_reward;
+          actor->stats.add("color_tree.sequence_completed", 1.0f);
+        }
+      } else if (_reward_mode == "partial") {
+        // Partial mode: reward proportional to correct positions
+        size_t correct_positions = 0;
+        for (size_t i = 0; i < _target_sequence.size(); ++i) {
+          if (_current_sequence[i] == _target_sequence[i]) {
+            correct_positions++;
+          }
+        }
+
+        if (correct_positions > 0) {
+          float partial_reward = _sequence_reward * (static_cast<float>(correct_positions) / _target_sequence.size());
+          *actor->reward += partial_reward;
+          actor->stats.add("color_tree.partial_matches", static_cast<float>(correct_positions));
+
+          if (correct_positions == _target_sequence.size()) {
+            actor->stats.add("color_tree.sequence_completed", 1.0f);
+          }
         }
       }
-
-      if (sequence_matches) {
-        // Give reward for completing the sequence
-        *actor->reward += _sequence_reward;
-        actor->stats.add("color_tree.sequence_completed", 1.0f);
-      }
+      // Note: dense mode already gave rewards during each action
 
       // Clear the sequence tracker
       _current_sequence.clear();
@@ -153,6 +192,7 @@ private:
   size_t _action_count;
   size_t _current_trial;
   size_t _attempts_per_trial;
+  std::string _reward_mode;                     // Reward mode: "precise", "partial", or "dense"
 };
 
 #endif  // ACTIONS_COLOR_TREE_HPP_
