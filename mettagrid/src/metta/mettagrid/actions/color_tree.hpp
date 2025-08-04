@@ -4,10 +4,25 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <array>
 
 #include "action_handler.hpp"
 #include "objects/agent.hpp"
 #include "types.hpp"
+
+enum class ColorTreeRewardMode : uint8_t {
+  PRECISE = 0,  // All or nothing reward
+  PARTIAL = 1,  // Proportional to correct positions
+  DENSE = 2     // Immediate reward for correct actions
+};
+
+// Helper function to convert string to reward mode enum
+inline ColorTreeRewardMode string_to_reward_mode(const std::string& mode_str) {
+  if (mode_str == "precise") return ColorTreeRewardMode::PRECISE;
+  if (mode_str == "partial") return ColorTreeRewardMode::PARTIAL;
+  if (mode_str == "dense") return ColorTreeRewardMode::DENSE;
+  throw std::runtime_error("Invalid reward mode. Must be 'precise', 'partial', or 'dense'");
+}
 
 struct ColorTreeActionConfig : public ActionConfig {
   std::vector<uint8_t> target_sequence;  // Target color sequence to match
@@ -16,7 +31,7 @@ struct ColorTreeActionConfig : public ActionConfig {
   size_t num_trials;                     // Number of different sequences to test
   std::vector<std::vector<uint8_t>> trial_sequences;  // Different sequences for each trial
   size_t attempts_per_trial;             // Number of attempts allowed per trial
-  std::string reward_mode;               // Reward mode: "precise", "partial", or "dense"
+  ColorTreeRewardMode reward_mode;       // Reward mode enum
 
   ColorTreeActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
                         const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
@@ -26,7 +41,7 @@ struct ColorTreeActionConfig : public ActionConfig {
                         int num_trials = 1,
                         const std::vector<std::vector<uint8_t>>& trial_sequences = {},
                         int attempts_per_trial = 4,
-                        const std::string& reward_mode = "precise")
+                        const std::string& reward_mode_str = "precise")
       : ActionConfig(required_resources, consumed_resources),
         target_sequence(target_sequence),
         sequence_reward(sequence_reward),
@@ -34,7 +49,14 @@ struct ColorTreeActionConfig : public ActionConfig {
         num_trials(static_cast<size_t>(num_trials)),
         trial_sequences(trial_sequences),
         attempts_per_trial(static_cast<size_t>(attempts_per_trial)),
-        reward_mode(reward_mode) {}
+        reward_mode(string_to_reward_mode(reward_mode_str)) {
+    // Validate trial sequences have same length as target sequence
+    for (const auto& seq : trial_sequences) {
+      if (!seq.empty() && seq.size() != target_sequence.size()) {
+        throw std::runtime_error("All trial sequences must have the same length as target sequence");
+      }
+    }
+  }
 };
 
 class ColorTree : public ActionHandler {
@@ -48,15 +70,20 @@ public:
         _trial_sequences(cfg.trial_sequences),
         _attempts_per_trial(cfg.attempts_per_trial),
         _reward_mode(cfg.reward_mode),
-        _current_sequence(),
+        _current_sequence_size(0),
         _action_count(0),
-        _current_trial(0) {
+        _current_trial(0),
+        _current_inventory_item(INVALID_ITEM) {
     // Initialize target sequence for first trial
     _update_target_sequence();
 
-    // Validate reward mode
-    if (_reward_mode != "precise" && _reward_mode != "partial" && _reward_mode != "dense") {
-      throw std::runtime_error("Invalid reward_mode: " + _reward_mode + ". Must be 'precise', 'partial', or 'dense'");
+    // Pre-calculate actions per trial
+    _actions_per_trial = _attempts_per_trial * _target_sequence.size();
+
+    // Reserve space for maximum sequence size
+    if (!_target_sequence.empty()) {
+      _max_sequence_size = _target_sequence.size();
+      _current_sequence.resize(_max_sequence_size);
     }
   }
 
@@ -81,8 +108,7 @@ protected:
     _action_count++;
 
     // Check if we need to switch to a new trial
-    size_t actions_per_trial = _attempts_per_trial * _target_sequence.size();
-    if (_action_count % actions_per_trial == 0 && _action_count > 0) {
+    if (_action_count % _actions_per_trial == 0 && _action_count > 0) {
       _current_trial++;
       if (_current_trial < _num_trials) {
         _update_target_sequence();
@@ -91,46 +117,46 @@ protected:
     }
 
     // Add the color to the current sequence
-    _current_sequence.push_back(color);
+    size_t position_in_sequence = _current_sequence_size % _max_sequence_size;
+    _current_sequence[position_in_sequence] = color;
+    _current_sequence_size++;
     actor->stats.add("color_tree.colors_added", 1.0f);
 
     // Dense reward mode: give immediate reward for correct position
-    if (_reward_mode == "dense") {
-      size_t position_in_sequence = (_current_sequence.size() - 1) % _target_sequence.size();
-      if (position_in_sequence < _target_sequence.size() && color == _target_sequence[position_in_sequence]) {
+    if (_reward_mode == ColorTreeRewardMode::DENSE) {
+      if (color == _target_sequence[position_in_sequence]) {
         float position_reward = _sequence_reward / _target_sequence.size();
         *actor->reward += position_reward;
         actor->stats.add("color_tree.correct_position", 1.0f);
       }
     }
 
-    // Clear all color items from inventory before adding the new one
-    for (const auto& [mapped_color, mapped_item] : _color_to_item) {
-      auto inv_it = actor->inventory.find(mapped_item);
-      if (inv_it != actor->inventory.end()) {
-        actor->update_inventory(mapped_item, -static_cast<InventoryDelta>(inv_it->second));
+    // Clear only the previously stored item (if any)
+    if (_current_inventory_item != INVALID_ITEM) {
+      auto inv_it = actor->inventory.find(_current_inventory_item);
+      if (inv_it != actor->inventory.end() && inv_it->second > 0) {
+        actor->update_inventory(_current_inventory_item, -static_cast<InventoryDelta>(inv_it->second));
       }
     }
 
     // Find the corresponding inventory item for this color
     auto item_it = _color_to_item.find(color);
-    if (item_it != _color_to_item.end()) {
-      InventoryItem item = item_it->second;
-
-      // Add the item to inventory for visualization
-      InventoryDelta delta = actor->update_inventory(item, 1);
-      if (delta <= 0) {
-        // Log warning but continue - visualization may be incomplete
-        actor->stats.add("color_tree.inventory_full", 1.0f);
-      }
-    } else {
+    if (item_it == _color_to_item.end()) {
       // Invalid color - this shouldn't happen due to earlier validation
       return false;
     }
 
-    // Check if we've completed a fixed window
-    if (_current_sequence.size() == _target_sequence.size()) {
-      if (_reward_mode == "precise") {
+    // Add the item to inventory for visualization
+    _current_inventory_item = item_it->second;
+    InventoryDelta delta = actor->update_inventory(_current_inventory_item, 1);
+    if (delta <= 0) {
+      // Log warning but continue - visualization may be incomplete
+      actor->stats.add("color_tree.inventory_full", 1.0f);
+    }
+
+        // Check if we've completed a fixed window
+    if (_current_sequence_size % _max_sequence_size == 0 && _current_sequence_size > 0) {
+      if (_reward_mode == ColorTreeRewardMode::PRECISE) {
         // Precise mode: all or nothing
         bool sequence_matches = true;
         for (size_t i = 0; i < _target_sequence.size(); ++i) {
@@ -144,7 +170,7 @@ protected:
           *actor->reward += _sequence_reward;
           actor->stats.add("color_tree.sequence_completed", 1.0f);
         }
-      } else if (_reward_mode == "partial") {
+      } else if (_reward_mode == ColorTreeRewardMode::PARTIAL) {
         // Partial mode: reward proportional to correct positions
         size_t correct_positions = 0;
         for (size_t i = 0; i < _target_sequence.size(); ++i) {
@@ -164,10 +190,6 @@ protected:
         }
       }
       // Note: dense mode already gave rewards during each action
-
-      // Clear the sequence tracker
-      _current_sequence.clear();
-      // Note: Inventory is already cleared before each action, so no need to clear here
     }
 
     return true;
@@ -180,19 +202,28 @@ private:
     } else {
       _target_sequence = _base_target_sequence;
     }
+    // Update max sequence size and actions per trial if sequence changes
+    _max_sequence_size = _target_sequence.size();
+    _actions_per_trial = _attempts_per_trial * _max_sequence_size;
   }
+
+  static constexpr InventoryItem INVALID_ITEM = static_cast<InventoryItem>(-1);
 
   std::vector<uint8_t> _base_target_sequence;  // Default target sequence
   std::vector<uint8_t> _target_sequence;        // Current active target sequence
   float _sequence_reward;
   std::map<uint8_t, InventoryItem> _color_to_item;
-  std::vector<uint8_t> _current_sequence;       // Tracks the current sequence of actions
+  std::vector<uint8_t> _current_sequence;       // Fixed-size buffer for current sequence
+  size_t _current_sequence_size;                // Actual number of actions in current sequence
+  size_t _max_sequence_size;                    // Maximum sequence size
   size_t _num_trials;
   std::vector<std::vector<uint8_t>> _trial_sequences;
   size_t _action_count;
   size_t _current_trial;
   size_t _attempts_per_trial;
-  std::string _reward_mode;                     // Reward mode: "precise", "partial", or "dense"
+  size_t _actions_per_trial;                    // Pre-calculated: attempts * sequence_size
+  ColorTreeRewardMode _reward_mode;             // Reward mode enum
+  InventoryItem _current_inventory_item;        // Track which item is currently in inventory
 };
 
 #endif  // ACTIONS_COLOR_TREE_HPP_
