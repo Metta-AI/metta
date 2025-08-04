@@ -399,8 +399,8 @@ def train(
         if interval := getattr(policy, "l2_init_weight_update_interval", 0):
             maybe_update_l2_weights(policy, epoch, interval, is_master)
 
-        # Save policy - all ranks must participate in checkpoint decision
-        if checkpoint_manager.should_checkpoint(epoch):
+        # Save checkpoint - only master performs saves
+        if checkpoint_manager.should_checkpoint(epoch) and is_master:
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
                 epoch=epoch,
@@ -412,23 +412,21 @@ def train(
 
             if saved_record:
                 latest_saved_policy_record = saved_record
+                
+                # Save training state
+                checkpoint_manager.save_checkpoint(
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    optimizer=optimizer,
+                    policy_path=saved_record.uri,
+                    timer=timer,
+                    run_dir=run_dir,
+                    kickstarter=kickstarter,
+                )
 
-                # Only master saves training state
-                if is_master:
-                    checkpoint_manager.save_checkpoint(
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        optimizer=optimizer,
-                        policy_path=saved_record.uri,
-                        timer=timer,
-                        run_dir=run_dir,
-                        kickstarter=kickstarter,
-                    )
-
-            # All ranks must synchronize after checkpoint operations
-            # This barrier must be outside the if saved_record block so all ranks hit it
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+        # All ranks synchronize after checkpoint operations
+        if checkpoint_manager.should_checkpoint(epoch) and torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
@@ -506,44 +504,38 @@ def train(
         for name, summary in timing_summary.items():
             logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
-    # Synchronize all ranks before final save operations
-    if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering pre-save barrier")
-        torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited pre-save barrier")
-    
-    # Force final saves - all ranks must participate in save_policy for barrier synchronization
-    saved_record = checkpoint_manager.save_policy(
-        policy=policy,
-        epoch=epoch,
-        agent_step=agent_step,
-        evals=eval_scores,
-        timer=timer,
-        initial_policy_record=initial_policy_record,
-        force=True,
-    )
-    if saved_record:
-        latest_saved_policy_record = saved_record
-
-    # Only master saves training state
-    if is_master and saved_record:
-        # Save final training state
-        checkpoint_manager.save_checkpoint(
-            agent_step=agent_step,
+    # Force final saves - only master performs saves
+    if is_master:
+        saved_record = checkpoint_manager.save_policy(
+            policy=policy,
             epoch=epoch,
-            optimizer=optimizer,
-            policy_path=saved_record.uri,
+            agent_step=agent_step,
+            evals=eval_scores,
             timer=timer,
-            run_dir=run_dir,
-            kickstarter=kickstarter,
+            initial_policy_record=initial_policy_record,
             force=True,
         )
+        
+        if saved_record:
+            latest_saved_policy_record = saved_record
+            
+            # Save final training state
+            checkpoint_manager.save_checkpoint(
+                agent_step=agent_step,
+                epoch=epoch,
+                optimizer=optimizer,
+                policy_path=saved_record.uri,
+                timer=timer,
+                run_dir=run_dir,
+                kickstarter=kickstarter,
+                force=True,
+            )
 
     # Synchronize after all save operations complete
     if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering post-checkpoint barrier")
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering post-save barrier")
         torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited post-checkpoint barrier")
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited post-save barrier")
 
     # Final synchronization before cleanup
     if torch.distributed.is_initialized():

@@ -701,8 +701,8 @@ while agent_step < trainer_config.total_timesteps:
     if should_run(epoch, trainer_config.grad_mean_variance_interval, is_master):
         stats_tracker.grad_stats = compute_gradient_stats(agent)
 
-    # Save checkpoint periodically - all ranks must participate in checkpoint decision
-    if checkpoint_manager.should_checkpoint(epoch):
+    # Save checkpoint periodically - only master performs saves
+    if checkpoint_manager.should_checkpoint(epoch) and is_master:
         saved_record = checkpoint_manager.save_policy(
             policy=agent,
             epoch=epoch,
@@ -715,22 +715,20 @@ while agent_step < trainer_config.total_timesteps:
         if saved_record:
             latest_saved_policy_record = saved_record
 
-            # Only master saves training state
-            if is_master:
-                checkpoint_manager.save_checkpoint(
-                    agent_step=agent_step,
-                    epoch=epoch,
-                    optimizer=optimizer,
-                    policy_path=saved_record.uri,
-                    timer=timer,
-                    run_dir=dirs.run_dir,
-                    kickstarter=kickstarter,
-                )
+            # Save training state
+            checkpoint_manager.save_checkpoint(
+                agent_step=agent_step,
+                epoch=epoch,
+                optimizer=optimizer,
+                policy_path=saved_record.uri,
+                timer=timer,
+                run_dir=dirs.run_dir,
+                kickstarter=kickstarter,
+            )
 
-        # All ranks must synchronize after checkpoint operations
-        # This barrier must be outside the if saved_record block so all ranks hit it
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+    # All ranks synchronize after checkpoint operations
+    if checkpoint_manager.should_checkpoint(epoch) and torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     # Upload latest policy to wandb (master only)
     if (
@@ -960,33 +958,32 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
             wandb_run=wandb_run,
         )
 
-# Force final saves - all ranks must participate
-saved_record = checkpoint_manager.save_policy(
-    policy=agent,
-    epoch=epoch,
-    agent_step=agent_step,
-    evals=eval_scores,
-    timer=timer,
-    initial_policy_record=initial_policy_record,
-    force=True,
-)
-
-if saved_record:
-    latest_saved_policy_record = saved_record
-
-# Only master saves training state
-if is_master and saved_record:
-    # Save final training state
-    checkpoint_manager.save_checkpoint(
-        agent_step=agent_step,
+# Force final saves - only master performs saves
+if is_master:
+    saved_record = checkpoint_manager.save_policy(
+        policy=agent,
         epoch=epoch,
-        optimizer=optimizer,
-        policy_path=saved_record.uri,
+        agent_step=agent_step,
+        evals=eval_scores,
         timer=timer,
-        run_dir=dirs.run_dir,
-        kickstarter=kickstarter,
+        initial_policy_record=initial_policy_record,
         force=True,
     )
+
+    if saved_record:
+        latest_saved_policy_record = saved_record
+        
+        # Save final training state
+        checkpoint_manager.save_checkpoint(
+            agent_step=agent_step,
+            epoch=epoch,
+            optimizer=optimizer,
+            policy_path=saved_record.uri,
+            timer=timer,
+            run_dir=dirs.run_dir,
+            kickstarter=kickstarter,
+            force=True,
+        )
 
 # All ranks must synchronize after final save operations
 if torch.distributed.is_initialized():

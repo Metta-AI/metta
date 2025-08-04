@@ -151,7 +151,12 @@ class CheckpointManager:
         # Combined check: save only if (forced OR at interval) AND is master
         checkpoint_interval = self.trainer_cfg.checkpoint.checkpoint_interval
         should_save = force or (checkpoint_interval and epoch % checkpoint_interval == 0)
-        if not should_save or not self.is_master:
+        if not should_save:
+            return False
+            
+        # This method should only be called by master
+        if not self.is_master:
+            logger.warning(f"save_checkpoint called on non-master rank {self.rank}")
             return False
 
         logger.info(f"Saving checkpoint at epoch {epoch}")
@@ -217,85 +222,84 @@ class CheckpointManager:
             return None
 
         # Now all ranks that should save are here
-        # Only master saves policies
+        # This method should only be called by master
         if not self.is_master:
-            # Non-master ranks must wait for master to complete save
-            # They will participate in the same barrier at the end of this method
-            saved_policy_record = None
-        else:
-            logger.info(f"Saving policy at epoch {epoch}")
+            logger.warning(f"save_policy called on non-master rank {self.rank}")
+            return None
+            
+        logger.info(f"Saving policy at epoch {epoch}")
 
-            # Record heartbeat to prevent timeout during long save operations
-            record_heartbeat()
+        # Record heartbeat to prevent timeout during long save operations
+        record_heartbeat()
 
-            # Extract the actual policy module from distributed wrapper if needed
-            policy_to_save = policy
-            if isinstance(policy, DistributedMettaAgent):
-                policy_to_save = policy.module
+        # Extract the actual policy module from distributed wrapper if needed
+        policy_to_save = policy
+        if isinstance(policy, DistributedMettaAgent):
+            policy_to_save = policy.module
 
-            # Build metadata
-            name = self.policy_store.make_model_name(epoch)
+        # Build metadata
+        name = self.policy_store.make_model_name(epoch)
 
-            # Extract average reward and scores from evals
-            avg_reward = 0.0
-            score = 0.0
-            evals_dict = {}
+        # Extract average reward and scores from evals
+        avg_reward = 0.0
+        score = 0.0
+        evals_dict = {}
 
-            if evals:
-                if hasattr(evals, "avg_category_score"):
-                    # EvalRewardSummary object
-                    avg_reward = getattr(evals, "avg_category_score", 0.0) or 0.0
-                    category_scores = list(evals.category_scores.values())
-                    score = float(np.mean(category_scores)) if category_scores else 0.0
-                    evals_dict = {
-                        "category_scores": evals.category_scores,
-                        "simulation_scores": {
-                            f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()
-                        },
-                        "avg_category_score": evals.avg_category_score,
-                        "avg_simulation_score": evals.avg_simulation_score,
-                    }
-                else:
-                    # Dict format
-                    score_keys = [k for k in evals.keys() if k.endswith("/score")]
-                    if score_keys:
-                        avg_reward = sum(evals[k] for k in score_keys) / len(score_keys)
-                    score = avg_reward
-                    evals_dict = evals
+        if evals:
+            if hasattr(evals, "avg_category_score"):
+                # EvalRewardSummary object
+                avg_reward = getattr(evals, "avg_category_score", 0.0) or 0.0
+                category_scores = list(evals.category_scores.values())
+                score = float(np.mean(category_scores)) if category_scores else 0.0
+                evals_dict = {
+                    "category_scores": evals.category_scores,
+                    "simulation_scores": {
+                        f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()
+                    },
+                    "avg_category_score": evals.avg_category_score,
+                    "avg_simulation_score": evals.avg_simulation_score,
+                }
+            else:
+                # Dict format
+                score_keys = [k for k in evals.keys() if k.endswith("/score")]
+                if score_keys:
+                    avg_reward = sum(evals[k] for k in score_keys) / len(score_keys)
+                score = avg_reward
+                evals_dict = evals
 
-            metadata = {
-                "epoch": epoch,
-                "agent_step": agent_step,
-                "total_time": timer.get_elapsed(),
-                "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
-                "run": self.run_name,
-                "initial_pr": initial_policy_record.uri if initial_policy_record else None,
-                "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
-                "evals": evals_dict,
-                "avg_reward": avg_reward,
-                "score": score,  # Aggregated score for sweep evaluation
-            }
+        metadata = {
+            "epoch": epoch,
+            "agent_step": agent_step,
+            "total_time": timer.get_elapsed(),
+            "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
+            "run": self.run_name,
+            "initial_pr": initial_policy_record.uri if initial_policy_record else None,
+            "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
+            "evals": evals_dict,
+            "avg_reward": avg_reward,
+            "score": score,  # Aggregated score for sweep evaluation
+        }
 
-            # Save original feature mapping
-            if hasattr(policy_to_save, "get_original_feature_mapping"):
-                original_feature_mapping = policy_to_save.get_original_feature_mapping()
-                if original_feature_mapping is not None:
-                    metadata["original_feature_mapping"] = original_feature_mapping
-                    logger.info(
-                        f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
-                    )
+        # Save original feature mapping
+        if hasattr(policy_to_save, "get_original_feature_mapping"):
+            original_feature_mapping = policy_to_save.get_original_feature_mapping()
+            if original_feature_mapping is not None:
+                metadata["original_feature_mapping"] = original_feature_mapping
+                logger.info(
+                    f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
+                )
 
-            # Create and save policy record
-            policy_record = self.policy_store.create_empty_policy_record(name)
-            policy_record.metadata = metadata
-            policy_record.policy = policy_to_save
+        # Create and save policy record
+        policy_record = self.policy_store.create_empty_policy_record(name)
+        policy_record.metadata = metadata
+        policy_record.policy = policy_to_save
 
-            saved_policy_record = self.policy_store.save(policy_record)
-            logger.info(f"Successfully saved policy at epoch {epoch}")
+        saved_policy_record = self.policy_store.save(policy_record)
+        logger.info(f"Successfully saved policy at epoch {epoch}")
 
-            # Clean up old policies periodically
-            if epoch % 10 == 0:
-                cleanup_old_policies(self.checkpoint_dir)
+        # Clean up old policies periodically
+        if epoch % 10 == 0:
+            cleanup_old_policies(self.checkpoint_dir)
 
         # NOTE: Barrier removed - synchronization handled at call site
         return saved_policy_record
