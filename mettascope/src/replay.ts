@@ -131,8 +131,14 @@ export class Entity {
   isAgent: boolean = false
 }
 
+export class GameConfig {
+  allow_diagonals: boolean = false
+  // Add other game config properties as needed
+}
+
 export class EnvConfig {
   label: string = ''
+  game?: GameConfig
 }
 
 export class Replay {

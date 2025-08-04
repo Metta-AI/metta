@@ -1,9 +1,11 @@
 "use client";
 
 import { FC, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { FeedPostDTO } from "@/posts/data/feed";
 import { StarWidgetQuery } from "./StarWidgetQuery";
+import { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
 
 interface PaperCardProps {
   paper: FeedPostDTO["paper"];
@@ -20,9 +22,9 @@ interface PaperCardProps {
  * - Star count and interaction buttons
  */
 export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
-  const [showAbstract, setShowAbstract] = useState(false);
-
   if (!paper) return null;
+
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleTitleClick = () => {
     if (onPaperClick) {
@@ -30,108 +32,91 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
     }
   };
 
-  const toggleAbstract = () => {
-    setShowAbstract(!showAbstract);
+  const handleExpandClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering parent click handlers
+    setIsExpanded(!isExpanded);
   };
 
+  // Extract AI summary data
+  const llmAbstract = paper.llmAbstract as LLMAbstract | null;
+
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      {/* Header with star widget, title and abstract toggle */}
-      <div className="mb-3 flex items-start justify-between">
-        <div className="flex min-w-0 flex-1 items-start gap-2">
-          <div className="mt-1 flex-shrink-0">
-            <StarWidgetQuery
-              paperId={paper.id}
-              initialTotalStars={paper.stars}
-              initialIsStarredByCurrentUser={paper.starred}
-              size="md"
-              readonly={true}
-            />
-          </div>
+    <div className="rounded-xl border border-neutral-200 bg-white p-2.5">
+      {/* Header with star widget and title */}
+      <div className="flex items-start gap-2">
+        <div className="mt-0.5 shrink-0">
+          <StarWidgetQuery
+            paperId={paper.id}
+            initialTotalStars={paper.stars}
+            initialIsStarredByCurrentUser={paper.starred}
+            size="sm"
+            readonly={true}
+          />
+        </div>
+        <div className="min-w-0">
           {/* Paper title - clickable */}
           <h3
-            className="cursor-pointer text-lg font-semibold text-gray-900 transition-colors hover:text-blue-600"
+            className="cursor-pointer text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900 transition-colors hover:text-blue-600"
             onClick={handleTitleClick}
           >
             {paper.title}
           </h3>
-        </div>
 
-        {/* Abstract toggle button in upper right */}
-        {paper.abstract && (
-          <button
-            onClick={toggleAbstract}
-            className="ml-4 flex-shrink-0 cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-700"
-            aria-label={showAbstract ? "Hide abstract" : "Show abstract"}
-          >
-            {showAbstract ? "Hide Abstract" : "Show Abstract"}
-          </button>
-        )}
+          {/* Tags */}
+          {paper.tags && paper.tags.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {paper.tags.map((tag, index) => (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent triggering parent click handlers
+                    const params = new URLSearchParams();
+                    params.set("search", tag);
+                    window.open(`/papers?${params.toString()}`, "_blank");
+                  }}
+                  className="cursor-pointer rounded-md px-2 py-0.5 text-[12px] font-bold transition-colors hover:bg-neutral-200"
+                  style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
+                  title={`Click to view all papers tagged with "${tag}"`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* AI Summary Section */}
+          {llmAbstract?.shortExplanation && (
+            <div className="mt-2">
+              <div className="text-[13px] leading-[1.4] text-neutral-700">
+                {isExpanded
+                  ? llmAbstract.summary || llmAbstract.shortExplanation
+                  : `${llmAbstract.shortExplanation.slice(0, 120)}${llmAbstract.shortExplanation.length > 120 ? "..." : ""}`}
+              </div>
+
+              {/* Expand/Collapse Button */}
+              {(llmAbstract.summary ||
+                llmAbstract.shortExplanation.length > 120) && (
+                <button
+                  onClick={handleExpandClick}
+                  className="mt-1 flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition-colors hover:text-neutral-700"
+                >
+                  {isExpanded ? (
+                    <>
+                      <ChevronUp className="h-3 w-3" />
+                      Show less
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3" />
+                      Show more
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Paper metadata */}
-      <div className="mb-3 flex items-center gap-4 text-xs text-gray-500">
-        {paper.source && (
-          <>
-            {paper.link ? (
-              <a
-                href={paper.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-colors hover:text-blue-600"
-              >
-                {paper.source}
-              </a>
-            ) : (
-              <span>{paper.source}</span>
-            )}
-          </>
-        )}
-        {paper.institutions && paper.institutions.length > 0 && (
-          <>
-            {paper.source && <span>•</span>}
-            <span>{paper.institutions.join(", ")}</span>
-          </>
-        )}
-      </div>
-
-      {/* Authors */}
-      {paper.authors && paper.authors.length > 0 && (
-        <div className="mb-3 text-sm text-gray-700">
-          <span className="font-medium">Authors:</span>{" "}
-          {paper.authors.map((author) => author.name).join(", ")}
-        </div>
-      )}
-
-      {/* Abstract content */}
-      {showAbstract && paper.abstract && (
-        <div className="mb-3 border-t border-gray-100 pt-3">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
-            {paper.abstract}
-          </p>
-        </div>
-      )}
-
-      {/* Tags */}
-      {paper.tags && paper.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {paper.tags.map((tag, index) => (
-            <button
-              key={index}
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent triggering parent click handlers
-                const params = new URLSearchParams();
-                params.set("search", tag);
-                window.open(`/papers?${params.toString()}`, "_blank");
-              }}
-              className="cursor-pointer rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-gray-200"
-              title={`Click to view all papers tagged with "${tag}"`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

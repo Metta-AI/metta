@@ -1,9 +1,7 @@
-"""
-MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
+"""MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
 
 This class provides the base functionality for all framework-specific adapters,
-without any training-specific features or framework dependencies.
-"""
+without any training-specific features or framework dependencies."""
 
 from __future__ import annotations
 
@@ -54,13 +52,7 @@ class MettaGridCore:
         env_config: EnvConfig,
         render_mode: Optional[str] = None,
     ):
-        """
-        Initialize core MettaGrid functionality.
-
-        Args:
-            env_config: Environment configuration
-            render_mode: Rendering mode (None, "human", "miniscope")
-        """
+        """Initialize core MettaGrid functionality."""
         if not isinstance(env_config, EnvConfig):
             raise ValueError("env_config must be an instance of EnvConfig")
 
@@ -172,15 +164,7 @@ class MettaGridCore:
         return obs, infos
 
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
-        """
-        Execute one timestep of the environment dynamics with the given actions.
-
-        Args:
-            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
-
-        Returns:
-            Tuple of (observations, rewards, terminals, truncations, infos)
-        """
+        """Execute one timestep of the environment dynamics with the given actions."""
         # Execute step in core environment
         return self.__c_env_instance.step(actions)
 
@@ -285,12 +269,7 @@ class MettaGridCore:
         return self.__c_env_instance.action_success()
 
     def get_observation_features(self) -> Dict[str, Dict]:
-        """
-        Build the features dictionary for initialize_to_environment.
-
-        Returns:
-            Dictionary mapping feature names to their properties
-        """
+        """Build the features dictionary for initialize_to_environment."""
         # Get feature spec from C++ environment
         feature_spec = self.__c_env_instance.feature_spec()
 

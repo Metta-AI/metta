@@ -26,17 +26,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         num_layers=2,
         **kwargs,
     ):
-        """Initialize LatentAttnSmall policy with mixin support.
-
-        Args:
-            env: Environment
-            policy: Optional inner policy
-            cnn_channels: Number of CNN channels
-            input_size: LSTM input size
-            hidden_size: LSTM hidden size
-            num_layers: Number of LSTM layers
-            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
-        """
+        """Initialize LatentAttnSmall policy with mixin support."""
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
 
@@ -137,19 +127,26 @@ class Policy(nn.Module):
             num_layers=1,
         )
         self.obs_latent_self_attn = ObsSelfAttn(
-            out_dim=128, _feat_dim=32, num_heads=4, num_layers=2, use_mask=False, use_cls_token=True
+            out_dim=128,
+            _feat_dim=32,
+            num_heads=4,
+            num_layers=2,
+            use_mask=False,
+            use_cls_token=True,
         )
+
+        # Define layer dimensions that are used multiple times
+        self.actor_hidden_dim = 512  # Used in actor_1 and create_action_heads
+        self.action_embed_dim = 16  # Used in action_embeddings and create_action_heads
 
         self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
-        self.action_embeddings = nn.Embedding(100, 16)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim))
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
 
-        # Action heads - will be initialized based on action space
-        action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
-
-        self.actor_heads = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        # Create action heads using mixin pattern
+        self.actor_heads = PyTorchAgentMixin.create_action_heads(
+            self, env, input_size=self.actor_hidden_dim + self.action_embed_dim
         )
 
     def network_forward(self, x):
@@ -161,9 +158,7 @@ class Policy(nn.Module):
         return x
 
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
-        """
+        """Encode observations into a hidden representation."""
 
         # Initialize dictionary for TensorDict
         td = {"env_obs": observations, "state": None}

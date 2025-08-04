@@ -1,0 +1,32 @@
+{{- $host := .Values.host -}}
+{{- $links := .Values.links -}}
+
+{{- range $link := $links -}}
+{{- if $link.short_url }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: home-redirect-{{ $link.short_url | replace "/" "-" | replace "_" "-" | lower }}
+  annotations:
+    nginx.ingress.kubernetes.io/temporal-redirect: {{ $link.url | quote }}
+    cert-manager.io/cluster-issuer: {{ $.Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: {{ $host }}
+      http:
+        paths:
+          - path: /{{ $link.short_url }}
+            pathType: Exact
+            backend:
+              service:
+                name: home
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - {{ $host }}
+      secretName: home-tls
+{{- end }}
+{{- end }}

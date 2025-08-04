@@ -10,7 +10,8 @@ T = TypeVar("T")
 
 
 def _init_process_group() -> bool:
-    world_size = int(os.environ.get("WORLD_SIZE", os.environ.get("NUM_NODES", "1")))
+    world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
+    world_size = int(world_size_str) if world_size_str.strip() else 1
     if world_size <= 1:
         return False
     if dist.is_initialized():
@@ -51,4 +52,27 @@ def run_once(fn: Callable[[], T]) -> T | None:
     if group_initialized:
         dist.destroy_process_group()
 
+    assert result is not None
     return result
+
+
+def broadcast_state(state: T, src: int = 0) -> T:
+    """Broadcast state from source rank to all other ranks.
+    
+    This is used to synchronize state after master_process_only operations
+    to prevent state drift across workers.
+    
+    Args:
+        state: The state object to broadcast
+        src: Source rank (default 0 for master)
+        
+    Returns:
+        The synchronized state object (same on all ranks after broadcast)
+    """
+    if not dist.is_initialized():
+        # No distributed setup, just return the state as-is
+        return state
+    
+    state_list = [state]
+    dist.broadcast_object_list(state_list, src=src)
+    return state_list[0]

@@ -1,0 +1,35 @@
+{
+  "experiment": {
+    "name": "experiment",
+    "run_name": "experiment_b5bc1b07",
+    "total_timesteps": 10000,
+    "num_agents": "default",
+    "num_eval_episodes": 5
+  },
+  "timing": {
+    "start_time": "2025-08-26T07:03:54.856789",
+    "end_time": "2025-08-26T07:05:53.590489",
+    "duration_seconds": 118.7336938381195
+  },
+  "reproducibility": {
+    "seed": 42,
+    "torch_deterministic": true,
+    "device": "cpu",
+    "vectorization": "serial"
+  },
+  "results": {
+    "training": {
+      "status": "complete",
+      "checkpoint_dir": "./experiments/experiment_b5bc1b07/checkpoints"
+    },
+    "evaluation": {
+      "status": "complete",
+      "num_simulations": 1
+    }
+  },
+  "paths": {
+    "run_dir": "./experiments/experiment_b5bc1b07",
+    "checkpoints": "./experiments/experiment_b5bc1b07/checkpoints",
+    "manifest": "./experiments/experiment_b5bc1b07_manifest.json"
+  }
+}

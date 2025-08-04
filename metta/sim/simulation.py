@@ -1,11 +1,9 @@
-"""
-Vectorized simulation runner.
+"""Vectorized simulation runner.
 
 • Launches a MettaGrid vec-env batch
 • Each worker writes its own *.duckdb* shard
 • At shutdown the shards are merged into **one** StatsDB object that the
-  caller can further merge / export.
-"""
+  caller can further merge / export."""
 
 from __future__ import annotations
 
@@ -49,9 +47,7 @@ class SimulationCompatibilityError(Exception):
 
 
 class Simulation:
-    """
-    A vectorized batch of MettaGrid environments sharing the same parameters.
-    """
+    """A vectorized batch of MettaGrid environments sharing the same parameters."""
 
     def __init__(
         self,
@@ -61,7 +57,6 @@ class Simulation:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
@@ -71,7 +66,6 @@ class Simulation:
         episode_tags: list[str] | None = None,
     ):
         self._name = name
-        self._sim_suite_name = sim_suite_name
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
@@ -131,8 +125,9 @@ class Simulation:
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
-        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        driver_env = self._vecenv.driver_env  # type: ignore
+        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
+        assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
         initialize_policy_for_environment(
@@ -178,21 +173,7 @@ class Simulation:
         policy_uri: str | None = None,
         run_name: str = "simulation_run",
     ) -> "Simulation":
-        """Create a Simulation with sensible defaults.
-
-        Args:
-            sim_config: Simulation configuration with environment settings
-            policy_store: PolicyStore instance for managing policies
-            device: Device to run on (e.g., "cpu", "cuda")
-            vectorization: Vectorization backend (e.g., "serial", "multiprocessing")
-            stats_dir: Directory for simulation statistics
-            replay_dir: Directory for replay files
-            policy_uri: Optional policy URI to load (None for mock policy)
-            run_name: Name for the mock run if no policy URI provided
-
-        Returns:
-            Configured Simulation instance
-        """
+        """Create a Simulation with sensible defaults."""
         # Get policy record or create a mock
         policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
 
@@ -333,11 +314,7 @@ class Simulation:
                 self._env_done_flags[e] = False
 
     def _maybe_generate_thumbnail(self) -> str | None:
-        """Generate thumbnail if this is the first run for this eval_name.
-
-        Returns:
-            Thumbnail URL if generated successfully, None otherwise
-        """
+        """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
             if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
@@ -423,9 +400,13 @@ class Simulation:
             for idx in self._npc_idxs:
                 agent_map[int(idx.item())] = self._npc_pr
 
-        suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._policy_pr
+            sim_id=self._id,
+            dir_with_shards=self._stats_dir,
+            agent_map=agent_map,
+            sim_name=self._name,
+            sim_env=self._config.env.label,
+            policy_record=self._policy_pr,
         )
         return db
 
@@ -491,8 +472,8 @@ class Simulation:
                         agent_metrics=agent_metrics,
                         primary_policy_id=policy_ids[policy_name],
                         stats_epoch=self._stats_epoch_id,
-                        eval_name=self._name,
-                        simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
+                        sim_name=self._name,
+                        env_label=self._config.env.label,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,

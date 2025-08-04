@@ -18,7 +18,7 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,7 @@ class TrainTool(Tool):
 
     # Optional configurations
     map_preview_uri: str | None = None
+    disable_macbook_optimize: bool = False
 
     consumed_args: list[str] = ["run"]
 
@@ -128,7 +129,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         wandb_run=wandb_run,
     )
 
-    if platform.system() == "Darwin":
+    if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
 
     # Save configuration
@@ -168,8 +169,8 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
         return None
 
     if cfg.trainer.evaluation.replay_dir is None:
-        log_on_master(f"Setting replay_dir to s3://softmax-public/replays/{cfg.run}")
-        cfg.trainer.evaluation.replay_dir = f"s3://softmax-public/replays/{cfg.run}"
+        cfg.trainer.evaluation.replay_dir = auto_replay_dir()
+        log_on_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:

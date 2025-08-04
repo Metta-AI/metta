@@ -165,30 +165,39 @@ metta install core                   # Reinstall core dependencies only
 
 #### Training and Evaluation Pipeline
 
-1. **Training**: `tools/train.py` - Main training script using Hydra configuration
+All tools are now run through `./tools/run.py` with recipe functions:
+
+1. **Training**: Use recipe functions for different training configurations
    ```bash
-   uv run ./tools/train.py run=my_experiment
+   # Training with arena recipe
+   uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
+   
+   # Training with navigation recipe
+   uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
    ```
 
-2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
+2. **Simulation/Evaluation**: Run evaluation suites on trained policies
    ```bash
-   # Using local file
-   uv run ./tools/sim.py run=eval policy_uri=file://./checkpoints/policy.pt
-
-   # Using wandb artifact (format: wandb://run/<run_name> or wandb://<entity>/<project>/<artifact_type>/<name>:<version>)
-   uv run ./tools/sim.py run=eval policy_uri=wandb://run/my-training-run
-   # or
-   uv run ./tools/sim.py run=eval policy_uri=wandb://softmax-ai/metta/model/policy_checkpoint:v42
+   # Run evaluation
+   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
+   
+   # Using wandb artifact
+   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my-training-run
    ```
 
-3. **Analysis**: `tools/analyze.py` - Analyze evaluation results and generate reports
+3. **Analysis**: Analyze evaluation results
    ```bash
-   uv run ./tools/analyze.py run=analysis analysis.eval_db_uri=./train_dir/eval/stats.db
+   uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval/stats.db
    ```
 
-4. **Interactive Play**: `tools/play.py` - Manual testing and exploration
+4. **Interactive Play**: Test policies interactively (browser-based)
    ```bash
-   uv run ./tools/play.py
+   uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints/policy.pt
+   ```
+
+5. **View Replays**: Watch recorded gameplay
+   ```bash
+   uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
    ```
 
 #### Visualization Tools
@@ -242,39 +251,33 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
 
-#### Configuration Override Examples
+#### Running Training and Tools
+
+All tools are now run through `./tools/run.py` with recipe functions:
 
 ```bash
-# Override specific parameters
-uv run ./tools/train.py trainer.num_workers=4 trainer.total_timesteps=100000
+# Training with arena recipe
+uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
 
-# Use different agent architecture
-uv run ./tools/train.py agent=latent_attn_tiny
+# Training with navigation recipe
+uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
 
-# Disable wandb
-uv run ./tools/train.py wandb=off
+# Play/test a trained policy (interactive browser)
+uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints/policy.pt
 
-# Configure movement systems (8-way example)
-# Training: use ++trainer.env_overrides for environment config
-uv run ./tools/train.py run=8way_test \
-  ++trainer.env_overrides.game.actions.move.enabled=false \
-  ++trainer.env_overrides.game.actions.rotate.enabled=false \
-  ++trainer.env_overrides.game.actions.move_8way.enabled=true
+# Run evaluation
+uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
 
-# Evaluation: use +replay_job.sim.env_overrides (must match training)
-uv run ./tools/play.py run=play_8way \
-  policy_uri=file://./train_dir/8way_test/checkpoints \
-  +replay_job.sim.env_overrides.game.actions.move.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.move_8way.enabled=true
+# View replays
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
 ```
 
-#### Hydra Configuration Patterns
+#### Configuration System
 
-- Use `+` prefix to add new config groups: `+user=your-custom-config-name`
-- Use `++` prefix to force override: `++trainer.device=cpu`
-- Config composition order matters - later overrides take precedence
-- **Important**: Use `env_overrides` path for environment configuration, not direct `mettagrid` overrides
+The project now uses Pydantic-based configuration instead of Hydra/YAML. Configurations are built programmatically in recipe files:
+- Recipes define training setups, environments, and evaluation suites
+- Each recipe function returns a Tool configuration object
+- Override parameters can be passed via command line arguments to the recipe functions
 
 ### Development Workflows
 
@@ -294,10 +297,9 @@ uv run ./tools/play.py run=play_8way \
 
 #### Debugging Training Issues
 
-1. Enable debug logging: `HYDRA_FULL_ERROR=1`
-2. Use smaller batch sizes for debugging
-3. Check wandb logs for metrics anomalies
-4. Use `tools/play.py` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
+1. Use smaller batch sizes for debugging
+2. Check wandb logs for metrics anomalies
+3. Use `./tools/run.py experiments.recipes.arena.play` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
 
 #### Performance Profiling
 
@@ -469,3 +471,5 @@ Before creating a PR, ensure:
 - [ ] Proper error handling is implemented
 - [ ] Tests pass locally
 - [ ] Code is formatted according to project standards
+
+- use uv run <cmd> instead of python
