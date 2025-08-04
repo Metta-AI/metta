@@ -323,6 +323,7 @@ class TestRealTypedConfigs:
                 print(f"Error loading config {config_name}: {e}")
                 raise e
 
+    @pytest.mark.slow
     def test_all_config_overrides_comprehensive(self):
         """Test all config files that override trainer settings (user configs)."""
         configs_root = Path(__file__).parent.parent.parent / "configs"
