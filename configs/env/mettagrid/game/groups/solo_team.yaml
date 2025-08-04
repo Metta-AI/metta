@@ -5,7 +5,7 @@ team_1:
   props: {}
 
 team_1:
-  id: 1
-  sprite: 1
+  id: 2
+  sprite: 2
   group_reward_pct: 1.0
   props: {}
