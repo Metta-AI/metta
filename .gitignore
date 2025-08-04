@@ -85,5 +85,7 @@ sweep_id
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
-tools/gdrive_upload/credentials.json
-tools/gdrive_upload/token.json
+
+# Credentials are stored in ~/.config/metta-gdrive/ as mentioned in the PR description
+# No need to ignore them in the repository
+
