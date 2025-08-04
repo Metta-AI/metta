@@ -560,3 +560,11 @@ def train(
     vecenv.close()
     cleanup_monitoring(memory_monitor, system_monitor)
     logger.info(f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Cleanup complete")
+
+    # CRITICAL: Final synchronization to ensure all ranks exit together
+    # This prevents the "rank 0 stuck at barrier" hang when some ranks destroy
+    # their process group before others reach the final barrier
+    if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Final exit synchronization")
+        torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exiting train function")
