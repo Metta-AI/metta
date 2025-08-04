@@ -85,5 +85,7 @@ sweep_id
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
+
+# Local OAuth credentials for Google Drive
 tools/gdrive_upload/credentials.json
 tools/gdrive_upload/token.json
