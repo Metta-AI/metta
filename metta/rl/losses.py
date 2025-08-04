@@ -67,7 +67,12 @@ def process_minibatch_update(
     """Process a single minibatch update and return the total loss."""
     obs = minibatch["obs"]
 
+    # Use preserved LSTM states if available, otherwise create fresh state
     lstm_state = PolicyState()
+    if minibatch.get("lstm_h") is not None and minibatch.get("lstm_c") is not None:
+        lstm_state.lstm_h = minibatch["lstm_h"]
+        lstm_state.lstm_c = minibatch["lstm_c"]
+
     _, new_logprobs, entropy, newvalue, full_logprobs = policy(obs, lstm_state, action=minibatch["actions"])
 
     new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)

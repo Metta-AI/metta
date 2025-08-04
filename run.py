@@ -103,6 +103,10 @@ bptt_horizon = 64
 update_epochs = 1
 forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 256
 
+# LSTM state handling - set to False to preserve LSTM states across episodes and minibatches
+# This is useful for longer memory tasks (see configs/trainer/memory_no_reset.yaml)
+reset_lstm_state_between_episodes = True
+
 # Adjust defaults based on vectorization mode
 vectorization_mode = "serial"  # Use serial for macOS compatibility
 if vectorization_mode == "serial":
@@ -169,6 +173,7 @@ trainer_config = TrainerConfig(
     scale_batches_by_world_size=scale_batches_by_world_size,
     cpu_offload=cpu_offload,
     zero_copy=zero_copy,
+    reset_lstm_state_between_episodes=reset_lstm_state_between_episodes,
     ppo=ppo_config,
     optimizer=optimizer_config,
     checkpoint=checkpoint_config,

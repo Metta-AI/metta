@@ -106,7 +106,7 @@ class Experience:
         if agents_per_batch is None:
             agents_per_batch = total_agents
 
-        # Create LSTM states for each batch
+            # Create LSTM states for each batch
         for i in range(0, total_agents, agents_per_batch):
             batch_size = min(agents_per_batch, total_agents - i)
             self.lstm_h[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
@@ -184,7 +184,7 @@ class Experience:
         if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-        # Update LSTM states if provided
+            # Update LSTM states if provided
         if lstm_state is not None and env_id.start in self.lstm_h:
             self.lstm_h[env_id.start] = lstm_state["lstm_h"]
             self.lstm_c[env_id.start] = lstm_state["lstm_c"]
@@ -211,6 +211,26 @@ class Experience:
         if env_id_start not in self.lstm_h:
             return None, None
         return self.lstm_h[env_id_start], self.lstm_c[env_id_start]
+
+    def _get_lstm_states_for_segments(self, segment_indices: Tensor) -> tuple[Optional[Tensor], Optional[Tensor]]:
+        """Get LSTM states for given segment indices."""
+        if self.reset_lstm_state_between_episodes or not self.lstm_h:
+            return None, None
+
+        # Build segment to agent mapping
+        agent_for_segment = torch.full((self.segments,), -1, device=self.device, dtype=torch.long)
+        agent_for_segment[self.ep_indices] = torch.arange(self.total_agents, device=self.device, dtype=torch.long)
+
+        # Get agent indices for requested segments
+        agent_indices = agent_for_segment[segment_indices]
+
+        # Concatenate all LSTM states
+        all_h = torch.cat([self.lstm_h[k] for k in sorted(self.lstm_h.keys())], dim=1)
+        all_c = torch.cat([self.lstm_c[k] for k in sorted(self.lstm_c.keys())], dim=1)
+
+        # Return states for the selected agents (use first agent as default for empty segments)
+        agent_indices = torch.where(agent_indices >= 0, agent_indices, 0)
+        return all_h[:, agent_indices], all_c[:, agent_indices]
 
     def set_lstm_state(self, env_id_start: int, lstm_h: Tensor, lstm_c: Tensor) -> None:
         """Set LSTM state."""
@@ -251,7 +271,10 @@ class Experience:
         if self.cpu_offload:
             mb_obs = mb_obs.to(self.device, non_blocking=True)
 
-        return {
+        # Get LSTM states for sampled segments
+        lstm_h, lstm_c = self._get_lstm_states_for_segments(idx)
+
+        mb_dict = {
             "obs": mb_obs,
             "actions": self.actions[idx],
             "logprobs": self.logprobs[idx],
@@ -264,6 +287,13 @@ class Experience:
             "prio_weights": (self.segments * prio_probs[idx, None]) ** -prio_beta,
             "ratio": self.ratio[idx],
         }
+
+        # Only add LSTM states if they exist
+        if lstm_h is not None and lstm_c is not None:
+            mb_dict["lstm_h"] = lstm_h
+            mb_dict["lstm_c"] = lstm_c
+
+        return mb_dict
 
     def update_values(self, indices: Tensor, new_values: Tensor) -> None:
         """Update value estimates for given indices."""

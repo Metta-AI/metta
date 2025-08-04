@@ -6,6 +6,8 @@ defaults:
 # on longer memory tasks when LSTM state is not reset between episodes
 
 # Disable LSTM state reset between episodes
+# This preserves LSTM states across both episode boundaries AND minibatches
+# enabling the model to maintain memory for longer periods
 reset_lstm_state_between_episodes: false
 
 # Larger BPTT horizon for longer memory tasks
