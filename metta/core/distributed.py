@@ -80,5 +80,9 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
 def cleanup_distributed() -> None:
     """Destroy the torch distributed process group if initialized."""
     if torch.distributed.is_initialized():
+        # Ensure all ranks synchronize before destroying process group
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering cleanup barrier")
+        torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited cleanup barrier")
         torch.distributed.destroy_process_group()
         logger.info("Destroyed distributed process group")

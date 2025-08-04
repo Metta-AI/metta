@@ -187,7 +187,11 @@ def main(cfg: DictConfig) -> int:
         handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Destroying process group")
+        # CRITICAL: Final barrier to ensure all ranks reach this point before any destroy their process group
+        # This prevents the hang where some ranks destroy their communicators while others are still in barriers
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final train.py barrier before destroy")
+        torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final train.py barrier, now destroying process group")
         torch.distributed.destroy_process_group()
         logger.info("Process group destroyed successfully")
 
