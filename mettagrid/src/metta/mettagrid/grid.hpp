@@ -98,6 +98,24 @@ public:
     return true;
   }
 
+  // Force move an object to a location, clearing any existing object there
+  inline bool force_move_object(GridObjectId id, const GridLocation& loc) {
+    if (!is_valid_location(loc)) {
+      return false;
+    }
+
+    GridObject* obj = object(id);
+    if (!obj) {
+      return false;
+    }
+
+    // Remove the object from its current location
+    grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
+
+    obj->location = loc;
+    return true;
+  }
+
   inline void swap_objects(GridObjectId id1, GridObjectId id2) {
     GridObject* obj1 = object(id1);
     GridObject* obj2 = object(id2);

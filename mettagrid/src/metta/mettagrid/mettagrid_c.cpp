@@ -440,18 +440,38 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
-  // Print all grid objects for debugging
-  // std::cout << "Grid objects at step " << current_step << ":" << std::endl;
-  // for (const auto& obj_ptr : _grid->objects) {
-  //   if (obj_ptr) {
-  //     std::cout << "  Object ID: " << obj_ptr->id
-  //               << ", Type: " << obj_ptr->type_id
-  //               << ", Location: (" << static_cast<int>(obj_ptr->location.r)
-  //               << ", " << static_cast<int>(obj_ptr->location.c)
-  //               << ", " << static_cast<int>(obj_ptr->location.layer) << ")"
-  //               << std::endl;
+  // // Print all box objects with their locations every timestep
+  // std::cout << "=== Box objects at step " << current_step << " ===" << std::endl;
+  // for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+  //   auto obj = _grid->object(obj_id);
+  //   if (!obj) continue;
+
+  //   // Check if this is a box object
+  //   Box* box = dynamic_cast<Box*>(obj);
+  //   if (box) {
+  //     std::cout << "  Box ID: " << obj_id
+  //               << ", Type: " << object_type_names[box->type_id]
+  //               << ", Location: (" << static_cast<int>(box->location.r)
+  //               << ", " << static_cast<int>(box->location.c)
+  //               << ", " << static_cast<int>(box->location.layer) << ")"
+  //               << ", Creator Agent ID: " << static_cast<int>(box->creator_agent_id)
+  //               << ", Creator Object ID: " << box->creator_agent_object_id;
+
+  //     // Print inventory contents if any
+  //     if (!box->inventory.empty()) {
+  //       std::cout << ", Inventory: {";
+  //       bool first = true;
+  //       for (const auto& [item, quantity] : box->inventory) {
+  //         if (!first) std::cout << ", ";
+  //         std::cout << inventory_item_names[item] << ":" << static_cast<int>(quantity);
+  //         first = false;
+  //       }
+  //       std::cout << "}";
+  //     }
+  //     std::cout << std::endl;
   //   }
   // }
+  // std::cout << "=== End box objects ===" << std::endl;
 
   // Increment timestep and process events
   current_step++;
