@@ -100,7 +100,8 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
         logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
-
+        with open(os.path.join(cfg.run_dir, "sweep_eval_config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f, resolve=True)
     train_job = TrainJob.model_validate(OmegaConf.to_container(cfg.train_job, resolve=True))
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
