@@ -34,7 +34,7 @@ game:
     root:
       type: metta.map.scenes.ascii.Ascii
       params:
-        uri: "configs/env/mettagrid/maps/operant_conditioning/minimal.map"
+        uri: ??
   objects:
     mine_red:
       cooldown: 255
