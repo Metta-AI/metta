@@ -456,12 +456,11 @@ def train(
             log_training_progress(
                 epoch=epoch,
                 agent_step=agent_step,
-                steps_before=steps_before,
+                prev_agent_step=steps_before,
                 total_timesteps=trainer_cfg.total_timesteps,
                 train_time=timer.get_last_elapsed("_train"),
                 rollout_time=timer.get_last_elapsed("_rollout"),
                 stats_time=timer.get_last_elapsed("_process_stats"),
-                is_master=is_master,
                 run_name=run,
             )
 

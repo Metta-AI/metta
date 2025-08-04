@@ -32,7 +32,7 @@ def log_training_progress(
     epoch: int,
     agent_step: int,
     total_timesteps: int,
-    steps_before: int,
+    prev_agent_step: int,
     train_time: float,
     rollout_time: float,
     stats_time: float,
@@ -52,7 +52,7 @@ def log_training_progress(
     """
     total_time = train_time + rollout_time + stats_time
     if total_time > 0:
-        steps_per_sec = (agent_step - steps_before) / total_time
+        steps_per_sec = (agent_step - prev_agent_step) / total_time
         train_pct = (train_time / total_time) * 100
         rollout_pct = (rollout_time / total_time) * 100
         stats_pct = (stats_time / total_time) * 100
