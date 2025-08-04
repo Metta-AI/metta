@@ -27,11 +27,13 @@ struct ColorTreeActionConfig : public ActionConfig {
 
 class ColorTree : public ActionHandler {
 public:
+  std::vector<uint8_t> _target_sequence;
   explicit ColorTree(const ColorTreeActionConfig& cfg)
       : ActionHandler(cfg, "color_tree"),
         _target_sequence(cfg.target_sequence),
         _sequence_reward(cfg.sequence_reward),
-        _color_to_item(cfg.color_to_item) {}
+        _color_to_item(cfg.color_to_item),
+        _current_sequence() {}
 
   unsigned char max_arg() const override {
     return 2;  // Only 3 color options: 0, 1, 2
@@ -41,50 +43,34 @@ protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
     uint8_t color = static_cast<uint8_t>(arg);
 
-    // Clear all color items from inventory before adding new one
-    for (const auto& [mapped_color, mapped_item] : _color_to_item) {
-      auto inv_it = actor->inventory.find(mapped_item);
-      if (inv_it != actor->inventory.end()) {
-        actor->update_inventory(mapped_item, -static_cast<InventoryDelta>(inv_it->second));
-      }
+    // Validate the color argument
+    if (color > max_arg()) {
+      return false;
     }
 
-    // Add the color to the agent's current sequence
+            // Add the color to the current sequence
+    _current_sequence.push_back(color);
     actor->stats.add("color_tree.colors_added", 1.0f);
 
     // Find the corresponding inventory item for this color
     auto item_it = _color_to_item.find(color);
-    if (item_it == _color_to_item.end()) {
-      // If color not mapped, fail the action
-      return false;
-    }
+    if (item_it != _color_to_item.end()) {
+      InventoryItem item = item_it->second;
 
-    InventoryItem item = item_it->second;
-
-    // Add the item to inventory
-    InventoryDelta delta = actor->update_inventory(item, 1);
-    if (delta <= 0) {
-      // If we couldn't add the item (inventory full), fail the action
-      return false;
-    }
-
-    // Get the current sequence from the agent's inventory
-    std::vector<uint8_t> current_sequence;
-    for (const auto& [mapped_color, mapped_item] : _color_to_item) {
-      auto inv_it = actor->inventory.find(mapped_item);
-      if (inv_it != actor->inventory.end()) {
-        // Add this color to sequence for each quantity we have
-        for (InventoryQuantity i = 0; i < inv_it->second; ++i) {
-          current_sequence.push_back(mapped_color);
-        }
+      // Add the item to inventory for visualization
+      InventoryDelta delta = actor->update_inventory(item, 1);
+      if (delta <= 0) {
+        // If we couldn't add the item (inventory full), we might want to handle this
+        // For now, continue with the sequence checking
       }
     }
 
-    // Check if current sequence matches target sequence
-    if (current_sequence.size() == _target_sequence.size()) {
+    // Check if we've completed a fixed window
+    if (_current_sequence.size() == _target_sequence.size()) {
+      // Check if the current fixed window matches the target sequence
       bool sequence_matches = true;
       for (size_t i = 0; i < _target_sequence.size(); ++i) {
-        if (current_sequence[i] != _target_sequence[i]) {
+        if (_current_sequence[i] != _target_sequence[i]) {
           sequence_matches = false;
           break;
         }
@@ -94,7 +80,17 @@ protected:
         // Give reward for completing the sequence
         *actor->reward += _sequence_reward;
         actor->stats.add("color_tree.sequence_completed", 1.0f);
-        // Note: inventory is already cleared at the start of each action
+      }
+
+      // Clear the sequence tracker
+      _current_sequence.clear();
+
+      // Also clear inventory items after checking the window
+      for (const auto& [mapped_color, mapped_item] : _color_to_item) {
+        auto inv_it = actor->inventory.find(mapped_item);
+        if (inv_it != actor->inventory.end()) {
+          actor->update_inventory(mapped_item, -static_cast<InventoryDelta>(inv_it->second));
+        }
       }
     }
 
@@ -102,9 +98,10 @@ protected:
   }
 
 private:
-  std::vector<uint8_t> _target_sequence;
+
   float _sequence_reward;
   std::map<uint8_t, InventoryItem> _color_to_item;
+  std::vector<uint8_t> _current_sequence;  // Tracks the current sequence of actions
 };
 
 #endif  // ACTIONS_COLOR_TREE_HPP_

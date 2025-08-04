@@ -19,12 +19,6 @@ game:
     seed: 42
     objects: {}
 
-  # Agent config
-  agent:
-    resource_limits:
-      ore_red: 10
-      ore_blue: 10
-      ore_green: 10
 
   # Only enable ColorTree and noop actions
   actions:
