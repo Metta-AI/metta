@@ -290,14 +290,26 @@ class PolicyStore:
 
         additional_files = additional_files or []
 
+        logger.info(f"Creating WandB artifact: {name}, type: {type}")
         artifact = wandb.Artifact(name, type=type, metadata=metadata)
+
+        logger.info(f"Adding file to artifact: {file_path}")
         artifact.add_file(file_path, name="model.pt")
+
         for file in additional_files:
+            logger.info(f"Adding additional file to artifact: {file}")
             artifact.add_file(file)
+
+        logger.info("Saving artifact...")
         artifact.save()
-        artifact.wait()
-        logger.info(f"Added artifact {artifact.qualified_name}")
+
+        # Note: Removed artifact.wait() as log_artifact handles the upload
+        logger.info(f"Prepared artifact {artifact.qualified_name}")
+
+        logger.info("Logging artifact to WandB run...")
         self._wandb_run.log_artifact(artifact)
+
+        logger.info(f"Successfully uploaded artifact: {artifact.qualified_name}")
         return artifact.qualified_name
 
     def _prs_from_path(self, path: str) -> list[PolicyRecord]:

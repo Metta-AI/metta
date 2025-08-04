@@ -536,15 +536,27 @@ def train(
 
     # All ranks must synchronize after final save operations
     if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering post-save barrier")
         torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited post-save barrier")
 
     if wandb_run and latest_saved_policy_record:
+        logger.info(
+            f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Starting WandB upload"
+        )
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
+        logger.info(
+            f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Completed WandB upload"
+        )
 
     # Final synchronization before cleanup
     if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final barrier")
         torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final barrier")
 
     # Cleanup
+    logger.info(f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Starting cleanup")
     vecenv.close()
     cleanup_monitoring(memory_monitor, system_monitor)
+    logger.info(f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Cleanup complete")

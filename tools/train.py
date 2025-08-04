@@ -187,8 +187,11 @@ def main(cfg: DictConfig) -> int:
         handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Destroying process group")
         torch.distributed.destroy_process_group()
+        logger.info("Process group destroyed successfully")
 
+    logger.info(f"Process {os.getpid()} exiting with code 0")
     return 0
 
 
