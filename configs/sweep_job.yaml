@@ -1,0 +1,27 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - sweep: full
+  - _self_
+
+sweep_name: ??? # Will be set via command line override
+
+settings:
+  max_consecutive_failures: 5
+  rollout_retry_delay: 5
+  max_observations_to_load: 250
+  sweep_server_uri: https://api.observatory.softmax-research.net
+
+# Otherwise common will mess with us
+run: null
+
+sim_name: arena
+sweep_job_overrides:
+  trainer:
+    curriculum: /env/mettagrid/arena/advanced
+    simulation:
+      evaluate_remote: false
+      evaluate_local: true
+      replay_dir: "" # No replays for sweeps
+
+cmd: sweep
