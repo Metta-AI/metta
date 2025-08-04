@@ -100,11 +100,11 @@ class BidirectionalLearningProgress:
         self._num_tasks = max_num_levels = search_space.n
         self._ema_timescale = ema_timescale
         self.progress_smoothing = progress_smoothing
-        self.num_active_tasks = int(num_active_tasks)
+        self.num_active_tasks = num_active_tasks
         self._rand_task_rate = rand_task_rate
         self._sample_threshold = sample_threshold
-        self._memory = int(memory)
-        self._outcomes = {}
+        self._memory = memory
+        self._outcomes: dict[int, list[float]] = {}
         for i in range(max_num_levels):
             self._outcomes[i] = []
         self._p_fast = None
@@ -122,7 +122,7 @@ class BidirectionalLearningProgress:
 
     def add_stats(self) -> dict[str, float]:
         """Return learning progress statistics for logging."""
-        stats = {}
+        stats: dict[str, float] = {}
         stats["lp/num_active_tasks"] = len(self._sample_levels)
         stats["lp/mean_sample_prob"] = np.mean(self._task_dist)
         stats["lp/num_zeros_lp_dist"] = np.sum(self._task_dist == 0)
@@ -160,7 +160,7 @@ class BidirectionalLearningProgress:
             / denominator
         )
 
-        if self._p_fast is None:
+        if self._p_fast is None or self._p_slow is None or self._p_true is None:
             self._p_fast = normalized_task_success_rates[self._update_mask]
             self._p_slow = normalized_task_success_rates[self._update_mask]
             self._p_true = task_success_rates[self._update_mask]
@@ -180,11 +180,8 @@ class BidirectionalLearningProgress:
 
         return task_success_rates
 
-    def collect_data(self, infos):
+    def collect_data(self, infos: dict[str, list[float]]):
         """Collect task outcome data for learning progress tracking."""
-        if not bool(infos):
-            return
-
         for k, v in infos.items():
             if "tasks" in k:
                 task_id = int(k.split("/")[1])
