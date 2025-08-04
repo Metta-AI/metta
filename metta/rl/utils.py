@@ -12,9 +12,13 @@ def should_run(
     interval: int,
     is_master: bool = True,
     force: bool = False,
+    *,
+    non_master_ok: bool = False,
 ) -> bool:
     """Check if a periodic task should run based on interval and master status."""
-    if not is_master or not interval:
+    if not interval:
+        return False
+    if not (non_master_ok or is_master):
         return False
 
     if force:

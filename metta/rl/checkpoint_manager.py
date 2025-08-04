@@ -133,8 +133,10 @@ class CheckpointManager:
         Returns:
             Saved policy record or None
         """
-        # Check if we should save based on interval (all ranks must agree)
-        if not force and not should_run(epoch, self.checkpoint_cfg.checkpoint_interval, self.is_master):
+        # Allow non-master ranks through; they are handled below
+        if not should_run(
+            epoch, self.checkpoint_cfg.checkpoint_interval, is_master=True, force=force, non_master_ok=True
+        ):
             return None
 
         # Now all ranks that should save are here

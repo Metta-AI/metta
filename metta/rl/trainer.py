@@ -279,7 +279,7 @@ def train(
                 name=name, attributes={}, url=url, description=description, tags=tags
             ).id
         except Exception as e:
-            logger.warning(f"Failed to create training run: {e}")
+            logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
     if is_master:
         logger.info(f"Training on {device}")
