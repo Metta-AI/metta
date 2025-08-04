@@ -10,7 +10,7 @@ num_trials: 16
 
 game:
   num_agents: 24
-  max_steps: 200
+  max_steps: 50
   agent:
     default_resource_limit: 1
     rewards:
@@ -27,12 +27,10 @@ game:
     instances: ${..num_agents}
     width: 8
     height: 8
-
     root:
-      type: metta.map.scenes.random.Random
+      type: metta.map.scenes.ascii.Ascii
       params:
-        agents: 1
-        objects: ??
+        uri: "configs/env/mettagrid/maps/operant_conditioning/minimal.map"
   objects:
     mine_red:
       cooldown: 255

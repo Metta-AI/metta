@@ -1,16 +1,12 @@
 defaults:
-  - /env/mettagrid/operant_conditioning/defaults@
+  - /env/mettagrid/operant_conditioning/trial_and_error/defaults@
   - _self_
 
 game:
   map_builder:
     root:
       params:
-        objects:
-          mine_blue: 1
-          generator_red: 1
-          generator_blue: 1
-          factory: 1 #cue
+        uri: "configs/env/mettagrid/maps/operant_conditioning/minimal_3.map"
   objects:
     generator_red:
       cooldown: 1
@@ -18,18 +14,16 @@ game:
         ore_blue: 1
         ore_red: 0
       output_resources:
-        battery_red: 0
         heart: 1
+        battery_red: 0
     generator_blue:
       cooldown: 1
       output_resources:
         battery_blue: 0
-        heart: 0
-    factory:
+    generator_green:
+      cooldown: 1
       input_resources:
-        blueprint: 0
-        ore_red: 0
-        battery_red: 0
+        ore_green: 0
+        ore_blue: 1
       output_resources:
-        laser: 0
-        armor: 0
+        battery_green: 0
