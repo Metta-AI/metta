@@ -38,7 +38,13 @@ from metta.rl.policy_management import (
     wrap_agent_distributed,
 )
 from metta.rl.ppo import ppo
-from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference, send_observation
+from metta.rl.rollout import (
+    get_lstm_config,
+    get_observation,
+    run_dual_policy_rollout,
+    run_policy_inference,
+    send_observation,
+)
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -157,8 +163,7 @@ def train(
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-    # Load or initialize policy with distributed coordination
-    policy: PolicyAgent
+    # Load or initialize policy
     policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
         agent_cfg=agent_cfg,
         env_cfg=env_cfg,
@@ -169,6 +174,22 @@ def train(
         is_master=is_master,
         rank=rank,
     )
+
+    # Load NPC policy for dual-policy training if enabled
+    npc_policy_record = None
+    if trainer_cfg.dual_policy.enabled:
+        if not trainer_cfg.dual_policy.checkpoint_npc.uri:
+            raise ValueError("checkpoint_npc.uri must be set when dual_policy.enabled is True")
+        try:
+            npc_policy_record = policy_store.load_from_uri(trainer_cfg.dual_policy.checkpoint_npc.uri)
+            logger.info(f"Loaded NPC policy from {trainer_cfg.dual_policy.checkpoint_npc.uri}")
+            logger.info(f"NPC policy run name: {npc_policy_record.run_name}")
+            logger.info(
+                f"Dual-policy training enabled: {trainer_cfg.dual_policy.training_agents_pct:.1%} training agents"
+            )
+        except Exception as e:
+            logger.error(f"Failed to load NPC policy: {e}")
+            raise ValueError(f"Could not load NPC policy from {trainer_cfg.dual_policy.checkpoint_npc.uri}") from e
 
     # Validate that policy matches environment
     validate_policy_environment_match(policy, metta_grid_env)
@@ -303,24 +324,79 @@ def train(
                     o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
-                    # Inference
-                    actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                        policy, o, experience, training_env_id.start, device
-                    )
+                    # Run policy inference (dual-policy or single-policy)
+                    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
+                        # Dual-policy training: some agents use training policy, others use NPC policy
+                        actions, selected_action_log_probs, values, lstm_state_to_store = run_dual_policy_rollout(
+                            training_policy=policy,
+                            npc_policy_record=npc_policy_record,
+                            observations=o,
+                            experience=experience,
+                            training_env_id_start=training_env_id.start,
+                            device=device,
+                            training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
+                            num_agents_per_env=vecenv.num_agents,  # type: ignore
+                            num_envs=vecenv.num_envs,  # type: ignore
+                        )
 
-                    # Store experience
-                    experience.store(
-                        obs=o,
-                        actions=actions,
-                        logprobs=selected_action_log_probs,
-                        rewards=r,
-                        dones=d,
-                        truncations=t,
-                        values=values,
-                        env_id=training_env_id,
-                        mask=mask,
-                        lstm_state=lstm_state_to_store,
-                    )
+                        # In dual-policy mode, we need to filter experience to only include training policy agents
+                        # Calculate which agents are training agents
+                        num_agents_per_env = vecenv.num_agents  # type: ignore
+                        num_envs = vecenv.num_envs  # type: ignore
+                        training_agents_per_env = max(
+                            1, int(num_agents_per_env * trainer_cfg.dual_policy.training_agents_pct)
+                        )
+
+                        # Create masks for training agents only
+                        total_agents = num_envs * num_agents_per_env
+                        idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
+                        training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
+
+                        # Filter observations, actions, logprobs, values, rewards, dones, truncations
+                        # to only training agents
+                        training_obs = o[training_idxs]
+                        training_actions = actions[training_idxs]
+                        training_logprobs = selected_action_log_probs  # Already filtered in run_dual_policy_rollout
+                        training_values = values  # Already filtered in run_dual_policy_rollout
+                        training_rewards = r[training_idxs]
+                        training_dones = d[training_idxs]
+                        training_truncations = t[training_idxs]
+                        training_mask = (
+                            mask[training_idxs] if mask is not None else torch.ones(len(training_idxs), device=device)
+                        )
+
+                        # Store only training policy experience
+                        experience.store(
+                            obs=training_obs,
+                            actions=training_actions,
+                            logprobs=training_logprobs,
+                            rewards=training_rewards,
+                            dones=training_dones,
+                            truncations=training_truncations,
+                            values=training_values,
+                            env_id=training_env_id,
+                            mask=training_mask,
+                            lstm_state=lstm_state_to_store,
+                        )
+                    else:
+                        # Single-policy training: all agents use training policy
+                        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                            policy, o, experience, training_env_id.start, device
+                        )
+
+                        # Store experience (all agents are training agents)
+                        experience.store(
+                            obs=o,
+                            actions=actions,
+                            logprobs=selected_action_log_probs,
+                            rewards=r,
+                            dones=d,
+                            truncations=t,
+                            values=values,
+                            env_id=training_env_id,
+                            mask=mask,
+                            lstm_state=lstm_state_to_store,
+                        )
 
                     # Send observation
                     send_observation(vecenv, actions, dtype_actions, timer)
@@ -371,6 +447,23 @@ def train(
                     optimizer=optimizer,
                     kickstarter=kickstarter,
                 )
+
+                # Add dual-policy specific logging if enabled
+                if is_master and wandb_run and trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
+                    # Log dual-policy configuration and status
+                    dual_policy_stats = {
+                        "dual_policy/enabled": True,
+                        "dual_policy/training_agents_pct": trainer_cfg.dual_policy.training_agents_pct,
+                        "dual_policy/npc_policy_uri": trainer_cfg.dual_policy.checkpoint_npc.uri,
+                        "dual_policy/npc_policy_run_name": npc_policy_record.run_name,
+                        "dual_policy/npc_policy_generation": npc_policy_record.metadata.get("generation", 0),
+                    }
+                    wandb_run.log(dual_policy_stats, step=agent_step)
+
+                    # Set dual-policy flag on environment for stats logging
+                    if hasattr(vecenv, "_dual_policy_enabled"):
+                        vecenv._dual_policy_enabled = True
+
             # Clear stats after processing
             stats_tracker.clear_rollout_stats()
             stats_tracker.clear_grad_stats()
@@ -413,7 +506,7 @@ def train(
             )
 
             if saved_record:
-                latest_saved_policy_record = saved_record
+                initial_policy_record = saved_record  # Update initial_policy_record
 
                 # Only master saves training state
                 if is_master:
@@ -434,11 +527,11 @@ def train(
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
-            wandb_policy_name = upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
+            wandb_policy_name = upload_policy_artifact(wandb_run, policy_store, initial_policy_record)
 
         # Evaluate policy (with remote evaluation support)
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
-            if latest_saved_policy_record:
+            if initial_policy_record:
                 # Create stats epoch if needed
                 if stats_client is not None and stats_tracker.stats_run_id is not None:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
@@ -472,7 +565,7 @@ def train(
 
                 # Evaluate policy using the extracted evaluation function
                 eval_scores = evaluate_policy(
-                    policy_record=latest_saved_policy_record,
+                    policy_record=initial_policy_record,
                     sim_suite_config=extended_suite_config,
                     device=device,
                     vectorization=env_cfg.vectorization,
@@ -520,7 +613,7 @@ def train(
             force=True,
         )
         if saved_record:
-            latest_saved_policy_record = saved_record
+            initial_policy_record = saved_record  # Update initial_policy_record
 
             # Save final training state
             checkpoint_manager.save_checkpoint(
@@ -538,8 +631,8 @@ def train(
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
-    if wandb_run and latest_saved_policy_record:
-        upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
+    if wandb_run and initial_policy_record:
+        upload_policy_artifact(wandb_run, policy_store, initial_policy_record)
 
     # Final synchronization before cleanup
     if torch.distributed.is_initialized():

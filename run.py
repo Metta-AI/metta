@@ -47,7 +47,6 @@ from metta.rl.policy_management import (
 from metta.rl.rollout import (
     get_lstm_config,
     get_observation,
-    run_dual_policy_rollout,
     run_policy_inference,
 )
 from metta.rl.stats import (
@@ -486,74 +485,28 @@ while agent_step < trainer_config.total_timesteps:
         o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
         agent_step += num_steps
 
-        # Run policy inference (dual-policy or single-policy)
-        if trainer_config.dual_policy.enabled and npc_policy_record is not None:
-            # Dual-policy training: some agents use training policy, others use NPC policy
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_dual_policy_rollout(
-                training_policy=agent,
-                npc_policy_record=npc_policy_record,
-                observations=o,
-                experience=experience,
-                training_env_id_start=training_env_id.start,
-                device=device,
-                training_agents_pct=trainer_config.dual_policy.training_agents_pct,
-                num_agents_per_env=env.num_agents,  # type: ignore
-                num_envs=env.num_envs,  # type: ignore
-            )
+        # Run policy inference
+        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+            policy=agent,
+            observations=o,
+            experience=experience,
+            training_env_id_start=training_env_id.start,
+            device=device,
+        )
 
-            # In dual-policy mode, we need to filter experience to only include training policy agents
-            # Calculate which agents are training agents
-            num_agents_per_env = env.num_agents  # type: ignore
-            num_envs = env.num_envs  # type: ignore
-            training_agents_per_env = max(1, int(num_agents_per_env * trainer_config.dual_policy.training_agents_pct))
-
-            # Create masks for training agents only
-            total_agents = num_envs * num_agents_per_env
-            idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
-            training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
-
-            # Filter observations, actions, logprobs, values, rewards, dones, truncations to only training agents
-            training_obs = o[training_idxs]
-            training_actions = actions[training_idxs]
-            training_logprobs = selected_action_log_probs  # Already filtered in run_dual_policy_rollout
-            training_values = values  # Already filtered in run_dual_policy_rollout
-            training_rewards = r[training_idxs]
-            training_dones = d[training_idxs]
-            training_truncations = t[training_idxs]
-            training_mask = mask[training_idxs] if mask is not None else torch.ones(len(training_idxs), device=device)
-
-            # Store only training policy experience
-            experience.store(
-                obs=training_obs,
-                actions=training_actions,
-                logprobs=training_logprobs,
-                rewards=training_rewards,
-                dones=training_dones,
-                truncations=training_truncations,
-                values=training_values,
-                env_id=training_env_id,
-                mask=training_mask,
-                lstm_state=lstm_state_to_store,
-            )
-        else:
-            # Single-policy training: all agents use training policy
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                agent, o, experience, training_env_id.start, device
-            )
-
-            # Store experience (all agents are training agents)
-            experience.store(
-                obs=o,
-                actions=actions,
-                logprobs=selected_action_log_probs,
-                rewards=r,
-                dones=d,
-                truncations=t,
-                values=values,
-                env_id=training_env_id,
-                mask=mask,
-                lstm_state=lstm_state_to_store,
-            )
+        # Store experience
+        experience.store(
+            obs=o,
+            actions=actions,
+            logprobs=selected_action_log_probs,
+            rewards=r,
+            dones=d,
+            truncations=t,
+            values=values,
+            env_id=training_env_id,
+            mask=mask,
+            lstm_state=lstm_state_to_store,
+        )
 
         # Send actions back to environment
         with timer("_rollout.env"):
@@ -739,22 +692,6 @@ while agent_step < trainer_config.total_timesteps:
         # Log to wandb if available
         if wandb_run:
             wandb_run.log(all_stats, step=agent_step)
-
-            # Add dual-policy specific logging if enabled
-            if trainer_config.dual_policy.enabled and npc_policy_record is not None:
-                # Log dual-policy configuration and status
-                dual_policy_stats = {
-                    "dual_policy/enabled": True,
-                    "dual_policy/training_agents_pct": trainer_config.dual_policy.training_agents_pct,
-                    "dual_policy/npc_policy_uri": trainer_config.dual_policy.checkpoint_npc.uri,
-                    "dual_policy/npc_policy_run_name": npc_policy_record.run_name,
-                    "dual_policy/npc_policy_generation": npc_policy_record.metadata.get("generation", 0),
-                }
-                wandb_run.log(dual_policy_stats, step=agent_step)
-
-                # Set dual-policy flag on environment for stats logging
-                if hasattr(env, "_dual_policy_enabled"):
-                    env._dual_policy_enabled = True
 
     # Clear stats for next iteration
     stats_tracker.clear_rollout_stats()

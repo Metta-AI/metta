@@ -42,13 +42,15 @@ echo "Run directory: $RUN_DIR"
 export METTA_HOURLY_COST="${METTA_HOURLY_COST:-0.0}"
 echo "Estimated hourly cost: $METTA_HOURLY_COST"
 
-# Run training locally
-python run.py \
+# Run training using the train.py tool
+python tools/train.py \
     run="$RUN_NAME" \
+    run_dir="$RUN_DIR" \
     trainer.total_timesteps="$TOTAL_TIMESTEPS" \
     trainer.num_workers="$NUM_WORKERS" \
     trainer.dual_policy.enabled=true \
     trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
+    trainer.dual_policy.training_agents_pct=0.5 \
     "${@:4}"
 
 echo "Training completed!"
