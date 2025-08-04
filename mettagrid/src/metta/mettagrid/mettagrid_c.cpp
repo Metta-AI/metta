@@ -1020,14 +1020,23 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::vector<uint8_t>&,
                     float,
-                    const std::map<uint8_t, InventoryItem>&>(),
+                    const std::map<uint8_t, InventoryItem>&,
+                    int,
+                    const std::vector<std::vector<uint8_t>>&,
+                    int>(),
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("target_sequence"),
            py::arg("sequence_reward"),
-           py::arg("color_to_item"))
+           py::arg("color_to_item"),
+           py::arg("num_trials") = 1,
+           py::arg("trial_sequences") = std::vector<std::vector<uint8_t>>(),
+           py::arg("attempts_per_trial") = 4)
       .def_readonly("target_sequence", &ColorTreeActionConfig::target_sequence)
       .def_readonly("sequence_reward", &ColorTreeActionConfig::sequence_reward)
+      .def_readonly("num_trials", &ColorTreeActionConfig::num_trials)
+      .def_readonly("trial_sequences", &ColorTreeActionConfig::trial_sequences)
+      .def_readonly("attempts_per_trial", &ColorTreeActionConfig::attempts_per_trial)
       .def_readonly("color_to_item", &ColorTreeActionConfig::color_to_item);
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")

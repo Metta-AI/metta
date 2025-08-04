@@ -5,7 +5,7 @@ defaults:
 
 game:
   num_agents: 1
-  max_steps: 500
+  max_steps: 64  # 4 sequences × 4 attempts × 4 trials = 64 steps
   obs_width: 11
   obs_height: 11
 
@@ -42,9 +42,16 @@ game:
       enabled: false
     color_tree:
       enabled: true
-      target_sequence: [0, 1, 2]  # Simple sequence with only 3 options
+      target_sequence: [0, 1, 2, 3]  # Default 4-length sequence
       sequence_reward: 5.0
+      num_trials: 4
+      trial_sequences:
+        - [0, 1, 2, 3]  # Trial 1: sequential
+        - [0, 1, 2, 3]  # Trial 2: reverse
+        - [0, 1, 2, 3]  # Trial 3: mixed
+        - [0, 1, 2, 3]  # Trial 4: different mix
       color_to_item:
         0: ore_red     # Map color 0 to red ore
         1: ore_green   # Map color 1 to green ore
         2: ore_blue    # Map color 2 to blue ore
+        3: battery_red # Map color 3 to battery_red
