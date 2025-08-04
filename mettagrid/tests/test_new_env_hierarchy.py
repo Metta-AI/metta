@@ -74,53 +74,11 @@ class TestNewEnvironmentHierarchy:
         from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
         from metta.mettagrid.mettagrid_env import MettaGridEnv
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
-        from metta.mettagrid.puffer_env import MettaGridPufferEnv
 
         assert MettaGridEnv is not None
-        assert MettaGridPufferEnv is not None
         assert MettaGridGymEnv is not None
         assert SingleAgentMettaGridGymEnv is not None
         assert MettaGridPettingZooEnv is not None
-
-    def test_puffer_env_creation(self, test_curriculum):
-        """Test that MettaGridPufferEnv can be created."""
-        from metta.mettagrid.puffer_env import MettaGridPufferEnv
-
-        env = MettaGridPufferEnv(
-            curriculum=test_curriculum,
-            render_mode=None,
-            is_training=False,
-        )
-
-        assert env is not None
-        env.close()
-
-    def test_puffer_env_basic_ops(self, test_curriculum):
-        """Test basic PufferLib environment operations."""
-        from metta.mettagrid.puffer_env import MettaGridPufferEnv
-
-        env = MettaGridPufferEnv(
-            curriculum=test_curriculum,
-            render_mode=None,
-            is_training=False,
-        )
-
-        # Test reset
-        obs, info = env.reset(seed=42)
-        assert obs is not None
-        assert obs.shape[0] == env.num_agents
-
-        # Test step
-        actions = np.zeros((env.num_agents, 2), dtype=np.int32)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-
-        assert obs is not None
-        assert rewards is not None
-        assert terminals is not None
-        assert truncations is not None
-        assert isinstance(info, dict)
-
-        env.close()
 
     def test_gym_env_creation(self):
         """Test that Gymnasium environments can be created."""
@@ -227,7 +185,7 @@ if __name__ == "__main__":
 
     # Test imports
     try:
-        from metta.mettagrid.puffer_env import MettaGridPufferEnv
+        from metta.mettagrid.mettagrid_env import MettaGridEnv
 
         print("✓ All imports successful")
     except Exception as e:
@@ -236,11 +194,11 @@ if __name__ == "__main__":
 
     # Test basic creation
     try:
-        env = MettaGridPufferEnv(curriculum=curriculum, render_mode=None, is_training=False)
+        env = MettaGridEnv(curriculum=curriculum, render_mode=None, is_training=False)
         env.close()
-        print("✓ PufferLib environment creation successful")
+        print("✓ MettaGridEnv creation successful")
     except Exception as e:
-        print(f"✗ PufferLib environment creation failed: {e}")
+        print(f"✗ MettaGridEnv creation failed: {e}")
         sys.exit(1)
 
     print("✓ All manual tests passed!")

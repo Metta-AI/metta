@@ -1,8 +1,21 @@
 """
 MettaGridPufferBase - Base PufferLib integration for MettaGrid.
 
-This class provides the core PufferLib integration that is shared between
-the user adapter (MettaGridPufferEnv) and training environment (MettaGridEnv).
+This class provides PufferLib compatibility for MettaGrid environments by inheriting
+from both MettaGridCore and PufferEnv. This allows MettaGrid environments to be used
+directly with PufferLib training infrastructure.
+
+Architecture:
+- MettaGridPufferBase inherits from: MettaGridCore + PufferEnv
+- MettaGridEnv inherits from: MettaGridPufferBase
+- This enables MettaGridEnv to work seamlessly with PufferLib training code
+
+For users:
+- Use MettaGridEnv directly with PufferLib (it inherits PufferLib functionality)
+- Alternatively, use PufferLib's MettaPuff wrapper for additional PufferLib features:
+  https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments/metta/environment.py
+
+This avoids double-wrapping while maintaining full PufferLib compatibility.
 """
 
 from __future__ import annotations
