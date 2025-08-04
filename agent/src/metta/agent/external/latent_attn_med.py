@@ -323,7 +323,7 @@ class Policy(nn.Module):
 
     def decode_actions(self, hidden):
 
-        critic_features = self.critic_1(hidden)
+        critic_features = F.tanh(self.critic_1(hidden))
 
         value = self.value_head(critic_features)
 

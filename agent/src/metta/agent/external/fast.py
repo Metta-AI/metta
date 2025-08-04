@@ -282,6 +282,7 @@ class Policy(nn.Module):
 
 
     def network_forward(self, x):
+        logger.info(f"X shape: {x.shape}")
         x = x / self.max_vec
         x = self.cnn1(x)
         x = self.cnn2(x)
@@ -342,7 +343,7 @@ class Policy(nn.Module):
 
     def decode_actions(self, hidden):
 
-        critic_features = self.critic_1(hidden)
+        critic_features = F.tanh(self.critic_1(hidden))
 
         value = self.value_head(critic_features)
 
