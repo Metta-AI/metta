@@ -23,6 +23,7 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.utils.retry import env_init_retry
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
