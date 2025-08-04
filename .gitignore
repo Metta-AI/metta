@@ -75,6 +75,9 @@ cpplint_output*
 
 # External tools
 /Miniconda3-Linux.sh  # created by skypilot
+Miniconda3-Linux.sh
+
+codeflow
 
 # Legacy / Research
 metta-research/

@@ -1,0 +1,10 @@
+# configs/env/mettagrid/perfect_maze/large.yaml
+defaults:
+  - base
+  - _self_
+
+game:
+  max_steps: 2000
+  map_builder:
+    width: 61
+    height: 61

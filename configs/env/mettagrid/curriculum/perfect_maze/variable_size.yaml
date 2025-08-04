@@ -1,0 +1,15 @@
+# configs/env/mettagrid/curriculum/perfect_maze/variable_size.yaml
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/perfect_maze/base
+
+buckets:
+  game.map_builder.width:
+    range: [7, 61]
+    bins: 10
+  game.map_builder.height:
+    range: [7, 61]
+    bins: 10
+  game.max_steps:
+    range: [50, 2000]
+    bins: 10
