@@ -57,11 +57,6 @@ _OPTIONAL_KEYS = {
 }
 
 
-def _assert(condition: bool, msg: str) -> None:
-    if not condition:
-        raise ValueError(msg)
-
-
 def _require_fields(obj: dict[str, Any], fields: list[str], obj_name: str) -> None:
     """Assert that all required fields are present."""
     missing = [f for f in fields if f not in obj]
@@ -116,15 +111,15 @@ def _validate_sequence_or_value(
             return
         # Check if it's a sequence of [step, value] pairs.
         for item in data:
-            _assert(
-                isinstance(item, list) and len(item) == 2, f"'{field_name}' sequence items must be [step, value] pairs"
+            assert isinstance(item, list) and len(item) == 2, (
+                f"'{field_name}' sequence items must be [step, value] pairs"
             )
-            _assert(
-                isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' sequence step must be non-negative integer"
+            assert isinstance(item[0], int) and item[0] >= 0, (
+                f"'{field_name}' sequence step must be non-negative integer"
             )
-            _assert(type_check(item[1]), f"'{field_name}' sequence value must be {type_name}")
+            assert type_check(item[1]), f"'{field_name}' sequence value must be {type_name}"
     else:
-        _assert(False, f"'{field_name}' must be {type_name} or sequence of [step, {type_name}] pairs")
+        assert False, f"'{field_name}' must be {type_name} or sequence of [step, {type_name}] pairs"
 
 
 def _validate_inventory_format(inventory: Any, field_name: str) -> None:
@@ -132,9 +127,7 @@ def _validate_inventory_format(inventory: Any, field_name: str) -> None:
     if inventory is None:
         return
 
-    if not isinstance(inventory, list):
-        _assert(False, f"'{field_name}' must be a list")
-        return
+    assert isinstance(inventory, list), f"'{field_name}' must be a list"
 
     if len(inventory) == 0:
         return
@@ -149,12 +142,11 @@ def _validate_inventory_format(inventory: Any, field_name: str) -> None:
     ):
         # This is a sequence format: [[step, inventory_list], ...]
         for item in inventory:
-            _assert(
-                isinstance(item, list) and len(item) == 2,
-                f"'{field_name}' sequence items must be [step, inventory_list] pairs",
+            assert isinstance(item, list) and len(item) == 2, (
+                f"'{field_name}' sequence items must be [step, inventory_list] pairs"
             )
-            _assert(
-                isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' sequence step must be non-negative integer"
+            assert isinstance(item[0], int) and item[0] >= 0, (
+                f"'{field_name}' sequence step must be non-negative integer"
             )
             _validate_inventory_list(item[1], field_name)
     else:
@@ -164,23 +156,20 @@ def _validate_inventory_format(inventory: Any, field_name: str) -> None:
 
 def _validate_inventory_list(inventory_list: Any, field_name: str) -> None:
     """Validate a single inventory list: list of [item_id, amount] pairs."""
-    if not isinstance(inventory_list, list):
-        _assert(False, f"'{field_name}' inventory must be a list")
-        return
+    assert isinstance(inventory_list, list), f"'{field_name}' inventory must be a list"
 
     if len(inventory_list) == 0:
         return
 
     for pair in inventory_list:
-        _assert(
-            isinstance(pair, list) and len(pair) == 2, f"'{field_name}' inventory items must be [item_id, amount] pairs"
+        assert isinstance(pair, list) and len(pair) == 2, (
+            f"'{field_name}' inventory items must be [item_id, amount] pairs"
         )
-        _assert(
-            isinstance(pair[0], int) and pair[0] >= 0, f"'{field_name}' inventory item_id must be non-negative integer"
+        assert isinstance(pair[0], int) and pair[0] >= 0, (
+            f"'{field_name}' inventory item_id must be non-negative integer"
         )
-        _assert(
-            isinstance(pair[1], (int, float)) and pair[1] >= 0,
-            f"'{field_name}' inventory amount must be non-negative number",
+        assert isinstance(pair[1], (int, float)) and pair[1] >= 0, (
+            f"'{field_name}' inventory amount must be non-negative number"
         )
 
 
@@ -191,18 +180,18 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
     missing = _REQUIRED_KEYS - data_keys
     allowed_keys = _REQUIRED_KEYS | _OPTIONAL_KEYS
     unexpected = data_keys - allowed_keys
-    _assert(not missing, f"Missing required keys: {sorted(missing)}")
-    _assert(not unexpected, f"Unexpected keys present: {sorted(unexpected)}")
+    assert not missing, f"Missing required keys: {sorted(missing)}"
+    assert not unexpected, f"Unexpected keys present: {sorted(unexpected)}"
 
     # Top-level field validation.
-    _assert(data.get("version") == 2, f"'version' must equal 2, got {data.get('version')}")
+    assert data.get("version") == 2, f"'version' must equal 2, got {data.get('version')}"
 
     _validate_positive_int(data["num_agents"], "num_agents")
     _validate_non_negative_number(data["max_steps"], "max_steps")
 
     map_size = data["map_size"]
     _validate_type(map_size, list, "map_size")
-    _assert(len(map_size) == 2, "'map_size' must have exactly 2 dimensions")
+    assert len(map_size) == 2, "'map_size' must have exactly 2 dimensions"
     for i, dim in enumerate(map_size):
         _validate_positive_int(dim, f"map_size[{i}]")
 
@@ -210,37 +199,37 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
     if "file_name" in data:
         file_name = data["file_name"]
         _validate_type(file_name, str, "file_name")
-        _assert(file_name and file_name.endswith(".json.z"), "'file_name' must be non-empty and end with '.json.z'")
+        assert file_name and file_name.endswith(".json.z"), "'file_name' must be non-empty and end with '.json.z'"
 
     # String list validation.
     for field in ["action_names", "item_names", "type_names"]:
         lst = data[field]
         _validate_type(lst, list, field)
-        _assert(len(lst) > 0, f"'{field}' must not be empty")
-        _assert(all(isinstance(s, str) and s for s in lst), f"'{field}' must contain non-empty strings")
+        assert len(lst) > 0, f"'{field}' must not be empty"
+        assert all(isinstance(s, str) and s for s in lst), f"'{field}' must contain non-empty strings"
 
     # Optional string lists.
     if "group_names" in data:
         group_names = data["group_names"]
         _validate_type(group_names, list, "group_names")
-        _assert(all(isinstance(s, str) and s for s in group_names), "'group_names' must contain non-empty strings")
+        assert all(isinstance(s, str) and s for s in group_names), "'group_names' must contain non-empty strings"
 
     # Optional reward sharing matrix.
     if "reward_sharing_matrix" in data:
         matrix = data["reward_sharing_matrix"]
         _validate_type(matrix, list, "reward_sharing_matrix")
         num_agents = data["num_agents"]
-        _assert(len(matrix) == num_agents, f"'reward_sharing_matrix' must have {num_agents} rows")
+        assert len(matrix) == num_agents, f"'reward_sharing_matrix' must have {num_agents} rows"
         for i, row in enumerate(matrix):
             _validate_type(row, list, f"reward_sharing_matrix[{i}]")
-            _assert(len(row) == num_agents, f"'reward_sharing_matrix[{i}]' must have {num_agents} columns")
-            _assert(all(isinstance(v, (int, float)) for v in row), f"'reward_sharing_matrix[{i}]' must contain numbers")
+            assert len(row) == num_agents, f"'reward_sharing_matrix[{i}]' must have {num_agents} columns"
+            assert all(isinstance(v, (int, float)) for v in row), f"'reward_sharing_matrix[{i}]' must contain numbers"
 
     # Objects validation.
     objects = data["objects"]
     _validate_type(objects, list, "objects")
-    _assert(len(objects) > 0, "'objects' must not be empty")
-    _assert(all(isinstance(obj, dict) for obj in objects), "'objects' must contain dictionaries")
+    assert len(objects) > 0, "'objects' must not be empty"
+    assert all(isinstance(obj, dict) for obj in objects), "'objects' must contain dictionaries"
 
     # Validate each object and count agents.
     agent_count = 0
@@ -249,7 +238,7 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
         if obj.get("is_agent") or "agent_id" in obj:
             agent_count += 1
 
-    _assert(agent_count == data["num_agents"], f"Expected {data['num_agents']} agents, found {agent_count}")
+    assert agent_count == data["num_agents"], f"Expected {data['num_agents']} agents, found {agent_count}"
 
 
 def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str, Any]) -> None:
@@ -268,7 +257,7 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
 
     type_id = obj["type_id"]
     _validate_non_negative_number(type_id, f"{obj_name}.type_id")
-    _assert(type_id < len(replay_data["type_names"]), f"{obj_name}.type_id {type_id} out of range")
+    assert type_id < len(replay_data["type_names"]), f"{obj_name}.type_id {type_id} out of range"
 
     # Validate location format.
     _validate_location(obj["location"], obj_name)
@@ -298,17 +287,16 @@ def _validate_location(location: Any, obj_name: str) -> None:
     elif isinstance(location, list):
         # Sequence of [step, [x, y, z]] pairs.
         for step_data in location:
-            _assert(
-                isinstance(step_data, list) and len(step_data) == 2,
-                f"{field_name} sequence items must be [step, [x, y, z]]",
+            assert isinstance(step_data, list) and len(step_data) == 2, (
+                f"{field_name} sequence items must be [step, [x, y, z]]"
             )
             _validate_non_negative_number(step_data[0], f"{field_name} step")
             coords = step_data[1]
-            _assert(isinstance(coords, list) and len(coords) == 3, f"{field_name} coordinates must be [x, y, z]")
+            assert isinstance(coords, list) and len(coords) == 3, f"{field_name} coordinates must be [x, y, z]"
             for i, coord in enumerate(coords):
                 _validate_type(coord, (int, float), f"{field_name} coord[{i}]")
     else:
-        _assert(False, f"{field_name} must be [x, y, z] or sequence of [step, [x, y, z]]")
+        assert False, f"{field_name} must be [x, y, z] or sequence of [step, [x, y, z]]"
 
 
 def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict[str, Any]) -> None:
@@ -332,10 +320,10 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
     # Validate agent_id range.
     agent_id = obj["agent_id"]
     _validate_non_negative_number(agent_id, f"{obj_name}.agent_id")
-    _assert(agent_id < replay_data["num_agents"], f"{obj_name}.agent_id {agent_id} out of range")
+    assert agent_id < replay_data["num_agents"], f"{obj_name}.agent_id {agent_id} out of range"
 
     # Validate specific agent fields.
-    _assert(obj["is_agent"] is True, f"{obj_name}.is_agent must be True")
+    assert obj["is_agent"] is True, f"{obj_name}.is_agent must be True"
     _validate_positive_int(obj["vision_size"], f"{obj_name}.vision_size")
     _validate_non_negative_number(obj["group_id"], f"{obj_name}.group_id")
 
@@ -356,12 +344,12 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
 def _validate_action_id_range(action_ids: Any, obj_name: str, action_names: list[str]) -> None:
     """Validate that action_id values are within the valid range."""
     if isinstance(action_ids, int):
-        _assert(0 <= action_ids < len(action_names), f"{obj_name}.action_id {action_ids} out of range")
+        assert 0 <= action_ids < len(action_names), f"{obj_name}.action_id {action_ids} out of range"
     elif isinstance(action_ids, list):
         for step_data in action_ids:
             if isinstance(step_data, list) and len(step_data) == 2:
                 action_id = step_data[1]
-                _assert(0 <= action_id < len(action_names), f"{obj_name}.action_id {action_id} out of range")
+                assert 0 <= action_id < len(action_names), f"{obj_name}.action_id {action_id} out of range"
 
 
 def _validate_building_fields(obj: dict[str, Any], obj_name: str) -> None:
