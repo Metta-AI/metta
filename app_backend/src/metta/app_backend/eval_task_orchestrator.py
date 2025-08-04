@@ -89,50 +89,33 @@ class EvalTaskOrchestrator:
         self, claimed_tasks: list[TaskResponse], alive_workers_by_name: dict[str, WorkerInfo]
     ) -> None:
         for task in claimed_tasks:
-            # Unclaim all tasks that are assigned to workers that are not alive
             if task.assignee and task.assignee not in alive_workers_by_name:
-                await self._task_client.update_task_status(
-                    TaskUpdateRequest(
-                        updates={
-                            task.id: TaskStatusUpdate(
-                                status="unprocessed",
-                                clear_assignee=True,
-                                attributes={f"unassign_reason_{task.retries}": "worker_dead"},
-                            )
-                        },
-                    )
-                )
+                reason = "worker_dead"
+            elif task.assigned_at and task.assigned_at < datetime.now(timezone.utc) - timedelta(minutes=10):
+                reason = "worker_timeout"
+            else:
                 continue
 
-            # Unclaim all assigned tasks that are overdue and kill their workers
-            assigned_at = task.assigned_at.replace(tzinfo=timezone.utc) if task.assigned_at else None
-            if assigned_at and (assigned_at < datetime.now(timezone.utc) - timedelta(minutes=10)):
-                self._logger.info(f"Killing task {task.id} because it has been running for more than 10 minutes")
-                if task.retries < 3:
-                    await self._task_client.update_task_status(
-                        TaskUpdateRequest(
-                            updates={
-                                task.id: TaskStatusUpdate(
-                                    status="unprocessed",
-                                    clear_assignee=True,
-                                    attributes={f"unassign_reason_{task.retries}": "worker_timeout"},
-                                )
-                            },
+            if task.retries < 3:
+                status = "unprocessed"
+            else:
+                status = "error"
+
+            self._logger.info(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
+            await self._task_client.update_task_status(
+                TaskUpdateRequest(
+                    updates={
+                        task.id: TaskStatusUpdate(
+                            status=status, clear_assignee=True, attributes={f"unassign_reason_{task.retries}": reason}
                         )
-                    )
-                else:
-                    await self._task_client.update_task_status(
-                        TaskUpdateRequest(
-                            updates={
-                                task.id: TaskStatusUpdate(status="error", attributes={"reason": "max_retries_exceeded"})
-                            },
-                        )
-                    )
-                    self._logger.info(f"Not retrying task {task.id} because it has exceeded max retries")
-                if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
-                    self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
-                    self._worker_manager.cleanup_worker(worker.worker.name)
-                    del alive_workers_by_name[worker.worker.name]
+                    }
+                )
+            )
+
+            if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
+                self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
+                self._worker_manager.cleanup_worker(worker.worker.name)
+                del alive_workers_by_name[worker.worker.name]
 
     async def _assign_task_to_worker(
         self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[TaskResponse]]

@@ -88,7 +88,6 @@ class K8sPodManager(AbstractContainerManager):
         pod_name = pod_manifest["metadata"]["name"]
         cmd = self._get_kubectl_cmd() + ["create", "-f", "-"]
         manifest_str = json.dumps(pod_manifest)
-        self._logger.info(f"Pod manifest: \n {manifest_str}")
 
         self._logger.info("Starting worker pod")
 
