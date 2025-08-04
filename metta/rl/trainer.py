@@ -506,7 +506,13 @@ def train(
         for name, summary in timing_summary.items():
             logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
-    # Force final saves - all ranks must participate
+    # Synchronize all ranks before final save operations
+    if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering pre-save barrier")
+        torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited pre-save barrier")
+    
+    # Force final saves - only master performs saves
     if is_master:
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
@@ -532,12 +538,6 @@ def train(
                 force=True,
             )
 
-    # Final synchronization before cleanup and WandB operations
-    if torch.distributed.is_initialized():
-        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final barrier")
-        torch.distributed.barrier()
-        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final barrier")
-
     # Upload to WandB after all ranks have synchronized
     if wandb_run and latest_saved_policy_record:
         logger.info(
@@ -547,6 +547,12 @@ def train(
         logger.info(
             f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Completed WandB upload"
         )
+
+    # Final synchronization before cleanup and WandB operations
+    if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Entering final barrier")
+        torch.distributed.barrier()
+        logger.info(f"Rank {torch.distributed.get_rank()}: Exited final barrier")
 
     # Cleanup
     logger.info(f"Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0}: Starting cleanup")
