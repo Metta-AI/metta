@@ -34,12 +34,20 @@ public:
         _color_to_item(cfg.color_to_item) {}
 
   unsigned char max_arg() const override {
-    return 99;  // Restrict to fit within default 100 embeddings (0-99)
+    return 2;  // Only 3 color options: 0, 1, 2
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
     uint8_t color = static_cast<uint8_t>(arg);
+
+    // Clear all color items from inventory before adding new one
+    for (const auto& [mapped_color, mapped_item] : _color_to_item) {
+      auto inv_it = actor->inventory.find(mapped_item);
+      if (inv_it != actor->inventory.end()) {
+        actor->update_inventory(mapped_item, -static_cast<InventoryDelta>(inv_it->second));
+      }
+    }
 
     // Add the color to the agent's current sequence
     actor->stats.add("color_tree.colors_added", 1.0f);
@@ -86,14 +94,7 @@ protected:
         // Give reward for completing the sequence
         *actor->reward += _sequence_reward;
         actor->stats.add("color_tree.sequence_completed", 1.0f);
-
-        // Clear the sequence items from inventory (consume them)
-        for (const auto& [mapped_color, mapped_item] : _color_to_item) {
-          auto inv_it = actor->inventory.find(mapped_item);
-          if (inv_it != actor->inventory.end()) {
-            actor->update_inventory(mapped_item, -static_cast<InventoryDelta>(inv_it->second));
-          }
-        }
+        // Note: inventory is already cleared at the start of each action
       }
     }
 

@@ -48,9 +48,9 @@ game:
       enabled: false
     color_tree:
       enabled: true
-      target_sequence: [10, 20, 30]  # Simple sequence within embedding range
+      target_sequence: [0, 1, 2]  # Simple sequence with only 3 options
       sequence_reward: 5.0
       color_to_item:
-        10: ore_red     # Map color 10 to red ore
-        20: ore_green   # Map color 20 to green ore
-        30: ore_blue    # Map color 30 to blue ore
+        0: ore_red     # Map color 0 to red ore
+        1: ore_green   # Map color 1 to green ore
+        2: ore_blue    # Map color 2 to blue ore
