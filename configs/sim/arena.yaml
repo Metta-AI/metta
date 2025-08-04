@@ -5,18 +5,18 @@ defaults:
 name: arena
 
 simulations:
-#  arena/basic:
-#    env: /env/mettagrid/arena/basic
-#  arena/combat:
-#    env: /env/mettagrid/arena/combat
-#  arena/advanced:
-#    env: /env/mettagrid/arena/advanced
-#  arena/tag:
-#    env: /env/mettagrid/arena/tag
-#  arena/advanced_poor:
-#    env: /env/mettagrid/arena/advanced_poor
-  arena/combat_teams:
-    env: /env/mettagrid/arena/combat_teams
+  arena/basic:
+    env: /env/mettagrid/arena/basic
+  arena/combat:
+    env: /env/mettagrid/arena/combat
+  arena/advanced:
+    env: /env/mettagrid/arena/advanced
+  arena/tag:
+    env: /env/mettagrid/arena/tag
+  arena/advanced_poor:
+    env: /env/mettagrid/arena/advanced_poor
+# arena/combat_teams:
+#   env: /env/mettagrid/arena/combat_teams
 
   # arena/combat_npc:
   #   env: /env/mettagrid/arena/combat
