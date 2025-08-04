@@ -471,3 +471,5 @@ Before creating a PR, ensure:
 - [ ] Proper error handling is implemented
 - [ ] Tests pass locally
 - [ ] Code is formatted according to project standards
+
+- use uv run <cmd> instead of python
