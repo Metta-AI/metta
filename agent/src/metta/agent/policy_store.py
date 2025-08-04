@@ -303,11 +303,11 @@ class PolicyStore:
         logger.info("Saving artifact...")
         artifact.save()
 
-        # Note: Removed artifact.wait() as log_artifact handles the upload
-        logger.info(f"Prepared artifact {artifact.qualified_name}")
-
         logger.info("Logging artifact to WandB run...")
         self._wandb_run.log_artifact(artifact)
+
+        # Wait for the artifact to be uploaded before accessing its properties
+        artifact.wait()
 
         logger.info(f"Successfully uploaded artifact: {artifact.qualified_name}")
         return artifact.qualified_name
