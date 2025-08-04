@@ -601,7 +601,10 @@ def test_validate_real_generated_replay() -> None:
         if len(replay_files) == 0:
             pytest.skip(f"No replay generated (exit {result.returncode}): {result.stderr}")
 
-        # Validate the first replay file found
+        # Should have exactly one replay file
+        assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
+
+        # Validate the replay file
         replay_path = replay_files[0]
         loaded_replay = load_replay(replay_path)
         validate_replay_schema(loaded_replay)
