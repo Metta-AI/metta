@@ -111,7 +111,10 @@ async def _create_remote_eval_tasks(
         return
     stats_client.validate_authenticated()
 
-    policy_store = PolicyStore(cfg=request.get_wandb_cfg(), wandb_run=None)
+    policy_store = PolicyStore(
+        wandb_entity=request.wandb_entity,
+        wandb_project=request.wandb_project,
+    )
 
     info(f"Retrieving {request.policy_select_type} policy records for {len(request.policies)} policies...")
     # Parallelize policy records retrieval
