@@ -1,13 +1,12 @@
 import logging
 from typing import Any, Tuple
 
-from omegaconf import DictConfig, OmegaConf
-
 from metta.common.util.numpy_helpers import clean_numpy_types
+from metta.sweep.protein_config import ProteinConfig
 
-from .protein import Protein
+from .protein import ParetoGenetic, Protein, Random
 
-logger = logging.getLogger("wandb_protein")
+logger = logging.getLogger("metta_protein")
 
 # Ensure appropriate logging level for debugging observation loading issues
 if logger.level == logging.NOTSET:
@@ -22,24 +21,51 @@ class MettaProtein:
 
     def __init__(
         self,
-        cfg: DictConfig,
+        cfg: ProteinConfig,
     ):
         self._cfg = cfg
 
-        # Convert OmegaConf to regular dict
-        parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)
+        # Convert ProteinConfig to the dict format Protein expects
+        protein_dict = cfg.to_protein_dict()
 
-        # Create the config structure that Protein expects
-        protein_config = {
-            "metric": cfg.metric,
-            "goal": cfg.goal,
-            "method": cfg.method,
-            **parameters_dict,  # Add flattened parameters at top level
-        }
-        protein_settings = OmegaConf.to_container(cfg.protein, resolve=True)
+        # Get protein settings as dict
+        protein_settings = cfg.settings.model_dump()
 
-        # Initialize Protein with sweep config and protein-specific settings
-        self._protein = Protein(protein_config, **protein_settings)
+        # Initialize the appropriate optimizer based on method
+        if cfg.method == "random":
+            # Random uses a subset of settings
+            random_settings = {
+                "global_search_scale": protein_settings.get("global_search_scale", 1.0),
+                "random_suggestions": protein_settings.get("random_suggestions", 1024),
+                "acquisition_fn": protein_settings.get("acquisition_fn", "naive"),
+            }
+            self._protein = Random(protein_dict, **random_settings)
+        elif cfg.method == "genetic":
+            # ParetoGenetic uses a subset of settings
+            genetic_settings = {
+                "global_search_scale": protein_settings.get("global_search_scale", 1.0),
+                "suggestions_per_pareto": protein_settings.get("suggestions_per_pareto", 256),
+                "bias_cost": protein_settings.get("bias_cost", True),
+                "log_bias": protein_settings.get("log_bias", False),
+                "acquisition_fn": protein_settings.get("acquisition_fn", "naive"),
+            }
+            self._protein = ParetoGenetic(protein_dict, **genetic_settings)
+        else:  # bayes (default)
+            # Protein uses most settings but not genetic-specific ones
+            bayes_settings = {
+                "max_suggestion_cost": protein_settings.get("max_suggestion_cost", 3600),
+                "resample_frequency": protein_settings.get("resample_frequency", 0),
+                "num_random_samples": protein_settings.get("num_random_samples", 50),
+                "global_search_scale": protein_settings.get("global_search_scale", 1.0),
+                "random_suggestions": protein_settings.get("random_suggestions", 1024),
+                "suggestions_per_pareto": protein_settings.get("suggestions_per_pareto", 256),
+                "seed_with_search_center": protein_settings.get("seed_with_search_center", True),
+                "expansion_rate": protein_settings.get("expansion_rate", 0.25),
+                "acquisition_fn": protein_settings.get("acquisition_fn", "naive"),
+                "ucb_beta": protein_settings.get("ucb_beta", 2.0),
+                "randomize_acquisition": protein_settings.get("randomize_acquisition", False),
+            }
+            self._protein = Protein(protein_dict, **bayes_settings)
 
     def suggest(self, fill=None) -> Tuple[dict[str, Any], dict[str, Any]]:
         """
