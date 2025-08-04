@@ -491,19 +491,19 @@ class AsanaTask:
         print(f"[asana_comments_with_links] Found {len(linked_comments)} comments with review links of {len(comments)}")
         return linked_comments
 
-    def synchronize_comments_in_asana_as_multiple_blocks(self, comments_from_github: list[dict]) -> None:
+    def synchronize_comments_in_asana(self, comments_from_github: list[dict]) -> None:
         """
         Synchronize review comments in Asana as multiple blocks.
         Args:
             comments_from_github (list[dict]): List of review comments from GitHub
         """
-        print("[synchronize_comments_in_asana_as_multiple_blocks] Starting with:")
+        print("[synchronize_comments_in_asana] Starting with:")
         asana_comments_with_links = self.asana_comments_with_links()
         print(f"  asana_comments_with_links: {len(asana_comments_with_links)} comments")
         print(f"  comments_from_github: {len(comments_from_github)} reviews")
 
         if not comments_from_github:
-            print("[synchronize_comments_in_asana_as_multiple_blocks] No GitHub comments to process")
+            print("[synchronize_comments_in_asana] No GitHub comments to process")
             return
 
         api_url = f"https://app.asana.com/api/1.0/tasks/{self.task_gid}"
@@ -534,9 +534,7 @@ class AsanaTask:
             )
 
             if review_id in existing_comments_by_review_id:
-                print(
-                    f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} has existing Asana comment"
-                )
+                print(f"[synchronize_comments_in_asana] Review {review_id} has existing Asana comment")
                 # Update existing comment if content differs
                 existing_comment = existing_comments_by_review_id[review_id]
                 if existing_comment["text"] != formatted_comment:
@@ -561,9 +559,7 @@ class AsanaTask:
                     except requests.exceptions.RequestException as e:
                         print(f"Error updating Asana comment {story_id}: {e}")
                 else:
-                    print(
-                        f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} comment is up to date"
-                    )
+                    print(f"[synchronize_comments_in_asana] Review {review_id} comment is up to date")
             else:
                 print(f"[s] Review {review_id} has no existing Asana comment")
                 # Check if we should add this comment (don't add out of order)

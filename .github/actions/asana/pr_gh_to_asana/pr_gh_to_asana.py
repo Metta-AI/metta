@@ -71,9 +71,7 @@ def log_http_interactions(cassette_name):
         traceback.print_exc()
 
 
-def format_github_review_body_for_asana(
-    review_body, github_user, review_state, review_id, github_timestamp, github_url=None
-):
+def format_github_review_body_for_asana(review_body, github_user, review_state, review_id, github_timestamp):
     """
     Format GitHub review body comment for Asana
 
@@ -83,14 +81,17 @@ def format_github_review_body_for_asana(
         review_state: Review state (APPROVED, CHANGES_REQUESTED, COMMENTED)
         review_id: GitHub review ID number
         github_timestamp: When the review was submitted
-        github_url: GitHub URL for the review comment (optional)
     """
-    # Format header with review ID
-    header = f"<strong>Review from {github_user} (ID {review_id})</strong>: {review_state.replace('_', ' ').title()}\n"
+    # Determine emoji based on review state
+    if review_state == "APPROVED":
+        emoji = "✓"
+    elif review_state == "CHANGES_REQUESTED":
+        emoji = "✗"
+    else:  # COMMENTED or other states
+        emoji = "○"
 
-    # Add GitHub URL if provided
-    if github_url:
-        header += f'<a href="{github_url}">View on GitHub</a>\n'
+    # Format header with review number, user, state and emoji
+    header = f"<strong>Review #{review_id}</strong> by <strong>{github_user}</strong>: {review_state.replace('_', ' ').title()} {emoji}\n"
 
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
@@ -241,7 +242,7 @@ if __name__ == "__main__":
             )
 
             review_comments = [e for e in pr.events if e["type"] == "review"]
-            asana_task.synchronize_comments_in_asana_as_multiple_blocks(review_comments)
+            asana_task.synchronize_comments_in_asana(review_comments)
 
             if "GITHUB_OUTPUT" in os.environ:
                 with open(os.environ["GITHUB_OUTPUT"], "a") as f:
