@@ -10,7 +10,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
@@ -28,6 +27,7 @@ from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
     validate_train_job_config,
 )
+from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
+    policy_store = get_policy_store_from_cfg(cfg, wandb_run)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client is not None:
         stats_client.validate_authenticated()
