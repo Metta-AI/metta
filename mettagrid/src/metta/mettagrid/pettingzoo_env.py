@@ -6,7 +6,7 @@ This class implements the PettingZoo ParallelEnv interface using the base MettaG
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from gymnasium import spaces
@@ -109,8 +109,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
     def _allocate_buffers(self) -> None:
         """Allocate numpy arrays for C++ environment shared memory."""
         # Allocate observation buffer
-        obs_shape = (self.num_agents, *self._observation_space.shape)
-        self._observations = np.zeros(obs_shape, dtype=dtype_observations)
+        self._observations = np.zeros((self.num_agents, *self._observation_space.shape), dtype=dtype_observations)
 
         # Allocate terminal/truncation/reward buffers
         self._terminals = np.zeros(self.num_agents, dtype=dtype_terminals)
@@ -151,7 +150,7 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
-        obs_array, info = super().reset(game_config_dict, seed)
+        obs_array, info = super().reset(cast(Dict[str, Any], game_config_dict), seed)
 
         # Setup agents if not already done
         if not self.agents:

@@ -5,12 +5,10 @@ This class implements the PufferLib environment interface using the base MettaGr
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
-if TYPE_CHECKING:
-    from metta.mettagrid.curriculum.core import Curriculum
-    from metta.mettagrid.level_builder import Level
-
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.level_builder import Level
 from metta.mettagrid.puffer_base import MettaGridPufferBase
 
 
@@ -28,9 +26,9 @@ class MettaGridPufferEnv(MettaGridPufferBase):
 
     def __init__(
         self,
-        curriculum: "Curriculum",
+        curriculum: Curriculum,
         render_mode: Optional[str] = None,
-        level: Optional["Level"] = None,
+        level: Optional[Level] = None,
         buf: Optional[Any] = None,
         **kwargs: Any,
     ):

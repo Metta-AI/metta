@@ -8,21 +8,25 @@ and episode tracking functionality.
 
 from __future__ import annotations
 
+import datetime
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+import time
+import uuid
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import override
 
-from metta.common.profiling.stopwatch import with_instance_timer
+from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.mettagrid.util.dict_utils import unroll_nested_dict
 
 logger = logging.getLogger("MettaGridEnv")
 
@@ -62,10 +66,6 @@ class MettaGridEnv(MettaGridPufferBase):
             **kwargs: Additional arguments
         """
         # Add training-specific attributes first (needed by MettaGridCore)
-        import datetime
-
-        from metta.common.profiling.stopwatch import Stopwatch
-
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
@@ -91,8 +91,6 @@ class MettaGridEnv(MettaGridPufferBase):
 
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
-        import uuid
-
         return str(uuid.uuid4())
 
     def _reset_trial(self) -> None:
@@ -111,8 +109,6 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Set up new trial tracking
         self._trial_id = self._make_episode_id()
-        import datetime
-
         self._reset_at = datetime.datetime.now()
 
         # Start replay recording for new trial if enabled
@@ -160,8 +156,6 @@ class MettaGridEnv(MettaGridPufferBase):
         self._episode_id = self._make_episode_id()
         self._trial_id = self._episode_id  # For compatibility with trial-based logic
         self._current_seed = seed or 0
-        import datetime
-
         self._reset_at = datetime.datetime.now()
 
         # Start replay recording if enabled
@@ -257,8 +251,6 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._c_env_instance is None:
             return
 
-        import time
-
         self.timer.start("process_episode_stats")
 
         # Clear any existing infos
@@ -346,10 +338,6 @@ class MettaGridEnv(MettaGridPufferBase):
         """Write episode statistics to stats writer."""
         if not self._stats_writer or not self._episode_id or not self._c_env_instance:
             return
-
-        from typing import cast
-
-        from metta.mettagrid.util.dict_utils import unroll_nested_dict
 
         # Flatten environment config
         env_cfg_flattened: Dict[str, str] = {}

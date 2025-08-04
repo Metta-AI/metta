@@ -7,11 +7,7 @@ the user adapter (MettaGridPufferEnv) and training environment (MettaGridEnv).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
-
-if TYPE_CHECKING:
-    from metta.mettagrid.curriculum.core import Curriculum
-    from metta.mettagrid.level_builder import Level
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from omegaconf import OmegaConf
@@ -19,6 +15,8 @@ from pufferlib import PufferEnv
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -52,9 +50,9 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
 
     def __init__(
         self,
-        curriculum: "Curriculum",
+        curriculum: Curriculum,
         render_mode: Optional[str] = None,
-        level: Optional["Level"] = None,
+        level: Optional[Level] = None,
         buf: Optional[Any] = None,
         **kwargs: Any,
     ):

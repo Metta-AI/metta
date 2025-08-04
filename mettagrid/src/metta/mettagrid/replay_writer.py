@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from metta.mettagrid.mettagrid_env import MettaGridCore
+    from metta.mettagrid.core import MettaGridCore
 
 import json
 import zlib
