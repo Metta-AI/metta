@@ -925,6 +925,7 @@ while agent_step < trainer_config.total_timesteps:
             sim_short_name = sim_name.split("/")[-1]
             per_sim_scores[(category, sim_short_name)] = score
 
+        # Create EvalRewardSummary
         eval_scores = EvalRewardSummary(
             category_scores=category_scores,
             simulation_scores=per_sim_scores,
@@ -1034,19 +1035,17 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
             category_scores[category] = score
 
     # Get detailed per-simulation scores
-    simulation_scores = {}
+    final_per_sim_scores: dict[tuple[str, str], float] = {}
     all_scores = stats_db.simulation_scores(latest_saved_policy_record, "reward")
     for (_, sim_name, _), score in all_scores.items():
-        simulation_scores[sim_name] = score
+        category = sim_name.split("/")[0]
+        sim_short_name = sim_name.split("/")[-1]
+        final_per_sim_scores[(category, sim_short_name)] = score
 
     # Create EvalRewardSummary
-    category_score_values = list(category_scores.values())
-    simulation_score_values = list(simulation_scores.values())
     eval_scores = EvalRewardSummary(
         category_scores=category_scores,
-        simulation_scores=simulation_scores,
-        avg_category_score=np.mean(category_score_values) if category_score_values else 0.0,
-        avg_simulation_score=np.mean(simulation_score_values) if simulation_score_values else 0.0,
+        simulation_scores=final_per_sim_scores,
     )
 
     # Update policy metadata with score
