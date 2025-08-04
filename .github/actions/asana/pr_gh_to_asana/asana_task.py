@@ -382,22 +382,13 @@ class AsanaTask:
         task_url: str,
         review_title: str,
         github_review_url: str,
+        review_id: str,
     ) -> dict | None:
         print(
-            f"[ensure_github_review_url_in_task] ensure_github_review_url_in_task() called with task_url='{task_url}', review_title='{review_title}'"
+            f"[ensure_github_review_url_in_task] ensure_github_review_url_in_task() called with task_url='{task_url}', review_title='{review_title}', review_id='{review_id}'"
         )
 
-        # Extract review ID from the GitHub review URL
-        # GitHub review URLs typically look like: https://github.com/owner/repo/pull/123#discussion_r456789
-        review_id_match = re.search(r"#discussion_r(\d+)", github_review_url)
-        if not review_id_match:
-            print(
-                f"[ensure_github_review_url_in_task] Could not extract review ID from GitHub URL: {github_review_url}"
-            )
-            return None
-
-        review_id = review_id_match.group(1)
-        print(f"[ensure_github_review_url_in_task] Review ID extracted: {review_id}")
+        print(f"[ensure_github_review_url_in_task] Using review ID: {review_id}")
 
         headers = {
             "Authorization": f"Bearer {self.attachment_secret}",
@@ -561,7 +552,7 @@ class AsanaTask:
                             # Attach GitHub URL to the task if available
                             if github_url:
                                 self.ensure_github_review_url_in_task(
-                                    self.task_url, f"Review {review_id} from {github_user}", github_url
+                                    self.task_url, f"Review {review_id} from {github_user}", github_url, str(review_id)
                                 )
                         else:
                             print(
@@ -619,7 +610,7 @@ class AsanaTask:
                         # Attach GitHub URL to the task if available
                         if github_url:
                             self.ensure_github_review_url_in_task(
-                                self.task_url, f"Review {review_id} from {github_user}", github_url
+                                self.task_url, f"Review {review_id} from {github_user}", github_url, str(review_id)
                             )
                     except requests.exceptions.RequestException as e:
                         print(f"Error adding Asana comment for review {review_id}: {e}")
