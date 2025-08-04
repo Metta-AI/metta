@@ -33,3 +33,10 @@ game:
       params:
         agents: 1
         objects: ??
+  objects:
+    mine_red:
+      cooldown: 255
+    mine_blue:
+      cooldown: 255
+    mine_green:
+      cooldown: 255

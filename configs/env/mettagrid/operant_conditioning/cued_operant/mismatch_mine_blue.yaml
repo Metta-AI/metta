@@ -2,8 +2,6 @@ defaults:
   - /env/mettagrid/operant_conditioning/defaults@
   - _self_
 
-sampling: 1
-
 game:
   map_builder:
     root:
@@ -12,7 +10,7 @@ game:
           mine_blue: 1
           generator_red: 1
           generator_blue: 1
-          factory: 1
+          factory: 1 #cue
   objects:
     generator_red:
       cooldown: 1
@@ -27,17 +25,11 @@ game:
       output_resources:
         battery_blue: 0
         heart: 0
-    mine_blue:
-      cooldown: 100
     factory:
-      cooldown: 255
       input_resources:
         blueprint: 0
         ore_red: 0
-        ore_blue: 0
         battery_red: 0
-        battery_blue: 0
       output_resources:
-        battery_red: 0
         laser: 0
         armor: 0
