@@ -1,10 +1,10 @@
 import math
 import random
+import time
 from copy import deepcopy
 
 import numpy as np
 import pufferlib
-import pyro
 import torch
 from pyro.contrib import gp as gp
 
@@ -199,20 +199,25 @@ class Hyperparameters:
 
 
 def pareto_points(observations, eps=1e-6):
-    scores = np.array([e["output"] for e in observations])
+    # Backwards-compatible wrapper defaults to maximize
+    return pareto_points_oriented(observations, direction=1, eps=eps)
+
+
+def pareto_points_oriented(observations, direction=1, eps=1e-6):
+    """
+    Compute Pareto front on (score, cost) with goal encoded by `direction`.
+    direction = +1 for maximize, -1 for minimize.
+    """
+    scores = np.array([direction * e["output"] for e in observations])
     costs = np.array([e["cost"] for e in observations])
-    pareto = []
-    idxs = []
-    for idx, obs in enumerate(observations):
-        try:
-            higher_score = scores + eps > scores[idx]
-        except Exception as e:
-            raise RuntimeError(f"Failed to compare protein scores: {e}") from e
+    pareto, idxs = [], []
+    for idx in range(len(observations)):
+        higher_score = scores + eps > scores[idx]
         lower_cost = costs - eps < costs[idx]
         better = higher_score & lower_cost
         better[idx] = False
         if not better.any():
-            pareto.append(obs)
+            pareto.append(observations[idx])
             idxs.append(idx)
     return pareto, idxs
 
@@ -223,10 +228,12 @@ class Random:
         sweep_config,
         global_search_scale=1,
         random_suggestions=1024,
+        acquisition_fn="naive",  # Added for API consistency
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.global_search_scale = global_search_scale
         self.random_suggestions = random_suggestions
+        self.acquisition_fn = acquisition_fn  # Ignored but kept for API consistency
         self.success_observations = []
 
     def suggest(self, fill=None):
@@ -253,19 +260,21 @@ class ParetoGenetic:
         suggestions_per_pareto=1,
         bias_cost=True,
         log_bias=False,
+        acquisition_fn="naive",  # Added for API consistency
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.global_search_scale = global_search_scale
         self.suggestions_per_pareto = suggestions_per_pareto
         self.bias_cost = bias_cost
         self.log_bias = log_bias
+        self.acquisition_fn = acquisition_fn  # Ignored but kept for API consistency
         self.success_observations = []
 
     def suggest(self, fill=None):
         if len(self.success_observations) == 0:
             suggestion = self.hyperparameters.search_centers
             return self.hyperparameters.to_dict(suggestion, fill), {}
-        candidates, _ = pareto_points(self.success_observations)
+        candidates, _ = pareto_points_oriented(self.success_observations, self.hyperparameters.optimize_direction)
         pareto_costs = np.array([e["cost"] for e in candidates])
         if self.bias_cost:
             if self.log_bias:
@@ -277,7 +286,9 @@ class ParetoGenetic:
             search_centers = candidates[idx]["input"]
         else:
             search_centers = np.stack([e["input"] for e in candidates])
-        suggestions = self.hyperparameters.sample(len(candidates) * self.suggestions_per_pareto, mu=search_centers)
+        suggestions = self.hyperparameters.sample(
+            len(candidates) * self.suggestions_per_pareto, mu=search_centers, scale=self.global_search_scale
+        )
         suggestion = suggestions[np.random.randint(0, len(suggestions))]
         return self.hyperparameters.to_dict(suggestion, fill), {}
 
@@ -294,14 +305,15 @@ class ParetoGenetic:
 
 
 def create_gp(x_dim, scale_length=1.0):
-    X = scale_length * torch.ones((1, x_dim))
+    X = torch.zeros((1, x_dim))
     y = torch.zeros((1,))
-    matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=X)
-    linear_kernel = gp.kernels.Polynomial(x_dim, degree=1)
+    matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim))
+    linear_kernel = gp.kernels.Polynomial(input_dim=x_dim, degree=1)
     kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
-    model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-4)
-    model.noise = pyro.nn.PyroSample(pyro.distributions.LogNormal(math.log(1e-2), 0.5))
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
+    # Keep noise as a positive tensor (simpler & numerically stable)
+    model.noise = torch.tensor(1e-2)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
     return model, optimizer
 
 
@@ -317,6 +329,9 @@ class Protein:
         suggestions_per_pareto=256,
         seed_with_search_center=True,
         expansion_rate=0.25,
+        acquisition_fn="naive",
+        ucb_beta=2.0,
+        randomize_acquisition=False,
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.num_random_samples = num_random_samples
@@ -327,72 +342,237 @@ class Protein:
         self.resample_frequency = resample_frequency
         self.max_suggestion_cost = max_suggestion_cost
         self.expansion_rate = expansion_rate
+        self.acquisition_fn = acquisition_fn
+        self.ucb_beta = ucb_beta
+        self.randomize_acquisition = randomize_acquisition
         self.success_observations = []
         self.failure_observations = []
         self.suggestion_idx = 0
         self.gp_score, self.score_opt = create_gp(self.hyperparameters.num)
         self.gp_cost, self.cost_opt = create_gp(self.hyperparameters.num)
 
-    def suggest(self, fill):
+        # Validate acquisition function
+        if acquisition_fn not in ["naive", "ei", "ucb"]:
+            raise ValueError(f"Invalid acquisition function: {acquisition_fn}. Must be one of: 'naive', 'ei', 'ucb'")
+
+    def _compute_ucb(self, mean, std, beta=None):
+        """UCB in standardized space: maximize direction*mu + beta*sd"""
+        if beta is None:
+            beta = self.ucb_beta
+        return self.hyperparameters.optimize_direction * mean + beta * std
+
+    def _compute_naive_acquisition(self, gp_y_norm, gp_log_c_norm, max_c_mask):
+        """
+        Compute the original naive acquisition function.
+
+        Args:
+            gp_y_norm: Normalized predicted scores
+            gp_log_c_norm: Normalized predicted log costs
+            max_c_mask: Mask for maximum cost constraint
+
+        Returns:
+            Acquisition scores
+        """
+        target = (1 + self.expansion_rate) * np.random.rand()
+        weight = np.maximum(1 - abs(target - gp_log_c_norm), 0.0)
+        suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
+        return suggestion_scores
+
+    def suggest(self, fill=None):
         info = {}
         self.suggestion_idx += 1
+
+        # Set random seed for diversity in parallel runs
+        if self.randomize_acquisition:
+            # Use current time plus suggestion index for unique seed
+            seed = int((time.time() * 1000000 + self.suggestion_idx) % 2**32)
+            np.random.seed(seed)
+            random.seed(seed)
+            info["random_seed"] = seed
+
         if len(self.success_observations) == 0 and self.seed_with_search_center:
             best = self.hyperparameters.search_centers
             return self.hyperparameters.to_dict(best, fill), info
-        elif not self.seed_with_search_center and len(self.success_observations) < self.num_random_samples:
-            suggestions = self.hyperparameters.sample(self.random_suggestions)
+        elif len(self.success_observations) < self.num_random_samples:
+            suggestions = self.hyperparameters.sample(self.random_suggestions, scale=self.global_search_scale)
             self.suggestion = random.choice(suggestions)
             return self.hyperparameters.to_dict(self.suggestion, fill), info
         elif self.resample_frequency and self.suggestion_idx % self.resample_frequency == 0:
-            candidates, _ = pareto_points(self.success_observations)
+            candidates, _ = pareto_points_oriented(self.success_observations, self.hyperparameters.optimize_direction)
             suggestions = np.stack([e["input"] for e in candidates])
             best_idx = np.random.randint(0, len(candidates))
             best = suggestions[best_idx]
             return self.hyperparameters.to_dict(best, fill), info
+        # === Train score GP on standardized outputs with progressive fallback ===
         params = np.array([e["input"] for e in self.success_observations])
-        params = torch.from_numpy(params)
         y = np.array([e["output"] for e in self.success_observations])
-        min_score = np.min(y)
-        max_score = np.max(y)
-        y_norm = (y - min_score) / (np.abs(max_score - min_score) + 1e-6)
-        self.gp_score.set_data(params, torch.from_numpy(y_norm))
-        self.gp_score.train()
-        gp.util.train(self.gp_score, self.score_opt)
-        self.gp_score.eval()
-        c = np.array([e["cost"] for e in self.success_observations])
-        log_c = np.log(c)
-        log_c_min = np.min(log_c)
-        log_c_max = np.max(log_c)
-        log_c_norm = (log_c - log_c_min) / (log_c_max - log_c_min + 1e-6)
-        self.gp_cost.mean_function = lambda x: 1
-        self.gp_cost.set_data(params, torch.from_numpy(log_c_norm))
-        self.gp_cost.train()
-        gp.util.train(self.gp_cost, self.cost_opt)
-        self.gp_cost.eval()
-        candidates, pareto_idxs = pareto_points(self.success_observations)
+
+        # Progressive fallback: try with N, N/2, N/4, ... observations
+        n_obs = len(self.success_observations)
+        subset_size = n_obs
+        subset_indices = list(range(n_obs))  # Initialize with all indices
+        gp_trained = False
+
+        while subset_size >= 10 and not gp_trained:
+            try:
+                # Select subset of observations
+                if subset_size == n_obs:
+                    # Use all observations
+                    subset_indices = list(range(n_obs))
+                else:
+                    # Use best subset_size observations
+                    if self.hyperparameters.optimize_direction == 1:
+                        # Maximization: higher is better
+                        subset_indices = np.argsort(y)[-subset_size:]
+                    else:
+                        # Minimization: lower is better
+                        subset_indices = np.argsort(y)[:subset_size]
+
+                # Get subset data
+                params_subset = params[subset_indices]
+                y_subset = y[subset_indices]
+
+                # Standardize outputs
+                y_mean = float(np.mean(y_subset))
+                y_std = float(np.std(y_subset) + 1e-12)
+                y_z = (y_subset - y_mean) / y_std
+
+                # Convert to tensors
+                params_t = torch.from_numpy(params_subset).float()
+
+                # Try to train GP
+                self.gp_score.set_data(params_t, torch.from_numpy(y_z).float())
+                self.gp_score.train()
+                gp.util.train(self.gp_score, self.score_opt)
+                self.gp_score.eval()
+
+                gp_trained = True
+                if subset_size < n_obs:
+                    print(f"  [Protein] GP trained with {subset_size}/{n_obs} best observations")
+
+            except (torch._C._LinAlgError, RuntimeError):
+                # Cholesky decomposition failed, try with fewer observations
+                subset_size = subset_size // 2
+                if subset_size >= 10:
+                    print(f"  [Protein] GP failed with {subset_size * 2} observations, trying {subset_size}...")
+                continue
+
+        # If GP training failed completely, fall back to random sampling
+        if not gp_trained:
+            print("  [Protein] GP training failed, falling back to random sampling")
+            suggestion = self.hyperparameters.sample(n=1)[0]
+            return self.hyperparameters.to_dict(suggestion, fill), {"fallback": "random"}
+
+        # === Build candidate suggestions from oriented Pareto centers ===
+        candidates, pareto_idxs = pareto_points_oriented(
+            self.success_observations, self.hyperparameters.optimize_direction
+        )
         search_centers = np.stack([e["input"] for e in candidates])
-        suggestions = self.hyperparameters.sample(len(candidates) * self.suggestions_per_pareto, mu=search_centers)
-        suggestions = torch.from_numpy(suggestions)
+        suggestions = self.hyperparameters.sample(
+            len(candidates) * self.suggestions_per_pareto, mu=search_centers, scale=self.global_search_scale
+        )
+        suggestions_t = torch.from_numpy(suggestions).float()
+
+        # Predict standardized mean/var
         with torch.no_grad():
-            gp_y_norm, gp_y_norm_var = self.gp_score(suggestions)
-            gp_log_c_norm, _ = self.gp_cost(suggestions)
-        gp_y_norm = gp_y_norm.numpy()
-        gp_log_c_norm = gp_log_c_norm.numpy()
-        gp_y = gp_y_norm * (max_score - min_score) + min_score
-        gp_log_c = gp_log_c_norm * (log_c_max - log_c_min) + log_c_min
-        gp_c = np.exp(gp_log_c)
+            mu_t, var_t = self.gp_score(suggestions_t, full_cov=False)
+        mu = mu_t.numpy()
+        sd = np.sqrt(np.maximum(var_t.numpy(), 1e-12))
+
+        # For 'naive' normalization path (info/weighting)
+        # Use subset statistics if subset was used
+        if subset_size < n_obs:
+            y_for_norm = y[subset_indices]
+        else:
+            y_for_norm = y
+        min_y, max_y = np.min(y_for_norm), np.max(y_for_norm)
+        mu_raw = mu * y_std + y_mean
+        gp_y_norm = (mu_raw - min_y) / (np.abs(max_y - min_y) + 1e-12)
+
+        # === Cost handling: skip GP if constant cost ===
+        c = np.array([e["cost"] for e in self.success_observations])
+
+        # Use same subset for cost GP as score GP (if subset was used)
+        if subset_size < n_obs:
+            c_subset = c[subset_indices]
+        else:
+            c_subset = c
+
+        if np.max(c_subset) - np.min(c_subset) < 1e-12:
+            gp_log_c_norm = np.full(len(suggestions), 0.5)
+            gp_c = np.full(len(suggestions), c_subset[0])
+        else:
+            EPS = 1e-12
+            log_c = np.log(np.maximum(c_subset, EPS))
+            lc_min, lc_max = np.min(log_c), np.max(log_c)
+            lc_norm = (log_c - lc_min) / (lc_max - lc_min + 1e-12)
+
+            # params_t already points to the subset from score GP training
+            self.gp_cost.set_data(params_t, torch.from_numpy(lc_norm).float())
+            self.gp_cost.train()
+            gp.util.train(self.gp_cost, self.cost_opt)
+            self.gp_cost.eval()
+            with torch.no_grad():
+                gp_log_c_norm_t, _ = self.gp_cost(suggestions_t, full_cov=False)
+            gp_log_c_norm = gp_log_c_norm_t.numpy()
+            gp_log_c = gp_log_c_norm * (lc_max - lc_min) + lc_min
+            gp_c = np.exp(gp_log_c)
 
         max_c_mask = gp_c < self.max_suggestion_cost
-        target = (1 + self.expansion_rate) * np.random.rand()
-        weight = 1 - abs(target - gp_log_c_norm)
-        suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
+        cost_threshold_relaxed = False
+        if not max_c_mask.any():
+            max_c_mask = np.ones_like(max_c_mask, dtype=bool)
+            cost_threshold_relaxed = True
+
+        # Choose acquisition function
+        if self.acquisition_fn == "ei":
+            # EI in standardized units
+            direction = self.hyperparameters.optimize_direction
+            # Use subset for best_obs if subset was used
+            if subset_size < n_obs:
+                y_for_best = y[subset_indices]
+            else:
+                y_for_best = y
+            best_obs = np.max(y_for_best) if direction == 1 else np.min(y_for_best)
+            best_std = (best_obs - y_mean) / y_std
+            impr = (mu - best_std) if direction == 1 else (best_std - mu)
+            z = impr / sd
+            from torch.distributions import Normal
+
+            N01 = Normal(0.0, 1.0)
+            z_t = torch.from_numpy(z)
+            cdf = N01.cdf(z_t).numpy()
+            pdf = torch.exp(N01.log_prob(z_t)).numpy()
+            ei_scores = impr * cdf + sd * pdf
+            suggestion_scores = max_c_mask * ei_scores
+        elif self.acquisition_fn == "ucb":
+            # UCB: maximize direction*mu + beta*sd  (mu, sd standardized)
+            beta = np.random.exponential(self.ucb_beta) if self.randomize_acquisition else self.ucb_beta
+            ucb_scores = self._compute_ucb(mu, sd, beta=beta)
+            suggestion_scores = max_c_mask * ucb_scores
+        else:  # naive
+            # Clamp weight to nonnegative
+            target = (1 + self.expansion_rate) * np.random.rand()
+            weight = np.maximum(1 - np.abs(target - gp_log_c_norm), 0.0)
+            suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
+
         best_idx = np.argmax(suggestion_scores)
+        # Map standardized mu/sd back to raw for info (not used in selection)
         info = dict(
-            cost=gp_c[best_idx].item(),
-            score=gp_y[best_idx].item(),
-            rating=suggestion_scores[best_idx].item(),
+            cost=float(gp_c[best_idx]),
+            score=float(mu_raw[best_idx]),
+            rating=float(suggestion_scores[best_idx]),
+            acquisition_fn=self.acquisition_fn,
+            randomize_acquisition=self.randomize_acquisition,
         )
-        best = suggestions[best_idx].numpy()
+        if cost_threshold_relaxed:
+            info["cost_threshold_relaxed"] = True
+
+        # Add randomized parameter values to info if randomization was used
+        if self.randomize_acquisition:
+            if self.acquisition_fn == "ucb" and "beta" in locals():
+                info["ucb_beta_used"] = beta
+        best = suggestions_t[best_idx].numpy()
         return self.hyperparameters.to_dict(best, fill), info
 
     def observe(self, hypers, score, cost, is_failure=False):

@@ -44,7 +44,7 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    consumed_args: list[str] = ["run"]
+    consumed_args: list[str] = ["run", "group"]
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         # Handle run_id being passed via cmd line
@@ -54,6 +54,9 @@ class TrainTool(Tool):
 
         if self.run is None:
             self.run = f"local.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())}"
+        
+        # Store group from args if provided (for sweep support)
+        group_override = args.get("group")
 
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
@@ -73,6 +76,10 @@ class TrainTool(Tool):
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
+        
+        # Override group if provided via args (for sweep support)
+        if group_override:
+            self.wandb.group = group_override
 
         os.makedirs(self.run_dir, exist_ok=True)
 
