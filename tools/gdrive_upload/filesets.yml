@@ -1,0 +1,157 @@
+# Google Drive configuration
+drive:
+  parent_folder_name: "Metta Exports"   # The Drive folder to hold all artifacts
+  # optional: parent_folder_id: "..."   # If you want to pin it explicitly
+
+# Fileset definitions based on actual repository structure
+filesets:
+  # Start with documentation and key files
+  metta-readme:
+    includes: ["README.md"]
+    excludes: []
+
+  # All documentation files (if you want this option too)
+  metta-docs:
+    includes:
+      - "README.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "roadmap.md"
+      - "LICENSE"
+    excludes: []
+
+  # Core RL training system
+  metta-rl:
+    includes: ["metta/rl/**/*"]
+    excludes:
+      - ".git/**"
+      - "**/__pycache__/**"
+      - "**/.venv/**"
+      - "**/.mypy_cache/**"
+      - "**/.pytest_cache/**"
+      - "**/*.pyc"
+      - "**/*.pyo"
+      - "**/*.pyd"
+      - "**/.DS_Store"
+      - "**/node_modules/**"
+
+  # Grid environment and infrastructure
+  mettagrid:
+    includes: ["mettagrid/**/*"]  # ← Added /* to get files recursively
+    excludes:
+      - ".git/**"
+      - "**/__pycache__/**"
+      - "**/.venv/**"
+      - "**/.mypy_cache/**"
+      - "**/.pytest_cache/**"
+      - "**/*.pyc"
+      - "**/*.pyo"
+      - "**/*.pyd"
+      - "**/.DS_Store"
+      - "**/node_modules/**"
+      - "**/*.wasm"
+      - "**/*.so"
+      - "**/dist/**"
+      - "**/build/**"
+
+  # Scope/analysis tools
+  mettascope:
+    includes: ["mettascope/**/*"]
+    excludes:
+      - ".git/**"
+      - "**/__pycache__/**"
+      - "**/.venv/**"
+      - "**/.mypy_cache/**"
+      - "**/.pytest_cache/**"
+      - "**/*.pyc"
+      - "**/*.pyo"
+      - "**/*.pyd"
+      - "**/.DS_Store"
+      - "**/node_modules/**"
+      - "**/dist/**"
+      - "**/build/**"
+
+  # Agent implementations
+  agent:
+    includes: ["agent/**/*"]
+    excludes:
+      - ".git/**"
+      - "**/__pycache__/**"
+      - "**/*.pyc"
+      - "**/*.pyo"
+      - "**/*.pyd"
+      - "**/.DS_Store"
+
+  # Shared utilities and common code
+  common:
+    includes: ["common/**/*"]
+    excludes:
+      - ".git/**"
+      - "**/__pycache__/**"
+      - "**/.venv/**"
+      - "**/.mypy_cache/**"
+      - "**/.pytest_cache/**"
+      - "**/*.pyc"
+      - "**/*.pyo"
+      - "**/*.pyd"
+      - "**/.DS_Store"
+      - "**/node_modules/**"
+
+  utilities:
+    includes:
+      - "common/**"
+      - "library/**"
+      - "tools/**"
+      - "scripts/**"
+    excludes:
+      - ".git/**"
+      - "**/__pycache__/**"
+      - "**/.venv/**"
+      - "**/.mypy_cache/**"
+      - "**/.pytest_cache/**"
+      - "**/*.pyc"
+      - "**/*.pyo"
+      - "**/*.pyd"
+      - "**/.DS_Store"
+      - "**/node_modules/**"
+
+  # Configuration and setup
+  config-and-setup:
+    includes:
+      - "configs/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "Makefile"
+      - "CMakeLists.txt"
+      - "flake.nix"
+      - "install.sh"
+      - "run.py"
+      - ".ruff.toml"
+      - "pyrightconfig.json"
+    excludes:
+      - "**/*.lock"
+      - "**/.DS_Store"
+
+  # Full system view (for comprehensive analysis)
+  metta-full:
+    includes: ["**/*"]
+    excludes:
+      - ".git/**"
+      - "**/__pycache__/**"
+      - "**/.venv/**"
+      - "**/.mypy_cache/**"
+      - "**/.pytest_cache/**"
+      - "**/*.pyc"
+      - "**/*.pyo"
+      - "**/*.pyd"
+      - "**/.DS_Store"
+      - "**/node_modules/**"
+      - "**/*.wasm"
+      - "**/*.so"
+      - "**/dist/**"
+      - "**/build/**"
+      - "**/test_data/**"
+      - "**/*.db"
+      - "**/*.sqlite"
