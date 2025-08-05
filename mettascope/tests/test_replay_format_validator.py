@@ -513,7 +513,7 @@ def test_validate_real_generated_replay() -> None:
 
         replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
         if len(replay_files) == 0:
-            pytest.skip(f"No replay generated (exit {result.returncode}): {result.stderr}")
+            assert len(replay_files) > 0, f"No replay files were generated. Process exited with code {result.returncode}. Error output: {result.stderr}"
 
         # Should have exactly one replay file.
         assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
