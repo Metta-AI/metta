@@ -482,22 +482,23 @@ def train(
             if saved_record:
                 latest_saved_policy_record = saved_record
 
-                # Only master saves training state
-                if is_master:
-                    checkpoint_manager.save_checkpoint(
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        optimizer=optimizer,
-                        policy_path=saved_record.uri,
-                        timer=timer,
-                        run_dir=run_dir,
-                        kickstarter=kickstarter,
-                    )
+                # Save training state
+                checkpoint_manager.save_checkpoint(
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    optimizer=optimizer,
+                    policy_path=saved_record.uri,
+                    timer=timer,
+                    run_dir=run_dir,
+                    kickstarter=kickstarter,
+                )
 
-            # All ranks must synchronize after checkpoint operations
-            # This barrier must be outside the if saved_record block so all ranks hit it
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+        # All ranks synchronize after checkpoint operations
+        if (
+            should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master)
+            and torch.distributed.is_initialized()
+        ):
+            torch.distributed.barrier()
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
@@ -600,14 +601,15 @@ def train(
                 force=True,
             )
 
-    # All ranks must synchronize after final save operations
+    # Synchronize after all save operations complete
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
-    if wandb_run and latest_saved_policy_record:
+    # Upload to WandB after all ranks have synchronized - only master uploads
+    if wandb_run and latest_saved_policy_record and is_master:
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
 
-    # Final synchronization before cleanup
+    # Ensure all ranks wait for upload to complete
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 

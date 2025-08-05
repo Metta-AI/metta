@@ -37,11 +37,10 @@ def setup_sweep(sweep_job_cfg: DictConfig, logger: logging.Logger) -> str:
     sweep_info = sweep_client.get_sweep(sweep_job_cfg.sweep_name)
 
     # The sweep hasn't been registered with the centralized DB
+    # Create directories
+    os.makedirs(sweep_job_cfg.runs_dir, exist_ok=True)
     if not sweep_info.exists:
         logger.info(f"Creating sweep {sweep_job_cfg.sweep_name} in the centralized DB")
-
-        # Create directories
-        os.makedirs(sweep_job_cfg.runs_dir, exist_ok=True)
 
         # Register the sweep in the centralized DB
         # Pass sweep_name as wandb_sweep_id for now to maintain API compatibility
@@ -126,7 +125,7 @@ def evaluate_rollout(
     """Evaluate the rollout - only runs on rank 0."""
     logger.info(f"Evaluating run: {train_job_cfg.run} (rank 0 only)")
 
-    with WandbContext(train_job_cfg.wandb, train_job_cfg) as wandb_run:
+    with WandbContext(train_job_cfg.wandb, train_job_cfg, timeout=120) as wandb_run:
         if wandb_run is None:
             logger.error("Failed to initialize WandB context for evaluation")
             raise RuntimeError("WandB initialization failed during evaluation")

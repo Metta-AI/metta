@@ -14,11 +14,12 @@ import subprocess
 import sys
 import time
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.lock import run_once
 from metta.sweep.sweep_lifecycle import evaluate_rollout, prepare_sweep_run, setup_sweep
+from metta.util.metta_script import metta_script
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,15 @@ logger = logging.getLogger(__name__)
 ORIGINAL_ARGS = []
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-def main(cfg: DictConfig) -> int:
-    """Main entry point for sweep rollout."""
-    # Store original command-line arguments for later use
+def store_original_args(cfg: DictConfig) -> None:
+    """Pre-main function to store original command-line arguments."""
     global ORIGINAL_ARGS
     ORIGINAL_ARGS = sys.argv[1:]  # Skip the script name
+    logger.info(f"Stored {len(ORIGINAL_ARGS)} original arguments for training passthrough")
+
+
+def main(cfg: DictConfig) -> int:
+    """Main entry point for sweep rollout."""
 
     logger.info(f"Starting sweep rollout with config: {list(cfg.keys())}")
 
@@ -49,6 +53,7 @@ def main(cfg: DictConfig) -> int:
 
     while True:
         err_occurred = False
+        record_heartbeat()  # Record heartbeat at start of each iteration
         # Run the rollout
         try:
             run_single_rollout(cfg)
@@ -73,6 +78,7 @@ def main(cfg: DictConfig) -> int:
 def run_single_rollout(cfg: DictConfig) -> int:
     """Run a single rollout."""
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
+    record_heartbeat()  # Record heartbeat at start of rollout
 
     # Master node only
     run_name, train_job_cfg, protein_suggestion, wandb_run_id = run_once(
@@ -81,6 +87,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
 
     # All ranks participate in training
     # The train.sh script handles distributed coordination
+    assert wandb_run_id is not None
     train_for_run(
         run_name=run_name,
         train_job_cfg=train_job_cfg,
@@ -89,6 +96,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
         logger=logger,
     )
     logger.info("Training completed...")
+    record_heartbeat()  # Record heartbeat after training
 
     config_path = os.path.join(train_job_cfg.run_dir, "sweep_eval_config.yaml")
     full_train_job_cfg = OmegaConf.load(config_path)
@@ -109,6 +117,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
         raise RuntimeError("Evaluation failed")
 
     logger.info(f"Rollout completed successfully for run: {run_name}")
+    record_heartbeat()  # Record heartbeat at end of rollout
     return 0
 
 
@@ -169,5 +178,5 @@ def train_for_run(
         raise Exception(f"Training failed for {run_name} with exit code {e.returncode}") from e
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+# Use metta_script to handle initialization and configuration
+metta_script(main, config_name="sweep_job", pre_main=store_original_args)

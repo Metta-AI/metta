@@ -62,7 +62,7 @@ def main(cfg: DictConfig) -> int:
     def evaluate_policy():
         logger.info(f"Starting evaluation for run: {cfg.run}")
 
-        with WandbContext(cfg.wandb, cfg) as wandb_run:
+        with WandbContext(cfg.wandb, cfg, timeout=120) as wandb_run:
             policy_store = get_policy_store_from_cfg(cfg, wandb_run)
             try:
                 # Fetch the latest policy record from the run

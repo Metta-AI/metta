@@ -43,5 +43,5 @@ sweep_train_job:
   sweep_name: ${sweep_name}
 
 sweep_dir: ???
-run: ???
+run: null
 runs_dir: "${sweep_dir}/runs"

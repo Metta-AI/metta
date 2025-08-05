@@ -82,6 +82,7 @@ class CheckpointManager:
         Returns:
             True if checkpoint was saved, False otherwise
         """
+        # Use should_run for consistency with the rest of the codebase
         should_save = should_run(epoch, self.checkpoint_cfg.checkpoint_interval, self.is_master, force)
         if not should_save:
             return False
@@ -140,11 +141,9 @@ class CheckpointManager:
             return None
 
         # Now all ranks that should save are here
-        # Only master saves policies, but all ranks must participate in barrier
+        # This method should only be called by master
         if not self.is_master:
-            # Non-master ranks need to participate in the barrier below
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+            logger.warning(f"save_policy called on non-master rank {self.rank}")
             return None
 
         logger.info(f"Saving policy at epoch {epoch}")
@@ -205,8 +204,5 @@ class CheckpointManager:
         if should_run(epoch, 10, self.is_master):
             cleanup_old_policies(self.checkpoint_cfg.checkpoint_dir)
 
-        # Synchronize all ranks to ensure the policy is fully saved before continuing
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
+        # NOTE: Barrier removed - synchronization handled at call site
         return saved_policy_record

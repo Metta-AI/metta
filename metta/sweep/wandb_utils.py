@@ -21,7 +21,7 @@ def create_wandb_run_for_sweep(
     Returns the wandb run ID, or None if WandB initialization failed.
     """
 
-    with WandbContext(train_job_cfg.wandb, train_job_cfg) as wandb_run:
+    with WandbContext(train_job_cfg.wandb, train_job_cfg, timeout=120) as wandb_run:
         if wandb_run is None:
             logger.error("Failed to initialize WandB run - WandB may be disabled or connection failed")
             return None
