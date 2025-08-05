@@ -27,8 +27,8 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.vecenv import make_vecenv
@@ -82,7 +82,15 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        env_overrides = OmegaConf.create(config.env_overrides)
+        # Extract pre_built_config if present (for Hydra-free operation)
+        pre_built_config = config.env_overrides.get("_pre_built_env_config", None)
+
+        # Create env_overrides without _pre_built_env_config
+        if pre_built_config is not None:
+            env_overrides_dict = {k: v for k, v in config.env_overrides.items() if k != "_pre_built_env_config"}
+            env_overrides = OmegaConf.create(env_overrides_dict)
+        else:
+            env_overrides = OmegaConf.create(config.env_overrides)
 
         self._env_name = config.env
 
@@ -113,7 +121,14 @@ class Simulation:
             f"episodes per env (total target: {config.num_episodes})"
         )
 
-        curriculum = curriculum_from_config_path(config.env, env_overrides)
+        if pre_built_config is not None:
+            # Use our custom curriculum that doesn't require Hydra
+            # Apply any additional env_overrides to the pre_built config
+            if env_overrides:
+                pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
+            curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
+        else:
+            curriculum = curriculum_from_config_path(config.env, env_overrides)
 
         env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
