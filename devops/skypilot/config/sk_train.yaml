@@ -39,12 +39,10 @@ setup: |
   set -e
   cd /workspace/metta
 
-  # Deactivate any existing venv
+  # Activate the metta venv
   if [ -n "$VIRTUAL_ENV" ]; then
       deactivate 2>/dev/null || true
   fi
-
-  # Activate the metta venv
   . .venv/bin/activate
 
   git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
@@ -64,6 +62,12 @@ setup: |
 run: |
   set -e
   cd /workspace/metta
+
+  # Activate the metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
 
   echo "VIRTUAL_ENV: $VIRTUAL_ENV"
   echo "Which python: $(which python)"
