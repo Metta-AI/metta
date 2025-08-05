@@ -79,8 +79,8 @@ object - walls, buildings, and agents.
 Objects are stored in a condensed format. Every field of the object is either a constant or a time series of values.
 
 **Time series fields** can be represented in two ways:
-1. **Single value** - When the field never changes during the replay, it's stored as just the value
-2. **Time series array** - When the field changes, it's stored as a list of tuples where the first element is the step and the second element is the value
+1. **Single value** - When the field never changes during the replay, it's stored as just the value.
+2. **Time series array** - When the field changes, it's stored as a list of tuples where the first element is the step and the second element is the value.
 
 The time series array format uses tuples where the first element is the step and the second element is the value, which can be a number, boolean, or a list of numbers.
 
@@ -118,6 +118,8 @@ location, which is a list of two numbers for x and y.
 
 The `inventory` key is a time series of tuples, where the first element is the step and the second element is the list
 of item_IDs. It starts empty and then adds items at steps 100, 200, etc.
+
+As another example, if the `rotation` key was always 1, it could also be stored simply as `"rotation": 1`.
 
 ## Key reference
 

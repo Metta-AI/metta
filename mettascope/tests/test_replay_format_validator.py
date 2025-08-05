@@ -102,14 +102,12 @@ def _validate_static_value(value: Any, field_name: str, expected_type: type | tu
 
 def _validate_time_series(data: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
     """Validate time series values: either single values (never changed) or arrays of [step, value] pairs."""
-    if data is None:
-        return
 
-    # Check if it's a single value (field never changed during replay)
+    # Check if it's a single value (field never changes)
     if isinstance(data, expected_type):
         return
 
-    # Check if it's a time series array (field changed during replay)
+    # Check if it's a time series array (field changes on specific steps)
     if isinstance(data, list):
         if len(data) == 0:
             return
@@ -197,15 +195,15 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
     for i, dim in enumerate(map_size):
         _validate_positive_int(dim, f"map_size[{i}]")
 
+    # Required string lists.
+    for field in ["action_names", "item_names", "type_names"]:
+        _validate_string_list(data[field], field)
+
     # Optional file_name validation.
     if "file_name" in data:
         file_name = data["file_name"]
         _validate_type(file_name, str, "file_name")
         assert file_name, "'file_name' must be non-empty"
-
-    # Required string lists.
-    for field in ["action_names", "item_names", "type_names"]:
-        _validate_string_list(data[field], field)
 
     # Optional string lists.
     if "group_names" in data:
@@ -285,7 +283,8 @@ def _validate_location(location: Any, obj_name: str) -> None:
     field_name = f"{obj_name}.location"
 
     # Check if it's a single location (never changed during replay)
-    if isinstance(location, list) and len(location) == 3:
+    # also make sure it's not a time series array with only 3 elements
+    if isinstance(location, list) and len(location) == 3 and all(isinstance(coord, (int, float)) for coord in location):
         for i, coord in enumerate(location):
             _validate_type(coord, (int, float), f"{field_name}[{i}]")
         return
@@ -414,7 +413,6 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
         "reward_sharing_matrix": [[1, 0], [0, 1]],
         "objects": [
             {
-                # Static fields
                 "id": 1,
                 "type_id": 0,
                 "agent_id": 0,
@@ -423,7 +421,7 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "group_id": 0,
                 "is_swappable": False,
                 # Time series fields (some single values, some arrays for testing)
-                "location": [5, 5, 0],
+                "location": [[0, [5, 5, 0]], [1, [6, 5, 0]], [2, [7, 5, 0]]],
                 "action_id": 0,
                 "action_param": 0,
                 "action_success": True,
@@ -438,7 +436,6 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "color": 0,
             },
             {
-                # Static fields
                 "id": 2,
                 "type_id": 0,
                 "agent_id": 1,
