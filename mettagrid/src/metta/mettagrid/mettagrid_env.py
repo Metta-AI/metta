@@ -20,7 +20,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.puffer_base import MettaGridPufferBase
@@ -245,12 +245,11 @@ class MettaGridEnv(MettaGridPufferBase):
             New MettaGridCpp instance
         """
         # Handle episode desyncing for training
-        # DISABLED: Episode desyncing disabled as requested
-        # if self._is_training and self._resets == 0:
-        #     max_steps = game_config_dict["max_steps"]
-        #     # Recreate with random max_steps
-        #     game_config_dict = game_config_dict.copy()  # Don't modify original
-        #     game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+        if self._is_training and self._resets == 0:
+            max_steps = game_config_dict["max_steps"]
+            # Recreate with random max_steps
+            game_config_dict = game_config_dict.copy()  # Don't modify original
+            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
 
         return super()._create_c_env(game_config_dict, seed)
 
@@ -319,23 +318,6 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Update curriculum
         self._task.complete_trial(episode_rewards_mean)
-
-        # Add trial reward tracking to infos when num_trials > 1
-        if isinstance(self._task, SingleTrialTask) and self._task.get_num_trials() > 1:
-            print("Adding per-trial rewards to infos")
-            trial_rewards = self._task.get_trial_rewards()
-            print(f"Trial rewards: {trial_rewards}")
-
-            infos["per_trial_rewards"] = {}
-
-            # Log per-trial rewards for WandB plotting
-            # This creates metrics that can be plotted with trial number on x-axis
-            if trial_rewards:
-                # Log each trial's reward as a separate metric
-                # WandB will automatically create plots with these metrics
-                for trial_num, reward in enumerate(trial_rewards, 1):  # 1-indexed trial numbers
-                    infos["per_trial_rewards"][trial_num] = reward
-            print(f"Per-trial rewards: {infos['per_trial_rewards']}")
 
         # Add curriculum task probabilities
         infos["curriculum_task_probs"] = self._curriculum.get_task_probs()

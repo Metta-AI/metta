@@ -36,13 +36,13 @@ class Task:
     _name: str
     _id: str
     _curricula: List[Tuple[Curriculum, str]]
-    _trial_rewards: List[float]
+    _is_complete: bool
 
     def __init__(self, id: str, curriculum: Curriculum):
         self._id = id
         self._name = id
         self._curricula = [(curriculum, id)]
-        self._trial_rewards = []
+        self._is_complete = False
 
     def complete_trial(self, score: float) -> bool:
         """Lets the task know that a trial has been completed.
@@ -53,7 +53,7 @@ class Task:
 
     def is_complete(self):
         """True if the task is complete, false otherwise."""
-        pass
+        return self._is_complete
 
     def env_cfg(self) -> DictConfig:
         """Returns the environment configuration for the current trial."""
@@ -77,19 +77,6 @@ class Task:
         self._curricula.append((parent_curriculum, parent_id))
         self._name = f"{parent_id}:{self._name}"
 
-    def get_trial_rewards(self) -> list[float]:
-        """Get the list of trial rewards for WandB logging."""
-        return self._trial_rewards.copy()
-
-    def get_current_trial(self) -> int:
-        """Get the current trial number (1-indexed)."""
-        return len(self._trial_rewards)
-
-    def get_num_trials(self) -> int:
-        """Get the total number of trials for this task."""
-        # Default implementation - subclasses can override
-        return 1
-
 
 class SingleTrialTask(Task):
     """A task that only has a single trial. This task may be repeated multiple times."""
@@ -99,39 +86,22 @@ class SingleTrialTask(Task):
         self._total_score = 0.0
         self._num_trials = env_cfg.get("num_trials", 1)
         self._current_trial = 0
-        self._current_score = 0.0
-        self._is_complete = False
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
 
     def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"
-        self._current_score = score
-        self._total_score += score
         self._current_trial += 1
-        # Call parent to track trial reward
-        print(f"Num trials: {self._num_trials}")
-        print(f"Current trial: {self.get_current_trial()}")
-        print(f"trial rewards: {self._trial_rewards}")
-        super()._trial_rewards.append(score)
-
-        # Only mark as complete when we've actually completed all trials
+        self._total_score += score
         if self._current_trial >= self._num_trials:
             self._is_complete = True
             for curriculum, id in self._curricula:
                 curriculum.complete_task(id, self._total_score)
 
-    def is_complete(self):
-        return self._is_complete
-
     def env_cfg(self) -> DictConfig:
         assert self._env_cfg is not None, "Task has no environment configuration"
         return self._env_cfg
-
-    def get_num_trials(self) -> int:
-        """Get the total number of trials for this task."""
-        return self._num_trials
 
 
 class SingleTaskCurriculum(Curriculum):
