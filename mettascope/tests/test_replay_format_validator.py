@@ -49,7 +49,7 @@ _REQUIRED_KEYS = {
     "objects",
 }
 
-# Optional top-level keys for replay version 2.
+# Optional new top-level keys for replay version 2.
 _OPTIONAL_KEYS = {
     "file_name",
     "group_names",
@@ -201,7 +201,7 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
     if "file_name" in data:
         file_name = data["file_name"]
         _validate_type(file_name, str, "file_name")
-        assert file_name and file_name.endswith(".json.z"), "'file_name' must be non-empty and end with '.json.z'"
+        assert file_name, "'file_name' must be non-empty"
 
     # Required string lists.
     for field in ["action_names", "item_names", "type_names"]:
@@ -406,10 +406,12 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
         "num_agents": 2,
         "max_steps": 100,
         "map_size": [10, 10],
-        "file_name": file_name,
+        "file_name": "test replay file format",
         "type_names": ["agent", "resource"],
         "action_names": ["move", "collect"],
         "item_names": ["wood", "stone"],
+        "group_names": ["group1", "group2"],
+        "reward_sharing_matrix": [[1, 0], [0, 1]],
         "objects": [
             {
                 # Static fields
@@ -420,20 +422,20 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "vision_size": 11,
                 "group_id": 0,
                 "is_swappable": False,
-                # Time series fields (some single values, some arrays)
-                "location": [5, 5, 0],  # Never moved
-                "action_id": 0,  # Never changed action
-                "action_param": 0,  # Never changed param
-                "action_success": True,  # Never failed
-                "current_reward": 0.0,  # Never got reward
-                "total_reward": 0.0,  # Never got reward
-                "freeze_remaining": 0,  # Never frozen
-                "is_frozen": False,  # Never frozen
-                "freeze_duration": 0,  # Never frozen
-                "orientation": 0,  # Never rotated
-                "inventory": [],  # Empty inventory that never changed
-                "inventory_max": 10,  # Single value
-                "color": 0,  # Never changed color
+                # Time series fields (some single values, some arrays for testing)
+                "location": [5, 5, 0],
+                "action_id": 0,
+                "action_param": 0,
+                "action_success": True,
+                "current_reward": 0.0,
+                "total_reward": 0.0,
+                "freeze_remaining": 0,
+                "is_frozen": False,
+                "freeze_duration": 0,
+                "orientation": 0,
+                "inventory": [],
+                "inventory_max": 10,
+                "color": 0,
             },
             {
                 # Static fields
@@ -444,20 +446,20 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "vision_size": 11,
                 "group_id": 0,
                 "is_swappable": False,
-                # Time series fields (mix of single values and arrays)
-                "location": [[0, [3, 3, 0]], [5, [4, 3, 0]]],  # Moved at step 5
-                "action_id": [[0, 1], [10, 0]],  # Changed action at step 10
-                "action_param": 0,  # Never changed param
-                "action_success": [[0, False], [10, True]],  # Success changed at step 10
-                "current_reward": 1.5,  # Single reward value
-                "total_reward": [[0, 0.0], [10, 1.5]],  # Total changed at step 10
-                "freeze_remaining": 0,  # Never frozen
-                "is_frozen": False,  # Never frozen
-                "freeze_duration": 0,  # Never frozen
-                "orientation": 1,  # Never rotated
-                "inventory": [[0, []], [20, [[0, 2], [1, 1]]]],  # Got items at step 20
-                "inventory_max": 10,  # Single value
-                "color": 1,  # Never changed color
+                # Time series fields (mix of single values and arrays for testing)
+                "location": [[0, [3, 3, 0]], [5, [4, 3, 0]]],
+                "action_id": [[0, 1], [10, 0]],
+                "action_param": 0,
+                "action_success": [[0, False], [10, True]],
+                "current_reward": 1.5,
+                "total_reward": [[0, 0.0], [10, 1.5]],
+                "freeze_remaining": 0,
+                "is_frozen": False,
+                "freeze_duration": 0,
+                "orientation": 1,
+                "inventory": [[0, []], [20, [[0, 2], [1, 1]]]],
+                "inventory_max": 10,
+                "color": 1,
             },
         ],
     }
@@ -477,7 +479,7 @@ def test_validate_replay_schema_valid() -> None:
         (lambda r: r.update({"version": 1}), "'version' must equal 2"),
         (lambda r: r.update({"num_agents": -1}), "'num_agents' must be positive"),
         (lambda r: r.update({"map_size": [0, 5]}), "'map_size\\[0\\]' must be positive"),
-        (lambda r: r.update({"file_name": "replay.txt"}), "'file_name' must be non-empty and end with '\\.json\\.z'"),
+        (lambda r: r.update({"file_name": ""}), "'file_name' must be non-empty"),
         (lambda r: r.update({"action_names": ["", "collect"]}), "'action_names' must contain non-empty strings"),
         (lambda r: r.update({"objects": [123]}), "'objects' must contain dictionaries"),
     ],
