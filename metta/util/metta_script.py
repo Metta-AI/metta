@@ -80,8 +80,8 @@ def metta_script(
         if pre_main:
             pre_main(cfg)
 
-        if cfg.agent_path:
-            cfg.agent = cfg.agent_path
+        if cfg.py_agent:
+            cfg.agent = cfg.py_agent
 
         apply_mac_device_overrides(cfg)
 

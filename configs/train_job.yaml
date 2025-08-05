@@ -7,7 +7,7 @@ defaults:
   - _self_
 
 seed: 1
-agent_path: null
+py_agent: null
 
 
 train_job:
