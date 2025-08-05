@@ -32,6 +32,7 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig |
     )
 
     # Create MettaAgent directly without Hydra
+
     if isinstance(agent_cfg, str):
         AgentClass = agent_classes.get(agent_cfg)
         if AgentClass is not None:
@@ -41,10 +42,11 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig |
             )
             logger.info(f"Using Pytorch Policy: {agent}")
             return agent
-
-
+        else:
+            raise ValueError(f"Unknown agent type: {agent_cfg}. Available agents: {list(agent_classes.keys())}")
 
     dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)
+
 
     return MettaAgent(
         obs_space=obs_space,
