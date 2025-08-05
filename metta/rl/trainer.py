@@ -401,12 +401,13 @@ def train(
                         )
 
                         # Optimizer step
-                        optimizer.zero_grad()
+                        # optimizer.zero_grad()
                         loss.backward()
 
                         if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
                             torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                             optimizer.step()
+                            optimizer.zero_grad()  # av
 
                             # Optional weight clipping
                             if hasattr(policy, "clip_weights"):
