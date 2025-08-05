@@ -130,8 +130,8 @@ Here are the keys supported for both agents and objects:
 
 - `id` - Usually a constant. The id of the object.
 - `type_id` - Usually a constant. The type of the object that references the `type_names` array.
-- `location` - The [x, y, z] location of the object (sometimes called the column and row). Note: The z coordinate is
-  currently unused and typically set to 0.
+- `location` - The [x, y, z] location of the object (sometimes called the column and row). Note: The z coordinate is for
+  the layer, it is currently unused and typically set to 0.
 - `orientation` - The rotation of the object.
 
 - `inventory` - The current list of item_IDs that map to the `item_names` array. Example: `[0, 0, 1]`. If
