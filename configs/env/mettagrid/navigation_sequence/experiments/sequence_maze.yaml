@@ -3,5 +3,7 @@ _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 env_cfg_template_path: /env/mettagrid/navigation_sequence/experiments/sequence_defaults
 
 buckets:
-  game.map_builder.room.dir:
-    - ["varied_terrain/maze_small", "varied_terrain/maze_medium", "varied_terrain/maze_large"]
+  game.map_builder.instance_map.params.dir:
+    - varied_terrain/maze_small
+    - varied_terrain/maze_medium
+    - varied_terrain/maze_large
