@@ -461,7 +461,6 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
     updateTimeline()
   }
   updateAgentTable()
-
   requestFrame()
 }
 
