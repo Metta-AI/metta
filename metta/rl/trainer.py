@@ -525,12 +525,10 @@ def train(
                 )
 
                 # Add training task to the suite
-                # Pass the config as _pre_built_env_config to avoid Hydra loading
-                task_cfg = curriculum.get_task().env_cfg()
                 training_task_config = SingleEnvSimulationConfig(
                     env="eval/training_task",  # Just a descriptive name
                     num_episodes=1,
-                    env_overrides={"_pre_built_env_config": task_cfg},
+                    env_overrides=curriculum.get_task().env_cfg(),
                 )
                 extended_suite_config.simulations["eval/training_task"] = training_task_config
 
