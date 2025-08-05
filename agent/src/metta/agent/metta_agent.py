@@ -15,6 +15,7 @@ from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.instantiate import instantiate
 from metta.rl.env_config import EnvConfig
 from metta.rl.puffer_policy import PytorchAgent
+from metta.agent.pytorch.agent_mapper import agent_classes
 
 if TYPE_CHECKING:
     from metta.mettagrid import MettaGridEnv
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig | str) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -30,10 +31,21 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
         }
     )
 
-    # We know this will be a dict
-    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)  # type: ignore
-
     # Create MettaAgent directly without Hydra
+    if isinstance(agent_cfg, str):
+        AgentClass = agent_classes.get(agent_cfg)
+        if AgentClass is not None:
+
+            agent = AgentClass(
+                env=env
+            )
+            logger.info(f"Using Pytorch Policy: {agent}")
+            return agent
+
+
+
+    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)
+
     return MettaAgent(
         obs_space=obs_space,
         obs_width=env.obs_width,

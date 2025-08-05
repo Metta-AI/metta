@@ -191,7 +191,7 @@ def maybe_load_checkpoint(
 
 
 def load_or_initialize_policy(
-    agent_cfg: DictConfig,
+    agent_cfg: DictConfig | str,
     env_cfg: EnvConfig,
     trainer_cfg: TrainerConfig,
     checkpoint: TrainerCheckpoint | None,

@@ -80,6 +80,9 @@ def metta_script(
         if pre_main:
             pre_main(cfg)
 
+        if cfg.agent_path:
+            cfg.agent = cfg.agent_path
+
         apply_mac_device_overrides(cfg)
 
         run_dir = cfg.get("run_dir")
