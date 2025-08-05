@@ -339,6 +339,12 @@ class AsanaTask:
                 github_url,
                 pr_author,
             )
+            # Ensure GitHub URL is attached to the task
+            self.ensure_github_url_in_task(
+                self.task_url,
+                title,
+                github_url,
+            )
         else:
             print("[update_if_needed] No changes needed")
 
