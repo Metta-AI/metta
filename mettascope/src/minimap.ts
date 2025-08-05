@@ -95,13 +95,7 @@ export function renderMinimapVisualRanges(offset: Vec2f) {
     for (let x = 0; x < state.replay.mapSize[0]; x++) {
       for (let y = 0; y < state.replay.mapSize[1]; y++) {
         if (!visibilityMap.get(x, y)) {
-          ctx.drawSolidRect(
-            x + offset.x(),
-            y + offset.y(),
-            1,
-            1,
-            color
-          )
+          ctx.drawSolidRect(x + offset.x(), y + offset.y(), 1, 1, color)
         }
       }
     }
