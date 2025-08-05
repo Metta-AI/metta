@@ -189,6 +189,14 @@ def train(
             logger.info(
                 f"Dual-policy training enabled: {trainer_cfg.dual_policy.training_agents_pct:.1%} training agents"
             )
+
+            # Reset NPC policy LSTM states to avoid size mismatches
+            # Clear any cached LSTM states that might cause size mismatches
+            if hasattr(npc_policy_record.policy, "lstm") and hasattr(npc_policy_record.policy.lstm, "_net"):
+                # Reset the LSTM's internal state
+                npc_policy_record.policy.lstm._net.flatten_parameters()
+                logger.info("Reset NPC policy LSTM internal state to avoid size mismatches")
+
         except Exception as e:
             logger.error(f"Failed to load NPC policy: {e}")
             raise ValueError(f"Could not load NPC policy from {trainer_cfg.dual_policy.checkpoint_npc.uri}") from e
