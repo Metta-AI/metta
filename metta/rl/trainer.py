@@ -457,20 +457,15 @@ def train(
             rollout_time = timer.get_last_elapsed("_rollout")
             train_time = timer.get_last_elapsed("_train")
             stats_time = timer.get_last_elapsed("_process_stats")
-            steps_calculated = agent_step - steps_before
-
-            total_time = train_time + rollout_time + stats_time
-            steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
 
             log_training_progress(
                 epoch=epoch,
                 agent_step=agent_step,
                 total_timesteps=trainer_cfg.total_timesteps,
-                steps_per_sec=steps_per_sec,
+                prev_agent_step=steps_before,
                 train_time=train_time,
                 rollout_time=rollout_time,
                 stats_time=stats_time,
-                is_master=is_master,
                 run_name=run,
             )
 
