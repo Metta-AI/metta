@@ -49,8 +49,6 @@ class Task:
 
         Based on this, the task should expose a new trial, or become complete.
         """
-        # Track trial reward for WandB logging
-        self._trial_rewards.append(score)
         raise NotImplementedError("Subclasses must implement this method")
 
     def is_complete(self):
@@ -110,7 +108,7 @@ class SingleTrialTask(Task):
         self._total_score += score
 
         # Call parent to track trial reward
-        super().complete_trial(score)
+        self._trial_rewards.append(score)
 
         # Only mark as complete when we've actually completed all trials
         if self.get_current_trial() >= self._num_trials:
