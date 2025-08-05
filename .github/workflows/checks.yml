@@ -238,13 +238,6 @@ jobs:
         with:
           install-mode: "testing"
 
-      # - name: Free up disk space
-      #   id: cleanup
-      #   uses: ./.github/actions/disk-cleanup
-      #   with:
-      #     dry-run: "false"
-      #     docker-images: "false"
-
       - name: Run tests
         run: |
           # Base pytest arguments (without coverage file specification)
