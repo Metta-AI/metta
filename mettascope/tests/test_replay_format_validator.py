@@ -355,14 +355,13 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
     _validate_action_id_range(obj["action_id"], obj_name, replay_data["action_names"])
 
 
-
 def _validate_action_id_range(action_ids: Any, obj_name: str, action_names: list[str]) -> None:
     """Validate that action_id values are within the valid range."""
     # Handle single value case
     if isinstance(action_ids, int):
         assert 0 <= action_ids < len(action_names), f"{obj_name}.action_id {action_ids} out of range"
         return
-        
+
     # Handle time series case
     if isinstance(action_ids, list):
         for step_data in action_ids:
@@ -520,7 +519,10 @@ def test_validate_real_generated_replay() -> None:
 
         replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
         if len(replay_files) == 0:
-            assert len(replay_files) > 0, f"No replay files were generated. Process exited with code {result.returncode}. Error output: {result.stderr}"
+            raise AssertionError(
+                f"No replay files were generated. Process exited with code {result.returncode}. "
+                f"Error output: {result.stderr}"
+            )
 
         # Should have exactly one replay file.
         assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
