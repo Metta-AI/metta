@@ -79,10 +79,13 @@ object - walls, buildings, and agents.
 Objects are stored in a condensed format. Every field of the object is either a constant or a time series of values.
 
 **Time series fields** can be represented in two ways:
-1. **Single value** - When the field never changes during the replay, it's stored as just the value.
-2. **Time series array** - When the field changes, it's stored as a list of tuples where the first element is the step and the second element is the value.
 
-The time series array format uses tuples where the first element is the step and the second element is the value, which can be a number, boolean, or a list of numbers.
+1. **Single value** - When the field never changes during the replay, it's stored as just the value.
+2. **Time series array** - When the field changes, it's stored as a list of tuples where the first element is the step
+   and the second element is the value.
+
+The time series array format uses tuples where the first element is the step and the second element is the value, which
+can be a number, boolean, or a list of numbers.
 
 ```json
 {
@@ -127,7 +130,8 @@ Here are the keys supported for both agents and objects:
 
 - `id` - Usually a constant. The id of the object.
 - `type_id` - Usually a constant. The type of the object that references the `type_names` array.
-- `location` - The [x, y, z] location of the object (sometimes called the column and row)
+- `location` - The [x, y, z] location of the object (sometimes called the column and row). Note: The z coordinate is
+  currently unused and typically set to 0.
 - `orientation` - The rotation of the object.
 
 - `inventory` - The current list of item_IDs that map to the `item_names` array. Example: `[0, 0, 1]`. If
