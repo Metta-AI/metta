@@ -115,6 +115,7 @@ def test_log_wandb_resumes_existing_run(wandb_test_env):
     wandb.finish()
 
 
+@pytest.mark.slow
 def test_log_wandb_multiple_values(wandb_test_env):
     """Test logging multiple values to the same run."""
     os.environ["METTA_RUN_ID"] = "test-run-003"

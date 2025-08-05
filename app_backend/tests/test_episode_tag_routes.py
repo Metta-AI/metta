@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from metta.app_backend.clients.stats_client import StatsClient
 
 
+@pytest.mark.slow
 class TestEpisodeTagRoutes:
     """Test episode tag routes."""
 

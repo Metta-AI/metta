@@ -9,13 +9,14 @@ from omegaconf import DictConfig, OmegaConf
 
 import mettascope.server as server
 from metta.agent.mocks import MockPolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbContext
+from metta.rl.env_config import create_env_config
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.util.metta_script import metta_script
+from tools.utils import get_policy_store_from_cfg
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
@@ -34,8 +35,11 @@ def main(cfg: DictConfig):
 
     logger.info(f"tools.replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
+    # Create env config
+    env_cfg = create_env_config(cfg)
+
     with WandbContext(cfg.wandb, cfg) as wandb_run:
-        policy_store = PolicyStore(cfg, wandb_run)
+        policy_store = get_policy_store_from_cfg(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
         if replay_job.policy_uri is not None:
             policy_record = policy_store.policy_record(replay_job.policy_uri)
@@ -53,7 +57,7 @@ def main(cfg: DictConfig):
             policy_record,
             policy_store,
             device=cfg.device,
-            vectorization=cfg.vectorization,
+            vectorization=env_cfg.vectorization,
             stats_dir=replay_job.stats_dir,
             replay_dir=replay_dir,
         )

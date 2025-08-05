@@ -1,4 +1,3 @@
-import json
 import logging
 import subprocess
 from pathlib import Path
@@ -69,15 +68,16 @@ def get_current_commit() -> str:
 
 
 def get_branch_commit(branch: str) -> str:
-    """Get the commit hash for a given branch."""
-    # Fetch quietly to ensure we have latest remote data
-    try:
-        run_git("fetch", "--quiet")
-    except GitError:
-        # Fetch failure is non-fatal, continue with local data
-        pass
+    """Get the commit hash for a given branch or remote ref."""
+    # only fetch when branch looks like a remote-tracking ref:
+    if branch.startswith("origin/"):
+        try:
+            run_git("fetch", "--quiet")
+        except GitError:
+            # network issues are non-fatal
+            pass
 
-    return run_git("rev-parse", branch)
+    return run_git("rev-parse", "--verify", branch).strip()
 
 
 def get_commit_message(commit_hash: str) -> str:
@@ -92,11 +92,43 @@ def has_unstaged_changes() -> bool:
 
 
 def is_commit_pushed(commit_hash: str) -> bool:
-    """Check if a commit has been pushed to any remote branch."""
+    """
+    Check if `commit_hash` has been pushed to the remote tracking branch.
 
-    # Get all remote branches that contain this commit
-    remote_branches = run_git("branch", "-r", "--contains", commit_hash)
-    return bool(remote_branches.strip())
+    Fast path:
+    - If the current branch has an upstream (e.g. origin/main), we do:
+      git merge-base --is-ancestor <commit_hash> <upstream>
+      which is a constant-time check.
+
+    Fallback:
+    - If no upstream is set, we fall back to the old:
+      git branch -r --contains <commit_hash>
+
+    Raises:
+        GitError: If the commit hash is invalid or doesn't exist
+    """
+    # First validate the commit exists
+    try:
+        run_git("rev-parse", "--verify", commit_hash)
+    except GitError as e:
+        raise GitError(f"Invalid commit hash: {commit_hash}") from e
+
+    try:
+        # Figure out the upstream ref for the current branch (e.g. "origin/main")
+        branch = get_current_branch()
+        upstream = run_git("rev-parse", "--abbrev-ref", f"{branch}@{{u}}")
+    except GitError:
+        # No upstream configured ─ fallback to scanning all remotes
+        remote_branches = run_git("branch", "-r", "--contains", commit_hash)
+        return bool(remote_branches.strip())
+
+    # Fast constant-time check: is commit_hash an ancestor of upstream?
+    try:
+        # merge-base --is-ancestor returns exit code 0 if true
+        run_git("merge-base", "--is-ancestor", commit_hash, upstream)
+        return True
+    except GitError:
+        return False
 
 
 def validate_git_ref(ref: str) -> str | None:
@@ -110,25 +142,26 @@ def validate_git_ref(ref: str) -> str | None:
 
 def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
     """
-    Check if a commit is the HEAD of an open PR.
-
-    Returns:
-        tuple(pr_number, pr_title) if commit is HEAD of an open PR, None otherwise
+    Return (PR number, title) if `commit_hash` is the HEAD of an open PR, else None.
     """
-
-    # Get ALL open PRs by setting a high limit
-    pr_json = run_gh("pr", "list", "--state", "open", "--limit", "999", "--json", "number,title,headRefOid")
-    prs = json.loads(pr_json)
-
-    for pr in prs:
-        # Check if this PR's HEAD commit matches our commit
-        pr_head_sha = pr.get("headRefOid", "")
-
-        # Compare commits (handle both short and full hashes)
-        if pr_head_sha.startswith(commit_hash) or commit_hash.startswith(pr_head_sha):
-            return (int(pr["number"]), pr["title"])
-
-    return None
+    url = f"https://api.github.com/repos/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/commits/{commit_hash}/pulls"
+    headers = {"Accept": "application/vnd.github.groot-preview+json"}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=5.0)
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            # Commit not in repo or no PRs → treat as “no match”
+            return None
+        raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
+    except httpx.RequestError as e:
+        # Network / timeout / DNS failure
+        raise GitError(f"Network error while querying GitHub: {e}") from e
+    pulls = resp.json()
+    if not pulls:
+        return None
+    pr = pulls[0]
+    return int(pr["number"]), pr["title"]
 
 
 def get_remote_url() -> str | None:

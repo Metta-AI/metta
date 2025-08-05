@@ -5,19 +5,23 @@ import logging
 import os
 import time
 import weakref
-from typing import Any, Dict
+from typing import Dict
 
 import torch.nn as nn
 import wandb
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
+
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
+from metta.common.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger(__name__)
 
 # Use WeakKeyDictionary to associate state with each wandb.Run without mutating the object
-_ABORT_STATE: weakref.WeakKeyDictionary[wandb.sdk.wandb_run.Run, Dict[str, Any]] = weakref.WeakKeyDictionary()
+_ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = weakref.WeakKeyDictionary()
 
 
-def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec: int = 60) -> bool:
+def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> bool:
     """Return True if the WandB run has an "abort" tag.
 
     The API call is throttled to *min_interval_sec* seconds.
@@ -30,7 +34,7 @@ def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec:
 
     # Return cached result if within throttle interval
     if now - state["last_check"] < min_interval_sec:
-        return state["cached_result"]
+        return bool(state["cached_result"])
 
     # Time to check again
     state["last_check"] = now
@@ -41,10 +45,10 @@ def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec:
         logger.debug(f"Abort tag check failed: {e}")
         state["cached_result"] = False
 
-    return state["cached_result"]
+    return bool(state["cached_result"])
 
 
-def upload_env_configs(env_configs: dict[str, Any], wandb_run: wandb.sdk.wandb_run.Run | None) -> None:
+def upload_env_configs(env_configs: dict[str, DictConfig], wandb_run: WandbRun | None) -> None:
     """Serialize resolved env configs and upload to run files.
 
     Args:
@@ -69,7 +73,7 @@ def upload_env_configs(env_configs: dict[str, Any], wandb_run: wandb.sdk.wandb_r
 
 
 # Metrics functions moved from metrics.py
-def setup_wandb_metrics(wandb_run: Any) -> None:
+def setup_wandb_metrics(wandb_run: WandbRun) -> None:
     """Set up wandb metric definitions for consistent tracking across runs.
 
     Args:
@@ -87,7 +91,7 @@ def setup_wandb_metrics(wandb_run: Any) -> None:
     wandb_run.define_metric("overview/reward_vs_total_time", step_metric="metric/total_time")
 
 
-def log_model_parameters(policy: nn.Module, wandb_run: Any) -> None:
+def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     """Log model parameter count to wandb summary.
 
     Args:
@@ -100,8 +104,8 @@ def log_model_parameters(policy: nn.Module, wandb_run: Any) -> None:
 
 
 def log_training_metrics(
-    wandb_run: Any,
-    metrics: dict[str, Any],
+    wandb_run: WandbRun,
+    metrics: dict[str, float | int | str],
     step: int,
 ) -> None:
     """Log training metrics to wandb.
@@ -115,7 +119,7 @@ def log_training_metrics(
 
 
 def define_custom_metric(
-    wandb_run: Any,
+    wandb_run: WandbRun,
     metric_name: str,
     step_metric: str | None = None,
 ) -> None:
@@ -133,10 +137,9 @@ def define_custom_metric(
 
 
 def upload_policy_artifact(
-    wandb_run: Any,
-    policy_store: Any,
-    policy_record: Any,
-    force: bool = False,
+    wandb_run: WandbRun | None,
+    policy_store: PolicyStore,
+    policy_record: PolicyRecord,
 ) -> str | None:
     """Upload policy to WandB as artifact.
 
