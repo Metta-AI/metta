@@ -127,7 +127,7 @@ def _validate_time_series(data: Any, field_name: str, expected_type: type | tupl
 
     # Neither single value nor valid time series
     type_name = _get_type_name(expected_type)
-    assert False, f"'{field_name}' must be {type_name} or time series of [step, {type_name}] pairs"
+    raise AssertionError(f"'{field_name}' must be {type_name} or time series of [step, {type_name}] pairs")
 
 
 def _get_type_name(expected_type: type | tuple[type, ...]) -> str:
