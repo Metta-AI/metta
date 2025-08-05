@@ -98,6 +98,8 @@ class SingleTrialTask(Task):
         super().__init__(id, curriculum)
         self._total_score = 0.0
         self._num_trials = env_cfg.get("num_trials", 1)
+        self._current_trial = 0
+        self._current_score = 0.0
         self._is_complete = False
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
@@ -105,16 +107,17 @@ class SingleTrialTask(Task):
 
     def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"
+        self._current_score = score
         self._total_score += score
-
+        self._current_trial += 1
         # Call parent to track trial reward
         print(f"Num trials: {self._num_trials}")
         print(f"Current trial: {self.get_current_trial()}")
         print(f"trial rewards: {self._trial_rewards}")
-        self._trial_rewards.append(score)
+        super()._trial_rewards.append(score)
 
         # Only mark as complete when we've actually completed all trials
-        if self.get_current_trial() >= self._num_trials:
+        if self._current_trial >= self._num_trials:
             self._is_complete = True
             for curriculum, id in self._curricula:
                 curriculum.complete_task(id, self._total_score)
