@@ -103,9 +103,7 @@ bptt_horizon = 64
 update_epochs = 1
 forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 256
 
-# LSTM state handling - set to False to preserve LSTM states across episodes and minibatches
-# This is useful for longer memory tasks (see configs/trainer/memory_no_reset.yaml)
-reset_lstm_state_between_episodes = True
+reset_lstm_state_between_episodes = True  # False preserves state for longer memory tasks
 
 # Adjust defaults based on vectorization mode
 vectorization_mode = "serial"  # Use serial for macOS compatibility

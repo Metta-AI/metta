@@ -1,24 +1,11 @@
 defaults:
   - trainer
 
-# Configuration for memory tasks that preserves LSTM state across episodes
-# Based on PufferLib memory branch experiments showing improved performance
-# on longer memory tasks when LSTM state is not reset between episodes
-
-# Disable LSTM state reset between episodes
-# This preserves LSTM states across both episode boundaries AND minibatches
-# enabling the model to maintain memory for longer periods
+# Preserves LSTM state across episodes for longer memory tasks
 reset_lstm_state_between_episodes: false
 
-# Larger BPTT horizon for longer memory tasks
 bptt_horizon: 256
-
-# Adjust batch size to maintain reasonable training efficiency
-# Note: Larger bptt_horizon means fewer segments per batch
 batch_size: 1048576
 
-# Comments from jsuarez's experiments:
-# - bptt horizon 64, zero out LSTM state: Solves 16 steps, eh on 32, fails 64+
-# - bptt horizon 64, don't zero out LSTM state: Solves 16 and 32, fails 64+
-# - bptt horizon 256, zero out LSTM state: Solves 16, 32, 64. Eh on 128.
-# - bptt horizon 256, don't zero out LSTM state: Solves 16, 32, 64, 128.
+# Experimental results: bptt_horizon=256 + reset_lstm_state_between_episodes=false
+# enables solving up to 128-step memory tasks
