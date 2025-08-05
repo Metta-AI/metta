@@ -59,10 +59,10 @@ def run_npc_policy_inference(
     observations: Tensor,
     device: torch.device,
 ) -> Tuple[Tensor, Tensor, Tensor]:
-    """Run NPC policy inference without interacting with experience buffer.
+    """Run NPC policy inference with properly initialized LSTM states.
 
-    NPC policies operate in open loop and don't contribute to learning.
-    They don't need LSTM state management from the experience buffer.
+    NPC policies need proper LSTM states that match the batch size of their observations.
+    We initialize fresh LSTM states for each inference call.
 
     Args:
         npc_policy: The NPC policy
@@ -73,10 +73,18 @@ def run_npc_policy_inference(
         Tuple of (actions, log_probs, values) - no LSTM state needed
     """
     with torch.no_grad():
-        # Create empty policy state for NPC (no LSTM state management)
         from metta.agent.policy_state import PolicyState
 
-        state = PolicyState(lstm_h=None, lstm_c=None)
+        # Get LSTM configuration from the NPC policy
+        hidden_size, num_layers = get_lstm_config(npc_policy)
+        batch_size = observations.shape[0]
+
+        # Initialize fresh LSTM states for NPC policy
+        # This ensures the states match the current batch size and policy configuration
+        lstm_h = torch.zeros(num_layers, batch_size, hidden_size, device=device)
+        lstm_c = torch.zeros(num_layers, batch_size, hidden_size, device=device)
+
+        state = PolicyState(lstm_h=lstm_h, lstm_c=lstm_c)
 
         # Get policy outputs
         policy_outputs = npc_policy(observations, state)
@@ -182,17 +190,28 @@ def run_policy_inference(
         return actions, selected_action_log_probs, values, lstm_state_to_store
 
 
-def get_lstm_config(policy: PolicyAgent) -> Tuple[int, int]:
+def get_lstm_config(policy: torch.nn.Module) -> Tuple[int, int]:
     """Get LSTM configuration from policy."""
     # For MettaAgent, access LSTM through the lstm property
     if hasattr(policy, "lstm"):
         lstm = policy.lstm
         if hasattr(lstm, "hidden_size") and hasattr(lstm, "num_layers"):
-            return lstm.hidden_size, lstm.num_layers
+            return int(lstm.hidden_size), int(lstm.num_layers)
 
-    # Alternative: check if policy has direct LSTM attributes
+    # For external policies with LSTM wrapper
+    if hasattr(policy, "recurrent"):
+        recurrent = policy.recurrent
+        if hasattr(recurrent, "hidden_size"):
+            # External policies typically use 1 layer
+            return int(recurrent.hidden_size), 1
+
+    # For policies with direct LSTM attributes
     if hasattr(policy, "hidden_size") and hasattr(policy, "num_lstm_layers"):
-        return policy.hidden_size, policy.num_lstm_layers
+        return int(policy.hidden_size), int(policy.num_lstm_layers)
+
+    # For policies with hidden_size but no explicit layers
+    if hasattr(policy, "hidden_size"):
+        return int(policy.hidden_size), 1
 
     # Default values if no LSTM found
     return 256, 1
