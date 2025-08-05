@@ -17,4 +17,3 @@ buckets:
   game.objects.generator_green.input_resources.ore_green: [0]
   game.objects.generator_green.output_resources.battery_green: [0]
   game.objects.generator_green.output_resources.heart: [1]
-  game.max_steps: [15, 25, 35]

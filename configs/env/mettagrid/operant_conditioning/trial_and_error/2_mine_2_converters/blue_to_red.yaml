@@ -12,4 +12,3 @@ buckets:
   game.objects.generator_red.output_resources.battery_red: [0]
   game.objects.generator_blue.cooldown: [1]
   game.objects.generator_blue.output_resources.battery_blue: [0]
-  game.max_steps: [15, 25, 35]
