@@ -311,8 +311,8 @@ def train(
                     td = buffer_step[training_env_id].clone()
                     td["env_obs"] = o
                     td["rewards"] = r
-                    td["dones"] = d
-                    td["truncateds"] = t
+                    td["dones"] = d.float()
+                    td["truncateds"] = t.float()
 
                     # Inference
                     with torch.no_grad():
@@ -392,7 +392,6 @@ def train(
                             td=policy_td,
                             indices=indices,
                             prio_weights=prio_weights,
-                            advantages=advantages,
                             trainer_cfg=trainer_cfg,
                             kickstarter=kickstarter,
                             agent_step=agent_step,

@@ -130,7 +130,6 @@ def process_minibatch_update(
         full_logprobs,
         newvalue,
         td["env_obs"],
-        teacher_lstm_state=[],
     )
 
     # L2 init loss
