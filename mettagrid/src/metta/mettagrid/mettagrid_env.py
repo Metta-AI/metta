@@ -245,11 +245,12 @@ class MettaGridEnv(MettaGridPufferBase):
             New MettaGridCpp instance
         """
         # Handle episode desyncing for training
-        if self._is_training and self._resets == 0:
-            max_steps = game_config_dict["max_steps"]
-            # Recreate with random max_steps
-            game_config_dict = game_config_dict.copy()  # Don't modify original
-            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+        # DISABLED: Episode desyncing disabled as requested
+        # if self._is_training and self._resets == 0:
+        #     max_steps = game_config_dict["max_steps"]
+        #     # Recreate with random max_steps
+        #     game_config_dict = game_config_dict.copy()  # Don't modify original
+        #     game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
 
         return super()._create_c_env(game_config_dict, seed)
 
