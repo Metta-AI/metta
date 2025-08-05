@@ -11,7 +11,7 @@ from filelock import FileLock
 from metta.common.util.config import Config
 from metta.mettagrid.level_builder import Level, LevelBuilder
 
-logger = logging.getLogger("terrain_from_numpy")
+logger = logging.getLogger(__name__)
 
 
 def pick_random_file(path):
