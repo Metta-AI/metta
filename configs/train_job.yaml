@@ -7,6 +7,8 @@ defaults:
   - _self_
 
 seed: 1
+agent_path: null
+
 
 train_job:
   map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
