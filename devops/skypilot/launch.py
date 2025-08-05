@@ -141,9 +141,6 @@ def main():
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
 
-    print(task)
-    exit(1)
-
     task = task.update_envs(
         dict(
             METTA_RUN_ID=run_id,
@@ -164,6 +161,10 @@ def main():
         no_spot=args.no_spot,
         timeout_hours=args.max_runtime_hours,
     )
+
+    print(task)
+    exit(1)
+
     set_task_secrets(task)
 
     if args.confirm:
