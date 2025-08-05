@@ -1,6 +1,7 @@
 """Checkpoint management for Metta training."""
 
 import logging
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -144,7 +145,7 @@ class CheckpointManager:
         if not self.is_master:
             # Non-master ranks need to participate in the barrier below
             if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+                torch.distributed.barrier(timeout=timedelta(seconds=30))
             return None
 
         logger.info(f"Saving policy at epoch {epoch}")
@@ -207,6 +208,6 @@ class CheckpointManager:
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+            torch.distributed.barrier(timeout=timedelta(seconds=30))
 
         return saved_policy_record

@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from datetime import timedelta
 
 import numpy as np
 import torch
@@ -339,7 +340,7 @@ agent = wrap_agent_distributed(agent, device)
 
 # Ensure all ranks have wrapped their agents before proceeding
 if torch.distributed.is_initialized():
-    torch.distributed.barrier()
+    torch.distributed.barrier(timeout=timedelta(seconds=30))
 
 # Set up wandb metrics and log model parameters
 if wandb_run and is_master:
@@ -727,7 +728,7 @@ while agent_step < trainer_config.total_timesteps:
         # All ranks must synchronize after checkpoint operations
         # This barrier must be outside the if saved_record block so all ranks hit it
         if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+            torch.distributed.barrier(timeout=timedelta(seconds=30))
 
     # Upload latest policy to wandb (master only)
     if (
@@ -983,7 +984,7 @@ if is_master:
 
 # All ranks must synchronize after final save operations
 if torch.distributed.is_initialized():
-    torch.distributed.barrier()
+    torch.distributed.barrier(timeout=timedelta(seconds=30))
 
 # Close environment
 env.close()  # type: ignore

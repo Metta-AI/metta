@@ -2,6 +2,7 @@
 
 import logging
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import torch
@@ -161,7 +162,7 @@ def maybe_load_checkpoint(
     if torch.distributed.is_initialized() and not is_master:
         # Non-master waits for master to create
         logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
-        torch.distributed.barrier()
+        torch.distributed.barrier(timeout=timedelta(seconds=30))
 
         if not wait_for_file(default_path, timeout=300):
             raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
@@ -185,7 +186,7 @@ def maybe_load_checkpoint(
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
         if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+            torch.distributed.barrier(timeout=timedelta(seconds=30))
 
         return checkpoint, saved_pr, agent_step, epoch
 
@@ -238,7 +239,7 @@ def load_or_initialize_policy(
     if torch.distributed.is_initialized() and not is_master:
         # Non-master waits for master to create
         logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
-        torch.distributed.barrier()
+        torch.distributed.barrier(timeout=timedelta(seconds=30))
 
         def log_progress(elapsed: float, status: str) -> None:
             if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
@@ -276,6 +277,6 @@ def load_or_initialize_policy(
 
         # Synchronize with non-master ranks after saving
         if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+            torch.distributed.barrier(timeout=timedelta(seconds=30))
 
     return policy, initial_policy_record, latest_saved_policy_record
