@@ -48,7 +48,7 @@ def get_instance_cost(instance_type: str, region: str, zone: str | None = None, 
         return None
 
 
-def get_running_instance_info() -> Tuple[str, str, str, bool] | None:
+def get_running_instance_info() -> tuple[str, str, str, bool] | None:
     """
     Retrieve instance metadata for the currently running EC2 instance.
 

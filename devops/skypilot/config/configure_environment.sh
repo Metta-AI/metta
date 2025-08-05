@@ -7,7 +7,9 @@ echo "Python executable: $(python -c 'import sys; print(sys.executable)')"
 
 echo "Configuring runtime environment..."
 
-# look up the file path
+# look up the file path for storing ENV variables -- N.B. scripts run in isolated
+# context and can not directly set ENV in the parent
+
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 echo "Persisting env vars into: $METTA_ENV_FILE"
 
