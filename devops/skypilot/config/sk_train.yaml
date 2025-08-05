@@ -69,17 +69,7 @@ run: |
   fi
   . .venv/bin/activate
 
-  echo "VIRTUAL_ENV: $VIRTUAL_ENV"
-  echo "Which python: $(which python)"
-  echo "Python location: $(python -c 'import sys; print(sys.executable)')"
-
   bash ./devops/skypilot/config/configure_environment.sh
-
-  echo "Cluster configuration:"
-  echo "  NUM_GPUS=$NUM_GPUS"
-  echo "  NUM_NODES=$NUM_NODES"
-  echo "  MASTER_ADDR=$MASTER_ADDR"
-  echo "  NODE_INDEX=$NODE_INDEX"
 
   echo "METTA_RUN_ID: $METTA_RUN_ID"
   echo "SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"

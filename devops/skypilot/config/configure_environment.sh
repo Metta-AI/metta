@@ -1,16 +1,14 @@
 #!/bin/bash
 set -e
+
+echo "VIRTUAL_ENV: $VIRTUAL_ENV"
+echo "Which python: $(which python)"
+echo "Python location: $(python -c 'import sys; print(sys.executable)')"
+
 echo "Configuring runtime environment..."
 
-# Check if already configured to avoid duplicate entries
-if ! grep -q "# Metta environment" ~/.bashrc 2>/dev/null; then
-    cat >> ~/.bashrc << 'EOF'
-
-# Metta environment
-cd /workspace/metta
-
 export PYTHONUNBUFFERED=1
-export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)"
 export PYTHONOPTIMIZE=1
 export HYDRA_FULL_ERROR=1
 export NCCL_DEBUG="INFO"
@@ -24,11 +22,12 @@ export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)
 export MASTER_PORT=8008
 export NODE_INDEX=${SKYPILOT_NODE_RANK}
 export NCCL_SHM_DISABLE=1
-EOF
-    echo "Bash environment configured"
-else
-    echo "Bash environment already configured, skipping"
-fi
+
+echo "Cluster configuration:"
+echo "  NUM_GPUS=$NUM_GPUS"
+echo "  NUM_NODES=$NUM_NODES"
+echo "  MASTER_ADDR=$MASTER_ADDR"
+echo "  NODE_INDEX=$NODE_INDEX"
 
 # Create job secrets (idempotent - overwrites if exists)
 if [ -z "$WANDB_PASSWORD" ]; then
@@ -52,7 +51,5 @@ eval $CMD || {
     echo "ERROR: Failed to create job secrets"
     exit 1
 }
-
-source ~/.bashrc
 
 echo "Runtime environment configuration completed"
