@@ -13,8 +13,8 @@ from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
-from metta.mettagrid.puffer_env import MettaGridPufferEnv
 
 
 def create_game_config():
@@ -96,15 +96,15 @@ def create_game_config():
 
 
 def test_puffer_env():
-    """Test PufferLib environment interactively."""
+    """Test MettaGridEnv (PufferLib-based) interactively."""
     print("\n" + "=" * 50)
-    print("🔥 TESTING PUFFERLIB ENVIRONMENT")
+    print("TESTING METTAGRID ENVIRONMENT (PufferLib-based)")
     print("=" * 50)
 
     config = create_game_config()
-    curriculum = SingleTaskCurriculum("puffer_interactive", config)
+    curriculum = SingleTaskCurriculum("mettagrid_interactive", config)
 
-    env = MettaGridPufferEnv(
+    env = MettaGridEnv(
         curriculum=curriculum,
         render_mode="human",
         is_training=False,
@@ -144,7 +144,7 @@ def test_puffer_env():
         time.sleep(0.1)  # Brief pause for readability
 
     env.close()
-    print("✅ PufferLib test completed!")
+    print("MettaGridEnv (PufferLib-compatible) test completed!")
 
 
 def test_gym_env():
@@ -245,7 +245,7 @@ def test_pettingzoo_env():
 
     print(f"Final rewards: {total_rewards}")
     env.close()
-    print("✅ PettingZoo test completed!")
+    print("PettingZoo test completed!")
 
 
 def main():
@@ -263,10 +263,10 @@ def main():
         test_pettingzoo_env()
 
         print("\n" + "=" * 60)
-        print("🎉 ALL TESTS COMPLETED SUCCESSFULLY!")
-        print("✅ PufferLib environment working")
-        print("✅ Gymnasium environment working")
-        print("✅ PettingZoo environment working")
+        print("ALL TESTS COMPLETED SUCCESSFULLY!")
+        print("PufferLib environment working")
+        print("Gymnasium environment working")
+        print("PettingZoo environment working")
         print("\nYour MettaGrid environment hierarchy is ready for:")
         print("- Training with PufferLib")
         print("- Integration with Gymnasium/stable-baselines3")
@@ -274,9 +274,9 @@ def main():
         print("=" * 60)
 
     except KeyboardInterrupt:
-        print("\n\n⏹️  Test interrupted by user")
+        print("\n\n Test interrupted by user")
     except Exception as e:
-        print(f"\n\n❌ Test failed with error: {e}")
+        print(f"\n\n Test failed with error: {e}")
         import traceback
 
         traceback.print_exc()
