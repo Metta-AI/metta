@@ -117,7 +117,8 @@ You can either expand the whole time series on load or use binary search to find
 I was using binary search, but expanding the time series is much faster. This is up to the implementation.
 
 The `location` key is a time series of tuples, where the first element is the step and the second element is the
-location, which is a list of two numbers for x and y.
+location, which is a list of three numbers for x, y, and z. z is for the layer, it is currently unused and typically set
+to 0.
 
 The `inventory` key is a time series of tuples, where the first element is the step and the second element is the list
 of item_IDs. It starts empty and then adds items at steps 100, 200, etc.
