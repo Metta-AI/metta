@@ -13,6 +13,8 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.instantiate import instantiate
+from metta.rl.env_config import EnvConfig
+from metta.rl.puffer_policy import PytorchAgent
 
 if TYPE_CHECKING:
     from metta.mettagrid import MettaGridEnv
@@ -20,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -28,8 +30,8 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
         }
     )
 
-    # Convert agent config to dict for unpacking as kwargs
-    agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
+    # We know this will be a dict
+    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)  # type: ignore
 
     # Create MettaAgent directly without Hydra
     return MettaAgent(
@@ -38,9 +40,8 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
         obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
-        global_features=env.global_features,
-        device=cfg.device,  # cfg.device is required
-        **agent_cfg,
+        device=env_cfg.device,
+        **dict_agent_cfg,
     )
 
 
@@ -48,7 +49,14 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
         agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        super().__init__(agent, device_ids=[device], output_device=device)
+
+        # Handle CPU vs GPU initialization
+        if device.type == "cpu":
+            # For CPU, don't pass device_ids
+            super().__init__(agent)
+        else:
+            # For GPU, pass device_ids
+            super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):
         try:
@@ -609,3 +617,6 @@ class MettaAgent(nn.Module):
 
         metrics_list = [metrics for metrics in results.values() if metrics is not None]
         return metrics_list
+
+
+PolicyAgent = MettaAgent | DistributedMettaAgent | PytorchAgent

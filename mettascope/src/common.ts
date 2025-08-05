@@ -3,11 +3,10 @@ import type { HoverBubble } from './hoverbubbles.js'
 import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
-import { Heatmap } from './heatmap.js'
+import { Entity, Replay } from './replay.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
-;(window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -102,8 +101,8 @@ export const ui = {
 
 export const state = {
   // Replay data and player state
-  replay: null as any,
-  selectedGridObject: null as any,
+  replay: new Replay(),
+  selectedGridObject: null as Entity | null,
   followSelection: false, // Flag to follow the selected entity.
   heatmap: new Heatmap(),
 
@@ -133,9 +132,6 @@ export const state = {
   ws: null as WebSocket | null,
   isOneToOneAction: false,
 }
-
-// Expose state for easier testing
-;(window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,

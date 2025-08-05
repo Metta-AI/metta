@@ -1,17 +1,21 @@
 """Policy evaluation functionality."""
 
 import logging
-from typing import Any
+import uuid
 
 import numpy as np
 import torch
 import wandb
 
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
+from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
+from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
@@ -20,19 +24,17 @@ logger = logging.getLogger(__name__)
 
 def evaluate_policy(
     *,
-    policy_record: Any,
-    policy_uri: str,
+    policy_record: PolicyRecord,
     sim_suite_config: SimulationSuiteConfig,
     device: torch.device,
     vectorization: str,
     replay_dir: str | None,
-    stats_epoch_id: str | None,
+    stats_epoch_id: uuid.UUID | None,
     wandb_policy_name: str | None,
-    policy_store: Any,
+    policy_store: PolicyStore,
     stats_client: StatsClient | None,
-    cfg: Any,
-    wandb_run: Any | None,
-    trainer_cfg: Any,
+    wandb_run: WandbRun | None,
+    trainer_cfg: TrainerConfig,
     agent_step: int,
     epoch: int,
 ) -> EvalRewardSummary:
@@ -80,7 +82,6 @@ def evaluate_policy(
                 # TODO: need policy evaluator to generate replays and push stats to wandb
 
     # Local evaluation
-    logger.info(f"Simulating policy: {policy_uri} with extended config including training task")
     evaluation_results = eval_service_evaluate_policy(
         policy_record=policy_record,
         simulation_suite=sim_suite_config,
@@ -97,14 +98,9 @@ def evaluate_policy(
 
     eval_scores = evaluation_results.scores
 
-    # Get target metric (for logging) from sweep config
-    # and write top-level score for policy selection.
-    # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
-    target_metric = getattr(cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
     category_scores = list(eval_scores.category_scores.values())
     if category_scores and policy_record:
         policy_record.metadata["score"] = float(np.mean(category_scores))
-        logger.info(f"Set policy metadata score to {policy_record.metadata['score']} using {target_metric} metric")
 
     # Generate and upload replay HTML if we have wandb
     if wandb_run is not None and evaluation_results.replay_urls:
@@ -122,7 +118,7 @@ def upload_replay_html(
     replay_urls: dict[str, list[str]],
     agent_step: int,
     epoch: int,
-    wandb_run: Any,
+    wandb_run: WandbRun,
 ) -> None:
     """Upload replay HTML to wandb with organized links."""
     # Create unified HTML with all replay links on a single line

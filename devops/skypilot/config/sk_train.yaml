@@ -61,7 +61,7 @@ run: |
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
-    LATENCY_OUTPUT=$(python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
+    LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
     echo "$LATENCY_OUTPUT"
   else
     echo "[RUN] Latency script is missing!"
@@ -76,8 +76,8 @@ run: |
 
     if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    if python common/src/metta/common/util/cost_monitor.py; then
-      source ~/.bashrc
+    if uv run python common/src/metta/common/util/cost_monitor.py; then
+      source ~/.bashrc || true
       echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
     else
       echo "[RUN] Cost monitor script failed to run."

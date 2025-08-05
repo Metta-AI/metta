@@ -13,6 +13,7 @@ import logging
 import os
 import subprocess
 import uuid
+from abc import ABC, abstractmethod
 from datetime import datetime
 
 from devops.observatory_login import CLIAuthenticator
@@ -29,23 +30,18 @@ from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
 
-class EvalTaskWorker:
-    def __init__(
-        self, backend_url: str, git_hash: str, assignee: str, machine_token: str, logger: logging.Logger | None = None
-    ):
+class AbstractTaskExecutor(ABC):
+    @abstractmethod
+    async def execute_task(self, task: TaskResponse) -> None:
+        pass
+
+
+class SimTaskExecutor(AbstractTaskExecutor):
+    def __init__(self, backend_url: str, machine_token: str, logger: logging.Logger):
         self._backend_url = backend_url
-        self._git_hash = git_hash
-        self._assignee = assignee
-        CLIAuthenticator(self._backend_url).save_token(machine_token)
-        self._client = EvalTaskClient(backend_url)
-        self._logger = logger or logging.getLogger(__name__)
-        self._poll_interval = 5.0
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._client.close()
+        CLIAuthenticator(backend_url).save_token(machine_token)
+        self._logger = logger
+        self._logger.info(f"Backend URL: {self._backend_url}")
 
     def _run_cmd_from_versioned_checkout(
         self,
@@ -72,8 +68,8 @@ class EvalTaskWorker:
         return result
 
     @trace("worker.setup_checkout")
-    def _setup_versioned_checkout(self) -> None:
-        self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
+    def _setup_versioned_checkout(self, git_hash: str) -> None:
+        self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
         if os.path.exists(self._versioned_path):
             self._logger.info(f"Versioned checkout already exists at {self._versioned_path}")
             return
@@ -92,13 +88,13 @@ class EvalTaskWorker:
 
         # Checkout the specific commit
         result = subprocess.run(
-            ["git", "checkout", self._git_hash],
+            ["git", "checkout", git_hash],
             cwd=self._versioned_path,
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
-            raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
+            raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
 
         # Install dependencies in the versioned checkout
         self._logger.info("Installing dependencies in versioned checkout...")
@@ -120,6 +116,11 @@ class EvalTaskWorker:
         sim_suite: str,
         env_overrides: dict,
     ) -> None:
+        if not task.git_hash:
+            raise RuntimeError(f"Git hash not found for task {task.id}")
+
+        self._setup_versioned_checkout(task.git_hash)
+
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
@@ -147,6 +148,32 @@ class EvalTaskWorker:
 
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
+    async def execute_task(self, task: TaskResponse) -> None:
+        await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
+
+
+class EvalTaskWorker:
+    def __init__(
+        self,
+        client: EvalTaskClient,
+        task_executor: AbstractTaskExecutor,
+        assignee: str,
+        poll_interval: float = 5.0,
+        logger: logging.Logger | None = None,
+    ):
+        self._client = client
+        self._task_executor = task_executor
+        self._assignee = assignee
+
+        self._logger = logger or logging.getLogger(__name__)
+        self._poll_interval = poll_interval
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._client.close()
+
     @trace("worker.update_status")
     async def _update_task_status(
         self,
@@ -172,13 +199,10 @@ class EvalTaskWorker:
         )
 
     async def run(self) -> None:
-        self._logger.info(f"Starting eval worker for git hash {self._git_hash}")
-        self._logger.info(f"Backend URL: {self._backend_url}")
+        self._logger.info("Starting eval worker")
         self._logger.info(f"Worker id: {self._assignee}")
 
-        self._setup_versioned_checkout()
-
-        self._logger.info(f"Worker running from main branch, sim.py will use git hash {self._git_hash}")
+        self._logger.info("Worker running from main branch, sim.py will use git hash")
 
         while True:
             loop_start_time = datetime.now()
@@ -189,7 +213,7 @@ class EvalTaskWorker:
                     task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
                     self._logger.info(f"Processing task {task.id}")
                     try:
-                        await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
+                        await self._task_executor.execute_task(task)
                         self._logger.info(f"Task {task.id} completed successfully")
                         await self._update_task_status(task.id, "done")
                         self._logger.info(f"Task {task.id} updated to done")
@@ -217,11 +241,12 @@ async def main() -> None:
     logger = logging.getLogger(__name__)
 
     backend_url = os.environ["BACKEND_URL"]
-    git_hash = os.environ["GIT_HASH"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
 
-    async with EvalTaskWorker(backend_url, git_hash, assignee, machine_token, logger) as worker:
+    client = EvalTaskClient(backend_url)
+    task_executor = SimTaskExecutor(backend_url, machine_token, logger)
+    async with EvalTaskWorker(client, task_executor, assignee, logger=logger) as worker:
         await worker.run()
 
 

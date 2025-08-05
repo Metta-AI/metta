@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
+from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, SingleTrialTask, Task
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.vecenv import make_vecenv
 
@@ -27,7 +27,7 @@ class PreBuiltConfigCurriculum(Curriculum):
 
     def get_task(self) -> Task:
         """Return a task with the pre-built config."""
-        return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
+        return SingleTrialTask(f"prebuilt({self._env_name})", self, self._cfg_template)
 
     def get_task_probs(self) -> Dict[str, float]:
         """Return the current task probability for logging purposes."""
@@ -64,7 +64,7 @@ class NavigationBucketedCurriculum(Curriculum):
         # Create task name
         task_name = f"terrain={terrain_dir};altar={altar_count}"
 
-        return Task(task_name, self, task_config)
+        return SingleTrialTask(task_name, self, task_config)
 
     def get_task_probs(self) -> Dict[str, float]:
         """Return uniform probabilities for all terrain types."""

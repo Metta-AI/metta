@@ -4,7 +4,10 @@ import shutil
 import string
 import subprocess
 
+import pytest
 
+
+@pytest.mark.slow
 def test_basic():
     run_name = "test_metta_script_" + "".join(random.choices(string.ascii_letters + string.digits, k=10))
 
