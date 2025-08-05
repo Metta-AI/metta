@@ -19,7 +19,7 @@ sim_job:
     - wandb://run/george.operantconditioning.cued.15trials.08-04
     - wandb://run/george.operantconditioning.cued.8trials.08-04
     - wandb://run/daphne.multiday_2m.10trials.metta2.08-04
-    - wandbL//run/daphne.metta3.multiday_3m.10trials.08-04
+    - wandb://run/daphne.metta3.multiday_3m.10trials.08-04
 
   simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
