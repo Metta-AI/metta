@@ -202,6 +202,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Disabled by default: Expensive diagnostic for debugging training instability
     grad_mean_variance_interval: int = Field(default=0, ge=0)  # 0 to disable
 
+    reset_lstm_state_between_episodes: bool = Field(default=True)
+
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         validate_assignment=True,

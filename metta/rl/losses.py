@@ -68,6 +68,10 @@ def process_minibatch_update(
     obs = minibatch["obs"]
 
     lstm_state = PolicyState()
+    if "lstm_h" in minibatch and "lstm_c" in minibatch:
+        lstm_state.lstm_h = minibatch["lstm_h"]
+        lstm_state.lstm_c = minibatch["lstm_c"]
+
     _, new_logprobs, entropy, newvalue, full_logprobs = policy(obs, lstm_state, action=minibatch["actions"])
 
     new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)

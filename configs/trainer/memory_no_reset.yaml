@@ -1,0 +1,11 @@
+defaults:
+  - trainer
+
+# Preserves LSTM state across episodes for longer memory tasks
+reset_lstm_state_between_episodes: false
+
+bptt_horizon: 256
+batch_size: 1048576
+
+# Experimental results: bptt_horizon=256 + reset_lstm_state_between_episodes=false
+# enables solving up to 128-step memory tasks

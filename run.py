@@ -103,6 +103,8 @@ bptt_horizon = 64
 update_epochs = 1
 forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 256
 
+reset_lstm_state_between_episodes = True  # False preserves state for longer memory tasks
+
 # Adjust defaults based on vectorization mode
 vectorization_mode = "serial"  # Use serial for macOS compatibility
 if vectorization_mode == "serial":
@@ -169,6 +171,7 @@ trainer_config = TrainerConfig(
     scale_batches_by_world_size=scale_batches_by_world_size,
     cpu_offload=cpu_offload,
     zero_copy=zero_copy,
+    reset_lstm_state_between_episodes=reset_lstm_state_between_episodes,
     ppo=ppo_config,
     optimizer=optimizer_config,
     checkpoint=checkpoint_config,
@@ -365,6 +368,7 @@ experience = Experience(
     cpu_offload=trainer_config.cpu_offload,
     num_lstm_layers=num_lstm_layers,
     agents_per_batch=getattr(env, "agents_per_batch", None),  # type: ignore
+    reset_lstm_state_between_episodes=trainer_config.reset_lstm_state_between_episodes,
 )
 
 # Create kickstarter
