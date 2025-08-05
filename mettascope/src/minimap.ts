@@ -60,15 +60,14 @@ export function renderMinimapVisualRanges(offset: Vec2f) {
 
   if (state.showVisualRanges || state.showFogOfWar) {
     // Compute the visibility map; each agent contributes to the visibility map.
-    const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
+    const visibilityMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
 
     // Update the visibility map for a grid object.
     function updateVisibilityMap(gridObject: any) {
-      const x = getAttr(gridObject, 'c')
-      const y = getAttr(gridObject, 'r')
-      const visionSize = Math.floor(
-        getAttr(gridObject, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2
-      )
+      const location = gridObject.location.get()
+      const x = location[0]
+      const y = location[1]
+      const visionSize = Math.floor(gridObject.visionSize / 2)
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
           visibilityMap.set(x + dx, y + dy, true)
@@ -76,14 +75,13 @@ export function renderMinimapVisualRanges(offset: Vec2f) {
       }
     }
 
-    if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+    if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== undefined) {
       // When there is a selected grid object, only update its visibility.
       updateVisibilityMap(state.selectedGridObject)
     } else {
       // When there is no selected grid object, update the visibility map for all agents.
-      for (const gridObject of state.replay.grid_objects) {
-        const type = getAttr(gridObject, 'type')
-        const typeName = state.replay.object_types[type]
+      for (const gridObject of state.replay.objects) {
+        const typeName = state.replay.typeNames[gridObject.typeId]
         if (typeName === 'agent') {
           updateVisibilityMap(gridObject)
         }
@@ -94,8 +92,8 @@ export function renderMinimapVisualRanges(offset: Vec2f) {
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }
-    for (let x = 0; x < state.replay.map_size[0]; x++) {
-      for (let y = 0; y < state.replay.map_size[1]; y++) {
+    for (let x = 0; x < state.replay.mapSize[0]; x++) {
+      for (let y = 0; y < state.replay.mapSize[1]; y++) {
         if (!visibilityMap.get(x, y)) {
           ctx.drawSolidRect(
             x + offset.x(),
