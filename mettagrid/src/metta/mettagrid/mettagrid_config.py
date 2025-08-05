@@ -168,7 +168,8 @@ class PyWallConfig(BaseModelWithForbidExtra):
 class PyBoxConfig(BaseModelWithForbidExtra):
     """Python box configuration."""
 
-    type_id: int
+    type_id: int = Field(default=0, ge=0, le=255)
+    box_specific: bool = Field(default=True)  # Unique field to distinguish from PyWallConfig
 
 
 class PyConverterConfig(BaseModelWithForbidExtra):

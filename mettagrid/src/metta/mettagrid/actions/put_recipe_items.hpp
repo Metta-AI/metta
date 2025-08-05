@@ -40,7 +40,7 @@ protected:
           // Update the agent's box location and update it in the grid
           if (actor->box) {
             _grid->move_object(actor->box->id, target_loc);
-            actor->box->inventory[blue_battery_item_] = 1;
+            actor->box->inventory[blue_battery_item_] = 0;
           }
           actor->stats.add("box.created", 1.0f);
           return true;

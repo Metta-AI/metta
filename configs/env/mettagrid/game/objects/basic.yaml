@@ -13,6 +13,10 @@ wall:
   type_id: 1
   swappable: false
 
+box:
+  type_id: 12
+  box_specific: true
+
 block:
   type_id: 14
   swappable: true

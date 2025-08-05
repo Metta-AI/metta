@@ -88,13 +88,25 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     }
   }
 
+  // Find the index of the heart item
+  _heart_item = -1;
+  for (size_t i = 0; i < inventory_item_names.size(); ++i) {
+    if (inventory_item_names[i] == "heart") {
+      _heart_item = static_cast<int>(i);
+      break;
+    }
+  }
+
+  // std::cout << "blue_battery_item: " << _blue_battery_item << std::endl;
+  // std::cout << "heart_item: " << _heart_item << std::endl;
+
   for (const auto& [action_name, action_config] : cfg.actions) {
     std::string action_name_str = action_name;
 
     if (action_name_str == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config, _blue_battery_item));
     } else if (action_name_str == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config, _blue_battery_item));
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config, _blue_battery_item, _heart_item));
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
@@ -179,7 +191,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       // TODO: replace the dynamic casts with virtual dispatch
 
       const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
-      if (wall_config) {
+      if (wall_config and object_cfg->type_id != 12) {
         Wall* wall = new Wall(r, c, *wall_config);
         _grid->add_object(wall, true);
         _stats->incr("objects." + cell);
@@ -439,39 +451,6 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
   std::fill(_action_success.begin(), _action_success.end(), false);
-
-  // // Print all box objects with their locations every timestep
-  // std::cout << "=== Box objects at step " << current_step << " ===" << std::endl;
-  // for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-  //   auto obj = _grid->object(obj_id);
-  //   if (!obj) continue;
-
-  //   // Check if this is a box object
-  //   Box* box = dynamic_cast<Box*>(obj);
-  //   if (box) {
-  //     std::cout << "  Box ID: " << obj_id
-  //               << ", Type: " << object_type_names[box->type_id]
-  //               << ", Location: (" << static_cast<int>(box->location.r)
-  //               << ", " << static_cast<int>(box->location.c)
-  //               << ", " << static_cast<int>(box->location.layer) << ")"
-  //               << ", Creator Agent ID: " << static_cast<int>(box->creator_agent_id)
-  //               << ", Creator Object ID: " << box->creator_agent_object_id;
-
-  //     // Print inventory contents if any
-  //     if (!box->inventory.empty()) {
-  //       std::cout << ", Inventory: {";
-  //       bool first = true;
-  //       for (const auto& [item, quantity] : box->inventory) {
-  //         if (!first) std::cout << ", ";
-  //         std::cout << inventory_item_names[item] << ":" << static_cast<int>(quantity);
-  //         first = false;
-  //       }
-  //       std::cout << "}";
-  //     }
-  //     std::cout << std::endl;
-  //   }
-  // }
-  // std::cout << "=== End box objects ===" << std::endl;
 
   // Increment timestep and process events
   current_step++;
@@ -970,9 +949,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("swappable", &WallConfig::swappable);
 
   py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
-      .def(py::init<TypeId, const std::string&>(), py::arg("type_id"), py::arg("type_name"))
+      .def(py::init<TypeId, const std::string&, bool>(), py::arg("type_id"), py::arg("type_name"), py::arg("box_specific"))
       .def_readwrite("type_id", &BoxConfig::type_id)
-      .def_readwrite("type_name", &BoxConfig::type_name);
+      .def_readwrite("type_name", &BoxConfig::type_name)
+      .def_readwrite("box_specific", &BoxConfig::box_specific);
 
   // ##MettagridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

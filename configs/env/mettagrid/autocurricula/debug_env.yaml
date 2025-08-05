@@ -8,6 +8,9 @@ game:
   agent:
     starting_inventory:
       battery_blue: 1
+    rewards:
+      inventory:
+        heart: 1.0
   inventory_item_names:
     - battery_blue
   actions:

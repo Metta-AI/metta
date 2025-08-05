@@ -8,8 +8,9 @@
 
 // #MettagridConfig
 struct BoxConfig : public GridObjectConfig {
-    BoxConfig(TypeId type_id, const std::string& type_name)
-        : GridObjectConfig(type_id, type_name) {}
+    BoxConfig(TypeId type_id, const std::string& type_name, bool box_specific)
+        : GridObjectConfig(type_id, type_name), box_specific(box_specific) {}
+    bool box_specific;
   };
 
 class Box : public HasInventory {

@@ -128,6 +128,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             cpp_box_config = CppBoxConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
+                box_specific=object_config.box_specific,
             )
             objects_cpp_params[object_type] = cpp_box_config
         else:

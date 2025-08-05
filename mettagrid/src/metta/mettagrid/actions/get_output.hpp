@@ -17,8 +17,9 @@
 class GetOutput : public ActionHandler {
 public:
   int blue_battery_item_;
-  explicit GetOutput(const ActionConfig& cfg, int blue_battery_item)
-      : ActionHandler(cfg, "get_items"), blue_battery_item_(blue_battery_item) {}
+  int heart_item_;
+  explicit GetOutput(const ActionConfig& cfg, int blue_battery_item, int heart_item)
+      : ActionHandler(cfg, "get_items"), blue_battery_item_(blue_battery_item), heart_item_(heart_item) {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -57,7 +58,10 @@ protected:
         }
 
         // Reward the agent for opening the box and teleport back to top-left corner
-        if (actor->reward) *actor->reward += 1.0f;
+        // if (actor->reward) *actor->reward += 1.0f;
+        if (heart_item_ >= 0) {
+          actor->update_inventory(heart_item_, 1);
+        }
         _grid->force_move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
         actor->box->inventory[blue_battery_item_] = 0;
         actor->stats.add("box.opened", 1.0f);

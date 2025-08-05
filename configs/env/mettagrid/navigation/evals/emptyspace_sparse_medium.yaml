@@ -32,7 +32,7 @@ game:
             type: metta.map.scenes.random.Random
             params:
               objects:
-                altar: 1
+                box: 1
         - where:
             tags:
               - middle

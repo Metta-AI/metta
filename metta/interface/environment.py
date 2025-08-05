@@ -80,6 +80,7 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
     TYPE_ALTAR = 8
     TYPE_WALL = 1
     TYPE_BLOCK = 14
+    TYPE_BOX = 12
 
     return {
         "game": {
@@ -159,6 +160,7 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 },
                 "wall": {"type_id": TYPE_WALL, "swappable": False},
                 "block": {"type_id": TYPE_BLOCK, "swappable": True},
+                "box": {"type_id": TYPE_BOX},
             },
             "map_builder": {
                 "_target_": "metta.mettagrid.room.multi_room.MultiRoom",
