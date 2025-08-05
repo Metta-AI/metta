@@ -18,7 +18,7 @@ import pytest
 def load_replay(path: str | Path) -> dict[str, Any]:
     """Load and decompress a .json.z replay file."""
     path = Path(path)
-    if path.suffix != ".z" or not path.name.endswith(".json.z"):
+    if not path.name.endswith(".json.z"):
         raise ValueError("Replay file name must end with '.json.z'")
 
     with path.open("rb") as fh:
