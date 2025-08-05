@@ -43,52 +43,65 @@ setup: |
   git checkout "$METTA_GIT_REF"
   echo "Checked out: $(git rev-parse HEAD)"
 
+  # Python environment setup
+  echo "Setting up Python environment..."
+  uv sync
+
+  # Create required directories
+  mkdir -p "$WANDB_DIR"
+
   # Note that different sets of skypilot environment variables are available in "run" vs "setup"
   # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
 run: |
   set -e
   cd /workspace/metta
-  echo "[RUN] Setting up environment..."
+
+  # Debug virtual environment
+  echo "=== Virtual Environment Debug ==="
+  echo "VIRTUAL_ENV: $VIRTUAL_ENV"
+  echo "Which python: $(which python)"
+  echo "Python location: $(python -c 'import sys; print(sys.executable)')"
+
   bash ./devops/skypilot/config/configure_environment.sh
 
-  echo "[RUN] Cluster configuration:"
+  echo "Cluster configuration:"
   echo "  NUM_GPUS=$NUM_GPUS"
   echo "  NUM_NODES=$NUM_NODES"
   echo "  MASTER_ADDR=$MASTER_ADDR"
   echo "  NODE_INDEX=$NODE_INDEX"
 
-  echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
-  echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+  echo "METTA_RUN_ID: $METTA_RUN_ID"
+  echo "SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
-    echo "[RUN] Collecting skypilot latency..."
+    echo "Collecting skypilot latency..."
     LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
     echo "$LATENCY_OUTPUT"
   else
-    echo "[RUN] Latency script is missing!"
+    echo "Latency script is missing!"
   fi
 
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
-    echo "[RUN] Collecting instance cost..."
+    echo "Collecting instance cost..."
     if uv run python common/src/metta/common/util/cost_monitor.py; then
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+      echo "METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
     else
-      echo "[RUN] Cost monitor script failed to run."
+      echo "Cost monitor script failed to run."
     fi
   else
-    echo "[RUN] Cost monitor script is missing!"
+    echo "Cost monitor script is missing!"
   fi
 
-  echo "[RUN] Running training script..."
+  echo "Running $METTA_CMD script..."
   ./devops/$METTA_CMD.sh \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
-  TRAIN_EXIT=$?
-  echo "[RUN] Training script exit code: $TRAIN_EXIT"
+  CMD_EXIT=$?
+  echo "$METTA_CMD script exit code: $CMD_EXIT"
 
-  echo "[RUN] Job complete."
-  exit $TRAIN_EXIT
+  echo "$METTA_CMD job complete."
+  exit $CMD_EXIT
 
 envs:
   METTA_RUN_ID: ""

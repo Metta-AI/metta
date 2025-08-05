@@ -21,16 +21,24 @@ setup: |
   git checkout "$METTA_GIT_REF"
   echo "Checked out: $(git rev-parse HEAD)"
 
+  # Python environment setup
+  echo "Setting up Python environment..."
+  uv sync
+
+  # Create required directories
+  mkdir -p "$WANDB_DIR"
+
   # Note that different sets of skypilot environment variables are available in "run" vs "setup"
   # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
 run: |
   set -e
   cd /workspace/metta
-  echo "[RUN] Setting up environment..."
   bash ./devops/skypilot/config/configure_environment.sh
 
-  echo "[RUN] Starting bash..."
+  . .venv/bin/activate
+
+  echo "Starting bash shell..."
   exec bash
 
 envs:

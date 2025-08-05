@@ -2,23 +2,12 @@
 set -e
 echo "Configuring runtime environment..."
 
-# Python environment setup
-echo "Setting up Python environment..."
-uv sync
-
-# Create required directories
-mkdir -p "$WANDB_DIR"
-
-# Setup bash environment (idempotent)
-echo "Configuring bash environment..."
-
 # Check if already configured to avoid duplicate entries
 if ! grep -q "# Metta environment" ~/.bashrc 2>/dev/null; then
     cat >> ~/.bashrc << 'EOF'
 
 # Metta environment
 cd /workspace/metta
-. .venv/bin/activate
 
 export PYTHONUNBUFFERED=1
 export PYTHONPATH=$PYTHONPATH:$(pwd)
