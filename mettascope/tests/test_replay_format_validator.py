@@ -355,8 +355,15 @@ def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict
     _validate_action_id_range(obj["action_id"], obj_name, replay_data["action_names"])
 
 
+
 def _validate_action_id_range(action_ids: Any, obj_name: str, action_names: list[str]) -> None:
     """Validate that action_id values are within the valid range."""
+    # Handle single value case
+    if isinstance(action_ids, int):
+        assert 0 <= action_ids < len(action_names), f"{obj_name}.action_id {action_ids} out of range"
+        return
+        
+    # Handle time series case
     if isinstance(action_ids, list):
         for step_data in action_ids:
             if isinstance(step_data, list) and len(step_data) == 2:
