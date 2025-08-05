@@ -66,11 +66,15 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     # Create env config early to use it throughout
     env_cfg = create_env_config(cfg)
 
+    logger.info("before setting num_workers", cfg)
+
     # Validation must be done after merging
     # otherwise trainer's default num_workers: null will be override the values
     # set by _calculate_default_num_workers, and the validation will fail
     if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
+
+    logger.info("after setting num_workers", cfg)
 
     # Determine git hash for remote simulations
     if cfg.trainer.simulation.evaluate_remote and not cfg.trainer.simulation.git_hash:
