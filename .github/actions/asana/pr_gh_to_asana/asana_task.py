@@ -316,6 +316,7 @@ class AsanaTask:
         current_notes = data.get("notes") or ""
         current_completed = data.get("completed") or False
         current_assignee = (data.get("assignee") or {}).get("email") or ""
+        current_permalink_url = data.get("permalink_url") or ""
 
         print("[update_if_needed] Current vs new values:")
         print(f"  title: '{current_title}' vs '{title}'")
@@ -341,7 +342,7 @@ class AsanaTask:
             )
             # Ensure GitHub URL is attached to the task
             self.ensure_github_url_in_task(
-                self.task_url,
+                current_permalink_url,
                 title,
                 github_url,
             )
