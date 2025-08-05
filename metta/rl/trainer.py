@@ -31,7 +31,6 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
-    maybe_update_l2_weights,
 )
 from metta.rl.policy_management import (
     load_or_initialize_policy,
@@ -460,10 +459,6 @@ def train(
                 stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
-
-        # Update L2 weights if configured
-        if interval := getattr(policy, "l2_init_weight_update_interval", 0):
-            maybe_update_l2_weights(policy, epoch, interval, is_master)
 
         # Save policy - all ranks must participate in checkpoint decision
         if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master, non_master_ok=True):
