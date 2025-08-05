@@ -118,8 +118,6 @@ def train(
         trainer_cfg.async_factor,
     )
 
-    logger.info(f"About to make_vecenv\n: {trainer_cfg.num_workers}")
-
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
@@ -198,6 +196,8 @@ def train(
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
     features = metta_grid_env.get_observation_features()
+
+    logger.info("about to  initialize_to_environment")
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Get LSTM configuration
