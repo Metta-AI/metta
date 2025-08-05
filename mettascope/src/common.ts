@@ -121,7 +121,7 @@ export const state = {
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
-  showHeatmap: true, // TODO we need to add a heatmap button
+  showHeatmap: false, // TODO we need to add a heatmap button
   showMiniMap: false,
   showInfo: false,
   showTraces: true,
