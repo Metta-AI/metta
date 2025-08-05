@@ -53,6 +53,11 @@ class Experience:
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.cpu_offload = cpu_offload
 
+        # Use provided agents_per_batch or default to total_agents
+        if agents_per_batch is None:
+            agents_per_batch = total_agents
+        self.agents_per_batch = agents_per_batch
+
         # Calculate segments
         self.segments = batch_size // bptt_horizon
         if total_agents > self.segments:
@@ -101,10 +106,6 @@ class Experience:
         self.lstm_c: Dict[int, Tensor] = {}
         assert num_lstm_layers > 0, f"num_lstm_layers must be positive, got {num_lstm_layers}"
         assert hidden_size > 0, f"hidden_size must be positive, got {hidden_size}"
-
-        # Use provided agents_per_batch or default to total_agents
-        if agents_per_batch is None:
-            agents_per_batch = total_agents
 
         # Create LSTM states for each batch
         for i in range(0, total_agents, agents_per_batch):
@@ -168,26 +169,30 @@ class Experience:
         indices = self.ep_indices[env_id]
 
         # Store data in segmented tensors
-        batch_slice = (indices, episode_length)
-        self.obs[batch_slice] = obs
-        self.actions[batch_slice] = actions
-        self.logprobs[batch_slice] = logprobs
-        self.rewards[batch_slice] = rewards
-        self.dones[batch_slice] = dones.float()
-        self.truncateds[batch_slice] = truncations.float()
-        self.values[batch_slice] = values
+        episode_length_tensor = torch.tensor(episode_length, device=self.device)
+        self.obs[indices, episode_length_tensor] = obs
+        self.actions[indices, episode_length_tensor] = actions
+        self.logprobs[indices, episode_length_tensor] = logprobs
+        self.rewards[indices, episode_length_tensor] = rewards
+        self.dones[indices, episode_length_tensor] = dones.float()
+        self.truncateds[indices, episode_length_tensor] = truncations.float()
+        self.values[indices, episode_length_tensor] = values
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
-        # Check if episodes are complete and reset if needed
-        if episode_length + 1 >= self.bptt_horizon:
-            self._reset_completed_episodes(env_id)
-
-        # Update LSTM states if provided
+        # Update LSTM states if provided (do this before reset logic)
         if lstm_state is not None and env_id.start in self.lstm_h:
             self.lstm_h[env_id.start] = lstm_state["lstm_h"]
             self.lstm_c[env_id.start] = lstm_state["lstm_c"]
+
+        # Reset episodes based on configuration
+        if not self.reset_lstm_state_between_episodes and episode_length + 1 >= self.bptt_horizon:
+            # When not resetting LSTM between episodes, reset at BPTT horizon for training efficiency
+            self._reset_completed_episodes(env_id)
+        elif self.reset_lstm_state_between_episodes and dones.any():
+            # When resetting LSTM between episodes, reset only on true episode completion
+            self._reset_completed_episodes(env_id)
 
         return int(num_steps)
 
@@ -200,6 +205,7 @@ class Experience:
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
+        # Reset LSTM states if configured to do so between episodes
         if self.reset_lstm_state_between_episodes and env_id.start in self.lstm_h:
             self.lstm_h[env_id.start].zero_()
             self.lstm_c[env_id.start].zero_()
