@@ -133,6 +133,8 @@ class PyActionsConfig(BaseModelWithForbidExtra):
 
     noop: Optional[PyActionConfig] = None
     move: Optional[PyActionConfig] = None
+    move_8way: Optional[PyActionConfig] = None
+    move_cardinal: Optional[PyActionConfig] = None
     rotate: Optional[PyActionConfig] = None
     put_items: Optional[PyActionConfig] = None
     get_items: Optional[PyActionConfig] = None
@@ -153,6 +155,9 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
 
     # Controls whether resource rewards are included in observations
     resource_rewards: bool = Field(default=False)
+
+    # Controls whether visitation counts are included in observations
+    visitation_counts: bool = Field(default=True)
 
 
 class PyWallConfig(BaseModelWithForbidExtra):

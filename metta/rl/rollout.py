@@ -1,81 +1,30 @@
 """Rollout phase functions for Metta training."""
 
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
+import numpy as np
 import torch
 from torch import Tensor
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.mettagrid import dtype_actions
+from metta.common.profiling.stopwatch import Stopwatch
 from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)
 
 
-def rollout(
-    vecenv: Any,
-    policy: Any,
-    experience: Any,
-    device: torch.device,
-    timer: Any,
-) -> tuple[int, list]:
-    """Perform a complete rollout phase.
-
-    Returns:
-        Tuple of (total_steps, raw_infos)
-    """
-    raw_infos = []
-    experience.reset_for_rollout()
-    total_steps = 0
-
-    while not experience.ready_for_training:
-        # Get observation
-        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
-        total_steps += num_steps
-
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            policy, o, experience, training_env_id.start, device
-        )
-
-        # Store experience
-        experience.store(
-            obs=o,
-            actions=actions,
-            logprobs=selected_action_log_probs,
-            rewards=r,
-            dones=d,
-            truncations=t,
-            values=values,
-            env_id=training_env_id,
-            mask=mask,
-            lstm_state=lstm_state_to_store,
-        )
-
-        # Send actions back to environment
-        with timer("_rollout.env"):
-            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-        # Collect info for batch processing
-        if info:
-            raw_infos.extend(info)
-
-    return total_steps, raw_infos
+PufferlibVecEnv = Any
 
 
 def get_observation(
-    vecenv: Any,
+    vecenv: PufferlibVecEnv,
     device: torch.device,
-    timer: Any,
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
-    """Get observations and other data from the vectorized environment and convert to tensors.
-
-    Returns:
-        Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
-    """
-    # Receive environment data
+    timer: Stopwatch,
+) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+    """Get observations from vectorized environment and convert to tensors."""
     with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 
@@ -93,18 +42,25 @@ def get_observation(
     return o, r, d, t, info, training_env_id, mask, num_steps
 
 
+def send_observation(
+    vecenv: PufferlibVecEnv,
+    actions: Tensor,
+    dtype_actions: np.dtype,
+    timer: Stopwatch,
+) -> None:
+    """Send actions back to the vectorized environment."""
+    with timer("_rollout.env"):
+        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+
+
 def run_policy_inference(
-    policy: torch.nn.Module,
+    policy: PolicyAgent,
     observations: Tensor,
     experience: Experience,
     training_env_id_start: int,
     device: torch.device,
-) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
-    """Run the policy to get actions and value estimates.
-
-    Returns:
-        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
-    """
+) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor] | None]:
+    """Run policy inference to get actions and values."""
     with torch.no_grad():
         state = PolicyState()
         lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
@@ -128,7 +84,7 @@ def run_policy_inference(
     return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
 
 
-def get_lstm_config(policy: Any) -> Tuple[int, int]:
+def get_lstm_config(policy: PolicyAgent) -> tuple[int, int]:
     """Extract LSTM configuration from policy."""
     hidden_size = getattr(policy, "hidden_size", 256)
     num_lstm_layers = 2  # Default value

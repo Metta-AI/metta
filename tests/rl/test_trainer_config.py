@@ -323,17 +323,13 @@ class TestRealTypedConfigs:
                 print(f"Error loading config {config_name}: {e}")
                 raise e
 
+    @pytest.mark.slow
     def test_all_config_overrides_comprehensive(self):
-        """Test all config files that override trainer settings (hardware and user configs)."""
+        """Test all config files that override trainer settings (user configs)."""
         configs_root = Path(__file__).parent.parent.parent / "configs"
 
         # Collect all config files that might have trainer overrides
         config_files_to_test: list[tuple[str, str, str]] = []
-
-        # Hardware configs
-        hardware_configs = list((configs_root / "hardware").glob("*.yaml"))
-        for config in hardware_configs:
-            config_files_to_test.append(("hardware", config.stem, f"+hardware={config.stem}"))
 
         # User configs
         user_configs = list((configs_root / "user").glob("*.yaml"))
@@ -354,7 +350,7 @@ class TestRealTypedConfigs:
             print(f"Testing {config_type} config: {config_name}")
 
             try:
-                # For hardware/user configs, apply them as overrides
+                # For user configs, apply them as overrides
                 overrides_list = [override, "trainer.num_workers=1"]
                 cfg = load_config_with_hydra("trainer", overrides=overrides_list)
                 create_trainer_config(cfg)

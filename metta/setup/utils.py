@@ -1,5 +1,9 @@
 import importlib
+import itertools
 import textwrap
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TypeVar
 
@@ -39,6 +43,34 @@ def step(message: str, indent: int = 0) -> None:
 
 def debug(message: str, indent: int = 0) -> None:
     print(colorize(_format_message(message, indent), Fore.LIGHTMAGENTA_EX))
+
+
+@contextmanager
+def spinner(message: str = "Loading..."):
+    """Context manager that shows a spinner while executing code.
+
+    Usage:
+        with spinner("Checking status..."):
+            # Do some work
+            time.sleep(2)
+    """
+    spinner_chars = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+    stop_spinner = threading.Event()
+
+    def show_spinner():
+        while not stop_spinner.is_set():
+            print(f"\r{next(spinner_chars)} {message}", end="", flush=True)
+            time.sleep(0.1)
+        print("\r" + " " * (len(message) + 4) + "\r", end="", flush=True)  # Clear the line
+
+    spinner_thread = threading.Thread(target=show_spinner)
+    spinner_thread.start()
+
+    try:
+        yield
+    finally:
+        stop_spinner.set()
+        spinner_thread.join()
 
 
 def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None) -> T:

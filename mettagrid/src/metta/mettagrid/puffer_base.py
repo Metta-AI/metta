@@ -1,17 +1,26 @@
 """
 MettaGridPufferBase - Base PufferLib integration for MettaGrid.
 
-This class provides the core PufferLib integration that is shared between
-the user adapter (MettaGridPufferEnv) and training environment (MettaGridEnv).
+This class provides PufferLib compatibility for MettaGrid environments by inheriting
+from both MettaGridCore and PufferEnv. This allows MettaGrid environments to be used
+directly with PufferLib training infrastructure.
+
+Architecture:
+- MettaGridPufferBase inherits from: MettaGridCore + PufferEnv
+- MettaGridEnv inherits from: MettaGridPufferBase
+- This enables MettaGridEnv to work seamlessly with PufferLib training code
+
+For users:
+- Use MettaGridEnv directly with PufferLib (it inherits PufferLib functionality)
+- Alternatively, use PufferLib's MettaPuff wrapper for additional PufferLib features:
+  https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments/metta/environment.py
+
+This avoids double-wrapping while maintaining full PufferLib compatibility.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
-
-if TYPE_CHECKING:
-    from metta.mettagrid.curriculum.core import Curriculum
-    from metta.mettagrid.level_builder import Level
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from omegaconf import OmegaConf
@@ -19,6 +28,8 @@ from pufferlib import PufferEnv
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -43,13 +54,18 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
     This class handles the common PufferLib integration logic that is shared
     between user adapters and training environments. It combines MettaGridCore
     with PufferEnv to provide PufferLib compatibility.
+
+    Inherits from:
+    - MettaGridCore: Core C++ environment wrapper functionality
+    - pufferlib.PufferEnv: High-performance vectorized environment interface
+      https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments.py
     """
 
     def __init__(
         self,
-        curriculum: "Curriculum",
+        curriculum: Curriculum,
         render_mode: Optional[str] = None,
-        level: Optional["Level"] = None,
+        level: Optional[Level] = None,
         buf: Optional[Any] = None,
         **kwargs: Any,
     ):

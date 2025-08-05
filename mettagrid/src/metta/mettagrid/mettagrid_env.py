@@ -8,21 +8,25 @@ and episode tracking functionality.
 
 from __future__ import annotations
 
+import datetime
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+import time
+import uuid
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import override
 
-from metta.common.profiling.stopwatch import with_instance_timer
+from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.mettagrid.util.dict_utils import unroll_nested_dict
 
 logger = logging.getLogger("MettaGridEnv")
 
@@ -62,10 +66,6 @@ class MettaGridEnv(MettaGridPufferBase):
             **kwargs: Additional arguments
         """
         # Add training-specific attributes first (needed by MettaGridCore)
-        import datetime
-
-        from metta.common.profiling.stopwatch import Stopwatch
-
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
@@ -91,9 +91,39 @@ class MettaGridEnv(MettaGridPufferBase):
 
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
-        import uuid
-
         return str(uuid.uuid4())
+
+    def _reset_trial(self) -> None:
+        """Reset the environment for a new trial within the same episode."""
+        # Get new task from curriculum (for new trial)
+        self._task = self._curriculum.get_task()
+        task_cfg = self._task.env_cfg()
+        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        # Create new C++ environment for new trial
+        self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
+
+        # Reset counters for new trial
+        self._steps = 0
+
+        # Set up new trial tracking
+        self._trial_id = self._make_episode_id()
+        self._reset_at = datetime.datetime.now()
+
+        # CRITICAL: Set buffers once after C++ env creation, before any operations
+        # This establishes shared memory for high-performance training (400k+ SPS)
+        if hasattr(self, "observations") and self._c_env_instance:
+            self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+
+        # Start replay recording for new trial if enabled
+        if self._replay_writer and self._trial_id:
+            self._replay_writer.start_episode(self._trial_id, self)
+
+        # Get initial observations for new trial
+        if self._c_env_instance is None:
+            raise RuntimeError("Core environment not initialized")
+        self._c_env_instance.reset()
 
     @override
     @with_instance_timer("reset")
@@ -119,15 +149,19 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._resets > 0:
             self._c_env_instance = self._create_c_env(game_config_dict, seed)
 
+            # CRITICAL: Set buffers once after C++ env recreation
+            # This establishes shared memory for high-performance training (400k+ SPS)
+            if hasattr(self, "observations") and self._c_env_instance:
+                self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+
         # Reset counters
         self._steps = 0
         self._resets += 1
 
         # Set up episode tracking
         self._episode_id = self._make_episode_id()
+        self._trial_id = self._episode_id  # For compatibility with trial-based logic
         self._current_seed = seed or 0
-        import datetime
-
         self._reset_at = datetime.datetime.now()
 
         # Start replay recording if enabled
@@ -141,14 +175,15 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._resets == 1:
             self._c_env_instance = self._create_c_env(game_config_dict, seed)
 
+            # CRITICAL: Set buffers once after C++ env creation, before any operations
+            # This establishes shared memory for high-performance training (400k+ SPS)
+            if hasattr(self, "observations") and self._c_env_instance:
+                self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+
         # Get initial observations from core environment
         if self._c_env_instance is None:
             raise RuntimeError("Core environment not initialized")
         observations, info = self._c_env_instance.reset()
-
-        # Set buffers in C++ environment for direct writes
-        if self._c_env_instance and hasattr(self, "observations"):
-            self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         self.timer.start("thread_idle")
         return observations, info
@@ -170,25 +205,33 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._c_env_instance is None:
             raise RuntimeError("Environment not initialized. Call reset() first.")
 
-        # Execute step in core environment
+        # Execute step directly on C++ environment to maintain buffer sharing
+        # This is critical for PufferEnv performance - we must use the shared buffers
         with self.timer("_c_env.step"):
-            obs, rewards, terminals, truncations, _ = self.c_env.step(actions)
+            self._c_env_instance.step(actions)
             self._steps += 1
 
-        # Record step for replay
+        # Record step for replay (use shared PufferEnv buffers)
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, actions, rewards)
+                self._replay_writer.log_step(self._trial_id, actions, self.rewards)
 
-        # Check for episode completion
+        # Check for episode completion (use shared PufferEnv buffers)
         infos = {}
 
-        if terminals.all() or truncations.all():
+        if self.terminals.all() or self.truncations.all():
             self._process_episode_completion(infos)
-            self._should_reset = True
+            # Note: _process_episode_completion already calls complete_trial()
+            if self._task.is_complete():
+                self._should_reset = True
+                # Add curriculum task probabilities to infos for distributed logging
+                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            else:
+                # Continue with new trial in same episode (like upstream)
+                self._reset_trial()
 
         self.timer.start("thread_idle")
-        return obs, rewards, terminals, truncations, infos
+        return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
         """
@@ -215,17 +258,15 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._c_env_instance is None:
             return
 
-        import time
-
         self.timer.start("process_episode_stats")
 
         # Clear any existing infos
         infos.clear()
 
         # Get episode rewards and stats
-        episode_rewards = self.c_env.get_episode_rewards()
+        episode_rewards = self._c_env_instance.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
-        episode_rewards_mean = episode_rewards_sum / self.c_env.num_agents
+        episode_rewards_mean = episode_rewards_sum / self._c_env_instance.num_agents
 
         # Add map and label rewards
         for label in self._map_labels + self.labels:
@@ -239,7 +280,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Get episode stats from core environment
         with self.timer("_c_env.get_episode_stats"):
-            stats = self.c_env.get_episode_stats()
+            stats = self._c_env_instance.get_episode_stats()
 
         # Process agent stats
         infos["game"] = stats["game"]
@@ -248,17 +289,17 @@ class MettaGridEnv(MettaGridPufferBase):
             for n, v in agent_stats.items():
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self.c_env.num_agents
+            infos["agent"][n] = v / self._c_env_instance.num_agents
 
         # Add attributes
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
-            "map_w": self.c_env.map_width,
-            "map_h": self.c_env.map_height,
-            "initial_grid_hash": self.c_env.initial_grid_hash,
+            "map_w": self._c_env_instance.map_width,
+            "map_h": self._c_env_instance.map_height,
+            "initial_grid_hash": self._c_env_instance.initial_grid_hash,
             "steps": self._steps,
             "resets": self._resets,
-            "max_steps": self.c_env.max_steps,
+            "max_steps": self._c_env_instance.max_steps,
             "completion_time": time.time(),
         }
         infos["attributes"] = attributes
@@ -276,7 +317,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 self._write_episode_stats(stats, episode_rewards, replay_url)
 
         # Update curriculum
-        self._task.complete(episode_rewards_mean)
+        self._task.complete_trial(episode_rewards_mean)
 
         # Add curriculum task probabilities
         infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
@@ -305,10 +346,6 @@ class MettaGridEnv(MettaGridPufferBase):
         if not self._stats_writer or not self._episode_id or not self._c_env_instance:
             return
 
-        from typing import cast
-
-        from metta.mettagrid.util.dict_utils import unroll_nested_dict
-
         # Flatten environment config
         env_cfg_flattened: Dict[str, str] = {}
         env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
@@ -324,7 +361,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 agent_metrics[agent_idx][k] = float(v)
 
         # Get agent groups
-        grid_objects = self.c_env.grid_objects()
+        grid_objects = self._c_env_instance.grid_objects()
         agent_groups: Dict[int, int] = {
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
         }
@@ -335,7 +372,7 @@ class MettaGridEnv(MettaGridPufferBase):
             env_cfg_flattened,
             agent_metrics,
             agent_groups,
-            self.c_env.max_steps,
+            self._c_env_instance.max_steps,
             replay_url,
             self._reset_at,
         )

@@ -13,8 +13,15 @@
 
 """Puffer Demo - Pure PufferLib ecosystem integration.
 
-This demo shows how to use MettaGridPufferEnv with ONLY PufferLib
-and external training libraries, without any Metta training infrastructure.
+This demo shows how to use MettaGridEnv with PufferLib and external training libraries.
+
+IMPORTANT: MettaGridEnv inherits from PufferLib's PufferEnv, making it fully compatible
+with the PufferLib ecosystem. You can use MettaGridEnv directly with PufferLib training
+code, or use PufferLib's MettaPuff wrapper for additional PufferLib-specific features.
+
+Architecture:
+- MettaGridEnv -> MettaGridPufferBase -> PufferEnv (PufferLib compatibility)
+- For pure PufferLib usage, you can also use: github.com/PufferAI/PufferLib/pufferlib/environments/metta/
 
 Run with: uv run python mettagrid/demos/demo_train_puffer.py (from project root)
 """
@@ -24,8 +31,9 @@ import time
 import numpy as np
 from omegaconf import DictConfig
 
-# Puffer adapter imports
-from metta.mettagrid import MettaGridPufferEnv
+# MettaGrid imports
+# Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
+from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 
 # Training framework imports
@@ -124,10 +132,12 @@ def demo_puffer_env():
     config = create_test_config()
     curriculum = SingleTaskCurriculum("puffer_demo", config)
 
-    # Create PufferLib environment
-    env = MettaGridPufferEnv(
+    # Create MettaGridEnv - which IS a PufferLib environment!
+    # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
+    env = MettaGridEnv(
         curriculum=curriculum,
         render_mode=None,
+        is_training=False,  # Disable training-specific features for this demo
     )
 
     print("PufferLib environment created")
@@ -171,8 +181,9 @@ def demo_random_rollout():
     config = create_test_config()
     curriculum = SingleTaskCurriculum("puffer_rollout", config)
 
-    # Create PufferLib environment
-    env = MettaGridPufferEnv(
+    # Create MettaGridEnv for rollout
+    # Note: is_training=True enables training features like stats collection
+    env = MettaGridEnv(
         curriculum=curriculum,
         render_mode=None,
         is_training=True,
@@ -241,7 +252,9 @@ def demo_pufferlib_training():
     config = create_test_config()
     curriculum = SingleTaskCurriculum("puffer_training", config)
 
-    env = MettaGridPufferEnv(
+    # MettaGridEnv can be used directly with PufferLib training code
+    # It inherits all PufferLib functionality through MettaGridPufferBase -> PufferEnv
+    env = MettaGridEnv(
         curriculum=curriculum,
         render_mode=None,
         is_training=True,
@@ -348,10 +361,11 @@ def demo_pufferlib_training():
 
 def main():
     """Run PufferLib adapter demo."""
-    print("PUFFERLIB ADAPTER DEMO")
+    print("PUFFERLIB INTEGRATION DEMO")
     print("=" * 80)
-    print("This demo shows MettaGridPufferEnv integration with")
-    print("the PufferLib high-performance training ecosystem.")
+    print("This demo shows MettaGridEnv's PufferLib integration.")
+    print("MettaGridEnv inherits from PufferEnv, making it fully compatible")
+    print("with the PufferLib high-performance training ecosystem.")
     print()
 
     try:

@@ -14,6 +14,8 @@
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
+#include "actions/move_cardinal.hpp"
+#include "actions/move_8way.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
@@ -86,6 +88,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
       _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
+    } else if (action_name_str == "move_8way") {
+      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config));
+    } else if (action_name_str == "move_cardinal") {
+      _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
     } else if (action_name_str == "rotate") {
       _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
@@ -193,6 +199,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
+        // Only initialize visitation grid if visitation counts are enabled
+        if (_global_obs_config.visitation_counts) {
+          agent->init_visitation_grid(height, width);
+        }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -327,6 +337,15 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Add inventory rewards for this agent
   if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
     global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
+  }
+
+  // Add visitation counts for this agent
+  if (_global_obs_config.visitation_counts) {
+    auto& agent = _agents[agent_idx];
+    auto visitation_counts = agent->get_visitation_counts();
+    for (size_t i = 0; i < 5; i++) {
+      global_tokens.push_back({ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
+    }
   }
 
   // Global tokens are always at the center of the observation.
@@ -484,10 +503,11 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
-  // Clear action tracking from previous episodes
-  ActionHandler::clear_all_tracking();
-  for (auto& handler : _action_handlers) {
-    handler->clear_tracking();
+  // Reset visitation counts for all agents (only if enabled)
+  if (_global_obs_config.visitation_counts) {
+    for (auto& agent : _agents) {
+      agent->reset_visitation_counts();
+    }
   }
 
   // Reset all buffers
@@ -626,7 +646,10 @@ py::dict MettaGrid::grid_objects() {
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
-    obj_dict["location"] = py::make_tuple(obj->location.r, obj->location.c, obj->location.layer);
+    // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
+    // We define that for location: x is column, y is row, and z is layer.
+    // Note: it might be different for matrix computations.
+    obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r, obj->location.layer);
     obj_dict["is_swappable"] = obj->swappable();
 
     obj_dict["r"] = obj->location.r;          // To remove
@@ -1005,15 +1028,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
-           py::arg("resource_rewards") = false)
+           py::arg("resource_rewards") = false,
+           py::arg("visitation_counts") = true)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards);
+      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards)
+      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,

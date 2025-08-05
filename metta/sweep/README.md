@@ -30,7 +30,7 @@ The sweep system enables automated hyperparameter optimization for training runs
 ### Local Execution
 
 ```bash
-./devops/sweep.sh run=my_experiment +hardware=macbook
+./devops/sweep.sh run=my_experiment
 ```
 
 ### Cloud Execution (Skypilot)

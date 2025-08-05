@@ -35,6 +35,11 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
     This class provides a Gymnasium-compatible interface for MettaGrid environments,
     supporting both single-agent and multi-agent scenarios.
     No training features are included - this is purely for Gymnasium compatibility.
+
+    Inherits from:
+    - MettaGridCore: Core C++ environment wrapper functionality
+    - gymnasium.Env: Standard Gymnasium environment interface
+      https://github.com/Farama-Foundation/Gymnasium/blob/ad23dfbbe29f83107404f9f6a56131f6b498d0d7/gymnasium/core.py#L23
     """
 
     def __init__(
@@ -107,9 +112,9 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         self._rewards = np.zeros(self.num_agents, dtype=dtype_rewards)
 
         # Set buffers in C++ environment for direct writes
-        self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
+        self._c_env_instance.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
 
-    @override
+    @override  # gymnasium.Env.reset
     def reset(
         self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
     ) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -137,7 +142,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
             return obs[0], info
         return obs, info
 
-    @override
+    @override  # gymnasium.Env.step
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """
         Execute one timestep of the environment dynamics.
@@ -179,6 +184,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
 
     # Gymnasium space properties
     @property
+    @override  # gymnasium.Env.observation_space
     def observation_space(self):
         """Get observation space."""
         if self._single_agent:
@@ -188,6 +194,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
             return self._observation_space
 
     @property
+    @override  # gymnasium.Env.action_space
     def action_space(self):
         """Get action space."""
         if self._single_agent:
@@ -196,14 +203,15 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
             # Multi-agent case - return the multi-agent space
             return self._action_space
 
+    # PufferLib compatibility properties
     @property
     def single_observation_space(self):
-        """Single agent observation space."""
+        """Single agent observation space (PufferLib compatibility)."""
         return self._observation_space
 
     @property
     def single_action_space(self):
-        """Single agent action space."""
+        """Single agent action space (PufferLib compatibility)."""
         return self._action_space
 
 

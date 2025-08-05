@@ -2,6 +2,7 @@
 #define OBJECTS_AGENT_HPP_
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <string>
 #include <vector>
@@ -73,6 +74,12 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
+  // Visitation count grid: tracks how many times the agent has visited each position
+  std::vector<std::vector<unsigned int>> visitation_grid;
+  bool visitation_counts_enabled = false;
+  GridLocation prev_location;
+  std::string prev_action_name;
+  unsigned int steps_without_motion;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -92,12 +99,47 @@ public:
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
-        reward(nullptr) {
+        reward(nullptr),
+        prev_location(r, c, GridLayer::AgentLayer),
+        prev_action_name(""),
+        steps_without_motion(0) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+  }
+
+  void init_visitation_grid(GridCoord height, GridCoord width) {
+    visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
+    visitation_counts_enabled = true;
+  }
+
+  void reset_visitation_counts() {
+    for (auto& row : visitation_grid) {
+      std::fill(row.begin(), row.end(), 0);
+    }
+  }
+
+  void increment_visitation_count(GridCoord r, GridCoord c) {
+    if (!visitation_counts_enabled) return;
+
+    if (r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) && c >= 0 &&
+        c < static_cast<GridCoord>(visitation_grid[0].size())) {
+      visitation_grid[r][c]++;
+    }
+  }
+
+  std::array<unsigned int, 5> get_visitation_counts() const {
+    std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
+    if (!visitation_grid.empty()) {
+      counts[0] = get_visitation_count(location.r, location.c);      // center
+      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+      counts[2] = get_visitation_count(location.r + 1, location.c);  // down
+      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+      counts[4] = get_visitation_count(location.r, location.c + 1);  // right
+    }
+    return counts;
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
@@ -214,6 +256,14 @@ private:
     // Update both the current resource reward and the total reward
     float reward_delta = new_contribution - old_contribution;
     *this->reward += reward_delta;
+  }
+
+  unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
+    if (visitation_grid.empty() || r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) || c < 0 ||
+        c >= static_cast<GridCoord>(visitation_grid[0].size())) {
+      return 0;  // Return 0 for out-of-bounds positions
+    }
+    return visitation_grid[r][c];
   }
 };
 

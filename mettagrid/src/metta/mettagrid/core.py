@@ -150,7 +150,7 @@ class MettaGridCore:
         self._should_reset = False
 
         # Get initial observations from core environment
-        obs, infos = self.c_env.reset()
+        obs, infos = self._c_env_instance.reset()
 
         return obs, infos
 
@@ -165,7 +165,7 @@ class MettaGridCore:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
         # Execute step in core environment
-        obs, rewards, terminals, truncations, _ = self.c_env.step(actions)
+        obs, rewards, terminals, truncations, _ = self._c_env_instance.step(actions)
 
         # Check for episode completion
         infos = {}
@@ -179,7 +179,7 @@ class MettaGridCore:
         if self._renderer is None or self._c_env_instance is None:
             return None
 
-        return self._renderer.render(self.c_env.current_step, self.c_env.grid_objects())
+        return self._renderer.render(self._c_env_instance.current_step, self._c_env_instance.grid_objects())
 
     def close(self) -> None:
         """Close the environment."""
@@ -206,73 +206,73 @@ class MettaGridCore:
     # Properties that delegate to core environment
     @property
     def max_steps(self) -> int:
-        return self.c_env.max_steps
+        return self._c_env_instance.max_steps
 
     @property
     def num_agents(self) -> int:
-        return self.c_env.num_agents
+        return self._c_env_instance.num_agents
 
     @property
     def obs_width(self) -> int:
-        return self.c_env.obs_width
+        return self._c_env_instance.obs_width
 
     @property
     def obs_height(self) -> int:
-        return self.c_env.obs_height
+        return self._c_env_instance.obs_height
 
     @property
     def map_width(self) -> int:
-        return self.c_env.map_width
+        return self._c_env_instance.map_width
 
     @property
     def map_height(self) -> int:
-        return self.c_env.map_height
+        return self._c_env_instance.map_height
 
     @property
     def _observation_space(self) -> spaces.Box:
         """Internal observation space - use single_observation_space for PufferEnv compatibility."""
-        return self.c_env.observation_space
+        return self._c_env_instance.observation_space
 
     @property
     def _action_space(self) -> spaces.MultiDiscrete:
         """Internal action space - use single_action_space for PufferEnv compatibility."""
-        return self.c_env.action_space
+        return self._c_env_instance.action_space
 
     @property
     def action_names(self) -> List[str]:
-        return self.c_env.action_names()
+        return self._c_env_instance.action_names()
 
     @property
     def max_action_args(self) -> List[int]:
-        action_args_array = self.c_env.max_action_args()
+        action_args_array = self._c_env_instance.max_action_args()
         return [int(x) for x in action_args_array]
 
     @property
     def object_type_names(self) -> List[str]:
-        return self.c_env.object_type_names()
+        return self._c_env_instance.object_type_names()
 
     @property
     def inventory_item_names(self) -> List[str]:
-        return self.c_env.inventory_item_names()
+        return self._c_env_instance.inventory_item_names()
 
     @property
     def feature_normalizations(self) -> Dict[int, float]:
-        """Get feature normalizations from feature spec."""
-        feature_spec = self.c_env.feature_spec()
-        return {int(spec["id"]): float(spec["normalization"]) for spec in feature_spec.values()}
+        """Get feature normalizations from C++ environment."""
+        # Check if the C++ environment has the direct method
+        if hasattr(self._c_env_instance, "feature_normalizations"):
+            return self._c_env_instance.feature_normalizations()
+        else:
+            # Fallback to extracting from feature_spec (slower)
+            feature_spec = self._c_env_instance.feature_spec()
+            return {int(spec["id"]): float(spec["normalization"]) for spec in feature_spec.values()}
 
     @property
     def initial_grid_hash(self) -> int:
-        return self.c_env.initial_grid_hash
+        return self._c_env_instance.initial_grid_hash
 
     @property
     def action_success(self) -> List[bool]:
-        return self.c_env.action_success()
-
-    @property
-    def global_features(self) -> List[Any]:
-        """Global features for compatibility."""
-        return []
+        return self._c_env_instance.action_success()
 
     def get_observation_features(self) -> Dict[str, Dict]:
         """
@@ -282,7 +282,7 @@ class MettaGridCore:
             Dictionary mapping feature names to their properties
         """
         # Get feature spec from C++ environment
-        feature_spec = self.c_env.feature_spec()
+        feature_spec = self._c_env_instance.feature_spec()
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
@@ -299,4 +299,4 @@ class MettaGridCore:
     @property
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
-        return self.c_env.grid_objects()
+        return self._c_env_instance.grid_objects()

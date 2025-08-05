@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 import uuid
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Literal
@@ -1384,3 +1385,20 @@ class MettaRepo:
                 }
                 for row in rows
             ]
+
+    async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
+        async with self.connect() as con:
+            if not assignees:
+                return {}
+
+            # Use ANY() for proper list handling in PostgreSQL
+            queryRes = await con.execute(
+                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee = ANY(%s)",
+                (assignees,),
+            )
+            rows = await queryRes.fetchall()
+            res: dict[str, list[str]] = defaultdict(list)
+            for row in rows:
+                if row[1]:  # Only add non-null git hashes
+                    res[row[0]].append(row[1])
+            return res
