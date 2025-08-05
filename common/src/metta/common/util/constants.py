@@ -24,7 +24,7 @@ METTA_AWS_REGION = "us-east-1"
 
 METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
 
-METTA_ENV_FILE = (os.path.expanduser("~/.metta_env_path"),)
+METTA_ENV_FILE = Path(os.path.expanduser("~/.metta_env_path"))
 
 
 def main():

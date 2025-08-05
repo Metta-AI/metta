@@ -87,7 +87,7 @@ run: |
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "Collecting instance cost..."
     if uv run python common/src/metta/common/util/cost_monitor.py; then
-      echo "METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+      echo "wrote \"export METTA_HOURLY_COST=$METTA_HOURLY_COST\" to $METTA_ENV_FILE"
     else
       echo "Cost monitor script failed to run."
     fi
@@ -97,7 +97,7 @@ run: |
 
   # load environment vars written by child scripts
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
-  source METTA_ENV_FILE
+  source "$METTA_ENV_FILE"
 
   echo "Cluster configuration:"
   echo "  NUM_GPUS=$NUM_GPUS"

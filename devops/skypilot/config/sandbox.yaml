@@ -50,7 +50,7 @@ run: |
   bash ./devops/skypilot/config/configure_environment.sh
 
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
-  source METTA_ENV_FILE
+  source "$METTA_ENV_FILE"
 
   echo "Starting bash shell..."
   exec bash
