@@ -181,7 +181,9 @@ def train(
         if not trainer_cfg.dual_policy.checkpoint_npc.uri:
             raise ValueError("checkpoint_npc.uri must be set when dual_policy.enabled is True")
         try:
-            npc_policy_record = policy_store.load_from_uri(trainer_cfg.dual_policy.checkpoint_npc.uri)
+            npc_policy_record = policy_store.policy_record(
+                trainer_cfg.dual_policy.checkpoint_npc.uri, selector_type="latest"
+            )
             logger.info(f"Loaded NPC policy from {trainer_cfg.dual_policy.checkpoint_npc.uri}")
             logger.info(f"NPC policy run name: {npc_policy_record.run_name}")
             logger.info(
