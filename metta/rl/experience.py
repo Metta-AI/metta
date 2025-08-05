@@ -169,14 +169,14 @@ class Experience:
         indices = self.ep_indices[env_id]
 
         # Store data in segmented tensors
-        episode_length_tensor = torch.tensor(episode_length, device=self.device)
-        self.obs[indices, episode_length_tensor] = obs
-        self.actions[indices, episode_length_tensor] = actions
-        self.logprobs[indices, episode_length_tensor] = logprobs
-        self.rewards[indices, episode_length_tensor] = rewards
-        self.dones[indices, episode_length_tensor] = dones.float()
-        self.truncateds[indices, episode_length_tensor] = truncations.float()
-        self.values[indices, episode_length_tensor] = values
+        batch_slice = (indices, episode_length)
+        self.obs[batch_slice] = obs
+        self.actions[batch_slice] = actions
+        self.logprobs[batch_slice] = logprobs
+        self.rewards[batch_slice] = rewards
+        self.dones[batch_slice] = dones.float()
+        self.truncateds[batch_slice] = truncations.float()
+        self.values[batch_slice] = values
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
