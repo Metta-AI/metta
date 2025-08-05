@@ -66,15 +66,13 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     # Create env config early to use it throughout
     env_cfg = create_env_config(cfg)
 
-    logger.info("before setting num_workers", cfg)
-
     # Validation must be done after merging
     # otherwise trainer's default num_workers: null will be override the values
     # set by _calculate_default_num_workers, and the validation will fail
     if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
 
-    logger.info("after setting num_workers", cfg)
+    logger.info(f"set num_workers to {cfg.trainer.num_workers}")
 
     # Determine git hash for remote simulations
     if cfg.trainer.simulation.evaluate_remote and not cfg.trainer.simulation.git_hash:
@@ -180,12 +178,13 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if is_master:
-        logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
+        logger.info(f"Train job config (master): {OmegaConf.to_yaml(cfg, resolve=True)}")
 
         # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             handle_train(cfg, wandb_run, logger)
     else:
+        logger.info(f"Train job config (node): {OmegaConf.to_yaml(cfg, resolve=True)}")
         handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
