@@ -322,7 +322,11 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Add trial reward tracking to infos when num_trials > 1
         if isinstance(self._task, SingleTrialTask) and self._task.get_num_trials() > 1:
+            print("Adding per-trial rewards to infos")
             trial_rewards = self._task.get_trial_rewards()
+            print(f"Trial rewards: {trial_rewards}")
+
+            infos["per_trial_rewards"] = {}
 
             # Log per-trial rewards for WandB plotting
             # This creates metrics that can be plotted with trial number on x-axis
@@ -330,7 +334,8 @@ class MettaGridEnv(MettaGridPufferBase):
                 # Log each trial's reward as a separate metric
                 # WandB will automatically create plots with these metrics
                 for trial_num, reward in enumerate(trial_rewards, 1):  # 1-indexed trial numbers
-                    infos[f"trial_{trial_num}_reward"] = reward
+                    infos["per_trial_rewards"][trial_num] = reward
+            print(f"Per-trial rewards: {infos['per_trial_rewards']}")
 
         # Add curriculum task probabilities
         infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
