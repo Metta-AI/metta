@@ -10,7 +10,9 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Tuple
+from typing import Any
+
+from metta.common.util.constants import METTA_ENV_FILE
 
 # Remove the current directory from sys.path to avoid circular import with local colorama.py
 sys.path = [p for p in sys.path if p not in ("", ".", os.path.dirname(__file__))]
@@ -141,9 +143,8 @@ def main():
         # Set the environment variable for the current session
         os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)
 
-        # Also append to bashrc to persist for child processes
-        bashrc_path = os.path.expanduser("~/.bashrc")
-        with open(bashrc_path, "a") as f:
+        # Also append to local metta_env_path file to persist for parent process
+        with open(METTA_ENV_FILE, "a") as f:
             f.write(f"\nexport METTA_HOURLY_COST={total_hourly_cost}\n")
 
         # Log details to stderr for visibility in SkyPilot logs

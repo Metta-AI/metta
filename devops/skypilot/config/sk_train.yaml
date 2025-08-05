@@ -39,6 +39,8 @@ setup: |
   set -e
   cd /workspace/metta
 
+  # the docker image may start already in a venv!
+
   # Activate the metta venv
   if [ -n "$VIRTUAL_ENV" ]; then
       deactivate 2>/dev/null || true
@@ -91,7 +93,6 @@ run: |
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "Collecting instance cost..."
     if uv run python common/src/metta/common/util/cost_monitor.py; then
-      source ~/.bashrc || true # load env written by python to bashrc
       echo "METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
     else
       echo "Cost monitor script failed to run."
@@ -99,6 +100,10 @@ run: |
   else
     echo "Cost monitor script is missing!"
   fi
+
+  # load environment vars written by child scripts
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source METTA_ENV_FILE
 
   echo "Running $METTA_CMD script..."
   ./devops/$METTA_CMD.sh \

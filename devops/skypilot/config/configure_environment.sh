@@ -1,33 +1,31 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 echo "VIRTUAL_ENV: $VIRTUAL_ENV"
 echo "Which python: $(which python)"
-echo "Python location: $(python -c 'import sys; print(sys.executable)')"
+echo "Python executable: $(python -c 'import sys; print(sys.executable)')"
 
 echo "Configuring runtime environment..."
 
-export PYTHONUNBUFFERED=1
-export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)"
-export PYTHONOPTIMIZE=1
-export HYDRA_FULL_ERROR=1
-export NCCL_DEBUG="INFO"
-export WANDB_DIR="./wandb"
-export DATA_DIR=${DATA_DIR:-./train_dir}
+# look up the file path
+METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+echo "Persisting env vars into: $METTA_ENV_FILE"
 
-# GPU cluster environment variables
-export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}
-export NUM_NODES=${SKYPILOT_NUM_NODES}
-export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)
-export MASTER_PORT=8008
-export NODE_INDEX=${SKYPILOT_NODE_RANK}
-export NCCL_SHM_DISABLE=1
+echo "export PYTHONUNBUFFERED=${1}"                                  >> "$METTA_ENV_FILE"
+echo "export PYTHONPATH=\"${PYTHONPATH:+$PYTHONPATH:}$(pwd)\""       >> "$METTA_ENV_FILE"
+echo "export PYTHONOPTIMIZE=${1}"                                    >> "$METTA_ENV_FILE"
+echo "export HYDRA_FULL_ERROR=${1}"                                  >> "$METTA_ENV_FILE"
 
-echo "Cluster configuration:"
-echo "  NUM_GPUS=$NUM_GPUS"
-echo "  NUM_NODES=$NUM_NODES"
-echo "  MASTER_ADDR=$MASTER_ADDR"
-echo "  NODE_INDEX=$NODE_INDEX"
+echo "export NCCL_DEBUG=\"INFO\""                                    >> "$METTA_ENV_FILE"
+echo "export WANDB_DIR=\"./wandb\""                                  >> "$METTA_ENV_FILE"
+echo "export DATA_DIR=\"${DATA_DIR:-./train_dir}\""                  >> "$METTA_ENV_FILE"
+
+echo "export NUM_GPUS=\"${SKYPILOT_NUM_GPUS_PER_NODE}\""              >> "$METTA_ENV_FILE"
+echo "export NUM_NODES=\"${SKYPILOT_NUM_NODES}\""                     >> "$METTA_ENV_FILE"
+echo "export MASTER_ADDR=\"$(echo "$SKYPILOT_NODE_IPS" | head -n1)\"" >> "$METTA_ENV_FILE"
+echo "export MASTER_PORT=\"8008\""                                    >> "$METTA_ENV_FILE"
+echo "export NODE_INDEX=\"${SKYPILOT_NODE_RANK}\""                    >> "$METTA_ENV_FILE"
+echo "export NCCL_SHM_DISABLE=${1}"                                   >> "$METTA_ENV_FILE"
 
 # Create job secrets (idempotent - overwrites if exists)
 if [ -z "$WANDB_PASSWORD" ]; then
