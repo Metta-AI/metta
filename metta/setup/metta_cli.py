@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
 
 # Type hints only
 if TYPE_CHECKING:
@@ -172,7 +173,6 @@ class MettaCLI:
             return
 
         # Import all component modules to register them with the registry
-        from metta.setup.utils import import_all_modules_from_subpackage
 
         import_all_modules_from_subpackage("metta.setup", "components")
 
@@ -212,7 +212,6 @@ class MettaCLI:
 
     def setup_wizard(self) -> None:
         from metta.setup.config import UserType
-        from metta.setup.utils import header, info, prompt_choice, success
 
         header("Welcome to Metta!\n\n")
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
@@ -252,7 +251,6 @@ class MettaCLI:
 
     def _custom_setup(self) -> None:
         from metta.setup.registry import get_all_modules
-        from metta.setup.utils import info, prompt_choice, success
 
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
@@ -291,8 +289,6 @@ class MettaCLI:
         if args.component:
             self.configure_component(args.component)
         elif args.profile:
-            from metta.setup.utils import error, info, success
-
             selected_user_type = UserType(args.profile)
             if selected_user_type in PROFILE_DEFINITIONS:
                 self.config.apply_profile(selected_user_type)
@@ -521,8 +517,10 @@ class MettaCLI:
             sys.exit(e.returncode)
 
     def cmd_status(self, args, unknown_args=None) -> None:
+        import concurrent.futures
+
         from metta.setup.registry import get_all_modules
-        from metta.setup.utils import error, info, success, warning
+        from metta.setup.utils import error, info, spinner, success, warning
 
         # Get all modules first
         all_modules = get_all_modules(self.config)
@@ -554,6 +552,19 @@ class MettaCLI:
             warning("No applicable modules found.")
             return
 
+        # Do all substantive checks upfront in parallel
+        module_status = {}
+
+        with spinner("Checking component status..."):
+            # Parallelize module checks
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_module = {executor.submit(lambda m: (m.name, m.get_status()), m): m for m in modules}
+                for future in concurrent.futures.as_completed(future_to_module):
+                    name, status = future.result()
+                    if status:
+                        module_status[name] = status
+
+        # Now do all logging/display
         max_comp_len = max(len(m.name) for m in modules) + 2
         max_conn_len = 25
         max_exp_len = 20
@@ -572,21 +583,18 @@ class MettaCLI:
         info(f"\n{header}")
         info(separator)
 
-        # Check each module
+        # Display each module using cached results
         for module in modules:
-            if not module.is_applicable():
+            if module.name not in module_status:
                 continue
 
-            # Check installed
-            installed = module.check_installed()
+            status_data = module_status[module.name]
+            installed = status_data["installed"]
+            connected_as = status_data["connected_as"]
+            expected = status_data["expected"]
+
             installed_str = "Yes" if installed else "No"
-
-            # Check connection
-            connected_as = module.check_connected_as() if installed else None
             connected_str = self._truncate(connected_as or "-", max_conn_len)
-
-            # Get expected connection
-            expected = self.config.get_expected_connection(module.name)
             expected_str = self._truncate(expected or "-", max_exp_len)
 
             # Determine status
@@ -628,26 +636,26 @@ class MettaCLI:
 
         info(f"\n{separator}")
 
-        # Summary
-        if all(m.check_installed() for m in modules if m.is_applicable()):
-            if all(
-                (m.check_connected_as() is not None or self.config.get_expected_connection(m.name) is None)
-                for m in modules
-                if m.is_applicable() and m.check_installed()
-            ):
+        all_installed = all(module_status[name]["installed"] for name in module_status)
+        all_connected = all(
+            (module_status[name]["connected_as"] is not None or module_status[name]["expected"] is None)
+            for name in module_status
+            if module_status[name]["installed"]
+        )
+
+        if all_installed:
+            if all_connected:
                 success("\nAll components are properly configured!")
             else:
                 warning("\nSome components need authentication. Run 'metta install' to set them up.")
         else:
             warning("\nSome components are not installed. Run 'metta install' to set them up.")
 
-        # Collect components with connection issues
-        not_connected = []
-        for module in modules:
-            if module.is_applicable() and module.check_installed():
-                expected = self.config.get_expected_connection(module.name)
-                if expected and module.check_connected_as() is None:
-                    not_connected.append(module.name)
+        not_connected = [
+            name
+            for name, data in module_status.items()
+            if data["installed"] and data["expected"] and data["connected_as"] is None
+        ]
 
         # Offer to fix connection issues
         if not_connected:
@@ -664,11 +672,8 @@ class MettaCLI:
                         [sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=self.repo_root
                     )
 
-        # Check for not installed components
-        not_installed = []
-        for module in modules:
-            if module.is_applicable() and not module.check_installed():
-                not_installed.append(module.name)
+        # Check for not installed components using cached results
+        not_installed = [name for name, data in module_status.items() if not data["installed"]]
 
         if not_installed:
             warning(f"\nComponents not installed: {', '.join(not_installed)}")

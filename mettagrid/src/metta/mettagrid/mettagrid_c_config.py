@@ -139,6 +139,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
         resource_rewards=global_obs_config.resource_rewards,
+        visitation_counts=global_obs_config.visitation_counts,
     )
     game_cpp_params["global_obs"] = global_obs_cpp
 
