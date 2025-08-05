@@ -1,6 +1,5 @@
 import warnings
 
-import einops
 import torch
 from tensordict import TensorDict
 

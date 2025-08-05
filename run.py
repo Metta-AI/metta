@@ -47,7 +47,6 @@ from metta.rl.policy_management import (
 )
 from metta.rl.rollout import (
     get_observation,
-    run_policy_inference,
 )
 from metta.rl.stats import (
     StatsTracker,
@@ -295,9 +294,6 @@ agent, policy_record, agent_step, epoch, checkpoint = create_or_load_agent(
     is_master=is_master,
     rank=rank,
 )
-
-# Get LSTM config from the agent
-hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 # Validate that policy matches environment
 validate_policy_environment_match(agent, metta_grid_env)  # type: ignore

@@ -30,7 +30,7 @@ from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, process_minibatch_update, get_loss_experience_spec
+from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
     maybe_update_l2_weights,
@@ -200,23 +200,23 @@ def train(
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-    # Get LSTM configuration
-    hidden_size, num_lstm_layers = get_lstm_config(policy)
+    # Get the experience buffer specification from the policy
+    policy_spec = policy.get_agent_experience_spec()
+    act_space = vecenv.single_action_space
+    act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+    # check for dups between policy_spec and loss_spec
+    loss_spec = get_loss_experience_spec(*act_space.shape, act_dtype)
 
     # Create experience buffer
     experience = Experience(
-        total_agents=vecenv.num_agents,  # type: ignore[attr-defined]
-        batch_size=trainer_cfg.batch_size,  # Already scaled if needed
+        total_agents=vecenv.num_agents,
+        batch_size=trainer_cfg.batch_size,
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
-        obs_space=vecenv.single_observation_space,  # type: ignore[attr-defined]
-        atn_space=vecenv.single_action_space,  # type: ignore[attr-defined]
+        experience_spec=tensordict.merge_tensordicts(policy_spec, loss_spec),
         device=device,
-        hidden_size=hidden_size,
         cpu_offload=trainer_cfg.cpu_offload,
-        num_lstm_layers=num_lstm_layers,
-        agents_per_batch=getattr(vecenv, "agents_per_batch", None),
     )
 
     # Create optimizer
@@ -367,7 +367,7 @@ def train(
                 )
 
                 # Train for multiple epochs
-                total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
+                # total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
                 minibatch_idx = 0
                 epochs_trained = 0
                 policy_spec = policy.get_agent_experience_spec()
