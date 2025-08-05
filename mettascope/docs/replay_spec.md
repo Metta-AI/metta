@@ -90,7 +90,7 @@ The time series array format uses tuples where the first element is the step and
   "type_id": 2,
   "agent_id": 0,
   "rotation": [[0, 1], [10, 2], [20, 3]],
-  "position": [[0, [10, 10]], [1, [11, 10]], [2, [12, 11]]],
+  "location": [[0, [10, 10]], [1, [11, 10]], [2, [12, 11]]],
   "inventory": [[0, []], [100, [1]], [200, [1, 1]]],
   ...
 }
@@ -113,8 +113,8 @@ Here is the expanded version of the `rotation` key:
 You can either expand the whole time series on load or use binary search to find the value at a specific step. At first
 I was using binary search, but expanding the time series is much faster. This is up to the implementation.
 
-The `position` key is a time series of tuples, where the first element is the step and the second element is the
-position, which is a list of two numbers for x and y.
+The `location` key is a time series of tuples, where the first element is the step and the second element is the
+location, which is a list of two numbers for x and y.
 
 The `inventory` key is a time series of tuples, where the first element is the step and the second element is the list
 of item_IDs. It starts empty and then adds items at steps 100, 200, etc.
@@ -125,7 +125,7 @@ Here are the keys supported for both agents and objects:
 
 - `id` - Usually a constant. The id of the object.
 - `type_id` - Usually a constant. The type of the object that references the `type_names` array.
-- `position` - The [x, y, z] position of the object (sometimes called the column and row)
+- `location` - The [x, y, z] location of the object (sometimes called the column and row)
 - `orientation` - The rotation of the object.
 
 - `inventory` - The current list of item_IDs that map to the `item_names` array. Example: `[0, 0, 1]`. If
@@ -221,20 +221,20 @@ On step 0:
   "id": 99,
   "agent_id": 0,
   "rotation": 3,
-  "position": [12, 11],
+  "location": [12, 11],
   "inventory": [1, 1],
   ...
 }
 ````
 
 On later steps, only the `id` is required and any changed keys are sent. Many keys like `type_id`, `agent_id`,
-`group_id`, etc. don't change so they are only sent on step 0. While other keys like `position`, `inventory`, etc. are
+`group_id`, etc. don't change so they are only sent on step 0. While other keys like `location`, `inventory`, etc. are
 sent every time they change.
 
 ```json
 {
   "id": 99,
-  "position": [12, 11],
+  "location": [12, 11],
   "inventory": [1, 1],
   ...
 }

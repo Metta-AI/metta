@@ -246,7 +246,7 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     required_fields = [
         "id",
         "type_id",
-        "position",
+        "location",
         "orientation",
         "inventory",
         "inventory_max",
@@ -267,7 +267,7 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
     _validate_static_value(obj["is_swappable"], f"{obj_name}.is_swappable", bool)
 
     # Validate dynamic fields (always time series).
-    _validate_position(obj["position"], obj_name)
+    _validate_location(obj["location"], obj_name)
     _validate_time_series(obj["orientation"], f"{obj_name}.orientation", (int, float))
     _validate_inventory_format(obj["inventory"], f"{obj_name}.inventory")
     _validate_time_series(obj["inventory_max"], f"{obj_name}.inventory_max", (int, float))
@@ -280,22 +280,22 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
         _validate_building_fields(obj, obj_name)
 
 
-def _validate_position(position: Any, obj_name: str) -> None:
-    """Validate position field format: single [x, y, z] or time series of [step, [x, y, z]] pairs."""
-    field_name = f"{obj_name}.position"
+def _validate_location(location: Any, obj_name: str) -> None:
+    """Validate location field format: single [x, y, z] or time series of [step, [x, y, z]] pairs."""
+    field_name = f"{obj_name}.location"
 
-    # Check if it's a single position (never changed during replay)
-    if isinstance(position, list) and len(position) == 3:
-        for i, coord in enumerate(position):
+    # Check if it's a single location (never changed during replay)
+    if isinstance(location, list) and len(location) == 3:
+        for i, coord in enumerate(location):
             _validate_type(coord, (int, float), f"{field_name}[{i}]")
         return
 
-    # Check if it's a time series array (position changed during replay)
-    _validate_type(position, list, field_name)
-    assert len(position) > 0, f"{field_name} must have at least one entry"
+    # Check if it's a time series array (location changed during replay)
+    _validate_type(location, list, field_name)
+    assert len(location) > 0, f"{field_name} must have at least one entry"
 
     # Validate time series of [step, [x, y, z]] pairs
-    for step_data in position:
+    for step_data in location:
         assert isinstance(step_data, list) and len(step_data) == 2, (
             f"{field_name} items must be [step, [x, y, z]] pairs"
         )
@@ -306,7 +306,7 @@ def _validate_position(position: Any, obj_name: str) -> None:
             _validate_type(coord, (int, float), f"{field_name} coord[{i}]")
 
     # Must start with step 0
-    assert position[0][0] == 0, f"{field_name} must start with step 0"
+    assert location[0][0] == 0, f"{field_name} must start with step 0"
 
 
 def _validate_agent_fields(obj: dict[str, Any], obj_name: str, replay_data: dict[str, Any]) -> None:
@@ -421,7 +421,7 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "group_id": 0,
                 "is_swappable": False,
                 # Time series fields (some single values, some arrays)
-                "position": [5, 5, 0],  # Never moved
+                "location": [5, 5, 0],  # Never moved
                 "action_id": 0,  # Never changed action
                 "action_param": 0,  # Never changed param
                 "action_success": True,  # Never failed
@@ -445,7 +445,7 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "group_id": 0,
                 "is_swappable": False,
                 # Time series fields (mix of single values and arrays)
-                "position": [[0, [3, 3, 0]], [5, [4, 3, 0]]],  # Moved at step 5
+                "location": [[0, [3, 3, 0]], [5, [4, 3, 0]]],  # Moved at step 5
                 "action_id": [[0, 1], [10, 0]],  # Changed action at step 10
                 "action_param": 0,  # Never changed param
                 "action_success": [[0, False], [10, True]],  # Success changed at step 10
