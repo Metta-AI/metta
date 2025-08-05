@@ -377,17 +377,22 @@ class AsanaTask:
             print(f"[ensure_github_url_in_task] GitHub attachment failed: {response.text}")
             return None
 
-    def extract_github_url_from_comment(self, asana_comment_text):
+    def extract_github_url_from_comment(self, asana_comment_text, author_name):
         """
-        Extract GitHub URL from Asana comment text
+        Extract GitHub URL from Asana comment text, but only if it's a comment we created
 
         Args:
             asana_comment_text: The text content of an Asana comment
+            author_name: The name of the comment author
 
         Returns:
-            str: GitHub URL if found, None otherwise
+            str: GitHub URL if found and comment is ours, None otherwise
         """
         if not asana_comment_text:
+            return None
+
+        # Check if this is a comment we created
+        if author_name != "Github Sync":
             return None
 
         # Look for href="..." pattern in the comment
@@ -437,7 +442,8 @@ class AsanaTask:
         print(f"[get_comments] Found {len(comments)} comment stories out of {len(data['data'])} total stories")
         ret = []
         for comment in comments:
-            github_url = self.extract_github_url_from_comment(comment.get("html_text", ""))
+            author_name = comment.get("created_by", {}).get("name", "Unknown")
+            github_url = self.extract_github_url_from_comment(comment.get("html_text", ""), author_name)
             if github_url:  # Only include comments that have GitHub URLs
                 ret.append(
                     {
@@ -445,7 +451,7 @@ class AsanaTask:
                         "text": comment.get("text", ""),
                         "html_text": comment.get("html_text", ""),
                         "author": {
-                            "name": comment.get("created_by", {}).get("name", "Unknown"),
+                            "name": author_name,
                             "email": comment.get("created_by", {}).get("email"),
                         },
                         "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
