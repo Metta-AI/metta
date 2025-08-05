@@ -259,30 +259,34 @@ if is_master:
     wandb_ctx = WandbContext(wandb_config, global_config)
     wandb_run = wandb_ctx.__enter__()
 
+# Create policy store with config structure matching what Hydra provides
+policy_store_config = {
+    "device": str(device),
+    "run": dirs.run_name,
+    "run_dir": dirs.run_dir,
+    "vectorization": "serial",  # Set to serial for simplicity in this example
+    "trainer": trainer_config.model_dump(),
+}
 
 # Add wandb config if available (PolicyStore expects it for wandb:// URIs)
-def _get_wandb_details(wandb_ctx: WandbContext) -> dict:
+if wandb_run and wandb_ctx:
+    # Access the wandb config from the context
     try:
         wandb_cfg = wandb_ctx.cfg
         if isinstance(wandb_cfg, DictConfig):
             wandb_config_dict = OmegaConf.to_container(wandb_cfg, resolve=True)
             if isinstance(wandb_config_dict, dict) and wandb_config_dict.get("enabled"):
-                return {
+                policy_store_config["wandb"] = {
                     "entity": wandb_config_dict.get("entity"),
                     "project": wandb_config_dict.get("project"),
                 }
     except AttributeError:
-        return {}
-    return {}
+        # wandb_ctx might not have cfg attribute if wandb is disabled
+        pass
 
-
-wandb_details = _get_wandb_details(wandb_ctx) if wandb_run and wandb_ctx else {}
 policy_store = PolicyStore(
-    device=str(device),
+    DictConfig(policy_store_config),
     wandb_run=wandb_run,
-    data_dir="./train_dir",
-    wandb_entity=wandb_details.get("entity"),
-    wandb_project=wandb_details.get("project"),
 )
 
 # Create or load agent with a single function call
@@ -369,10 +373,10 @@ experience = Experience(
 
 # Create kickstarter
 kickstarter = Kickstarter(
-    cfg=trainer_config.kickstart,
-    device=device,
-    policy_store=policy_store,
-    metta_grid_env=metta_grid_env,
+    trainer_config.kickstart,
+    str(device),
+    policy_store,
+    metta_grid_env,  # Pass the full environment object, not individual attributes
 )
 
 # Create losses tracker
@@ -410,12 +414,11 @@ last_evaluation_epoch = epoch - 1  # Track last epoch when evaluation was perfor
 
 # Create checkpoint manager
 checkpoint_manager = CheckpointManager(
+    trainer_cfg=trainer_config,
     policy_store=policy_store,
-    checkpoint_config=trainer_config.checkpoint,
-    device=device,
-    is_master=is_master,
-    rank=rank,
+    checkpoint_dir=trainer_config.checkpoint.checkpoint_dir,
     run_name=dirs.run_name,
+    is_master=is_master,
 )
 
 # Training loop
@@ -832,7 +835,7 @@ while agent_step < trainer_config.total_timesteps:
         last_evaluation_epoch = epoch
 
         # Upload replay HTML if we have replay URLs
-        if is_master and wandb_run and results.replay_urls:
+        if is_master and wandb_run and hasattr(results, "replay_urls") and results.replay_urls:
             upload_replay_html(
                 replay_urls=results.replay_urls,
                 agent_step=agent_step,
@@ -935,6 +938,8 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
     eval_scores = EvalRewardSummary(
         category_scores=category_scores,
         simulation_scores=simulation_scores,
+        avg_category_score=np.mean(category_score_values) if category_score_values else 0.0,
+        avg_simulation_score=np.mean(simulation_score_values) if simulation_score_values else 0.0,
     )
 
     # Update policy metadata with score
