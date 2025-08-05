@@ -19,7 +19,6 @@ class TestSweepConfigLoading:
         # Create a simple sweep-like config without complex interpolations
         sweep_overrides = {
             "trainer": {
-                "_target_": "metta.rl.trainer.MettaTrainer",
                 "total_timesteps": 6400,
                 "batch_size": 3200,
                 "minibatch_size": 1600,

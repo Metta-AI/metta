@@ -59,6 +59,8 @@ dependencies = [
   "tiktoken>=0.9.0",
   "raylib>=5.5.0.0",
   "bidict>=0.23.1",
+  "ddtrace>=2.6.0",
+  "pydantic-settings>=2.10.1",
 ]
 name = "metta"
 version = "0.1"
@@ -107,6 +109,7 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+console_output_style = "progress"
 
 [tool.uv]
 cache-keys = [
@@ -128,4 +131,3 @@ pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef
 
 [tool.ruff]
 exclude = ["*.ipynb"]
-

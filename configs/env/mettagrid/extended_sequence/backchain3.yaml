@@ -4,8 +4,6 @@ defaults:
   - /env/mettagrid/game/objects/mines@game.objects
   - _self_
 
-sampling: 1
-
 game:
   num_agents: 4
   max_steps: 200

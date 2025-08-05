@@ -37,6 +37,10 @@ def step(message: str, indent: int = 0) -> None:
     print(colorize(_format_message(message, indent), Fore.WHITE))
 
 
+def debug(message: str, indent: int = 0) -> None:
+    print(colorize(_format_message(message, indent), Fore.LIGHTMAGENTA_EX))
+
+
 def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None) -> T:
     """Prompt user to select from a list of choices.
 

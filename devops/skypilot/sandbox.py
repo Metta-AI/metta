@@ -8,6 +8,7 @@ import sky
 import sky.exceptions
 import yaml
 
+from devops.skypilot.utils import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.cost_monitor import get_instance_cost
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
@@ -34,6 +35,24 @@ def load_sandbox_config(config_path: str):
     """Load the sandbox YAML configuration file."""
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
+
+
+def get_current_git_ref():
+    """Get the current git branch or commit hash."""
+    try:
+        # Try to get the current branch name
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True
+        )
+        branch = result.stdout.strip()
+        if branch != "HEAD":
+            return branch
+
+        # If in detached HEAD state, get the commit hash
+        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+        return result.stdout.strip()[:8]  # First 8 chars of commit hash
+    except Exception:
+        return "main"  # Fallback to main
 
 
 def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
@@ -90,6 +109,9 @@ def main():
     parser.add_argument("--retry-until-up", action="store_true", help="Keep retrying until cluster is up")
     args = parser.parse_args()
 
+    # Get git ref - use current branch/commit if not specified
+    git_ref = args.git_ref or get_current_git_ref()
+
     existing_clusters = get_existing_clusters()
 
     if existing_clusters and not args.new:
@@ -128,6 +150,7 @@ def main():
 
     cluster_name = get_next_name(existing_clusters)
     print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+    print(f"📌 Git ref: {cyan(git_ref)}")
 
     # Load the sandbox configuration
     config_path = "./devops/skypilot/config/sandbox.yaml"
@@ -155,12 +178,24 @@ def main():
 
     with spinner("Preparing task configuration", style=cyan):
         task = sky.Task.from_yaml(config_path)
+        set_task_secrets(task)
         task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
+
+        # Set the git ref in the environment variables
+        task.update_envs({"METTA_GIT_REF": git_ref})
+
         time.sleep(1)
 
     print("\n⏳ This will take a few minutes...")
 
     try:
+        sky_info = sky.api_info()
+        if sky_info["status"] == "healthy" and sky_info["user"] is None:
+            print(red("✗ You are not authenticated with SkyPilot."))
+            print(f"  {green('metta install skypilot')}")
+            print("to authenticate before launching a sandbox.")
+            return
+
         request_id = sky.launch(
             task,
             cluster_name=cluster_name,

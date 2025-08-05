@@ -1,7 +1,7 @@
 import hashlib
-import json
 import secrets
 import uuid
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Literal
@@ -160,7 +160,7 @@ MIGRATIONS = [
     ),
     SqlMigration(
         version=6,
-        description="Add heatmap performance indexes",
+        description="Add scorecard performance indexes",
         sql_statements=[
             # Critical index for episode_agent_metrics main query
             """ALTER TABLE episode_agent_metrics DROP CONSTRAINT episode_agent_metrics_pkey""",
@@ -374,6 +374,22 @@ MIGRATIONS = [
             LEFT JOIN epochs ep ON p.epoch_id = ep.id
             LEFT JOIN training_runs tr ON ep.run_id = tr.id
             """,
+        ],
+    ),
+    SqlMigration(
+        version=20,
+        description="Add user_id to eval_tasks",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN user_id TEXT""",
+            """CREATE INDEX idx_eval_tasks_user_id ON eval_tasks(user_id)""",
+        ],
+    ),
+    SqlMigration(
+        version=21,
+        description="Add updated_at to eval_tasks",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP""",
+            """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
         ],
     ),
 ]
@@ -899,13 +915,10 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    async def update_saved_dashboard(
+    async def update_dashboard_state(
         self,
         user_id: str,
         dashboard_id: str,
-        name: str,
-        description: str | None,
-        dashboard_type: str,
         dashboard_state: dict[str, Any],
     ) -> bool:
         """Update an existing saved dashboard."""
@@ -918,10 +931,10 @@ class MettaRepo:
             result = await con.execute(
                 """
                 UPDATE saved_dashboards
-                SET name = %s, description = %s, type = %s, dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
+                SET dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s AND user_id = %s
                 """,
-                (name, description, dashboard_type, Jsonb(dashboard_state), dashboard_uuid, user_id),
+                (Jsonb(dashboard_state), dashboard_uuid, user_id),
             )
             return result.rowcount > 0
 
@@ -966,16 +979,17 @@ class MettaRepo:
         policy_id: uuid.UUID,
         sim_suite: str,
         attributes: dict[str, Any],
+        user_id: str | None = None,
     ) -> dict[str, Any]:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                INSERT INTO eval_tasks (policy_id, sim_suite, attributes)
-                VALUES (%s, %s, %s)
+                INSERT INTO eval_tasks (policy_id, sim_suite, attributes, user_id)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id, policy_id, sim_suite, status, assigned_at,
-                         assignee, created_at, attributes, retries
+                         assignee, created_at, attributes, retries, user_id, updated_at
                 """,
-                (policy_id, sim_suite, Jsonb(attributes)),
+                (policy_id, sim_suite, Jsonb(attributes), user_id),
             )
             row = await result.fetchone()
             if row is None:
@@ -990,6 +1004,8 @@ class MettaRepo:
                 "created_at": row[6],
                 "attributes": row[7],
                 "retries": row[8],
+                "user_id": row[9],
+                "updated_at": row[10],
             }
 
     async def get_available_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
@@ -997,7 +1013,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name
+                       assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 JOIN policies p ON et.policy_id = p.id
                 WHERE status = 'unprocessed'
@@ -1020,6 +1036,8 @@ class MettaRepo:
                     "attributes": row[7],
                     "retries": row[8],
                     "policy_name": row[9],
+                    "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]
@@ -1036,7 +1054,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 UPDATE eval_tasks
-                SET assignee = %s, assigned_at = NOW(), retries = retries +1
+                SET assignee = %s, assigned_at = NOW(), retries = retries +1, updated_at = NOW()
                 WHERE id = ANY(%s)
                     AND status = 'unprocessed'
                     AND assignee IS NULL
@@ -1053,7 +1071,7 @@ class MettaRepo:
                 result = await con.execute(
                     """
                     SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name
+                            assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE assignee = %s AND status = 'unprocessed'
@@ -1065,7 +1083,7 @@ class MettaRepo:
                 result = await con.execute(
                     """
                     SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name
+                            assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE status = 'unprocessed' AND assignee IS NOT NULL
@@ -1085,6 +1103,8 @@ class MettaRepo:
                     "attributes": row[7],
                     "retries": row[8],
                     "policy_name": row[9],
+                    "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]
@@ -1093,61 +1113,37 @@ class MettaRepo:
         self,
         updates: dict[uuid.UUID, TaskStatusUpdate],
         require_assignee: str | None = None,
-    ) -> dict[uuid.UUID, str]:
+    ) -> dict[uuid.UUID, TaskStatus]:
         if not updates:
             return {}
 
         updated = {}
         async with self.connect() as con:
             for task_id, update in updates.items():
-                if not require_assignee:
-                    if update.clear_assignee:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                assignee = NULL,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id),
-                        )
-                    else:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id),
-                        )
+                if require_assignee:
+                    filter_clause = "id = %s AND assignee = %s"
+                    filter_params = (task_id, require_assignee)
                 else:
-                    if update.clear_assignee:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                assignee = NULL,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s AND assignee = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id, require_assignee),
-                        )
-                    else:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s AND assignee = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id, require_assignee),
-                        )
+                    filter_clause = "id = %s"
+                    filter_params = (task_id,)
+
+                if update.clear_assignee:
+                    assignee_clause = "assignee = NULL,"
+                else:
+                    assignee_clause = ""
+
+                query = f"""
+                UPDATE eval_tasks
+                SET status = %s,
+                    {assignee_clause}
+                    attributes = COALESCE(attributes, '{{}}'::jsonb) || %s::jsonb,
+                    updated_at = NOW()
+                WHERE {filter_clause}
+                RETURNING id
+                """
+                params = (update.status, Jsonb(update.attributes)) + filter_params
+                result = await con.execute(query, params)
+
                 if result.rowcount > 0:
                     updated[task_id] = update.status
 
@@ -1295,7 +1291,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name
+                       assignee, et.created_at, attributes, retries, p.name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 JOIN policies p ON et.policy_id = p.id
                 WHERE assignee = %s
@@ -1319,21 +1315,57 @@ class MettaRepo:
                 "attributes": row[7],
                 "retries": row[8],
                 "policy_name": row[9],
+                "user_id": row[10],
+                "updated_at": row[11],
             }
 
-    async def get_all_tasks(self, limit: int = 500) -> list[dict[str, Any]]:
+    async def get_all_tasks(
+        self,
+        limit: int = 500,
+        statuses: list[TaskStatus] | None = None,
+        git_hash: str | None = None,
+        policy_ids: list[uuid.UUID] | None = None,
+        sim_suites: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         async with self.connect() as con:
+            # Build the WHERE clause dynamically
+            where_conditions = []
+            params = []
+
+            if statuses:
+                placeholders = ", ".join(["%s"] * len(statuses))
+                where_conditions.append(f"et.status IN ({placeholders})")
+                params.extend(statuses)
+
+            if git_hash:
+                where_conditions.append("et.attributes->>'git_hash' = %s")
+                params.append(git_hash)
+
+            if policy_ids:
+                placeholders = ", ".join(["%s"] * len(policy_ids))
+                where_conditions.append(f"et.policy_id IN ({placeholders})")
+                params.extend(policy_ids)
+
+            if sim_suites:
+                placeholders = ", ".join(["%s"] * len(sim_suites))
+                where_conditions.append(f"et.sim_suite IN ({placeholders})")
+                params.extend(sim_suites)
+
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            params.append(limit)
+
             result = await con.execute(
-                """
+                f"""
                 SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                        et.assignee, et.created_at, et.attributes, et.retries,
-                       p.name as policy_name
+                       p.name as policy_name, et.user_id, et.updated_at
                 FROM eval_tasks et
                 LEFT JOIN policies p ON et.policy_id = p.id
+                WHERE {where_clause}
                 ORDER BY et.created_at DESC
                 LIMIT %s
                 """,
-                (limit,),
+                params,
             )
             rows = await result.fetchall()
             return [
@@ -1348,6 +1380,25 @@ class MettaRepo:
                     "attributes": row[7],
                     "retries": row[8],
                     "policy_name": row[9],
+                    "user_id": row[10],
+                    "updated_at": row[11],
                 }
                 for row in rows
             ]
+
+    async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
+        async with self.connect() as con:
+            if not assignees:
+                return {}
+
+            # Use ANY() for proper list handling in PostgreSQL
+            queryRes = await con.execute(
+                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee = ANY(%s)",
+                (assignees,),
+            )
+            rows = await queryRes.fetchall()
+            res: dict[str, list[str]] = defaultdict(list)
+            for row in rows:
+                if row[1]:  # Only add non-null git hashes
+                    res[row[0]].append(row[1])
+            return res

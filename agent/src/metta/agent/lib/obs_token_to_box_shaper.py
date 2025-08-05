@@ -1,3 +1,6 @@
+import warnings
+
+import einops
 import torch
 from tensordict import TensorDict
 
@@ -12,6 +15,13 @@ class ObsTokenToBoxShaper(LayerBase):
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent is instantiated
     and never again. I.e., not when it is reloaded from a saved policy.
+
+    Backward Compatibility:
+    This class gracefully handles cases where the environment provides observation channels (attribute indices)
+    that exceed what the policy was trained with. Any observation tokens with attribute indices >= num_layers
+    will be filtered out with a warning. This allows policies trained with fewer observation channels to run
+    in environments that have since added new observation types, though the policy will not benefit from the
+    new information.
     """
 
     def __init__(self, obs_shape, obs_width, obs_height, feature_normalizations, **cfg):
@@ -48,12 +58,28 @@ class ObsTokenToBoxShaper(LayerBase):
         batch_indices = torch.arange(B_TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
         valid_tokens = coords_byte != 0xFF
+
+        # Additional validation: ensure atr_indices are within valid range
+        valid_atr = atr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_atr
+
+        # Log warning for out-of-bounds indices
+        invalid_atr_mask = valid_tokens & ~valid_atr
+        if invalid_atr_mask.any():
+            invalid_indices = atr_indices[invalid_atr_mask].unique()
+            warnings.warn(
+                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
+                f">= num_layers ({self.num_layers}). These tokens will be ignored. "
+                f"This may indicate the policy was trained with fewer observation channels.",
+                stacklevel=2,
+            )
+
         box_obs[
-            batch_indices[valid_tokens],
-            atr_indices[valid_tokens],
-            x_coord_indices[valid_tokens],
-            y_coord_indices[valid_tokens],
-        ] = atr_values[valid_tokens]
+            batch_indices[valid_mask],
+            atr_indices[valid_mask],
+            x_coord_indices[valid_mask],
+            y_coord_indices[valid_mask],
+        ] = atr_values[valid_mask]
 
         td[self._name] = box_obs
         return td

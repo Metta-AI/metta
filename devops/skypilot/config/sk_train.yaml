@@ -27,52 +27,46 @@ resources:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 20
 
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
 setup: |
   set -e
-  echo "[SETUP] Starting setup phase..."
-
   cd /workspace/metta
 
-  echo "[SETUP] Fetching latest from origin..."
   git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
+  git checkout "$METTA_GIT_REF"
+  echo "Checked out: $(git rev-parse HEAD)"
 
-  echo "[SETUP] Checking out ref: $METTA_GIT_REF"
-  git checkout $METTA_GIT_REF
-
-  uv sync
-  mkdir -p $WANDB_DIR
-
-  echo "[SETUP] Setup complete."
+  bash ./devops/skypilot/config/setup-common.sh
 
 run: |
   set -e
-
-  echo "[RUN] Starting run phase..."
+  echo "[RUN] Starting run..."
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+
+  source ~/.bashrc
 
   cd /workspace/metta
   source ./devops/setup.env
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
-    LATENCY_OUTPUT=$(python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
+    LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
     echo "$LATENCY_OUTPUT"
   else
     echo "[RUN] Latency script is missing!"
   fi
 
-  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
-  export NUM_NODES=$SKYPILOT_NUM_NODES
-  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
-  export MASTER_PORT=8008
-  export NODE_INDEX=$SKYPILOT_NODE_RANK
-  export NCCL_SHM_DISABLE=1
-
-    if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    if python common/src/metta/common/util/cost_monitor.py; then
-      source ~/.bashrc
+    if uv run python common/src/metta/common/util/cost_monitor.py; then
       echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
     else
       echo "[RUN] Cost monitor script failed to run."
@@ -91,17 +85,6 @@ run: |
   echo "[RUN] Job complete."
   exit $TRAIN_EXIT
 
-file_mounts:
-  ~/.netrc: ~/.netrc
-  ~/.metta: ~/.metta
-  /mnt/s3/softmax-public:
-    source: s3://softmax-public
-    mode: MOUNT_CACHED
-  /mnt/s3/train_dir:
-    name: softmax-train-dir
-    store: s3
-    mode: MOUNT_CACHED
-
 envs:
   METTA_RUN_ID: ""
   METTA_CMD: train
@@ -115,3 +98,8 @@ envs:
   SKYPILOT_DOCKER_USERNAME: ""
   SKYPILOT_DOCKER_PASSWORD: ""
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+
+secrets:
+  # configured by launch script based on local credentials
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""

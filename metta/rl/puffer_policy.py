@@ -12,7 +12,7 @@ from metta.common.util.instantiate import instantiate
 logger = logging.getLogger("policy")
 
 
-def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig = None):
+def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig | None = None) -> "PytorchAgent":
     """Load a PyTorch policy from checkpoint and wrap it in PytorchAgent.
 
     Args:
@@ -23,9 +23,10 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     Returns:
         PytorchAgent wrapping the loaded policy
     """
-    weights = torch.load(path, map_location=device, weights_only=True)
 
     try:
+        weights = torch.load(path, map_location=device, weights_only=True)
+
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
         num_action_args, _ = weights["policy.actor.1.weight"].shape
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
@@ -66,11 +67,12 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     else:
         # Use the common instantiate utility
         policy = instantiate(pytorch_cfg, env=env, policy=None)
+    try:
+        policy.load_state_dict(weights)
+    except Exception as e:
+        logger.warning(f"Failed automatic load from weights: {e}")
+        logger.warning("Using randomly initialized weights")
 
-    policy.load_state_dict(weights)
-
-    # Wrap in PytorchAgent and move to device
-    policy = PytorchAgent(policy).to(device)
     return policy
 
 
@@ -195,12 +197,9 @@ class PytorchAgent(nn.Module):
         if hasattr(target_policy, "max_vec") and hasattr(target_policy, "num_layers"):
             self._update_max_vec_normalizations(target_policy, features, device)
 
-        # Forward to wrapped policy if it has initialize_to_environment
+        # Forward to wrapped policy
         if hasattr(self.policy, "initialize_to_environment"):
             self.policy.initialize_to_environment(features, action_names, action_max_params, device)
-        elif hasattr(self.policy, "activate_actions"):
-            # Fallback to old interface if available
-            self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
 
     def _get_inner_policy(self):

@@ -1,31 +1,15 @@
 from __future__ import annotations
 
-import copy
 import logging
-from typing import Any, Dict, Optional
+import random
+from typing import Any, Dict
 
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum, Task
-from metta.mettagrid.util.hydra import config_from_path
+from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
 
 logger = logging.getLogger(__name__)
-
-
-class SamplingCurriculum(Curriculum):
-    def __init__(self, env_cfg_template_path: str, env_overrides: Optional[DictConfig] = None):
-        self._cfg_template = config_from_path(env_cfg_template_path, env_overrides)
-
-    def get_task(self) -> Task:
-        cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
-        OmegaConf.resolve(cfg)
-        return Task(f"sample({self._cfg_template.sampling})", self, cfg)
-
-    def get_task_probs(self) -> dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = f"sample({self._cfg_template.sampling})"
-        return {task_name: 1.0}
 
 
 class SampledTaskCurriculum(Curriculum):
@@ -45,7 +29,7 @@ class SampledTaskCurriculum(Curriculum):
         cfg = self._task_cfg_template.copy()
         for k, v in self._sampling_parameters.items():
             OmegaConf.update(cfg, k, _sample(v), merge=False)
-        return Task(self._task_id, self, cfg)
+        return SingleTrialTask(self._task_id, self, cfg)
 
 
 def _sample(dist: Any) -> Any:
@@ -55,8 +39,12 @@ def _sample(dist: Any) -> Any:
             value = np.random.uniform(lo, hi)
             if dist.get("want_int", False):
                 value = int(value)
-    elif isinstance(dist, list):
-        value = np.random.choice(dist)
+    elif isinstance(dist, (list, ListConfig)):
+        # use random.choice instead of np.random.choice, since the latter will convert numbers to numpy types.
+        # we want native python types since we're going to be putting them in OmegaConfs, and OmegaConf doesn't support
+        # numpy types
+        value = random.choice(dist)
     else:
+        assert isinstance(dist, (int, float, str)), f"Invalid distribution type: {type(dist)}"
         value = dist
     return value

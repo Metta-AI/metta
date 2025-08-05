@@ -87,7 +87,7 @@ jobs:
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp"
+          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -175,11 +175,23 @@ jobs:
           - name: "app_backend-shard-0"
             package: "app_backend"
             shard_id: 0
-            num_shards: 2
+            num_shards: 5
           - name: "app_backend-shard-1"
             package: "app_backend"
             shard_id: 1
-            num_shards: 2
+            num_shards: 5
+          - name: "app_backend-shard-2"
+            package: "app_backend"
+            shard_id: 2
+            num_shards: 5
+          - name: "app_backend-shard-3"
+            package: "app_backend"
+            shard_id: 3
+            num_shards: 5
+          - name: "app_backend-shard-4"
+            package: "app_backend"
+            shard_id: 4
+            num_shards: 5
 
           # Mettagrid with sharding
           - name: "mettagrid-shard-0"
@@ -226,34 +238,143 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Free up disk space
+        id: cleanup
+        uses: ./.github/actions/disk-cleanup
+        with:
+          dry-run: "false"
+          docker-images: "false"
+
       - name: Run tests
         run: |
-          PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v --cov-report=xml:coverage.xml"
+          # Base pytest arguments (without coverage file specification)
+          PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
+
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS/-v/-vv}"  # upgrade verbosity
+            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS} --full-trace"
+            export PYTHONFAULTHANDLER=1
+          fi
+
+          COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
 
           # Handle sharding for larger packages
           if [ -n "${{ matrix.shard_id }}" ] && [ -n "${{ matrix.num_shards }}" ]; then
             echo "Running shard ${{ matrix.shard_id }} of ${{ matrix.num_shards }}"
+
+            COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
 
             # Set environment variables for the sharding plugin
             export PYTEST_SHARD_ID=${{ matrix.shard_id }}
             export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
 
             # Use the sharding plugin from common package
-            PYTEST_ARGS="$PYTEST_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
+            PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
           fi
 
           if [ "${{ matrix.package }}" == "core" ]; then
             # For core package, ignore other packages
             SUBPACKAGES=(app_backend agent mettagrid common)
             for pkg in "${SUBPACKAGES[@]}"; do
-              PYTEST_ARGS="$PYTEST_ARGS --ignore=$pkg"
+              PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS --ignore=$pkg"
             done
           else
             # Navigate to package directory
             cd ${{ matrix.package }}
           fi
 
-          pytest $PYTEST_ARGS
+          # Phase 1: Run fast tests (not marked as slow)
+          echo "::group::Phase 1 - Running fast tests"
+          echo "Running tests not marked as slow..."
+
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            # Stream output to log immediately for debugging crashes
+            pytest $PYTEST_BASE_ARGS -m "not slow" \
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml | tee pytest_output.log
+            FAST_TESTS_FAILED=$?
+          else
+            # Capture output for PRs
+            pytest $PYTEST_BASE_ARGS -m "not slow" \
+              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1 | tee pytest_output.log
+            FAST_TESTS_FAILED=$?
+          fi
+
+          # Display the output
+          cat pytest_output.log
+          echo "::endgroup::"
+
+          # Check for slow tests
+          echo "::group::Checking for slow tests"
+          cat pytest_output.log | awk '
+          BEGIN {
+              found_slow = 0
+          }
+          /===+ slowest [0-9]+ durations ===+/ {
+              print "Found slow tests in Phase 1:"
+              slow_section = 1
+              next
+          }
+          slow_section && /^[0-9]+\.[0-9]+s/ {
+              # Extract duration
+              duration = $1
+              gsub("s", "", duration)
+
+              # Extract phase (setup, call, teardown, etc.)
+              phase = $2
+
+              # Get the test path (third field onwards)
+              test_path = $3
+              for (i = 4; i <= NF; i++) {
+                  test_path = test_path " " $i
+              }
+
+              # Check if duration exceeds threshold
+              if (duration > 2.0) {
+                  print "::warning::" test_path " (" phase " phase) takes " duration " seconds - should be marked with @pytest.mark.slow"
+                  found_slow = 1
+              }
+          }
+          /^===/ && slow_section {
+              slow_section = 0
+          }
+          END {
+              if (found_slow == 0) {
+                  print "✅ No slow tests found in Phase 1"
+              }
+          }
+          '
+          echo "::endgroup::"
+
+          # Exit early if fast tests failed
+          if [ "${FAST_TESTS_FAILED:-0}" -ne 0 ]; then
+            echo "::error::Fast tests failed! Skipping slow tests."
+            exit $FAST_TESTS_FAILED
+          fi
+
+          # Phase 2: Run slow tests (only if fast tests passed)
+          echo "::group::Phase 2 - Running slow tests"
+          echo "Fast tests passed! Now running slow tests..."
+
+          # For slow tests, we need to append coverage data
+          SLOW_TESTS_EXIT=0
+          pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow${COVERAGE_SUFFIX}.xml || SLOW_TESTS_EXIT=$?
+
+          # Exit code 5 means no tests were collected (which is fine - not all packages have slow tests)
+          if [ "${SLOW_TESTS_EXIT:-0}" -eq 5 ]; then
+            echo "No slow tests found in this package/shard - that's OK!"
+            SLOW_TESTS_EXIT=0
+          elif [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
+            echo "::warning::Slow tests failed with exit code $SLOW_TESTS_EXIT"
+          fi
+          echo "::endgroup::"
+
+          # Report final status
+          if [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
+            echo "::warning::Some slow tests failed, but fast tests passed"
+            exit $SLOW_TESTS_EXIT
+          fi
+
+          echo "✅ Test run complete!"
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
@@ -261,8 +382,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
           chmod +x .github/scripts/upload_codecov.py
-          # Use the matrix name for codecov flags
-          SUBPACKAGES="${{ matrix.name }}" .github/scripts/upload_codecov.py
+          SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
   tests-summary:
     name: "Tests"
@@ -316,13 +436,23 @@ jobs:
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
-          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
+          runtime_issues=${{ steps.mettagrid_build_check.outputs.runtime_issues }}
+          max_warnings=50
 
-          echo "Build Summary: $errors errors, $warnings warnings"
+          # Fail if any of the values are not set
+          if [ -z "$errors" ] || [ -z "$warnings" ] || [ -z "$runtime_issues" ]; then
+            echo "❌ Missing value for errors, warnings, or runtime issues!"
+            exit 1
+          fi
+
+          echo "Build Summary: $errors errors, $warnings warnings, $runtime_issues runtime issues"
           echo "Maximum allowed warnings: $max_warnings"
 
           if [ "$errors" -gt 0 ]; then
             echo "❌ MettaGrid has build errors!"
+            exit 1
+          elif [ "$runtime_issues" -gt 0 ]; then
+            echo "❌ MettaGrid has runtime issues (segfaults, test failures)!"
             exit 1
           elif [ "$warnings" -gt "$max_warnings" ]; then
             echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
@@ -336,7 +466,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./mettagrid/build-coverage/coverage.info
+          files: ./mettagrid/build-debug/coverage.info
           flags: mettagrid_cpp
           name: mettagrid-cpp-coverage
           fail_ci_if_error: false
@@ -387,7 +517,7 @@ jobs:
       - name: Run super fast training
         if: matrix.test_type == 'replay'
         run: |
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +hardware=github wandb=off
+          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +user=ci wandb=off
 
       - name: Replay smoke test
         if: matrix.test_type == 'replay'
@@ -541,11 +671,10 @@ jobs:
         run: |
           source .venv/bin/activate
           cd mettagrid
-          cmake --preset release
-          cmake --build build-release
+          make benchmark
 
           mkdir -p benchmark_output
-          for f in build-release/benchmarks/*_benchmark; do
+          for f in build-release/*_benchmark; do
             "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
           done
 

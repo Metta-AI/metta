@@ -4,7 +4,9 @@
 import logging
 import sys
 
-import numpy as np  # noqa: E402
+import numpy as np
+
+from tools.utils import get_policy_store_from_cfg  # noqa: E402
 
 if not hasattr(np, "byte"):
     np.byte = np.int8
@@ -16,13 +18,13 @@ import time
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.agent.policy_store import PolicyStore
 from metta.common.util.lock import run_once
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.env_config import create_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.sweep.protein_metta import MettaProtein
+from metta.sweep.wandb_utils import record_protein_observation_to_wandb
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,9 @@ def load_file(run_dir, name):
 def main(cfg: DictConfig) -> int:
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
+    # Create env config
+    env_cfg = create_env_config(cfg)
+
     # Load run information from dist_cfg_path
     dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
     logger.info(f"Loaded run info from {cfg.dist_cfg_path}: run={dist_cfg.run}")
@@ -58,7 +63,7 @@ def main(cfg: DictConfig) -> int:
         logger.info(f"Starting evaluation for run: {cfg.run}")
 
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            policy_store = PolicyStore(cfg, wandb_run)
+            policy_store = get_policy_store_from_cfg(cfg, wandb_run)
             try:
                 # Fetch the latest policy record from the run
                 policy_pr = policy_store.policy_record("wandb://run/" + cfg.run, selector_type="latest")
@@ -87,7 +92,7 @@ def main(cfg: DictConfig) -> int:
                 policy_pr,
                 policy_store,
                 device=cfg.device,
-                vectorization=cfg.vectorization,
+                vectorization=env_cfg.vectorization,
             )
 
             # Start evaluation process
@@ -129,6 +134,7 @@ def main(cfg: DictConfig) -> int:
                 "time.total": train_time + eval_time,
                 "uri": policy_pr.uri,
                 "score": eval_metric,
+                cfg.sweep.metric: eval_metric,
             }
 
             sweep_stats.update(stats_update)
@@ -155,16 +161,27 @@ def main(cfg: DictConfig) -> int:
 
             # Record observation in Protein sweep
             total_time = train_time + eval_time
-            protein_wandb = MettaProtein(cfg.sweep, wandb_run)
 
-            # Record the observation properly so the Protein learns
-            protein_wandb.record_observation(eval_metric, total_time)
+            if wandb_run:
+                # Get the protein suggestion that was used for this run
+                # TODO: We can use the FS instead of WandB to save an API call.
+                protein_suggestion = wandb_run.summary.get("protein_suggestion", {})
+
+                # Record the observation with the actual results
+                record_protein_observation_to_wandb(
+                    wandb_run,
+                    protein_suggestion,  # The suggestion that was evaluated
+                    eval_metric or 0,  # The objective value achieved
+                    total_time,  # The cost (total time)
+                    False,  # is_failure
+                )
 
             # Save results for all ranks to read
             OmegaConf.save({"eval_metric": eval_metric, "total_time": total_time}, results_path)
 
             if wandb_run:
                 wandb_run.summary.update({"run_time": total_time})
+
             logger.info(f"Evaluation complete for run: {cfg.run}, score: {eval_metric}")
 
         return 0

@@ -24,11 +24,11 @@ from typing import Dict, List, Optional, TypedDict
 
 import httpx
 
-from metta.app_backend.stats_client import (
-    ClientEpochResponse,
-    ClientPolicyResponse,
-    ClientTrainingRunResponse,
-    StatsClient,
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.routes.stats_routes import (
+    EpochResponse,
+    PolicyResponse,
+    TrainingRunResponse,
 )
 
 
@@ -57,14 +57,14 @@ class TaskSuite(TypedDict):
 
 
 class PolicyData(TypedDict):
-    policy: ClientPolicyResponse
-    epoch: ClientEpochResponse
+    policy: PolicyResponse
+    epoch: EpochResponse
     config: EpochConfig
     name: str
 
 
 class CreatedRunData(TypedDict):
-    run: ClientTrainingRunResponse
+    run: TrainingRunResponse
     config: TrainingRunConfig
 
 
@@ -89,7 +89,7 @@ def update_training_run_metadata(
 
         # Update description
         desc_response = client.put(
-            f"/dashboard/training-runs/{run_id}/description",
+            f"/training-runs/{run_id}/description",
             json={"description": description},
             headers=headers,
         )
@@ -97,7 +97,7 @@ def update_training_run_metadata(
 
         # Update tags
         tags_response = client.put(
-            f"/dashboard/training-runs/{run_id}/tags",
+            f"/training-runs/{run_id}/tags",
             json={"tags": tags},
             headers=headers,
         )
@@ -242,165 +242,171 @@ def generate_test_data():
         print(f"  📊 Creating training run: {run_config['name']} for {run_config['user']}")
 
         # Create StatsClient for this user
-        with httpx.Client(base_url=base_url) as http_client:
-            stats_client = StatsClient(http_client, run_config["token"])
+        stats_client = StatsClient(backend_url=base_url, machine_token=run_config["token"])
 
-            # Create training run
-            training_run = stats_client.create_training_run(
-                name=run_config["name"],
-                attributes={
-                    "algorithm": run_config["algorithm"],
-                    "env_type": run_config["env_type"],
-                    "experiment_type": "test_data",
-                },
-                url=run_config["url"],
+        # Create training run
+        training_run = stats_client.create_training_run(
+            name=run_config["name"],
+            attributes={
+                "algorithm": run_config["algorithm"],
+                "env_type": run_config["env_type"],
+                "experiment_type": "test_data",
+            },
+            url=run_config["url"],
+        )
+
+        # Update description and tags
+        run_id = uuid.UUID(training_run.id)
+        update_training_run_metadata(
+            base_url, run_config["token"], run_id, run_config["description"], run_config["tags"]
+        )
+
+        created_runs.append({"run": training_run, "config": run_config})
+
+        # Create epochs and policies for this run
+        policies: List[PolicyData] = []
+        for _i, epoch_config in enumerate(run_config["epochs"]):
+            epoch = stats_client.create_epoch(
+                run_id=uuid.UUID(training_run.id),
+                start_training_epoch=epoch_config["start"],
+                end_training_epoch=epoch_config["end"],
+                attributes={"learning_rate": epoch_config["lr"], "performance_stage": epoch_config["performance"]},
             )
 
-            # Update description and tags
-            update_training_run_metadata(
-                base_url, run_config["token"], training_run.id, run_config["description"], run_config["tags"]
+            # Create policy for this epoch
+            policy_name = f"{run_config['name']}_epoch_{epoch_config['end']}"
+            policy = stats_client.create_policy(
+                name=policy_name,
+                description=f"Policy after {epoch_config['end']} epochs - {epoch_config['performance']} stage",
+                url=f"https://storage.example.com/policies/{policy_name}.pt",
+                epoch_id=uuid.UUID(epoch.id),
             )
+            policies.append({"policy": policy, "epoch": epoch, "config": epoch_config, "name": policy_name})
 
-            created_runs.append({"run": training_run, "config": run_config})
+        # Create comprehensive episode data for relevant suites
+        env_type = run_config["env_type"]
+        relevant_suites = [env_type] if env_type in eval_suites else ["navigation"]
 
-            # Create epochs and policies for this run
-            policies: List[PolicyData] = []
-            for _i, epoch_config in enumerate(run_config["epochs"]):
-                epoch = stats_client.create_epoch(
-                    run_id=training_run.id,
-                    start_training_epoch=epoch_config["start"],
-                    end_training_epoch=epoch_config["end"],
-                    attributes={"learning_rate": epoch_config["lr"], "performance_stage": epoch_config["performance"]},
-                )
+        # Add navigation suite for all runs to ensure cross-suite comparison
+        if "navigation" not in relevant_suites:
+            relevant_suites.append("navigation")
 
-                # Create policy for this epoch
-                policy_name = f"{run_config['name']}_epoch_{epoch_config['end']}"
-                policy = stats_client.create_policy(
-                    name=policy_name,
-                    description=f"Policy after {epoch_config['end']} epochs - {epoch_config['performance']} stage",
-                    url=f"https://storage.example.com/policies/{policy_name}.pt",
-                    epoch_id=epoch.id,
-                )
-                policies.append({"policy": policy, "epoch": epoch, "config": epoch_config, "name": policy_name})
+        for suite_name in relevant_suites:
+            suite = eval_suites[suite_name]
+            print(f"    🎯 Creating episodes for {suite_name} suite...")
 
-            # Create comprehensive episode data for relevant suites
-            env_type = run_config["env_type"]
-            relevant_suites = [env_type] if env_type in eval_suites else ["navigation"]
+            for task in suite["tasks"]:
+                for policy_data in policies:
+                    policy = policy_data["policy"]
+                    epoch = policy_data["epoch"]
+                    stage = policy_data["config"]["performance"]
 
-            # Add navigation suite for all runs to ensure cross-suite comparison
-            if "navigation" not in relevant_suites:
-                relevant_suites.append("navigation")
+                    # Generate realistic performance based on training stage
+                    performance_multipliers = {
+                        "early": 0.3,
+                        "random": 0.2,
+                        "baseline": 0.4,
+                        "improving": 0.6,
+                        "learning": 0.5,
+                        "optimized": 0.8,
+                        "converged": 0.9,
+                        "cooperative": 0.85,
+                        "easy_tasks": 0.7,
+                        "medium_tasks": 0.8,
+                        "hard_tasks": 0.75,
+                        "safe_random": 0.4,
+                        "constrained_learning": 0.7,
+                        "standard": 0.6,
+                        "robust": 0.8,
+                    }
+                    base_performance = performance_multipliers.get(stage, 0.5)
 
-            for suite_name in relevant_suites:
-                suite = eval_suites[suite_name]
-                print(f"    🎯 Creating episodes for {suite_name} suite...")
+                    # Add some task-specific variation
+                    task_difficulty = {
+                        "maze_easy": 1.2,
+                        "maze_hard": 0.7,
+                        "obstacle_course": 0.8,
+                        "pick_and_place": 0.9,
+                        "door_opening": 0.6,
+                        "object_stacking": 0.5,
+                        "team_navigation": 0.8,
+                        "resource_sharing": 0.7,
+                        "safe_navigation": 0.9,
+                        "emergency_stop": 0.95,
+                        "perturbed_env": 0.6,
+                        "domain_transfer": 0.4,
+                    }
+                    difficulty_factor = task_difficulty.get(task, 0.8)
 
-                for task in suite["tasks"]:
-                    for policy_data in policies:
-                        policy = policy_data["policy"]
-                        epoch = policy_data["epoch"]
-                        stage = policy_data["config"]["performance"]
+                    # Generate metrics for this episode
+                    agent_metrics: Dict[int, Dict[str, float]] = {}
+                    num_agents = 2 if suite_name == "cooperation" else 1
 
-                        # Generate realistic performance based on training stage
-                        performance_multipliers = {
-                            "early": 0.3,
-                            "random": 0.2,
-                            "baseline": 0.4,
-                            "improving": 0.6,
-                            "learning": 0.5,
-                            "optimized": 0.8,
-                            "converged": 0.9,
-                            "cooperative": 0.85,
-                            "easy_tasks": 0.7,
-                            "medium_tasks": 0.8,
-                            "hard_tasks": 0.75,
-                            "safe_random": 0.4,
-                            "constrained_learning": 0.7,
-                            "standard": 0.6,
-                            "robust": 0.8,
-                        }
-                        base_performance = performance_multipliers.get(stage, 0.5)
+                    for agent_id in range(num_agents):
+                        metrics = {}
+                        for metric in suite["metrics"]:
+                            if metric == "reward":
+                                base_reward = 100.0
+                                final_reward = base_reward * base_performance * difficulty_factor
+                                # Add some noise
+                                import random
 
-                        # Add some task-specific variation
-                        task_difficulty = {
-                            "maze_easy": 1.2,
-                            "maze_hard": 0.7,
-                            "obstacle_course": 0.8,
-                            "pick_and_place": 0.9,
-                            "door_opening": 0.6,
-                            "object_stacking": 0.5,
-                            "team_navigation": 0.8,
-                            "resource_sharing": 0.7,
-                            "safe_navigation": 0.9,
-                            "emergency_stop": 0.95,
-                            "perturbed_env": 0.6,
-                            "domain_transfer": 0.4,
-                        }
-                        difficulty_factor = task_difficulty.get(task, 0.8)
+                                policy_id = uuid.UUID(policy.id)
+                                random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
+                                noise = random.uniform(0.8, 1.2)
+                                metrics[metric] = final_reward * noise
 
-                        # Generate metrics for this episode
-                        agent_metrics: Dict[int, Dict[str, float]] = {}
-                        num_agents = 2 if suite_name == "cooperation" else 1
+                            elif "success" in metric or "efficiency" in metric:
+                                base_rate = base_performance * difficulty_factor
+                                import random
 
-                        for agent_id in range(num_agents):
-                            metrics = {}
-                            for metric in suite["metrics"]:
-                                if metric == "reward":
-                                    base_reward = 100.0
-                                    final_reward = base_reward * base_performance * difficulty_factor
-                                    # Add some noise
-                                    import random
+                                policy_id = uuid.UUID(policy.id)
+                                random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
+                                noise = random.uniform(0.9, 1.1)
+                                metrics[metric] = min(1.0, base_rate * noise)
 
-                                    random.seed(hash((policy.id, task, metric, agent_id)) % (2**32))
-                                    noise = random.uniform(0.8, 1.2)
-                                    metrics[metric] = final_reward * noise
+                            elif "time" in metric or "count" in metric:
+                                # Lower is better for these metrics
+                                base_value = 50.0
+                                # Better performance = lower time/count
+                                performance_factor = 2.0 - base_performance
+                                import random
 
-                                elif "success" in metric or "efficiency" in metric:
-                                    base_rate = base_performance * difficulty_factor
-                                    import random
+                                policy_id = uuid.UUID(policy.id)
+                                random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
+                                noise = random.uniform(0.8, 1.2)
+                                metrics[metric] = base_value * performance_factor * noise
 
-                                    random.seed(hash((policy.id, task, metric, agent_id)) % (2**32))
-                                    noise = random.uniform(0.9, 1.1)
-                                    metrics[metric] = min(1.0, base_rate * noise)
+                            else:
+                                # Generic positive metric
+                                base_value = 0.8
+                                import random
 
-                                elif "time" in metric or "count" in metric:
-                                    # Lower is better for these metrics
-                                    base_value = 50.0
-                                    # Better performance = lower time/count
-                                    performance_factor = 2.0 - base_performance
-                                    import random
+                                policy_id = uuid.UUID(policy.id)
+                                random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
+                                noise = random.uniform(0.9, 1.1)
+                                metrics[metric] = base_value * base_performance * noise
 
-                                    random.seed(hash((policy.id, task, metric, agent_id)) % (2**32))
-                                    noise = random.uniform(0.8, 1.2)
-                                    metrics[metric] = base_value * performance_factor * noise
+                        agent_metrics[agent_id] = metrics
 
-                                else:
-                                    # Generic positive metric
-                                    base_value = 0.8
-                                    import random
-
-                                    random.seed(hash((policy.id, task, metric, agent_id)) % (2**32))
-                                    noise = random.uniform(0.9, 1.1)
-                                    metrics[metric] = base_value * base_performance * noise
-
-                            agent_metrics[agent_id] = metrics
-
-                        # Create episode
-                        stats_client.record_episode(
-                            agent_policies={aid: policy.id for aid in range(num_agents)},
-                            agent_metrics=agent_metrics,
-                            primary_policy_id=policy.id,
-                            stats_epoch=epoch.id,
-                            eval_name=f"{suite_name}/{task}",
-                            simulation_suite=suite_name,
-                            replay_url=f"https://replays.example.com/{policy_data['name']}/{suite_name}_{task}.mp4",
-                            attributes={
-                                "agent_groups": {str(aid): 1 if aid == 0 else 2 for aid in range(num_agents)},
-                                "task_difficulty": difficulty_factor,
-                                "episode_seed": hash((policy.id, task)) % 10000,
-                                "environment_config": f"{suite_name}_standard",
-                            },
-                        )
+                    # Create episode
+                    policy_id = uuid.UUID(policy.id)
+                    epoch_id = uuid.UUID(epoch.id)
+                    stats_client.record_episode(
+                        agent_policies={aid: policy_id for aid in range(num_agents)},
+                        agent_metrics=agent_metrics,
+                        primary_policy_id=policy_id,
+                        stats_epoch=epoch_id,
+                        eval_name=f"{suite_name}/{task}",
+                        simulation_suite=suite_name,
+                        replay_url=f"https://replays.example.com/{policy_data['name']}/{suite_name}_{task}.mp4",
+                        attributes={
+                            "agent_groups": {str(aid): 1 if aid == 0 else 2 for aid in range(num_agents)},
+                            "task_difficulty": difficulty_factor,
+                            "episode_seed": hash((policy_id, task)) % 10000,
+                            "environment_config": f"{suite_name}_standard",
+                        },
+                    )
 
     print("✅ Test data generation completed!")
     print(f"📈 Created {len(created_runs)} training runs with comprehensive episode data")

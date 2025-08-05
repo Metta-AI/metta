@@ -172,6 +172,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard["description"] == "Updated description"
         assert dashboard["dashboard_state"] == updated_state
 
+    @pytest.mark.slow
     def test_update_saved_dashboard_route(self, test_client: TestClient, user_id: str) -> None:
         """Test the update saved dashboard API route."""
         initial_state = {
@@ -206,12 +207,7 @@ class TestSavedDashboards(BaseAsyncTest):
         # Update the dashboard
         update_response = test_client.put(
             f"/dashboard/saved/{dashboard_id}",
-            json={
-                "name": "Route Update Test Dashboard",
-                "description": "Updated description",
-                "type": "heatmap",
-                "dashboard_state": updated_state,
-            },
+            json=updated_state,
             headers={"X-Auth-Request-Email": user_id},
         )
         assert update_response.status_code == 200
@@ -219,7 +215,6 @@ class TestSavedDashboards(BaseAsyncTest):
 
         # Verify the update
         assert updated_dashboard["id"] == dashboard_id
-        assert updated_dashboard["description"] == "Updated description"
         assert updated_dashboard["dashboard_state"] == updated_state
 
         # Try to update with non-existent ID

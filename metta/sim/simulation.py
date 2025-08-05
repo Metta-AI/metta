@@ -26,9 +26,9 @@ from tensordict import TensorDict
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.vecenv import make_vecenv
@@ -169,20 +169,10 @@ class Simulation:
         ):
             policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
 
-        # Ensure policy has required interface
-        if hasattr(policy, "initialize_to_environment"):
-            # New interface: pass features and actions
-            features = metta_grid_env.get_observation_features()
-            # Simulations are generally used for evaluation, not training
-            policy.initialize_to_environment(features, action_names, max_args, self._device)
-        elif hasattr(policy, "activate_actions"):
-            # Old interface: just pass actions
-            policy.activate_actions(action_names, max_args, self._device)
-        else:
-            raise AttributeError(
-                f"Policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
-                f"Expected a MettaAgent-like object but got {type(policy).__name__}"
-            )
+        # Initialize policy to environment
+        features = metta_grid_env.get_observation_features()
+        # Simulations are generally used for evaluation, not training
+        policy.initialize_to_environment(features, action_names, max_args, self._device)
 
         if self._npc_pr is not None:
             npc_policy = self._npc_pr.policy
@@ -194,17 +184,10 @@ class Simulation:
             ):
                 npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
 
-            if hasattr(npc_policy, "initialize_to_environment"):
-                features = metta_grid_env.get_observation_features()
-                # NPC policies are used during evaluation
-                npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
-            elif hasattr(npc_policy, "activate_actions"):
-                npc_policy.activate_actions(action_names, max_args, self._device)
-            else:
-                raise AttributeError(
-                    f"NPC policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
-                    f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
-                )
+            # Initialize NPC policy to environment
+            features = metta_grid_env.get_observation_features()
+            # NPC policies are used during evaluation
+            npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -419,6 +402,7 @@ class Simulation:
 
                 # Get agent metrics for this episode
                 agent_metrics_df = stats_db.query(f"SELECT * FROM agent_metrics WHERE episode_id = '{episode_id}'")
+                # agent_id -> metric_name -> metric_value
                 agent_metrics: Dict[int, Dict[str, float]] = {}
 
                 for _, metric_row in agent_metrics_df.iterrows():

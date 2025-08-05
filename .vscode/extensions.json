@@ -11,6 +11,8 @@
     "ms-vscode-remote.remote-containers",
     "ms-vscode.cmake-tools",
     "ms-vscode.cpptools-extension-pack",
-    "twxs.cmake"
-  ]
+    "twxs.cmake",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+  ],
 }

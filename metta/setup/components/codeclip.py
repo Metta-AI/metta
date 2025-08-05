@@ -1,7 +1,7 @@
 import subprocess
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import UserType
+from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success, warning
 
@@ -28,7 +28,7 @@ class CodeclipSetup(SetupModule):
 
     def install(self) -> None:
         """Install codeclip as an editable uv tool."""
-        codeclip_dir = self.repo_root / "metta" / "setup" / "tools" / "codeclip"
+        codeclip_dir = self.repo_root / "manybot" / "codebot" / "codeclip"
 
         if not codeclip_dir.exists():
             warning(f"Codeclip directory not found at {codeclip_dir}")

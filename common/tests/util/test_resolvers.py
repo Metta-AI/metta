@@ -6,13 +6,11 @@ import datetime
 import re
 from unittest.mock import Mock
 
-import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
 from metta.common.util.resolvers import (
     oc_add,
-    oc_choose,
     oc_clamp,
     oc_date_format,
     oc_divide,
@@ -28,7 +26,6 @@ from metta.common.util.resolvers import (
     oc_scale,
     oc_subtract,
     oc_to_odd_min3,
-    oc_uniform,
     register_resolvers,
 )
 
@@ -63,37 +60,6 @@ class TestBasicResolvers:
     def test_if_resolver(self, condition, true_value, false_value, expected):
         """Test the if resolver with various inputs"""
         assert oc_if(condition, true_value, false_value) == expected
-
-    def test_uniform_resolver(self):
-        """Test the uniform resolver generates values within range"""
-        # Set seed for reproducibility
-        np.random.seed(42)
-
-        # Test multiple ranges
-        ranges = [(10, 20), (0, 1), (-10, 10)]
-        for min_val, max_val in ranges:
-            for _ in range(20):  # Run multiple times to ensure range is respected
-                val = oc_uniform(min_val, max_val)
-                assert min_val <= val <= max_val
-
-    def test_choose_resolver(self):
-        """Test the choose resolver picks from provided options"""
-        # Set seed for reproducibility
-        np.random.seed(42)
-
-        test_cases = [
-            [1, 2, 3],
-            ["apple", "banana", "cherry"],
-            [True, False],
-        ]
-
-        for choices in test_cases:
-            # Run multiple times to ensure it's working
-            results = [oc_choose(*choices) for _ in range(30)]
-            # Check that we get all possible choices
-            assert all(r in choices for r in results)
-            # Check that we get some variety (this could theoretically fail but is very unlikely)
-            assert len(set(results)) > 1
 
     @pytest.mark.parametrize(
         "a,b,expected",

@@ -8,8 +8,8 @@ trainer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/curriculum/navigation/learning_progress
+    env: /env/mettagrid/curriculum/navsequence/navsequence_all
 
 seed: null
-run_id: 20250720.03
+run_id: 20250730.17
 run: ${oc.env:USER}.local.${run_id}

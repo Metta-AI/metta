@@ -10,14 +10,12 @@ interface TrainingRunPolicySelectorProps {
 export const TrainingRunPolicySelector: React.FC<TrainingRunPolicySelectorProps> = ({
   value,
   onChange,
-  disabled = false
+  disabled = false,
 }) => {
   if (disabled) {
     return (
       <div className={styles.container}>
-        <div className={styles.disabledMessage}>
-          Select policies to configure training run policy selection
-        </div>
+        <div className={styles.disabledMessage}>Select policies to configure training run policy selection</div>
       </div>
     )
   }
@@ -25,7 +23,7 @@ export const TrainingRunPolicySelector: React.FC<TrainingRunPolicySelectorProps>
   return (
     <div className={styles.container}>
       <div className={styles.radioGroup}>
-        <div 
+        <div
           className={`${styles.radioOption} ${value === 'latest' ? styles.selected : ''}`}
           onClick={() => onChange('latest')}
         >
@@ -46,7 +44,7 @@ export const TrainingRunPolicySelector: React.FC<TrainingRunPolicySelectorProps>
           </div>
         </div>
 
-        <div 
+        <div
           className={`${styles.radioOption} ${value === 'best' ? styles.selected : ''}`}
           onClick={() => onChange('best')}
         >
@@ -62,7 +60,8 @@ export const TrainingRunPolicySelector: React.FC<TrainingRunPolicySelectorProps>
           <div className={styles.radioContent}>
             <div className={styles.radioLabel}>Best</div>
             <div className={styles.radioDescription}>
-              Select the best performing policy from each training run based on average score across all selected evaluations.
+              Select the best performing policy from each training run based on average score across all selected
+              evaluations.
             </div>
           </div>
         </div>
