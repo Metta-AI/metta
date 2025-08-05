@@ -227,7 +227,7 @@ On step 0:
   "id": 99,
   "agent_id": 0,
   "rotation": 3,
-  "location": [12, 11],
+  "location": [12, 11, 0],
   "inventory": [1, 1],
   ...
 }
@@ -240,7 +240,7 @@ sent every time they change.
 ```json
 {
   "id": 99,
-  "location": [12, 11],
+  "location": [12, 11, 0],
   "inventory": [1, 1],
   ...
 }
