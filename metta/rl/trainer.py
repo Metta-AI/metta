@@ -156,8 +156,7 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
-    policy: PolicyAgent
-    policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
+    initial_policy_record = latest_saved_policy_record = load_or_initialize_policy(
         agent_cfg=agent_cfg,
         env_cfg=env_cfg,
         trainer_cfg=trainer_cfg,
@@ -167,6 +166,7 @@ def train(
         is_master=is_master,
         rank=rank,
     )
+    policy: PolicyAgent = latest_saved_policy_record.policy
 
     # Validate that policy matches environment
     validate_policy_environment_match(policy, metta_grid_env)
@@ -399,7 +399,7 @@ def train(
                             if hasattr(policy, "clip_weights"):
                                 policy.clip_weights()
 
-                            if str(device).startswith("cuda"):
+                            if device.type == "cuda":
                                 torch.cuda.synchronize()
 
                         minibatch_idx += 1
@@ -439,7 +439,6 @@ def train(
                     memory_monitor=memory_monitor,
                     system_monitor=system_monitor,
                     latest_saved_policy_record=latest_saved_policy_record,
-                    initial_policy_record=initial_policy_record,
                     optimizer=optimizer,
                     kickstarter=kickstarter,
                 )
@@ -498,8 +497,7 @@ def train(
         # Evaluate policy (with remote evaluation support)
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if latest_saved_policy_record:
-                # Create stats epoch if needed
-                if stats_client is not None and stats_tracker.stats_run_id is not None:
+                if stats_client and stats_tracker.stats_run_id:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
                         run_id=stats_tracker.stats_run_id,
                         start_training_epoch=stats_tracker.stats_epoch_start,
