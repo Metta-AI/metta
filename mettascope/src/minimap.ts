@@ -1,5 +1,6 @@
 import * as Common from './common.js'
 import { ctx, state, ui } from './common.js'
+import { Grid } from './grid.js'
 import { parseHtmlColor } from './htmlutils.js'
 import type { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
@@ -51,6 +52,62 @@ export function renderMinimapObjects(offset: Vec2f) {
   }
 }
 
+/** Renders visual ranges on the minimap. */
+export function renderMinimapVisualRanges(offset: Vec2f) {
+  if (state.replay === null || ctx === null || ctx.ready === false) {
+    return
+  }
+
+  if (state.showVisualRanges || state.showFogOfWar) {
+    // Compute the visibility map; each agent contributes to the visibility map.
+    const visibilityMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
+
+    // Update the visibility map for a grid object.
+    function updateVisibilityMap(gridObject: any) {
+      const location = gridObject.location.get()
+      const x = location[0]
+      const y = location[1]
+      const visionSize = Math.floor(gridObject.visionSize / 2)
+      for (let dx = -visionSize; dx <= visionSize; dx++) {
+        for (let dy = -visionSize; dy <= visionSize; dy++) {
+          visibilityMap.set(x + dx, y + dy, true)
+        }
+      }
+    }
+
+    if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== undefined) {
+      // When there is a selected grid object, only update its visibility.
+      updateVisibilityMap(state.selectedGridObject)
+    } else {
+      // When there is no selected grid object, update the visibility map for all agents.
+      for (const gridObject of state.replay.objects) {
+        const typeName = state.replay.typeNames[gridObject.typeId]
+        if (typeName === 'agent') {
+          updateVisibilityMap(gridObject)
+        }
+      }
+    }
+
+    let color = [0, 0, 0, 0.25]
+    if (state.showFogOfWar) {
+      color = [0, 0, 0, 1]
+    }
+    for (let x = 0; x < state.replay.mapSize[0]; x++) {
+      for (let y = 0; y < state.replay.mapSize[1]; y++) {
+        if (!visibilityMap.get(x, y)) {
+          ctx.drawSolidRect(
+            x + offset.x(),
+            y + offset.y(),
+            1,
+            1,
+            color
+          )
+        }
+      }
+    }
+  }
+}
+
 /** Draws the minimap. */
 export function drawMiniMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
@@ -78,6 +135,7 @@ export function drawMiniMap(panel: PanelInfo) {
   // Use the shared rendering logic.
   ctx.scale(Common.MINI_MAP_TILE_SIZE, Common.MINI_MAP_TILE_SIZE)
   renderMinimapObjects(new Vec2f(0, 0))
+  renderMinimapVisualRanges(new Vec2f(0, 0))
 
   // Draw where the screen is on the minimap.
   const pos = new Vec2f(
