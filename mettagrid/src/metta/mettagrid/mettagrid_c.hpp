@@ -48,6 +48,7 @@ struct GlobalObsConfig {
   bool last_action = true;  // Controls both last_action and last_action_arg
   bool last_reward = true;
   bool resource_rewards = false;  // Controls whether resource rewards are included in observations
+  bool visitation_counts = true;  // Controls whether visitation counts are included in observations
 };
 
 struct GameConfig {
