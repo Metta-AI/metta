@@ -108,6 +108,9 @@ class SingleTrialTask(Task):
         self._total_score += score
 
         # Call parent to track trial reward
+        print(f"Num trials: {self._num_trials}")
+        print(f"Current trial: {self.get_current_trial()}")
+        print(f"trial rewards: {self._trial_rewards}")
         self._trial_rewards.append(score)
 
         # Only mark as complete when we've actually completed all trials
