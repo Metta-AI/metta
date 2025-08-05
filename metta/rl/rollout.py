@@ -1,13 +1,11 @@
 """Rollout phase functions for Metta training."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import Any
 
+import numpy as np
 import torch
 from torch import Tensor
-
-if TYPE_CHECKING:
-    pass
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_state import PolicyState
@@ -25,7 +23,7 @@ def get_observation(
     vecenv: PufferlibVecEnv,
     device: torch.device,
     timer: Stopwatch,
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
     """Get observations from vectorized environment and convert to tensors."""
     with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
@@ -47,7 +45,7 @@ def get_observation(
 def send_observation(
     vecenv: PufferlibVecEnv,
     actions: Tensor,
-    dtype_actions: Any,
+    dtype_actions: np.dtype,
     timer: Stopwatch,
 ) -> None:
     """Send actions back to the vectorized environment."""
@@ -61,7 +59,7 @@ def run_policy_inference(
     experience: Experience,
     training_env_id_start: int,
     device: torch.device,
-) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
+) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor] | None]:
     """Run policy inference to get actions and values."""
     with torch.no_grad():
         state = PolicyState()
@@ -86,7 +84,7 @@ def run_policy_inference(
     return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
 
 
-def get_lstm_config(policy: PolicyAgent) -> Tuple[int, int]:
+def get_lstm_config(policy: PolicyAgent) -> tuple[int, int]:
     """Extract LSTM configuration from policy."""
     hidden_size = getattr(policy, "hidden_size", 256)
     num_lstm_layers = 2  # Default value
