@@ -1,6 +1,7 @@
 import * as Common from './common.js'
-import { ctx, setFollowSelection, state, ui } from './common.js'
+import { ctx, setFollowSelection, state, ui, HEATMAP_MIN_OPACITY, HEATMAP_MAX_OPACITY } from './common.js'
 import { Grid } from './grid.js'
+import { renderHeatmapTiles } from './heatmap.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
 import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
@@ -645,6 +646,21 @@ function drawGrid() {
   }
 }
 
+/** Draws the heatmap overlay. */
+function drawHeatmap() {
+  if (state.showHeatmap) {
+    renderHeatmapTiles(state.step, (x: number, y: number, color: [number, number, number, number]) => {
+      ctx.drawSolidRect(
+        x * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+        y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
+        Common.TILE_SIZE,
+        Common.TILE_SIZE,
+        color
+      )
+    })
+  }
+}
+
 /** Given a position and an orientation, returns the position offset by the orientation. */
 function applyOrientationOffset(x: number, y: number, orientation: number) {
   switch (orientation) {
@@ -884,6 +900,7 @@ export function drawMap(panel: PanelInfo) {
     drawSelection()
   } else {
     drawFloor()
+    drawHeatmap()
     drawWalls()
     drawTrajectory()
     drawObjects()

@@ -1,5 +1,6 @@
 import * as Common from './common.js'
 import { ctx, state, ui } from './common.js'
+import { renderHeatmapTiles } from './heatmap.js'
 import { Grid } from './grid.js'
 import { parseHtmlColor } from './htmlutils.js'
 import type { PanelInfo } from './panels.js'
@@ -13,6 +14,13 @@ export function renderMinimapObjects(offset: Vec2f) {
 
   // Draw a background rect that's the size of the map.
   ctx.drawSolidRect(offset.x(), offset.y(), state.replay.mapSize[0], state.replay.mapSize[1], parseHtmlColor('#E7D4B7'))
+
+  // Draw the heatmap background if enabled.
+  if (state.showHeatmap) {
+    renderHeatmapTiles(state.step, (x: number, y: number, color: [number, number, number, number]) => {
+      ctx.drawSolidRect(x + offset.x(), y + offset.y(), 1, 1, color)
+    })
+  }
 
   // Draw the grid objects on the minimap.
   for (const gridObject of state.replay.objects) {
