@@ -21,12 +21,14 @@ setup: |
   git checkout "$METTA_GIT_REF"
   echo "Checked out: $(git rev-parse HEAD)"
 
-  bash ./devops/skypilot/config/setup-common.sh
+  # Note that environment variables passed into skypilot are not available in the "setup" phase
 
 run: |
   set -e
-  echo "[RUN] Starting run..."
+  echo "[RUN] Setting up environment..."
+  bash ./devops/skypilot/config/configure_environment.sh
 
+  echo "[RUN] Starting bash..."
   exec bash
 
 envs:

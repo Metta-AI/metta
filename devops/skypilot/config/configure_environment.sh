@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-echo "Running common setup..."
+echo "Configuring runtime environment..."
 
 # Python environment setup
 echo "Setting up Python environment..."
@@ -9,9 +9,12 @@ uv sync
 # Create required directories
 mkdir -p "$WANDB_DIR"
 
-# Setup bash environment
+# Setup bash environment (idempotent)
 echo "Configuring bash environment..."
-cat >> ~/.bashrc << 'EOF'
+
+# Check if already configured to avoid duplicate entries
+if ! grep -q "# Metta environment" ~/.bashrc 2>/dev/null; then
+    cat >> ~/.bashrc << 'EOF'
 
 # Metta environment
 cd /workspace/metta
@@ -26,15 +29,19 @@ export MASTER_PORT=8008
 export NODE_INDEX=${SKYPILOT_NODE_RANK}
 export NCCL_SHM_DISABLE=1
 EOF
+    echo "Bash environment configured"
+else
+    echo "Bash environment already configured, skipping"
+fi
 
-# Create job secrets
+# Create job secrets (idempotent - overwrites if exists)
 if [ -z "$WANDB_PASSWORD" ]; then
     echo "ERROR: WANDB_PASSWORD environment variable is required but not set"
     echo "Please ensure WANDB_PASSWORD is set in your Skypilot environment variables"
     exit 1
 fi
 
-echo "Creating job secrets..."
+echo "Creating/updating job secrets..."
 
 # Build command - wandb-password is always included
 CMD="./devops/skypilot/create_job_secrets.py --wandb-password \"$WANDB_PASSWORD\""
@@ -50,4 +57,6 @@ eval $CMD || {
     exit 1
 }
 
-echo "Common setup completed"
+source ~/.bashrc
+
+echo "Runtime environment configuration completed"
