@@ -24,7 +24,7 @@
 #include "objects/box.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
-#include "renderer/raylib.hpp"
+#include "renderer/hermes.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
 
@@ -1187,8 +1187,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.attr("dtype_masks") = dtype_masks();
   m.attr("dtype_success") = dtype_success();
 
-  py::class_<Metta2DPy>(m, "Metta2D")
+  py::class_<HermesPy>(m, "Hermes")
       .def(py::init<>())
-      .def("update", &Metta2DPy::update, py::arg("env"))
-      .def("render", &Metta2DPy::render);
+      .def("update", &HermesPy::update, py::arg("env"))
+      .def("render", &HermesPy::render);
 }
