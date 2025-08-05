@@ -305,7 +305,7 @@ def train(
 
                 while not experience.ready_for_training:
                     # Get observation
-                    o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
+                    o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
                     td = buffer_step[training_env_id].clone()
@@ -313,6 +313,7 @@ def train(
                     td["rewards"] = r
                     td["dones"] = d.float()
                     td["truncateds"] = t.float()
+                    td.training_env_id = training_env_id
 
                     # Inference
                     with torch.no_grad():
