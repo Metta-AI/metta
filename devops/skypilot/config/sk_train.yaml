@@ -58,6 +58,12 @@ setup: |
   # Create required directories
   mkdir -p "$WANDB_DIR"
 
+  echo "METTA_CMD_ARGS = $METTA_CMD_ARGS"
+  echo "METTA_RUN_ID = $METTA_RUN_ID"
+  echo "METTA_CMD = $METTA_CMD"
+  echo "METTA_GIT_REF = $METTA_GIT_REF"
+  echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
+
   # Note that different sets of skypilot environment variables are available in "run" vs "setup"
   # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
@@ -107,7 +113,14 @@ run: |
   echo "  MASTER_ADDR=$MASTER_ADDR"
   echo "  NODE_INDEX=$NODE_INDEX"
 
-  echo "Running $METTA_CMD script with run=$METTA_RUN_ID and args $METTA_CMD_ARGS"
+
+  echo "METTA_CMD_ARGS = $METTA_CMD_ARGS"
+  echo "METTA_RUN_ID = $METTA_RUN_ID"
+  echo "METTA_CMD = $METTA_CMD"
+  echo "METTA_GIT_REF = $METTA_GIT_REF"
+  echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
+
+  echo "Running $METTA_CMD script for run=$METTA_RUN_ID with args $METTA_CMD_ARGS"
   ./devops/$METTA_CMD.sh \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
