@@ -51,7 +51,18 @@ run: |
   echo "[RUN] Starting run..."
 
   echo "[RUN] Setting up environment..."
-  bash ./devops/skypilot/config/configure_environment.sh
+
+
+  # Check if the script exists
+  if [ -f ./devops/skypilot/config/configure_environment.sh ]; then
+    echo "[RUN] Setting up environment..."
+    bash ./devops/skypilot/config/configure_environment.sh
+  else
+    echo "[ERROR] configure_environment.sh not found!"
+    ls -la ./devops/skypilot/config/
+    exit 1
+  fi
+
 
   cd /workspace/metta
   source ./devops/setup.env
