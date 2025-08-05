@@ -85,6 +85,8 @@ class SingleTrialTask(Task):
         self._num_trials = env_cfg.get("num_trials", 1)
         self._current_trial = 0
         self._is_complete = False
+        # Track per-trial rewards for WandB logging when num_trials > 1
+        self._trial_rewards = []
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
@@ -93,6 +95,10 @@ class SingleTrialTask(Task):
         assert not self._is_complete, "Task is already complete"
         self._current_trial += 1
         self._total_score += score
+
+        # Track trial reward for WandB logging
+        self._trial_rewards.append(score)
+
         if self._current_trial >= self._num_trials:
             self._is_complete = True
             for curriculum, id in self._curricula:
@@ -104,6 +110,18 @@ class SingleTrialTask(Task):
     def env_cfg(self) -> DictConfig:
         assert self._env_cfg is not None, "Task has no environment configuration"
         return self._env_cfg
+
+    def get_trial_rewards(self) -> list[float]:
+        """Get the list of trial rewards for WandB logging."""
+        return self._trial_rewards.copy()
+
+    def get_current_trial(self) -> int:
+        """Get the current trial number (1-indexed)."""
+        return self._current_trial
+
+    def get_num_trials(self) -> int:
+        """Get the total number of trials for this task."""
+        return self._num_trials
 
 
 class SingleTaskCurriculum(Curriculum):
