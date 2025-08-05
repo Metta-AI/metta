@@ -72,8 +72,6 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
 
-    logger.info(f"set num_workers to {cfg.trainer.num_workers}")
-
     # Determine git hash for remote simulations
     if cfg.trainer.simulation.evaluate_remote and not cfg.trainer.simulation.git_hash:
         cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
@@ -87,11 +85,15 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
             logger.info("No git hash available for remote evaluations")
 
     cfg = validate_train_job_config(cfg)
-    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
+
+    logger.info("Trainer config after all overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
     if os.environ.get("RANK", "0") == "0":
-        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
+        config_yaml_path = os.path.join(cfg.run_dir, "config.yaml")
+        logger.info(f"saving trainer config to {config_yaml_path}")
+        with open(config_yaml_path, "w") as f:
             OmegaConf.save(cfg, f)
+
     train_job = TrainJob(cfg.train_job)
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
@@ -178,13 +180,10 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if is_master:
-        logger.info(f"Train job config (master): {OmegaConf.to_yaml(cfg, resolve=True)}")
-
         # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             handle_train(cfg, wandb_run, logger)
     else:
-        logger.info(f"Train job config (node): {OmegaConf.to_yaml(cfg, resolve=True)}")
         handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
