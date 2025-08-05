@@ -191,6 +191,15 @@ class CheckpointManager:
                     f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
                 )
 
+            ##########################################################below
+            original_action_config = policy_to_save.get_original_action_config()
+            if original_action_config is not None:
+                metadata["original_action_config"] = original_action_config
+                logger.info(
+                    f"Saving original_action_config with {len(original_action_config['names'])} actions to metadata"
+                )
+            ##########################################################
+
         # Create and save policy record
         policy_record = self.policy_store.create_empty_policy_record(
             name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir

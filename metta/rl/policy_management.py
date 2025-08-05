@@ -224,9 +224,24 @@ def load_or_initialize_policy(
     # If we found an existing policy, all ranks use it
     if policy_record:
         # Restore original_feature_mapping from metadata if available
-        if isinstance(policy_record.policy, MettaAgent) and "original_feature_mapping" in policy_record.metadata:
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping")
+        #
+        #      if isinstance(policy_record.policy, MettaAgent) and "original_feature_mapping" in policy_record.metadata:
+        #          policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+        #          logger.info("Restored original_feature_mapping")
+        #
+        ##########################################################below
+        if isinstance(policy_record.policy, MettaAgent):
+            if "original_feature_mapping" in policy_record.metadata:
+                policy_record.policy.restore_original_feature_mapping(
+                    policy_record.metadata["original_feature_mapping"]
+                )
+                logger.info("Restored original_feature_mapping")
+
+            # Restore original_action_config from metadata if available
+            if "original_action_config" in policy_record.metadata:
+                policy_record.policy.restore_original_action_config(policy_record.metadata["original_action_config"])
+                logger.info("Restored original_action_config")
+        ##########################################################
 
         policy = policy_record.policy
         initial_policy_record = policy_record
