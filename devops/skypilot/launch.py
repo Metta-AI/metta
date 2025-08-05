@@ -148,6 +148,7 @@ def main():
             METTA_CMD_ARGS=" ".join(cmd_args),
             METTA_GIT_REF=commit_hash,
             HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
+            NCCL_DEBUG="INFO",
         )
     )
     task.name = run_id
@@ -161,9 +162,6 @@ def main():
         no_spot=args.no_spot,
         timeout_hours=args.max_runtime_hours,
     )
-
-    print(task)
-    exit(1)
 
     set_task_secrets(task)
 
