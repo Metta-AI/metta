@@ -195,12 +195,14 @@ def train(
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
+    logger.info("about to get_observation_features")
     features = metta_grid_env.get_observation_features()
 
-    logger.info("about to  initialize_to_environment")
+    logger.info("about to initialize_to_environment")
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Get LSTM configuration
+    logger.info("about to initialize_to_environment")
     hidden_size, num_lstm_layers = get_lstm_config(policy)
 
     # Create experience buffer
