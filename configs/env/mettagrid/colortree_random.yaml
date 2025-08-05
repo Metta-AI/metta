@@ -1,0 +1,17 @@
+# Random-sequence variant of ColorTree demo
+defaults:
+  - colortree_demo
+  - _self_
+
+# Test with a fixed sequence first to verify the curriculum works
+game:
+  max_steps: 64
+
+  actions:
+    color_tree:
+      target_sequence: [2, 0, 3, 1]  # A different fixed sequence for testing
+      trial_sequences:
+        - [2, 0, 3, 1]
+        - [2, 0, 3, 1]
+        - [2, 0, 3, 1]
+        - [2, 0, 3, 1]
