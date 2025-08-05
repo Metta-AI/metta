@@ -5,8 +5,6 @@ set -e
 # Parse arguments
 args="${@:1}"
 
-source ./devops/setup.env
-
 # Start heartbeat monitor if available
 HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
 HEARTBEAT_TIMEOUT=${HEARTBEAT_TIMEOUT:-600} # Read from env or default to 600

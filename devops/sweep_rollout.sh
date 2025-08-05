@@ -16,8 +16,6 @@ fi
 # This is needed for local sweeps.
 hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
 
-source ./devops/setup.env # TODO: Check this is the right sourcing.
-
 # Parse distributed config path with unique hash per process
 DIST_ID=${DIST_ID:-localhost}
 PROCESS_HASH=$(python3 -c "import uuid; print(uuid.uuid4().hex[:8])")

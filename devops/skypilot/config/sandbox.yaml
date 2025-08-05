@@ -26,6 +26,7 @@ setup: |
 
 run: |
   set -e
+  cd /workspace/metta
   echo "[RUN] Setting up environment..."
   bash ./devops/skypilot/config/configure_environment.sh
 

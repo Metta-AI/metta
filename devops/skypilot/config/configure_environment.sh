@@ -19,7 +19,13 @@ if ! grep -q "# Metta environment" ~/.bashrc 2>/dev/null; then
 # Metta environment
 cd /workspace/metta
 . .venv/bin/activate
-. devops/setup.env
+
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONOPTIMIZE=1
+export HYDRA_FULL_ERROR=1
+export WANDB_DIR="./wandb"
+export DATA_DIR=${DATA_DIR:-./train_dir}
 
 # GPU cluster environment variables
 export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}
