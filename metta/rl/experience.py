@@ -118,8 +118,8 @@ class Experience:
         indices = self.ep_indices[env_id]
 
         # Store data in segmented tensors
-        self.buffer[indices, episode_length].update(data_td.select(*self.buffer.keys(include_nested=True)))
-
+        # self.buffer[indices, episode_length].update(data_td.select(*self.buffer.keys(include_nested=True)))
+        self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_length))
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
@@ -171,11 +171,6 @@ class Experience:
         minibatch_td["advantages"] = advantages[idx]
         minibatch_td["returns"] = advantages[idx] + minibatch_td["values"]
         prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        # minibatch_td["indices"] = idx.view(-1, 1)
-        # minibatch_td["prio_weights"] = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        # minibatch_td["indices"] = idx.view(-1, 1).expand(-1, self.bptt_horizon)
-        # prio_weights_val = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        # minibatch_td["prio_weights"] = prio_weights_val.expand(-1, self.bptt_horizon)
         return minibatch_td, idx, prio_weights
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
