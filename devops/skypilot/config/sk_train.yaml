@@ -84,10 +84,12 @@ run: |
     echo "Latency script is missing!"
   fi
 
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "Collecting instance cost..."
     if uv run python common/src/metta/common/util/cost_monitor.py; then
-      echo "wrote \"export METTA_HOURLY_COST=$METTA_HOURLY_COST\" to $METTA_ENV_FILE"
+      echo "wrote METTA_HOURLY_COST to $METTA_ENV_FILE"
     else
       echo "Cost monitor script failed to run."
     fi
@@ -96,7 +98,7 @@ run: |
   fi
 
   # load environment vars written by child scripts
-  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+
   source "$METTA_ENV_FILE"
 
   echo "Cluster configuration:"
@@ -105,7 +107,7 @@ run: |
   echo "  MASTER_ADDR=$MASTER_ADDR"
   echo "  NODE_INDEX=$NODE_INDEX"
 
-  echo "Running $METTA_CMD script..."
+  echo "Running $METTA_CMD script with run=$METTA_RUN_ID and args $METTA_CMD_ARGS"
   ./devops/$METTA_CMD.sh \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
