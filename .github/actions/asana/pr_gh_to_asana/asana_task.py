@@ -377,64 +377,6 @@ class AsanaTask:
             print(f"[ensure_github_url_in_task] GitHub attachment failed: {response.text}")
             return None
 
-    def ensure_github_review_url_in_task(
-        self,
-        task_url: str,
-        review_title: str,
-        github_review_url: str,
-        review_id: str,
-    ) -> dict | None:
-        print(
-            f"[ensure_github_review_url_in_task] ensure_github_review_url_in_task() called with task_url='{task_url}', review_title='{review_title}', review_id='{review_id}'"
-        )
-
-        print(f"[ensure_github_review_url_in_task] Using review ID: {review_id}")
-
-        headers = {
-            "Authorization": f"Bearer {self.attachment_secret}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "allowedProjects": [self.project_id],
-            "blockedProjects": [],
-            "pullRequestName": review_title,
-            "pullRequestDescription": task_url,
-            "pullRequestNumber": int(review_id),
-            "pullRequestURL": github_review_url,
-        }
-        print(f"[ensure_github_review_url_in_task] Making attachment request with payload: {payload}")
-        response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
-        print(f"[ensure_github_review_url_in_task] Attachment response status: {response.status_code}")
-        if response.status_code == 201:
-            print("[ensure_github_review_url_in_task] GitHub review attachment successful")
-            return response.json()
-        else:
-            print(f"[ensure_github_review_url_in_task] GitHub review attachment failed: {response.text}")
-            return None
-
-    def extract_github_review_id(self, asana_comment_text):
-        """
-        Extract GitHub review ID from Asana comment text
-
-        Args:
-            asana_comment_text: The text content of an Asana comment
-
-        Returns:
-            int: GitHub review ID if found, None otherwise
-        """
-
-        if not asana_comment_text:
-            return None
-
-        pattern = r"ID (\d+)"
-
-        match = re.search(pattern, asana_comment_text)
-
-        if match:
-            return int(match.group(1))
-
-        return None
-
     def extract_github_url_from_comment(self, asana_comment_text):
         """
         Extract GitHub URL from Asana comment text
