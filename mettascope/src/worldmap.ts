@@ -5,7 +5,7 @@ import { renderHeatmapTiles } from './heatmap.js'
 import { type HoverBubble, updateHoverBubble, updateReadout } from './hoverbubbles.js'
 import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
-import { renderMinimapObjects } from './minimap.js'
+import { renderMinimapObjects, renderMinimapVisualRanges } from './minimap.js'
 import type { PanelInfo } from './panels.js'
 import { Entity, sendAction } from './replay.js'
 import { search, searchMatch } from './search.js'
@@ -895,6 +895,7 @@ export function drawMap(panel: PanelInfo) {
     ctx.save()
     ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
     renderMinimapObjects(new Vec2f(-0.5, -0.5))
+    renderMinimapVisualRanges(new Vec2f(-0.5, -0.5))
     ctx.restore()
     drawSelection()
   } else {
