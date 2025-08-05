@@ -85,8 +85,6 @@ class SingleTrialTask(Task):
         self._num_trials = env_cfg.get("num_trials", 1)
         self._current_trial = 0
         self._is_complete = False
-        # Track per-trial rewards for WandB logging when num_trials > 1
-        self._trial_rewards = []
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
