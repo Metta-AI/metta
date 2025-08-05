@@ -189,6 +189,7 @@ def train(
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
         torch.distributed.barrier()
+        logger.info("about to wrap_agent_distributed")
         policy = wrap_agent_distributed(policy, device)
         logger.info(f"wrapped policy\n: {policy}")
         torch.distributed.barrier()
