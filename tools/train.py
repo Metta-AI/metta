@@ -86,8 +86,6 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
 
     cfg = validate_train_job_config(cfg)
 
-    logger.info("Trainer config after all overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
-
     if os.environ.get("RANK", "0") == "0":
         config_yaml_path = os.path.join(cfg.run_dir, "config.yaml")
         logger.info(f"saving trainer config to {config_yaml_path}")
@@ -108,6 +106,10 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     if stats_client is not None:
         stats_client.validate_authenticated()
 
+    trainer_cfg = create_trainer_config(cfg)
+
+    logger.info("Trainer config:\n%s", trainer_cfg)
+
     # Use the functional train interface directly
     train(
         run=cfg.run,
@@ -115,7 +117,7 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
         env_cfg=env_cfg,
         agent_cfg=cfg.agent,
         device=torch.device(env_cfg.device),
-        trainer_cfg=create_trainer_config(cfg),
+        trainer_cfg=trainer_cfg,
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,

@@ -18,7 +18,7 @@ echo "export PYTHONPATH=\"${PYTHONPATH:+$PYTHONPATH:}$(pwd)\""       >> "$METTA_
 echo "export PYTHONOPTIMIZE=${1}"                                    >> "$METTA_ENV_FILE"
 echo "export HYDRA_FULL_ERROR=${1}"                                  >> "$METTA_ENV_FILE"
 
-echo "export NCCL_DEBUG=\"INFO\""                                    >> "$METTA_ENV_FILE"
+# echo "export NCCL_DEBUG=\"INFO\""                                    >> "$METTA_ENV_FILE"
 echo "export WANDB_DIR=\"./wandb\""                                  >> "$METTA_ENV_FILE"
 echo "export DATA_DIR=\"${DATA_DIR:-./train_dir}\""                  >> "$METTA_ENV_FILE"
 
