@@ -68,7 +68,7 @@ setup: |
   # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
 run: |
-  set -e
+  set -euo pipefail
   cd /workspace/metta
 
   # Activate the metta venv
@@ -113,7 +113,6 @@ run: |
   echo "  MASTER_ADDR=$MASTER_ADDR"
   echo "  NODE_INDEX=$NODE_INDEX"
 
-
   echo "METTA_CMD_ARGS = $METTA_CMD_ARGS"
   echo "METTA_RUN_ID = $METTA_RUN_ID"
   echo "METTA_CMD = $METTA_CMD"
@@ -121,10 +120,35 @@ run: |
   echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
 
   echo "Running $METTA_CMD script for run=$METTA_RUN_ID with args $METTA_CMD_ARGS"
-  ./devops/$METTA_CMD.sh \
-    run=$METTA_RUN_ID \
-    $METTA_CMD_ARGS
-  CMD_EXIT=$?
+
+  if ./devops/"$METTA_CMD".sh run="$METTA_RUN_ID" $METTA_CMD_ARGS; then
+    CMD_EXIT=0
+  else
+    CMD_EXIT=$?
+  fi
+
+  # if a github token is provided, report training status back to github
+  COMMIT_SHA=$(git rev-parse HEAD)
+  GITHUB_REPOSITORY="$(uv run ./common/src/metta/common/util/constants.py METTA_GITHUB_REPO)"
+
+  if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+    echo "Posting status to GitHub…"
+    curl -sS -X POST "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$COMMIT_SHA" \
+      -H "Authorization: token $GITHUB_TOKEN" \
+      -H "Accept: application/vnd.github.v3+json" \
+      -d "{
+        \"state\":      \"$STATE\",
+        \"context\":    \"CI/Skypilot\",
+        \"description\":\"$DESC\",
+        \"target_url\": \"https://console.skypilot.co/jobs/$SKYPILOT_TASK_ID\"
+      }"
+  else
+    echo "GITHUB_TOKEN or GITHUB_REPOSITORY not set; skipping GitHub status update"
+  fi
+
+  echo "$METTA_CMD job complete."
+  exit $CMD_EXIT
+
   echo "$METTA_CMD script exit code: $CMD_EXIT"
 
   echo "$METTA_CMD job complete."
@@ -137,6 +161,9 @@ envs:
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
   HEARTBEAT_TIMEOUT: 600
+
+  # if a github token is provided, we will report training status back to the branch
+  GITHUB_TOKEN: ""
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir

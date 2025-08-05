@@ -25,12 +25,19 @@ on:
         description: "Number of GPUs to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
         required: false
         type: string # Keep as string to allow empty, action handles default
+      num_nodes:
+        description: "Number of Nodes to request (e.g., 1, 2). If empty, defaults to SkyPilot task definition (usually 1)."
+        required: false
+        type: string # Keep as string to allow empty, action handles default
   push:
     branches: [main]
 
 env:
   DEFAULT_TRAINER_ENV: "env/mettagrid/arena/advanced"
   DEFAULT_TIMEOUT_HOURS: 1
+  DEFAULT_TIMEOUT_HOURS: 0.167 # 10 minutes = 0.167 hours
+  DEFAULT_NUM_GPUS: "2"
+  DEFAULT_NUM_NODES: "2"
   RUN_NAME_PREFIX: "github.sky"
 
 jobs:
@@ -131,13 +138,15 @@ jobs:
         uses: ./.github/actions/launch-skypilot-job
         with:
           trainer_env: ${{ github.event.inputs.trainer_env || env.DEFAULT_TRAINER_ENV }}
-          timeout_hours: ${{ github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
-          num_gpus: ${{ github.event.inputs.num_gpus || '' }}
+          timeout_hours: ${{ github.event_name == 'push' && env.DEFAULT_TIMEOUT_HOURS || github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
+          num_gpus: ${{ github.event_name == 'push' && env.DEFAULT_NUM_GPUS || github.event.inputs.num_gpus || '' }}
+          num_nodes: ${{ github.event_name == 'push' && env.DEFAULT_NUM_NODES || github.event.inputs.num_nodes || '' }}
           run_name: ${{ steps.generate_run_name.outputs.run_name }} # Pass the fully generated name
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Pass commit_to_run for manual, default for push
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
+          github_token: ${{ github.event_name == 'push' && env.GITHUB_TOKEN || '' }}
 
       - name: Print Run Information
         shell: bash
