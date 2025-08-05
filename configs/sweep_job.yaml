@@ -17,7 +17,7 @@ max_observations_to_load: 250
 sweep_server_uri: https://api.observatory.softmax-research.net
 
 trainer:
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  curriculum: /env/mettagrid/curriculum/navigation/bucketed
   simulation:
     evaluate_interval: 0 # No evaluation during training for speed
     replay_dir: "" # No replays for sweeps
