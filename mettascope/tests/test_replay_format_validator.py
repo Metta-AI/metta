@@ -101,26 +101,35 @@ def _validate_static_value(value: Any, field_name: str, expected_type: type | tu
 
 
 def _validate_time_series(data: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
-    """Validate dynamic values: always arrays of [step, value] pairs starting with step 0."""
+    """Validate time series values: either single values (never changed) or arrays of [step, value] pairs."""
     if data is None:
         return
 
-    # Dynamic fields are ALWAYS arrays of [step, value] pairs
-    _validate_type(data, list, field_name)
-    assert len(data) > 0, f"'{field_name}' time series must have at least one entry"
+    # Check if it's a single value (field never changed during replay)
+    if isinstance(data, expected_type):
+        return
 
-    # Validate time series of [step, value] pairs
-    for item in data:
-        assert isinstance(item, list) and len(item) == 2, (
-            f"'{field_name}' time series items must be [step, value] pairs"
-        )
-        assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' time series step must be non-negative"
-        assert isinstance(item[1], expected_type), (
-            f"'{field_name}' time series value must be {_get_type_name(expected_type)}"
-        )
+    # Check if it's a time series array (field changed during replay)
+    if isinstance(data, list):
+        if len(data) == 0:
+            return
+        # Validate time series of [step, value] pairs
+        for item in data:
+            assert isinstance(item, list) and len(item) == 2, (
+                f"'{field_name}' time series items must be [step, value] pairs"
+            )
+            assert isinstance(item[0], int) and item[0] >= 0, f"'{field_name}' time series step must be non-negative"
+            assert isinstance(item[1], expected_type), (
+                f"'{field_name}' time series value must be {_get_type_name(expected_type)}"
+            )
 
-    # First entry should be step 0
-    assert data[0][0] == 0, f"'{field_name}' time series must start with step 0"
+        # First entry should be step 0
+        assert data[0][0] == 0, f"'{field_name}' time series must start with step 0"
+        return
+
+    # Neither single value nor valid time series
+    type_name = _get_type_name(expected_type)
+    assert False, f"'{field_name}' must be {type_name} or time series of [step, {type_name}] pairs"
 
 
 def _get_type_name(expected_type: type | tuple[type, ...]) -> str:
@@ -129,7 +138,7 @@ def _get_type_name(expected_type: type | tuple[type, ...]) -> str:
 
 
 def _validate_inventory_format(inventory: Any, field_name: str) -> None:
-    """Validate inventory format: time series of [step, inventory_list] pairs."""
+    """Validate inventory format: single inventory list or time series of [step, inventory_list] pairs."""
     if inventory is None:
         return
 
@@ -137,7 +146,16 @@ def _validate_inventory_format(inventory: Any, field_name: str) -> None:
     if len(inventory) == 0:
         return
 
-    # Inventory is always a time series format: [[step, inventory_list], ...]
+    # Check if it's a single inventory list (never changed during replay)
+    # Single inventory format: [[item_id, amount], [item_id, amount], ...]
+    if len(inventory) > 0 and all(
+        isinstance(item, list) and len(item) == 2 and isinstance(item[0], int) and isinstance(item[1], (int, float))
+        for item in inventory
+    ):
+        _validate_inventory_list(inventory, field_name)
+        return
+
+    # Check if it's a time series format: [[step, inventory_list], ...]
     for item in inventory:
         assert isinstance(item, list) and len(item) == 2, (
             f"'{field_name}' time series items must be [step, inventory_list] pairs"
@@ -263,13 +281,19 @@ def _validate_object(obj: dict[str, Any], obj_index: int, replay_data: dict[str,
 
 
 def _validate_position(position: Any, obj_name: str) -> None:
-    """Validate position field format: time series of [step, [x, y, z]] pairs."""
+    """Validate position field format: single [x, y, z] or time series of [step, [x, y, z]] pairs."""
     field_name = f"{obj_name}.position"
 
+    # Check if it's a single position (never changed during replay)
+    if isinstance(position, list) and len(position) == 3:
+        for i, coord in enumerate(position):
+            _validate_type(coord, (int, float), f"{field_name}[{i}]")
+        return
+
+    # Check if it's a time series array (position changed during replay)
     _validate_type(position, list, field_name)
     assert len(position) > 0, f"{field_name} must have at least one entry"
 
-    print("position", position)
     # Validate time series of [step, [x, y, z]] pairs
     for step_data in position:
         assert isinstance(step_data, list) and len(step_data) == 2, (
@@ -280,6 +304,7 @@ def _validate_position(position: Any, obj_name: str) -> None:
         assert isinstance(coords, list) and len(coords) == 3, f"{field_name} coordinates must be [x, y, z]"
         for i, coord in enumerate(coords):
             _validate_type(coord, (int, float), f"{field_name} coord[{i}]")
+
     # Must start with step 0
     assert position[0][0] == 0, f"{field_name} must start with step 0"
 
@@ -395,20 +420,20 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "vision_size": 11,
                 "group_id": 0,
                 "is_swappable": False,
-                # Dynamic fields (time series starting at step 0)
-                "position": [[0, [5, 5, 0]]],
-                "action_id": [[0, 0]],
-                "action_param": [[0, 0]],
-                "action_success": [[0, True]],
-                "current_reward": [[0, 0.0]],
-                "total_reward": [[0, 0.0]],
-                "freeze_remaining": [[0, 0]],
-                "is_frozen": [[0, False]],
-                "freeze_duration": [[0, 0]],
-                "orientation": [[0, 0]],
-                "inventory": [[0, []]],
-                "inventory_max": [[0, 10]],
-                "color": [[0, 0]],
+                # Time series fields (some single values, some arrays)
+                "position": [5, 5, 0],  # Never moved
+                "action_id": 0,  # Never changed action
+                "action_param": 0,  # Never changed param
+                "action_success": True,  # Never failed
+                "current_reward": 0.0,  # Never got reward
+                "total_reward": 0.0,  # Never got reward
+                "freeze_remaining": 0,  # Never frozen
+                "is_frozen": False,  # Never frozen
+                "freeze_duration": 0,  # Never frozen
+                "orientation": 0,  # Never rotated
+                "inventory": [],  # Empty inventory that never changed
+                "inventory_max": 10,  # Single value
+                "color": 0,  # Never changed color
             },
             {
                 # Static fields
@@ -419,20 +444,20 @@ def _make_valid_replay(file_name: str = "sample.json.z") -> dict[str, Any]:
                 "vision_size": 11,
                 "group_id": 0,
                 "is_swappable": False,
-                # Dynamic fields (time series starting at step 0)
-                "position": [[0, [3, 3, 0]]],
-                "action_id": [[0, 1]],
-                "action_param": [[0, 0]],
-                "action_success": [[0, False]],
-                "current_reward": [[0, 1.5]],
-                "total_reward": [[0, 10.0]],
-                "freeze_remaining": [[0, 0]],
-                "is_frozen": [[0, False]],
-                "freeze_duration": [[0, 0]],
-                "orientation": [[0, 1]],
-                "inventory": [[0, [[0, 2], [1, 1]]]],
-                "inventory_max": [[0, 10]],
-                "color": [[0, 1]],
+                # Time series fields (mix of single values and arrays)
+                "position": [[0, [3, 3, 0]], [5, [4, 3, 0]]],  # Moved at step 5
+                "action_id": [[0, 1], [10, 0]],  # Changed action at step 10
+                "action_param": 0,  # Never changed param
+                "action_success": [[0, False], [10, True]],  # Success changed at step 10
+                "current_reward": 1.5,  # Single reward value
+                "total_reward": [[0, 0.0], [10, 1.5]],  # Total changed at step 10
+                "freeze_remaining": 0,  # Never frozen
+                "is_frozen": False,  # Never frozen
+                "freeze_duration": 0,  # Never frozen
+                "orientation": 1,  # Never rotated
+                "inventory": [[0, []], [20, [[0, 2], [1, 1]]]],  # Got items at step 20
+                "inventory_max": 10,  # Single value
+                "color": 1,  # Never changed color
             },
         ],
     }
