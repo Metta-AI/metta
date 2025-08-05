@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from typing import Callable, TypeVar
 
 import torch.distributed as dist
@@ -18,6 +19,7 @@ def _init_process_group() -> bool:
     rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
     dist.init_process_group(
         backend="nccl",
+        timeout=timedelta(seconds=30),
         init_method=os.environ.get("DIST_URL", "env://"),
         world_size=world_size,
         rank=rank,

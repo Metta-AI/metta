@@ -1,7 +1,6 @@
 import logging
 import os
 from collections import defaultdict
-from datetime import timedelta
 from typing import cast
 
 import torch
@@ -189,11 +188,11 @@ def train(
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
-        torch.distributed.barrier(timeout=timedelta(seconds=30))
+        torch.distributed.barrier()
         logger.info("about to wrap_agent_distributed")
         policy = wrap_agent_distributed(policy, device)
         logger.info(f"wrapped policy\n: {policy}")
-        torch.distributed.barrier(timeout=timedelta(seconds=30))
+        torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
@@ -504,7 +503,7 @@ def train(
             # All ranks must synchronize after checkpoint operations
             # This barrier must be outside the if saved_record block so all ranks hit it
             if torch.distributed.is_initialized():
-                torch.distributed.barrier(timeout=timedelta(seconds=30))
+                torch.distributed.barrier()
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
@@ -610,14 +609,14 @@ def train(
 
     # All ranks must synchronize after final save operations
     if torch.distributed.is_initialized():
-        torch.distributed.barrier(timeout=timedelta(seconds=30))
+        torch.distributed.barrier()
 
     if wandb_run and latest_saved_policy_record:
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
 
     # Final synchronization before cleanup
     if torch.distributed.is_initialized():
-        torch.distributed.barrier(timeout=timedelta(seconds=30))
+        torch.distributed.barrier()
 
     # Cleanup
     vecenv.close()
