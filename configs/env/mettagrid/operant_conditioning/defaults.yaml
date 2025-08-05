@@ -11,6 +11,13 @@ num_trials: 16
 game:
   num_agents: 24
   max_steps: 40
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
   agent:
     default_resource_limit: 1
     resource_limits:
