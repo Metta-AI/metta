@@ -140,6 +140,10 @@ def main():
     assert commit_hash
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
+
+    print(task)
+    exit(1)
+
     task = task.update_envs(
         dict(
             METTA_RUN_ID=run_id,
