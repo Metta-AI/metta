@@ -43,7 +43,8 @@ setup: |
   git checkout "$METTA_GIT_REF"
   echo "Checked out: $(git rev-parse HEAD)"
 
-  # Note that environment variables passed into skypilot are not available in the "setup" phase
+  # Note that different sets of skypilot environment variables are available in "run" vs "setup"
+  # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
 run: |
   set -e
