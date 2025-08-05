@@ -3,6 +3,7 @@ from typing import List
 import torch
 from torch import Tensor, nn
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.mettagrid import MettaGridEnv
@@ -66,7 +67,7 @@ class Kickstarter:
         self.teachers: list[nn.Module] = []
         for teacher_cfg in self.teacher_cfgs or []:
             policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
-            policy: nn.Module = policy_record.policy
+            policy: PolicyAgent = policy_record.policy
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             # Support both new and old initialization methods
