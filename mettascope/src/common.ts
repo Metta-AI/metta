@@ -4,6 +4,7 @@ import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './ht
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
 import { Entity, Replay } from './replay.js'
+import { Heatmap } from './heatmap.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)

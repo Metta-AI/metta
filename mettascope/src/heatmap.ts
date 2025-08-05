@@ -1,5 +1,4 @@
 import { state, HEATMAP_MIN_OPACITY, HEATMAP_MAX_OPACITY } from './common.js'
-import { getAttr } from './replay.js'
 
 /**
  * Tracks agent presence on tiles over time.
@@ -11,9 +10,9 @@ export class Heatmap {
   private maxSteps: number = 0
 
   initialize(): void {
-    this.width = state.replay.map_size[0]
-    this.height = state.replay.map_size[1]
-    this.maxSteps = state.replay.max_steps
+    this.width = state.replay.mapSize[0]
+    this.height = state.replay.mapSize[1]
+    this.maxSteps = state.replay.maxSteps
     console.info('Heatmap initialized:', this.width, 'x', this.height, 'x', this.maxSteps)
 
     this.data = []
@@ -37,11 +36,10 @@ export class Heatmap {
       }
 
       // Add agent positions for this step.
-      for (const gridObject of state.replay.grid_objects) {
-        if (gridObject.agent_id === undefined) continue
-
-        const x = getAttr(gridObject, 'c', step)
-        const y = getAttr(gridObject, 'r', step)
+      for (const agent of state.replay.agents) {
+        const location = agent.location.get(step)
+        const x = location[0]
+        const y = location[1]
 
         this.assertValidPosition(step, x, y)
         this.data[step][x][y]++
@@ -78,11 +76,10 @@ export class Heatmap {
     }
 
     // Update the cumulative heatmap for every agent at this step.
-    for (const gridObject of state.replay.grid_objects) {
-      if (gridObject.agent_id === undefined) continue
-
-      const x = getAttr(gridObject, 'c', step)
-      const y = getAttr(gridObject, 'r', step)
+    for (const agent of state.replay.agents) {
+      const location = agent.location.get(step)
+      const x = location[0]
+      const y = location[1]
 
       this.assertValidPosition(step, x, y)
       this.data[step][x][y]++
@@ -128,8 +125,8 @@ export function getHeatmapColor(normalizedHeat: number): [number, number, number
 /** Gets the maximum heat value for a given step. */
 export function getMaxHeat(step: number): number {
   let maxHeat = 0
-  for (let x = 0; x < state.replay.map_size[0]; x++) {
-    for (let y = 0; y < state.replay.map_size[1]; y++) {
+  for (let x = 0; x < state.replay.mapSize[0]; x++) {
+    for (let y = 0; y < state.replay.mapSize[1]; y++) {
       const heat = state.heatmap.getHeat(step, x, y)
       maxHeat = Math.max(maxHeat, heat)
     }
@@ -145,8 +142,8 @@ export function renderHeatmapTiles(
   const maxHeat = getMaxHeat(step)
   if (maxHeat === 0) return
 
-  for (let x = 0; x < state.replay.map_size[0]; x++) {
-    for (let y = 0; y < state.replay.map_size[1]; y++) {
+  for (let x = 0; x < state.replay.mapSize[0]; x++) {
+    for (let y = 0; y < state.replay.mapSize[1]; y++) {
       const heat = state.heatmap.getHeat(step, x, y)
       if (heat > 0) {
         const normalizedHeat = heat / maxHeat
