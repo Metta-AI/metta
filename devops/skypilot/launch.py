@@ -140,7 +140,6 @@ def main():
     assert commit_hash
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
-
     task = task.update_envs(
         dict(
             METTA_RUN_ID=run_id,
@@ -148,7 +147,6 @@ def main():
             METTA_CMD_ARGS=" ".join(cmd_args),
             METTA_GIT_REF=commit_hash,
             HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-            NCCL_DEBUG="INFO",
         )
     )
     task.name = run_id
@@ -162,7 +160,6 @@ def main():
         no_spot=args.no_spot,
         timeout_hours=args.max_runtime_hours,
     )
-
     set_task_secrets(task)
 
     if args.confirm:
