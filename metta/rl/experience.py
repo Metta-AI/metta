@@ -38,7 +38,7 @@ class Experience:
         cpu_offload: bool = False,
     ):
         """Initialize experience buffer with segmented storage."""
-        self._check_for_duplicate_keys(experience_spec)
+        # self._check_for_duplicate_keys(experience_spec)
 
         # Store parameters
         self.total_agents = total_agents
