@@ -118,6 +118,8 @@ def train(
         trainer_cfg.async_factor,
     )
 
+    logger.info(f"About to make_vecenv\n: {trainer_cfg.num_workers}")
+
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
@@ -190,6 +192,7 @@ def train(
         logger.info(f"Initializing DistributedDataParallel on device {device}")
         torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
+        logger.info(f"wrapped policy\n: {policy}")
         torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping

@@ -108,7 +108,8 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
 
     trainer_cfg = create_trainer_config(cfg)
 
-    logger.info("Trainer config:\n%s", trainer_cfg)
+    logger.info("env_cfg used for train:\n%s", env_cfg)
+    logger.info("trainer_cfg used for train:\n%s", trainer_cfg)
 
     # Use the functional train interface directly
     train(
