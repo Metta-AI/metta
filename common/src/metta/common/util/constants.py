@@ -24,12 +24,7 @@ METTA_AWS_REGION = "us-east-1"
 
 METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
 
-METTA_ENV_FILE = Path(
-    os.environ.get(
-        "METTA_ENV_FILE",
-        os.path.expanduser("~/.metta_env_path"),
-    )
-)
+METTA_ENV_FILE = (os.path.expanduser("~/.metta_env_path"),)
 
 
 def main():
@@ -39,12 +34,6 @@ def main():
 
     key = sys.argv[1]
 
-    # First, allow an override via environment variable:
-    if key in os.environ:
-        print(os.environ[key])
-        return
-
-    # Otherwise, look up in module globals:
     val = globals().get(key)
     if val is None:
         print(f"Error: no such key '{key}'", file=sys.stderr)
