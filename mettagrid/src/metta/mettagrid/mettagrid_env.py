@@ -89,20 +89,6 @@ class MettaGridEnv(MettaGridPufferBase):
         # Environment metadata (self._task is set by base class)
         self.labels: List[str] = self._task.env_cfg().get("labels", [])
 
-    def _make_id(self):
-        return str(uuid.uuid4())
-        # Initialize with base PufferLib functionality
-        super().__init__(
-            curriculum=curriculum,
-            render_mode=render_mode,
-            level=level,
-            buf=buf,
-            **kwargs,
-        )
-
-        # Environment metadata (self._task is set by base class)
-        self.labels: List[str] = self._task.env_cfg().get("labels", [])
-
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
         return str(uuid.uuid4())
