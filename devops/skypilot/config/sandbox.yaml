@@ -17,6 +17,14 @@ setup: |
   set -e
   cd /workspace/metta
 
+  # Deactivate any existing venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+
+  # Activate the metta venv
+  . .venv/bin/activate
+
   git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
   git checkout "$METTA_GIT_REF"
   echo "Checked out: $(git rev-parse HEAD)"
@@ -34,9 +42,18 @@ setup: |
 run: |
   set -e
   cd /workspace/metta
+
+  echo "VIRTUAL_ENV: $VIRTUAL_ENV"
+  echo "Which python: $(which python)"
+  echo "Python location: $(python -c 'import sys; print(sys.executable)')"
+
   bash ./devops/skypilot/config/configure_environment.sh
 
-  . .venv/bin/activate
+  echo "Cluster configuration:"
+  echo "  NUM_GPUS=$NUM_GPUS"
+  echo "  NUM_NODES=$NUM_NODES"
+  echo "  MASTER_ADDR=$MASTER_ADDR"
+  echo "  NODE_INDEX=$NODE_INDEX"
 
   echo "Starting bash shell..."
   exec bash
