@@ -228,8 +228,7 @@ def load_or_initialize_policy(
         #      if isinstance(policy_record.policy, MettaAgent) and "original_feature_mapping" in policy_record.metadata:
         #          policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
         #          logger.info("Restored original_feature_mapping")
-        #
-        ##########################################################below
+
         if isinstance(policy_record.policy, MettaAgent):
             if "original_feature_mapping" in policy_record.metadata:
                 policy_record.policy.restore_original_feature_mapping(
@@ -241,7 +240,6 @@ def load_or_initialize_policy(
             if "original_action_config" in policy_record.metadata:
                 policy_record.policy.restore_original_action_config(policy_record.metadata["original_action_config"])
                 logger.info("Restored original_action_config")
-        ##########################################################
 
         policy = policy_record.policy
         initial_policy_record = policy_record

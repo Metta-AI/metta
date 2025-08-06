@@ -169,12 +169,10 @@ class Simulation:
         ):
             policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
 
-        ##########################################################below
         # Restore original_action_config from metadata if available
         if hasattr(policy, "restore_original_action_config") and "original_action_config" in self._policy_pr.metadata:
             policy.restore_original_action_config(self._policy_pr.metadata["original_action_config"])
             logger.info("Restored original_action_config for main policy")
-        ##########################################################
 
         # Initialize policy to environment
         features = metta_grid_env.get_observation_features()
@@ -191,11 +189,9 @@ class Simulation:
             ):
                 npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
 
-            ##########################################################below
             if "original_action_config" in self._npc_pr.metadata:
                 npc_policy.restore_original_action_config(self._npc_pr.metadata["original_action_config"])
                 logger.info("Restored original_action_config")
-            ##########################################################
 
             # Initialize NPC policy to environment
             features = metta_grid_env.get_observation_features()

@@ -300,7 +300,6 @@ class MettaAgent(nn.Module):
         self.original_feature_mapping = mapping.copy()
         logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
-    ##########################################################below
     def get_original_action_config(self) -> dict[str, list] | None:
         """Get the original action configuration for saving in metadata."""
         return getattr(self, "original_action_config", None)
@@ -315,13 +314,10 @@ class MettaAgent(nn.Module):
         self.original_action_config = {"names": config["names"].copy(), "max_params": config["max_params"].copy()}
         logger.info(f"Restored original action config with {len(config['names'])} actions from metadata")
 
-    ##########################################################
-
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
-        ##########################################################below
         # Store original action configuration on first activation
         if not hasattr(self, "original_action_config"):
             self.original_action_config = {"names": action_names.copy(), "max_params": action_max_params.copy()}
@@ -336,8 +332,6 @@ class MettaAgent(nn.Module):
                 # Use original actions to maintain compatibility
                 action_names = self.original_action_config["names"]
                 action_max_params = self.original_action_config["max_params"]
-
-        ##########################################################
 
         self.device = device
         self.action_max_params = action_max_params
