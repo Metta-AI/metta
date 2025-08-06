@@ -8,7 +8,7 @@ defaults:
 
 game:
   num_agents: 24
-  max_steps: 150
+  max_steps: 500
   actions:
     attack:
       enabled: false
