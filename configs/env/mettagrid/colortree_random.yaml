@@ -3,13 +3,39 @@ defaults:
   - colortree_demo
   - _self_
 
-# Test with a fixed sequence first to verify the curriculum works
 game:
+  num_agents: 9            # 3×3 grid
   max_steps: 64
+  obs_width: 11
+  obs_height: 11
+
+  map_builder:
+    _recursive_: false
+    _target_: metta.map.mapgen.MapGen
+
+    width: 23             # overall map size (7×3 + walls)
+    height: 23
+    border_width: 0
+
+    root:
+      type: metta.map.scenes.room_grid.RoomGrid
+      params:
+        # 3×3 grid layout, every cell tagged "cell"
+        layout: [[cell, cell, cell], [cell, cell, cell], [cell, cell, cell]]
+        border_width: 1   # 1-tile walls between rooms
+
+      children:
+        - where:
+            tags: ["cell"]
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              agents: 1   # one agent per room
+              objects: {}
 
   actions:
     color_tree:
-      target_sequence: [2, 0, 3, 1]  # A different fixed sequence for testing
+      target_sequence: [2, 0, 3, 1]
       trial_sequences:
         - [2, 0, 3, 1]
         - [2, 0, 3, 1]

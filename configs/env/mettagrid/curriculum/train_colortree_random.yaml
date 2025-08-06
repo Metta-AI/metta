@@ -1,4 +1,4 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/colortree_random: 1.0
+  /env/mettagrid/colortree_multi: 1.0
