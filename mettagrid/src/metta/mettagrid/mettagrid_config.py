@@ -90,6 +90,7 @@ class PyAgentConfig(BaseModelWithForbidExtra):
     freeze_duration: Optional[int] = Field(default=0, ge=-1)
     rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
     action_failure_penalty: Optional[float] = Field(default=0, ge=0)
+    initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
 class PyGroupConfig(BaseModelWithForbidExtra):
@@ -157,7 +158,7 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
     resource_rewards: bool = Field(default=False)
 
     # Controls whether visitation counts are included in observations
-    visitation_counts: bool = Field(default=True)
+    visitation_counts: bool = Field(default=False)
 
 
 class PyWallConfig(BaseModelWithForbidExtra):

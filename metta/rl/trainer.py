@@ -23,7 +23,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy
 from metta.rl.experience import Experience
@@ -31,11 +31,9 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
-    maybe_update_l2_weights,
 )
 from metta.rl.policy_management import (
-    load_or_initialize_policy,
-    validate_policy_environment_match,
+    initialize_policy_for_environment,
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference, send_observation
@@ -56,7 +54,6 @@ from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
-    upload_policy_artifact,
 )
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
@@ -72,9 +69,9 @@ except ImportError:
 torch.set_float32_matmul_precision("high")
 
 # Get rank for logger name
-rank = int(os.environ.get("RANK", 0))
-local_rank = int(os.environ.get("LOCAL_RANK", 0))
-logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
+_rank = int(os.environ.get("RANK", 0))
+_local_rank = int(os.environ.get("LOCAL_RANK", 0))
+logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
 
 def train(
@@ -157,33 +154,24 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
-    policy: PolicyAgent
-    policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
+    initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
         agent_cfg=agent_cfg,
         env_cfg=env_cfg,
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
-        policy_store=policy_store,
         metta_grid_env=metta_grid_env,
-        is_master=is_master,
-        rank=rank,
     )
 
-    # Validate that policy matches environment
-    validate_policy_environment_match(policy, metta_grid_env)
+    # Don't proceed until all ranks have the policy
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    policy: PolicyAgent = latest_saved_policy_record.policy
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
         policy = cast(PolicyAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
-
-    # Create kickstarter
-    kickstarter = Kickstarter(
-        cfg=trainer_cfg.kickstart,
-        device=device,
-        policy_store=policy_store,
-        metta_grid_env=metta_grid_env,
-    )
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
@@ -196,11 +184,20 @@ def train(
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
-    logger.info("about to get_observation_features")
-    features = metta_grid_env.get_observation_features()
+    initialize_policy_for_environment(
+        policy_record=latest_saved_policy_record,
+        metta_grid_env=metta_grid_env,
+        device=device,
+        restore_feature_mapping=True,
+    )
 
-    logger.info("about to initialize_to_environment")
-    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    # Create kickstarter
+    kickstarter = Kickstarter(
+        cfg=trainer_cfg.kickstart,
+        device=device,
+        policy_store=policy_store,
+        metta_grid_env=metta_grid_env,
+    )
 
     # Get LSTM configuration
     logger.info("about to initialize_to_environment")
@@ -369,7 +366,6 @@ def train(
                 )
 
                 # Train for multiple epochs
-                total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
                 minibatch_idx = 0
                 epochs_trained = 0
 
@@ -380,8 +376,6 @@ def train(
                             advantages=advantages,
                             prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                             prio_beta=anneal_beta,
-                            minibatch_idx=minibatch_idx,
-                            total_minibatches=total_minibatches,
                         )
 
                         # Process minibatch
@@ -389,7 +383,6 @@ def train(
                             policy=policy,
                             experience=experience,
                             minibatch=minibatch,
-                            advantages=advantages,
                             trainer_cfg=trainer_cfg,
                             kickstarter=kickstarter,
                             agent_step=agent_step,
@@ -399,6 +392,8 @@ def train(
 
                         # Optimizer step
                         optimizer.zero_grad()
+
+                        # This also serves as a barrier for all ranks
                         loss.backward()
 
                         if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
@@ -409,7 +404,7 @@ def train(
                             if hasattr(policy, "clip_weights"):
                                 policy.clip_weights()
 
-                            if str(device).startswith("cuda"):
+                            if device.type == "cuda":
                                 torch.cuda.synchronize()
 
                         minibatch_idx += 1
@@ -428,11 +423,18 @@ def train(
                 losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             epoch += epochs_trained
 
+        # Safe to proceed to next rollout phase only once all ranks have completed training
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        if not is_master:
+            # Only master needs to do bookkeeping
+            continue
+
         torch_profiler.on_epoch_end(epoch)
 
-        # Process stats
         with timer("_process_stats"):
-            if is_master and wandb_run:
+            if wandb_run:
                 process_stats(
                     stats=stats_tracker.rollout_stats,
                     losses=losses,
@@ -449,7 +451,6 @@ def train(
                     memory_monitor=memory_monitor,
                     system_monitor=system_monitor,
                     latest_saved_policy_record=latest_saved_policy_record,
-                    initial_policy_record=initial_policy_record,
                     optimizer=optimizer,
                     kickstarter=kickstarter,
                 )
@@ -457,63 +458,36 @@ def train(
             stats_tracker.clear_rollout_stats()
             stats_tracker.clear_grad_stats()
 
-        # Log training status
-        if is_master:
-            log_training_progress(
-                epoch=epoch,
-                agent_step=agent_step,
-                prev_agent_step=steps_before,
-                total_timesteps=trainer_cfg.total_timesteps,
-                train_time=timer.get_last_elapsed("_train"),
-                rollout_time=timer.get_last_elapsed("_rollout"),
-                stats_time=timer.get_last_elapsed("_process_stats"),
-                run_name=run,
-            )
+        log_training_progress(
+            epoch=epoch,
+            agent_step=agent_step,
+            prev_agent_step=steps_before,
+            total_timesteps=trainer_cfg.total_timesteps,
+            train_time=timer.get_last_elapsed("_train"),
+            rollout_time=timer.get_last_elapsed("_rollout"),
+            stats_time=timer.get_last_elapsed("_process_stats"),
+            run_name=run,
+        )
+        checkpoint_result = maybe_establish_checkpoint(
+            checkpoint_manager=checkpoint_manager,
+            epoch=epoch,
+            policy=policy,
+            agent_step=agent_step,
+            eval_scores=eval_scores,
+            timer=timer,
+            initial_policy_record=initial_policy_record,
+            optimizer=optimizer,
+            run_dir=run_dir,
+            kickstarter=kickstarter,
+            wandb_run=wandb_run,
+        )
+        if checkpoint_result:
+            # TODO: wandb_policy_name should come directly from last_saved_policy_record
+            latest_saved_policy_record, wandb_policy_name = checkpoint_result
 
-        # Update L2 weights if configured
-        if interval := getattr(policy, "l2_init_weight_update_interval", 0):
-            maybe_update_l2_weights(policy, epoch, interval, is_master)
-
-        # Save policy - all ranks must participate in checkpoint decision
-        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master):
-            saved_record = checkpoint_manager.save_policy(
-                policy=policy,
-                epoch=epoch,
-                agent_step=agent_step,
-                evals=eval_scores,
-                timer=timer,
-                initial_policy_record=initial_policy_record,
-            )
-
-            if saved_record:
-                latest_saved_policy_record = saved_record
-
-                # Only master saves training state
-                if is_master:
-                    checkpoint_manager.save_checkpoint(
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        optimizer=optimizer,
-                        policy_path=saved_record.uri,
-                        timer=timer,
-                        run_dir=run_dir,
-                        kickstarter=kickstarter,
-                    )
-
-            # All ranks must synchronize after checkpoint operations
-            # This barrier must be outside the if saved_record block so all ranks hit it
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-
-        # Upload to wandb
-        if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
-            wandb_policy_name = upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
-
-        # Evaluate policy (with remote evaluation support)
-        if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
+        if should_run(epoch, trainer_cfg.simulation.evaluate_interval):
             if latest_saved_policy_record:
-                # Create stats epoch if needed
-                if stats_client is not None and stats_tracker.stats_run_id is not None:
+                if stats_client and stats_tracker.stats_run_id:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
                         run_id=stats_tracker.stats_run_id,
                         start_training_epoch=stats_tracker.stats_epoch_start,
@@ -563,61 +537,45 @@ def train(
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
         # Compute gradient stats
-        if should_run(epoch, trainer_cfg.grad_mean_variance_interval, is_master):
+        if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
             with timer("grad_stats"):
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort every 5 epochs
-        if should_run(epoch, 5, is_master):
+        if should_run(epoch, 5):
             if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
                 logger.info("Abort tag detected. Stopping the run.")
                 trainer_cfg.total_timesteps = int(agent_step)
                 wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
                 break
 
-    if is_master:
-        logger.info("Training complete!")
-        timing_summary = timer.get_all_summaries()
-        for name, summary in timing_summary.items():
-            logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
-
-    # Force final saves - all ranks must participate
-    if is_master:
-        saved_record = checkpoint_manager.save_policy(
-            policy=policy,
-            epoch=epoch,
-            agent_step=agent_step,
-            evals=eval_scores,
-            timer=timer,
-            initial_policy_record=initial_policy_record,
-            force=True,
-        )
-        if saved_record:
-            latest_saved_policy_record = saved_record
-
-            # Save final training state
-            checkpoint_manager.save_checkpoint(
-                agent_step=agent_step,
-                epoch=epoch,
-                optimizer=optimizer,
-                policy_path=saved_record.uri,
-                timer=timer,
-                run_dir=run_dir,
-                kickstarter=kickstarter,
-                force=True,
-            )
-
-    # All ranks must synchronize after final save operations
+    # All ranks wait until training is complete before closing vecenv
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
-    if wandb_run and latest_saved_policy_record:
-        upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
-
-    # Final synchronization before cleanup
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
-    # Cleanup
     vecenv.close()
+
+    if not is_master:
+        return
+
+    logger.info("Training complete!")
+    timing_summary = timer.get_all_summaries()
+    for name, summary in timing_summary.items():
+        logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
+
+    maybe_establish_checkpoint(
+        checkpoint_manager=checkpoint_manager,
+        epoch=epoch,
+        policy=policy,
+        agent_step=agent_step,
+        eval_scores=eval_scores,
+        timer=timer,
+        initial_policy_record=initial_policy_record,
+        optimizer=optimizer,
+        run_dir=run_dir,
+        kickstarter=kickstarter,
+        force=True,
+        wandb_run=wandb_run,
+    )
+
     cleanup_monitoring(memory_monitor, system_monitor)

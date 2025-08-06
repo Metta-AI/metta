@@ -103,7 +103,7 @@ source = [
 CMAKE_BUILD_TYPE = "Release"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "mettascope/tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]

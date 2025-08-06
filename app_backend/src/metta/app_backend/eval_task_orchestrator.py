@@ -122,25 +122,6 @@ class EvalTaskOrchestrator:
         except Exception as e:
             self._logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
 
-    async def _kill_idle_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
-        try:
-            for worker in alive_workers_by_name.values():
-                if worker.assigned_task:
-                    continue
-
-                latest_task = await self._task_client.get_latest_assigned_task_for_worker(worker.worker.name)
-                last_task_assigned_at = datetime.min
-                if latest_task and latest_task.assigned_at:
-                    last_task_assigned_at = latest_task.assigned_at.replace(tzinfo=timezone.utc)
-                idle_duration = (datetime.now(timezone.utc) - last_task_assigned_at).total_seconds()
-
-                if idle_duration > self._worker_idle_timeout:
-                    self._logger.info(f"Killing idle worker {worker.worker.name}")
-                    self._worker_manager.cleanup_worker(worker.worker.name)
-                    del alive_workers_by_name[worker.worker.name]
-        except Exception as e:
-            self._logger.error(f"Error killing idle workers: {e}", exc_info=True)
-
     async def _assign_task_to_worker(
         self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[TaskResponse]]
     ) -> None:
@@ -185,8 +166,6 @@ class EvalTaskOrchestrator:
         await self._kill_dead_workers_and_tasks(claimed_tasks.tasks, alive_workers_by_name)
 
         await self._assign_tasks_to_workers(alive_workers_by_name)
-
-        await self._kill_idle_workers(alive_workers_by_name)
 
         await self._start_new_workers(alive_workers_by_name)
 
