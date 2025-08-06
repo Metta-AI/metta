@@ -207,7 +207,7 @@ POLICY_SCORECARD_DATA_QUERY = """
 async def get_policies_and_training_runs(con: AsyncConnection) -> PoliciesResponse:
     """Get unified training runs and run-free policies with pagination and optional filtering."""
 
-    unified_rows = await execute_query_and_log(con, UNIFIED_POLICIES_QUERY, [], "get_unified_policies")
+    unified_rows = await execute_query_and_log(con, UNIFIED_POLICIES_QUERY, (), "get_unified_policies")
 
     policies = [
         UnifiedPolicyInfo(
