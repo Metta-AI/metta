@@ -24,6 +24,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
+from metta.rl.wandb import POLICY_EVALUATOR_METRIC_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -309,8 +310,6 @@ def build_wandb_stats(
     }
 
     # Combine all stats
-    # Note: Evaluation metrics are now logged separately in evaluate_policy()
-    # to avoid step conflicts with remote evaluations
     return {
         **{f"overview/{k}": v for k, v in overview.items()},
         **{f"losses/{k}": v for k, v in processed_stats["losses_stats"].items()},
@@ -431,7 +430,8 @@ def process_policy_evaluator_stats(
 
     if wandb_run_id and wandb_project and epoch:
         metrics_to_log = {
-            f"policy_evaluator/eval_{k}": v for k, v in eval_results.scores.to_wandb_metrics_format().items()
+            f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
+            for k, v in eval_results.scores.to_wandb_metrics_format().items()
         }
         run = wandb.init(
             id=wandb_run_id,

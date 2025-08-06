@@ -102,6 +102,7 @@ def evaluate_policy(
     if category_scores and policy_record:
         policy_record.metadata["score"] = float(np.mean(category_scores))
 
+    # Generate and upload replay HTML if we have wandb
     if wandb_run is not None and evaluation_results.replay_urls:
         upload_replay_html(
             replay_urls=evaluation_results.replay_urls,
@@ -156,18 +157,13 @@ def upload_replay_html(
         # Log all links in a single HTML entry
         html_content = " | ".join(links)
         wandb_run.log(
-            {
-                "replays/all": wandb.Html(html_content),
-                "metric/eval_step": epoch,
-            }
+            {"replays/all": wandb.Html(html_content)},
+            step=agent_step,
         )
 
     # Maintain backward compatibility - log training task separately if available
     if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
         training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
         player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={training_url}"
-        link_summary = {
-            "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>'),
-            "metric/eval_step": epoch,
-        }
-        wandb_run.log(link_summary)
+        link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
+        wandb_run.log(link_summary, step=agent_step)
