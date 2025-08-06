@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Metta experiments and notebooks"
 readme = "README.md"
 requires-python = "==3.11.7"
-dependencies = []
+dependencies = ["jupytext>=1.17.2"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
