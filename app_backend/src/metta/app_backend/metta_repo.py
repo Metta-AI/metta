@@ -392,6 +392,13 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
         ],
     ),
+    SqlMigration(
+        version=22,
+        description="Add index on episodes.primary_policy_id",
+        sql_statements=[
+            """CREATE INDEX IF NOT EXISTS idx_episodes_primary_policy_id ON episodes(primary_policy_id)""",
+        ],
+    ),
 ]
 
 
