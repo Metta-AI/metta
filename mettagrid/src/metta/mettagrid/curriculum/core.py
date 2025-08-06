@@ -89,6 +89,7 @@ class SingleTrialTask(Task):
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
+        self._env_cfg.current_trial = self._current_trial
 
     def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"

@@ -304,6 +304,10 @@ class MettaGridEnv(MettaGridPufferBase):
         }
         infos["attributes"] = attributes
 
+        if self._task.env_cfg().get("num_trials", 1) > 1:
+            current_trial = self._task.env_cfg().current_trial
+            infos[f"trial_{current_trial}_reward"] = episode_rewards_mean
+
         # Handle replay writing
         replay_url = None
         with self.timer("_replay_writer"):
