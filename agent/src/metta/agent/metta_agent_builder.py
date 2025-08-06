@@ -1,72 +1,103 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Union, Dict, Tuple
+from typing import Optional
 
 import gymnasium as gym
-from omegaconf import OmegaConf, DictConfig
-from torch import nn
-import torch
-
-from metta.agent.util.debug import assert_shape
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.common.util.instantiate import instantiate
-from metta.agent.policy_base import PolicyBase
-from metta.agent.policy_state import PolicyState
-from metta.agent.metta_agent import MettaAgent, ComponentPolicy
-
 import numpy as np
+from omegaconf import OmegaConf, DictConfig
 
-
+from metta.agent.metta_agent import MettaAgent, ComponentPolicy
 
 logger = logging.getLogger("metta_agent_builder")
 
 
-def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> MettaAgent:
-
-    """Factory function to create MettaAgent from environment and config."""
-    obs_space = gym.spaces.Dict({
-        "grid_obs": env.single_observation_space,
-        "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
-    })
-
-    agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
-    logger.info(f"Agent Config: {OmegaConf.create(agent_cfg)}")
-
-    logger.info(f"Feature Normalizations: {env.feature_normalizations}")
-
-    builder = MettaAgentBuilder(
-        agent_cfg,
-    )
-
-    return builder.build(env, obs_space)
-
-
 class MettaAgentBuilder:
-    """Simplified builder for MettaAgent instances."""
+    """Builder class for constructing MettaAgent instances with validated configurations."""
 
-    def __init__(self, cfg):
-        self.cfg = OmegaConf.create(cfg)
+    def __init__(self, env: 'MettaGridEnv', cfg: DictConfig):
+        """
+        Initialize the MettaAgentBuilder with environment and configuration.
 
+        Args:
+            env (MettaGridEnv): The environment providing observation and action spaces.
+            cfg (DictConfig): Configuration for the agent, expected to contain an 'agent' section.
+        """
+        self.env = env
+        self.cfg = self._parse_config(cfg)
+        self.obs_space = self._create_observation_space()
 
-    def build(self, env, obs_space) -> MettaAgent:
-        """Build the final MettaAgent instance."""
+    def _parse_config(self, cfg: DictConfig) -> DictConfig:
+        """
+        Parse and validate the configuration.
 
-        policy = ComponentPolicy()
+        Args:
+            cfg (DictConfig): Input configuration.
+
+        Returns:
+            DictConfig: Parsed and resolved agent configuration.
+
+        Raises:
+            ValueError: If the configuration is invalid or missing required sections.
+        """
+        if not hasattr(cfg, "agent"):
+            logger.error("Configuration missing 'agent' section")
+            raise ValueError("Configuration must contain 'agent' section")
+
         try:
-            agent = MettaAgent(
-                    obs_space=obs_space,
-                    obs_width=env.obs_width,
-                    obs_height=env.obs_height,
-                    action_space=env.single_action_space,
-                    feature_normalizations=env.feature_normalizations,
-                    device="cpu",
-                    cfg=self.cfg,
-                    policy=policy
+            agent_cfg = OmegaConf.create(OmegaConf.to_container(cfg.agent, resolve=True))
+            logger.info(f"Agent Config: {agent_cfg}")
+            return agent_cfg
+
+        except Exception as e:
+            logger.error(f"Failed to parse configuration: {e}")
+            raise ValueError(f"Invalid configuration format: {e}")
+
+    def _create_observation_space(self) -> gym.spaces.Dict:
+        """
+        Create the observation space for the agent.
+
+        Returns:
+            gym.spaces.Dict: The observation space combining grid observations and global variables.
+        """
+        return gym.spaces.Dict({
+            "grid_obs": self.env.single_observation_space,
+            "global_vars": gym.spaces.Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=[0],
+                dtype=np.int32
             )
+        })
+
+    def build(self, policy: Optional[ComponentPolicy] = None) -> MettaAgent:
+        """
+        Build the MettaAgent instance with the specified or default policy.
+
+        Args:
+            policy (Optional[ComponentPolicy]): The policy to use; defaults to ComponentPolicy if None.
+
+        Returns:
+            MettaAgent: The constructed agent instance.
+
+        Raises:
+            RuntimeError: If agent construction fails.
+        """
+        try:
+            policy = policy or ComponentPolicy()
+
+            agent = MettaAgent(
+                obs_space=self.obs_space,
+                obs_width=self.env.obs_width,
+                obs_height=self.env.obs_height,
+                action_space=self.env.single_action_space,
+                feature_normalizations=self.env.feature_normalizations,
+                device="cpu",
+                cfg=self.cfg,
+                policy=policy
+            )
+
+            logger.info(f"Successfully built MettaAgent with policy: {type(policy).__name__}")
             return agent
 
         except Exception as e:
             logger.error(f"Failed to build MettaAgent: {e}")
-            raise
-
-
+            raise RuntimeError(f"Agent construction failed: {e}")
