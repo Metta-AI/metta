@@ -27,7 +27,7 @@ def _init_process_group() -> bool:
     return True
 
 
-def run_once(fn: Callable[[], T]) -> T:
+def run_once(fn: Callable[[], T]) -> T | None:
     """Run ``fn`` only on rank 0 and broadcast the result.
 
     If ``torch.distributed`` is not initialized, this function will attempt to

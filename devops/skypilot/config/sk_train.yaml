@@ -119,19 +119,17 @@ run: |
   echo "METTA_GIT_REF = $METTA_GIT_REF"
   echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
 
-
   # Run comprehensive GPU diagnostics and NCCL tests
   echo "Running GPU diagnostics and NCCL tests..."
   if [ "$NUM_NODES" -gt 1 ] || [ "$NUM_GPUS" -gt 1 ]; then
       # For distributed training
-      if ! torchrun --nproc_per_node=$NUM_GPUS --nnodes=$NUM_NODES --node_rank=$NODE_INDEX --master_addr=$MASTER_ADDR test_nccl.py; then
+      if ! uv run torchrun --nproc_per_node=$NUM_GPUS --nnodes=$NUM_NODES --node_rank=$NODE_INDEX --master_addr=$MASTER_ADDR ./devops/skypilot/test_nccl.py; then
           echo "NCCL pre-flight check failed!"
-          # You can decide whether to continue or exit
-          # exit 1
+          exit 1
       fi
   else
       # For single GPU
-      if ! python test_nccl.py; then
+      if ! uv run python ./devops/skypilot/test_nccl.py; then
           echo "GPU pre-flight check failed!"
           # exit 1
       fi
@@ -149,19 +147,14 @@ run: |
   COMMIT_SHA=$(git rev-parse HEAD)
   GITHUB_REPOSITORY="$(uv run ./common/src/metta/common/util/constants.py METTA_GITHUB_REPO)"
 
-  if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
-    echo "Posting status to GitHub…"
-    curl -sS -X POST "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$COMMIT_SHA" \
-      -H "Authorization: token $GITHUB_TOKEN" \
-      -H "Accept: application/vnd.github.v3+json" \
-      -d "{
-        \"state\":      \"$STATE\",
-        \"context\":    \"CI/Skypilot\",
-        \"description\":\"$DESC\",
-        \"target_url\": \"https://console.skypilot.co/jobs/$SKYPILOT_TASK_ID\"
-      }"
+  # Just export the variables and run the script
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+      echo "Posting status to GitHub…"
+
+      # The script reads CMD_EXIT, COMMIT_SHA, and SKYPILOT_TASK_ID from environment
+      uv run python ./devops/skypilot/post_commit_status.py
   else
-    echo "GITHUB_TOKEN or GITHUB_REPOSITORY not set; skipping GitHub status update"
+      echo "GITHUB_TOKEN not set; skipping GitHub status update"
   fi
 
   echo "$METTA_CMD job complete."

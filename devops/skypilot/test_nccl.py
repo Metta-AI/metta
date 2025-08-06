@@ -11,7 +11,7 @@ import logging
 import os
 import subprocess
 import sys
-from typing import Dict, List, Tuple
+from typing import Any
 
 import torch
 import torch.distributed as dist
@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-def run_command(cmd: List[str], check: bool = False) -> Tuple[int, str, str]:
+def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
     """Run a command and return exit code, stdout, and stderr."""
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=check)
@@ -32,7 +32,7 @@ def run_command(cmd: List[str], check: bool = False) -> Tuple[int, str, str]:
         return -1, "", str(e)
 
 
-def get_gpu_diagnostics() -> Dict[str, any]:
+def get_gpu_diagnostics() -> dict[str, Any]:
     """Collect comprehensive GPU diagnostics."""
     diagnostics = {
         "nvidia_smi": None,
@@ -41,7 +41,7 @@ def get_gpu_diagnostics() -> Dict[str, any]:
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "not set"),
         "gpu_count": 0,
         "pytorch_cuda_available": torch.cuda.is_available(),
-        "pytorch_cuda_version": torch.version.cuda if torch.cuda.is_available() else None,
+        "pytorch_cuda_version": (getattr(getattr(torch, "version", None), "cuda", None)),
         "errors": [],
     }
 
@@ -91,7 +91,7 @@ def get_gpu_diagnostics() -> Dict[str, any]:
     return diagnostics
 
 
-def print_diagnostics(diagnostics: Dict[str, any]) -> None:
+def print_diagnostics(diagnostics: dict[str, Any]) -> None:
     """Pretty print diagnostics information."""
     print("=== GPU Diagnostics ===")
 
