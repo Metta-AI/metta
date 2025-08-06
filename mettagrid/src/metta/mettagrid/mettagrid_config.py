@@ -158,7 +158,7 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
     resource_rewards: bool = Field(default=False)
 
     # Controls whether visitation counts are included in observations
-    visitation_counts: bool = Field(default=True)
+    visitation_counts: bool = Field(default=False)
 
 
 class PyWallConfig(BaseModelWithForbidExtra):
