@@ -938,7 +938,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
-                    float>(),
+                    float,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -950,7 +951,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
            py::arg("stat_rewards") = std::map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
-           py::arg("group_reward_pct") = 0)
+           py::arg("group_reward_pct") = 0,
+           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)
@@ -962,7 +964,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
       .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
-      .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct);
+      .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct)
+      .def_readwrite("initial_inventory", &AgentConfig::initial_inventory);
 
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
       .def(py::init<TypeId,

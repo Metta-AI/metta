@@ -63,6 +63,11 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 stat_name = k[:-4]
                 stat_reward_max[stat_name] = v
 
+        # Process potential initial inventory
+        initial_inventory = {}
+        for k, v in agent_group_props["initial_inventory"].items():
+            initial_inventory[resource_name_to_id[k]] = v
+
         agent_cpp_params = {
             "freeze_duration": agent_group_props["freeze_duration"],
             "group_id": group_config.id,
@@ -79,6 +84,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             "group_reward_pct": group_config.group_reward_pct,
             "type_id": 0,
             "type_name": "agent",
+            "initial_inventory": initial_inventory,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
