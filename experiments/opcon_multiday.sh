@@ -38,7 +38,6 @@ trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/multiday_1m \
 trainer.bptt_horizon=128 \
 trainer.batch_size=1032192 \
 
-
 ./devops/skypilot/launch.py train \
 run=george.operantconditioning.multiday_2m.random.8trials.08-05 \
 trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/multiday_2m \
