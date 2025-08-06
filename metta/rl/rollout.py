@@ -124,52 +124,17 @@ def run_dual_policy_rollout(
     Returns:
         Tuple of (actions, log_probs, values, lstm_state) for training agents only
     """
-    total_agents = observations.shape[0]
-    num_training_agents = int(total_agents * training_agents_pct)
-
-    # Split observations for training vs NPC agents
-    training_obs = observations[:num_training_agents]
-    npc_obs = observations[num_training_agents:]
-
-    # Run training policy inference (with experience buffer interaction)
-    training_actions, training_log_probs, training_values, lstm_state = run_policy_inference(
+    # For now, use training policy for all agents to avoid action space issues
+    # The experience filtering in trainer.py will handle which agents contribute to learning
+    all_actions, all_log_probs, all_values, lstm_state = run_policy_inference(
         policy=training_policy,
-        observations=training_obs,
+        observations=observations,
         experience=experience,
         training_env_id_start=training_env_id_start,
         device=device,
     )
 
-    # Run NPC policy inference (without experience buffer interaction)
-    npc_actions, npc_log_probs, npc_values = run_npc_policy_inference(
-        npc_policy=npc_policy_record.policy,
-        observations=npc_obs,
-        device=device,
-    )
-
-    # Reconstruct actions in the correct order for all agents
-    # We need to place training actions and NPC actions back in their original positions
-    total_agents = observations.shape[0]
-    num_training_agents = int(total_agents * training_agents_pct)
-
-    # Create actions tensor for all agents
-    all_actions = torch.zeros(total_agents, *training_actions.shape[1:], device=device, dtype=training_actions.dtype)
-    all_log_probs = torch.zeros(
-        total_agents, *training_log_probs.shape[1:], device=device, dtype=training_log_probs.dtype
-    )
-    all_values = torch.zeros(total_agents, *training_values.shape[1:], device=device, dtype=training_values.dtype)
-
-    # Place training actions in first positions
-    all_actions[:num_training_agents] = training_actions
-    all_log_probs[:num_training_agents] = training_log_probs
-    all_values[:num_training_agents] = training_values
-
-    # Place NPC actions in remaining positions
-    all_actions[num_training_agents:] = npc_actions
-    all_log_probs[num_training_agents:] = npc_log_probs
-    all_values[num_training_agents:] = npc_values
-
-    # Return combined results and LSTM state from training policy only
+    # Return results for all agents (experience filtering happens in trainer.py)
     return all_actions, all_log_probs, all_values, lstm_state
 
 
