@@ -1,16 +1,23 @@
+import { loadInstitutions } from "@/posts/data/institutions-server";
+import { InstitutionsView } from "@/components/InstitutionsView";
+import {
+  OverlayStackProvider,
+  OverlayStackRenderer,
+} from "@/components/OverlayStack";
+
 /**
  * Institutions Page
- * 
- * This is a placeholder page for the Institutions view that will be accessible
- * via the sidebar navigation. Currently shows a simple message indicating
- * the feature is coming soon.
+ *
+ * Displays a grid of all institutions in the system with their key information
+ * including name, paper count, author count, and research areas.
  */
+export default async function InstitutionsPage() {
+  const institutions = await loadInstitutions();
 
-export default function InstitutionsPage() {
-    return (
-        <div className="p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Institutions</h1>
-            <p className="text-gray-600">Institutions view coming soon...</p>
-        </div>
-    );
-} 
+  return (
+    <OverlayStackProvider>
+      <InstitutionsView institutions={institutions} />
+      <OverlayStackRenderer />
+    </OverlayStackProvider>
+  );
+}

@@ -49,14 +49,13 @@ model Session {
   @@map("session")
 }
 
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model VerificationToken {
   identifier String
-  token      String
+  token      String   @unique
   expires    DateTime @db.Timestamp(6)
 
+  @@id([identifier, token])
   @@map("verificationToken")
-  @@ignore
 }
 
 model Authenticator {

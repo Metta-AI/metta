@@ -15,7 +15,10 @@
     "test-arxiv": "tsx scripts/test-arxiv-fetcher.ts",
     "author-scraper": "tsx scripts/author-scraper.ts",
     "enrich-authors": "tsx scripts/enrich-authors-with-papers.ts",
-    "enrich-metadata": "tsx scripts/enrich-author-metadata.ts"
+    "enrich-metadata": "tsx scripts/enrich-author-metadata.ts",
+    "pull-asana-papers": "tsx scripts/pull-papers-from-asana.ts",
+    "extract-authors": "tsx scripts/extract-authors-from-papers.ts",
+    "extract-institutions": "tsx scripts/extract-institutions-from-papers.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
