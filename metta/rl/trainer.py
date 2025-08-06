@@ -358,6 +358,12 @@ def train(
                         idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
                         training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
 
+                        # Ensure training_idxs are on the same device as the tensors we'll index
+                        if mask is not None:
+                            training_idxs = training_idxs.to(mask.device)
+                        else:
+                            training_idxs = training_idxs.to(o.device)
+
                         # Ensure training_idxs don't exceed the actual observations size
                         actual_obs_size = o.shape[0]
                         if len(training_idxs) > 0 and training_idxs.max() >= actual_obs_size:
