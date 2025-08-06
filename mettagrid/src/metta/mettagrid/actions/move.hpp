@@ -34,11 +34,11 @@ protected:
     GridLocation target_location = _grid->relative_location(current_location, move_direction);
 
     // check if we are blocked by an obstacle
-    if (!_grid->is_empty(target_location.r, target_location.c)) {
+    if (!_grid->is_empty_at_layer(target_location.r, target_location.c, GridLayer::ObjectLayer)) {
       return false;
     }
 
-    bool success = _grid->move_object(actor->id, target_location);
+    bool success = _grid->ghost_move_object(actor->id, target_location);
 
     // Track movement direction on success (only if tracking enabled)
     if (success && _track_movement_metrics) {

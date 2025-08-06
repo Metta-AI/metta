@@ -193,7 +193,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
       if (wall_config and object_cfg->type_id != 12) {
         Wall* wall = new Wall(r, c, *wall_config);
-        _grid->add_object(wall, true);
+        _grid->add_object(wall);
         _stats->incr("objects." + cell);
         continue;
       }
@@ -204,7 +204,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         // You might need to modify the Box constructor or create a different approach
         Box* box = new Box(r, c, box_config->type_id, box_config->type_name,
                           255, 255, _blue_battery_item); // Default creator values
-        _grid->add_object(box, true);
+        _grid->add_object(box);
         _stats->incr("objects." + cell);
         continue;
       }
@@ -217,7 +217,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
         Converter* converter = new Converter(r, c, config_with_offsets);
-        _grid->add_object(converter, true);
+        _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
@@ -227,7 +227,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        _grid->add_object(agent, true);
+        _grid->ghost_add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
@@ -308,7 +308,7 @@ void MettaGrid::init_action_handlers() {
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   agent->box = new Box(0, 0, 12, "box", agent->id, static_cast<unsigned char>(agent->agent_id), _blue_battery_item);
-  _grid->add_object(agent->box, false);
+  _grid->ghost_add_object(agent->box);
   _agents.push_back(agent);
 }
 
@@ -393,7 +393,17 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
       GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c), layer);
       auto obj = _grid->object_at(object_loc);
-      if (!obj) continue;
+      if(layer == GridLayer::ObjectLayer) {
+        if (!obj) continue;
+      }
+      if (layer == GridLayer::AgentLayer) {
+        // IN AGENT agent_idx's observation ONLY INCLUDE agent idx's features and not any other agents
+        if (r_offset == 0 && c_offset == 0) {
+          obj = _agents[agent_idx];
+        } else {
+          continue;
+        }
+      }
 
       // Prepare observation buffer for this object
       ObservationToken* obs_ptr =
@@ -416,6 +426,16 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
   _stats->add("tokens_free_space",
               static_cast<float>(static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written)));
+
+  // // Debug: Print observations for this agent
+  // std::cout << "Agent " << agent_idx << " observation tokens:" << std::endl;
+  // for (size_t i = 0; i < tokens_written; i++) {
+  //   ObservationToken* token_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, i, 0));
+  //   std::cout << "  Token " << i << ": location=" << static_cast<int>(token_ptr->location)
+  //             << ", feature_id=" << static_cast<int>(token_ptr->feature_id)
+  //             << ", value=" << static_cast<int>(token_ptr->value) << std::endl;
+  // }
+  // std::cout << "Total tokens: " << tokens_written << std::endl;
 }
 
 void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {

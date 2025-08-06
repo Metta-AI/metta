@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <iostream>
 
 #include "grid_object.hpp"
 #include "objects/constants.hpp"
@@ -54,21 +55,26 @@ public:
     return loc.r < height && loc.c < width && loc.layer < GridLayer::GridLayerCount;
   }
 
-  inline bool add_object(GridObject* obj, bool embed_in_grid = true) {
+  inline bool ghost_add_object(GridObject* obj) {
     if (!is_valid_location(obj->location)) {
       return false;
     }
-    if (embed_in_grid) {
-      if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
-        return false;
-      }
+    obj->id = static_cast<GridObjectId>(this->objects.size());
+    this->objects.push_back(std::unique_ptr<GridObject>(obj));
+    return true;
+  }
+
+  inline bool add_object(GridObject* obj) {
+    if (!is_valid_location(obj->location)) {
+      return false;
+    }
+    if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
+      return false;
     }
 
     obj->id = static_cast<GridObjectId>(this->objects.size());
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
-    if (embed_in_grid) {
-      this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
-    }
+    this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
     return true;
   }
 
@@ -98,8 +104,8 @@ public:
     return true;
   }
 
-  // Force move an object to a location, clearing any existing object there
-  inline bool force_move_object(GridObjectId id, const GridLocation& loc) {
+  // Force move an object to a location without it being registered in the grid at the new location
+  inline bool ghost_move_object(GridObjectId id, const GridLocation& loc) {
     if (!is_valid_location(loc)) {
       return false;
     }
@@ -203,6 +209,12 @@ public:
     for (const auto& layer_objects : grid[row][col]) {
       if (layer_objects != 0) return false;
     }
+    return true;
+  }
+
+  // is_empty for a specific layer
+  inline bool is_empty_at_layer(GridCoord row, GridCoord col, ObservationType layer) const {
+    if (grid[row][col][layer] != 0) return false;
     return true;
   }
 };

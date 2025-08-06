@@ -62,7 +62,7 @@ protected:
         if (heart_item_ >= 0) {
           actor->update_inventory(heart_item_, 1);
         }
-        _grid->force_move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
+        _grid->ghost_move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
         actor->box->inventory[blue_battery_item_] = 0;
         actor->stats.add("box.opened", 1.0f);
         return true;
