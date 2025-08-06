@@ -379,7 +379,6 @@ def train(
                             policy=policy,
                             experience=experience,
                             minibatch=minibatch,
-                            advantages=advantages,
                             trainer_cfg=trainer_cfg,
                             kickstarter=kickstarter,
                             agent_step=agent_step,
