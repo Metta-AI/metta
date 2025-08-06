@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig | str) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -31,22 +31,15 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig |
         }
     )
 
-    # Create MettaAgent directly without Hydra
+    # Check if agent_cfg specifies a pytorch agent type
+    if "agent_type" in agent_cfg and agent_cfg.agent_type in agent_classes:
+        AgentClass = agent_classes[agent_cfg.agent_type]
+        agent = AgentClass(env=env)
+        logger.info(f"Using Pytorch Policy: {agent} (type: {agent_cfg.agent_type})")
+        return agent
 
-    if isinstance(agent_cfg, str):
-        AgentClass = agent_classes.get(agent_cfg)
-        if AgentClass is not None:
-
-            agent = AgentClass(
-                env=env
-            )
-            logger.info(f"Using Pytorch Policy: {agent}")
-            return agent
-        else:
-            raise ValueError(f"Unknown agent type: {agent_cfg}. Available agents: {list(agent_classes.keys())}")
-
+    # For backward compatibility with YAML configs (to be removed in future PR)
     dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)
-
 
     return MettaAgent(
         obs_space=obs_space,

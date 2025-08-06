@@ -81,7 +81,7 @@ def train(
     run_dir: str,
     run: str,
     env_cfg: EnvConfig,
-    agent_cfg: DictConfig | str,
+    agent_cfg: DictConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,

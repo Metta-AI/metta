@@ -4,9 +4,10 @@ from metta.agent.pytorch.latent_attn_small import Recurrent as LatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import Recurrent as LatentAttnTiny
 
 
+# Map from agent type names to their pytorch implementations
 agent_classes = {
-    "fast.py": Fast,
-    "latent_attn_small.py": LatentAttnSmall,
-    "latent_attn_med.py": LatentAttnMed,
-    "latent_attn_tiny.py": LatentAttnTiny,
+    "fast": Fast,
+    "latent_attn_small": LatentAttnSmall,
+    "latent_attn_med": LatentAttnMed,
+    "latent_attn_tiny": LatentAttnTiny,
 }
