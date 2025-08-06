@@ -6,10 +6,10 @@ name: backchain_sequence
 
 simulations:
   backchain_sequence/backchain1:
-    env: env/mettagrid/extended_sequence/backchain1
+    env: env/mettagrid/backchain_sequence/backchain1
   backchain_sequence/backchain2:
-    env: env/mettagrid/extended_sequence/backchain2
+    env: env/mettagrid/backchain_sequence/backchain2
   backchain_sequence/backchain3:
-    env: env/mettagrid/extended_sequence/backchain3
+    env: env/mettagrid/backchain_sequence/backchain3
   backchain_sequence/backchain4:
-    env: env/mettagrid/extended_sequence/backchain4
+    env: env/mettagrid/backchain_sequence/backchain4
