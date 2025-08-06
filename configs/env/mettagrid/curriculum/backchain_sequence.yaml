@@ -1,4 +1,4 @@
-target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 tasks:
   /env/mettagrid/backchain_sequence/backchain1: 1
