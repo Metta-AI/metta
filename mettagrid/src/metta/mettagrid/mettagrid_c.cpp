@@ -1036,7 +1036,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
            py::arg("resource_rewards") = false,
-           py::arg("visitation_counts") = true)
+           py::arg("visitation_counts") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
