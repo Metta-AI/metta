@@ -346,36 +346,20 @@ def train(
                         )
 
                         # In dual-policy mode, we need to filter experience to only include training policy agents
-                        # Calculate which agents are training agents
-                        num_agents_per_env = vecenv.num_agents  # type: ignore
-                        num_envs = vecenv.num_envs  # type: ignore
-                        training_agents_per_env = max(
-                            1, int(num_agents_per_env * trainer_cfg.dual_policy.training_agents_pct)
-                        )
+                        # Calculate which agents are training agents based on actual observations size
+                        actual_obs_size = o.shape[0]
 
-                        # Create masks for training agents only
-                        total_agents = num_envs * num_agents_per_env
-                        idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
-                        training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
+                        # Calculate how many training agents we can actually have
+                        total_training_agents = int(actual_obs_size * trainer_cfg.dual_policy.training_agents_pct)
+
+                        # Create training indices based on actual observations size
+                        training_idxs = torch.arange(total_training_agents, device=device)
 
                         # Ensure training_idxs are on the same device as the tensors we'll index
                         if mask is not None:
                             training_idxs = training_idxs.to(mask.device)
                         else:
                             training_idxs = training_idxs.to(o.device)
-
-                        # Ensure training_idxs don't exceed the actual observations size
-                        actual_obs_size = o.shape[0]
-                        if len(training_idxs) > 0 and training_idxs.max() >= actual_obs_size:
-                            # Adjust training_idxs to fit within actual observations
-                            max_valid_idx = actual_obs_size - 1
-                            training_idxs = training_idxs[training_idxs <= max_valid_idx]
-                            if len(training_idxs) == 0:
-                                # If no valid indices, use first few observations
-                                training_idxs = torch.arange(
-                                    min(actual_obs_size, training_agents_per_env), device=device
-                                )
-                            logger.warning(f"Adjusted training_idxs to fit observations size: {actual_obs_size}")
 
                         # Filter observations, actions, logprobs, values, rewards, dones, truncations
                         # to only training agents
