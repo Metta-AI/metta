@@ -92,9 +92,12 @@ class SingleTrialTask(Task):
         self._env_cfg.current_trial = self._current_trial
 
     def reset(self, env_cfg):
+        if self._is_complete:
+            self._current_trial = 0
+            self._total_score = 0.0
+            self._is_complete = False
         self._env_cfg = hydra.utils.instantiate(env_cfg)
         self._env_cfg.current_trial = self._current_trial
-        self._is_complete = False
 
     def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"
@@ -124,3 +127,7 @@ class SingleTaskCurriculum(Curriculum):
 
     def get_task_probs(self) -> dict[str, float]:
         return {self._task_id: 1.0}
+
+    def env_cfg(self) -> DictConfig:
+        assert self._task_cfg is not None, "Task has no environment configuration"
+        return self._task_cfg
