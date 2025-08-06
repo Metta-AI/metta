@@ -69,8 +69,20 @@ class EpisodeReplay:
 
             update_object = {}
             update_object["id"] = grid_object["id"]
+            assert isinstance(grid_object["id"], int), (
+                f"Expected grid_object['id'] to be an integer, got {type(grid_object['id'])}"
+            )
             update_object["type_id"] = grid_object["type_id"]
+            assert isinstance(grid_object["type_id"], int), (
+                f"Expected grid_object['type_id'] to be an integer, got {type(grid_object['type_id'])}"
+            )
             update_object["location"] = grid_object["location"]
+            assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 3, (
+                f"Expected location to be tuple/list of 3 elements, got {type(grid_object['location'])}"
+            )
+            assert all(isinstance(coord, (int, float)) for coord in grid_object["location"]), (
+                "Expected all location coordinates to be numbers"
+            )
             update_object["orientation"] = grid_object.get("orientation", 0)
             update_object["inventory"] = self.inventory_format(grid_object.get("inventory", {}))
             update_object["inventory_max"] = grid_object.get("inventory_max", 0)
@@ -79,6 +91,7 @@ class EpisodeReplay:
 
             if "agent_id" in grid_object:
                 agent_id = grid_object["agent_id"]
+                assert isinstance(agent_id, int), f"Expected agent_id to be an integer, got {type(agent_id)}"
                 update_object["agent_id"] = agent_id
                 update_object["is_agent"] = True
                 update_object["vision_size"] = 11  # TODO: Waiting for env to support this
@@ -87,21 +100,24 @@ class EpisodeReplay:
                 update_object["action_success"] = bool(self.env.action_success[agent_id])
                 update_object["current_reward"] = rewards[agent_id].item()
                 update_object["total_reward"] = self.total_rewards[agent_id].item()
-                update_object["freeze_remaining"] = grid_object["freeze_remaining"]
-                update_object["is_frozen"] = grid_object["is_frozen"]
-                update_object["freeze_duration"] = grid_object["freeze_duration"]
+                update_object["freeze_remaining"] = grid_object.get("freeze_remaining", 0)
+                update_object["is_frozen"] = grid_object.get("is_frozen", False)
+                update_object["freeze_duration"] = grid_object.get("freeze_duration", 0)
+                assert isinstance(grid_object["group_id"], int), (
+                    f"Expected group_id to be an integer, got {type(grid_object['group_id'])}"
+                )
                 update_object["group_id"] = grid_object["group_id"]
 
             elif "input_resources" in grid_object:
-                update_object["input_resources"] = self.inventory_format(grid_object["input_resources"])
-                update_object["output_resources"] = self.inventory_format(grid_object["output_resources"])
-                update_object["output_limit"] = grid_object["output_limit"]
+                update_object["input_resources"] = self.inventory_format(grid_object.get("input_resources", {}))
+                update_object["output_resources"] = self.inventory_format(grid_object.get("output_resources", {}))
+                update_object["output_limit"] = grid_object.get("output_limit", 0)
                 update_object["conversion_remaining"] = 0  # TODO: Waiting for env to support this
-                update_object["is_converting"] = grid_object["is_converting"]
-                update_object["conversion_duration"] = grid_object["conversion_duration"]
+                update_object["is_converting"] = grid_object.get("is_converting", False)
+                update_object["conversion_duration"] = grid_object.get("conversion_duration", 0)
                 update_object["cooldown_remaining"] = 0  # TODO: Waiting for env to support this
-                update_object["is_cooling_down"] = grid_object["is_cooling_down"]
-                update_object["cooldown_duration"] = grid_object["cooldown_duration"]
+                update_object["is_cooling_down"] = grid_object.get("is_cooling_down", False)
+                update_object["cooldown_duration"] = grid_object.get("cooldown_duration", 0)
 
             self._seq_key_merge(self.objects[i], self.step, update_object)
         self.step += 1
