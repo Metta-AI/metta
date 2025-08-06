@@ -146,3 +146,16 @@ class MiniscopeRenderer:
         self._last_buffer = current_buffer
 
         return current_buffer
+
+    def get_buffer(self, grid_objects: Dict[int, dict]) -> str:
+        """Return emoji map buffer without side effects."""
+        if not self._bounds_set:
+            self._compute_bounds(grid_objects)
+        grid = [[self.MINISCOPE_SYMBOLS["empty"] for _ in range(self._width)] for _ in range(self._height)]
+        for obj in grid_objects.values():
+            r = obj["r"] - self._min_row
+            c = obj["c"] - self._min_col
+            if 0 <= r < self._height and 0 <= c < self._width:
+                grid[r][c] = self._symbol_for(obj)
+        lines = ["".join(row) for row in grid]
+        return "\n".join(lines)

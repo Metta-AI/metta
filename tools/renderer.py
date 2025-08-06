@@ -302,9 +302,12 @@ class OpportunisticPolicy(BasePolicy):
                     type_name = self.env.object_type_names[obj["type"]]
                     base_name = type_name.split(".")[0]
                     if base_name.startswith(("mine", "generator", "converter")):
-                        # Harvestable resource found adjacent
-                        is_front = orient == agent_ori
-                        return (is_front, orient)
+                        # Only treat as resource if it currently has items
+                        inventory = obj.get("inventory", {})
+                        total_items = sum(inventory.values()) if isinstance(inventory, dict) else 0
+                        if total_items > 0:
+                            is_front = orient == agent_ori
+                            return (is_front, orient)
         return (False, -1)
 
     def predict(self, obs: np.ndarray) -> np.ndarray:
@@ -323,20 +326,31 @@ class OpportunisticPolicy(BasePolicy):
                 action_type = self.rotate_idx
                 action_arg = desired_orientation
         else:
-            # No nearby resource – fallback to random wandering (existing probabilities)
-            rand_val: float = np.random.random()
-            if rand_val < self.cardinal_prob:
-                action_type = self.move_idx
-                action_arg = int(np.random.choice(self.cardinal_directions))
-            elif rand_val < self.cardinal_prob + self.any_prob:
-                action_type = self.move_idx
-                action_arg = int(np.random.choice(self.move_directions))
-            elif rand_val < self.cardinal_prob + self.any_prob + self.rotate_prob:
+            # Wandering: rotate toward a random empty adjacent cardinal cell, then move
+            grid_objects = self.env.grid_objects
+            # Occupied coords by objects (layer==1)
+            occupied = {(o["r"], o["c"]) for o in grid_objects.values() if o["layer"] == 1}
+            # Find agent position and orientation
+            agent = next(o for o in grid_objects.values() if o.get("agent_id") == 0)
+            ar, ac = agent["r"], agent["c"]
+            agent_ori = int(agent.get("agent:orientation", 0))
+            # Cardinal deltas: up, down, left, right
+            deltas = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            # Filter empty neighbors
+            moves = [(dr, dc) for dr, dc in deltas if (ar + dr, ac + dc) not in occupied]
+            if moves:
+                dr, dc = moves[np.random.randint(len(moves))]
+                desired_ori = self.DELTA_TO_ORIENT[(dr, dc)]
+                if agent_ori != desired_ori:
+                    action_type = self.rotate_idx
+                    action_arg = desired_ori
+                else:
+                    action_type = self.move_idx
+                    action_arg = 0
+            else:
+                # No empty space—rotate randomly
                 action_type = self.rotate_idx
                 action_arg = int(np.random.choice(self.rotation_orientations))
-            else:
-                action_type = self.pickup_idx
-                action_arg = 0
 
         # Generate valid array for all agents; first agent gets forced action
         actions = generate_valid_random_actions(
@@ -554,7 +568,8 @@ def main(cfg: DictConfig) -> None:
 
             # Display compact score header
             print(
-                f"\rScore: {total_reward:.1f} | Steps: {step_count}/{cfg.renderer_job.num_steps} | Resources: {resources_str}",
+                f"\rScore: {total_reward:.1f} | Steps: {step_count}/{cfg.renderer_job.num_steps}"
+                f" | Resources: {resources_str}",
                 end="",
                 flush=True,
             )
