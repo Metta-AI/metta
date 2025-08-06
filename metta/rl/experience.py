@@ -128,6 +128,7 @@ class Experience:
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
+        # take whatever we need from the policy's output td
         self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
 
         # Update episode tracking
