@@ -100,8 +100,6 @@ class SingleTrialTask(Task):
         assert not self._is_complete, "Task is already complete"
         self._current_trial += 1
         self._total_score += score
-        print(f"Current trial: {self._current_trial}")
-        print(f"Total score: {self._total_score}")
         if self._current_trial >= self._num_trials:
             self._is_complete = True
             for curriculum, id in self._curricula:

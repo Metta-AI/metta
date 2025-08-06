@@ -7,6 +7,7 @@
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/2_converters \
   --gpus=1 \
   +trainer.env_overrides.num_trials=1 \
+  sim=operant_conditioning_multiday \
   "$@"
 
 #2 converters
@@ -16,6 +17,7 @@
   --gpus=1 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  sim=operant_conditioning_multiday \
   "$@"
 
 #3 converters
@@ -25,6 +27,7 @@
   --gpus=1 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  sim=operant_conditioning_multiday \
   "$@"
 
 #4 converters
@@ -34,6 +37,7 @@
   --gpus=1 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  sim=operant_conditioning_multiday \
   "$@"
 
 #all
@@ -43,4 +47,5 @@
   --gpus=1 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  sim=operant_conditioning_multiday \
   "$@"
