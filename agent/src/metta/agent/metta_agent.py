@@ -60,15 +60,14 @@ class DistributedMettaAgent(DistributedDataParallel):
         # This maintains the same interface as the input MettaAgent
         layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
 
-        # Handle CPU vs GPU initialization
+        # Pass device_ids for GPU, but not for CPU
         if device.type == "cpu":
-            # For CPU, don't pass device_ids
             super().__init__(module=layers_converted_agent)
         else:
-            # For GPU, pass device_ids
             super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name: str) -> Any:
+        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
         try:
             return super().__getattr__(name)
         except AttributeError:
