@@ -47,6 +47,12 @@ echo "  - Arguments: $args"
 
 echo "[INFO] Starting training..."
 
+# Set memory fraction for multi-GPU training to avoid OOM
+if [ "$NUM_GPUS" -gt 2 ]; then
+  export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
+  echo "[INFO] Set PYTORCH_CUDA_ALLOC_CONF for multi-GPU training"
+fi
+
 set +e
 PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --nnodes=$NUM_NODES \

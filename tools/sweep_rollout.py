@@ -8,12 +8,14 @@ This module replaces sweep_rollout.sh with a Python implementation that:
 - Maintains compatibility with existing sweep infrastructure
 """
 
+import gc
 import logging
 import os
 import subprocess
 import sys
 import time
 
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.heartbeat import record_heartbeat
@@ -71,6 +73,12 @@ def main(cfg: DictConfig) -> int:
                 break
         else:
             num_consecutive_failures = 0
+
+        # Clean up memory between rollouts
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.debug("Memory cleanup completed between rollouts")
 
     return exit_code
 
