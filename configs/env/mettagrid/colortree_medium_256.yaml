@@ -1,0 +1,27 @@
+defaults:
+  - /env/mettagrid/base
+  - _self_
+
+game:
+  num_agents: 256
+  max_steps: 64
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    uri: configs/env/mettagrid/maps/debug/colortree_256.map
+  actions:
+    - _target_: metta.mettagrid.actions.color_tree.ColorTree
+      target_sequence: [0, 1, 2, 0]  # Will be overridden by curriculum
+      max_sequence_size: 4
+      sequence_reward: 1.0
+      num_trials: 4
+      attempts_per_trial: 4
+      trial_sequences:
+        - [0, 1, 2, 0]  # Will be overridden by curriculum
+        - [0, 1, 2, 0]
+        - [0, 1, 2, 0]
+        - [0, 1, 2, 0]
+      reward_mode: dense
+      items:
+        - ore_red
+        - ore_blue
+        - ore_green
