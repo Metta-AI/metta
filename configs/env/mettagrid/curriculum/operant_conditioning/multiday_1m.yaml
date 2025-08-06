@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
   /env/mettagrid/operant_conditioning/trial_and_error/1_mine_2_converters/blue_to_blue: 1
