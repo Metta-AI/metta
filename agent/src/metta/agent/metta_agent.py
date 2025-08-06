@@ -46,6 +46,12 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
 
 
 class DistributedMettaAgent(DistributedDataParallel):
+    """
+    Because this class passes through __getattr__ to its self.module, it implements everything
+    MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
+    """
+
     module: "MettaAgent"
 
     def __init__(self, agent: "MettaAgent", device: torch.device):
@@ -67,20 +73,6 @@ class DistributedMettaAgent(DistributedDataParallel):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device: torch.device,
-        is_training: bool = True,
-    ) -> None:
-        # is_training parameter is deprecated and ignored - mode is auto-detected
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
 
 
 class MettaAgent(nn.Module):
