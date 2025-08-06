@@ -24,8 +24,8 @@ game:
     rewards:
       inventory:
         heart: 1.0
-      initial_inventory:
-        ore_red: 1
+    initial_inventory:
+      ore_red: 1
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
