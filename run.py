@@ -699,7 +699,7 @@ while agent_step < trainer_config.total_timesteps:
         stats_tracker.grad_stats = compute_gradient_stats(agent)
 
     # Save checkpoint periodically - all ranks must participate in checkpoint decision
-    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, is_master):
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, is_master, non_master_ok=True):
         saved_record = checkpoint_manager.save_policy(
             policy=agent,
             epoch=epoch,
