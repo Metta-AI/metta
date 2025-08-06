@@ -589,10 +589,6 @@ class MettaAgent(nn.Module):
         else:
             return torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
-    def update_l2_init_weight_copy(self):
-        """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
-        self._apply_to_components("update_l2_init_weight_copy")
-
     def clip_weights(self):
         """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
         effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global

@@ -337,7 +337,6 @@ def process_stats(
     memory_monitor: Any | None,
     system_monitor: Any | None,
     latest_saved_policy_record: PolicyRecord | None,
-    initial_policy_record: PolicyRecord | None,
     optimizer: torch.optim.Optimizer | None = None,
     kickstarter: Kickstarter | None = None,
 ) -> None:
@@ -375,7 +374,6 @@ def process_stats(
         "learning_rate": optimizer.param_groups[0]["lr"] if optimizer else trainer_cfg.optimizer.learning_rate,
         "epoch_steps": timing_info["epoch_steps"],
         "num_minibatches": experience.num_minibatches,
-        "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
         "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
     }
 

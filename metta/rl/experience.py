@@ -226,8 +226,6 @@ class Experience:
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-        minibatch_idx: int,
-        total_minibatches: int,
     ) -> Dict[str, Tensor]:
         """Sample a prioritized minibatch for training."""
         # Prioritized sampling based on advantage magnitude
