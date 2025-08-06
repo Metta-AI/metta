@@ -11,7 +11,6 @@ The Experience class provides:
 
 Key features:
 - Stores trajectories in segmented tensors for BPTT
-- Supports both CPU and GPU storage with optional CPU offloading
 - Provides prioritized sampling for training
 - Manages minibatch creation for training
 """

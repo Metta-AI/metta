@@ -68,8 +68,8 @@ components:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
       - name: encoded_obs
-    output_size: 128
     nn_params:
+      hidden_size: 128
       num_layers: 2
 
   critic_1:

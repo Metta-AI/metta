@@ -102,8 +102,6 @@ class MettaAgent(nn.Module):
 
         logger.info(f"obs_space: {obs_space} ")
 
-        self.hidden_size = cfg.components._core_.output_size
-        self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
 
         assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
@@ -121,8 +119,6 @@ class MettaAgent(nn.Module):
             "obs_height": obs_height,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
-            "hidden_size": self.hidden_size,
-            "core_num_layers": self.core_num_layers,
         }
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
@@ -156,6 +152,7 @@ class MettaAgent(nn.Module):
             if hasattr(component, "_memory"):
                 self.components_with_memory.append(name)
 
+        # check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
         if len(all_names) > len(set(all_names)):
             from collections import Counter
@@ -172,6 +169,12 @@ class MettaAgent(nn.Module):
     def reset_memory(self):
         for name in self.components_with_memory:
             self.components[name].reset_memory()
+
+    def get_memory(self):
+        memory = {}
+        for name in self.components_with_memory:
+            memory[name] = self.components[name].get_memory()
+        return memory
 
     def get_agent_experience_spec(self) -> TensorDict:
         """Get the specification to pass in for the init of experience buffer."""
@@ -364,17 +367,7 @@ class MettaAgent(nn.Module):
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """
-        Forward pass for inference mode - samples new actions based on the policy.
-
-        Args:
-            value: Value estimate tensor, shape (BT, 1)
-            logits: Action logits tensor, shape (BT, A)
-
-        Returns:
-            TensorDict containing:
-            - actions: Sampled action, shape (BT, 2)
-            - act_log_prob: Log probability of the sampled action, shape (BT,)
-            - values: Value estimate, shape (BT,)
+        Forward pass for inference mode - softmaxes action logits then samples them and outputs new actions.
         """
         value = td["_value_"]
         logits = td["_action_"]
@@ -405,19 +398,8 @@ class MettaAgent(nn.Module):
 
     def forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
         """
-        Forward pass for training mode - evaluates the policy on provided actions.
-
-        Args:
-            value: Value estimate tensor, shape (BT, 1)
-            logits: Action logits tensor, shape (BT, A)
-            action: Action tensor for evaluation, shape (B, T, 2)
-
-        Returns:
-            TensorDict containing:
-            - action_log_prob: Log probability of the provided action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT, 1)
-            - log_probs: Log-softmax of logits, shape (BT, A)
+        Forward pass for training mode - evaluates the policy on provided actions from rollout.
+        Finds the action logprobs and calculates entropy.
         """
         value = td["_value_"]
         logits = td["_action_"]
@@ -450,11 +432,11 @@ class MettaAgent(nn.Module):
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         """
-        Forward pass of the MettaAgent.
+        Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
         Args:
-            input_td: A TensorDict containing at least "obs". During inference, it should also contain
-                      the recurrent state keys ("lstm_h", "lstm_c") if they are to be used.
+            input_td: A TensorDict containing at least "env_obs". In training, it should also contain the keys that are
+            specified in the experience buffer spec function also defined in this class.
             action: Optional action tensor for BPTT (training mode).
 
         Returns:
