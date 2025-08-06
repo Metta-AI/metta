@@ -73,7 +73,7 @@ def process_minibatch_update(
     policy: torch.nn.Module,
     experience: Experience,
     minibatch: TensorDict,
-    td: TensorDict,
+    policy_td: TensorDict,
     trainer_cfg: TrainerConfig,
     indices: Tensor,
     prio_weights: Tensor,
@@ -83,7 +83,7 @@ def process_minibatch_update(
     device: torch.device,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
-    td = policy(td, action=minibatch["actions"])
+    td = policy(policy_td, action=minibatch["actions"])
 
     old_act_log_prob = minibatch["act_log_prob"]
     new_logprob = td["act_log_prob"].reshape(old_act_log_prob.shape)

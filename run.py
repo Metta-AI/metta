@@ -10,7 +10,6 @@ import torch
 import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
-from tensordict import TensorDict
 
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -349,9 +348,7 @@ if is_master:
     logger.info(f"Model has {num_params:,} parameters")
 
 policy_spec = agent.get_agent_experience_spec()
-act_space = env.single_action_space
-act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-loss_spec = get_loss_experience_spec(policy_spec, act_space, act_dtype)
+loss_spec = get_loss_experience_spec(policy_spec, env.single_action_space, dtype_actions)
 
 # Create experience buffer
 experience = Experience(
@@ -440,6 +437,8 @@ while agent_step < trainer_config.total_timesteps:
     rollout_start = time.time()
     raw_infos = []
     experience.reset_for_rollout()
+    agent.reset_memory()
+    buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
     # Collect experience
     while not experience.ready_for_training:
@@ -451,31 +450,25 @@ while agent_step < trainer_config.total_timesteps:
         # actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
         #     agent, o, experience, training_env_id.start, device
         # )
-        td = TensorDict(
-            {"env_obs": o},
-            batch_size=training_env_id.start,
-        )
-        td = agent(td)
-        actions = td["actions"]
-        selected_action_log_probs = td["logprobs"]
-        values = td["values"]
+        td = buffer_step[training_env_id].clone()
+        td["env_obs"] = o
+        td["rewards"] = r
+        td["dones"] = d.float()
+        td["truncateds"] = t.float()
+        td.training_env_id = training_env_id
+
+        with torch.no_grad():
+            td = agent(td)
 
         # Store experience
         experience.store(
-            obs=o,
-            actions=actions,
-            logprobs=selected_action_log_probs,
-            rewards=r,
-            dones=d,
-            truncations=t,
-            values=values,
+            data_td=td,
             env_id=training_env_id,
-            mask=mask,
         )
 
         # Send actions back to environment
         with timer("_rollout.env"):
-            env.send(actions.cpu().numpy().astype(dtype_actions))  # type: ignore - env is vecenv wrapper
+            env.send(td["actions"].cpu().numpy().astype(dtype_actions))  # type: ignore - env is vecenv wrapper
 
         if info:
             raw_infos.extend(info)
@@ -516,26 +509,29 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Train for multiple epochs
-    total_minibatches = experience.num_minibatches * trainer_config.update_epochs
     minibatch_idx = 0
+    policy_spec = agent.get_agent_experience_spec()
 
     for _update_epoch in range(trainer_config.update_epochs):
         for _ in range(experience.num_minibatches):
+            agent.reset_memory()
             # Sample minibatch
-            minibatch = experience.sample_minibatch(
+            minibatch, indices, prio_weights = experience.sample_minibatch(
                 advantages=advantages,
                 prio_alpha=prio_cfg.prio_alpha,
                 prio_beta=anneal_beta,
-                minibatch_idx=minibatch_idx,
-                total_minibatches=total_minibatches,
             )
+
+            policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
             # Train on minibatch
             loss = process_minibatch_update(
                 policy=agent,
                 experience=experience,
-                td=minibatch,
-                advantages=advantages,
+                minibatch=minibatch,
+                policy_td=policy_td,
+                indices=indices,
+                prio_weights=prio_weights,
                 trainer_cfg=trainer_config,
                 kickstarter=kickstarter,
                 agent_step=agent_step,

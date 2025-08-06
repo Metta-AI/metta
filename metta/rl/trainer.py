@@ -338,7 +338,6 @@ def train(
                 # Inline PPO training
                 losses.zero()
                 experience.reset_importance_sampling_ratios()
-                policy.reset_memory()
 
                 # Calculate prioritized sampling parameters
                 anneal_beta = calculate_prioritized_sampling_params(
@@ -367,7 +366,6 @@ def train(
                 )
 
                 # Train for multiple epochs
-                # total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
                 minibatch_idx = 0
                 epochs_trained = 0
                 policy_spec = policy.get_agent_experience_spec()
@@ -389,7 +387,7 @@ def train(
                             policy=policy,
                             experience=experience,
                             minibatch=minibatch,
-                            td=policy_td,
+                            policy_td=policy_td,
                             indices=indices,
                             prio_weights=prio_weights,
                             trainer_cfg=trainer_cfg,
