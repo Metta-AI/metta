@@ -3,7 +3,7 @@ import secrets
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
 from psycopg import Connection
@@ -105,6 +105,29 @@ class SweepRow(BaseModel):
 class PolicyRow(BaseModel):
     id: uuid.UUID
     name: str
+
+
+class LeaderboardRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    user_id: str
+    evals: list[str]
+    metric: str
+    start_date: date
+    latest_episode: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class PolicyEval(BaseModel):
+    num_agents: int
+    total_score: float
+
+
+class LeaderboardPolicyScore(BaseModel):
+    leaderboard_id: uuid.UUID
+    policy_id: uuid.UUID
+    score: float
 
 
 # This is a list of migrations that will be applied to the eval database.
@@ -483,6 +506,46 @@ MIGRATIONS = [
             """CREATE INDEX IF NOT EXISTS idx_episodes_primary_policy_id ON episodes(primary_policy_id)""",
         ],
     ),
+    SqlMigration(
+        version=23,
+        description="Add leaderboards table",
+        sql_statements=[
+            """CREATE TABLE leaderboards (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                evals TEXT[] NOT NULL,
+                metric TEXT NOT NULL,
+                start_date DATE NOT NULL,
+                latest_episode INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE leaderboard_policy_scores (
+                leaderboard_id UUID NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
+                policy_id UUID NOT NULL REFERENCES policies(id),
+                score FLOAT NOT NULL,
+                PRIMARY KEY (leaderboard_id, policy_id)
+              )""",
+            """CREATE OR REPLACE VIEW unified_training_runs AS
+                WITH good_policies AS (select distinct primary_policy_id FROM episodes),
+                my_training_runs AS (
+                  SELECT t.id AS id, 'training_run' AS type, t.name, t.user_id, t.created_at, t.tags
+                  FROM training_runs t JOIN epochs e ON t.id = e.run_id
+                  JOIN policies p ON p.epoch_id = e.id
+                  JOIN good_policies g ON p.id = g.primary_policy_id
+                ),
+                my_run_free_policies AS (
+                  SELECT p.id AS id, 'policy' AS type, p.name, NULL as user_id, p.created_at, NULL::text[] as tags
+                  FROM policies p
+                  JOIN good_policies g ON p.id = g.primary_policy_id
+                  WHERE p.epoch_id IS NULL
+                )
+                SELECT * FROM my_training_runs
+                UNION
+                SELECT * FROM my_run_free_policies;""",
+        ],
+    ),
 ]
 
 
@@ -767,7 +830,7 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT id, name, created_at, user_id, finished_at, status, url, description, 
+                    SELECT id, name, created_at, user_id, finished_at, status, url, description,
                            COALESCE(tags, ARRAY[]::TEXT[]) as tags
                     FROM training_runs
                     ORDER BY created_at DESC
@@ -1030,7 +1093,7 @@ class MettaRepo:
                 await cur.execute(
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries, 
+                           et.assignee, et.created_at, et.attributes, et.retries,
                            p.name as policy_name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
@@ -1073,7 +1136,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries, 
+                                et.assignee, et.created_at, et.attributes, et.retries,
                                 p.name as policy_name, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
@@ -1086,7 +1149,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries, 
+                                et.assignee, et.created_at, et.attributes, et.retries,
                                 p.name as policy_name, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
@@ -1266,7 +1329,7 @@ class MettaRepo:
                 await cur.execute(
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries, 
+                           et.assignee, et.created_at, et.attributes, et.retries,
                            p.name as policy_name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
@@ -1346,3 +1409,102 @@ class MettaRepo:
                 if row[1]:  # Only add non-null git hashes
                     res[row[0]].append(row[1])
             return res
+
+    async def create_leaderboard(
+        self,
+        name: str,
+        user_id: str,
+        evals: list[str],
+        metric: str,
+        start_date: str,
+    ) -> uuid.UUID:
+        """Create a new leaderboard."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO leaderboards (
+                    name, user_id, evals, metric, start_date
+                ) VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    name,
+                    user_id,
+                    evals,
+                    metric,
+                    start_date,
+                ),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create leaderboard")
+            return row[0]
+
+    async def list_leaderboards(self) -> list[LeaderboardRow]:
+        """List all leaderboards for a user."""
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
+                    FROM leaderboards
+                    ORDER BY updated_at DESC
+                    """,
+                )
+                rows = await cur.fetchall()
+                return rows
+
+    async def get_leaderboard(self, leaderboard_id: uuid.UUID) -> LeaderboardRow | None:
+        """Get a specific leaderboard by ID."""
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
+                    FROM leaderboards
+                    WHERE id = %s
+                    """,
+                    (leaderboard_id,),
+                )
+                row = await cur.fetchone()
+                return row
+
+    async def delete_leaderboard(self, leaderboard_id: str, user_id: str) -> bool:
+        """Delete a leaderboard."""
+        try:
+            leaderboard_uuid = uuid.UUID(leaderboard_id)
+        except ValueError:
+            return False
+
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                DELETE FROM leaderboards
+                WHERE id = %s AND user_id = %s
+                """,
+                (leaderboard_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    async def upsert_leaderboard_policy_score(
+        self, leaderboard_id: uuid.UUID, policy_id: uuid.UUID, score: float
+    ) -> None:
+        """Upsert a leaderboard policy score."""
+        async with self.connect() as con:
+            await con.execute(
+                """
+                INSERT INTO leaderboard_policy_scores (leaderboard_id, policy_id, score) VALUES (%s, %s, %s)
+                ON CONFLICT (leaderboard_id, policy_id) DO UPDATE SET score = %s
+                """,
+                (leaderboard_id, policy_id, score, score),
+            )
+
+    async def update_leaderboard_latest_episode(self, leaderboard_id: uuid.UUID, latest_episode: int) -> None:
+        """Update the latest episode for a leaderboard."""
+        async with self.connect() as con:
+            await con.execute(
+                """
+                UPDATE leaderboards SET latest_episode = %s WHERE id = %s
+                """,
+                (latest_episode, leaderboard_id),
+            )
