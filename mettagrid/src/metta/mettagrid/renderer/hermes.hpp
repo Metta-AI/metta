@@ -17,7 +17,7 @@ extern "C" {
 struct  Hermes; typedef struct Hermes Hermes;
 Hermes* Hermes_Init ();
 void    Hermes_Quit (Hermes* ctx);
-void    Hermes_Scene(Hermes* ctx, MettaGrid* env);
+void    Hermes_Scene(Hermes* ctx, const MettaGrid* env);
 void    Hermes_Frame(Hermes* ctx);
 
 #ifdef __cplusplus
@@ -36,7 +36,7 @@ public:
     HermesPy() : _ctx(Hermes_Init()) {}
     ~HermesPy() = default;
 
-    void update(MettaGrid* env) { Hermes_Scene(_ctx.get(), env); }
+    void update(const MettaGrid* env) { Hermes_Scene(_ctx.get(), env); }
     void render() { Hermes_Frame(_ctx.get()); }
 
     HermesPy(const HermesPy&) = delete;
