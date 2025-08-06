@@ -1,0 +1,7 @@
+target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/extended_sequence/backchain1: 1
+  /env/mettagrid/extended_sequence/backchain2: 1
+  /env/mettagrid/extended_sequence/backchain3: 1
+  /env/mettagrid/extended_sequence/backchain4: 1

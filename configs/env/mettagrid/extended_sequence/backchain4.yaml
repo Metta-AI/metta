@@ -9,7 +9,7 @@ game:
       inventory:
         heart: 1.0
     initial_inventory:
-      ore_green: 1
+      ore_blue: 1
   map_builder:
     root:
       params:
@@ -17,6 +17,7 @@ game:
           altar: 1
           generator_red: 1
           mine_red: 1
+          mine_green: 1
   objects:
     altar:
       cooldown: 255
@@ -39,3 +40,10 @@ game:
         ore_green: 1
       output_resources:
         ore_red: 1
+    mine_green:
+      cooldown: 255
+      initial_resource_count: 0
+      input_resources:
+        ore_blue: 1
+      output_resources:
+        ore_green: 1
