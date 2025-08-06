@@ -8,7 +8,7 @@ defaults:
 
 game:
   num_agents: 24
-  max_steps: 500
+  max_steps: 700
   agent:
     default_resource_limit: 1
     rewards:
@@ -30,9 +30,10 @@ game:
           altar: 1
           generator_red: 1
           mine_red: 1
+          mine_green: 1
+          mine_blue: 1
   objects:
     altar:
-      cooldown: 1
       input_resources:
         battery_red: 1
       output_resources:
@@ -43,3 +44,15 @@ game:
         ore_red: 1
       output_resources:
         battery_red: 1
+    mine_red:
+      cooldown: 255
+      input_resources:
+        ore_green: 1
+      output_resources:
+        ore_red: 1
+    mine_green:
+      cooldown: 255
+      input_resources:
+        ore_blue: 1
+      output_resources:
+        ore_green: 1

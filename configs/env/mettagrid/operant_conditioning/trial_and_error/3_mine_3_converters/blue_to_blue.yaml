@@ -1,0 +1,18 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/operant_conditioning/defaults
+
+buckets:
+  game.map_builder.root.params.uri:
+    ["configs/env/mettagrid/maps/operant_conditioning/minimal_3.map"]
+  game.objects.generator_red.cooldown: [1]
+  game.objects.generator_red.input_resources.ore_blue: [1]
+  game.objects.generator_red.input_resources.ore_red: [0]
+  game.objects.generator_red.output_resources.battery_red: [0]
+  game.objects.generator_blue.cooldown: [1]
+  game.objects.generator_blue.output_resources.battery_blue: [0]
+  game.objects.generator_blue.output_resources.heart: [1]
+  game.objects.generator_green.cooldown: [1]
+  game.objects.generator_green.input_resources.ore_blue: [1]
+  game.objects.generator_green.input_resources.ore_green: [0]
+  game.objects.generator_green.output_resources.battery_green: [0]

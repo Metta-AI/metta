@@ -13,10 +13,16 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/bbc/bbc
+  curriculum: /env/mettagrid/curriculum/operant_conditioning/multiday_1m
+  env_overrides:
+    num_trials: 8
+  #   game:
+  #     max_steps: 31
+  # bptt_horizon: 32
+  # batch_size: 524288
 
-policy_uri: wandb://run/george.navigation.bucketed.07-10
+policy_uri: wandb://run/daphne.navigation.earlyterm.any.1.07-29
 
-run_id: 5
+run_id: 10
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

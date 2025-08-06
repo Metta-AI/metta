@@ -1,0 +1,25 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: operant_conditioning
+
+simulations:
+  operant_conditioning/blue_to_blue:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/blue_to_blue
+  operant_conditioning/blue_to_red:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/blue_to_red
+  operant_conditioning/blue_to_green:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/blue_to_green
+  operant_conditioning/green_to_blue:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/green_to_blue
+  operant_conditioning/green_to_red:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/green_to_red
+  operant_conditioning/green_to_green:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/green_to_green
+  operant_conditioning/red_to_blue:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/red_to_blue
+  operant_conditioning/red_to_green:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/red_to_green
+  operant_conditioning/red_to_red:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_mine_3_converters/red_to_red

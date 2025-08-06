@@ -64,9 +64,9 @@ zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
-batch_size: 524288
+batch_size: 1032192
 minibatch_size: 16384
-bptt_horizon: 64
+bptt_horizon: 128
 update_epochs: 1
 
 cpu_offload: false

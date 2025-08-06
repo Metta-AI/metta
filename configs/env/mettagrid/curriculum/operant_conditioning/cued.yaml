@@ -1,0 +1,7 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/operant_conditioning/cued_operant/blue_to_red_cued: 1
+  /env/mettagrid/operant_conditioning/cued_operant/red_to_blue_cued: 1
+  /env/mettagrid/operant_conditioning/cued_operant/red_to_red_cued: 1
+  /env/mettagrid/operant_conditioning/cued_operant/blue_to_blue_cued: 1

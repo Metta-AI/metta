@@ -6,38 +6,46 @@ defaults:
   - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
+num_trials: 16
+
 game:
   num_agents: 24
-  max_steps: 400
+  max_steps: 40
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
   agent:
     default_resource_limit: 1
+    resource_limits:
+      ore_red: 1
+      ore_blue: 1
+      ore_green: 1
     rewards:
       inventory:
-        heart: 1.0
+        ore_red: 0
+        ore_blue: 0
+        ore_green: 0
         battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 1.0
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
-    width: 7
-    height: 7
-
+    width: 8
+    height: 8
     root:
-      type: metta.map.scenes.random.Random
+      type: metta.map.scenes.ascii.Ascii
       params:
-        agents: 1
-        objects:
-          altar: 1
-          generator_red: 1
+        uri: ??
   objects:
-    altar:
-      cooldown: 1
-      input_resources:
-        battery_red: 1
-      output_resources:
-        heart: 1
-    generator_red:
+    mine_red:
       cooldown: 255
-      input_resources:
-        ore_red: 0
-      output_resources:
-        battery_red: 1
+    mine_blue:
+      cooldown: 255
+    mine_green:
+      cooldown: 255
