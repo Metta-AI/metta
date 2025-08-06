@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/operant_conditioning/defaults@
+  - /env/mettagrid/operant_conditioning/smoke_tests/defaults@
   - _self_
 
 game:
