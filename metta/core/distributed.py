@@ -16,9 +16,9 @@ def setup_distributed_vars() -> Tuple[bool, int, int]:
         Tuple of (_master, _world_size, _rank)
     """
     if torch.distributed.is_initialized():
-        _master = torch.distributed.get_rank() == 0
         _world_size = torch.distributed.get_world_size()
         _rank = torch.distributed.get_rank()
+        _master = _rank == 0
     else:
         _master = True
         _world_size = 1
