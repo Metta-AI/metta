@@ -20,6 +20,3 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_balanced: 1
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
-  /env/mettagrid/extended_sequence/backchain1: 2
-  /env/mettagrid/extended_sequence/backchain2: 2
-  /env/mettagrid/extended_sequence/backchain3: 2
