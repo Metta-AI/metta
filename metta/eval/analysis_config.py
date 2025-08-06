@@ -26,3 +26,9 @@ class AnalysisConfig(Config):
     # Output configuration (add these)
     output_path: str | None = None
     num_output_policies: str | int | None = None
+
+    # Curriculum analysis options
+    enable_curriculum_analysis: bool = False
+    curriculum_oracle_name: str = "oracle"
+    curriculum_regret_metrics: list[str] = ["efficiency_regret", "time_regret"]
+    curriculum_adaptation_analysis: bool = True

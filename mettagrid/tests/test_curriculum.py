@@ -963,3 +963,137 @@ class TestPrioritizeRegressedCurriculumScenarios:
         assert learnable_ratio > 0.9, f"Learnable tasks should dominate sampling, got {learnable_ratio:.3f}"
 
         print("✓ PASSED: Prioritize regressed curriculum correctly avoids impossible task (no regression possible)")
+
+
+class TestCurriculumRegretScenarios:
+    """Test scenarios for curriculum regret analysis based on the CurriculumRegretProfile framework."""
+
+    def test_regret_calculation_basic(self, monkeypatch):
+        """Test basic regret calculation against oracle baseline."""
+
+        def mock_curriculum_from_config_path(path, env_overrides=None):
+            base_config = OmegaConf.create({"game": {"num_agents": 5, "map": {"width": 10, "height": 10}}})
+            task_cfg = OmegaConf.merge(base_config, env_overrides or {})
+            return SingleTaskCurriculum(path, task_cfg=task_cfg)
+
+        monkeypatch.setattr(
+            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
+        )
+
+        # Create curricula to test
+        curricula = {
+            "random": RandomCurriculum({"task_a": 1.0, "task_b": 1.0}, OmegaConf.create({})),
+            "oracle": RandomCurriculum({"task_a": 1.0, "task_b": 1.0}, OmegaConf.create({})),  # Oracle baseline
+        }
+
+        # Simulate performance with controlled scores
+        score_generator = MonotonicLinearScores(increment=0.1)
+
+        # Run simulations
+        results = {}
+        for name, curriculum in curricula.items():
+            sim_result = run_curriculum_simulation(curriculum, score_generator, num_steps=50)
+            results[name] = sim_result
+
+        # Calculate regret
+        oracle_efficiency = results["oracle"]["efficiency"]
+        random_efficiency = results["random"]["efficiency"]
+        efficiency_regret = oracle_efficiency - random_efficiency
+
+        # Basic regret validation
+        assert efficiency_regret >= 0, "Regret should be non-negative"
+        assert isinstance(efficiency_regret, float), "Regret should be a float"
+
+    def test_curriculum_comparison_across_scenarios(self, monkeypatch):
+        """Test curriculum performance comparison across different scenarios."""
+
+        def mock_curriculum_from_config_path(path, env_overrides=None):
+            base_config = OmegaConf.create({"game": {"num_agents": 5, "map": {"width": 10, "height": 10}}})
+            task_cfg = OmegaConf.merge(base_config, env_overrides or {})
+            return SingleTaskCurriculum(path, task_cfg=task_cfg)
+
+        monkeypatch.setattr(
+            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
+        )
+
+        # Test different curricula
+        curricula = {
+            "random": RandomCurriculum({"task_a": 1.0, "task_b": 1.0, "task_c": 1.0}, OmegaConf.create({})),
+            "lp": LearningProgressCurriculum({"task_a": 1.0, "task_b": 1.0, "task_c": 1.0}, OmegaConf.create({})),
+            "regressed": PrioritizeRegressedCurriculum(
+                {"task_a": 1.0, "task_b": 1.0, "task_c": 1.0}, OmegaConf.create({})
+            ),
+        }
+
+        # Test scenarios (different score generators)
+        scenarios = {
+            "linear": MonotonicLinearScores(increment=0.1),
+            "conditional": ConditionalLinearScores(linear_tasks={"task_a", "task_b"}, increment=0.1),
+            "threshold": ThresholdDependentScores("task_a", "task_b", threshold=0.5, increment=0.1),
+        }
+
+        # Run comprehensive comparison
+        all_results = {}
+        for scenario_name, score_gen in scenarios.items():
+            scenario_results = {}
+            for curriculum_name, curriculum in curricula.items():
+                sim_result = run_curriculum_simulation(curriculum, score_gen, num_steps=50)
+                scenario_results[curriculum_name] = sim_result
+            all_results[scenario_name] = scenario_results
+
+        # Validate results structure
+        for scenario_name, scenario_results in all_results.items():
+            assert len(scenario_results) == len(curricula), f"All curricula should be tested in {scenario_name}"
+            for curriculum_name, result in scenario_results.items():
+                assert "efficiency" in result, f"Efficiency metric missing for {curriculum_name} in {scenario_name}"
+                assert "task_weights" in result, f"Task weights missing for {curriculum_name} in {scenario_name}"
+
+    def test_regret_metrics_consistency(self, monkeypatch):
+        """Test that regret metrics are consistent and well-formed."""
+
+        def mock_curriculum_from_config_path(path, env_overrides=None):
+            base_config = OmegaConf.create({"game": {"num_agents": 5, "map": {"width": 10, "height": 10}}})
+            task_cfg = OmegaConf.merge(base_config, env_overrides or {})
+            return SingleTaskCurriculum(path, task_cfg=task_cfg)
+
+        monkeypatch.setattr(
+            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
+        )
+
+        # Create test curricula
+        curricula = {
+            "baseline": RandomCurriculum({"task_a": 1.0, "task_b": 1.0}, OmegaConf.create({})),
+            "oracle": RandomCurriculum({"task_a": 1.0, "task_b": 1.0}, OmegaConf.create({})),
+        }
+
+        score_generator = MonotonicLinearScores(increment=0.1)
+
+        # Run simulations
+        results = {}
+        for name, curriculum in curricula.items():
+            sim_result = run_curriculum_simulation(curriculum, score_generator, num_steps=50)
+            results[name] = sim_result
+
+        # Calculate regret metrics
+        oracle_efficiency = results["oracle"]["efficiency"]
+        baseline_efficiency = results["baseline"]["efficiency"]
+
+        efficiency_regret = oracle_efficiency - baseline_efficiency
+        normalized_regret = efficiency_regret / max(oracle_efficiency, 1e-6)  # Avoid division by zero
+
+        # Validate regret properties
+        assert efficiency_regret >= 0, "Efficiency regret should be non-negative"
+        assert normalized_regret >= 0, "Normalized regret should be non-negative"
+        assert normalized_regret <= 1, "Normalized regret should be <= 1"
+
+        # Test regret consistency across multiple runs
+        regrets = []
+        for _ in range(3):  # Multiple runs
+            score_generator.reset()
+            sim_result = run_curriculum_simulation(curricula["baseline"], score_generator, num_steps=50)
+            run_regret = oracle_efficiency - sim_result["efficiency"]
+            regrets.append(run_regret)
+
+        # Regret should be consistent (within reasonable bounds)
+        regret_std = np.std(regrets)
+        assert regret_std < 10.0, "Regret should be reasonably consistent across runs"
