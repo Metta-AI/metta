@@ -19,8 +19,8 @@ run_dir: ${data_dir}/${run}
 policy_uri: file://${run_dir}/checkpoints
 
 trainer:
-  # Use arena combat with learning progress curriculum
-  curriculum: /env/mettagrid/curriculum/arena/learning_progress
+  # Use basic arena curriculum (simpler, no special objects - avoiding lasery/armory errors)
+  curriculum: /env/mettagrid/arena/basic
 
   # Train WITH NPCs using daveey's policy (read-only, won't modify his files!)
   env_overrides:
@@ -43,8 +43,9 @@ trainer:
 
   # Short training run for quick testing
   total_timesteps: 100000
-  batch_size: 512
+  batch_size: 2048  # Reasonable batch for testing
   minibatch_size: 512
+  bptt_horizon: 8  # Sequence length for RNN
 
   # Load from previous checkpoint if specified
   initial_policy:
