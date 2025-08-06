@@ -70,7 +70,7 @@ def format_grid_object(
     rewards: np.ndarray,
     total_rewards: np.ndarray,
 ) -> dict:
-    """Format a grid object with validation for both replay recording and live streaming."""
+    """Format a grid object with validation for both replay recording and play streaming."""
     # Validate basic object properties
     assert isinstance(grid_object["id"], int), (
         f"Expected grid_object['id'] to be an integer, got {type(grid_object['id'])}"
