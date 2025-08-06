@@ -1,12 +1,20 @@
+import asyncio
+import socket
 import time
-from typing import Any, Dict
+import uuid
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict
 from unittest import mock
 
 import pytest
+import pytest_asyncio
+import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from httpx import AsyncClient
 from testcontainers.postgres import PostgresContainer
 
+from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
@@ -228,3 +236,106 @@ def record_episodes(stats_client: StatsClient):
                 )
 
     return _record
+
+
+# HTTP Testing Infrastructure for EvalTaskOrchestrator tests
+
+
+class HttpEvalTaskClientEnv:
+    """Environment for HTTP-based eval task client tests."""
+
+    def __init__(self, base_url: str, token: str):
+        self.base_url = base_url
+        self.token = token
+        self._httpx_clients = []
+
+    def make_client(self) -> EvalTaskClient:
+        """Create a new EvalTaskClient instance."""
+        client = EvalTaskClient.__new__(EvalTaskClient)
+        httpx_client = AsyncClient(base_url=self.base_url)
+        client._http_client = httpx_client
+        client._machine_token = self.token
+        self._httpx_clients.append(httpx_client)
+        return client
+
+    async def aclose_all(self):
+        await asyncio.gather(*(cl.aclose() for cl in self._httpx_clients), return_exceptions=True)
+
+
+def _find_free_port() -> int:
+    """Find a free port for the HTTP server."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
+
+
+@asynccontextmanager
+async def _http_server(test_app: FastAPI):
+    """Start a real HTTP server for testing."""
+    port = _find_free_port()
+
+    config = uvicorn.Config(test_app, host="127.0.0.1", port=port, log_level="critical")
+    server = uvicorn.Server(config)
+
+    # Start server in background
+    task = asyncio.create_task(server.serve())
+
+    # Wait for server to start
+    await asyncio.sleep(0.2)
+
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.should_exit = True
+        try:
+            await asyncio.wait_for(task, timeout=1.0)
+        except asyncio.TimeoutError:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+
+@pytest_asyncio.fixture
+async def http_env(test_app: FastAPI, test_client: TestClient) -> AsyncGenerator[HttpEvalTaskClientEnv, Any]:
+    """Create an HTTP environment for eval task client tests."""
+    async with _http_server(test_app) as base_url:
+        async with AsyncClient(base_url=base_url) as tmp:
+            r = await tmp.post(
+                "/tokens",
+                json={"name": "orchestrator_test_token", "permissions": ["read", "write"]},
+                headers={"X-Auth-Request-Email": "test_user@example.com"},
+            )
+            r.raise_for_status()
+            token = r.json()["token"]
+        env = HttpEvalTaskClientEnv(base_url=base_url, token=token)
+        try:
+            yield env
+        finally:
+            await env.aclose_all()
+
+
+@pytest.fixture
+def orchestrator_test_policy_id(stats_client: StatsClient) -> uuid.UUID:
+    """Create a test policy specifically for orchestrator tests."""
+    training_run = stats_client.create_training_run(
+        name=f"test_orchestrator_run_{uuid.uuid4().hex[:8]}",
+        attributes={"test": "orchestrator"},
+    )
+
+    epoch = stats_client.create_epoch(
+        run_id=training_run.id,
+        start_training_epoch=0,
+        end_training_epoch=100,
+    )
+
+    policy = stats_client.create_policy(
+        name=f"test_orchestrator_policy_{uuid.uuid4().hex[:8]}",
+        description="Test policy for orchestrator tests",
+        epoch_id=epoch.id,
+    )
+
+    return policy.id

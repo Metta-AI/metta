@@ -67,6 +67,7 @@ dependencies = [
   "altair>=5.5.0",
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
+  "pytest-timeout>=2.4.0",
 ]
 name = "metta"
 version = "0.1"
@@ -119,6 +120,7 @@ markers = [
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
+timeout = 300
 addopts = "-n auto --import-mode=importlib"
 
 [tool.uv]
