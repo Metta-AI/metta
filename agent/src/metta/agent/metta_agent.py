@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -46,19 +46,23 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    def __init__(self, agent, device):
+    module: "MettaAgent"
+
+    def __init__(self, agent: "MettaAgent", device: torch.device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+
+        # This maintains the same interface as the input MettaAgent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
 
         # Handle CPU vs GPU initialization
         if device.type == "cpu":
             # For CPU, don't pass device_ids
-            super().__init__(agent)
+            super().__init__(module=layers_converted_agent)
         else:
             # For GPU, pass device_ids
-            super().__init__(agent, device_ids=[device], output_device=device)
+            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         try:
             return super().__getattr__(name)
         except AttributeError:
