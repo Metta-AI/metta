@@ -53,6 +53,9 @@ trainer:
     range: 1
     metric: epoch
 
+  # Enable verbose logging for debugging
+  verbose: true
+
 # Override evaluations to include NPC simulations
 evals:
   simulations:
@@ -79,7 +82,3 @@ wandb:
 
 # Device configuration
 device: ${oc.env:DEVICE,gpu}  # Default to CPU for testing
-
-# Add verbose logging for debugging
-trainer:
-  verbose: true
