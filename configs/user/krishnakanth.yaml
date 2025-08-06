@@ -81,4 +81,4 @@ wandb:
   enabled: true
 
 # Device configuration
-device: ${oc.env:DEVICE,gpu}  # Default to CPU for testing
+device: ${oc.env:DEVICE,cpu}  # Default to CPU for testing
