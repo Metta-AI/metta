@@ -4,6 +4,7 @@ import logging
 import random
 from typing import Any, Dict
 
+import hydra
 import numpy as np
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
@@ -29,7 +30,10 @@ class SampledTaskCurriculum(Curriculum):
         cfg = self._task_cfg_template.copy()
         for k, v in self._sampling_parameters.items():
             OmegaConf.update(cfg, k, _sample(v), merge=False)
-        return SingleTrialTask(self._task_id, self, cfg)
+        if "_target_" in cfg:
+            return hydra.utils.instantiate(cfg, id=self._task_id, curriculum=self, _recursive_=False)
+        else:
+            return SingleTrialTask(self._task_id, self, cfg)
 
 
 def _sample(dist: Any) -> Any:

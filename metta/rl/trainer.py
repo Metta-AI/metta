@@ -140,9 +140,8 @@ def train(
 
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
-        checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
         policy_store=policy_store,
-        trainer_cfg=trainer_cfg,
+        checkpoint_config=trainer_cfg.checkpoint,
         device=device,
         is_master=is_master,
         rank=rank,
@@ -282,7 +281,7 @@ def train(
                 name=name, attributes={}, url=url, description=description, tags=tags
             ).id
         except Exception as e:
-            logger.warning(f"Failed to create training run: {e}")
+            logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
     if is_master:
         logger.info(f"Training on {device}")
@@ -462,23 +461,14 @@ def train(
 
         # Log training status
         if is_master:
-            rollout_time = timer.get_last_elapsed("_rollout")
-            train_time = timer.get_last_elapsed("_train")
-            stats_time = timer.get_last_elapsed("_process_stats")
-            steps_calculated = agent_step - steps_before
-
-            total_time = train_time + rollout_time + stats_time
-            steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
-
             log_training_progress(
                 epoch=epoch,
                 agent_step=agent_step,
+                prev_agent_step=steps_before,
                 total_timesteps=trainer_cfg.total_timesteps,
-                steps_per_sec=steps_per_sec,
-                train_time=train_time,
-                rollout_time=rollout_time,
-                stats_time=stats_time,
-                is_master=is_master,
+                train_time=timer.get_last_elapsed("_train"),
+                rollout_time=timer.get_last_elapsed("_rollout"),
+                stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
 
@@ -487,7 +477,7 @@ def train(
             maybe_update_l2_weights(policy, epoch, interval, is_master)
 
         # Save policy - all ranks must participate in checkpoint decision
-        if checkpoint_manager.should_checkpoint(epoch):
+        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master):
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
                 epoch=epoch,
@@ -535,7 +525,7 @@ def train(
 
                 # Create extended simulation suite that includes the training task
                 # Deep merge trainer env_overrides with sim_suite_config env_overrides
-                merged_env_overrides = OmegaConf.to_container(
+                merged_env_overrides: dict = OmegaConf.to_container(  # type: ignore
                     OmegaConf.merge(sim_suite_config.env_overrides, trainer_cfg.env_overrides)
                 )
                 extended_suite_config = SimulationSuiteConfig(
@@ -580,8 +570,8 @@ def train(
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort every 5 epochs
-        if is_master and wandb_run and epoch % 5 == 0:
-            if abort_requested(wandb_run, min_interval_sec=60):
+        if should_run(epoch, 5, is_master):
+            if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
                 logger.info("Abort tag detected. Stopping the run.")
                 trainer_cfg.total_timesteps = int(agent_step)
                 wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)

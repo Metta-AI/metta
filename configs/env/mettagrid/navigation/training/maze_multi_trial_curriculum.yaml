@@ -1,0 +1,6 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_cfg_template_path: /env/mettagrid/navigation/training/maze_multi_trial_task
+
+buckets:
+  env_overrides.game.map_builder.room.objects.altar:
+    range: [3, 50]
