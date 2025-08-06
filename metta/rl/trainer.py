@@ -31,7 +31,6 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
-    maybe_update_l2_weights,
 )
 from metta.rl.policy_management import (
     load_or_initialize_policy,
@@ -157,8 +156,7 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
-    policy: PolicyAgent
-    policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
+    initial_policy_record = latest_saved_policy_record = load_or_initialize_policy(
         agent_cfg=agent_cfg,
         env_cfg=env_cfg,
         trainer_cfg=trainer_cfg,
@@ -168,6 +166,7 @@ def train(
         is_master=is_master,
         rank=rank,
     )
+    policy: PolicyAgent = latest_saved_policy_record.policy
 
     # Validate that policy matches environment
     validate_policy_environment_match(policy, metta_grid_env)
@@ -363,7 +362,6 @@ def train(
                 )
 
                 # Train for multiple epochs
-                total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
                 minibatch_idx = 0
                 epochs_trained = 0
 
@@ -374,8 +372,6 @@ def train(
                             advantages=advantages,
                             prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                             prio_beta=anneal_beta,
-                            minibatch_idx=minibatch_idx,
-                            total_minibatches=total_minibatches,
                         )
 
                         # Process minibatch
@@ -383,7 +379,6 @@ def train(
                             policy=policy,
                             experience=experience,
                             minibatch=minibatch,
-                            advantages=advantages,
                             trainer_cfg=trainer_cfg,
                             kickstarter=kickstarter,
                             agent_step=agent_step,
@@ -403,7 +398,7 @@ def train(
                             if hasattr(policy, "clip_weights"):
                                 policy.clip_weights()
 
-                            if str(device).startswith("cuda"):
+                            if device.type == "cuda":
                                 torch.cuda.synchronize()
 
                         minibatch_idx += 1
@@ -443,7 +438,6 @@ def train(
                     memory_monitor=memory_monitor,
                     system_monitor=system_monitor,
                     latest_saved_policy_record=latest_saved_policy_record,
-                    initial_policy_record=initial_policy_record,
                     optimizer=optimizer,
                     kickstarter=kickstarter,
                 )
@@ -463,10 +457,6 @@ def train(
                 stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
-
-        # Update L2 weights if configured
-        if interval := getattr(policy, "l2_init_weight_update_interval", 0):
-            maybe_update_l2_weights(policy, epoch, interval, is_master)
 
         # Save policy - all ranks must participate in checkpoint decision
         if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master, non_master_ok=True):
@@ -506,8 +496,7 @@ def train(
         # Evaluate policy (with remote evaluation support)
         if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if latest_saved_policy_record:
-                # Create stats epoch if needed
-                if stats_client is not None and stats_tracker.stats_run_id is not None:
+                if stats_client and stats_tracker.stats_run_id:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
                         run_id=stats_tracker.stats_run_id,
                         start_training_epoch=stats_tracker.stats_epoch_start,
