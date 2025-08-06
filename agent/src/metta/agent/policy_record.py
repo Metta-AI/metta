@@ -31,8 +31,13 @@ class PolicyRecord:
     def get_wandb_info(self) -> tuple[str, str, str]:
         if self.uri is None or not self.uri.startswith("wandb://"):
             raise ValueError("Cannot get wandb info without a valid URI.")
-        run, project, entity = self.uri[len("wandb://") :].split("/")
-        return run, project, entity
+        try:
+            entity, project, name = self.uri[len("wandb://") :].split("/")
+            return entity, project, name
+        except ValueError as e:
+            raise ValueError(
+                f"Failed to parse wandb URI: {self.uri}. Expected format: wandb://<entity>/<project>/<name>"
+            ) from e
 
     @property
     def metadata(self) -> PolicyMetadata:
