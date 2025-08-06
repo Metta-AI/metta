@@ -823,7 +823,7 @@ py::dict MettaGrid::feature_spec() {
   return feature_spec;
 }
 
-size_t MettaGrid::num_agents() {
+size_t MettaGrid::num_agents() const {
   return _agents.size();
 }
 

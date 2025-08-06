@@ -100,7 +100,7 @@ public:
   GridCoord map_height();
   py::dict feature_normalizations();
   py::dict feature_spec();
-  size_t num_agents();
+  size_t num_agents() const;
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
@@ -112,7 +112,10 @@ public:
 
   uint64_t initial_grid_hash;
 
-  Grid& grid() const { return *_grid; }
+  using ActionHandlers = std::vector<std::unique_ptr<ActionHandler>>;
+
+  const Grid& grid() const { return *_grid; }
+  const ActionHandlers& action_handlers() const { return _action_handlers; }
 
 private:
   // Member variables
@@ -125,7 +128,7 @@ private:
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
 
-  std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
+  ActionHandlers _action_handlers;
   size_t _num_action_handlers;
   std::vector<unsigned char> _max_action_args;
   unsigned char _max_action_arg;
