@@ -89,11 +89,19 @@ class SingleTrialTask(Task):
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
+        self._env_cfg.current_trial = self._current_trial
+
+    def reset(self, env_cfg):
+        self._env_cfg = hydra.utils.instantiate(env_cfg)
+        self._env_cfg.current_trial = self._current_trial
+        self._is_complete = False
 
     def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"
         self._current_trial += 1
         self._total_score += score
+        print(f"Current trial: {self._current_trial}")
+        print(f"Total score: {self._total_score}")
         if self._current_trial >= self._num_trials:
             self._is_complete = True
             for curriculum, id in self._curricula:
@@ -110,9 +118,16 @@ class SingleTaskCurriculum(Curriculum):
     def __init__(self, task_id: str, task_cfg: DictConfig):
         self._task_id = task_id
         self._task_cfg = task_cfg
+        self._task = SingleTrialTask(self._task_id, self, self._task_cfg)
 
     def get_task(self) -> Task:
-        return SingleTrialTask(self._task_id, self, self._task_cfg)
+        self._task.reset(self._task_cfg)
+        # return SingleTrialTask(self._task_id, self, self._task_cfg)
+        return self._task
 
     def get_task_probs(self) -> dict[str, float]:
         return {self._task_id: 1.0}
+
+    def env_cfg(self) -> DictConfig:
+        assert self._task_cfg is not None, "Task has no environment configuration"
+        return self._task_cfg
