@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <array>
+#include <unordered_map> // Added for PerAgentData
 
 #include "action_handler.hpp"
 #include "objects/agent.hpp"
@@ -70,21 +71,10 @@ public:
         _trial_sequences(cfg.trial_sequences),
         _attempts_per_trial(cfg.attempts_per_trial),
         _reward_mode(cfg.reward_mode),
-        _current_sequence_size(0),
-        _action_count(0),
-        _current_trial(0),
-        _current_inventory_item(INVALID_ITEM) {
+        _max_sequence_size(cfg.target_sequence.size()),
+        _actions_per_trial(_attempts_per_trial * _max_sequence_size) {
     // Initialize target sequence for first trial
     _update_target_sequence();
-
-    // Pre-calculate actions per trial
-    _actions_per_trial = _attempts_per_trial * _target_sequence.size();
-
-    // Reserve space for maximum sequence size
-    if (!_target_sequence.empty()) {
-      _max_sequence_size = _target_sequence.size();
-      _current_sequence.resize(_max_sequence_size);
-    }
   }
 
   unsigned char max_arg() const override {
@@ -104,10 +94,13 @@ protected:
       return false;
     }
 
-    // Track total actions for trial switching
+    // Get or create per-agent state
+    auto& agent_data = _agent_state.try_emplace(actor, _max_sequence_size).first->second;
+
+    // Track total actions for trial switching (global counter)
     _action_count++;
 
-    // Check if we need to switch to a new trial
+    // Check if we need to switch to a new trial (global trial switching)
     if (_action_count % _actions_per_trial == 0 && _action_count > 0) {
       _current_trial++;
       if (_current_trial < _num_trials) {
@@ -117,9 +110,9 @@ protected:
     }
 
     // Add the color to the current sequence
-    size_t position_in_sequence = _current_sequence_size % _max_sequence_size;
-    _current_sequence[position_in_sequence] = color;
-    _current_sequence_size++;
+    size_t position_in_sequence = agent_data.sequence_size % _max_sequence_size;
+    agent_data.sequence[position_in_sequence] = color;
+    agent_data.sequence_size++;
     actor->stats.add("color_tree.colors_added", 1.0f);
 
     // Dense reward mode: give immediate reward for correct position
@@ -132,10 +125,10 @@ protected:
     }
 
     // Clear only the previously stored item (if any)
-    if (_current_inventory_item != INVALID_ITEM) {
-      auto inv_it = actor->inventory.find(_current_inventory_item);
+    if (agent_data.current_item != INVALID_ITEM) {
+      auto inv_it = actor->inventory.find(agent_data.current_item);
       if (inv_it != actor->inventory.end() && inv_it->second > 0) {
-        actor->update_inventory(_current_inventory_item, -static_cast<InventoryDelta>(inv_it->second));
+        actor->update_inventory(agent_data.current_item, -static_cast<InventoryDelta>(inv_it->second));
       }
     }
 
@@ -147,20 +140,20 @@ protected:
     }
 
     // Add the item to inventory for visualization
-    _current_inventory_item = item_it->second;
-    InventoryDelta delta = actor->update_inventory(_current_inventory_item, 1);
+    agent_data.current_item = item_it->second;
+    InventoryDelta delta = actor->update_inventory(agent_data.current_item, 1);
     if (delta <= 0) {
       // Log warning but continue - visualization may be incomplete
       actor->stats.add("color_tree.inventory_full", 1.0f);
     }
 
         // Check if we've completed a fixed window
-    if (_current_sequence_size % _max_sequence_size == 0 && _current_sequence_size > 0) {
+    if (agent_data.sequence_size % _max_sequence_size == 0 && agent_data.sequence_size > 0) {
       if (_reward_mode == ColorTreeRewardMode::PRECISE) {
         // Precise mode: all or nothing
         bool sequence_matches = true;
         for (size_t i = 0; i < _target_sequence.size(); ++i) {
-          if (_current_sequence[i] != _target_sequence[i]) {
+          if (agent_data.sequence[i] != _target_sequence[i]) {
             sequence_matches = false;
             break;
           }
@@ -174,7 +167,7 @@ protected:
         // Partial mode: reward proportional to correct positions
         size_t correct_positions = 0;
         for (size_t i = 0; i < _target_sequence.size(); ++i) {
-          if (_current_sequence[i] == _target_sequence[i]) {
+          if (agent_data.sequence[i] == _target_sequence[i]) {
             correct_positions++;
           }
         }
@@ -196,6 +189,20 @@ protected:
   }
 
 private:
+  struct PerAgentData {
+    std::vector<uint8_t> sequence;   // Circular buffer for this agent
+    size_t sequence_size = 0;        // How many actions recorded in current window
+    InventoryItem current_item = INVALID_ITEM; // Item currently in inventory
+    size_t action_count = 0;         // Total actions taken by this agent (for trial switching)
+    size_t current_trial = 0;        // Current trial index for this agent
+
+    PerAgentData() = default;        // Default constructor for unordered_map
+    explicit PerAgentData(size_t max_size) : sequence(max_size, 0) {}
+  };
+
+  // Map from agent pointer to its state. We assume Agent* identity is stable for episode life-time.
+  std::unordered_map<Agent*, PerAgentData> _agent_state;
+
   void _update_target_sequence() {
     if (_num_trials > 1 && _current_trial < _trial_sequences.size() && _current_trial < _num_trials) {
       _target_sequence = _trial_sequences[_current_trial];
@@ -213,17 +220,16 @@ private:
   std::vector<uint8_t> _target_sequence;        // Current active target sequence
   float _sequence_reward;
   std::map<uint8_t, InventoryItem> _color_to_item;
-  std::vector<uint8_t> _current_sequence;       // Fixed-size buffer for current sequence
-  size_t _current_sequence_size;                // Actual number of actions in current sequence
-  size_t _max_sequence_size;                    // Maximum sequence size
+  size_t _max_sequence_size{};                  // Shared length of sequences
   size_t _num_trials;
   std::vector<std::vector<uint8_t>> _trial_sequences;
-  size_t _action_count;
-  size_t _current_trial;
   size_t _attempts_per_trial;
-  size_t _actions_per_trial;                    // Pre-calculated: attempts * sequence_size
-  ColorTreeRewardMode _reward_mode;             // Reward mode enum
-  InventoryItem _current_inventory_item;        // Track which item is currently in inventory
+  ColorTreeRewardMode _reward_mode;
+  size_t _actions_per_trial{};                  // Pre-calculated: _attempts_per_trial * _max_sequence_size
+
+  // Global trial tracking (shared across agents for synchronized trial switching)
+  size_t _current_trial = 0;
+  size_t _action_count = 0;
 };
 
 #endif  // ACTIONS_COLOR_TREE_HPP_
