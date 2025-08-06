@@ -14,7 +14,6 @@
   run=$USER.operant_conditioning.2converters.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/2_converters \
   --gpus=1 \
-  +trainer.env_overrides.num_trials=16 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   "$@"
@@ -24,7 +23,6 @@
   run=$USER.operant_conditioning.3converters.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/3_converters \
   --gpus=1 \
-  +trainer.env_overrides.num_trials=16 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   "$@"
@@ -34,7 +32,6 @@
   run=$USER.operant_conditioning.4converters.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/4_converters \
   --gpus=1 \
-  +trainer.env_overrides.num_trials=16 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   "$@"
@@ -44,7 +41,6 @@
   run=$USER.operant_conditioning.all.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/all \
   --gpus=1 \
-  +trainer.env_overrides.num_trials=16 \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   "$@"

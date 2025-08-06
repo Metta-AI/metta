@@ -7,6 +7,7 @@ defaults:
   - _self_
 
 num_trials: 8
+desync_episodes: false
 
 game:
   num_agents: 24
