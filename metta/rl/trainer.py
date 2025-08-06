@@ -265,18 +265,19 @@ def train(
     stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
     if stats_client is not None:
         # Extract wandb attributes with defaults
-        name = url = description = "unknown"
+        name = url = "unknown"
+        description: str | None = None
         tags: list[str] | None = None
         if wandb_run:
             name = wandb_run.name or name
             url = wandb_run.url
             if wandb_run.tags:
                 tags = list(wandb_run.tags)
-        description = wandb_run.notes if wandb_run else None
+            description = wandb_run.notes
 
         try:
             stats_tracker.stats_run_id = stats_client.create_training_run(
-                name=name, attributes={}, url=url, description=description, tags=tags
+                name=name, url=url, description=description, tags=tags
             ).id
         except Exception as e:
             logger.warning(f"Failed to create training run: {e}", exc_info=True)
@@ -398,8 +399,7 @@ def train(
                             optimizer.step()
 
                             # Optional weight clipping
-                            if hasattr(policy, "clip_weights"):
-                                policy.clip_weights()
+                            policy.clip_weights()
 
                             if device.type == "cuda":
                                 torch.cuda.synchronize()
@@ -433,6 +433,7 @@ def train(
         with timer("_process_stats"):
             if wandb_run:
                 process_stats(
+                    agent_cfg=agent_cfg,
                     stats=stats_tracker.rollout_stats,
                     losses=losses,
                     evals=eval_scores,
@@ -443,10 +444,10 @@ def train(
                     trainer_cfg=trainer_cfg,
                     agent_step=agent_step,
                     epoch=epoch,
-                    world_size=world_size,
                     wandb_run=wandb_run,
-                    memory_monitor=memory_monitor,
-                    system_monitor=system_monitor,
+                    # We know these exist within master
+                    memory_monitor=memory_monitor,  # type: ignore[arg-type]
+                    system_monitor=system_monitor,  # type: ignore[arg-type]
                     latest_saved_policy_record=latest_saved_policy_record,
                     optimizer=optimizer,
                     kickstarter=kickstarter,
@@ -489,7 +490,6 @@ def train(
                         run_id=stats_tracker.stats_run_id,
                         start_training_epoch=stats_tracker.stats_epoch_start,
                         end_training_epoch=epoch,
-                        attributes={},
                     ).id
 
                 # Create extended simulation suite that includes the training task
