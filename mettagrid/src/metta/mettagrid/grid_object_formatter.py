@@ -1,4 +1,4 @@
-"""Shared utilities for formatting grid object data in replays and live streams."""
+"""Shared utilities for formatting grid object data in replays and play streams."""
 
 from typing import Union
 
