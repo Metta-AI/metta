@@ -11,7 +11,6 @@ observations:
 
 clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300
-l2_init_weight_update_interval: 0
 
 components:
   #necessary layers: _core_, _action_embeds_, _action_, _value_
@@ -19,8 +18,7 @@ components:
 
   _obs_:
     _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
-    sources:
-      null
+    sources: null
 
   obs_normalizer:
     _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
@@ -98,8 +96,7 @@ components:
 
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
-    sources:
-      null
+    sources: null
     nn_params:
       num_embeddings: 100
       embedding_dim: 16
