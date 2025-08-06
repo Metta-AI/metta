@@ -81,7 +81,10 @@ def metta_script(
             pre_main(cfg)
 
         if cfg.py_agent:
-            cfg.agent = cfg.py_agent
+            # Convert py_agent string to a DictConfig with agent_type
+            # Remove .py extension if present
+            agent_type = cfg.py_agent.replace(".py", "")
+            cfg.agent = DictConfig({"agent_type": agent_type})
 
         apply_mac_device_overrides(cfg)
 
