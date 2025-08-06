@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 
 import numpy as np
+import tensordict
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
@@ -36,7 +37,7 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, process_minibatch_update
+from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
     maybe_update_l2_weights,
@@ -347,6 +348,11 @@ if is_master:
     num_params = sum(p.numel() for p in agent.parameters())  # type: ignore
     logger.info(f"Model has {num_params:,} parameters")
 
+policy_spec = agent.get_agent_experience_spec()
+act_space = env.single_action_space
+act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+loss_spec = get_loss_experience_spec(policy_spec, act_space, act_dtype)
+
 # Create experience buffer
 experience = Experience(
     total_agents=env.num_agents,  # type: ignore
@@ -354,8 +360,7 @@ experience = Experience(
     bptt_horizon=trainer_config.bptt_horizon,
     minibatch_size=trainer_config.minibatch_size,
     max_minibatch_size=trainer_config.minibatch_size,
-    obs_space=env.single_observation_space,  # type: ignore
-    atn_space=env.single_action_space,  # type: ignore
+    experience_spec=tensordict.merge_tensordicts(policy_spec, loss_spec),
     device=device,
     cpu_offload=trainer_config.cpu_offload,
     agents_per_batch=getattr(env, "agents_per_batch", None),  # type: ignore

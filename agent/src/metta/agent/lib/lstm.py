@@ -83,10 +83,13 @@ class LSTM(LayerBase):
         if training_env_id in self.lstm_h and training_env_id in self.lstm_c:
             h_0 = self.lstm_h[training_env_id]
             c_0 = self.lstm_c[training_env_id]
+            # reset the hidden state if the episode is done or truncated
             dones = td.get("dones", None)
-            if dones is not None:
-                h_0[:, dones.bool(), :] = 0
-                c_0[:, dones.bool(), :] = 0
+            truncateds = td.get("truncateds", None)
+            if dones is not None and truncateds is not None:
+                reset_mask = dones.bool() | truncateds.bool()
+                h_0[:, reset_mask, :] = 0
+                c_0[:, reset_mask, :] = 0
         else:
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
