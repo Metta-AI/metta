@@ -6,14 +6,7 @@ import numpy as np
 
 
 def inventory_format(inventory: dict) -> list:
-    """Convert inventory dict to list format expected by frontend.
-
-    Args:
-        inventory: Dict mapping item_id -> amount
-
-    Returns:
-        List of [item_id, amount] pairs
-    """
+    """Convert inventory dict to list format expected by frontend."""
     result = []
     for item_id, amount in inventory.items():
         result.append([item_id, amount])
@@ -21,14 +14,7 @@ def inventory_format(inventory: dict) -> list:
 
 
 def format_grid_object_base(grid_object: dict) -> dict:
-    """Format the base properties common to all grid objects.
-
-    Args:
-        grid_object: Raw grid object from environment
-
-    Returns:
-        Dict with formatted base properties
-    """
+    """Format the base properties common to all grid objects."""
     update_object = {}
     update_object["id"] = grid_object["id"]
     update_object["type_id"] = grid_object["type_id"]
@@ -49,16 +35,7 @@ def format_agent_properties(
     rewards: np.ndarray,
     total_rewards: np.ndarray,
 ) -> None:
-    """Add agent-specific properties to the update object.
-
-    Args:
-        grid_object: Raw grid object from environment
-        update_object: Dict to update with agent properties
-        actions: Array of actions for all agents
-        env_action_success: Array or list of action success flags
-        rewards: Array of current step rewards
-        total_rewards: Array of cumulative rewards
-    """
+    """Add agent-specific properties to the update object."""
     agent_id = grid_object["agent_id"]
     update_object["agent_id"] = agent_id
     update_object["vision_size"] = 11  # TODO: Waiting for env to support this
@@ -73,13 +50,8 @@ def format_agent_properties(
     update_object["group_id"] = grid_object["group_id"]
 
 
-def format_building_properties(grid_object: dict, update_object: dict) -> None:
-    """Add building/converter-specific properties to the update object.
-
-    Args:
-        grid_object: Raw grid object from environment
-        update_object: Dict to update with building properties
-    """
+def format_converter_properties(grid_object: dict, update_object: dict) -> None:
+    """Add building/converter-specific properties to the update object."""
     update_object["input_resources"] = inventory_format(grid_object.get("input_resources", {}))
     update_object["output_resources"] = inventory_format(grid_object.get("output_resources", {}))
     update_object["output_limit"] = grid_object.get("output_limit", 0)
@@ -98,18 +70,7 @@ def format_grid_object(
     rewards: np.ndarray,
     total_rewards: np.ndarray,
 ) -> dict:
-    """Format a grid object with validation for both replay recording and live streaming.
-
-    Args:
-        grid_object: Raw grid object from environment
-        actions: Array of actions for all agents
-        env_action_success: Array or list of action success flags
-        rewards: Array of current step rewards
-        total_rewards: Array of cumulative rewards
-
-    Returns:
-        Formatted grid object dict with all necessary properties
-    """
+    """Format a grid object with validation for both replay recording and live streaming."""
     # Validate basic object properties
     assert isinstance(grid_object["id"], int), (
         f"Expected grid_object['id'] to be an integer, got {type(grid_object['id'])}"
@@ -127,7 +88,6 @@ def format_grid_object(
     update_object = format_grid_object_base(grid_object)
 
     if "agent_id" in grid_object:
-        # Add agent-specific validation
         agent_id = grid_object["agent_id"]
         assert isinstance(agent_id, int), f"Expected agent_id to be an integer, got {type(agent_id)}"
         assert isinstance(grid_object["group_id"], int), (
@@ -138,6 +98,6 @@ def format_grid_object(
         format_agent_properties(grid_object, update_object, actions, env_action_success, rewards, total_rewards)
 
     elif "input_resources" in grid_object:
-        format_building_properties(grid_object, update_object)
+        format_converter_properties(grid_object, update_object)
 
     return update_object

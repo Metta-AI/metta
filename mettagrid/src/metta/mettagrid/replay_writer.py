@@ -62,7 +62,6 @@ class EpisodeReplay:
             if len(self.objects) <= i:
                 self.objects.append({})
 
-            # Use the unified formatting function (includes all validation)
             update_object = format_grid_object(
                 grid_object, actions, self.env.action_success, rewards, self.total_rewards
             )

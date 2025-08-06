@@ -173,7 +173,6 @@ def make_app(cfg: DictConfig):
                     agent_id = grid_object["agent_id"]
                     total_rewards[agent_id] += env.rewards[agent_id]
 
-                # Use the unified formatting function
                 update_object = format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
 
                 grid_objects[i] = update_object
