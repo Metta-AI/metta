@@ -1,35 +1,4 @@
 _target_: metta.mettagrid.curriculum.colortree_random.ColorTreeRandomFromSetCurriculum
 
-env_cfg: /env/mettagrid/colortree_medium
-
-sequence_pool:
-  # Sequential patterns
-  - [0, 1, 2, 0]  # Forward cycle
-  - [2, 1, 0, 2]  # Reverse cycle
-  - [0, 1, 2, 1]  # Up and back down
-  - [1, 2, 0, 1]  # Shifted up-back
-  - [2, 0, 1, 0]  # Different start cycle
-
-  # Repeating patterns
-  - [0, 0, 1, 2]  # Double first, then sequence
-  - [1, 1, 2, 0]  # Double middle, then sequence
-  - [2, 2, 0, 1]  # Double last, then sequence
-  - [0, 1, 1, 2]  # Sequence with double middle
-  - [0, 2, 2, 1]  # Skip pattern with double
-
-  # All same (simple)
-  - [0, 0, 0, 0]  # All red
-  - [1, 1, 1, 1]  # All green
-  - [2, 2, 2, 2]  # All blue
-
-  # Alternating patterns
-  - [0, 1, 0, 2]  # Red-green-red-blue
-  - [1, 2, 1, 0]  # Green-blue-green-red
-  - [2, 0, 2, 1]  # Blue-red-blue-green
-  - [0, 2, 0, 1]  # Red-blue-red-green
-
-  # Mixed complex patterns
-  - [1, 0, 2, 1]  # Green-red-blue-green
-  - [2, 1, 0, 0]  # Blue-green-red-red
-  - [0, 2, 1, 2]  # Red-blue-green-blue
-  - [1, 2, 0, 2]  # Green-blue-red-blue
+tasks:
+  /env/mettagrid/colortree_medium: 1.0
