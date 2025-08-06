@@ -92,9 +92,12 @@ class SingleTrialTask(Task):
         self._env_cfg.current_trial = self._current_trial
 
     def reset(self, env_cfg):
+        if self._is_complete:
+            self._current_trial = 0
+            self._total_score = 0.0
+            self._is_complete = False
         self._env_cfg = hydra.utils.instantiate(env_cfg)
         self._env_cfg.current_trial = self._current_trial
-        self._is_complete = False
 
     def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"
