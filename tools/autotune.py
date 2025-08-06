@@ -2,6 +2,8 @@
 import hydra
 import pufferlib.vector
 
+from metta.util.metta_script import metta_script
+
 
 def make_env():
     global env_config
@@ -14,7 +16,6 @@ def make_env():
     return env
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
     global env_config
     env_config = cfg
@@ -22,5 +23,4 @@ def main(cfg):
     # pufferlib.vector.autotune(make_env, batch_size=16384//20)
 
 
-if __name__ == "__main__":
-    main()
+metta_script(main, "config")

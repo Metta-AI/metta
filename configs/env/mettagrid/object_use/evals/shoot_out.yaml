@@ -8,7 +8,8 @@ game:
   max_steps: 400
   agent:
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
   objects:
     altar:
       cooldown: 255

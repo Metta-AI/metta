@@ -733,7 +733,7 @@ class Stopwatch:
         return state
 
     @with_lock
-    def load_state(self, state: dict[str, Any], resume_running: bool = True):
+    def load_state(self, state: dict[str, Any], resume_running: bool = True) -> None:
         """Load timer state from a dictionary.
 
         Args:

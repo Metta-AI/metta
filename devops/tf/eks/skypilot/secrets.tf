@@ -15,22 +15,6 @@ resource "kubernetes_secret" "lambda_ai_secret" {
   data = jsondecode(data.aws_secretsmanager_secret_version.lambda_ai_secret_version.secret_string)
 }
 
-resource "random_password" "skypilot_password" {
-  length  = 40
-  special = false
-}
-
-resource "kubernetes_secret" "skypilot_auth" {
-  metadata {
-    name      = "skypilot-basic-auth" # default name in skypilot chart
-    namespace = "skypilot"
-  }
-
-  data = {
-    auth = "skypilot:${bcrypt(random_password.skypilot_password.result)}"
-  }
-}
-
 resource "kubernetes_secret" "skypilot_api_server_credentials" {
   metadata {
     name      = "aws-credentials" # default name in skypilot chart

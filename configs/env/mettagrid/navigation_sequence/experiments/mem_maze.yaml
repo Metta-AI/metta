@@ -1,8 +1,15 @@
-defaults:
-  - /env/mettagrid/navigation_sequence/experiments/mem_defaults@
-  - _self_
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-game:
-  map_builder:
-    room:
-      dir: varied_terrain/maze_small
+env_cfg_template_path: /env/mettagrid/navigation_sequence/experiments/mem_defaults
+
+buckets:
+  game.objects.altar.initial_resource_count:
+    - [0, 0, 0, 1]
+  game.objects.generator_red.initial_resource_count:
+    - [0, 0, 0, 1]
+
+env_overrides:
+  game:
+    map_builder:
+      room:
+        dir: varied_terrain/maze_small

@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 class RandomCurriculum(MultiTaskCurriculum):
     """Curriculum that samples from multiple environment types with fixed weights."""
 
-    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig | None = None):
+    def __init__(self, tasks: Dict[str, float] | DictConfig[str, float], env_overrides: DictConfig | None = None):
+        if isinstance(tasks, DictConfig):
+            tasks = OmegaConf.to_container(tasks)
+
         self.env_overrides = env_overrides or OmegaConf.create({})
         curricula = {t: self._curriculum_from_id(t) for t in tasks.keys()}
         self._task_weights = tasks
@@ -25,6 +28,8 @@ class RandomCurriculum(MultiTaskCurriculum):
     def get_task(self) -> Task:
         task_id = random.choices(list(self._curricula.keys()), weights=list(self._task_weights.values()))[0]
         task = self._curricula[task_id].get_task()
+        # Note that tasks are ephemeral (which they have to be, since they get completed), so there's no concern
+        # about adding parents to the same task multiple times.
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
         return task

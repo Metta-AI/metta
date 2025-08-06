@@ -3,11 +3,13 @@
 import asyncio
 from typing import Any, Dict, List
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg import errors as pg_errors
 from pydantic import BaseModel
 
 from metta.app_backend.auth import create_user_or_token_dependency
+from metta.app_backend.config import anthropic_api_key
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
@@ -32,6 +34,14 @@ class TableInfo(BaseModel):
 class TableSchema(BaseModel):
     table_name: str
     columns: List[Dict[str, Any]]
+
+
+class AIQueryRequest(BaseModel):
+    description: str
+
+
+class AIQueryResponse(BaseModel):
+    query: str
 
 
 def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
@@ -191,5 +201,73 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             # Log the full error for debugging but return a generic message
             error_type = type(e).__name__
             raise HTTPException(status_code=500, detail=f"Query execution failed ({error_type}): {str(e)}") from e
+
+    @router.post("/generate-query", response_model=AIQueryResponse)
+    @timed_route("generate_ai_query")
+    async def generate_ai_query(request: AIQueryRequest, user: str = user_or_token) -> AIQueryResponse:
+        """Generate a SQL query from natural language description using Claude."""
+        # Get API key from environment variable
+        if not anthropic_api_key:
+            raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY environment variable not set")
+
+        # Fetch all table schemas in parallel
+        tables = await list_tables(user)
+        schemas = await asyncio.gather(*[get_table_schema(table.table_name, user) for table in tables])
+
+        # Build schema description
+        schema_lines = []
+        for schema in schemas:
+            schema_lines.append(f"Table: {schema.table_name}")
+            for col in schema.columns:
+                col_desc = f"    {col['name']} {col['type']}"
+                if not col["nullable"]:
+                    col_desc += " NOT NULL"
+                if col["default"]:
+                    col_desc += f" DEFAULT {col['default']}"
+                schema_lines.append(col_desc)
+            schema_lines.append("")  # Empty line between tables
+
+        schema_description = "\n".join(schema_lines)
+
+        prompt = (
+            f"You are a SQL query generator. Given the following database schema "
+            f"and a user's description, generate a SQL query that answers their request.\n\n"
+            f"Database Schema:\n{schema_description}\n"
+            f"User's request: {request.description}\n\n"
+            f"Please respond with ONLY the SQL query, no explanation or markdown. "
+            f"The query should be ready to execute."
+        )
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-api-key": anthropic_api_key,
+                        "anthropic-version": "2023-06-01",
+                    },
+                    json={
+                        "model": "claude-opus-4-20250514",
+                        "max_tokens": 1000,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+            data = response.json()
+            generated_query = data["content"][0]["text"].strip()
+            return AIQueryResponse(query=generated_query)
+
+        except httpx.TimeoutException as e:
+            raise HTTPException(status_code=408, detail="Request to Claude API timed out") from e
+        except httpx.HTTPStatusError as e:
+            error_data = e.response.json() if e.response.content else {}
+            error_msg = error_data.get("error", {}).get("message", f"API request failed: {e.response.status_code}")
+            raise HTTPException(status_code=e.response.status_code, detail=error_msg) from e
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"Failed to connect to Claude API: {str(e)}") from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate query: {str(e)}") from e
 
     return router

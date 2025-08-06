@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import importlib
-from dataclasses import dataclass
 from typing import Generic, Optional, Type, TypeVar, get_args, get_origin
 
 import numpy as np
@@ -8,18 +9,11 @@ from omegaconf import DictConfig, OmegaConf
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
 from metta.map.random.int import MaybeSeed
-from metta.map.types import Area, AreaQuery, ChildrenAction, SceneCfg
+from metta.map.types import Area, AreaQuery, ChildrenAction, MapGrid, SceneCfg
 
 ParamsT = TypeVar("ParamsT", bound=Config)
 
 SceneT = TypeVar("SceneT", bound="Scene")
-
-
-# This class is useful for debugging: we store every scene we produce dynamically.
-@dataclass
-class ChildInfo:
-    area: Area
-    scene: "Scene"
 
 
 class Scene(Generic[ParamsT]):
@@ -37,6 +31,11 @@ class Scene(Generic[ParamsT]):
     params: ParamsT
 
     _areas: list[Area]
+    children_actions: list[ChildrenAction]
+    children: list[Scene]
+
+    # { "lock_name": [area_id1, area_id2, ...] }
+    _locks: dict[str, set[int]]
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -66,30 +65,29 @@ class Scene(Generic[ParamsT]):
         self,
         area: Area,
         params: ParamsT | DictConfig | dict | None = None,
-        children: Optional[list[ChildrenAction]] = None,
+        children_actions: Optional[list[ChildrenAction]] = None,
         seed: MaybeSeed = None,
     ):
         # Validate params - they can come from untyped yaml or from weakly typed dicts in python code.
         self.params = self.validate_params(params)
 
-        # `children` are not scenes, but queries that will be used to select areas and produce scenes in them.
-        children = children or []
-        self.children: list[ChildrenAction] = []
-        for action in children:
+        children_actions = children_actions or []
+        self.children_actions = []
+        for action in children_actions:
             if not isinstance(action, ChildrenAction):
                 action = ChildrenAction(**action)
-            self.children.append(action)
+            self.children_actions.append(action)
 
-        self.child_infos: list[ChildInfo] = []
+        self.children = []
 
         self.area = area
+
+        # shortcuts for common properties
         self.grid = area.grid
         self.height = self.grid.shape[0]
         self.width = self.grid.shape[1]
 
         self._areas = []
-
-        # { "lock_name": [area_id1, area_id2, ...] }
         self._locks = {}
 
         self.rng = np.random.default_rng(seed)
@@ -104,8 +102,27 @@ class Scene(Generic[ParamsT]):
         """
         pass
 
-    def register_child(self, area: Area, child_scene: "Scene"):
-        self.child_infos.append(ChildInfo(area=area, scene=child_scene))
+    # Subclasses can override this to provide a list of children actions.
+    # By default, children actions are static, which makes them configurable in the config file, but then can't depend
+    # on the specific generated content.
+    # TODO - rename to `get_children_actions()`?
+    def get_children(self) -> list[ChildrenAction]:
+        return self.children_actions
+
+    def get_scene_tree(self) -> dict:
+        return {
+            "type": self.__class__.__name__,
+            "params": self.params.model_dump(),
+            "area": self.area.as_dict(),
+            "children": [child.get_scene_tree() for child in self.children],
+        }
+
+    def print_scene_tree(self, indent=0):
+        print(" " * indent + self.__class__.__name__)
+        print(" " * indent + f"area: {self.area.as_dict()}")
+        print(" " * indent + f"params: {self.params.model_dump()}")
+        for child in self.children:
+            child.print_scene_tree(indent + 2)
 
     # Render implementations can do two things:
     # - update `self.grid` as it sees fit
@@ -113,36 +130,15 @@ class Scene(Generic[ParamsT]):
     def render(self):
         raise NotImplementedError("Subclass must implement render method")
 
-    # Subclasses can override this to provide a list of children.
-    # By default, children are static, which makes them configurable in the config file, but then can't depend
-    # on the specific generated content.
-    def get_children(self) -> list[ChildrenAction]:
-        return self.children
-
-    def get_scene_tree(self) -> dict:
-        return {
-            "type": self.__class__.__name__,
-            "params": self.params.model_dump(),
-            "area": self.area.as_dict(),
-            "children": [child.scene.get_scene_tree() for child in self.child_infos],
-        }
-
-    def print_scene_tree(self, indent=0):
-        print(" " * indent + self.__class__.__name__)
-        print(" " * indent + f"area: {self.area.as_dict()}")
-        print(" " * indent + f"params: {self.params.model_dump()}")
-        for child in self.child_infos:
-            child.scene.print_scene_tree(indent + 2)
-
     def render_with_children(self):
         self.render()
 
-        for query in self.get_children():
-            areas = self.select_areas(query)
+        for action in self.get_children():
+            areas = self.select_areas(action)
             for area in areas:
                 child_rng = self.rng.spawn(1)[0]
-                child_scene = make_scene(cfg=query.scene, area=area, rng=child_rng)
-                self.register_child(area, child_scene)
+                child_scene = make_scene(cfg=action.scene, area=area, rng=child_rng)
+                self.children.append(child_scene)
                 child_scene.render_with_children()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[list[str]] = None) -> Area:
@@ -216,10 +212,10 @@ class Scene(Generic[ParamsT]):
     def factory(
         cls: Type[SceneT],
         params: dict | Config,
-        children: Optional[list[ChildrenAction]] = None,
+        children_actions: Optional[list[ChildrenAction]] = None,
         seed: MaybeSeed = None,
     ) -> SceneCfg:
-        return lambda area, rng: cls(area=area, params=params, seed=seed or rng, children=children)
+        return lambda area, rng: cls(area=area, params=params, seed=seed or rng, children_actions=children_actions)
 
     @classmethod
     def intrinsic_size(cls, params: ParamsT) -> tuple[int, int] | None:
@@ -247,6 +243,39 @@ class Scene(Generic[ParamsT]):
     def get_labels(self) -> list[str]:
         # default: use the scene class name as a label
         return [self.__class__.__name__]
+
+    def transplant_to_grid(self, grid: MapGrid, shift_x: int, shift_y: int, is_root: bool = True):
+        """
+        Transplants the scene to a new grid.
+
+        `shift_x` and `shift_y` are the shift of the scene area relative to the previous grid.
+        `grid` must point to the outer grid (the one that the area's `x` and `y`, absolute coordinates, are relative
+        to).
+
+        This method is useful for the multi-instance MapGen mode, where we sometimes render the scene on a temporary
+        grid, because we don't know the size of the full multi-instance grid in advance.
+        """
+
+        # Caution: the implementation of this method is tricky, especially the relative positioning.
+        # It's intended to be used by `TransplantScene` class only. If you call it from anywhere else, make sure it's
+        # doing the right thing, especially when it has multiple levels of nested sub-scenes.
+
+        if is_root:
+            # This function is recursive, but we only want to copy the grid once, on top level of recursion.
+            # Also, when we recurse into children, we don't need to update the scene's area, because it was already
+            # updated when we transplant all `_areas`.
+            original_grid = self.grid
+            self.area.transplant_to_grid(grid, shift_x, shift_y)
+            self.area.grid[:] = original_grid
+            self.grid = self.area.grid
+
+        # transplant all sub-areas
+        for sub_area in self._areas:
+            sub_area.transplant_to_grid(self.grid, shift_x, shift_y)
+
+        # recurse into children scenes
+        for child_scene in self.children:
+            child_scene.transplant_to_grid(grid, shift_x, shift_y, is_root=False)
 
 
 def load_class(full_class_name: str) -> type[Scene]:
@@ -290,6 +319,9 @@ def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
     return cls(
         area=area,
         params=dict_cfg.get("params", {}),
-        children=dict_cfg.get("children", []),
+        # in OmegaConf, the field is called `children` for convenience, but it's not a list of scenes, but a list of
+        # children actions.
+        # In Python code, we use `children_actions` instead. `children` is for the list of actual scenes.
+        children_actions=dict_cfg.get("children", []),
         seed=dict_cfg.get("seed", rng),
     )

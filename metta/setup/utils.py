@@ -1,40 +1,76 @@
 import importlib
+import itertools
 import textwrap
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TypeVar
 
-from metta.common.util.colorama import Fore, blue, bold, colorize, cyan, green, red, yellow
+from metta.common.util.text_styles import Fore, blue, bold, colorize, cyan, green, red, yellow
 
 T = TypeVar("T")
 
 
-def _format_message(message: str) -> str:
+def _format_message(message: str, indent: int = 0) -> str:
     """Apply dedent and strip to message."""
-    return textwrap.dedent(message).strip()
+    return textwrap.indent(textwrap.dedent(message).strip(), " " * indent)
 
 
-def success(message: str, **kwargs) -> None:
-    print(green(_format_message(message)), **kwargs)
+def success(message: str, indent: int = 0, **kwargs) -> None:
+    print(green(_format_message(message, indent)), **kwargs)
 
 
-def info(message: str, **kwargs) -> None:
-    print(blue(_format_message(message)), **kwargs)
+def info(message: str, indent: int = 0, **kwargs) -> None:
+    print(blue(_format_message(message, indent)), **kwargs)
 
 
-def warning(message: str, **kwargs) -> None:
-    print(yellow(_format_message(message)), **kwargs)
+def warning(message: str, indent: int = 0, **kwargs) -> None:
+    print(yellow(_format_message(message, indent)), **kwargs)
 
 
-def error(message: str, **kwargs) -> None:
+def error(message: str, indent: int = 0, **kwargs) -> None:
     print(red(_format_message(message)), **kwargs)
 
 
-def header(message: str) -> None:
-    print(f"\n{bold(cyan(_format_message(message)))}")
+def header(message: str, indent: int = 0) -> None:
+    print(f"\n{bold(cyan(_format_message(message, indent)))}")
 
 
-def step(message: str) -> None:
-    print(colorize(_format_message(message), Fore.WHITE))
+def step(message: str, indent: int = 0) -> None:
+    print(colorize(_format_message(message, indent), Fore.WHITE))
+
+
+def debug(message: str, indent: int = 0) -> None:
+    print(colorize(_format_message(message, indent), Fore.LIGHTMAGENTA_EX))
+
+
+@contextmanager
+def spinner(message: str = "Loading..."):
+    """Context manager that shows a spinner while executing code.
+
+    Usage:
+        with spinner("Checking status..."):
+            # Do some work
+            time.sleep(2)
+    """
+    spinner_chars = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+    stop_spinner = threading.Event()
+
+    def show_spinner():
+        while not stop_spinner.is_set():
+            print(f"\r{next(spinner_chars)} {message}", end="", flush=True)
+            time.sleep(0.1)
+        print("\r" + " " * (len(message) + 4) + "\r", end="", flush=True)  # Clear the line
+
+    spinner_thread = threading.Thread(target=show_spinner)
+    spinner_thread.start()
+
+    try:
+        yield
+    finally:
+        stop_spinner.set()
+        spinner_thread.join()
 
 
 def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None) -> T:

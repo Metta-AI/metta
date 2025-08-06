@@ -18,6 +18,12 @@ spec:
           envFrom:
           - secretRef:
               name: {{ .Values.secret_name }}
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.anthropic }}
+                  key: api-key
           resources:
             requests:
               memory: "1Gi"
@@ -29,8 +35,7 @@ spec:
             httpGet:
               path: /whoami
               port: 8000
-            timeoutSeconds: 30
-            failureThreshold: 3
+            failureThreshold: 10
           readinessProbe:
             httpGet:
               path: /whoami

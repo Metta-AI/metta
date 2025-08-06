@@ -25,7 +25,7 @@ class ReplaySmokeTest(SmokeTest):
             "uv",
             "run",
             "./tools/replay.py",
-            "+hardware=github",
+            "+user=ci",
             "wandb=off",
         ]
 

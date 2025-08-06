@@ -3,14 +3,13 @@ import argparse
 import logging
 from typing import get_args
 
-from metta.common.util.resolvers import register_resolvers
 from metta.map.load_random import get_random_map_uri
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
+from metta.util.metta_script import hydraless_metta_script
 from tools.map.gen import uri_is_file
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def main():
@@ -20,8 +19,6 @@ def main():
     )
     parser.add_argument("uri", type=str, help="URI of the map to view")
     args = parser.parse_args()
-
-    register_resolvers()
 
     uri = args.uri
 
@@ -38,5 +35,4 @@ def main():
     show_map(storable_map, args.show_mode)
 
 
-if __name__ == "__main__":
-    main()
+hydraless_metta_script(main)

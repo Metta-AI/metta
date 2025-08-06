@@ -1,0 +1,26 @@
+_target_: metta.mettagrid.curriculum.sequential_trial_task.SequentialTrialTask
+
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_defaults
+
+trial_overrides:
+  - game:
+      map_builder:
+        room:
+          dir: varied_terrain/maze_small
+  - game:
+      map_builder:
+        room:
+          dir: varied_terrain/maze_medium
+  - game:
+      map_builder:
+        room:
+          dir: varied_terrain/maze_large
+
+env_overrides:
+  objects:
+    altar:
+      cooldown: 1000
+      initial_resource_count: 1
+advancement_threshold: 0.75
+regression_threshold: 0.25
+max_trials: 10

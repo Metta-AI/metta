@@ -103,7 +103,7 @@ class TestTokenSystem(BaseAsyncTest):
 
         # Use the token to access a protected endpoint
         response = test_client.get(
-            "/dashboard/suites",
+            "/training-runs",
             headers={"X-Auth-Token": token},
         )
         assert response.status_code == 200
@@ -111,7 +111,7 @@ class TestTokenSystem(BaseAsyncTest):
     def test_user_email_authentication(self, test_client: TestClient) -> None:
         """Test using user email for authentication."""
         response = test_client.get(
-            "/dashboard/suites",
+            "/training-runs",
             headers={"X-Auth-Request-Email": "test@example.com"},
         )
         assert response.status_code == 200

@@ -1,4 +1,6 @@
 # Environment and IDE
+.claude/tasks
+.claude/analysis
 .envrc
 .env
 .env.*
@@ -38,6 +40,7 @@ node_modules/
 .vite/
 dist/
 *.tsbuildinfo
+.turbo/
 
 # Project-specific build outputs
 /mettagrid/dist/
@@ -58,6 +61,7 @@ personal/
 test_data/
 **/*benchmark_results.json
 .testmondata*
+tests/pufferlib_compatibility_matrix.json
 
 # Logs and profiling
 *.log
@@ -77,3 +81,7 @@ metta-research/
 terrain_maps_nohearts*
 gpu_names_cache.json
 sweep_id
+
+# Notebooks
+experiments/notebooks/.ipynb_checkpoints
+experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js

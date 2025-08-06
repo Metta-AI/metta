@@ -4,8 +4,12 @@ _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculu
 
 env_overrides:
   game:
+    global_obs:
+      resource_rewards: true
+    recipe_details_obs: true
+
     actions:
-      attack: { consumed_resources: { blueprint: 1 } }
+      attack: { consumed_resources: { laser: 100 } }
       change_color: { enabled: false }
       swap: { enabled: false }
 
@@ -22,11 +26,12 @@ env_overrides:
 
     agent:
       rewards:
-        ore_red_max: 1
-        battery_red_max: 1
-        laser_max: 1
-        armor_max: 1
-        blueprint_max: 1
+        inventory:
+          ore_red_max: 1
+          battery_red_max: 1
+          laser_max: 1
+          armor_max: 1
+          blueprint_max: 1
 
 tasks:
   /env/mettagrid/curriculum/bbc/tasks/basic: 1

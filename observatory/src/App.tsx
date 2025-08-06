@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
 import { Dashboard } from './Dashboard'
-import { Episodes } from './Episodes'
 import { TokenManager } from './TokenManager'
 import { SavedDashboards } from './SavedDashboards'
 import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
 import { TrainingRunDetail } from './TrainingRunDetail'
+import { EvalTasks } from './EvalTasks'
 import { config } from './config'
 
 // CSS for navigation
@@ -87,9 +87,6 @@ function App() {
       const serverUrl = config.apiBaseUrl
       try {
         const repo = new ServerRepo(serverUrl)
-
-        // Test the connection by calling getSuites
-        await repo.getSuites()
 
         // Get current user
         const userInfo = await repo.whoami()
@@ -202,11 +199,14 @@ function App() {
               >
                 Training Runs
               </Link>
-              <Link
-                to="/episodes"
-                className={`nav-tab ${location.pathname === '/episodes' ? 'active' : ''}`}
-              >
+              <Link to="/episodes" className={`nav-tab ${location.pathname === '/episodes' ? 'active' : ''}`}>
                 Episodes
+              </Link>
+              <Link
+                to="/eval-tasks"
+                className={`nav-tab ${location.pathname.startsWith('/eval-task') ? 'active' : ''}`}
+              >
+                Evaluate Policies
               </Link>
               <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
                 Saved Dashboards
@@ -226,7 +226,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
             <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
             <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
-            <Route path="/episodes" element={<Episodes repo={state.repo} />} />
+            <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
             <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />

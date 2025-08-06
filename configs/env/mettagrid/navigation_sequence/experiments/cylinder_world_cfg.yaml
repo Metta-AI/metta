@@ -1,0 +1,46 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - _self_
+
+game:
+  num_agents: 4
+  agent:
+    resource_limits:
+      ore_red: 3
+      ore_blue: 3
+      ore_green: 3
+      battery_red: 3
+      battery_blue: 3
+      battery_green: 3
+    rewards:
+      inventory:
+        ore_red: 0.01
+        battery_red: 0.1
+        battery_red_max: 5
+        heart: 1
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 6
+    room:
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
+      agents: 1
+      dir: ???
+      objects:
+        altar: 5
+        mine_red: 6
+        generator_red: 6
+  objects:
+    altar:
+      input_resources:
+        battery_red: 1
+      initial_resource_count: ???
+      cooldown: 10
+    generator_red:
+      initial_resource_count: ???
+      cooldown: 10
+    mine_red:
+      cooldown: 10

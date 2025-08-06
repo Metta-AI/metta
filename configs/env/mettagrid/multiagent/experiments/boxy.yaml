@@ -1,11 +1,12 @@
 defaults:
-  - /env/mettagrid/multiagent/experiments/defaults@
+  - /env/mettagrid/multiagent/experiments/defaults_bucketed@
   - _self_
 
-game:
-  map_builder:
-    _target_: metta.mettagrid.room.multi_agent.boxy.Boxy
-    objects:
-      altar: ${sampling:10,14,12}
-      mine_red: ${sampling:30,60,45}
-      generator_red: ${sampling:30,60,45}
+env_overrides:
+  game:
+    map_builder:
+      _target_: metta.mettagrid.room.multi_agent.boxy.Boxy
+      objects:
+        altar: 12
+        mine_red: 45
+        generator_red: 45

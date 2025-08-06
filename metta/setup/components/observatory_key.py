@@ -1,5 +1,6 @@
 import subprocess
 
+from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
 from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -10,7 +11,7 @@ from metta.setup.utils import info, success, warning
 class ObservatoryKeySetup(SetupModule):
     install_once = True
     server_url: str = "https://observatory.softmax-research.net/api"
-    extra_server_urls: list[str] = ["https://api.observatory.softmax-research.net"]
+    extra_server_urls: list[str] = [PROD_STATS_SERVER_URI]
 
     @property
     def name(self) -> str:
@@ -41,7 +42,8 @@ class ObservatoryKeySetup(SetupModule):
 
         if login_script.exists():
             try:
-                self.run_command([str(login_script), self.server_url], capture_output=True)
+                # Don't capture output - this is an interactive OAuth flow
+                self.run_command([str(login_script), self.server_url], capture_output=False)
                 success(f"Observatory auth configured for {self.server_url}")
             except subprocess.CalledProcessError:
                 warning("Observatory login failed. You can manually run:")
@@ -62,7 +64,7 @@ class ObservatoryKeySetup(SetupModule):
 
 @register_module
 class ObservatoryKeyLocalSetup(ObservatoryKeySetup):
-    server_url: str = "http://localhost:8000"
+    server_url: str = DEV_STATS_SERVER_URI
     extra_server_urls: list[str] = []
 
     @property

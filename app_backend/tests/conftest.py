@@ -6,9 +6,15 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
-from metta.app_backend.stats_client import StatsClient
+from metta.common.tests.fixtures import docker_client_fixture
+
+from .client_adapter import create_test_stats_client
+
+# Register the docker_client fixture
+docker_client = docker_client_fixture()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -84,5 +90,5 @@ def stats_client(test_client: TestClient) -> StatsClient:
     assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
     token = token_response.json()["token"]
 
-    # Create stats client with machine token
-    return StatsClient(test_client, machine_token=token)
+    # Create stats client that works with TestClient
+    return create_test_stats_client(test_client, machine_token=token)

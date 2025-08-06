@@ -6,19 +6,25 @@ import sys
 import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic.main import BaseModel
 
 from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     dashboard_routes,
-    episode_routes,
+    entity_routes,
     eval_task_routes,
-    heatmap_routes,
+    scorecard_routes,
     sql_routes,
     stats_routes,
     sweep_routes,
     token_routes,
 )
+
+
+class WhoAmIResponse(BaseModel):
+    user_email: str
+
 
 _logging_configured = False
 
@@ -35,7 +41,7 @@ class NoWhoAmIFilter(logging.Filter):
 
 
 def setup_logging():
-    """Configure logging for the application, including heatmap performance logging."""
+    """Configure logging for the application, including scorecard performance logging."""
     global _logging_configured
 
     if _logging_configured:
@@ -48,9 +54,9 @@ def setup_logging():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    # Configure heatmap performance logger specifically
-    heatmap_logger = logging.getLogger("dashboard_performance")
-    heatmap_logger.setLevel(logging.INFO)
+    # Configure scorecard performance logger specifically
+    scorecard_logger = logging.getLogger("dashboard_performance")
+    scorecard_logger.setLevel(logging.INFO)
 
     # Configure database query performance logger
     db_logger = logging.getLogger("db_performance")
@@ -60,22 +66,24 @@ def setup_logging():
     route_logger = logging.getLogger("route_performance")
     route_logger.setLevel(logging.INFO)
 
-    # Configure heatmap logger
-    heatmap_logger = logging.getLogger("heatmap_routes")
-    heatmap_logger.setLevel(logging.INFO)
+    # Configure scorecard logger
+    scorecard_routes_logger = logging.getLogger("policy_scorecard_routes")
+    scorecard_routes_logger.setLevel(logging.INFO)
 
     # Ensure the loggers don't duplicate messages from root logger
-    heatmap_logger.propagate = True
+    scorecard_logger.propagate = True
     db_logger.propagate = True
     route_logger.propagate = True
-    heatmap_logger.propagate = True
+    scorecard_routes_logger.propagate = True
 
     # Filter out /whoami requests from uvicorn access logs
     uvicorn_access_logger = logging.getLogger("uvicorn.access")
     uvicorn_access_logger.addFilter(NoWhoAmIFilter())
 
     _logging_configured = True
-    print("Logging configured - performance logging enabled (routes, db queries, heatmaps), /whoami requests filtered")
+    print(
+        "Logging configured - performance logging enabled (routes, db queries, scorecards), /whoami requests filtered"
+    )
 
 
 def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
@@ -96,27 +104,29 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
     # Create routers with the provided StatsRepo
     dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
-    episode_router = episode_routes.create_episode_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
     token_router = token_routes.create_token_router(stats_repo)
-    heatmap_router = heatmap_routes.create_heatmap_router(stats_repo)
+    policy_scorecard_router = scorecard_routes.create_policy_scorecard_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
+    entity_router = entity_routes.create_entity_router(stats_repo)
 
     app.include_router(dashboard_router)
-    app.include_router(episode_router)
     app.include_router(eval_task_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
     app.include_router(token_router)
-    app.include_router(heatmap_router)
+    app.include_router(policy_scorecard_router, prefix="/scorecard")
+    # TODO: remove this once we're confident we've migrated all clients to use the /scorecard prefix
+    app.include_router(policy_scorecard_router, prefix="/heatmap")
     app.include_router(sweep_router)
+    app.include_router(entity_router)
 
     @app.get("/whoami")
-    async def whoami(request: fastapi.Request):  # type: ignore
+    async def whoami(request: fastapi.Request) -> WhoAmIResponse:
         user_id = await user_from_header_or_token(request, stats_repo)
-        return {"user_email": user_id or "unknown"}
+        return WhoAmIResponse(user_email=user_id or "unknown")
 
     return app
 

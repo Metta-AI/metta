@@ -1,0 +1,118 @@
+# Config: Confined Room Coord (Overcooked-style)
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - _self_
+
+game:
+  max_steps: ${game.params.max_steps}
+  num_agents: 8
+  params:
+    max_steps: ???
+    width: ???
+    height: ???
+    num_generators: ???
+    num_altars: ???
+    num_mines: ???
+    altar_cooldown: ???
+    altar_conversion_ticks: ???
+    generator_cooldown: ???
+    generator_conversion_ticks: ???
+    mine_cooldown: ???
+
+  agent:
+    default_resource_limit: 1
+    resource_limits:
+      heart: 255
+    rewards:
+      inventory:
+        ore_red: 0.005
+        ore_blue: 0.005
+        ore_green: 0.005
+        battery_red: 0.01
+        heart: 1
+
+  groups:
+    team_1:
+      id: 1
+      sprite: 1
+      group_reward_pct: 0.5
+
+    team_2:
+      id: 2
+      sprite: 4
+      group_reward_pct: 0.5
+
+    team_3:
+      id: 3
+      sprite: 8
+      group_reward_pct: 0.5
+
+    team_4:
+      id: 4
+      sprite: 1
+      group_reward_pct: 0.5
+
+  map_builder:
+    _target_: metta.mettagrid.room.room_list.RoomList
+    border_width: 6
+
+    # Sample small rooms with a few mines, generators, and altars.
+    rooms:
+      - _target_: metta.mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${game.params.width}
+        height: ${game.params.height}
+        num_generators: ${game.params.num_generators}
+        num_altars: ${game.params.num_altars}
+        num_mines: ${game.params.num_mines}
+        agents:
+          team_1: 2
+        border_width: 2
+      - _target_: metta.mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${game.params.width}
+        height: ${game.params.height}
+        num_generators: ${game.params.num_generators}
+        num_altars: ${game.params.num_altars}
+        num_mines: ${game.params.num_mines}
+        agents:
+          team_2: 2
+        border_width: 2
+      - _target_: metta.mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${game.params.width}
+        height: ${game.params.height}
+        num_generators: ${game.params.num_generators}
+        num_altars: ${game.params.num_altars}
+        num_mines: ${game.params.num_mines}
+        agents:
+          team_3: 2
+        border_width: 2
+      - _target_: metta.mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${game.params.width}
+        height: ${game.params.height}
+        num_generators: ${game.params.num_generators}
+        num_altars: ${game.params.num_altars}
+        num_mines: ${game.params.num_mines}
+        agents:
+          team_4: 2
+        border_width: 2
+
+  objects:
+    altar:
+      cooldown: ${game.params.altar_cooldown}
+      input_resources:
+        battery_red: 1
+      max_output: 100
+      conversion_ticks: ${game.params.altar_conversion_ticks}
+      initial_resource_count: 0
+    generator_red:
+      cooldown: ${game.params.generator_cooldown}
+      max_output: 100
+      conversion_ticks: ${game.params.generator_conversion_ticks}
+      initial_resource_count: 0
+    mine_red:
+      cooldown: ${game.params.mine_cooldown}
+      max_output: 100
+      conversion_ticks: 1
+      initial_resource_count: 1
+

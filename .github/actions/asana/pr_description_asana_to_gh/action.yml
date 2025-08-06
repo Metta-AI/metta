@@ -1,0 +1,33 @@
+name: "Sync PR Description (Asana to GH)"
+description: "Updates a GitHub pull request description with a link to an Asana task."
+
+inputs:
+  pr_number:
+    description: "The number of the pull request."
+    required: true
+  repo:
+    description: "The repository (e.g., owner/repo)."
+    required: true
+  token:
+    description: "GitHub token for authentication."
+    required: true
+  task_url:
+    description: "The Asana task URL to add to the PR description."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+
+    - run: uv run ${{ github.action_path }}/pr_description_asana_to_gh.py
+      shell: bash
+      env:
+        INPUT_REPO: ${{ inputs.repo }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        INPUT_TASK_URL: ${{ inputs.task_url }}
+        INPUT_TOKEN: ${{ inputs.token }}

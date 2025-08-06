@@ -19,7 +19,6 @@ class TestSweepConfigLoading:
         # Create a simple sweep-like config without complex interpolations
         sweep_overrides = {
             "trainer": {
-                "_target_": "metta.rl.trainer.MettaTrainer",
                 "total_timesteps": 6400,
                 "batch_size": 3200,
                 "minibatch_size": 1600,
@@ -67,7 +66,7 @@ class TestSweepConfigLoading:
             },
             "run": "test_sweep.r.0",
             "seed": 12345,
-            "sweep_run": "test_sweep",
+            "sweep_name": "test_sweep",
             "device": "cpu",
         }
 
@@ -96,7 +95,7 @@ class TestSweepConfigLoading:
                 assert merged_cfg.run == "test_sweep.r.0"
                 assert merged_cfg.run_dir == temp_dir
                 assert merged_cfg.seed == 12345
-                assert merged_cfg.sweep_run == "test_sweep"
+                assert merged_cfg.sweep_name == "test_sweep"
                 assert merged_cfg.device == "cpu"
 
                 # Verify trainer config is valid
@@ -128,7 +127,7 @@ class TestSweepConfigLoading:
 
         with initialize_config_dir(config_dir=str(config_dir), version_base=None):
             # Load sweep_job config
-            sweep_cfg = compose(config_name="sweep_job", overrides=["sweep_run=test_sweep"])
+            sweep_cfg = compose(config_name="sweep_job", overrides=["sweep_name=test_sweep"])
 
             # Check that sweep_job contains the key sections
             assert "trainer" in sweep_cfg
@@ -151,7 +150,7 @@ class TestSweepConfigLoading:
 
     def test_protein_suggestion_application(self):
         """Test that protein suggestions can be applied to sweep config."""
-        from tools.sweep_init import apply_protein_suggestion
+        from tools.sweep_prepare_run import apply_protein_suggestion
 
         # Create a base config
         base_config = OmegaConf.create(

@@ -4,11 +4,6 @@ Test suite for curriculum learning algorithms.
 This module tests specific scenarios to validate that curriculum algorithms
 behave correctly under controlled conditions:
 
-Progressive Curriculum Tests:
-1. Monotonic linear signal -> should advance through tasks correctly
-2. Always 0 signal -> should stay on first task
-3. Random signal -> should still progress with right parameters
-
 Learning Progress Tests:
 4. Mixed impossible/learnable tasks -> should weight learnable evenly, ignore impossible
 5. Threshold dependency -> should first weight primary, then secondary after milestone
@@ -26,14 +21,15 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
+from metta.map.mapgen import MapGen
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
 from metta.mettagrid.curriculum.multi_task import MultiTaskCurriculum
 from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
-from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum, ProgressiveMultiTaskCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
-from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum, SamplingCurriculum
+from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
 
 @pytest.fixture(autouse=True)
@@ -65,10 +61,10 @@ def test_single_task_curriculum(env_cfg):
     assert task.id() == "task"
     assert task.env_cfg() == env_cfg
     assert not task.is_complete()
-    task.complete(0.5)
+    task.complete_trial(0.5)
     assert task.is_complete()
     with pytest.raises(AssertionError):
-        task.complete(0.1)
+        task.complete_trial(0.1)
 
 
 def test_random_curriculum_selects_task(monkeypatch, env_cfg):
@@ -106,44 +102,15 @@ def test_prioritize_regressed_curriculum_updates(monkeypatch, env_cfg):
     assert curr._task_weights["b"] > prev_b, "Weight should increase when task gets its first score"
 
 
-def test_sampling_curriculum(monkeypatch, env_cfg):
-    monkeypatch.setattr(
-        "metta.mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg
-    )
-
-    curr = SamplingCurriculum("dummy")
-    t1 = curr.get_task()
-    t2 = curr.get_task()
-
-    assert t1.id() == "sample(0)"
-    assert t1.env_cfg().game.map.width == 10
-    assert t1.id() == t2.id()
-    assert t1 is not t2
-
-
-def test_progressive_curriculum(monkeypatch, env_cfg):
-    monkeypatch.setattr(
-        "metta.mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg
-    )
-
-    curr = ProgressiveCurriculum("dummy")
-    t1 = curr.get_task()
-    assert t1.env_cfg().game.map.width == 10
-
-    curr.complete_task(t1.id(), 0.6)
-    t2 = curr.get_task()
-    assert t2.env_cfg().game.map.width == 20
-
-
 def test_bucketed_curriculum(monkeypatch, env_cfg):
     monkeypatch.setattr(
         "metta.mettagrid.curriculum.bucketed.config_from_path", lambda path, env_overrides=None: env_cfg
     )
     buckets = {
-        "game.map.width": {"values": [5, 10]},
-        "game.map.height": {"values": [5, 10]},
+        "game.map.width": [5, 10],
+        "game.map.height": [5, 10],
     }
-    curr = BucketedCurriculum("dummy", buckets=buckets)
+    curr = BucketedCurriculum(env_cfg_template_path="dummy", buckets=buckets)
 
     # There should be 4 tasks (2x2 grid)
     assert len(curr._id_to_curriculum) == 4
@@ -153,9 +120,48 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
     assert any(str(w) in task.id() for w in [5, 10])
 
 
+def test_bucketed_curriculum_from_yaml_with_map_builder():
+    """Test BucketedCurriculum loading from YAML file with buckets that impact map builder."""
+    from pathlib import Path
+
+    import hydra
+
+    # Get the path to the test YAML config file
+    test_dir = Path(__file__).parent
+    config_file = test_dir / "test_bucketed_config.yaml"
+
+    # Verify the config file exists
+    assert config_file.exists(), f"Config file not found: {config_file}"
+
+    # Initialize Hydra and load the config
+    with hydra.initialize(config_path=".", version_base=None):
+        # Instantiate the BucketedCurriculum using Hydra
+        curr = curriculum_from_config_path("test_bucketed_config", OmegaConf.create({"game": {"num_agents": 5}}))  # type: ignore
+
+    # There should be 27 tasks (3x3x3 grid)
+    assert len(curr._id_to_curriculum) == 27
+
+    # Sample tasks and verify the map builder parameters are correctly overridden
+    # Test that task IDs contain the bucket parameter values
+    task = curr.get_task()
+    task_id = task.id()
+    assert "width=" in task_id, f"Task ID should contain width parameter: {task_id}"
+    assert "height=" in task_id, f"Task ID should contain height parameter: {task_id}"
+    assert "room_size=" in task_id, f"Task ID should contain room_size parameter: {task_id}"
+
+    # Verify the task config structure is correct
+    task_cfg = task.env_cfg()
+    assert hasattr(task_cfg.game, "map_builder")
+    assert isinstance(task_cfg.game.map_builder, MapGen)
+    assert task_cfg.game.num_agents == 5, f"num_agents should have been overridden to 5, got {task_cfg.game.num_agents}"
+    assert task_cfg.game.map_builder.width in [20, 40, 60]
+    assert task_cfg.game.map_builder.height in [20, 40, 60]
+    assert task_cfg.game.map_builder.root["params"]["room_size"] in [1, 3, 5]
+
+
 def test_expand_buckets_values_and_range():
     buckets = {
-        "param1": {"values": [1, 2, 3]},
+        "param1": [1, 2, 3],
         "param2": {"range": (0, 10), "bins": 2},
     }
     expanded = _expand_buckets(buckets)
@@ -168,13 +174,44 @@ def test_expand_buckets_values_and_range():
     assert all(isinstance(b, dict) and "range" in b for b in expanded["param2"])
 
 
+def test_expand_buckets_choice():
+    buckets = {
+        "param1": ["red", "blue", "green"],
+        "param2": [1, 2, 3, 4],
+        "param3": [True, False],
+    }
+    expanded = _expand_buckets(buckets)
+    # All choice parameters should be direct lists
+    assert expanded["param1"] == ["red", "blue", "green"]
+    assert expanded["param2"] == [1, 2, 3, 4]
+    assert expanded["param3"] == [True, False]
+
+
+def test_expand_buckets_mixed_types():
+    buckets = {
+        "param1": [1, 2, 3],
+        "param2": {"range": (0, 10), "bins": 2},
+        "param3": ["a", "b", "c"],
+    }
+    expanded = _expand_buckets(buckets)
+    # Test all three types together
+    assert expanded["param1"] == [1, 2, 3]
+    assert len(expanded["param2"]) == 2
+    assert expanded["param2"][0]["range"] == (0, 5)
+    assert expanded["param2"][1]["range"] == (5, 10)
+    assert expanded["param3"] == ["a", "b", "c"]
+
+
 def test_sampled_task_curriculum():
     # Setup: one value bucket, one range bucket (int), one range bucket (float)
     task_id = "test_task"
     task_cfg_template = OmegaConf.create({"param1": None, "param2": None, "param3": None})
-    bucket_parameters = ["param1", "param2", "param3"]
-    bucket_values = [42, {"range": (0, 10), "want_int": True}, {"range": (0.0, 1.0)}]
-    curr = SampledTaskCurriculum(task_id, task_cfg_template, bucket_parameters, bucket_values)
+    sampling_parameters = {
+        "param1": 42,
+        "param2": {"range": (0, 10), "want_int": True},
+        "param3": {"range": (0.0, 1.0)},
+    }
+    curr = SampledTaskCurriculum(task_id, task_cfg_template, sampling_parameters)
     task = curr.get_task()
     assert task.id() == task_id
     cfg = task.env_cfg()
@@ -429,7 +466,7 @@ def run_curriculum_simulation(
 def create_mock_curricula(task_names: List[str]) -> Dict[str, float]:
     """Create task weights dictionary for testing.
 
-    For ProgressiveMultiTaskCurriculum and LearningProgressCurriculum,
+    For LearningProgressCurriculum,
     we need a dict mapping task names to initial weights.
     """
     # Equal initial weights for all tasks
@@ -439,341 +476,6 @@ def create_mock_curricula(task_names: List[str]) -> Dict[str, float]:
 # ============================================================================
 # Specific Test Scenarios for Curriculum Validation
 # ============================================================================
-
-
-class TestProgressiveCurriculumScenarios:
-    """Test the specific Progressive Curriculum scenarios requested."""
-
-    def test_scenario_1_monotonic_linear_advances_correctly(self, monkeypatch):
-        """
-        Scenario 1: Monotonic linear signal should advance through tasks with right timing.
-
-        Expected: Should spend time on each task in order, advancing when signal increases.
-        """
-        print("\n=== PROGRESSIVE SCENARIO 1: Monotonic Linear Signal ===")
-
-        # Patch curriculum_from_config_path to return SingleTaskCurriculum instances
-        def mock_curriculum_from_config_path(path, env_overrides=None):
-            default_cfg = OmegaConf.create({"game": {"num_agents": 1, "map": {"width": 10, "height": 10}}})
-            cfg = OmegaConf.merge(default_cfg, env_overrides or {})
-            return SingleTaskCurriculum(path, cfg)
-
-        monkeypatch.setattr(
-            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
-        )
-
-        tasks = ["task_1", "task_2", "task_3"]
-        task_weights = create_mock_curricula(tasks)
-
-        # Create a monotonic linear score generator
-        score_gen = MonotonicLinearScores(increment=0.1)
-
-        curriculum = ProgressiveMultiTaskCurriculum(
-            tasks=task_weights,
-            performance_threshold=0.8,  # Will reach after ~8 steps per task
-            progression_rate=0.3,  # Advance 30% per threshold crossing
-            smoothing=0.1,  # Fast adaptation to signal
-            blending_smoothness=0.2,  # Moderate transitions
-            progression_mode="perf",  # Progress based on performance
-        )
-
-        results = run_curriculum_simulation(curriculum, score_gen, 100)
-
-        # Analyze progression pattern
-        weight_history = results["weight_history"]
-        score_history = results["score_history"]
-        assert len(weight_history) == 100, f"Should have 100 weight snapshots, got {len(weight_history)}"
-
-        # Debug: Print first 20 scores to understand progression
-        print(f"First 20 scores: {score_history[:20]}")
-
-        # Early: should focus on task_1
-        early_weights = weight_history[5]
-        print(f"Early weights (step 5): {early_weights}")
-        assert early_weights["task_1"] > 0.8, f"Should start strongly focused on task_1, got {early_weights}"
-        assert early_weights.get("task_2", 0) < 0.2, f"Task 2 should have minimal weight early, got {early_weights}"
-        assert early_weights.get("task_3", 0) < 0.1, f"Task 3 should have minimal weight early, got {early_weights}"
-
-        # Debug: Check final curriculum stats
-        curriculum_stats = results["curriculum_stats"]
-        print(f"Final curriculum stats: {curriculum_stats}")
-
-        # The issue is that with monotonic linear scores and smoothing,
-        # it takes many steps to reach the 0.8 threshold
-        # Let's check progression more gradually
-
-        # Check if progress has started by step 50
-        mid_weights = weight_history[50]
-        print(f"Mid weights (step 50): {mid_weights}")
-        progress = curriculum_stats.get("progress", 0)
-        print(f"Progress at end: {progress}")
-
-        # If no progress by step 50, the threshold might not be reached yet
-        if progress > 0:
-            assert mid_weights.get("task_2", 0) > 0.01, (
-                f"Should show some task_2 weight if progress > 0, got {mid_weights}"
-            )
-        # Task 1 should have reduced weight
-        assert mid_weights["task_1"] < 0.7, f"Task 1 weight should decrease by middle, got {mid_weights}"
-        # Later tasks should have meaningful weight
-        later_tasks_weight = mid_weights.get("task_2", 0) + mid_weights.get("task_3", 0)
-        assert later_tasks_weight > 0.3, f"Should show clear progression by middle, got {mid_weights}"
-
-        # Late: should show further progression
-        late_weights = weight_history[80]
-        print(f"Late weights (step 80): {late_weights}")
-        assert late_weights.get("task_3", 0) > 0.05, f"Task 3 should have some weight by late stage, got {late_weights}"
-
-        # Final state analysis
-        final_weights = results["final_weights"]
-        task_counts = results["task_counts"]
-        curriculum_stats = results["curriculum_stats"]
-        print(f"Final weights: {final_weights}")
-        print(f"Task counts: {task_counts}")
-        print(f"Curriculum stats: {curriculum_stats}")
-
-        # Progress should be meaningful (0.3 progression rate * number of threshold crossings)
-        progress = curriculum_stats.get("progress", 0)
-        assert progress > 0.3, f"Should show significant progress with monotonic signal, got {progress}"
-
-        # Should have sampled all tasks at least once
-        assert len(task_counts) == 3, f"Should have tried all 3 tasks, got {task_counts.keys()}"
-        assert all(count > 0 for count in task_counts.values()), (
-            f"All tasks should be sampled at least once, got {task_counts}"
-        )
-
-        # Task 1 should have been sampled early but not dominate overall
-        total_samples = sum(task_counts.values())
-        # Extract counts for each base task (handle curriculum prefix)
-        task_1_count = sum(count for task, count in task_counts.items() if "task_1" in task)
-        task_2_count = sum(count for task, count in task_counts.items() if "task_2" in task)
-        task_3_count = sum(count for task, count in task_counts.items() if "task_3" in task)
-
-        task_1_ratio = task_1_count / total_samples
-        task_2_ratio = task_2_count / total_samples
-        task_3_ratio = task_3_count / total_samples
-
-        print(f"Task ratios - 1: {task_1_ratio:.2f}, 2: {task_2_ratio:.2f}, 3: {task_3_ratio:.2f}")
-
-        # With monotonic linear progress, we expect progression through tasks
-        assert task_1_count > 10, f"Task 1 should be sampled early, got {task_1_count}"
-        assert task_3_count > task_1_count, (
-            f"Task 3 should be sampled more than task 1 by end, got {task_3_count} vs {task_1_count}"
-        )
-
-        print("✓ PASSED: Monotonic signal correctly advances through tasks with expected timing")
-
-    def test_scenario_2_zero_signal_stays_on_first(self, monkeypatch):
-        """
-        Scenario 2: Always 0 signal should keep curriculum on first task.
-
-        Expected: Should stay overwhelmingly on first task throughout training.
-        """
-        print("\n=== PROGRESSIVE SCENARIO 2: Zero Signal ===")
-
-        # Patch curriculum_from_config_path
-        def mock_curriculum_from_config_path(path, env_overrides=None):
-            default_cfg = OmegaConf.create({"game": {"num_agents": 1, "map": {"width": 10, "height": 10}}})
-            cfg = OmegaConf.merge(default_cfg, env_overrides or {})
-            return SingleTaskCurriculum(path, cfg)
-
-        monkeypatch.setattr(
-            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
-        )
-
-        tasks = ["task_1", "task_2", "task_3"]
-        task_weights = create_mock_curricula(tasks)
-
-        # Create a zero score generator
-        score_gen = ZeroScores()
-
-        curriculum = ProgressiveMultiTaskCurriculum(
-            tasks=task_weights,
-            performance_threshold=0.5,
-            progression_rate=0.1,
-            smoothing=0.1,
-            progression_mode="perf",
-        )
-
-        results = run_curriculum_simulation(curriculum, score_gen, 100)
-
-        # Analyze the results
-        weight_history = results["weight_history"]
-        final_weights = results["final_weights"]
-        task_counts = results["task_counts"]
-        curriculum_stats = results["curriculum_stats"]
-
-        print(f"Final weights: {final_weights}")
-        print(f"Task counts: {task_counts}")
-        print(f"Curriculum stats: {curriculum_stats}")
-
-        # Check weights throughout training - should remain on task_1
-        assert len(weight_history) == 100, f"Should have 100 weight snapshots, got {len(weight_history)}"
-
-        # With progress=0, the gating mechanism gives higher weight to early tasks
-        # but not necessarily 100% to task_1
-        early_weights = weight_history[10]
-        print(f"Early weights (step 10): {early_weights}")
-        assert early_weights["task_1"] > 0.5, f"Should favor task_1 early, got {early_weights}"
-
-        # Middle weights - should still favor task_1
-        mid_weights = weight_history[50]
-        print(f"Mid weights (step 50): {mid_weights}")
-        assert mid_weights["task_1"] > 0.5, f"Should still favor task_1 at midpoint, got {mid_weights}"
-
-        # Late weights - should still favor task_1
-        late_weights = weight_history[80]
-        print(f"Late weights (step 80): {late_weights}")
-        assert late_weights["task_1"] > 0.5, f"Should still favor task_1 late in training, got {late_weights}"
-
-        # Weights should remain constant throughout (no progress)
-        # Check that weights don't change significantly
-        weight_variance = np.var([early_weights["task_1"], mid_weights["task_1"], late_weights["task_1"]])
-        assert weight_variance < 0.01, f"Weights should remain stable with zero progress, variance: {weight_variance}"
-
-        # Final weights should favor task_1 with the same distribution
-        assert final_weights["task_1"] > 0.5, f"Should favor task_1, got {final_weights['task_1']}"
-        assert final_weights["task_1"] > final_weights.get("task_2", 0), "Task 1 should have more weight than task 2"
-        assert final_weights["task_1"] > final_weights.get("task_3", 0), "Task 1 should have more weight than task 3"
-
-        # Task 1 should dominate selection counts
-        total_selections = sum(task_counts.values())
-        # Extract counts with curriculum prefix
-        task_1_count = sum(count for task, count in task_counts.items() if "task_1" in task)
-        task_1_ratio = task_1_count / total_selections if total_selections > 0 else 0
-        assert task_1_ratio > 0.5, f"Should spend majority time on task_1 with zero scores, got {task_1_ratio:.2f}"
-
-        # Progress should be zero or near-zero
-        progress = curriculum_stats.get("progress", 0)
-        assert progress == 0.0, (
-            f"Progress should be exactly 0 with zero signal (never crosses threshold), got {progress}"
-        )
-
-        # Performance tracking should show zero scores
-        perf_tracking = curriculum_stats.get("performance_tracking", {})
-        if perf_tracking and "task_1" in perf_tracking:
-            avg_score = perf_tracking["task_1"].get("score", 0)
-            assert avg_score == 0.0, f"Average score for task_1 should be 0, got {avg_score}"
-
-        print("✓ PASSED: Zero signal correctly stays on first task throughout training")
-
-    def test_scenario_3_random_signal_still_progresses(self, monkeypatch):
-        """
-        Scenario 3: Random signal should still progress with right parameters.
-
-        Expected: Due to randomness occasionally exceeding threshold, should eventually progress.
-        """
-        print("\n=== PROGRESSIVE SCENARIO 3: Random Signal ===")
-
-        # Patch curriculum_from_config_path
-        def mock_curriculum_from_config_path(path, env_overrides=None):
-            default_cfg = OmegaConf.create({"game": {"num_agents": 1, "map": {"width": 10, "height": 10}}})
-            cfg = OmegaConf.merge(default_cfg, env_overrides or {})
-            return SingleTaskCurriculum(path, cfg)
-
-        monkeypatch.setattr(
-            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
-        )
-
-        tasks = ["task_1", "task_2", "task_3"]
-        task_weights = create_mock_curricula(tasks)
-
-        # Create a random score generator with seed for reproducibility
-        score_gen = RandomScores(seed=42, min_val=0.0, max_val=1.0)
-
-        curriculum = ProgressiveMultiTaskCurriculum(
-            tasks=task_weights,
-            performance_threshold=0.4,  # Low threshold - random will occasionally exceed
-            progression_rate=0.05,  # Slower progression
-            smoothing=0.5,  # Heavy smoothing to handle noise
-            progression_mode="perf",
-        )
-
-        results = run_curriculum_simulation(curriculum, score_gen, 300)  # Longer simulation
-
-        # Analyze results
-        weight_history = results["weight_history"]
-        task_counts = results["task_counts"]
-        final_weights = results["final_weights"]
-        curriculum_stats = results["curriculum_stats"]
-        progress = curriculum_stats.get("progress", 0)
-
-        print(f"Task counts: {task_counts}")
-        print(f"Final weights: {final_weights}")
-        print(f"Final progress: {progress}")
-        print(f"Curriculum stats: {curriculum_stats}")
-
-        # Check weight evolution - should show progression over time
-        assert len(weight_history) == 300, f"Should have 300 weight snapshots, got {len(weight_history)}"
-
-        # With heavy smoothing (0.5) and low threshold (0.4), progression can happen quickly
-        # Check very early to see initial state
-        very_early_weights = weight_history[5]
-        print(f"Very early weights (step 5): {very_early_weights}")
-
-        # By step 20, with random scores and heavy smoothing, weights may already be distributed
-        early_weights = weight_history[20]
-        print(f"Early weights (step 20): {early_weights}")
-        # Just verify all tasks have some weight (exploration happening)
-        assert all(early_weights.get(task, 0) > 0.01 for task in tasks), (
-            f"All tasks should have some weight by step 20, got {early_weights}"
-        )
-
-        # Check progression is happening
-        mid_early_weights = weight_history[50]
-        print(f"Mid-early weights (step 50): {mid_early_weights}")
-        # Progress should be advancing
-        assert progress > 0, "Should show progress after 300 steps with random signal"
-
-        # Middle: should show clear progression
-        mid_weights = weight_history[150]
-        print(f"Mid weights (step 150): {mid_weights}")
-        assert mid_weights["task_1"] < 0.9, f"Task 1 weight should decrease by middle, got {mid_weights}"
-        assert mid_weights.get("task_2", 0) > 0.05, f"Task 2 should have meaningful weight by middle, got {mid_weights}"
-
-        # Late: should show further progression
-        late_weights = weight_history[250]
-        print(f"Late weights (step 250): {late_weights}")
-        task_2_and_3_weight = late_weights.get("task_2", 0) + late_weights.get("task_3", 0)
-        assert task_2_and_3_weight > 0.1, (
-            f"Later tasks should have combined weight > 0.1 by late stage, got {late_weights}"
-        )
-
-        # Final analysis
-        # Should have tried all tasks due to randomness and progression
-        assert len(task_counts) == 3, f"Should have tried all 3 tasks with 300 steps, got {task_counts.keys()}"
-        assert all(count > 0 for count in task_counts.values()), (
-            f"All tasks should be sampled at least once, got {task_counts}"
-        )
-
-        # Progress should be meaningful
-        # With 0.4 threshold, uniform random 0-1, and 5% progression rate
-        # After 300 steps with ~60% exceeding threshold, progress can reach 1.0
-        assert progress > 0.1, f"Should show meaningful progression from random signal, got {progress}"
-        # With 300 steps and many threshold crossings, progress can reach 1.0
-        # This is expected behavior
-
-        # Task distribution should show progression
-        total_selections = sum(task_counts.values())
-        # Extract counts with curriculum prefix
-        task_1_count = sum(count for task, count in task_counts.items() if "task_1" in task)
-        task_2_count = sum(count for task, count in task_counts.items() if "task_2" in task)
-        task_3_count = sum(count for task, count in task_counts.items() if "task_3" in task)
-
-        task_1_ratio = task_1_count / total_selections
-        task_2_ratio = task_2_count / total_selections
-        task_3_ratio = task_3_count / total_selections
-
-        print(f"Task ratios - 1: {task_1_ratio:.2f}, 2: {task_2_ratio:.2f}, 3: {task_3_ratio:.2f}")
-
-        # With full progression (progress=1.0), later tasks should dominate
-        assert task_3_ratio > task_1_ratio, "Task 3 should be sampled more than task 1 with full progression"
-        assert task_1_ratio < 0.5, f"Task 1 should not dominate with full progression, got {task_1_ratio:.2f}"
-        assert task_3_ratio > 0.3, (
-            f"Task 3 should have significant samples with full progression, got {task_3_ratio:.2f}"
-        )
-
-        print("✓ PASSED: Random signal enables gradual progression with appropriate parameters")
 
 
 class TestLearningProgressScenarios:

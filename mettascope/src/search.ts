@@ -3,15 +3,15 @@
  * NOTE: The highlighting logic is done in the files that draw the objects.
  */
 
+import { state } from './common.js'
 import { find, findIn, onEvent, removeChildren, showDropdown } from './htmlutils.js'
 import { requestFrame } from './main.js'
-import { state } from './common.js'
-import { propertyName, propertyIcon } from './replay.js'
+import { propertyIcon, propertyName } from './replay.js'
 
-var searchInput = find('#search-input') as HTMLInputElement
-var searchDropdown = find('#search-dropdown')
+const searchInput = find('#search-input') as HTMLInputElement
+const searchDropdown = find('#search-dropdown')
 searchDropdown.classList.add('hidden')
-var searchItemTemplate = findIn(searchDropdown, '.search-item')
+const searchItemTemplate = findIn(searchDropdown, '.search-item')
 searchItemTemplate.remove()
 
 /** The search state. */
@@ -24,28 +24,27 @@ export const search = {
 function updateSearchDropdown() {
   removeChildren(searchDropdown)
   // Add all of the resources to the search dropdown.
-  let usedKeys = new Set<string>()
-  let keys: string[] = []
-  for (let key of state.replay.resource_inventory.keys()) {
+  const usedKeys = new Set<string>()
+  const keys: string[] = []
+  for (const key of state.replay.itemNames) {
     keys.push(key)
   }
-  for (let key of state.replay.object_types) {
+  for (const key of state.replay.typeNames) {
     keys.push(key)
   }
 
-  for (let key of keys) {
-    let searchItem = searchItemTemplate.cloneNode(true) as HTMLElement
-    let shortKey = key.replace('inv:', '').replace('agent:', '')
-    if (usedKeys.has(shortKey)) {
+  for (const key of keys) {
+    const searchItem = searchItemTemplate.cloneNode(true) as HTMLElement
+    if (usedKeys.has(key)) {
       continue
     }
-    usedKeys.add(shortKey)
-    searchItem.setAttribute('data-key', shortKey)
+    usedKeys.add(key)
+    searchItem.setAttribute('data-key', key)
     searchItem.querySelector('.name')!.textContent = propertyName(key)
-    let icon = searchItem.querySelector('.icon') as HTMLImageElement
+    const icon = searchItem.querySelector('.icon') as HTMLImageElement
     icon.src = propertyIcon(key)
-    let filter = searchItem.querySelector('.filter') as HTMLImageElement
-    if (search.parts.includes(shortKey)) {
+    const filter = searchItem.querySelector('.filter') as HTMLImageElement
+    if (search.parts.includes(key)) {
       filter.src = 'data/ui/check-on.png'
     } else {
       filter.src = 'data/ui/check-off.png'
@@ -56,7 +55,7 @@ function updateSearchDropdown() {
 
 /** Update the search query and the search parts. */
 onEvent('input', '#search-input', () => {
-  let target = find('#search-input') as HTMLInputElement
+  const target = find('#search-input') as HTMLInputElement
   search.query = target.value
   search.active = search.query.length > 0
   search.parts = search.query
@@ -68,21 +67,21 @@ onEvent('input', '#search-input', () => {
   requestFrame()
 })
 
-onEvent('click', '#search-input', (target: HTMLElement, event: Event) => {
+onEvent('click', '#search-input', (target: HTMLElement, _e: Event) => {
   updateSearchDropdown()
   showDropdown(target, searchDropdown)
   requestFrame()
 })
 
 function remove(array: string[], item: string) {
-  let index = array.indexOf(item)
-  if (index != -1) {
+  const index = array.indexOf(item)
+  if (index !== -1) {
     array.splice(index, 1)
   }
 }
 
-onEvent('click', '#search-dropdown .search-item', (target: HTMLElement, event: Event) => {
-  let key = target.getAttribute('data-key')
+onEvent('click', '#search-dropdown .search-item', (target: HTMLElement, _e: Event) => {
+  const key = target.getAttribute('data-key')
   if (key != null) {
     if (search.parts.includes(key)) {
       remove(search.parts, key)

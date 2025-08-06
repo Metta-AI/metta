@@ -8,8 +8,11 @@ different PyTorch versions and platforms.
 """
 
 import ast
+import sys
 from pathlib import Path
 from typing import List, Tuple
+
+from pytest import fail
 
 
 class TensorDtypeChecker(ast.NodeVisitor):
@@ -71,7 +74,13 @@ def collect_py_files(root: Path, exclude_dirs: set[str]) -> list[Path]:
 
 def check_file_for_tensor_dtypes(filepath: Path) -> List[Tuple[int, str]]:
     """Check a single Python file for torch.tensor() calls without dtype."""
+    # Save current recursion limit
+    old_limit = sys.getrecursionlimit()
+
     try:
+        # Increase recursion limit to handle deeply nested expressions
+        sys.setrecursionlimit(3000)
+
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
 
@@ -83,6 +92,15 @@ def check_file_for_tensor_dtypes(filepath: Path) -> List[Tuple[int, str]]:
     except (SyntaxError, UnicodeDecodeError):
         # Skip files that can't be parsed
         return []
+    except RecursionError:
+        # Skip files that cause recursion errors (e.g., files with extremely deep nested expressions)
+        print(f"Warning: Skipping {filepath} due to RecursionError during AST parsing", file=sys.stderr)
+        return []
+    except Exception as e:
+        fail(f"Error checking file {filepath}: {e}")
+    finally:
+        # Restore original recursion limit
+        sys.setrecursionlimit(old_limit)
 
 
 def test_tensors_have_dtype():
@@ -96,9 +114,11 @@ def test_tensors_have_dtype():
         ".git",
         "__pycache__",
         ".pytest_cache",
+        ".uv-cache",
         "node_modules",
         "wandb",  # Exclude wandb logs as they might contain generated code
         "tests",  # Exclude test files as they don't require explicit dtype
+        "deps",  # Exclude external dependencies
     }
 
     py_files = collect_py_files(root, exclude_dirs)

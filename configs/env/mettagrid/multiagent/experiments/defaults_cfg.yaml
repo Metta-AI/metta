@@ -1,0 +1,35 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - _self_
+
+game:
+  num_agents: 32
+  agent:
+    rewards:
+      inventory:
+        ore_red: 0.01
+        ore_red_max: 3
+        battery_red: 0.1
+        battery_red_max: 5
+        heart: 1
+        heart_max: null
+  map_builder:
+    _target_: ???
+    width: 90
+    height: 90
+    border_width: 2
+    agents: 32
+    objects: ???
+  objects:
+    altar:
+      input_resources:
+        battery_red: 1
+      initial_resource_count: ???
+      cooldown: 10
+    generator_red:
+      initial_resource_count: ???
+      cooldown: 10
+    mine_red:
+      cooldown: 15

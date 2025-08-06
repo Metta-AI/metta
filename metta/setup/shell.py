@@ -22,7 +22,7 @@ load_cfg = partial(load_and_print_config, exit_on_failure=False, print_cfg=False
 
 from metta.common.util.stats_client_cfg import get_stats_client  # noqa
 from metta.agent.policy_store import PolicyStore  # noqa
-from metta.app_backend.stats_client import StatsClient  # noqa
+from metta.app_backend.clients.stats_client import StatsClient  # noqa
 
 
 def help_configs() -> None:

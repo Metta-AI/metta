@@ -85,8 +85,8 @@ flags:
 # Ignore certain paths from coverage
 ignore:
   - "**/tests/"
-  - "**/test_*.py"
-  - "**/*_test.py"
+  - "**/test_*.*" # ignore py and cpp tests
+  - "**/*_test.*"
   - "**/conftest.py"
   - "setup.py"
   - "**/migrations/"

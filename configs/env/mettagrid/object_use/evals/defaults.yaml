@@ -9,7 +9,8 @@ game:
   max_steps: ???
   agent:
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
   map_builder:
     _target_: metta.map.mapgen.MapGen
     width: 11

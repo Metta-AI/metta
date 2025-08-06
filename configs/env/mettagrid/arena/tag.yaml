@@ -37,6 +37,10 @@ game:
   objects:
     altar:
       input_resources:
-        blueprint: 1
+        laser: 100
       initial_resource_count: 1
+      cooldown: 1
+
+    lasery:
+      initial_resource_count: 20
       cooldown: 1

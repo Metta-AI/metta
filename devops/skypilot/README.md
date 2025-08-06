@@ -7,8 +7,7 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 - AWS credentials configured with `softmax` profile
 - SkyPilot CLI installed and configured. This results in a ~/.sky/config.yaml
 
-If you have successfully run `./devops/skypilot/install.sh` or the appropriate setup_machine script for your operating
-system, these should be handled.
+If you have successfully run `./devops/skypilot/install.sh` or `metta install`, these should be handled.
 
 You can run this command to confirm your connectivity to the Softmax skypilot server, its health, and if you are
 authenticated.
@@ -41,16 +40,6 @@ Note that launching jobs requires a repo with pushed commits (unless using `--sk
 ## Accessing the Dashboard
 
 There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displays the status of all clusters and jobs.
-
-You will be prompted for username/password credentials. These can be extracted from your Skypilot config with this
-command:
-
-```bash
-grep -o 'https://[^:]*:[^@]*@' ~/.sky/config.yaml | sed 's|https://||; s|@||' | sed 's|:| |' | while read username password; do
-  echo "Username: $username"
-  echo "Password: $password"
-done
-```
 
 ## Examples
 

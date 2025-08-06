@@ -7,9 +7,10 @@ game:
   max_steps: 200
   agent:
     rewards:
-      laser: 1
-      ore_red: 0
-      battery_red: 0
+      inventory:
+        laser: 1
+        ore_red: 0
+        battery_red: 0
   objects:
     generator_red:
       initial_resource_count: 2

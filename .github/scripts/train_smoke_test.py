@@ -25,7 +25,7 @@ class TrainingSmokeTest(SmokeTest):
             "uv",
             "run",
             "./tools/train.py",
-            "+hardware=github",
+            "+user=ci",
             "wandb=off",
         ]
 

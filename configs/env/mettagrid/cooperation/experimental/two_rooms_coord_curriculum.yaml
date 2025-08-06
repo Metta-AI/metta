@@ -1,0 +1,15 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/cooperation/experimental/two_rooms_coord_template
+
+buckets:
+  game.params.width:
+    range: [3, 8]
+  game.params.height:
+    range: [3, 8]
+  game.params.num_shared_generators:
+    range: [1, 2]
+  game.params.num_altars:
+    range: [1, 2]
+  game.params.num_mines:
+    range: [1, 2]

@@ -16,15 +16,15 @@ class TestMettaProtein:
         """Create a test sweep configuration."""
         return OmegaConf.create(
             {
+                "method": "bayes",
+                "metric": "eval/mean_score",
+                "goal": "maximize",
                 "parameters": {
                     "trainer": {
                         "optimizer": {"learning_rate": {"min": 0.0001, "max": 0.01}},
                         "batch_size": {"values": [16, 32, 64]},
                     }
                 },
-                "method": "bayes",
-                "metric": "eval/mean_score",
-                "goal": "maximize",
                 "protein": {
                     "search_center": {"trainer/optimizer/learning_rate": 0.001, "trainer/batch_size": 32},
                     "search_radius": {"trainer/optimizer/learning_rate": 0.5, "trainer/batch_size": 0.5},
@@ -35,30 +35,8 @@ class TestMettaProtein:
             }
         )
 
-    @pytest.fixture
-    def mock_wandb_run(self):
-        """Create a mock wandb run."""
-        run = Mock()
-        run.sweep_id = "test_sweep"
-        run.entity = "test_entity"
-        run.project = "test_project"
-        run.id = "test_run_id"
-        run.name = "test_run"
-        run.summary = Mock()
-        run.summary.get.return_value = None
-        run.summary.update = Mock()
-
-        # Create config mock separately to avoid attribute issues
-        config = Mock()
-        config._locked = {}
-        config.update = Mock()
-        run.config = config
-
-        return run
-
     @patch("metta.sweep.protein_metta.Protein")
-    @patch("wandb.Api")
-    def test_metta_protein_initialization(self, mock_api, mock_protein_class, sweep_config, mock_wandb_run):
+    def test_metta_protein_initialization(self, mock_protein_class, sweep_config):
         """Test that MettaProtein properly initializes with configuration."""
         # Mock Protein instance
         mock_protein = Mock()
@@ -68,11 +46,8 @@ class TestMettaProtein:
         )
         mock_protein_class.return_value = mock_protein
 
-        # Mock API
-        mock_api.return_value.runs.return_value = []
-
         # Create MettaProtein
-        MettaProtein(sweep_config, mock_wandb_run)
+        MettaProtein(sweep_config)
 
         # Verify Protein was initialized with correct sweep_config
         mock_protein_class.assert_called_once()
@@ -92,120 +67,112 @@ class TestMettaProtein:
         assert kwargs["gamma"] == 0.25
 
     @patch("metta.sweep.protein_metta.Protein")
-    @patch("wandb.Api")
-    def test_transform_suggestion_cleans_numpy(self, mock_api, mock_protein_class, sweep_config, mock_wandb_run):
-        """Test that _transform_suggestion properly cleans numpy types."""
+    def test_transform_suggestion_cleans_numpy(self, mock_protein_class, sweep_config):
+        """Test that suggestions have numpy types cleaned."""
+        # Mock Protein with numpy types in response
+        mock_protein = Mock()
         import numpy as np
 
-        # Mock Protein to return numpy types
-        mock_protein = Mock()
-        mock_protein.suggest.return_value = (
-            {"trainer/optimizer/learning_rate": np.float32(0.005), "trainer/batch_size": np.int64(32)},
-            {"cost": np.float64(100.0)},
-        )
+        suggestion_with_numpy = {
+            "learning_rate": np.float64(0.005),
+            "batch_size": np.int32(32),
+        }
+        mock_protein.suggest.return_value = (suggestion_with_numpy, {})
         mock_protein_class.return_value = mock_protein
 
-        # Mock API
-        mock_api.return_value.runs.return_value = []
-
         # Create MettaProtein
-        metta_protein = MettaProtein(sweep_config, mock_wandb_run)
+        metta_protein = MettaProtein(sweep_config)
 
         # Get suggestion - MettaProtein now cleans numpy types before storing
         suggestion, info = metta_protein.suggest()
 
-        # Verify numpy types were cleaned to Python native types
-        assert not isinstance(suggestion["trainer/optimizer/learning_rate"], np.floating)
-        assert not isinstance(suggestion["trainer/batch_size"], np.integer)
-        assert isinstance(suggestion["trainer/optimizer/learning_rate"], float)
-        assert isinstance(suggestion["trainer/batch_size"], int)
-
-        # Verify values are correct (with some floating point tolerance)
-        assert abs(suggestion["trainer/optimizer/learning_rate"] - 0.005) < 1e-6
-        assert suggestion["trainer/batch_size"] == 32
+        # Verify types were cleaned
+        assert isinstance(suggestion["learning_rate"], float)
+        assert isinstance(suggestion["batch_size"], int)
+        assert suggestion["learning_rate"] == 0.005
+        assert suggestion["batch_size"] == 32
 
     @patch("metta.sweep.protein_metta.Protein")
-    @patch("wandb.Api")
-    def test_config_with_list_config(self, mock_api, mock_protein_class, mock_wandb_run):
-        """Test MettaProtein handles ListConfig properly."""
-        # Create a ListConfig instead of DictConfig
-        list_config = OmegaConf.create(
-            [
-                {
-                    "parameters": {"trainer": {"learning_rate": {"min": 0.001, "max": 0.01}}},
-                    "method": "bayes",
-                    "metric": "score",
-                    "goal": "maximize",
-                    "protein": {"kernel": "rbf"},
-                }
-            ]
+    def test_config_with_nested_structure(self, mock_protein_class):
+        """Test MettaProtein handles nested config structures properly."""
+        # Create a config with deeply nested protein parameters
+        nested_config = OmegaConf.create(
+            {
+                "method": "bayes",
+                "metric": "accuracy",
+                "goal": "maximize",
+                "parameters": {
+                    "trainer": {
+                        "optimizer": {
+                            "learning_rate": {"min": 0.001, "max": 0.01},
+                            "momentum": {"min": 0.8, "max": 0.99},
+                        }
+                    }
+                },
+                "protein": {
+                    "kernel": "rbf",
+                    "search_center": {"trainer/optimizer/learning_rate": 0.005, "trainer/optimizer/momentum": 0.9},
+                },
+            }
         )
 
         # Mock Protein
         mock_protein = Mock()
-        mock_protein.suggest.return_value = ({"trainer/learning_rate": 0.005}, {})
+        mock_protein.suggest.return_value = ({"trainer/optimizer/learning_rate": 0.007}, {})
         mock_protein_class.return_value = mock_protein
 
-        # Mock API
-        mock_api.return_value.runs.return_value = []
+        # Should handle nested config properly
+        MettaProtein(nested_config)
 
-        # Should handle ListConfig by using first element
-        with pytest.raises(AttributeError):
-            # ListConfig doesn't have 'parameters' attribute directly
-            MettaProtein(list_config, mock_wandb_run)
+        # Verify protein was initialized with the nested config
+        mock_protein_class.assert_called_once()
+        call_args = mock_protein_class.call_args
+        assert call_args[0][0]["method"] == "bayes"
 
     @patch("metta.sweep.protein_metta.Protein")
-    @patch("wandb.Api")
-    def test_config_defaults(self, mock_api, mock_protein_class, mock_wandb_run):
-        """Test that default values are used when not specified in config."""
-        # Minimal config without method, metric, goal
+    def test_config_defaults(self, mock_protein_class):
+        """Test MettaProtein with minimal configuration."""
         minimal_config = OmegaConf.create(
-            {"parameters": {"trainer": {"learning_rate": {"min": 0.001, "max": 0.01}}}, "protein": {"kernel": "rbf"}}
+            {
+                "method": "bayes",
+                "metric": "accuracy",
+                "goal": "maximize",
+                "parameters": {"learning_rate": {"min": 0.001, "max": 0.01}},
+                "protein": {"kernel": "rbf"},
+            }
         )
 
         # Mock Protein
         mock_protein = Mock()
-        mock_protein.suggest.return_value = ({"trainer/learning_rate": 0.005}, {})
         mock_protein_class.return_value = mock_protein
-
-        # Mock API
-        mock_api.return_value.runs.return_value = []
 
         # Create MettaProtein
-        MettaProtein(minimal_config, mock_wandb_run)
+        MettaProtein(minimal_config)
 
         # Verify defaults were used
-        call_args = mock_protein_class.call_args[0][0]
-        assert call_args["method"] == "bayes"
-        assert call_args["metric"] == "eval/mean_score"
-        assert call_args["goal"] == "maximize"
+        mock_protein_class.assert_called_once()
+        args, kwargs = mock_protein_class.call_args
+
+        protein_config = args[0]
+        assert protein_config["metric"] == "accuracy"
+        assert protein_config["goal"] == "maximize"
+        assert protein_config["method"] == "bayes"
 
     @patch("metta.sweep.protein_metta.Protein")
-    @patch("wandb.Api")
-    def test_wandb_config_override(self, mock_api, mock_protein_class, sweep_config, mock_wandb_run):
-        """Test that WandB config is properly overridden with Protein suggestions."""
+    def test_wandb_config_override(self, mock_protein_class, sweep_config):
+        """Test that protein configuration is properly set up."""
         # Mock Protein
         mock_protein = Mock()
-        mock_protein.suggest.return_value = (
-            {"trainer/optimizer/learning_rate": 0.007, "trainer/batch_size": 64},
-            {"cost": 50.0},
-        )
         mock_protein_class.return_value = mock_protein
 
-        # Mock API
-        mock_api.return_value.runs.return_value = []
-
         # Create MettaProtein
-        MettaProtein(sweep_config, mock_wandb_run)
+        MettaProtein(sweep_config)
 
-        # Verify WandB config was updated
-        mock_wandb_run.config.update.assert_called()
-        update_call = mock_wandb_run.config.update.call_args
+        # Verify Protein was initialized (this replaces the wandb config override test)
+        mock_protein_class.assert_called_once()
+        call_args = mock_protein_class.call_args
 
-        # Should have updated with Protein's suggestions
-        config_update = update_call[0][0]
-        assert config_update["trainer/optimizer/learning_rate"] == 0.007
-        assert config_update["trainer/batch_size"] == 64
-
-        # Should allow value changes
-        assert update_call[1]["allow_val_change"] is True
+        # Verify the config structure was passed correctly
+        protein_config = call_args[0][0]
+        assert "trainer" in protein_config
+        assert protein_config["metric"] == "eval/mean_score"

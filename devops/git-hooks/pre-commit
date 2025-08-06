@@ -5,6 +5,19 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Check commit hook mode early to avoid unnecessary setup
+CONFIG_FILE="$HOME/.metta/config.yaml"
+
+if [ -f "$CONFIG_FILE" ]; then
+    # Extract commit_hook_mode from YAML
+    MODE=$(grep -A1 "githooks:" "$CONFIG_FILE" 2>/dev/null | grep "commit_hook_mode:" | awk '{print $2}' || echo "check")
+
+    if [ "$MODE" = "none" ]; then
+        # Exit silently for 'none' mode
+        exit 0
+    fi
+fi
+
 # Source common functions
 source "$REPO_ROOT/devops/tools/common.sh"
 

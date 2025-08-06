@@ -1,11 +1,13 @@
 #! /bin/bash -e
 
-# Obtain the API server URL with credentials
-SERVER=$(AWS_PROFILE=softmax aws ssm get-parameter --name /skypilot/api_url --query Parameter.Value --output text || true)
+SERVER=https://skypilot-api.softmax-research.net
 
-if [ -z "$SERVER" ]; then
-  echo "Failed to get Skypilot API server URL from SSM. Have you ran ./devops/aws/setup_aws_profiles.sh?"
-  exit 1
-fi
+echo "Logging in to Skypilot API server at $SERVER"
+
+echo "Skypilot might ask you to copy the token. What you need to do is:
+1. Copy the token in browser
+2. Press Ctrl+C once
+3. Paste it into the terminal
+"
 
 uv run sky api login -e "$SERVER"

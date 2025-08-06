@@ -1,0 +1,38 @@
+apiService:
+  config: |
+    jobs:
+      bucket: s3://skypilot-jobs/
+  resources:
+    requests:
+      cpu: "8"
+      memory: "16Gi"
+    limits:
+      cpu: "8"
+      memory: "16Gi"
+  metrics:
+    enabled: true
+awsCredentials:
+  enabled: true
+ingress:
+  certManager:
+    clusterIssuer: letsencrypt
+    enabled: true
+  host: skypilot-api.softmax-research.net
+  oauth2-proxy:
+    enabled: true
+    oidc-issuer-url: https://accounts.google.com
+    use-https: true
+    email-domain: stem.ai,softmax.com
+    # Skypilot uses `redis` by default, but its redis chart doesn't have persistence, so loses sessions on restart.
+    session-store-type: cookie
+    # This secret is terraformed by devops/tf/eks
+    client-details-from-secret: softmax-infra-oauth
+# managed as a separate chart, see above
+ingress-nginx:
+  enabled: false
+lambdaCredentials:
+  enabled: true
+  # created by terraform
+  lambdaSecretName: lambda-ai-credentials
+storage:
+  size: 50Gi

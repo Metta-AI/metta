@@ -8,7 +8,6 @@
       "request": "launch",
       "module": "tools.train",
       "args": [
-        "+hardware=macbook",
         "+user=${env:USER}"
       ],
       "cwd": "${workspaceFolder}",
@@ -25,7 +24,6 @@
       "request": "launch",
       "module": "tools.sweep_init",
       "args": [
-        "+hardware=macbook",
         "+user=${env:USER}",
         "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
       ],
@@ -43,7 +41,6 @@
       "request": "launch",
       "module": "tools.sweep_eval",
       "args": [
-        "+hardware=macbook",
         "+user=${env:USER}",
         "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
       ],
@@ -61,7 +58,6 @@
       "request": "launch",
       "module": "tools.train",
       "args": [
-        "+hardware=macbook",
         "+user=${env:USER}",
         "data_dir=./train_dir/sweep/${sweep_name}/runs",
         "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
@@ -81,7 +77,6 @@
       "module": "tools.sim",
       "args": [
         "+user=${env:USER}",
-        "+hardware=macbook",
         "cmd=sim"
       ],
       "cwd": "${workspaceFolder}",
@@ -99,7 +94,6 @@
       "module": "tools.dashboard",
       "args": [
         "+user=${env:USER}",
-        "+hardware=macbook"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -116,7 +110,6 @@
       "module": "tools.analyze",
       "args": [
         "+user=${env:USER}",
-        "+hardware=macbook",
         "cmd=analyze"
       ],
       "cwd": "${workspaceFolder}",
@@ -134,7 +127,6 @@
       "module": "tools.replay",
       "args": [
         "+user=${env:USER}",
-        "+hardware=macbook"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -151,7 +143,6 @@
       "module": "tools.play",
       "args": [
         "+user=${env:USER}",
-        "+hardware=macbook"
       ],
       "cwd": "${workspaceFolder}",
       "env": {

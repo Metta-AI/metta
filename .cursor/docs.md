@@ -9,7 +9,7 @@ To quickly test that training, simulation, and analysis are working correctly, u
 export TEST_ID=$(date +%Y%m%d_%H%M%S) && echo "Test ID: $TEST_ID"
 
 # 1. Train for 30 seconds (terminate with Ctrl+C) or use cursor config for auto-stop
-uv run ./tools/train.py run=test_$TEST_ID +hardware=macbook
+uv run ./tools/train.py run=test_$TEST_ID
 # OR with cursor config (auto-stops after 100k steps):
 uv run ./tools/train.py +user=cursor run=cursor_$TEST_ID
 
@@ -34,6 +34,6 @@ Run smoke tests with:
 
 ```bash
 export TEST_ID=$(date +%Y%m%d_%H%M%S)
-uv run ./tools/train.py run=smoke_$TEST_ID +smoke_test=true +hardware=macbook
+uv run ./tools/train.py run=smoke_$TEST_ID +smoke_test=true
 uv run ./tools/sim.py run=smoke_eval_$TEST_ID +sim_job.smoke_test=true policy_uri=file://./train_dir/smoke_$TEST_ID/checkpoints device=cpu
 ```

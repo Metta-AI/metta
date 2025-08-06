@@ -1,8 +1,17 @@
 # @package __global__
 
-trainer:
-  env: /env/mettagrid/arena/advanced
+device: cpu
+vectorization: serial
 
-replay_job:
-  sim:
-    env: /env/mettagrid/arena/advanced
+trainer:
+  batch_size: 1024
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 2
+
+  simulation:
+    evaluate_remote: true
+    evaluate_interval: 10
+  checkpoint:
+    checkpoint_interval: 10
+    wandb_checkpoint_interval: 10
+  bptt_horizon: 8

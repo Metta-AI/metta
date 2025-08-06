@@ -1,10 +1,16 @@
 """Test feature remapping functionality in MettaAgent."""
 
+import tempfile
+from pathlib import Path
+
 import torch
+import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip
 from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy_metadata import PolicyMetadata
+from metta.agent.policy_record import PolicyRecord
 
 
 # Module-level MockAgent class to avoid repetition
@@ -13,8 +19,6 @@ class MockAgent(MettaAgent):
 
     def __init__(self):
         # Initialize nn.Module to get the training attribute
-        import torch.nn as nn
-
         nn.Module.__init__(self)
 
         # Set up necessary attributes without full MettaAgent.__init__
@@ -279,15 +283,7 @@ def test_feature_mapping_persistence_via_metadata():
 
 def test_end_to_end_initialize_to_environment_workflow():
     """Test the full end-to-end workflow of initialize_to_environment."""
-    import tempfile
-    from pathlib import Path
-
-    import torch
-
-    from metta.agent.policy_metadata import PolicyMetadata
-    from metta.agent.policy_record import PolicyRecord
-
-    # Create a temporary directory for saving policies
+    # Create a temporary directory for saving/loading
     with tempfile.TemporaryDirectory() as tmpdir:
         # Mock environment class that provides features
         class MockMettaGridEnv:

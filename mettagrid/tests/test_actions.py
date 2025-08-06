@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_env import (
+from metta.mettagrid.mettagrid_c import (
+    MettaGrid,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
@@ -133,32 +133,40 @@ def test_move_all_directions(configured_env, movement_game_map):
         direction_name = str(orientation)
 
         print(f"Testing move {direction_name} (orientation {orientation.value})")
+
+        position_before = get_agent_position(env, 0)
         result = move(env, orientation)
+        position_after = get_agent_position(env, 0)
 
         # Assert movement was successful
         assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
 
         # Assert position changed
-        assert result["moved"], f"Agent should have moved {direction_name}"
+        assert position_before != position_after, f"Agent should have moved {direction_name}"
 
         # Assert movement was in correct direction
-        assert result["moved_correctly"], f"Agent should have moved correctly {direction_name}"
+        dr = position_after[0] - position_before[0]
+        dc = position_after[1] - position_before[1]
+        expected_dr, expected_dc = orientation.movement_delta
+        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
 
-        # Assert observations changed with movement
-        assert result["obs_changed"], f"Observations should change when moving {direction_name}"
-
-        print(f"✅ Move {direction_name}: {result['position_before']} → {result['position_after']}")
+        print(f"✅ Move {direction_name}: {position_before} → {position_after}")
 
 
 def test_move_up(configured_env, small_movement_game_map):
     """Test moving up specifically."""
     env = configured_env(small_movement_game_map, {"max_steps": 10})
 
+    # Get position before move
+    position_before = get_agent_position(env, 0)
+
     result = move(env, Orientation.UP)  # Use Orientation enum
 
     assert result["success"], f"Move up should succeed. Error: {result.get('error')}"
-    assert result["moved_correctly"], "Agent should move up correctly"
-    assert result["position_before"][0] - result["position_after"][0] == 1, "Should move up by 1 row"
+
+    # Get position after move and verify
+    position_after = get_agent_position(env, 0)
+    assert position_before[0] - position_after[0] == 1, "Should move up by 1 row"
 
 
 def test_move_blocked_by_wall(configured_env, blocked_game_map):
@@ -173,16 +181,19 @@ def test_move_blocked_by_wall(configured_env, blocked_game_map):
     ]
 
     for orientation in directions:
+        position_before = get_agent_position(env, 0)
         result = move(env, orientation)
+        position_after = get_agent_position(env, 0)
         direction_name = str(orientation)
 
-        # Movement action might succeed but agent shouldn't actually move
+        # Movement should fail or position should remain unchanged
         if result["success"]:
-            # If action succeeded, agent shouldn't have moved due to wall
-            assert not result["moved"], f"Agent shouldn't move {direction_name} when blocked by wall"
+            # This shouldn't happen for blocked movement
+            raise AssertionError(f"Move {direction_name} should fail when blocked by wall")
         else:
-            # Action failed, which is also acceptable for blocked movement
+            # Action failed, which is expected for blocked movement
             assert result["error"] is not None, f"Failed move {direction_name} should have an error message"
+            assert position_before == position_after, "Position should not change when blocked"
 
 
 def test_move_returns_to_center(configured_env, movement_game_map):
@@ -205,7 +216,6 @@ def test_move_returns_to_center(configured_env, movement_game_map):
         direction_name = str(orientation)
 
         assert result["success"], f"Move {direction_name} should succeed"
-        assert result["moved"], f"Agent should move {direction_name}"
 
     # Should be back at original position
     final_pos = get_agent_position(env)
@@ -295,18 +305,19 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
     for step in range(1, max_steps + 1):
         print(f"\n--- Step {step}: Moving {working_direction_str} ---")
 
+        position_before = get_agent_position(env, 0)
         result = move(env, working_orientation, agent_idx=0)
+        position_after = get_agent_position(env, 0)
         total_moves += 1
 
         if result["success"]:
             successful_moves.append(step)
             print(f"✓ Successful move #{len(successful_moves)}")
-            print(f"  Position: {result['position_before']} → {result['position_after']}")
+            print(f"  Position: {position_before} → {position_after}")
         else:
             print(f"✗ Move failed: {result.get('error', 'Unknown error')}")
-            if not result["move_success"]:
-                print("  Agent likely hit an obstacle or boundary")
-                break
+            print("  Agent likely hit an obstacle or boundary")
+            break
 
         if env.current_step >= 18:
             print("  Approaching max steps limit")
@@ -353,11 +364,13 @@ def test_agent_walks_in_all_possible_directions(configured_env, corridor_game_ma
         # Reset environment for each direction test
         env = configured_env(corridor_game_map, {"max_steps": 20})
 
+        position_before = get_agent_position(env, 0)
         result = move(env, orientation, agent_idx=0)
+        position_after = get_agent_position(env, 0)
 
-        if result["success"] and result["moved"]:
+        if result["success"] and position_before != position_after:
             successful_directions.append(direction_name)
-            print(f"✓ {direction_name}: {result['position_before']} → {result['position_after']}")
+            print(f"✓ {direction_name}: {position_before} → {position_after}")
         else:
             failed_directions.append(direction_name)
             print(f"✗ {direction_name}: {result.get('error', 'Movement failed')}")
@@ -396,8 +409,10 @@ def test_move_with_string_orientation(configured_env, small_movement_game_map):
     env = configured_env(small_movement_game_map, {"max_steps": 10})
 
     # Test with string
+    position_before = get_agent_position(env, 0)
     result = move(env, Orientation.UP)
+    position_after = get_agent_position(env, 0)
 
     # Should work the same as using the enum directly
     assert result["success"], f"Move with string orientation should succeed. Error: {result.get('error')}"
-    assert result["moved_correctly"], "Agent should move up correctly"
+    assert position_before[0] - position_after[0] == 1, "Agent should move up by 1 row"

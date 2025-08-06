@@ -25,9 +25,9 @@ class TailscaleSetup(SetupModule):
 
     def check_installed(self) -> bool:
         try:
-            result = subprocess.run(["tailscale", "version"], capture_output=True, text=True)
+            result = subprocess.run(["tailscale", "version"], capture_output=True, text=True, timeout=2)
             return result.returncode == 0
-        except FileNotFoundError:
+        except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
     def check_connected_as(self) -> str | None:
@@ -35,7 +35,7 @@ class TailscaleSetup(SetupModule):
             return None
 
         try:
-            result = subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True)
+            result = subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True, timeout=3)
             if result.returncode != 0:
                 return None
             status = json.loads(result.stdout)

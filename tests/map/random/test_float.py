@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from pydantic import BaseModel
 
 from metta.map.random.float import (
     FloatConstantDistribution,
@@ -149,8 +150,6 @@ class TestFloatLognormalDistribution:
 
 class TestFloatDistributionTypes:
     def test_constant_distribution_from_float(self):
-        from pydantic import BaseModel
-
         class TestModel(BaseModel):
             dist: FloatDistribution
 

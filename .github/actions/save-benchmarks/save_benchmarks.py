@@ -52,7 +52,7 @@ def create_benchmark_result(name: str, metrics: dict, group: str = "default"):
         "name": name,
         "fullname": name,
         "group": group,
-        "params": {"hardware": "github"},
+        "params": {"user": "ci"},
         "stats": {
             "min": duration,
             "max": duration,

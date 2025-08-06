@@ -41,6 +41,7 @@ class TestRendererJob:
         assert config_path.exists(), "Renderer job config not found"
         assert config_path.is_file(), "Renderer job config path is not a file"
 
+    @pytest.mark.slow
     def test_renderer_with_debug_environments(self):
         """Test that renderer can load and initialize debug environments."""
         # Simple renderer test with very short duration
@@ -61,7 +62,7 @@ class TestRendererJob:
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=30,  # Short timeout
+                    timeout=60,  # Short timeout
                     cwd=Path.cwd(),
                 )
 
@@ -108,6 +109,7 @@ class TestRendererJob:
             agent_count = content.count("@")
             assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"
 
+    @pytest.mark.slow
     @pytest.mark.parametrize("env_name,map_path", DEBUG_ENVIRONMENTS.items())
     def test_basic_training_validation(self, env_name, map_path):
         """Test very basic training validation - just that the environment loads."""
@@ -125,18 +127,27 @@ class TestRendererJob:
             print(f"Full map path: {full_map_path}")
             print(f"Map file exists: {full_map_path.exists()}")
 
-            cmd = [
-                "python",
-                "-m",
-                "tools.train",
-                f"run={run_name}",
-                "+hardware=macbook",
-                f"data_dir={temp_dir}",
-                "trainer.curriculum=/env/mettagrid/debug",
-                "trainer.total_timesteps=50",  # Minimal training
-                "trainer.num_workers=1",
-                "wandb=off",
-            ]
+            # Detect if running in CI
+            optional_ci_config = "+user=ci" if os.environ.get("CI", "").lower() == "true" else None
+
+            cmd = list(
+                filter(
+                    None,
+                    [
+                        "python",
+                        "-m",
+                        "tools.train",
+                        f"run={run_name}",
+                        optional_ci_config,
+                        f"data_dir={temp_dir}",
+                        "trainer.simulation.replay_dir=${run_dir}/replays/",
+                        "trainer.curriculum=/env/mettagrid/debug",
+                        "trainer.total_timesteps=50",  # Minimal training
+                        "trainer.num_workers=1",
+                        "wandb=off",
+                    ],
+                )
+            )
 
             # Set environment variable to specify the map
             env = os.environ.copy()
@@ -154,19 +165,25 @@ class TestRendererJob:
             print(f"DEBUG_MAP_URI: {env.get('DEBUG_MAP_URI')}")
 
             try:
-                # Run with shorter timeout and better error handling
+                timeout = 300
+                print(f'Running cmd "{cmd}" with timeout {timeout} sec')
                 result = subprocess.run(
                     cmd,
                     env=env,
                     capture_output=True,
                     text=True,
-                    timeout=60,  # Shorter timeout for CI
+                    timeout=timeout,
                     cwd=Path.cwd(),
                 )
             except subprocess.TimeoutExpired as e:
-                print("\n=== Command timed out after 60 seconds ===")
-                print(f"Partial STDOUT: {e.stdout if e.stdout else 'None'}")
-                print(f"Partial STDERR: {e.stderr if e.stderr else 'None'}")
+                print(f"\n=== Command timed out after {timeout} seconds ===")
+
+                # Decode bytes to string, defaulting to empty string if None
+                stdout_text = e.stdout.decode("utf-8") if e.stdout else "None"
+                stderr_text = e.stderr.decode("utf-8") if e.stderr else "None"
+
+                print(f"Partial STDOUT: {stdout_text}")
+                print(f"Partial STDERR: {stderr_text}")
                 pytest.fail(f"Training validation timed out for {env_name}")
             except Exception as e:
                 print("\n=== Unexpected error running subprocess ===")

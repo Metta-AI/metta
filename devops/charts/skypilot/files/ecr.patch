@@ -1,6 +1,6 @@
 diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 --- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-06-20 19:29:13
++++ sky-patched/provision/docker_utils.py	2025-07-30 14:55:58
 @@ -221,0 +222,22 @@
 +        def is_ecr_server(server: str):
 +            return server.endswith(".amazonaws.com") and ".ecr." in server
@@ -24,7 +24,7 @@ diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 +
 +            return server
 +
-@@ -236,0 +259,16 @@
+@@ -246,0 +269,16 @@
 +            elif is_ecr_server(docker_login_config.server):
 +                # Handle AWS ECR authentication
 +                docker_login_config.server = fix_ecr_server(docker_login_config.server)
@@ -42,9 +42,18 @@ diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 +                self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
 +                            f'mv /tmp/docker_config.json ~/.docker/config.json')
 diff -U0 -r sky/resources.py sky-patched/resources.py
---- sky/resources.py	2025-06-16 15:54:40
-+++ sky-patched/resources.py	2025-06-16 15:57:08
-@@ -1702,3 +1701,0 @@
+--- sky/resources.py	2025-07-28 13:24:57
++++ sky-patched/resources.py	2025-07-30 17:22:13
+@@ -1732,0 +1733,2 @@
++        if blocked.use_spot is not None and self.use_spot != blocked.use_spot:
++            is_matched = False
+@@ -2197,3 +2198,0 @@
 -        if self._docker_login_config is not None:
 -            config['_docker_login_config'] = dataclasses.asdict(
 -                self._docker_login_config)
+diff -U0 -r sky/users/server.py sky-patched/users/server.py
+--- sky/users/server.py	2025-07-28 13:24:57
++++ sky-patched/users/server.py	2025-07-29 19:56:03
+@@ -417 +417 @@
+-    random_suffix = secrets.token_hex(16)  # 16 character hex string
++    random_suffix = secrets.token_hex(8)  # 16 character hex string

@@ -11,43 +11,43 @@ jobs:
       contents: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Check if locked
-      id: check_lock
-      run: |
-        # Check if the lock tag exists
-        if git ls-remote --tags origin | grep -q "refs/tags/researcher_current_lock"; then
-          echo "locked=true" >> $GITHUB_OUTPUT
-          echo "System is locked with researcher_current_lock tag - skipping auto-update"
+      - name: Check if locked
+        id: check_lock
+        run: |
+          # Check if the lock tag exists
+          if git ls-remote --tags origin | grep -q "refs/tags/researcher_current_lock"; then
+            echo "locked=true" >> $GITHUB_OUTPUT
+            echo "System is locked with researcher_current_lock tag - skipping auto-update"
 
-          # Get lock tag info
-          LOCK_COMMIT=$(git ls-remote --tags origin | grep "refs/tags/researcher_current_lock" | cut -f1)
-          echo "Lock tag points to commit: ${LOCK_COMMIT:0:8}"
-        else
-          echo "locked=false" >> $GITHUB_OUTPUT
-          echo "System is not locked - will update researcher_current"
-        fi
+            # Get lock tag info
+            LOCK_COMMIT=$(git ls-remote --tags origin | grep "refs/tags/researcher_current_lock" | cut -f1)
+            echo "Lock tag points to commit: ${LOCK_COMMIT:0:8}"
+          else
+            echo "locked=false" >> $GITHUB_OUTPUT
+            echo "System is not locked - will update researcher_current"
+          fi
 
-    - name: Update researcher_current tag
-      if: steps.check_lock.outputs.locked == 'false'
-      run: |
-        # Configure git
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Update researcher_current tag
+        if: steps.check_lock.outputs.locked == 'false'
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-        # Delete existing tag locally and remotely if it exists
-        if git tag -l | grep -q "^researcher_current$"; then
-          git tag -d researcher_current
-          git push origin :refs/tags/researcher_current || true
-        fi
+          # Delete existing tag locally and remotely if it exists
+          if git tag -l | grep -q "^researcher_current$"; then
+            git tag -d researcher_current
+            git push origin :refs/tags/researcher_current || true
+          fi
 
-        # Create new tag at current commit
-        git tag researcher_current
-        git push origin researcher_current
+          # Create new tag at current commit
+          git tag researcher_current
+          git push origin researcher_current
 
-        echo "Updated researcher_current tag to commit ${{ github.sha }}"
+          echo "Updated researcher_current tag to commit ${{ github.sha }}"

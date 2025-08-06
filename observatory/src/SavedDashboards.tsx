@@ -187,7 +187,10 @@ export function SavedDashboards({ repo, currentUser }: SavedDashboardsProps) {
   const [dashboards, setDashboards] = useState<SavedDashboard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<{ message: string; visible: boolean } | null>(null)
+  const [toast, setToast] = useState<{
+    message: string
+    visible: boolean
+  } | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -281,7 +284,13 @@ export function SavedDashboards({ repo, currentUser }: SavedDashboardsProps) {
   }
 
   return (
-    <div style={{ padding: '20px', background: '#f8f9fa', minHeight: 'calc(100vh - 60px)' }}>
+    <div
+      style={{
+        padding: '20px',
+        background: '#f8f9fa',
+        minHeight: 'calc(100vh - 60px)',
+      }}
+    >
       <style>{SAVED_DASHBOARDS_CSS}</style>
 
       {/* Toast notification */}

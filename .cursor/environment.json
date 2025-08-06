@@ -1,4 +1,4 @@
 {
-  "install": "curl -LsSf https://astral.sh/uv/install.sh | sh && ./metta.sh configure --profile=external && ./metta.sh install",
+  "install": "./install.sh --profile=softmax-docker",
   "start": "source .venv/bin/activate"
 }

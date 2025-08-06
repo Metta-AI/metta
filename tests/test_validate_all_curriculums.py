@@ -29,6 +29,7 @@ def curriculum_configs() -> list[MettagridCfgFileMetadata]:
 
 @pytest.mark.parametrize("cfg_metadata", curriculum_configs(), ids=[cfg.path for cfg in curriculum_configs()])
 class TestValidateAllCurriculums:
+    @pytest.mark.slow
     def test_curriculum(self, cfg_metadata: MettagridCfgFileMetadata):
         cfg = cfg_metadata.get_cfg().cfg
         with hydra.initialize(version_base=None, config_path="../configs"):

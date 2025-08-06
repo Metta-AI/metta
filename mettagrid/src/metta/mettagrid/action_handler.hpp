@@ -10,6 +10,7 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "types.hpp"
+
 struct ActionConfig {
   std::map<InventoryItem, InventoryQuantity> required_resources;
   std::map<InventoryItem, InventoryQuantity> consumed_resources;
@@ -68,14 +69,28 @@ public:
     // Execute the action
     bool success = has_needed_resources && _handle_action(actor, arg);
 
+    // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
+    // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
+    if (actor->location == actor->prev_location) {
+      actor->steps_without_motion += 1;
+      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
+        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+      }
+    } else {
+      actor->steps_without_motion = 0;
+    }
+
+    // Update tracking for this agent
+    actor->prev_action_name = _action_name;
+    actor->prev_location = actor->location;
+
     // Track success/failure
     if (success) {
       actor->stats.incr("action." + _action_name + ".success");
       for (const auto& [item, amount] : _consumed_resources) {
         InventoryDelta delta = actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
-        // We consume resources after the action succeeds, but in the future
-        // we might have an action that uses the resource. This check will
-        // catch that.
+        // We consume resources after the action succeeds, but in the future we might have an action that uses the
+        // resource. This check will catch that.
         assert(delta == -amount);
       }
     } else {

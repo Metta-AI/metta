@@ -42,13 +42,10 @@ public:
   inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
   inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
   inline GridLocation() : r(0), c(0), layer(0) {}
-};
 
-enum Orientation {
-  Up = 0,
-  Down = 1,
-  Left = 2,
-  Right = 3
+  inline bool operator==(const GridLocation& other) const {
+    return r == other.r && c == other.c && layer == other.layer;
+  }
 };
 
 struct GridObjectConfig {

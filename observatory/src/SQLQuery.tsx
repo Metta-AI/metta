@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Repo, TableInfo, TableSchema, SQLQueryResponse } from './repo'
+import { AIQueryBuilder } from './AIQueryBuilder'
+
+interface QueryHistoryItem {
+  query: string
+  timestamp: number
+  executionTime?: number
+  rowCount?: number
+  error?: boolean
+}
 
 const SQL_QUERY_CSS = `
   .sql-query-container {
@@ -12,6 +21,8 @@ const SQL_QUERY_CSS = `
 
   .tables-sidebar {
     width: 240px;
+    min-width: 240px;
+    flex-shrink: 0;
     background-color: white;
     border-radius: 6px;
     padding: 16px;
@@ -299,6 +310,96 @@ const SQL_QUERY_CSS = `
     right: 10px;
     z-index: 2;
   }
+
+  .query-history-section {
+    margin-top: 24px;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 16px;
+  }
+
+  .query-history-section h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .clear-history-btn {
+    font-size: 11px;
+    padding: 2px 6px;
+    background-color: transparent;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+  }
+
+  .clear-history-btn:hover {
+    background-color: #f3f4f6;
+    color: #374151;
+  }
+
+  .history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .history-item {
+    padding: 8px 10px;
+    margin-bottom: 2px;
+    background-color: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    font-size: 12px;
+  }
+
+  .history-item:hover {
+    background-color: #f3f4f6;
+  }
+
+  .history-query {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 11px;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 2px;
+  }
+
+  .history-meta {
+    font-size: 10px;
+    color: #6b7280;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .history-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .history-status.success {
+    color: #10b981;
+  }
+
+  .history-status.error {
+    color: #ef4444;
+  }
 `
 
 interface Props {
@@ -320,9 +421,14 @@ export function SQLQuery({ repo }: Props) {
   const [tablesLoading, setTablesLoading] = useState(true)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [sortConfig, setSortConfig] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null)
+  const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([])
+
+  const HISTORY_KEY = 'sql_query_history'
+  const MAX_HISTORY_ITEMS = 50
 
   useEffect(() => {
     loadTables()
+    loadQueryHistory()
   }, [repo])
 
   useEffect(() => {
@@ -357,6 +463,48 @@ export function SQLQuery({ repo }: Props) {
     }
   }
 
+  function loadQueryHistory() {
+    try {
+      const stored = localStorage.getItem(HISTORY_KEY)
+      if (stored) {
+        const history = JSON.parse(stored) as QueryHistoryItem[]
+        setQueryHistory(history)
+      }
+    } catch (error) {
+      console.error('Failed to load query history:', error)
+    }
+  }
+
+  function saveQueryToHistory(queryText: string, result: SQLQueryResponse | null, error: boolean = false) {
+    const newItem: QueryHistoryItem = {
+      query: queryText,
+      timestamp: Date.now(),
+      rowCount: result?.row_count,
+      error,
+    }
+
+    const updatedHistory = [newItem, ...queryHistory.filter((item) => item.query !== queryText)].slice(
+      0,
+      MAX_HISTORY_ITEMS
+    )
+
+    setQueryHistory(updatedHistory)
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory))
+    } catch (error) {
+      console.error('Failed to save query history:', error)
+    }
+  }
+
+  function clearHistory() {
+    setQueryHistory([])
+    try {
+      localStorage.removeItem(HISTORY_KEY)
+    } catch (error) {
+      console.error('Failed to clear query history:', error)
+    }
+  }
+
   async function executeQuery() {
     if (!query.trim()) return
 
@@ -364,11 +512,13 @@ export function SQLQuery({ repo }: Props) {
       setQueryState({ type: 'loading' })
       const result = await repo.executeQuery({ query })
       setQueryState({ type: 'success', data: result })
+      saveQueryToHistory(query, result, false)
     } catch (error) {
       setQueryState({
         type: 'error',
         error: error instanceof Error ? error.message : 'Query execution failed',
       })
+      saveQueryToHistory(query, null, true)
     }
   }
 
@@ -429,6 +579,12 @@ export function SQLQuery({ repo }: Props) {
     })
   }
 
+  function formatCell(cell: any) {
+    if (cell === null) return <em style={{ color: '#999' }}>NULL</em>
+    if (typeof cell === 'object') return JSON.stringify(cell)
+    return String(cell)
+  }
+
   return (
     <>
       <style>{SQL_QUERY_CSS}</style>
@@ -452,6 +608,37 @@ export function SQLQuery({ repo }: Props) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {queryHistory.length > 0 && (
+            <div className="query-history-section">
+              <h3>
+                Query History
+                <button className="btn clear-history-btn" onClick={clearHistory}>
+                  Clear
+                </button>
+              </h3>
+              <ul className="history-list">
+                {queryHistory.map((item, index) => {
+                  const date = new Date(item.timestamp)
+                  const timeStr = date.toLocaleTimeString()
+                  const dateStr = date.toLocaleDateString()
+                  const isToday = new Date().toDateString() === date.toDateString()
+
+                  return (
+                    <li key={index} className="history-item" onClick={() => setQuery(item.query)} title={item.query}>
+                      <div className="history-query">{item.query}</div>
+                      <div className="history-meta">
+                        <span>{isToday ? timeStr : dateStr}</span>
+                        <span className={`history-status ${item.error ? 'error' : 'success'}`}>
+                          {item.error ? 'Error' : item.rowCount !== undefined ? `${item.rowCount} rows` : ''}
+                        </span>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )}
         </div>
 
@@ -478,6 +665,8 @@ export function SQLQuery({ repo }: Props) {
                 </div>
               </div>
             )}
+
+            <AIQueryBuilder repo={repo} onQueryGenerated={setQuery} />
 
             <div className="query-input-wrapper">
               <textarea
@@ -551,7 +740,7 @@ export function SQLQuery({ repo }: Props) {
                       <tr key={idx}>
                         {row.map((cell, cellIdx) => (
                           <td key={cellIdx}>
-                            {cell === null ? <em style={{ color: '#999' }}>NULL</em> : String(cell)}
+                            {formatCell(cell)}
                           </td>
                         ))}
                       </tr>
