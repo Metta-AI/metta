@@ -72,7 +72,8 @@ public:
         _attempts_per_trial(cfg.attempts_per_trial),
         _reward_mode(cfg.reward_mode),
         _max_sequence_size(cfg.target_sequence.size()),
-        _actions_per_trial(_attempts_per_trial * _max_sequence_size) {
+        _actions_per_trial(_attempts_per_trial * _max_sequence_size),
+        _per_position_reward(_sequence_reward / static_cast<float>(_max_sequence_size)) {
     // Initialize target sequence for first trial
     _update_target_sequence();
   }
@@ -118,8 +119,7 @@ protected:
     // Dense reward mode: give immediate reward for correct position
     if (_reward_mode == ColorTreeRewardMode::DENSE) {
       if (color == _target_sequence[position_in_sequence]) {
-        float position_reward = _sequence_reward / _target_sequence.size();
-        *actor->reward += position_reward;
+        *actor->reward += _per_position_reward;
         actor->stats.add("color_tree.correct_position", 1.0f);
       }
     }
@@ -141,8 +141,7 @@ protected:
 
     // Add the item to inventory for visualization
     agent_data.current_item = item_it->second;
-    InventoryDelta delta = actor->update_inventory(agent_data.current_item, 1);
-    if (delta <= 0) {
+    if (actor->update_inventory(agent_data.current_item, 1) <= 0) {
       // Log warning but continue - visualization may be incomplete
       actor->stats.add("color_tree.inventory_full", 1.0f);
     }
@@ -226,6 +225,7 @@ private:
   size_t _attempts_per_trial;
   ColorTreeRewardMode _reward_mode;
   size_t _actions_per_trial{};                  // Pre-calculated: _attempts_per_trial * _max_sequence_size
+  float _per_position_reward;
 
   // Global trial tracking (shared across agents for synchronized trial switching)
   size_t _current_trial = 0;

@@ -1,0 +1,5 @@
+_target_: metta.mettagrid.curriculum.colortree_random.ColorTreeRandomSequenceCurriculum
+
+env_cfg: /env/mettagrid/colortree_medium
+sequence_length: 4
+num_colors: 3

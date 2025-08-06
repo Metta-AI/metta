@@ -1,0 +1,39 @@
+defaults:
+  - mettagrid
+  - _self_
+
+game:
+  num_agents: 128
+  max_steps: 64
+  obs_width: 11
+  obs_height: 11
+
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    uri: configs/env/mettagrid/maps/debug/colortree_128.map
+    border_width: 0
+
+  actions:
+    noop: {enabled: false}
+    move: {enabled: false}
+    rotate: {enabled: false}
+    put_items: {enabled: false}
+    get_items: {enabled: false}
+    attack: {enabled: false}
+    swap: {enabled: false}
+    change_color: {enabled: false}
+    change_glyph: {enabled: false}
+
+    color_tree:
+      enabled: true
+      target_sequence: [0, 1, 0, 1] # Easy: 2 colors, 4 slots - will be randomized by curriculum
+      sequence_reward: 1.0
+      num_trials: 4
+      attempts_per_trial: 4
+      reward_mode: "dense"
+      trial_sequences:
+        - [0, 1, 0, 1] # Same sequence repeated 4 times per episode
+        - [0, 1, 0, 1]
+        - [0, 1, 0, 1]
+        - [0, 1, 0, 1]
+      color_to_item: {0: ore_red, 1: ore_green}
