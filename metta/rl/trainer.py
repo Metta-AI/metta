@@ -358,6 +358,19 @@ def train(
                         idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
                         training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
 
+                        # Ensure training_idxs don't exceed the actual observations size
+                        actual_obs_size = o.shape[0]
+                        if len(training_idxs) > 0 and training_idxs.max() >= actual_obs_size:
+                            # Adjust training_idxs to fit within actual observations
+                            max_valid_idx = actual_obs_size - 1
+                            training_idxs = training_idxs[training_idxs <= max_valid_idx]
+                            if len(training_idxs) == 0:
+                                # If no valid indices, use first few observations
+                                training_idxs = torch.arange(
+                                    min(actual_obs_size, training_agents_per_env), device=device
+                                )
+                            logger.warning(f"Adjusted training_idxs to fit observations size: {actual_obs_size}")
+
                         # Filter observations, actions, logprobs, values, rewards, dones, truncations
                         # to only training agents
                         training_obs = o[training_idxs]
