@@ -43,7 +43,7 @@ trainer:
 
   # Short training run for quick testing
   total_timesteps: 100000
-  batch_size: 2048  # Reasonable batch for testing
+  batch_size: 65280  # Reasonable batch for testing
   minibatch_size: 512
   bptt_horizon: 8  # Sequence length for RNN
 
