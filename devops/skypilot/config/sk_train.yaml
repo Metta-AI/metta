@@ -119,6 +119,24 @@ run: |
   echo "METTA_GIT_REF = $METTA_GIT_REF"
   echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
 
+
+  # Run comprehensive GPU diagnostics and NCCL tests
+  echo "Running GPU diagnostics and NCCL tests..."
+  if [ "$NUM_NODES" -gt 1 ] || [ "$NUM_GPUS" -gt 1 ]; then
+      # For distributed training
+      if ! torchrun --nproc_per_node=$NUM_GPUS --nnodes=$NUM_NODES --node_rank=$NODE_INDEX --master_addr=$MASTER_ADDR test_nccl.py; then
+          echo "NCCL pre-flight check failed!"
+          # You can decide whether to continue or exit
+          # exit 1
+      fi
+  else
+      # For single GPU
+      if ! python test_nccl.py; then
+          echo "GPU pre-flight check failed!"
+          # exit 1
+      fi
+  fi
+
   echo "Running $METTA_CMD script for run=$METTA_RUN_ID with args $METTA_CMD_ARGS"
 
   if ./devops/"$METTA_CMD".sh run="$METTA_RUN_ID" $METTA_CMD_ARGS; then
