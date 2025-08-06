@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from pufferlib.pytorch import sample_logits
 from torch import nn
 
-from metta.agent.policy_state import PolicyState
+from metta.agent.lstm_hidden_state import LstmHiddenState
 from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger("policy")
@@ -118,7 +118,7 @@ class PytorchAgent(nn.Module):
         self.lstm = getattr(policy, "lstm", None)  # Point to the actual LSTM module if it exists
         self.components = nn.ModuleDict()  # Empty for compatibility
 
-    def forward(self, obs: torch.Tensor, state: PolicyState, action=None):
+    def forward(self, obs: torch.Tensor, state: LstmHiddenState, action=None):
         """Uses variable names from LSTMWrapper. Translating for Metta:
         critic -> value
         logprob -> logprob_act

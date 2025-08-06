@@ -3,8 +3,8 @@ from typing import List
 import torch
 from torch import Tensor, nn
 
+from metta.agent.lstm_hidden_state import LstmHiddenState
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.mettagrid import MettaGridEnv
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
@@ -86,7 +86,7 @@ class Kickstarter:
         student_normalized_logits: Tensor,
         student_value: Tensor,
         o: Tensor,  # Observation tensor
-        teacher_lstm_state: List[PolicyState],
+        teacher_lstm_state: List[LstmHiddenState],
     ) -> tuple[Tensor, Tensor]:
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
@@ -100,7 +100,7 @@ class Kickstarter:
             self.anneal_factor = 1.0 - progress
 
         if len(teacher_lstm_state) == 0:
-            teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
+            teacher_lstm_state = [LstmHiddenState() for _ in range(len(self.teachers))]
 
         for i, teacher in enumerate(self.teachers):
             teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
@@ -113,6 +113,6 @@ class Kickstarter:
 
         return ks_action_loss, ks_value_loss
 
-    def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
+    def _forward(self, teacher, o, teacher_lstm_state: LstmHiddenState):
         _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)
         return value, norm_logits

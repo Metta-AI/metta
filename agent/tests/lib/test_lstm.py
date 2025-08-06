@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from metta.agent.lib.lstm import LSTM
-from metta.agent.policy_state import PolicyState
+from metta.agent.lstm_hidden_state import LstmHiddenState
 
 
 @pytest.fixture
@@ -265,7 +265,7 @@ class TestLSTMLayer:
 
         # Create policy states to simulate the different behaviors
         # Original behavior: Use the state directly (which would crash if None)
-        policy_state_orig = PolicyState(lstm_h=h_state, lstm_c=c_state)
+        lstm_state_orig = LstmHiddenState(lstm_h=h_state, lstm_c=c_state)
 
         # Simulate state being None for some environment IDs
         env_ids = torch.arange(params["batch_size"] // 2)
@@ -279,15 +279,15 @@ class TestLSTMLayer:
             h_new[:, i, :] = 0
             c_new[:, i, :] = 0
 
-        policy_state_new = PolicyState(lstm_h=h_new, lstm_c=c_new)
+        lstm_state_new = LstmHiddenState(lstm_h=h_new, lstm_c=c_new)
 
         # Create states in the format expected by the LSTM layer
-        assert policy_state_orig.lstm_h is not None
-        assert policy_state_orig.lstm_c is not None
-        assert policy_state_new.lstm_h is not None
-        assert policy_state_new.lstm_c is not None
-        state_orig = torch.cat([policy_state_orig.lstm_h, policy_state_orig.lstm_c], dim=0)
-        state_new = torch.cat([policy_state_new.lstm_h, policy_state_new.lstm_c], dim=0)
+        assert lstm_state_orig.lstm_h is not None
+        assert lstm_state_orig.lstm_c is not None
+        assert lstm_state_new.lstm_h is not None
+        assert lstm_state_new.lstm_c is not None
+        state_orig = torch.cat([lstm_state_orig.lstm_h, lstm_state_orig.lstm_c], dim=0)
+        state_new = torch.cat([lstm_state_new.lstm_h, lstm_state_new.lstm_c], dim=0)
 
         # Forward pass with original state
         td_orig = {"x": sample_input["x"], "hidden": sample_input["hidden"], "state": state_orig}

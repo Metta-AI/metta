@@ -6,7 +6,7 @@ from typing import Any, Dict
 import torch
 from torch import Tensor
 
-from metta.agent.policy_state import PolicyState
+from metta.agent.lstm_hidden_state import LstmHiddenState
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
 
@@ -67,7 +67,7 @@ def process_minibatch_update(
     """Process a single minibatch update and return the total loss."""
     obs = minibatch["obs"]
 
-    lstm_state = PolicyState()
+    lstm_state = LstmHiddenState()
     _, new_logprobs, entropy, newvalue, full_logprobs = policy(obs, lstm_state, action=minibatch["actions"])
 
     new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)

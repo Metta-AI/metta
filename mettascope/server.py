@@ -55,46 +55,46 @@ class CustomStaticFiles(StaticFiles):
 
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
     """Clear the memory of the policy."""
-    policy_state = sim.get_policy_state()
+    lstm_state = sim.get_lstm_hidden_state()
 
-    if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
+    if lstm_state is None or lstm_state.lstm_c is None or lstm_state.lstm_h is None:
         logger.error("No policy state to clear")
         return
 
     if what == "0":
-        policy_state.lstm_c[:, agent_id, :].zero_()
-        policy_state.lstm_h[:, agent_id, :].zero_()
+        lstm_state.lstm_c[:, agent_id, :].zero_()
+        lstm_state.lstm_h[:, agent_id, :].zero_()
     elif what == "1":
-        policy_state.lstm_c[:, agent_id, :].fill_(1)
-        policy_state.lstm_h[:, agent_id, :].fill_(1)
+        lstm_state.lstm_c[:, agent_id, :].fill_(1)
+        lstm_state.lstm_h[:, agent_id, :].fill_(1)
     elif what == "random":
-        policy_state.lstm_c[:, agent_id, :].normal_(mean=0, std=1)
-        policy_state.lstm_h[:, agent_id, :].normal_(mean=0, std=1)
+        lstm_state.lstm_c[:, agent_id, :].normal_(mean=0, std=1)
+        lstm_state.lstm_h[:, agent_id, :].normal_(mean=0, std=1)
 
 
 def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], list[float]]:
     """Copy the memory of the policy."""
-    policy_state = sim.get_policy_state()
-    if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
+    lstm_state = sim.get_lstm_hidden_state()
+    if lstm_state is None or lstm_state.lstm_c is None or lstm_state.lstm_h is None:
         logger.error("No policy state to copy")
         return [], []
 
     # Copy the memory of the policy.
-    lstm_c = policy_state.lstm_c[:, agent_id, :].clone()
-    lstm_h = policy_state.lstm_h[:, agent_id, :].clone()
+    lstm_c = lstm_state.lstm_c[:, agent_id, :].clone()
+    lstm_h = lstm_state.lstm_h[:, agent_id, :].clone()
     return lstm_c.tolist(), lstm_h.tolist()
 
 
 def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[float], list[float]]):
     """Paste the memory of the policy."""
-    policy_state = sim.get_policy_state()
-    if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
+    lstm_state = sim.get_lstm_hidden_state()
+    if lstm_state is None or lstm_state.lstm_c is None or lstm_state.lstm_h is None:
         logger.error("No policy state to paste")
         return
 
     [lstm_c, lstm_h] = memory
-    policy_state.lstm_c[:, agent_id, :] = th.tensor(lstm_c)
-    policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
+    lstm_state.lstm_c[:, agent_id, :] = th.tensor(lstm_c)
+    lstm_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
 
 
 def make_app(cfg: DictConfig):

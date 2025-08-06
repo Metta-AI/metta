@@ -23,8 +23,8 @@ import torch
 from einops import rearrange
 from omegaconf import OmegaConf
 
+from metta.agent.lstm_hidden_state import LstmHiddenState
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
@@ -218,8 +218,8 @@ class Simulation:
         logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
         self._obs, _ = self._vecenv.reset()
-        self._policy_state = PolicyState()
-        self._npc_state = PolicyState()
+        self._lstm_state = LstmHiddenState()
+        self._npc_state = LstmHiddenState()
         self._env_done_flags = [False] * self._num_envs
 
         self._t0 = time.time()
@@ -270,7 +270,7 @@ class Simulation:
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
             policy = self._policy_pr.policy
-            policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
+            policy_actions, _, _, _, _ = policy(my_obs, self._lstm_state)
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
@@ -463,9 +463,9 @@ class Simulation:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
 
-    def get_policy_state(self):
-        """Get the policy state."""
-        return self._policy_state
+    def get_lstm_hidden_state(self):
+        """Get the LSTM hidden state."""
+        return self._lstm_state
 
 
 @dataclass

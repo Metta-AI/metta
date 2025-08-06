@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from metta.agent.policy_state import PolicyState
+from metta.agent.lstm_hidden_state import LstmHiddenState
 from metta.rl.kickstarter import Kickstarter, KickstartTeacherConfig
 
 
@@ -188,13 +188,13 @@ class TestKickstarter:
         assert kickstarter.anneal_factor == pytest.approx(expected_anneal_factor)
 
         # Verify that _forward was called with the right arguments
-        # We can't directly compare PolicyState objects, so just check that _forward was called once
+        # We can't directly compare LstmHiddenState objects, so just check that _forward was called once
         assert mock_forward.call_count == 1
         # Check that the first two arguments match what we expect
         args, _ = mock_forward.call_args
         assert args[0] == mock_teacher
         assert torch.all(args[1] == observation)
-        # We can't directly compare the PolicyState object, so we skip checking the third argument
+        # We can't directly compare the LstmHiddenState object, so we skip checking the third argument
 
     def test_forward_method(self, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the _forward method."""
@@ -208,7 +208,7 @@ class TestKickstarter:
 
         # Create test tensors
         observation = torch.randn(2, 10)
-        teacher_lstm_state = PolicyState()
+        teacher_lstm_state = LstmHiddenState()
 
         # Call the _forward method
         value, norm_logits = kickstarter._forward(mock_teacher, observation, teacher_lstm_state)

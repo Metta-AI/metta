@@ -8,7 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.policy_state import PolicyState
+from metta.agent.lstm_hidden_state import LstmHiddenState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -419,7 +419,7 @@ class MettaAgent(nn.Module):
         return action, action_log_prob, entropy, value, log_probs
 
     def forward(
-        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
+        self, x: torch.Tensor, state: LstmHiddenState, action: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass of the MettaAgent - delegates to appropriate specialized method.
