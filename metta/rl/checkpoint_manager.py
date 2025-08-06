@@ -176,7 +176,6 @@ class CheckpointManager:
             "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
             "run": self.run_name,
             "initial_pr": initial_policy_record.uri if initial_policy_record else None,
-            "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
             "evals": evals_dict,
             "avg_reward": evals.avg_category_score,
             "score": evals.avg_simulation_score,  # Aggregated score for sweep evaluation
