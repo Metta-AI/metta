@@ -124,7 +124,3 @@ class SingleTaskCurriculum(Curriculum):
 
     def get_task_probs(self) -> dict[str, float]:
         return {self._task_id: 1.0}
-
-    def env_cfg(self) -> DictConfig:
-        assert self._task_cfg is not None, "Task has no environment configuration"
-        return self._task_cfg
