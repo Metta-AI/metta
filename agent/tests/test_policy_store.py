@@ -5,42 +5,18 @@ import os
 import tempfile
 
 import torch
-from omegaconf import OmegaConf
 
 from metta.agent.mocks import MockPolicy
+from metta.agent.policy_metadata import PolicyMetadata
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
 
 
 def test_policy_save_load_without_pydantic():
     """Test that we can save and load a policy without pydantic errors"""
 
-    # Import PolicyStore and PolicyRecord from their respective modules
-    from metta.agent.policy_metadata import PolicyMetadata
-    from metta.agent.policy_record import PolicyRecord
-    from metta.agent.policy_store import PolicyStore
-
-    # Create minimal config
-    cfg = OmegaConf.create(
-        {
-            "device": "cpu",
-            "run": "test_run",
-            "run_dir": tempfile.mkdtemp(),
-            "vectorization": "serial",
-            "trainer": {
-                "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
-                "num_workers": 1,
-            },
-            "data_dir": tempfile.mkdtemp(),
-            # Add minimal agent config needed for make_policy
-            "agent": {
-                "type": "metta",
-                "hidden_size": 256,
-                "num_layers": 2,
-            },
-        }
-    )
-
     # Create PolicyStore (without wandb_run for simplicity)
-    policy_store = PolicyStore(cfg, wandb_run=None)
+    policy_store = PolicyStore(data_dir=tempfile.mkdtemp())
 
     # Create a test policy
     policy = MockPolicy()
@@ -60,9 +36,10 @@ def test_policy_save_load_without_pydantic():
 
     try:
         print(temp_path)
-
         # Create a policy record
-        pr = policy_store.create_empty_policy_record(name=temp_path)
+        pr = policy_store.create_empty_policy_record(
+            name=os.path.basename(temp_path), checkpoint_dir=os.path.dirname(temp_path)
+        )
         pr.metadata = metadata
         pr.policy = policy
 
@@ -114,26 +91,8 @@ def test_policy_save_load_without_pydantic():
 
 def test_policy_save_load_with_dict_metadata():
     """Test that we can save and load a policy with plain dict metadata"""
-
-    from metta.agent.policy_store import PolicyStore
-
-    # Create minimal config
-    cfg = OmegaConf.create(
-        {
-            "device": "cpu",
-            "run": "test_run",
-            "run_dir": tempfile.mkdtemp(),
-            "vectorization": "serial",
-            "trainer": {
-                "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
-                "num_workers": 1,
-            },
-            "data_dir": tempfile.mkdtemp(),
-        }
-    )
-
     # Create PolicyStore (without wandb_run for simplicity)
-    policy_store = PolicyStore(cfg, wandb_run=None)
+    policy_store = PolicyStore(data_dir=tempfile.mkdtemp())
 
     # Create a test policy
     policy = MockPolicy()
@@ -153,7 +112,9 @@ def test_policy_save_load_with_dict_metadata():
 
     try:
         # Create a policy record
-        pr = policy_store.create_empty_policy_record(name=temp_path)
+        pr = policy_store.create_empty_policy_record(
+            name=os.path.basename(temp_path), checkpoint_dir=os.path.dirname(temp_path)
+        )
         pr.metadata = metadata
         pr.policy = policy
 
@@ -181,25 +142,7 @@ def test_policy_save_load_with_dict_metadata():
 
 def test_policy_record_backwards_compatibility():
     """Test that PolicyRecord can handle old metadata attribute names"""
-    from metta.agent.policy_metadata import PolicyMetadata
-    from metta.agent.policy_record import PolicyRecord
-    from metta.agent.policy_store import PolicyStore
-
-    # Create minimal config for PolicyStore
-    cfg = OmegaConf.create(
-        {
-            "device": "cpu",
-            "run": "test_run",
-            "run_dir": tempfile.mkdtemp(),
-            "trainer": {
-                "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
-                "num_workers": 1,
-            },
-            "data_dir": tempfile.mkdtemp(),
-        }
-    )
-
-    policy_store = PolicyStore(cfg, wandb_run=None)
+    policy_store = PolicyStore(data_dir=tempfile.mkdtemp())
 
     # Test different old attribute names
     old_attribute_names = ["checkpoint"]

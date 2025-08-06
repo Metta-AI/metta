@@ -13,6 +13,16 @@ enum EventType {
   EventTypeCount
 };
 
+enum Orientation {
+  Up = 0,
+  Down = 1,
+  Left = 2,
+  Right = 3
+};
+
+// Direction names for use with movement and rotation tracking
+constexpr const char* OrientationNames[] = {"up", "down", "left", "right"};
+
 namespace GridLayer {
 constexpr ObservationType AgentLayer = 0;
 constexpr ObservationType ObjectLayer = 1;
@@ -47,47 +57,63 @@ constexpr ObservationType LastActionArg = 10;
 constexpr ObservationType LastReward = 11;
 constexpr ObservationType Glyph = 12;
 constexpr ObservationType ResourceRewards = 13;
-constexpr ObservationType ObservationFeatureCount = 14;
+constexpr ObservationType VisitationCounts = 14;
+constexpr ObservationType ObservationFeatureCount = 15;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
-const std::map<ObservationType, std::string> FeatureNames = {
-    {ObservationFeature::TypeId, "type_id"},
-    {ObservationFeature::Group, "agent:group"},
-    {ObservationFeature::Hp, "hp"},
-    {ObservationFeature::Frozen, "agent:frozen"},
-    {ObservationFeature::Orientation, "agent:orientation"},
-    {ObservationFeature::Color, "agent:color"},
-    {ObservationFeature::ConvertingOrCoolingDown, "converting"},
-    {ObservationFeature::Swappable, "swappable"},
-    {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
-    {ObservationFeature::LastAction, "last_action"},
-    {ObservationFeature::LastActionArg, "last_action_arg"},
-    {ObservationFeature::LastReward, "last_reward"},
-    {ObservationFeature::Glyph, "agent:glyph"},
-    {ObservationFeature::ResourceRewards, "resource_rewards"}};
+
+// Use function-local statics to avoid global constructors and initialization order issues
+inline const std::map<ObservationType, std::string>& GetFeatureNames() {
+  static const std::map<ObservationType, std::string> feature_names = {
+      {ObservationFeature::TypeId, "type_id"},
+      {ObservationFeature::Group, "agent:group"},
+      {ObservationFeature::Hp, "hp"},
+      {ObservationFeature::Frozen, "agent:frozen"},
+      {ObservationFeature::Orientation, "agent:orientation"},
+      {ObservationFeature::Color, "agent:color"},
+      {ObservationFeature::ConvertingOrCoolingDown, "converting"},
+      {ObservationFeature::Swappable, "swappable"},
+      {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
+      {ObservationFeature::LastAction, "last_action"},
+      {ObservationFeature::LastActionArg, "last_action_arg"},
+      {ObservationFeature::LastReward, "last_reward"},
+      {ObservationFeature::Glyph, "agent:glyph"},
+      {ObservationFeature::ResourceRewards, "resource_rewards"},
+      {ObservationFeature::VisitationCounts, "agent:visitation_counts"}};
+  return feature_names;
+}
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 // but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 // These should move to configuration "soon". E.g., by 2025-06-10.
-const std::map<ObservationType, float> FeatureNormalizations = {
-    {ObservationFeature::LastAction, 10.0},
-    {ObservationFeature::LastActionArg, 10.0},
-    {ObservationFeature::EpisodeCompletionPct, 255.0},
-    {ObservationFeature::LastReward, 100.0},
-    {ObservationFeature::TypeId, 1.0},
-    {ObservationFeature::Group, 10.0},
-    {ObservationFeature::Hp, 30.0},
-    {ObservationFeature::Frozen, 1.0},
-    {ObservationFeature::Orientation, 1.0},
-    {ObservationFeature::Color, 255.0},
-    {ObservationFeature::ConvertingOrCoolingDown, 1.0},
-    {ObservationFeature::Swappable, 1.0},
-    {ObservationFeature::Glyph, 255.0},
-    {ObservationFeature::ResourceRewards, 255.0},
-};
+inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
+  static const std::map<ObservationType, float> feature_normalizations = {
+      {ObservationFeature::LastAction, 10.0},
+      {ObservationFeature::LastActionArg, 10.0},
+      {ObservationFeature::EpisodeCompletionPct, 255.0},
+      {ObservationFeature::LastReward, 100.0},
+      {ObservationFeature::TypeId, 1.0},
+      {ObservationFeature::Group, 10.0},
+      {ObservationFeature::Hp, 30.0},
+      {ObservationFeature::Frozen, 1.0},
+      {ObservationFeature::Orientation, 1.0},
+      {ObservationFeature::Color, 255.0},
+      {ObservationFeature::ConvertingOrCoolingDown, 1.0},
+      {ObservationFeature::Swappable, 1.0},
+      {ObservationFeature::Glyph, 255.0},
+      {ObservationFeature::ResourceRewards, 255.0},
+      {ObservationFeature::VisitationCounts, 1000.0},
+  };
+  return feature_normalizations;
+}
+
+// For backward compatibility, provide macros that expand to function calls
+// This allows existing code to work without modification
+#define FeatureNames GetFeatureNames()
+#define FeatureNormalizations GetFeatureNormalizations()
 
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;
 

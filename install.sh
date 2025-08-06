@@ -8,11 +8,11 @@ while [ $# -gt 0 ]; do
         echo "Error: --profile requires an argument"
         exit 1
       fi
-      PROFILE="--profile=$2"
+      PROFILE="$2"
       shift 2
       ;;
     --profile=*)
-      PROFILE="$1"
+      PROFILE="${1#--profile=}"
       shift
       ;;
     --help | -h)
@@ -41,10 +41,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Assumes install.sh is in root of repo
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 # Source common functions
-source "$SCRIPT_DIR/devops/tools/common.sh"
+. "$REPO_ROOT/devops/tools/common.sh"
 
 echo "Welcome to Metta!"
 
@@ -53,7 +54,11 @@ ensure_uv_setup
 
 uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
-uv run python -m metta.setup.metta_cli configure $PROFILE || err "Failed to run configuration"
+if [ -n "$PROFILE" ]; then
+  uv run python -m metta.setup.metta_cli configure --profile="$PROFILE" || err "Failed to run configuration"
+else
+  uv run python -m metta.setup.metta_cli configure || err "Failed to run configuration"
+fi
 uv run python -m metta.setup.metta_cli install || err "Failed to install components"
 
 echo "\nSetup complete!\n"

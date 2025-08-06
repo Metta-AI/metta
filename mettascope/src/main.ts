@@ -1,17 +1,41 @@
-import { Vec2f, Mat3f } from './vector_math.js'
-import * as Common from './common.js'
-import { ui, state, html, ctx, setFollowSelection } from './common.js'
-import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
-import { focusFullMap, drawMap } from './worldmap.js'
-import { drawTrace } from './traces.js'
-import { drawMiniMap } from './minimap.js'
-import { processActions, initActionButtons } from './actions.js'
+import { initActionButtons, processActions, startGamepadPolling } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, initHighDpiMode, find, toggleOpacity } from './htmlutils.js'
-import { updateReadout, hideHoverPanel } from './hoverpanels.js'
+import * as Common from './common.js'
+import {
+  ctx,
+  html,
+  setFollowSelection,
+  state,
+  ui,
+  METTA_GITHUB_ORGANIZATION,
+  METTA_GITHUB_REPO,
+  METTA_GITHUB_PRIMARY_BRANCH,
+} from './common.js'
+import { doDemoMode, initDemoMode, startDemoMode, stopDemoMode } from './demomode.js'
+import { hideHoverBubble, updateReadout } from './hoverbubbles.js'
+import {
+  find,
+  hideDropdown,
+  hideMenu,
+  initHighDpiMode,
+  localStorageSetNumber,
+  onEvent,
+  toggleOpacity,
+} from './htmlutils.js'
+import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
-import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
+import { Entity, fetchReplay, initWebSocket, readFile } from './replay.js'
+import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
+import { initializeTooltips } from './tooltips.js'
+import { drawTrace, invalidateTrace } from './traces.js'
+import { Vec2f } from './vector_math.js'
+import { drawMap, focusFullMap } from './worldmap.js'
+import { Heatmap } from './heatmap.js'
+
+// Expose state to window for testing purposes (e.g., Playwright tests)
+if (typeof window !== 'undefined') {
+  ;(window as any).state = state
+}
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
@@ -20,7 +44,7 @@ let frameRequested = false
 export function requestFrame() {
   if (!frameRequested) {
     frameRequested = true
-    requestAnimationFrame((time) => {
+    requestAnimationFrame((_time) => {
       frameRequested = false
       onFrame()
     })
@@ -30,7 +54,7 @@ export function requestFrame() {
 /** Handles resize events. */
 export function onResize() {
   // Adjust for high DPI displays.
-  const dpr = window.devicePixelRatio || 1
+  const _dpr = window.devicePixelRatio || 1
 
   const screenWidth = window.innerWidth
   const screenHeight = window.innerHeight
@@ -55,13 +79,13 @@ export function onResize() {
     ui.mapPanel.x = 0
     ui.mapPanel.y = Common.HEADER_HEIGHT
     ui.mapPanel.width = screenWidth
-    let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
+    const maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
     ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight)
 
     // Minimap goes in the bottom left corner of the mapPanel.
     if (state.replay != null) {
-      const miniMapWidth = state.replay.map_size[0] * 2
-      const miniMapHeight = state.replay.map_size[1] * 2
+      const miniMapWidth = state.replay.mapSize[0] * 2
+      const miniMapHeight = state.replay.mapSize[1] * 2
       ui.miniMapPanel.x = 0
       ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight
       ui.miniMapPanel.width = miniMapWidth
@@ -80,7 +104,7 @@ export function onResize() {
       ui.tracePanel.width = screenWidth
       ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
 
-      html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
+      html.actionButtons.style.top = `${ui.tracePanel.y - 148}px`
     } else {
       ui.tracePanel.x = 0
       ui.tracePanel.y = 0
@@ -90,7 +114,7 @@ export function onResize() {
       ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
       ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - ui.miniMapPanel.height
       ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300
-      html.actionButtons.style.top = ui.mapPanel.y + ui.mapPanel.height - 148 + 'px'
+      html.actionButtons.style.top = `${ui.mapPanel.y + ui.mapPanel.height - 148}px`
     }
 
     // Timeline panel is always on the bottom of the screen.
@@ -135,11 +159,14 @@ function hideUi() {
   state.showTraces = false
   state.showAgentPanel = false
   state.showActionButtons = false
+  invalidateTrace()
   onResize()
 }
 
-/** Handles mouse down events. */
-onEvent('mousedown', 'body', () => {
+/** Handles pointer down events. */
+onEvent('pointerdown', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as PointerEvent
+  ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.lastMousePos = ui.mousePos
   ui.mouseDownPos = ui.mousePos
   ui.mouseClick = true
@@ -159,8 +186,8 @@ onEvent('mousedown', 'body', () => {
   requestFrame()
 })
 
-/** Handles mouse up events. */
-onEvent('mouseup', 'body', () => {
+/** Handles pointer up events. */
+onEvent('pointerup', 'body', () => {
   ui.mouseUp = true
   ui.mouseDown = false
   ui.dragging = ''
@@ -169,20 +196,25 @@ onEvent('mouseup', 'body', () => {
   ui.mainScrubberDown = false
   ui.mainTraceMinimapDown = false
 
-  // Due to how we select objects on mouse-up (mouse-down is drag/pan),
-  // we need to check for double-click on mouse-up as well.
-  const currentTime = new Date().getTime()
-  ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
-  ui.lastClickTime = currentTime
+  // Due to how we select objects on pointer-up (pointer-down is drag/pan),
+  // we need to check for double-click on pointer-up as well.
+  // BUT don't detect double-click if we're pinching or just finished pinching
+  const currentTime = Date.now()
+  if (!ui.isPinching && ui.touches.length === 0) {
+    ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
+    ui.lastClickTime = currentTime
+  } else {
+    ui.mouseDoubleClick = false
+  }
 
   requestFrame()
 })
 
-/** Handles mouse move events. */
-onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as MouseEvent
+/** Handles pointer move events. */
+onEvent('pointermove', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
-  var target = event.target as HTMLElement
+  let target = event.target as HTMLElement
   while (target.id === '' && target.parentElement != null) {
     target = target.parentElement as HTMLElement
   }
@@ -190,15 +222,15 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
   let p = event.target as HTMLElement
   while (p != null) {
     if (p.id !== '') {
-      ui.mouseTargets.push('#' + p.id)
+      ui.mouseTargets.push(`#${p.id}`)
     }
     for (const className of p.classList) {
-      ui.mouseTargets.push('.' + className)
+      ui.mouseTargets.push(`.${className}`)
     }
     p = p.parentElement as HTMLElement
   }
 
-  // If the mouse is close to a panel's edge, change the cursor.
+  // If the pointer is close to a panel's edge, change the cursor.
   document.body.style.cursor = 'default'
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = 'ns-resize'
@@ -211,21 +243,21 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
   }
 
   // Drag the trace panel up or down.
-  if (ui.dragging == 'trace-panel') {
+  if (ui.dragging === 'trace-panel') {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
     localStorageSetNumber('traceSplit', ui.traceSplit)
     onResize()
   }
 
-  if (ui.dragging == 'agent-panel') {
+  if (ui.dragging === 'agent-panel') {
     ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
     localStorageSetNumber('agentPanelSplit', ui.agentPanelSplit)
     onResize()
   }
 
   if (ui.dragHtml != null) {
-    ui.dragHtml.style.left = ui.mousePos.x() - ui.dragOffset.x() + 'px'
-    ui.dragHtml.style.top = ui.mousePos.y() - ui.dragOffset.y() + 'px'
+    ui.dragHtml.style.left = `${ui.mousePos.x() - ui.dragOffset.x()}px`
+    ui.dragHtml.style.top = `${ui.mousePos.y() - ui.dragOffset.y()}px`
   }
 
   if (ui.mainScrubberDown) {
@@ -236,43 +268,138 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
     onTraceMinimapChange(event)
   }
 
-  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
-    hideHoverPanel()
+  const isOverBubble = ui.mouseTargets.includes('.hover-panel')
+  const isOverObject = ui.hoverObject !== null
+  const hasBubble = ui.delayedHoverObject !== null
+
+  const shouldKeepBubble = isOverBubble || isOverObject
+  const shouldHide = !shouldKeepBubble && hasBubble
+
+  if (shouldHide) {
+    // Start a timer to hide the hover bubble after a delay
+    if (ui.hideHoverTimer === null) {
+      ui.hideHoverTimer = setTimeout(() => {
+        hideHoverBubble()
+        ui.hideHoverTimer = null
+      }, Common.INFO_PANEL_POP_TIME)
+    }
+  } else {
+    // Cancel the hide timer if we're back over a valid area
+    if (ui.hideHoverTimer !== null) {
+      clearTimeout(ui.hideHoverTimer)
+      ui.hideHoverTimer = null
+    }
   }
 
   requestFrame()
 })
 
 /** Handles dragging draggable elements. */
-onEvent('mousedown', '.draggable', (target: HTMLElement, e: Event) => {
-  let event = e as MouseEvent
+onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
+  const event = e as PointerEvent
+  ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.dragHtml = target
-  let rect = target.getBoundingClientRect()
+  const rect = target.getBoundingClientRect()
   ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top)
   ui.dragging = 'draggable'
   requestFrame()
 })
 
 /** Handles scroll events. */
-onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as WheelEvent
+onEvent('wheel', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as WheelEvent
   ui.scrollDelta = event.deltaY
-  // Prevent pinch-to-zoom.
+  // Prevent scaling the web page
   event.preventDefault()
   requestFrame()
 })
 
-/** Handles the mouse moving outside the window. */
-document.addEventListener('mouseout', function (e) {
+/** Handles the pointer moving outside the window. */
+document.addEventListener('pointerout', (e) => {
   if (!e.relatedTarget) {
-    hideHoverPanel()
+    hideHoverBubble()
     requestFrame()
   }
 })
 
 /** Handles the window losing focus. */
-document.addEventListener('blur', function (e) {
-  hideHoverPanel()
+document.addEventListener('blur', (_e) => {
+  hideHoverBubble()
+  requestFrame()
+})
+
+/** Handles touch start events for pinch-to-zoom. */
+onEvent('touchstart', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.touches.length === 2) {
+    // Start pinch gesture
+    const touch1 = new Vec2f(ui.touches[0].clientX, ui.touches[0].clientY)
+    const touch2 = new Vec2f(ui.touches[1].clientX, ui.touches[1].clientY)
+    const initialDistance = touch1.sub(touch2).length()
+
+    // Only start pinching if fingers are far enough apart to avoid zoom spikes
+    if (initialDistance > 20) {
+      ui.pinchCenter = touch1.add(touch2).mul(0.5)
+      ui.lastPinchCenter = ui.pinchCenter
+      ui.pinchDistance = initialDistance
+      ui.lastPinchDistance = initialDistance
+      ui.isPinching = true
+
+      // Prevent default to avoid interference with other gestures
+      event.preventDefault()
+    }
+  } else {
+    // Reset all pinch state when not pinching
+    ui.isPinching = false
+    ui.pinchDistance = 0
+    ui.lastPinchDistance = 0
+    ui.pinchCenter = new Vec2f(0, 0)
+    ui.lastPinchCenter = new Vec2f(0, 0)
+  }
+
+  requestFrame()
+})
+
+/** Handles touch move events for pinch-to-zoom. */
+onEvent('touchmove', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.isPinching && ui.touches.length === 2) {
+    // Prevent default scrolling during pinch
+    event.preventDefault()
+  }
+
+  requestFrame()
+})
+
+/** Handles touch end events for pinch-to-zoom. */
+onEvent('touchend', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.touches.length < 2) {
+    ui.isPinching = false
+    ui.pinchDistance = 0
+    ui.lastPinchDistance = 0
+    ui.pinchCenter = new Vec2f(0, 0)
+    ui.lastPinchCenter = new Vec2f(0, 0)
+  }
+
+  requestFrame()
+})
+
+/** Handles touch cancel events for pinch-to-zoom. */
+onEvent('touchcancel', 'body', (_target: HTMLElement, _e: Event) => {
+  // Reset all pinch state when touch is cancelled
+  ui.isPinching = false
+  ui.touches = []
+  ui.pinchDistance = 0
+  ui.lastPinchDistance = 0
+  ui.pinchCenter = new Vec2f(0, 0)
+  ui.lastPinchCenter = new Vec2f(0, 0)
   requestFrame()
 })
 
@@ -291,7 +418,7 @@ function updateUrlParams() {
   // Handle the selected object.
   if (state.selectedGridObject !== null) {
     // Find the index of the selected object.
-    const selectedObjectIndex = state.replay.grid_objects.indexOf(state.selectedGridObject)
+    const selectedObjectIndex = state.replay.objects.indexOf(state.selectedGridObject)
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString())
       // Remove map position parameters when an object is selected.
@@ -307,7 +434,7 @@ function updateUrlParams() {
   }
 
   // Include the map zoom level.
-  if (ui.mapPanel.zoomLevel != 1) {
+  if (ui.mapPanel.zoomLevel !== 1) {
     // Only include zoom to three decimal places.
     urlParams.set('mapZoom', ui.mapPanel.zoomLevel.toFixed(3))
   }
@@ -320,7 +447,7 @@ function updateUrlParams() {
   }
 
   // Replace the current state without creating a history entry.
-  const newUrl = window.location.pathname + '?' + urlParams.toString()
+  const newUrl = `${window.location.pathname}?${urlParams.toString()}`
   history.replaceState(null, '', newUrl)
 }
 
@@ -331,7 +458,6 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
   // Update the scrubber value (unless told to skip).
   if (!skipScrubberUpdate) {
-    console.info('Scrubber value:', state.step)
     updateTimeline()
   }
   updateAgentTable()
@@ -339,7 +465,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 }
 
 /** Centralized function to select an object. */
-export function updateSelection(object: any, setFollow = false) {
+export function updateSelection(object: Entity | null, setFollow = false) {
   state.selectedGridObject = object
   if (setFollow) {
     setFollowSelection(true)
@@ -350,40 +476,159 @@ export function updateSelection(object: any, setFollow = false) {
 }
 
 /** Handles key down events. */
-onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as KeyboardEvent
+onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
+  const event = e as KeyboardEvent
 
-  // Prevent keyboard events if we are focused on an text field.
-  if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+  // Prevent keyboard events if we are focused on a text field, except for the Escape key
+  if (
+    (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) &&
+    event.key !== 'Escape'
+  ) {
     return
   }
 
-  if (event.key == 'Escape') {
+  if (event.key === 'Escape') {
+    // Close any open context or dropdown menus.
+    hideMenu()
+    hideDropdown()
+
+    const searchInput = document.getElementById('search-input') as HTMLInputElement | null
+    if (searchInput && (searchInput.value.length > 0 || document.activeElement === searchInput)) {
+      // Clear the search field and related state.
+      if (searchInput.value.length > 0) {
+        searchInput.value = ''
+        // Trigger the input handler registered in search.ts so internal state updates.
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+
+      // Remove focus from the search input
+      searchInput.blur()
+      // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
+    } else if (ui.hoverBubbles.length > 0) {
+      // Close the most recently opened hover bubble (last in array)
+      const lastBubble = ui.hoverBubbles[ui.hoverBubbles.length - 1]
+      lastBubble.div.remove()
+      ui.hoverBubbles.pop()
+    } else if (ui.delayedHoverObject !== null) {
+      // Close the main hover bubble if it's showing
+      hideHoverBubble()
+    } else if (state.showAgentPanel) {
+      state.showAgentPanel = false
+      localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
+      toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
+    } else if (state.showInfo) {
+      state.showInfo = false
+      localStorage.setItem('showInfo', state.showInfo.toString())
+      toggleOpacity(html.infoToggle, state.showInfo)
+    } else if (state.showTraces) {
+      state.showTraces = false
+      localStorage.setItem('showTraces', state.showTraces.toString())
+      toggleOpacity(html.tracesToggle, state.showTraces)
+      invalidateTrace()
+      onResize()
+    } else if (state.showActionButtons) {
+      state.showActionButtons = false
+      localStorage.setItem('showActionButtons', state.showActionButtons.toString())
+      toggleOpacity(html.controlsToggle, state.showActionButtons)
+    }
+
     updateSelection(null)
     setFollowSelection(false)
   }
+  // WASD, numpad, and arrow keys for RTS style camera movement (when no unit is focused)
+  if (!state.selectedGridObject && !state.followSelection) {
+    const panSpeed = 150 / ui.mapPanel.zoomLevel // Adjust speed based on zoom level
+
+    if (event.key === 'w' || event.key === 'W' || event.key === 'ArrowUp') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
+    }
+    if (event.key === 'a' || event.key === 'A' || event.key === 'ArrowLeft') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
+    }
+    if (event.key === 's' || event.key === 'S' || event.key === 'ArrowDown') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
+    }
+    if (event.key === 'd' || event.key === 'D' || event.key === 'ArrowRight') {
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
+    }
+
+    // Numpad directional controls (classic 8-directional layout)
+    if (event.code === 'Numpad8') {
+      // Up
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, panSpeed))
+    }
+    if (event.code === 'Numpad2') {
+      // Down
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(0, -panSpeed))
+    }
+    if (event.code === 'Numpad4') {
+      // Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed, 0))
+    }
+    if (event.code === 'Numpad6') {
+      // Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed, 0))
+    }
+    if (event.code === 'Numpad7') {
+      // Up-Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * Math.SQRT1_2, panSpeed * Math.SQRT1_2))
+    }
+    if (event.code === 'Numpad9') {
+      // Up-Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * Math.SQRT1_2, panSpeed * Math.SQRT1_2))
+    }
+    if (event.code === 'Numpad1') {
+      // Down-Left
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
+    }
+    if (event.code === 'Numpad3') {
+      // Down-Right
+      ui.mapPanel.panPos = ui.mapPanel.panPos.add(new Vec2f(-panSpeed * Math.SQRT1_2, -panSpeed * Math.SQRT1_2))
+    }
+  }
+
+  // Numpad 5 - advance simulation one frame
+  if (event.code === 'Numpad5' && state.selectedGridObject == null) {
+    setIsPlaying(false)
+    if (state.ws !== null) {
+      state.ws.send(JSON.stringify({ type: 'advance' }))
+    } else {
+      updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
+    }
+  }
+
   // '[' and ']' scrub forward and backward.
-  if (event.key == '[') {
+  if (event.key === '[') {
     setIsPlaying(false)
     updateStep(Math.max(state.step - 1, 0))
   }
-  if (event.key == ']') {
+  if (event.key === ']') {
     setIsPlaying(false)
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
   }
-  // '<' and '>' control the playback speed.
-  if (event.key == ',') {
+
+  // '<' and '>' for zoom out/in on keyboard
+  if (event.key === '<') {
+    const zoomSpeed = 0.06
+    ui.mapPanel.zoomLevel = Math.max(ui.mapPanel.zoomLevel - zoomSpeed, Common.MIN_ZOOM_LEVEL)
+  }
+  if (event.key === '>') {
+    const zoomSpeed = 0.06
+    ui.mapPanel.zoomLevel = Math.min(ui.mapPanel.zoomLevel + zoomSpeed, Common.MAX_ZOOM_LEVEL)
+  }
+  // ',' and '.' control the playback speed.
+  if (event.key === ',') {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
   }
-  if (event.key == '.') {
+  if (event.key === '.') {
     state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000)
   }
   // The space bar presses the play button.
-  if (event.key == ' ') {
+  if (event.key === ' ') {
     setIsPlaying(!state.isPlaying)
   }
   // Make F2 toggle the UI.
-  if (event.key == 'F2') {
+  if (event.key === 'F2') {
     state.showUi = !state.showUi
     if (state.showUi) {
       showUi()
@@ -428,6 +673,9 @@ export function onFrame() {
     drawTrace(ui.tracePanel)
   } else {
     ui.tracePanel.div.classList.add('hidden')
+    // Clear trace mesh when panel is hidden
+    ctx.useMesh('trace')
+    ctx.clearMesh()
   }
 
   ctx.useMesh('timeline')
@@ -457,7 +705,7 @@ export function onFrame() {
   if (state.isPlaying) {
     state.partialStep += state.playbackSpeed
     if (state.partialStep >= 1) {
-      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps
+      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.maxSteps
       state.partialStep -= Math.floor(state.partialStep)
       if (state.ws !== null) {
         state.ws.send(JSON.stringify({ type: 'advance' }))
@@ -484,7 +732,7 @@ function handleDrop(event: DragEvent) {
   event.preventDefault()
   event.stopPropagation()
   const dt = event.dataTransfer
-  if (dt && dt.files.length) {
+  if (dt?.files.length) {
     const file = dt.files[0]
     readFile(file)
   }
@@ -504,6 +752,7 @@ async function parseUrlParams() {
   if (replayUrl) {
     console.info('Loading replay from URL: ', replayUrl)
     await fetchReplay(replayUrl)
+
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
     Common.showModal('info', 'Connecting to a websocket', 'Please wait a few seconds for the environment to load.')
@@ -515,7 +764,7 @@ async function parseUrlParams() {
   if (state.replay !== null) {
     // Set the current step.
     if (urlParams.get('step') !== null) {
-      const initialStep = parseInt(urlParams.get('step') || '0')
+      const initialStep = Number.parseInt(urlParams.get('step') || '0')
       console.info('Step via query parameter:', initialStep)
       updateStep(initialStep, false)
     }
@@ -528,9 +777,9 @@ async function parseUrlParams() {
 
     // Set the selected object.
     if (urlParams.get('selectedObjectId') !== null) {
-      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || '-1') - 1
-      if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-        updateSelection(state.replay.grid_objects[selectedObjectId], true)
+      const selectedObjectId = Number.parseInt(urlParams.get('selectedObjectId') || '-1') - 1
+      if (selectedObjectId >= 0 && selectedObjectId < state.replay.objects.length) {
+        updateSelection(state.replay.objects[selectedObjectId], true)
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
         console.info('Selected object via query parameter:', state.selectedGridObject)
@@ -542,12 +791,12 @@ async function parseUrlParams() {
 
   // Set the map pan and zoom.
   if (urlParams.get('mapPanX') !== null && urlParams.get('mapPanY') !== null) {
-    const mapPanX = parseInt(urlParams.get('mapPanX') || '0')
-    const mapPanY = parseInt(urlParams.get('mapPanY') || '0')
+    const mapPanX = Number.parseInt(urlParams.get('mapPanX') || '0')
+    const mapPanY = Number.parseInt(urlParams.get('mapPanY') || '0')
     ui.mapPanel.panPos = new Vec2f(mapPanX, mapPanY)
   }
   if (urlParams.get('mapZoom') !== null) {
-    ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || '1')
+    ui.mapPanel.zoomLevel = Number.parseFloat(urlParams.get('mapZoom') || '1')
   }
 
   if (urlParams.get('demo') !== null) {
@@ -591,7 +840,7 @@ function setPlaybackSpeed(speed: number) {
 onResize()
 
 // Disable pinch-to-zoom.
-let meta = document.createElement('meta')
+const meta = document.createElement('meta')
 meta.name = 'viewport'
 meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
 document.head.appendChild(meta)
@@ -622,7 +871,10 @@ onEvent('click', '#share-button', () => {
   onShareButtonClick()
 })
 onEvent('click', '#help-button', () => {
-  window.open('https://github.com/Metta-AI/metta/blob/main/mettascope/README.md', '_blank')
+  window.open(
+    `https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/blob/${METTA_GITHUB_PRIMARY_BRANCH}/mettascope/README.md`,
+    '_blank'
+  )
 })
 
 onEvent('click', '#rewind-to-start', () => {
@@ -641,12 +893,12 @@ onEvent('click', '#step-forward', () => {
   if (state.ws !== null) {
     state.ws.send(JSON.stringify({ type: 'advance' }))
   } else {
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
   }
 })
 onEvent('click', '#rewind-to-end', () => {
   setIsPlaying(false)
-  updateStep(state.replay.max_steps - 1)
+  updateStep(state.replay.maxSteps - 1)
 })
 onEvent('click', '#demo-mode-toggle', () => {
   if (state.demoMode) {
@@ -725,6 +977,17 @@ if (localStorage.hasOwnProperty('showFogOfWar')) {
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
 
+onEvent('click', '#heatmap-toggle', () => {
+  state.showHeatmap = !state.showHeatmap
+  localStorage.setItem('showHeatmap', state.showHeatmap.toString())
+  // toggleOpacity(html.heatmapToggle, state.showHeatmap)
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showHeatmap')) {
+  state.showHeatmap = localStorage.getItem('showHeatmap') === 'true'
+}
+// toggleOpacity(html.heatmapToggle, state.showHeatmap)
+
 onEvent('click', '#minimap-toggle', () => {
   state.showMiniMap = !state.showMiniMap
   localStorage.setItem('showMiniMap', state.showMiniMap.toString())
@@ -773,6 +1036,12 @@ onEvent('click', '#traces-toggle', () => {
   state.showTraces = !state.showTraces
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+
+  // Invalidate trace cache when hiding to ensure proper regeneration when shown again
+  if (!state.showTraces) {
+    invalidateTrace()
+  }
+
   onResize()
   requestFrame()
 })
@@ -806,6 +1075,7 @@ onEvent('click', '#trace-panel .close', () => {
   state.showTraces = false
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+  invalidateTrace()
   onResize()
   requestFrame()
 })
@@ -823,6 +1093,8 @@ initAgentTable()
 initObjectMenu()
 initTimeline()
 initDemoMode()
+initializeTooltips()
+startGamepadPolling()
 
 window.addEventListener('load', async () => {
   // Use a local atlas texture.
@@ -833,9 +1105,8 @@ window.addEventListener('load', async () => {
   if (!success) {
     Common.showModal('error', 'Initialization failed', 'Please check the console for more information.')
     return
-  } else {
-    console.info('Context3d initialized successfully.')
   }
+  console.info('Context3d initialized successfully.')
 
   // Match the DPI scale between the HTML and the GPU.
   ui.dpr = ctx.dpr

@@ -83,7 +83,7 @@ struct ObservationPattern {
     bool done = false;
 
     Iterator(int h, int w, bool is_end = false)
-        : max_emitted(h * w), row_min(-h / 2), row_max(h / 2), col_min(-w / 2), col_max(w / 2) {
+        : max_emitted(h * w), row_min(-h / 2), row_max(h / 2), col_min(-w / 2), col_max(w / 2), current{0, 0} {
       if (is_end) {
         done = true;
       } else {

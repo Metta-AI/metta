@@ -139,11 +139,6 @@ class Experience:
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
     @property
-    def full(self) -> bool:
-        """Alias for ready_for_training for compatibility."""
-        return self.ready_for_training
-
-    @property
     def ready_for_training(self) -> bool:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
@@ -161,7 +156,7 @@ class Experience:
         mask: Tensor,
         lstm_state: Optional[Dict[str, Tensor]] = None,
     ) -> int:
-        """Store a batch of experience."""
+        """Store a batch of experience data."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
@@ -231,10 +226,8 @@ class Experience:
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-        minibatch_idx: int,
-        total_minibatches: int,
     ) -> Dict[str, Tensor]:
-        """Sample a prioritized minibatch."""
+        """Sample a prioritized minibatch for training."""
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)
         prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
@@ -271,19 +264,7 @@ class Experience:
         self.ratio[indices] = new_ratio.detach()
 
     def stats(self) -> Dict[str, float]:
-        """Get mean values of all tracked buffers.
-
-        Returns:
-            Dictionary containing mean values for:
-            - rewards: Mean reward across all stored experiences
-            - values: Mean value estimates
-            - advantages: Mean advantages (if computed)
-            - logprobs: Mean log probabilities of actions
-            - dones: Fraction of episodes that ended
-            - truncateds: Fraction of episodes that were truncated
-            - ratio: Mean importance sampling ratio
-            - ep_lengths: Mean episode length for active episodes
-        """
+        """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.rewards.mean().item(),
             "values": self.values.mean().item(),

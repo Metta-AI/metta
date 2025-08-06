@@ -1,13 +1,14 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import pufferlib
 import pufferlib.vector
 from pydantic import validate_call
 
+from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
+from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 
@@ -22,10 +23,14 @@ def make_env_func(
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
+    is_serial: bool = False,
+    run_dir: str | None = None,
     **kwargs,
 ):
-    # we are not calling into our configs hierarchy here so we need to manually register the custom resolvers
-    register_resolvers()
+    if not is_serial:
+        # Running in a new process, so we need to reinitialize logging and resolvers
+        register_resolvers()
+        init_logging(run_dir=run_dir)
 
     # Create the environment instance
     env = MettaGridEnv(
@@ -47,17 +52,20 @@ def make_env_func(
 def make_vecenv(
     curriculum: Curriculum,
     vectorization: str,
-    num_envs=1,
-    batch_size=None,
-    num_workers=1,
-    render_mode=None,
-    stats_writer: Optional[StatsWriter] = None,
-    replay_writer: Optional[ReplayWriter] = None,
+    num_envs: int = 1,
+    batch_size: int | None = None,
+    num_workers: int = 1,
+    render_mode: str | None = None,
+    stats_writer: StatsWriter | None = None,
+    replay_writer: ReplayWriter | None = None,
     is_training: bool = False,
+    run_dir: str | None = None,
     **kwargs,
-):
+) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
-    if vectorization == "serial" or num_workers == 1:
+    is_serial = vectorization == "serial" or num_workers == 1
+
+    if is_serial:
         vectorizer_cls = pufferlib.vector.Serial
     elif vectorization == "multiprocessing":
         vectorizer_cls = pufferlib.vector.Multiprocessing
@@ -76,6 +84,8 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "is_training": is_training,
+        "is_serial": is_serial,
+        "run_dir": run_dir,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,

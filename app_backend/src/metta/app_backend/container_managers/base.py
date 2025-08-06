@@ -3,18 +3,14 @@ import string
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
-from metta.app_backend.container_managers.models import WorkerInfo
+from metta.app_backend.worker_managers.worker import Worker
 
 
 class AbstractContainerManager(ABC):
     _container_prefix = "eval-worker-"
 
-    def _format_container_name(self, git_hash: str) -> str:
-        return f"{self._container_prefix}{git_hash}-{self._generate_container_suffix()}"
-
-    def _parse_container_name(self, container_name: str) -> tuple[str, str]:
-        git_hash, suffix = container_name.replace(self._container_prefix, "").split("-", 1)
-        return git_hash, suffix
+    def _format_container_name(self) -> str:
+        return f"{self._container_prefix}-{self._generate_container_suffix()}"
 
     def _generate_container_suffix(self) -> str:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -24,14 +20,13 @@ class AbstractContainerManager(ABC):
     @abstractmethod
     def start_worker_container(
         self,
-        git_hash: str,
         backend_url: str,
         docker_image: str,
-    ) -> WorkerInfo:
-        """Start a worker container for a specific git hash.
+        machine_token: str,
+    ) -> str:
+        """Start a worker container
 
         Args:
-            git_hash: The git hash for the worker
             backend_url: The backend URL for the worker to connect to
             docker_image: The Docker image to use
 
@@ -41,7 +36,7 @@ class AbstractContainerManager(ABC):
         pass
 
     @abstractmethod
-    def cleanup_container(self, container_id: str) -> None:
+    def cleanup_container(self, name: str) -> None:
         """Remove/cleanup a container.
 
         Args:
@@ -50,10 +45,10 @@ class AbstractContainerManager(ABC):
         pass
 
     @abstractmethod
-    async def discover_alive_workers(self) -> list[WorkerInfo]:
+    async def discover_alive_workers(self) -> list[Worker]:
         """Discover all alive workers.
 
         Returns:
-            List of WorkerInfo objects for alive workers
+            List of Worker objects for alive workers
         """
         pass

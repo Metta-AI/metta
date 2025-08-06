@@ -12,7 +12,6 @@ observations:
 
 clip_range: 3.0 # clip weights greater or less than this value * largest weight in layer * clip_scale
 analyze_weights_interval: 300 # compute weight metrics every N epochs and log to wandb, add analyze_weights: true to the layer to enable
-l2_init_weight_update_interval: 0 # update the copy of initial weights every N epochs, scaled by to alpha
 
 # List each component of your agent below. Component code can be found in
 # agent/lib, or you can write your own and reference it under _target_.
@@ -43,8 +42,7 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 components:
   _obs_:
     _target_: metta.agent.lib.obs_token_to_boxshaper.ObsTokenToBoxShaper
-    sources:
-      null
+    sources: null
 
   obs_normalizer:
     _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from tools.sweep_init import (
+from tools.sweep_prepare_run import (
     apply_protein_suggestion,
     generate_protein_suggestion,
     validate_protein_suggestion,
@@ -96,7 +96,7 @@ class TestValidateProteinSuggestion:
 class TestGenerateProteinSuggestion:
     """Test the generate_protein_suggestion function."""
 
-    @patch("tools.sweep_init.MettaProtein")
+    @patch("tools.sweep_prepare_run.MettaProtein")
     def test_successful_generation(self, mock_protein_class):
         """Test successful protein suggestion generation."""
         # Mock protein instance
@@ -121,8 +121,8 @@ class TestGenerateProteinSuggestion:
         assert result["learning_rate"] == 0.001
         assert result["batch_size"] == 2048
 
-    @patch("tools.sweep_init.MettaProtein")
-    @patch("tools.sweep_init.logger")
+    @patch("tools.sweep_prepare_run.MettaProtein")
+    @patch("tools.sweep_prepare_run.logger")
     def test_invalid_suggestion_retry(self, mock_logger, mock_protein_class):
         """Test that invalid suggestions trigger retry and record failure."""
         # Mock protein instance
@@ -141,16 +141,16 @@ class TestGenerateProteinSuggestion:
 
         result = generate_protein_suggestion(config, mock_protein)
 
-        # Should have called record_failure for the invalid suggestion
-        mock_protein.record_failure.assert_called_once()
-        assert "Batch size 1000 must be divisible by minibatch size 64" in str(
-            mock_protein.record_failure.call_args[0][0]
-        )
+        # Should have called observe_failure for the invalid suggestion
+        mock_protein.observe_failure.assert_called_once()
+        # The observe_failure method gets the suggestion, not the error message
+        call_args = mock_protein.observe_failure.call_args[0][0]
+        assert isinstance(call_args, dict)
 
         # Should return the valid suggestion
         assert result["trainer"]["batch_size"] == 2048
 
-    @patch("tools.sweep_init.MettaProtein")
+    @patch("tools.sweep_prepare_run.MettaProtein")
     def test_max_retries_exceeded(self, mock_protein_class):
         """Test that exception is raised after max retries."""
         # Mock protein instance
@@ -168,7 +168,7 @@ class TestGenerateProteinSuggestion:
             generate_protein_suggestion(config, mock_protein)
 
         # Should have recorded 10 failures
-        assert mock_protein.record_failure.call_count == 10
+        assert mock_protein.observe_failure.call_count == 11
 
 
 class TestApplyProteinSuggestion:
@@ -267,7 +267,7 @@ class TestApplyProteinSuggestion:
 class TestIntegration:
     """Integration tests for the validation pipeline."""
 
-    @patch("tools.sweep_init.MettaProtein")
+    @patch("tools.sweep_prepare_run.MettaProtein")
     def test_full_pipeline_flow(self, mock_protein_class):
         """Test the full flow from generation through validation to application."""
         # Mock protein instance

@@ -198,7 +198,10 @@ export function SaveDashboardModal({
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [saveStatus, setSaveStatus] = useState<{
+    type: 'success' | 'error'
+    message: string
+  } | null>(null)
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -222,12 +225,15 @@ export function SaveDashboardModal({
       const dashboardData: SavedDashboardCreate = {
         name: name.trim(),
         description: description.trim() || undefined,
-        type: 'heatmap',
+        type: 'scorecard',
         dashboard_state: {}, // This will be filled by the parent component
       }
 
       await onSave(dashboardData)
-      setSaveStatus({ type: 'success', message: `Dashboard ${isUpdate ? 'updated' : 'saved'} successfully!` })
+      setSaveStatus({
+        type: 'success',
+        message: `Dashboard ${isUpdate ? 'updated' : 'saved'} successfully!`,
+      })
 
       // Close modal after a short delay
       setTimeout(() => {
@@ -235,7 +241,10 @@ export function SaveDashboardModal({
         setSaveStatus(null)
       }, 1500)
     } catch (err: any) {
-      setSaveStatus({ type: 'error', message: err.message || `Failed to ${isUpdate ? 'update' : 'save'} dashboard` })
+      setSaveStatus({
+        type: 'error',
+        message: err.message || `Failed to ${isUpdate ? 'update' : 'save'} dashboard`,
+      })
     } finally {
       setIsSaving(false)
     }

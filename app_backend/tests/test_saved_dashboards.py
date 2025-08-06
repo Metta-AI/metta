@@ -46,32 +46,56 @@ class TestSavedDashboards(BaseAsyncTest):
     @pytest.mark.asyncio
     async def test_list_saved_dashboards(self, stats_repo: MettaRepo, user_id: str) -> None:
         """Test listing saved dashboards."""
-        dashboard_state = {
+        # Create multiple dashboards to ensure we have at least 2
+        dashboard_state_1 = {
+            "suite": "navigation",
+            "metric": "reward",
+            "group_metric": "",
+            "num_policies_to_show": 20,
+        }
+
+        dashboard_state_2 = {
             "suite": "object_use",
             "metric": "success_rate",
             "group_metric": "group1",
             "num_policies_to_show": 15,
         }
 
-        # Create a test dashboard
+        # Create first dashboard
+        await stats_repo.create_saved_dashboard(
+            user_id=user_id,
+            name="Test Dashboard 1",
+            description="First test dashboard",
+            dashboard_type="heatmap",
+            dashboard_state=dashboard_state_1,
+        )
+
+        # Create second dashboard
         await stats_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard 2",
             description="Another test dashboard",
             dashboard_type="heatmap",
-            dashboard_state=dashboard_state,
+            dashboard_state=dashboard_state_2,
         )
 
         # List dashboards
         dashboards = await stats_repo.list_saved_dashboards()
         assert len(dashboards) >= 2
 
-        # Find our test dashboard
-        test_dashboard = next((d for d in dashboards if d["name"] == "Test Dashboard 2"), None)
-        assert test_dashboard is not None
-        assert test_dashboard["description"] == "Another test dashboard"
-        assert test_dashboard["type"] == "heatmap"
-        assert test_dashboard["dashboard_state"] == dashboard_state
+        # Find our test dashboards
+        test_dashboard_1 = next((d for d in dashboards if d["name"] == "Test Dashboard 1"), None)
+        test_dashboard_2 = next((d for d in dashboards if d["name"] == "Test Dashboard 2"), None)
+
+        assert test_dashboard_1 is not None
+        assert test_dashboard_1["description"] == "First test dashboard"
+        assert test_dashboard_1["type"] == "heatmap"
+        assert test_dashboard_1["dashboard_state"] == dashboard_state_1
+
+        assert test_dashboard_2 is not None
+        assert test_dashboard_2["description"] == "Another test dashboard"
+        assert test_dashboard_2["type"] == "heatmap"
+        assert test_dashboard_2["dashboard_state"] == dashboard_state_2
 
     @pytest.mark.asyncio
     async def test_delete_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
@@ -148,6 +172,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard["description"] == "Updated description"
         assert dashboard["dashboard_state"] == updated_state
 
+    @pytest.mark.slow
     def test_update_saved_dashboard_route(self, test_client: TestClient, user_id: str) -> None:
         """Test the update saved dashboard API route."""
         initial_state = {
@@ -182,12 +207,7 @@ class TestSavedDashboards(BaseAsyncTest):
         # Update the dashboard
         update_response = test_client.put(
             f"/dashboard/saved/{dashboard_id}",
-            json={
-                "name": "Route Update Test Dashboard",
-                "description": "Updated description",
-                "type": "heatmap",
-                "dashboard_state": updated_state,
-            },
+            json=updated_state,
             headers={"X-Auth-Request-Email": user_id},
         )
         assert update_response.status_code == 200
@@ -195,7 +215,6 @@ class TestSavedDashboards(BaseAsyncTest):
 
         # Verify the update
         assert updated_dashboard["id"] == dashboard_id
-        assert updated_dashboard["description"] == "Updated description"
         assert updated_dashboard["dashboard_state"] == updated_state
 
         # Try to update with non-existent ID

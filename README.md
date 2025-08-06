@@ -172,6 +172,13 @@ metta configure    # Reconfigure for a different profile
 The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/)
 for configuration management, which allows flexible parameter overrides and composition.
 
+#### Hydra Configuration Patterns
+
+- Use `+` prefix to add new config groups: `+user=your-custom-config-name`
+- Use `++` prefix to force override: `++trainer.device=cpu`
+- Config composition order matters - later overrides take precedence
+
+Common patterns:
 - **Override parameters**: `param=value` sets configuration values directly
 - **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
 - **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
@@ -179,13 +186,12 @@ for configuration management, which allows flexible parameter overrides and comp
 ### Training a Model
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
+./tools/train.py run=my_experiment wandb=off +user=<name>
 ```
 
 Parameters:
 
 - `run=my_experiment` - Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `+hardware=macbook` - Loads hardware-specific settings from `configs/hardware/macbook.yaml`
 - `wandb=off` - Disables Weights & Biases logging
 - `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
 
@@ -208,7 +214,7 @@ To use WandB with your personal account:
 Now you can run training with your personal WandB config:
 
 ```
-./tools/train.py run=local.yourname.123 +hardware=macbook wandb=user
+./tools/train.py run=local.yourname.123 wandb=user
 ```
 
 ## Visualizing a Model
@@ -234,7 +240,6 @@ Arguments:
   - For local files, supply the path: `./train_dir/<run_name>/checkpoints/<checkpoint_name>.pt`. These checkpoint files
     are created during training
   - For wandb artifacts, prefix with `wandb://`
-- `+hardware=<config>` - Hardware configuration (see [Training a Model](#training-a-model))
 
 ### Run the terminal simulation
 
@@ -268,7 +273,7 @@ To add your policy to the existing navigation evals DB:
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db`
 artifact on WandB.
 
-Then, to see the results in the heatmap along with the other policies in the database, you can run:
+Then, to see the results in the scorecard along with the other policies in the database, you can run:
 
 ```
 ./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html

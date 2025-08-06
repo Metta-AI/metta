@@ -1,14 +1,14 @@
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_env import (
+from metta.mettagrid.mettagrid_c import (
+    MettaGrid,
     dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
@@ -66,7 +66,11 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
         "agent": {
             "default_resource_limit": 10,
-            "rewards": {"heart": 1.0},  # This gives 1.0 reward per heart collected
+            "rewards": {
+                "inventory": {
+                    "heart": 1.0  # This gives 1.0 reward per heart collected
+                }
+            },
         },
     }
 
@@ -111,7 +115,7 @@ def collect_heart_from_altar(env):
         return False, 0.0
 
     # Collect heart
-    obs, reward, success = perform_action(env, "get_output", 0)
+    obs, reward, success = perform_action(env, "get_items", 0)
     return success, reward
 
 
