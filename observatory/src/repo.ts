@@ -195,16 +195,8 @@ export type UnifiedPolicyInfo = {
   tags: string[]
 }
 
-export type PoliciesRequest = {
-  search_text?: string
-  pagination: PaginationRequest
-}
-
 export type PoliciesResponse = {
   policies: UnifiedPolicyInfo[]
-  total_count: number
-  page: number
-  page_size: number
 }
 
 export type EvalNamesRequest = {
@@ -342,7 +334,7 @@ export interface Repo {
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
 
   // Policy-based scorecard methods
-  getPolicies(request: PoliciesRequest): Promise<PoliciesResponse>
+  getPolicies(): Promise<PoliciesResponse>
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
   getAvailableMetrics(request: MetricsRequest): Promise<string[]>
   generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData>
@@ -559,8 +551,8 @@ export class ServerRepo implements Repo {
   }
 
   // Policy-based scorecard methods
-  async getPolicies(request: PoliciesRequest): Promise<PoliciesResponse> {
-    return this.apiCallWithBody<PoliciesResponse>('/scorecard/policies', request)
+  async getPolicies(): Promise<PoliciesResponse> {
+    return this.apiCall<PoliciesResponse>('/scorecard/policies')
   }
 
   async getEvalNames(request: EvalNamesRequest): Promise<Set<string>> {
