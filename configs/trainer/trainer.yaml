@@ -23,6 +23,8 @@ simulation:
 
 grad_mean_variance_interval: 0 # 0 to disable
 
+reset_lstm_state_between_episodes: true  # false preserves state for longer memory tasks
+
 total_timesteps: 10_000_000_000
 
 optimizer:
