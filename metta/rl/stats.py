@@ -24,7 +24,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
-from metta.rl.wandb import POLICY_EVALUATOR_METRIC_PREFIX
+from metta.rl.wandb import POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
 
 logger = logging.getLogger(__name__)
 
@@ -421,25 +421,35 @@ def process_policy_evaluator_stats(
     eval_results: EvalResults,
 ) -> None:
     # TODO: this should also upload replay urls
-    epoch = pr.metadata.get("epoch")
+    metrics_to_log: dict[str, float] = {
+        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
+        for k, v in eval_results.scores.to_wandb_metrics_format().items()
+    }
+    if not metrics_to_log:
+        logger.warning("No metrics to log for policy evaluator")
+        return
+
+    if not (epoch := pr.metadata.get("epoch")):
+        logger.warning("No epoch found in policy record")
+        return
+
     try:
         wandb_run_id, wandb_project, wandb_entity = pr.get_wandb_info()
     except ValueError as e:
         logger.warning(f"Failed to get wandb info from policy record: {e}")
         return
 
-    if wandb_run_id and wandb_project and epoch:
-        metrics_to_log = {
-            f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
-            for k, v in eval_results.scores.to_wandb_metrics_format().items()
-        }
-        run = wandb.init(
-            id=wandb_run_id,
-            project=wandb_project,
-            entity=wandb_entity,
-            resume="must",
-        )
-        try:
-            run.log(metrics_to_log, step=epoch)
-        finally:
-            run.finish()
+    if not all((wandb_run_id, wandb_project, wandb_entity)):
+        logger.warning("No wandb info found in policy record")
+        return
+
+    run = wandb.init(
+        id=wandb_run_id,
+        project=wandb_project,
+        entity=wandb_entity,
+        resume="must",
+    )
+    try:
+        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: epoch}, step=epoch)
+    finally:
+        run.finish()
