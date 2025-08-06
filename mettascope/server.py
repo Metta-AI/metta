@@ -168,7 +168,6 @@ def make_app(cfg: DictConfig):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
 
-                # Update total rewards for agents
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
                     total_rewards[agent_id] += env.rewards[agent_id]
