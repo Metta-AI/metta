@@ -304,6 +304,7 @@ class MettaGridEnv(MettaGridPufferBase):
         }
         infos["attributes"] = attributes
 
+        # keep track of per-trial rewards
         if self._task.env_cfg().get("num_trials", 1) > 1:
             current_trial = self._task.env_cfg().current_trial
             infos[f"trial_{current_trial}_reward"] = episode_rewards_mean
