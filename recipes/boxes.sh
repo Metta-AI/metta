@@ -4,7 +4,7 @@
 # num_agents_per_room=4
 # for seed in 0; do
 #    python3 tools/train.py \
-#     run=$USER.navigation.ffa_BOXES_1000_regular \
+#     run=$USER.navigation.ffa_BOXES_tesTING \
 #     trainer.curriculum=env/mettagrid/curriculum/autocurricula/random \
 #     ++trainer.ppo.gamma=0.999 \
 #     ++trainer.minibatch_size=16384 \
@@ -24,7 +24,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0 1 2 3 4; do
    ./devops/skypilot/launch.py train \
-    run=$USER.navigation.ffa_BOXES_100_regular_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_BOXES_500_regular_FIXED_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/autocurricula/random \
     --gpus=1 \
     --nodes=1 \
