@@ -1,5 +1,26 @@
-  _target_: metta.mettagrid.curriculum.colortree_random.ColorTreeRandomSequenceCurriculum
+_target_: metta.mettagrid.curriculum.colortree_random.ColorTreeRandomFromSetCurriculum
 
 env_cfg: /env/mettagrid/colortree_easy
-sequence_length: 4
-num_colors: 2
+
+sequence_pool:
+  # All same patterns
+  - [0, 0, 0, 0]  # All red
+  - [1, 1, 1, 1]  # All green
+
+  # Alternating patterns
+  - [0, 1, 0, 1]  # Red-green alternating
+  - [1, 0, 1, 0]  # Green-red alternating
+
+  # Pairs patterns
+  - [0, 0, 1, 1]  # Red pair, green pair
+  - [1, 1, 0, 0]  # Green pair, red pair
+
+  # Mixed patterns
+  - [0, 1, 1, 0]  # Red-green-green-red
+  - [1, 0, 0, 1]  # Green-red-red-green
+  - [0, 0, 0, 1]  # Three red, one green
+  - [1, 1, 1, 0]  # Three green, one red
+  - [0, 1, 0, 0]  # Red-green-red-red
+  - [1, 0, 1, 1]  # Green-red-green-green
+  - [0, 0, 1, 0]  # Red-red-green-red
+  - [1, 1, 0, 1]  # Green-green-red-green
