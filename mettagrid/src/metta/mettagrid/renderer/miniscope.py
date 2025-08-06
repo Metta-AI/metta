@@ -67,9 +67,6 @@ class MiniscopeRenderer:
         """Get the emoji symbol for an object."""
         type_name = self._object_type_names[obj["type"]]
 
-        # Debug: print what we're looking for
-        # print(f"DEBUG: type_name={type_name}, type={obj['type']}")
-
         # Handle numbered agents specially
         if type_name.startswith("agent"):
             agent_id = obj.get("agent_id")
