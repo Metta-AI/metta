@@ -1,16 +1,10 @@
-# @package __global__
-
-# User config for testing checkpoint loading with NPC policies
-# This config is designed to test the original_action_config preservation fixes
-
 defaults:
   - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/arena@evals  # Arena evaluation suite with NPC configs
+  - /sim/arena@evals
   - _self_
 
-# Basic run configuration
 run: ${oc.env:USER,test}_checkpoint_npc_test
 cmd: train
 
@@ -19,67 +13,54 @@ run_dir: ${data_dir}/${run}
 policy_uri: file://${run_dir}/checkpoints
 
 trainer:
-  # Use basic arena curriculum (simpler, no special objects - avoiding lasery/armory errors)
   curriculum: /env/mettagrid/arena/basic
 
-  # Train WITH NPCs using daveey's policy (read-only, won't modify his files!)
   env_overrides:
     npc_policy_uri: wandb://run/daveey.lp.16x4.ue2
-    policy_agents_pct: 0.5  # 50% of agents are NPCs during training
+    policy_agents_pct: 0.5
 
-  # Small number of workers for local testing
   num_workers: 2
 
-  # Very frequent checkpoints for testing
   checkpoint:
     checkpoint_dir: ${run_dir}/checkpoints
-    checkpoint_interval: 10      # Save every 10 steps for quick testing
-    wandb_checkpoint_interval: 10  # Disable wandb uploads for testing
+    checkpoint_interval: 10
+    wandb_checkpoint_interval: 10
 
-  # Frequent evaluations to test NPC loading
   simulation:
-    evaluate_interval: 50         # Evaluate every 20 steps
-    evaluate_remote: false        # Keep it local for testing
+    evaluate_interval: 50
+    evaluate_remote: false
 
-  # Short training run for quick testing
   total_timesteps: 10000000
-  batch_size: 65536  # Reasonable batch for testing
+  batch_size: 65536
   minibatch_size: 1024
-  bptt_horizon: 8  # Sequence length for RNN
+  bptt_horizon: 8
 
-  # Load from previous checkpoint if specified
   initial_policy:
-    uri: ${oc.env:CHECKPOINT_URI,null}  # Can override with CHECKPOINT_URI env var
+    uri: ${oc.env:CHECKPOINT_URI,null}
     type: top
     range: 1
     metric: epoch
 
-  # Enable verbose logging for debugging
   verbose: true
 
-# Override evaluations to include NPC simulations
 evals:
   simulations:
-    # Basic arena tests
     arena/basic:
       env: /env/mettagrid/arena/basic
     arena/combat:
       env: /env/mettagrid/arena/combat
 
-    # NPC policy tests - these are the key tests for your fixes
     arena/combat_npc:
       env: /env/mettagrid/arena/combat
-      npc_policy_uri: wandb://run/daveey.lp.16x4.ue2  # Use daveey's policy
-      policy_agents_pct: 0.5          # 50% of agents use the policy
+      npc_policy_uri: wandb://run/daveey.lp.16x4.ue2
+      policy_agents_pct: 0.5
 
     arena/advanced_npc:
       env: /env/mettagrid/arena/advanced
-      npc_policy_uri: wandb://run/daveey.lp.16x4.ue2  # Use daveey's policy
+      npc_policy_uri: wandb://run/daveey.lp.16x4.ue2
       policy_agents_pct: 0.5
 
-# Disable wandb for local testing
 wandb:
   enabled: true
 
-# Device configuration
-device: ${oc.env:DEVICE,cpu}  # Default to CPU for testing
+device: ${oc.env:DEVICE,cpu}
