@@ -179,7 +179,7 @@ class Experience:
         self.ep_lengths[env_id] += 1
 
         # Check if episodes are complete and reset if needed
-        if episode_length >= self.bptt_horizon:
+        if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
         # Update LSTM states if provided
