@@ -54,11 +54,11 @@ if [ "$NUM_GPUS" -gt 2 ]; then
 fi
 
 set +e
-# For single GPU training, limit CPU workers to prevent OOM
+# For single GPU training, limit CPU workers and async factor to prevent OOM and pufferlib errors
 if [ "$NUM_GPUS" -eq 1 ] && [ "$NUM_NODES" -eq 1 ]; then
-  NUM_WORKERS_ARG="trainer.num_workers=1"
+  TRAINER_ARGS="trainer.num_workers=1 trainer.async_factor=1"
 else
-  NUM_WORKERS_ARG="trainer.num_workers=null"
+  TRAINER_ARGS="trainer.num_workers=null"
 fi
 
 PYTHONPATH=$PYTHONPATH:. uv run torchrun \
@@ -68,7 +68,7 @@ PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/train.py \
-  $NUM_WORKERS_ARG \
+  $TRAINER_ARGS \
   $args
 EXIT_CODE=$?
 set -e
