@@ -31,6 +31,7 @@ from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -176,38 +177,22 @@ class Simulation:
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
 
-        # Let every policy know the active action-set of this env.
-        action_names = metta_grid_env.action_names
-        max_args = metta_grid_env.max_action_args
-
-        policy = self._policy_pr.policy
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in self._policy_pr.metadata
-        ):
-            policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
-
         # Initialize policy to environment
-        features = metta_grid_env.get_observation_features()
-        # Simulations are generally used for evaluation, not training
-        policy.initialize_to_environment(features, action_names, max_args, self._device)
+        initialize_policy_for_environment(
+            policy_record=self._policy_pr,
+            metta_grid_env=metta_grid_env,
+            device=self._device,
+            restore_feature_mapping=True,
+        )
 
         if self._npc_pr is not None:
-            npc_policy = self._npc_pr.policy
-
-            # Restore original_feature_mapping for NPC policy as well
-            if (
-                hasattr(npc_policy, "restore_original_feature_mapping")
-                and "original_feature_mapping" in self._npc_pr.metadata
-            ):
-                npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
-
             # Initialize NPC policy to environment
-            features = metta_grid_env.get_observation_features()
-            # NPC policies are used during evaluation
-            npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
+            initialize_policy_for_environment(
+                policy_record=self._npc_pr,
+                metta_grid_env=metta_grid_env,
+                device=self._device,
+                restore_feature_mapping=True,
+            )
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
