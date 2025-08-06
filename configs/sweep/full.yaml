@@ -1,12 +1,12 @@
 protein:
-    num_random_samples: 15        # More exploration needed for cost modeling
-    max_suggestion_cost: 3600     # 1 hour - allow for longer runs
-    resample_frequency: 5         # More frequent resampling for cost trade-offs
-    global_search_scale: 1.0      # Standard scale for cost dimension exploration
-    random_suggestions: 1024      # Keep higher for cost exploration
-    suggestions_per_pareto: 256   # Keep higher - Pareto frontier is crucial now
-    expansion_rate: 0.3           # Higher exploration along cost dimension
-    seed_with_search_center: true
+  num_random_samples: 15 # More exploration needed for cost modeling
+  max_suggestion_cost: 3600 # 1 hour - allow for longer runs
+  resample_frequency: 5 # More frequent resampling for cost trade-offs
+  global_search_scale: 1.0 # Standard scale for cost dimension exploration
+  random_suggestions: 1024 # Keep higher for cost exploration
+  suggestions_per_pareto: 256 # Keep higher - Pareto frontier is crucial now
+  expansion_rate: 0.3 # Higher exploration along cost dimension
+  seed_with_search_center: true
 
 metric: reward
 
@@ -16,33 +16,33 @@ max_observations_to_load: 250
 
 parameters:
   trainer:
-    # total_timesteps:
-    #   distribution: int_uniform
-    #   min: 10000000      # 10M
-    #   max: 2000000000    # 2B
-    #   mean: 100000000    # 100M - reasonable starting point
-    #   scale: auto
+    total_timesteps:
+      distribution: int_uniform
+      min: 10000000 # 10M
+      max: 2000000000 # 2B
+      mean: 100000000 # 100M - reasonable starting point
+      scale: auto
 
-    # batch_size:
-    #   distribution: uniform_pow2
-    #   min: 262144    # 2^18 - works with bptt=32: 262144/32 = 8192 segments
-    #   max: 2097152   # 2^21 - reasonable max
-    #   mean: 524288   # 2^19 - good default
-    #   scale: auto
+    batch_size:
+      distribution: uniform_pow2
+      min: 262144 # 2^18 - works with bptt=32: 262144/32 = 8192 segments
+      max: 2097152 # 2^21 - reasonable max
+      mean: 524288 # 2^19 - good default
+      scale: auto
 
-    # minibatch_size:
-    #   distribution: uniform_pow2
-    #   min: 2048      # 2^11 - smaller min for compatibility
-    #   max: 65536     # 2^16 - reduced max to ensure batch_size divisibility
-    #   mean: 8192     # 2^13 - lower mean
-    #   scale: auto
+    minibatch_size:
+      distribution: uniform_pow2
+      min: 2048 # 2^11 - smaller min for compatibility
+      max: 65536 # 2^16 - reduced max to ensure batch_size divisibility
+      mean: 8192 # 2^13 - lower mean
+      scale: auto
 
-    # bptt_horizon:
-    #   distribution: uniform_pow2
-    #   min: 8         # 2^3 - reasonable minimum
-    #   max: 32        # 2^5 - much more typical max
-    #   mean: 16       # 2^4 - good default
-    #   scale: auto
+    bptt_horizon:
+      distribution: uniform_pow2
+      min: 8 # 2^3 - reasonable minimum
+      max: 32 # 2^5 - much more typical max
+      mean: 16 # 2^4 - good default
+      scale: auto
 
     ppo:
       gamma:
@@ -68,30 +68,30 @@ parameters:
 
       vf_coef:
         distribution: logit_normal
-        min: 0.1          # Higher minimum for stability
-        max: 0.9          # Not too close to 1.0
-        mean: 0.5         # Standard default
+        min: 0.1 # Higher minimum for stability
+        max: 0.9 # Not too close to 1.0
+        mean: 0.5 # Standard default
         scale: auto
 
       vf_clip_coef:
         distribution: log_normal
-        min: 1.0          # Typical range is 1-50
-        max: 50.0         # Some use up to 100
-        mean: 10.0        # Common default
+        min: 1.0 # Typical range is 1-50
+        max: 50.0 # Some use up to 100
+        mean: 10.0 # Common default
         scale: auto
 
       ent_coef:
         distribution: log_normal
-        min: 1e-4         # Not too small
-        max: 1e-2         # Rarely need more
-        mean: 1e-3        # Good default
+        min: 1e-4 # Not too small
+        max: 1e-2 # Rarely need more
+        mean: 1e-3 # Good default
         scale: auto
 
     update_epochs:
       distribution: int_uniform
       min: 1
-      max: 8         # Reduced from 16 - high values waste compute on short runs
-      mean: 3        # Lower mean for efficiency
+      max: 8 # Reduced from 16 - high values waste compute on short runs
+      mean: 3 # Lower mean for efficiency
       scale: auto
 
     # compile: ${ss:int, 0, 1}

@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from typing import Callable, TypeVar
 
-import torch
 import torch.distributed as dist
 
 T = TypeVar("T")
@@ -19,10 +18,9 @@ def _init_process_group() -> bool:
         return False
 
     rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
-    # Auto-detect backend: use nccl for CUDA, gloo for CPU
-    backend = "nccl" if torch.cuda.is_available() else "gloo"
+
     dist.init_process_group(
-        backend=backend,
+        backend="nccl",
         init_method=os.environ.get("DIST_URL", "env://"),
         world_size=world_size,
         rank=rank,

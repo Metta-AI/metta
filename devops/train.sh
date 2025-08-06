@@ -47,7 +47,20 @@ echo "  - Arguments: $args"
 
 echo "[INFO] Starting training..."
 
+# Set memory fraction for multi-GPU training to avoid OOM
+if [ "$NUM_GPUS" -gt 2 ]; then
+  export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
+  echo "[INFO] Set PYTORCH_CUDA_ALLOC_CONF for multi-GPU training"
+fi
+
 set +e
+# For single GPU training, limit CPU workers and async factor to prevent OOM and pufferlib errors
+if [ "$NUM_GPUS" -eq 1 ] && [ "$NUM_NODES" -eq 1 ]; then
+  TRAINER_ARGS="trainer.num_workers=1 trainer.async_factor=1"
+else
+  TRAINER_ARGS="trainer.num_workers=null"
+fi
+
 PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
@@ -55,7 +68,7 @@ PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/train.py \
-  trainer.num_workers=null \
+  $TRAINER_ARGS \
   $args
 EXIT_CODE=$?
 set -e

@@ -8,15 +8,17 @@ This module replaces sweep_rollout.sh with a Python implementation that:
 - Maintains compatibility with existing sweep infrastructure
 """
 
+import gc
 import logging
 import os
 import subprocess
 import sys
 import time
 
+import torch
 from omegaconf import DictConfig, OmegaConf
 
-from metta.common.util.heartbeat import record_heartbeat
+# Heartbeat monitoring is handled by the training process, not the sweep orchestrator
 from metta.common.util.lock import run_once
 from metta.sweep.sweep_lifecycle import evaluate_rollout, prepare_sweep_run, setup_sweep
 from metta.util.metta_script import metta_script
@@ -53,7 +55,7 @@ def main(cfg: DictConfig) -> int:
 
     while True:
         err_occurred = False
-        record_heartbeat()  # Record heartbeat at start of each iteration
+
         # Run the rollout
         try:
             run_single_rollout(cfg)
@@ -72,13 +74,18 @@ def main(cfg: DictConfig) -> int:
         else:
             num_consecutive_failures = 0
 
+        # Clean up memory between rollouts
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.debug("Memory cleanup completed between rollouts")
+
     return exit_code
 
 
 def run_single_rollout(cfg: DictConfig) -> int:
     """Run a single rollout."""
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
-    record_heartbeat()  # Record heartbeat at start of rollout
 
     # Master node only
     run_name, train_job_cfg, protein_suggestion, wandb_run_id = run_once(
@@ -96,7 +103,6 @@ def run_single_rollout(cfg: DictConfig) -> int:
         logger=logger,
     )
     logger.info("Training completed...")
-    record_heartbeat()  # Record heartbeat after training
 
     config_path = os.path.join(train_job_cfg.run_dir, "sweep_eval_config.yaml")
     full_train_job_cfg = OmegaConf.load(config_path)
@@ -117,7 +123,7 @@ def run_single_rollout(cfg: DictConfig) -> int:
         raise RuntimeError("Evaluation failed")
 
     logger.info(f"Rollout completed successfully for run: {run_name}")
-    record_heartbeat()  # Record heartbeat at end of rollout
+
     return 0
 
 
