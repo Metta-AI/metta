@@ -1,4 +1,3 @@
-# metta/sim/simulation.py
 """
 Vectorized simulation runner.
 
@@ -27,8 +26,9 @@ from tensordict import TensorDict
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.interface.environment import PreBuiltConfigCurriculum, curriculum_from_config_path
 from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.vecenv import make_vecenv
@@ -43,6 +43,26 @@ class SimulationCompatibilityError(Exception):
     """Raised when there's a compatibility issue that prevents simulation from running."""
 
     pass
+
+
+class PreBuiltConfigCurriculum(Curriculum):
+    """A curriculum that uses a pre-built config instead of loading from Hydra.
+    This allows us to bypass Hydra entirely when running evaluation or replay
+    generation without having Hydra initialized.
+    """
+
+    def __init__(self, env_name: str, pre_built_config: Any):
+        self._env_name = env_name
+        self._cfg_template = pre_built_config
+
+    def get_task(self) -> Task:
+        """Return a task with the pre-built config."""
+        return SingleTrialTask(f"prebuilt({self._env_name})", self, self._cfg_template)
+
+    def get_task_probs(self) -> Dict[str, float]:
+        """Return the current task probability for logging purposes."""
+        task_name = f"prebuilt({self._env_name})"
+        return {task_name: 1.0}
 
 
 class Simulation:

@@ -18,4 +18,6 @@ def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> 
         )
     else:
         config = config_from_path(config_path, env_overrides)
+        if not isinstance(config, DictConfig):
+            raise ValueError(f"Invalid curriculum config at {config_path}: {config}")
         return SingleTaskCurriculum(config_path, config)

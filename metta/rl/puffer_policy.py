@@ -251,11 +251,6 @@ class PytorchAgent(nn.Module):
             return self.policy.l2_init_loss()
         return torch.tensor(0.0, device=getattr(self, "device", "cpu"), dtype=torch.float32)
 
-    def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copy."""
-        if hasattr(self.policy, "update_l2_init_weight_copy"):
-            self.policy.update_l2_init_weight_copy()
-
     def clip_weights(self):
         """Clip weights."""
         if hasattr(self.policy, "clip_weights"):

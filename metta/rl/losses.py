@@ -7,6 +7,7 @@ import torch
 from tensordict import TensorDict
 from torch import Tensor
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
@@ -70,7 +71,7 @@ def get_loss_experience_spec(act_shape: tuple[int, ...], act_dtype: torch.dtype)
 
 
 def process_minibatch_update(
-    policy: torch.nn.Module,
+    policy: PolicyAgent,
     experience: Experience,
     minibatch: TensorDict,
     policy_td: TensorDict,
