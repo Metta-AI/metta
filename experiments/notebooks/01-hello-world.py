@@ -1,9 +1,9 @@
 # ruff: noqa
 # fmt: off
 # %% [markdown]
-# # Hello World: Your First Metta AI Experiment
+# # Hello World: your first metta-ai experiment
 #
-# Welcome to your first reinforcement learning experiment with Metta AI. This notebook will guide you through creating, observing, evaluating, and training AI agents in a gridworld environment.
+# Welcome to your first reinforcement learning experiment in the metta-ai project. This notebook will guide you through creating, observing, evaluating, and training AI agents in a simple gridworld environment.
 #
 # ## What You'll Learn
 #
@@ -12,149 +12,128 @@
 # - Choose and observe different agent policies
 # - Evaluate agent performance quantitatively
 # - Train a new agent from scratch
-# - Compare trained vs untrained agents
+# - Compare the performance of two agents
 #
 # ## 1. Setup
 #
 # Let's load dependencies and set up some scaffolding. Don't worry about the details here.
 
 # %%
-# Enable auto-reload so changes to our tools are reflected immediately
+# Setup imports for core notebook workflow
 # %load_ext autoreload
 # %autoreload 2
 
-import os, json, subprocess, tempfile, yaml, torch, time, warnings
-from datetime import datetime
-from pathlib import Path
-
-import matplotlib.pyplot as plt
-import numpy as np
-from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-
-# Setup cell imports
-from metta.common.util.fs import get_repo_root
-from IPython.display import clear_output, Markdown, DisplayHandle
-from omegaconf import OmegaConf
 import time
+import warnings
+
+from omegaconf import OmegaConf
+from metta.interface.environment import _get_default_env_config
 from tools.renderer import setup_environment, get_policy
+import ipywidgets as widgets
+from IPython.display import display
 
 # Suppress Pydantic deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
 
-# Set up common paths
-repo_root = get_repo_root()
-
 
 # %% [markdown]
-# ## 2. Defining a Map and an Environment
+# ## 2. Defining an Environment
 #
-# In Metta AI, an **environment** is the virtual world where our agents live, learn, and act. Think of it as the "game world" where we observe and train AI agents.
+# In Metta AI, an **environment** is the virtual world where our agents act and learn. It has 2 main elements:
 #
-# ### Building Our Environment: Two Parts
+#   1. A Map -- the physical layout of the environment where agents can move and what objects they encounter. One simple way to define a map is to use a simple ASCII string. This much ASCII will get us started:
+#       - `#` = walls that block movement
+#       - `@` = where the agent starts
+#       - `.` = empty spaces where agents can walk
+#       - `m` = a mine that generates collectible ore
+#   2. Game Rules -- what actions are available and how rewards are calculated. We express these rules through environment configuration.
 #
-# **1. The Map (Physical Layout)**
-# Maps define where agents can move and what objects they encounter:
-
-# %%
-hallway_map = """
-############
-#@........m#
-############"""
-
-# %% [markdown]
-# - `#` = walls that block movement
-# - `@` = where the agent starts
-# - `.` = empty spaces where agents can walk
-# - `m` = a mine that generates collectible ore
+# For now, we'll mostly rely on the default set of game rules, as follows:
 #
-# **2. The Environment Configuration (Game Rules)**
-# The map is just the layout - we also need to define the "rules of the game":
-
-# %%
-# Write the ASCII map to a file for renderer's file-based loader
-# Define map file path under debug maps directory
-map_path = repo_root / "configs" / "env" / "mettagrid" / "maps" / "debug" / "notebook_hallway.map"
-with open(map_path, "w") as f:
-    f.write(hallway_map)
-
-# %% [markdown]
-# ### Key Environment Defaults We're Using
-#
-# Our configuration only specifies the map and basic settings. The environment automatically provides sensible defaults for:
-#
-# **Available Actions:**
-# - `move` - Navigate in 8 directions (cardinal + diagonal)
-# - `rotate` - Change facing direction
-# - `get_items` - Pick up resources from objects like mines
-# - `put_items` - Drop items (useful for complex tasks)
-# - `attack` - Combat actions (disabled in our peaceful hallway)
-#
-# **Resource System:**
-# - **Inventory**: Agents can carry up to 50 of each resource type
-# - **Ore Collection**: Mines generate `ore_red` that agents can collect
-# - **Rewards**: Collecting ore gives small positive rewards to encourage the behavior
-#
-# **Observation System:**
+# **Agents Can Observe:**
 # - **Vision**: Agents see an 11x11 grid around themselves
-# - **Inventory Awareness**: Agents know what resources they're carrying
-# - **Action Feedback**: Agents receive information about their last action's success
+# - **Awareness**: Agents know what resources they're carrying
+# - **Feedback**: Agents receive information about their last action's success
+
+# **Agents Can Act:**
+# - Navigate in 8 directions (cardinal + diagonal) and rotate
+# - Pick up & carry resources from objects like mines, or drop items
+# - Interact with other agents -- we'll ignore this for now and just start with a single agent
 #
-# **Object Behaviors:**
-# - **Mines**: Automatically generate ore over time with cooldown periods
+# **Agents Encounter Objects:**
 # - **Walls**: Block movement and create boundaries
-# - **Resource Limits**: Objects have maximum output to prevent infinite resource generation
+# - **Mines**: Automatically generate ore over time
+# - **Ore**: Collectible resources that agents can carry and trade for rewards
+# - **Rewards**: Collecting ore gives small positive rewards that can be used to reinforce behavior
 #
-# ### What This Environment Tests:
-# - **Navigation**: Can the agent move from start (`@`) to mine (`m`)?
-# - **Resource Collection**: Will the agent use the `get_items` action to collect ore?
-# - **Efficiency**: Does the agent learn direct paths vs random wandering?
+# In our environment, we'll also need an agent (sometimes referred to as a "policy") who can take action.
+# We'll try out a very simple "opportunistic" agent that moves randomly around the environment. If it encounters
+# a resource, it will usually (but not always) pick it up.
 #
-# Our environment uses these default settings with only a custom map layout, giving us a working world with minimal configuration.
+# In the following cell we'll lay out the map in ASCII, configure the environment to use it, and choose the opportunistic agent. We'll also set:
+# - How many steps to run the simulation for
+# - How long to sleep between steps
+# - Some other basic parameters
+# %%
+# Define ASCII map and environment configuration
+hallway_map = """###########
+#@.......m#
+###########"""
 
+env_dict = _get_default_env_config(num_agents=1, width=11, height=3)
+env_dict["game"]["map_builder"] = {
+    "_target_": "metta.map.mapgen.MapGen",
+    "border_width": 0,
+    "root": {
+        "type": "metta.map.scenes.inline_ascii.InlineAscii",
+        "params": {"data": hallway_map},
+    },
+}
+env_dict["game"]["objects"]["mine_red"]["initial_resource_count"] = 1
+env_dict["game"]["objects"]["mine_red"]["conversion_ticks"] = 4
+env_dict["game"]["objects"]["mine_red"]["cooldown"] = 0
+env_dict["game"]["objects"]["mine_red"]["max_output"] = 2
+env_dict["game"]["agent"]["rewards"]["inventory"]["ore_red"] = 1.0
 
+cfg = OmegaConf.create({
+    "env": env_dict,
+    "renderer_job": {
+        "policy_type": "opportunistic",
+        "num_steps": 300,
+        "num_agents": 1,
+        "sleep_time": 0.05,
+    },
+})
 
 # %% [markdown]
-# ## 3. Observing Our Agent
+# ## 3. Observing a Simulation
 #
-# Now that we have our environment set up, let's watch an agent explore it!
+#  Now we'll actually run the simulation, using a "game loop" approach, where we:
+# - Find out what action the agent wants to take
+# - Step the environment forward one tick, taking the action into account
+# - Render the environment to the screen (as an ASCII string)
+# - Sleep for a bit
 #
-# ### Our Opportunistic Agent
-# We'll use a simple "opportunistic" policy that:
-# - Moves randomly around the environment
-# - Always picks up resources when available
-# - Provides a baseline for comparison with trained agents
-
+# We'll also track the agent's inventory and display the score.
+#
 # %%
-import ipywidgets as widgets
-from IPython.display import display
-
-# Load and override configuration in memory
-cfg = OmegaConf.load(str(repo_root / "configs" / "renderer_job.yaml"))
-cfg.renderer_job.environment.root.params.uri = str(map_path)
-cfg.renderer_job.policy_type = "opportunistic"
-cfg.renderer_job.num_steps = 150
-cfg.renderer_job.sleep_time = 0.15
-cfg.renderer_job.num_agents = 1
-
-# Build environment and policy
 env, render_mode = setup_environment(cfg)
 policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
 
-# Create reactive widgets
 header = widgets.HTML()
 map_box = widgets.HTML()
 display(header, map_box)
 
 obs, info = env.reset()
-total_reward = 0.0
+total_reward = 0
 for step in range(cfg.renderer_job.num_steps):
     actions = policy.predict(obs)
     obs, rewards, terminals, truncations, info = env.step(actions)
-    total_reward += rewards.sum()
-    # Update header and map in place
+    # Track ore in inventory for agent 0
+    agent_obj = next(o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+    inv = {env.inventory_item_names[idx]: count for idx, count in agent_obj.get("inventory", {}).items()}
+    total_reward = inv.get("ore_red", 0)
+    # Update display
     header.value = f"<b>Score:</b> {total_reward:.1f} | <b>Step:</b> {step+1}/{cfg.renderer_job.num_steps}"
     map_box.value = f"<pre>{env.render() or ''}</pre>"
     if cfg.renderer_job.sleep_time:
@@ -163,25 +142,19 @@ env.close()
 
 # %% [markdown]
 # ### What You'll See:
-# - The agent (`0`) moving around the hallway
-# - Real-time score and resource collection updates
-# - The agent collecting ore from the mine (`m`)
-# - Random movement patterns as the agent explores
+# - The agent (`0`) moving back and forth in the hallway
+# - The mine ('m') is continually generating ore (not shown=)
+# - When the agent reaches the mine, it should sometimes pick up ore
+# - This will increase the agent's "score"
 #
-# This gives us a baseline understanding of how agents behave in our environment before we move on to evaluation and training.
 #
 # When you're ready to keep going, stop the cell above and continue to the next step.
 #
-# ## 4. Configuring an Evaluation Environment
+# ## 4. Doing an Evaluation
 #
-# Now that we've observed our agent, let's formally evaluate its performance.
+# We've informally observed our agent doing its thing, but now let's formally evaluate its performance.
 #
 # **Evaluation** is the process of measuring how well an agent performs on a specific task.
-# To create a good evaluation environment, we need to define:
-# - **Clear success criteria**: What does it mean to "win"?
-# - **Controlled conditions**: Same task every time
-# - **Measurable outcomes**: Numbers we can compare
-# - **Reasonable limits**: Time/steps to prevent infinite loops
 #
 # For our ore collection task, we'll configure the environment to track ore collection and provide appropriate rewards.
 
@@ -446,25 +419,19 @@ except Exception as e:
 
 
 # %% [markdown]
-# ## 8. Introducing Training
+# ## 8. Training a New Agent
 #
-# So far we've been observing agents with pre-defined behaviors. Now we'll create something new - a **trained agent** that learns from experience!
+# **Training** is the process of teaching an agent to improve its behavior through trial and error. The agent
+# starts with random behavior, receives feedback based on the game and reward rules we established in our environment,
+# and hopefully, it gradually learns which actions lead to better outcomes.
 #
-# **Training** is the process of teaching an agent to improve its behavior through trial and error. The agent starts with random actions and gradually learns which actions lead to better outcomes (more ore collection in our case).
+# So far we've been observing an agent which was not trained at all; the opportunistic agent has baked-in behavior.
+# Let's try now to train an agent which gets better scores than the opportunistic agent. To begin with, we make
+# a training configuration. Key decisions to make here are:
+# - What is the environment? -- we'll use the same hallway environment as before
+# - What is the training algorithm? -- we'll use a simple "PPO" algorithm
+# - What is the training duration? -- we'll use a short duration for now
 #
-# Our hypothesis: A trained agent should learn to navigate directly to the mine and collect ore much more efficiently than the simple agent.
-#
-# Let's set up our first training run!
-
-# %% [markdown]
-# ## 9. Configuring Training
-#
-# Before we start training, we need to configure our training run. This includes:
-# - **Environment**: Our hallway map
-# - **Training Duration**: How long to train
-# - **Learning Parameters**: How the agent learns
-# - **Resources**: CPU/GPU settings
-
 # %%
 # Create training configuration
 training_config = {
@@ -475,10 +442,10 @@ training_config = {
         "_self_",
     ],
     "game": {
-        "num_agents": 1,
-        "obs_width": 5,
-        "obs_height": 5,
-        "max_steps": 100,
+        "num_agents": 1,        # We'll use a single agent
+        "obs_width": 5,         # Our agent can see 5 spaces in each direction
+        "obs_height": 5,        # We'll use a 5x5 grid for observations
+        "max_steps": 100,       # We'll use 100 steps per "episode"
         "map_builder": {
             "_target_": "metta.map.mapgen.MapGen",
             "width": 12,
@@ -506,7 +473,7 @@ run_name = f"{user}.hello-world.training.{timestamp}"
 
 
 # %% [markdown]
-# ## 10. Starting Training
+# ## 10. Running Training
 #
 # Now the exciting part! Let's launch our training run and watch an AI agent learn from scratch.
 
@@ -560,7 +527,7 @@ checkpoint_dir = train_dir / "checkpoints"
 # %% [markdown]
 # ## 12. Observing the Trained Agent
 #
-# Now let's watch our trained agent in action! This should be much more impressive than the simple agent.
+# Now let's watch our trained agent in action
 
 # %%
 # Observe trained agent behavior
@@ -586,10 +553,6 @@ trained_obs_config = {
     }
 }
 
-# Note: These functions moved to renderer.py approach
-# env = create_env_from_config(trained_obs_config)
-# trained_policy = load_trained_policy(latest_checkpoint, env)
-# render_policy(trained_policy, env, steps=6000, sleep=0.25)
 
 
 # %% [markdown]
@@ -648,7 +611,7 @@ plt.show()
 
 
 # %% [markdown]
-# ## 14. Compare Results
+# ## 14. Comparing Results
 #
 # Let's compare our trained agent against the simple agent to see the improvement!
 
