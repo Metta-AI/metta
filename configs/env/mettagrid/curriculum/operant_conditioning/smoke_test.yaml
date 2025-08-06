@@ -1,12 +1,12 @@
 _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 tasks:
-  /env/mettagrid/operant_conditioning/2_converters/mine_red: 1
-  /env/mettagrid/operant_conditioning/2_converters/mine_blue: 1
-  /env/mettagrid/operant_conditioning/3_converters/mine_red: 1
-  /env/mettagrid/operant_conditioning/3_converters/mine_blue: 1
-  /env/mettagrid/operant_conditioning/3_converters/mine_green: 1
-  /env/mettagrid/operant_conditioning/4_converters/mine_red: 1
-  /env/mettagrid/operant_conditioning/4_converters/mine_blue: 1
-  /env/mettagrid/operant_conditioning/4_converters/mine_green: 1
-  /env/mettagrid/operant_conditioning/4_converters/factory: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/2_converters/mine_red: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/2_converters/mine_blue: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_red: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_blue: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_green: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/4_converters/mine_red: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/4_converters/mine_blue: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/4_converters/mine_green: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/4_converters/factory: 1
