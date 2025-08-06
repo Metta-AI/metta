@@ -6,6 +6,8 @@
 
 run: monofuel_local_2025_07_22
 
+device: cpu
+
 wandb:
   enabled: false
 

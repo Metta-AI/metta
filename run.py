@@ -369,10 +369,10 @@ experience = Experience(
 
 # Create kickstarter
 kickstarter = Kickstarter(
-    trainer_config.kickstart,
-    str(device),
-    policy_store,
-    metta_grid_env,  # Pass the full environment object, not individual attributes
+    cfg=trainer_config.kickstart,
+    device=device,
+    policy_store=policy_store,
+    metta_grid_env=metta_grid_env,
 )
 
 # Create losses tracker
@@ -410,11 +410,12 @@ last_evaluation_epoch = epoch - 1  # Track last epoch when evaluation was perfor
 
 # Create checkpoint manager
 checkpoint_manager = CheckpointManager(
-    trainer_cfg=trainer_config,
     policy_store=policy_store,
-    checkpoint_dir=trainer_config.checkpoint.checkpoint_dir,
-    run_name=dirs.run_name,
+    checkpoint_config=trainer_config.checkpoint,
+    device=device,
     is_master=is_master,
+    rank=rank,
+    run_name=dirs.run_name,
 )
 
 # Training loop
@@ -698,7 +699,7 @@ while agent_step < trainer_config.total_timesteps:
         stats_tracker.grad_stats = compute_gradient_stats(agent)
 
     # Save checkpoint periodically - all ranks must participate in checkpoint decision
-    if checkpoint_manager.should_checkpoint(epoch):
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, is_master, non_master_ok=True):
         saved_record = checkpoint_manager.save_policy(
             policy=agent,
             epoch=epoch,
@@ -833,7 +834,7 @@ while agent_step < trainer_config.total_timesteps:
         last_evaluation_epoch = epoch
 
         # Upload replay HTML if we have replay URLs
-        if is_master and wandb_run and hasattr(results, "replay_urls") and results.replay_urls:
+        if is_master and wandb_run and results.replay_urls:
             upload_replay_html(
                 replay_urls=results.replay_urls,
                 agent_step=agent_step,
@@ -936,8 +937,6 @@ if is_master and last_evaluation_epoch < epoch and latest_saved_policy_record:
     eval_scores = EvalRewardSummary(
         category_scores=category_scores,
         simulation_scores=simulation_scores,
-        avg_category_score=np.mean(category_score_values) if category_score_values else 0.0,
-        avg_simulation_score=np.mean(simulation_score_values) if simulation_score_values else 0.0,
     )
 
     # Update policy metadata with score

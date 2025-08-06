@@ -276,7 +276,7 @@ function fixReplay() {
     }
   }
 
-  // Create  resource image mappings for faster access.
+  // Create resource image mappings for faster access.
   state.replay.resourceImages = []
   for (const resourceName of state.replay.itemNames) {
     const path = `resources/${resourceName}.png`
@@ -575,6 +575,7 @@ function loadReplayJson(url: string, replayJson: any) {
   focusFullMap(ui.mapPanel)
   updateAgentTable()
   onResize()
+  state.heatmap.initialize()
   requestFrame()
 }
 
@@ -627,6 +628,7 @@ export function loadReplayStep(replayStep: any) {
   fixReplay()
 
   updateStep(step)
+  state.heatmap.update(step)
 
   requestFrame()
 }
