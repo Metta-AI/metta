@@ -4,14 +4,6 @@ export type ScorecardCell = {
   value: number
 }
 
-export type GroupDiff = {
-  group_1: string
-  group_2: string
-}
-
-export type PolicySelector = 'latest' | 'best'
-
-export type GroupScorecardMetric = GroupDiff | string
 
 export type ScorecardData = {
   evalNames: string[]
@@ -93,49 +85,6 @@ export type TrainingRunDescriptionUpdate = {
 }
 
 export type TrainingRunTagsUpdate = {
-  tags: string[]
-}
-
-export type Episode = {
-  id: string
-  created_at: string
-  primary_policy_id: string
-  eval_category: string | null
-  env_name: string | null
-  attributes: Record<string, any>
-  // Policy information
-  policy_name: string | null
-  // Training run information
-  training_run_id: string | null
-  training_run_name: string | null
-  training_run_user_id: string | null
-  // Episode tags
-  tags: string[]
-}
-
-export type EpisodeFilterResponse = {
-  episodes: Episode[]
-  total_count: number
-  page: number
-  page_size: number
-  total_pages: number
-}
-
-export type EpisodeTagRequest = {
-  episode_ids: string[]
-  tag: string
-}
-
-export type EpisodeTagByFilterRequest = {
-  filter_query: string
-  tag: string
-}
-
-export type EpisodeTagResponse = {
-  episodes_affected: number
-}
-
-export type AllTagsResponse = {
   tags: string[]
 }
 
@@ -318,14 +267,6 @@ export interface Repo {
   generateTrainingRunScorecard(runId: string, request: TrainingRunScorecardRequest): Promise<PolicyScorecardData>
   getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
 
-  // Episode methods
-  filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse>
-  addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
-  removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
-  addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
-  removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
-  getAllEpisodeTags(): Promise<AllTagsResponse>
-
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
   getEvalTasks(): Promise<EvalTask[]>
@@ -490,48 +431,6 @@ export class ServerRepo implements Repo {
 
   async getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]> {
     return this.apiCall<TrainingRunPolicy[]>(`/training-runs/${encodeURIComponent(runId)}/policies`)
-  }
-
-  // Episode methods
-  async filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse> {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      page_size: pageSize.toString(),
-      filter_query: filterQuery,
-    })
-    return this.apiCall<EpisodeFilterResponse>(`/episodes?${params}`)
-  }
-
-  async addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/add', {
-      episode_ids: episodeIds,
-      tag: tag,
-    })
-  }
-
-  async removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/remove', {
-      episode_ids: episodeIds,
-      tag: tag,
-    })
-  }
-
-  async addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/add-by-filter', {
-      filter_query: filterQuery,
-      tag: tag,
-    })
-  }
-
-  async removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/remove-by-filter', {
-      filter_query: filterQuery,
-      tag: tag,
-    })
-  }
-
-  async getAllEpisodeTags(): Promise<AllTagsResponse> {
-    return this.apiCall<AllTagsResponse>('/episodes/tags/all')
   }
 
   async createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask> {
