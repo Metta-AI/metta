@@ -1,0 +1,85 @@
+# @package __global__
+
+# User config for testing checkpoint loading with NPC policies
+# This config is designed to test the original_action_config preservation fixes
+
+defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/arena@evals  # Arena evaluation suite with NPC configs
+  - _self_
+
+# Basic run configuration
+run: ${oc.env:USER,test}_checkpoint_npc_test
+cmd: train
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+policy_uri: file://${run_dir}/checkpoints
+
+trainer:
+  # Use arena combat with learning progress curriculum
+  curriculum: /env/mettagrid/curriculum/arena/learning_progress
+
+  # Train WITH NPCs using daveey's policy (read-only, won't modify his files!)
+  env_overrides:
+    npc_policy_uri: wandb://run/daveey.lp.16x4.ue2
+    policy_agents_pct: 0.5  # 50% of agents are NPCs during training
+
+  # Small number of workers for local testing
+  num_workers: 2
+
+  # Very frequent checkpoints for testing
+  checkpoint:
+    checkpoint_dir: ${run_dir}/checkpoints
+    checkpoint_interval: 10      # Save every 10 steps for quick testing
+    wandb_checkpoint_interval: 10  # Disable wandb uploads for testing
+
+  # Frequent evaluations to test NPC loading
+  simulation:
+    evaluate_interval: 50         # Evaluate every 20 steps
+    evaluate_remote: false        # Keep it local for testing
+
+  # Short training run for quick testing
+  total_timesteps: 100000
+  batch_size: 512
+  minibatch_size: 512
+
+  # Load from previous checkpoint if specified
+  initial_policy:
+    uri: ${oc.env:CHECKPOINT_URI,null}  # Can override with CHECKPOINT_URI env var
+    type: top
+    range: 1
+    metric: epoch
+
+# Override evaluations to include NPC simulations
+evals:
+  simulations:
+    # Basic arena tests
+    arena/basic:
+      env: /env/mettagrid/arena/basic
+    arena/combat:
+      env: /env/mettagrid/arena/combat
+
+    # NPC policy tests - these are the key tests for your fixes
+    arena/combat_npc:
+      env: /env/mettagrid/arena/combat
+      npc_policy_uri: wandb://run/daveey.lp.16x4.ue2  # Use daveey's policy
+      policy_agents_pct: 0.5          # 50% of agents use the policy
+
+    arena/advanced_npc:
+      env: /env/mettagrid/arena/advanced
+      npc_policy_uri: wandb://run/daveey.lp.16x4.ue2  # Use daveey's policy
+      policy_agents_pct: 0.5
+
+# Disable wandb for local testing
+wandb:
+  enabled: true
+
+# Device configuration
+device: ${oc.env:DEVICE,gpu}  # Default to CPU for testing
+
+# Add verbose logging for debugging
+trainer:
+  verbose: true
