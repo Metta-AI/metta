@@ -26,13 +26,6 @@ class PaginationRequest(BaseModel):
     page_size: int = Field(default=25, ge=1, le=100)
 
 
-class PoliciesRequest(BaseModel):
-    """Request body for getting policies and training runs."""
-
-    search_text: Optional[str] = None
-    pagination: PaginationRequest = PaginationRequest()
-
-
 class UnifiedPolicyInfo(BaseModel):
     """Unified policy/training run information."""
 
@@ -48,9 +41,6 @@ class PoliciesResponse(BaseModel):
     """Response containing unified policies and training runs."""
 
     policies: List[UnifiedPolicyInfo]
-    total_count: int
-    page: int
-    page_size: int
 
 
 class EvalsRequest(BaseModel):
@@ -135,34 +125,24 @@ class PolicyEvaluationResult:
 # ============================================================================
 
 UNIFIED_POLICIES_QUERY = """
-    WITH unified_policies AS (
-        SELECT
-          COALESCE(we.training_run_id, we.primary_policy_id) as id,
-          ANY_VALUE(CASE WHEN we.training_run_id IS NOT NULL THEN 'training_run' ELSE 'policy' END) as type,
-          ANY_VALUE(COALESCE(we.training_run_name, we.policy_name)) as name,
-          ANY_VALUE(we.training_run_user_id) as user_id,
-          ANY_VALUE(we.created_at) as created_at,
-          ANY_VALUE(we.training_run_tags) as tags
-        FROM wide_episodes we
-        GROUP BY COALESCE(we.training_run_id, we.primary_policy_id)
+    WITH good_policies AS (select distinct primary_policy_id FROM episodes),
+    my_training_runs AS (
+      SELECT t.id AS id, 'training_run' AS type, t.name, t.user_id, t.created_at, t.tags
+      FROM training_runs t JOIN epochs e ON t.id = e.run_id
+      JOIN policies p ON p.epoch_id = e.id
+      JOIN good_policies g ON p.id = g.primary_policy_id
+    ),
+    my_run_free_policies AS (
+      SELECT p.id AS id, 'policy' AS type, p.name, NULL as user_id, p.created_at, NULL::text[] as tags
+      FROM policies p
+      JOIN good_policies g ON p.id = g.primary_policy_id
+      WHERE p.epoch_id IS NULL
     )
-"""
 
-GET_UNIFIED_POLICIES_QUERY = """
-    {unified_policies_query}
-
-    SELECT * FROM unified_policies up
-    {where_clause}
-
+    SELECT * FROM my_training_runs
+    UNION
+    SELECT * FROM my_run_free_policies
     ORDER BY created_at DESC
-    LIMIT %s OFFSET %s
-"""
-
-COUNT_UNIFIED_POLICIES_QUERY = """
-    {unified_policies_query}
-
-    SELECT COUNT(*) FROM unified_policies up
-    {where_clause}
 """
 
 GET_EVALS_QUERY = """
@@ -224,36 +204,10 @@ POLICY_SCORECARD_DATA_QUERY = """
 # ============================================================================
 
 
-async def get_policies_and_training_runs(con: AsyncConnection, request: PoliciesRequest) -> PoliciesResponse:
+async def get_policies_and_training_runs(con: AsyncConnection) -> PoliciesResponse:
     """Get unified training runs and run-free policies with pagination and optional filtering."""
-    # Build where clauses for search filtering
-    search_where = ""
-    search_params = []
 
-    if request.search_text and request.search_text.strip():
-        search_pattern = f"%{request.search_text.strip()}%"
-        search_where = """
-            WHERE (
-                up.name ILIKE %s OR
-                COALESCE(up.user_id, '') ILIKE %s OR
-                up.created_at::text ILIKE %s OR
-                EXISTS (SELECT 1 FROM unnest(up.tags) AS tag WHERE tag ILIKE %s)
-            )
-        """
-
-        search_params = [search_pattern] * 4  # For training runs query (includes tags)
-
-    # Calculate pagination
-    offset = (request.pagination.page - 1) * request.pagination.page_size
-    limit = request.pagination.page_size
-
-    # Get unified policies and training runs
-    unified_query = GET_UNIFIED_POLICIES_QUERY.format(
-        unified_policies_query=UNIFIED_POLICIES_QUERY, where_clause=search_where
-    )
-    unified_params = search_params + [limit, offset]
-
-    unified_rows = await execute_query_and_log(con, unified_query, unified_params, "get_unified_policies")
+    unified_rows = await execute_query_and_log(con, UNIFIED_POLICIES_QUERY, [], "get_unified_policies")
 
     policies = [
         UnifiedPolicyInfo(
@@ -262,21 +216,7 @@ async def get_policies_and_training_runs(con: AsyncConnection, request: Policies
         for row in unified_rows
     ]
 
-    # Get total count
-    count_query = COUNT_UNIFIED_POLICIES_QUERY.format(
-        unified_policies_query=UNIFIED_POLICIES_QUERY, where_clause=search_where
-    )
-    count_params = search_params
-
-    count_rows = await execute_query_and_log(con, count_query, count_params, "count_unified_policies")
-    total_count = count_rows[0][0]
-
-    return PoliciesResponse(
-        policies=policies,
-        total_count=total_count,
-        page=request.pagination.page,
-        page_size=request.pagination.page_size,
-    )
+    return PoliciesResponse(policies=policies)
 
 
 async def get_evals_for_selection(
@@ -463,12 +403,12 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create FastAPI router for policy-based scorecard endpoints."""
     router = APIRouter(tags=["scorecard"])
 
-    @router.post("/policies")
+    @router.get("/policies")
     @timed_route("get_policies_and_training_runs")
-    async def get_policies(request: PoliciesRequest) -> PoliciesResponse:
-        """Get training runs and run-free policies with pagination and optional filtering."""
+    async def get_policies() -> PoliciesResponse:
+        """Get training runs and run-free policies."""
         async with metta_repo.connect() as con:
-            return await get_policies_and_training_runs(con, request)
+            return await get_policies_and_training_runs(con)
 
     @router.post("/evals")
     @timed_route("get_evals")

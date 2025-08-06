@@ -477,7 +477,7 @@ def train(
             maybe_update_l2_weights(policy, epoch, interval, is_master)
 
         # Save policy - all ranks must participate in checkpoint decision
-        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master):
+        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master, non_master_ok=True):
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
                 epoch=epoch,
@@ -584,19 +584,18 @@ def train(
             logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
     # Force final saves - all ranks must participate
-    if is_master:
-        saved_record = checkpoint_manager.save_policy(
-            policy=policy,
-            epoch=epoch,
-            agent_step=agent_step,
-            evals=eval_scores,
-            timer=timer,
-            initial_policy_record=initial_policy_record,
-            force=True,
-        )
-        if saved_record:
-            latest_saved_policy_record = saved_record
-
+    saved_record = checkpoint_manager.save_policy(
+        policy=policy,
+        epoch=epoch,
+        agent_step=agent_step,
+        evals=eval_scores,
+        timer=timer,
+        initial_policy_record=initial_policy_record,
+        force=True,
+    )
+    if saved_record:
+        latest_saved_policy_record = saved_record
+        if is_master:
             # Save final training state
             checkpoint_manager.save_checkpoint(
                 agent_step=agent_step,
