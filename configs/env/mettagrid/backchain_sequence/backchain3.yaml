@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/extended_sequence/defaults@
+  - /env/mettagrid/backchain_sequence/defaults@
   - _self_
 
 game:
