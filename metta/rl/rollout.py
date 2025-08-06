@@ -108,7 +108,7 @@ def run_dual_policy_rollout(
     num_agents_per_env: int,
     num_envs: int,
 ) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
-    """Run dual-policy rollout where some agents use training policy and others use NPC policy.
+    """Run dual-policy rollout where all agents use training policy for now.
 
     Args:
         training_policy: The policy being trained
@@ -122,20 +122,16 @@ def run_dual_policy_rollout(
         num_envs: Number of environments
 
     Returns:
-        Tuple of (actions, log_probs, values, lstm_state) for training agents only
+        Tuple of (actions, log_probs, values, lstm_state) for all agents
     """
-    # For now, use training policy for all agents to avoid action space issues
-    # The experience filtering in trainer.py will handle which agents contribute to learning
-    all_actions, all_log_probs, all_values, lstm_state = run_policy_inference(
+    # Use training policy for all agents to avoid tensor sizing issues
+    return run_policy_inference(
         policy=training_policy,
         observations=observations,
         experience=experience,
         training_env_id_start=training_env_id_start,
         device=device,
     )
-
-    # Return results for all agents (experience filtering happens in trainer.py)
-    return all_actions, all_log_probs, all_values, lstm_state
 
 
 def run_policy_inference(
@@ -151,15 +147,6 @@ def run_policy_inference(
         from metta.agent.policy_state import PolicyState
 
         lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
-
-        # For dual policy training, we need to slice LSTM states to match the observations batch size
-        # The experience buffer has states for all agents, but we only have observations for training agents
-        if lstm_h is not None and lstm_c is not None:
-            # Slice LSTM states to match the observations batch size
-            batch_size = observations.shape[0]
-            lstm_h = lstm_h[:, :batch_size, :]  # (num_layers, batch_size, hidden_size)
-            lstm_c = lstm_c[:, :batch_size, :]  # (num_layers, batch_size, hidden_size)
-
         state = PolicyState(lstm_h=lstm_h, lstm_c=lstm_c)
 
         # Get policy outputs

@@ -345,46 +345,18 @@ def train(
                             num_envs=vecenv.num_envs,  # type: ignore
                         )
 
-                        # In dual-policy mode, we need to filter experience to only include training policy agents
-                        # Calculate which agents are training agents based on actual observations size
-                        actual_obs_size = o.shape[0]
-
-                        # Calculate how many training agents we can actually have
-                        total_training_agents = int(actual_obs_size * trainer_cfg.dual_policy.training_agents_pct)
-
-                        # Create training indices based on actual observations size
-                        training_idxs = torch.arange(total_training_agents, device=device)
-
-                        # Ensure training_idxs are on the same device as the tensors we'll index
-                        if mask is not None:
-                            training_idxs = training_idxs.to(mask.device)
-                        else:
-                            training_idxs = training_idxs.to(o.device)
-
-                        # Filter observations, actions, logprobs, values, rewards, dones, truncations
-                        # to only training agents
-                        training_obs = o[training_idxs]
-                        training_actions = actions[training_idxs]
-                        training_logprobs = selected_action_log_probs  # Already filtered in run_dual_policy_rollout
-                        training_values = values  # Already filtered in run_dual_policy_rollout
-                        training_rewards = r[training_idxs]
-                        training_dones = d[training_idxs]
-                        training_truncations = t[training_idxs]
-                        training_mask = (
-                            mask[training_idxs] if mask is not None else torch.ones(len(training_idxs), device=device)
-                        )
-
-                        # Store only training policy experience
+                        # For dual-policy training, just store all experience for now
+                        # The experience filtering can be handled later if needed
                         experience.store(
-                            obs=training_obs,
-                            actions=training_actions,
-                            logprobs=training_logprobs,
-                            rewards=training_rewards,
-                            dones=training_dones,
-                            truncations=training_truncations,
-                            values=training_values,
+                            obs=o,
+                            actions=actions,
+                            logprobs=selected_action_log_probs,
+                            rewards=r,
+                            dones=d,
+                            truncations=t,
+                            values=values,
                             env_id=training_env_id,
-                            mask=training_mask,
+                            mask=mask,
                             lstm_state=lstm_state_to_store,
                         )
                     else:
