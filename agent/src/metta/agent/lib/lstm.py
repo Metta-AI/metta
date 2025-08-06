@@ -56,7 +56,7 @@ class LSTM(LayerBase):
 
     def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
-        net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
+        net = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
 
         for name, param in net.named_parameters():
             if "bias" in name:
