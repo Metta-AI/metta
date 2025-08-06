@@ -164,9 +164,6 @@ class MettaGridCore:
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        if self._c_env_instance is None:
-            raise RuntimeError("Environment not initialized. Call reset() first.")
-
         # Execute step in core environment
         obs, rewards, terminals, truncations, _ = self._c_env_instance.step(actions)
 
