@@ -35,4 +35,4 @@ lambdaCredentials:
   # created by terraform
   lambdaSecretName: lambda-ai-credentials
 storage:
-  size: 50Gi
+  size: 100Gi
