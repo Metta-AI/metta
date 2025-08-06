@@ -18,7 +18,12 @@
     "enrich-metadata": "tsx scripts/enrich-author-metadata.ts",
     "pull-asana-papers": "tsx scripts/pull-papers-from-asana.ts",
     "extract-authors": "tsx scripts/extract-authors-from-papers.ts",
-    "extract-institutions": "tsx scripts/extract-institutions-from-papers.ts"
+    "extract-institutions": "tsx scripts/extract-institutions-from-papers.ts",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:migrate": "prisma migrate dev",
+    "db:reset": "prisma migrate reset"
   },
   "dependencies": {
     "@prisma/client": "^6.12.0",
