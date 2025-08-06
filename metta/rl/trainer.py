@@ -363,7 +363,6 @@ def train(
                 )
 
                 # Train for multiple epochs
-                total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
                 minibatch_idx = 0
                 epochs_trained = 0
 
@@ -374,8 +373,6 @@ def train(
                             advantages=advantages,
                             prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                             prio_beta=anneal_beta,
-                            minibatch_idx=minibatch_idx,
-                            total_minibatches=total_minibatches,
                         )
 
                         # Process minibatch
