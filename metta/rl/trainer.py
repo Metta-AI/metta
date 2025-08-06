@@ -138,8 +138,9 @@ def train(
 
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
+        checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
         policy_store=policy_store,
-        checkpoint_config=trainer_cfg.checkpoint,
+        trainer_cfg=trainer_cfg,
         device=device,
         is_master=is_master,
         rank=rank,
@@ -279,7 +280,7 @@ def train(
                 name=name, attributes={}, url=url, description=description, tags=tags
             ).id
         except Exception as e:
-            logger.warning(f"Failed to create training run: {e}", exc_info=True)
+            logger.warning(f"Failed to create training run: {e}")
 
     if is_master:
         logger.info(f"Training on {device}")
@@ -453,14 +454,18 @@ def train(
 
         # Log training status
         if is_master:
+            rollout_time = timer.get_last_elapsed("_rollout")
+            train_time = timer.get_last_elapsed("_train")
+            stats_time = timer.get_last_elapsed("_process_stats")
+
             log_training_progress(
                 epoch=epoch,
                 agent_step=agent_step,
-                prev_agent_step=steps_before,
                 total_timesteps=trainer_cfg.total_timesteps,
-                train_time=timer.get_last_elapsed("_train"),
-                rollout_time=timer.get_last_elapsed("_rollout"),
-                stats_time=timer.get_last_elapsed("_process_stats"),
+                prev_agent_step=steps_before,
+                train_time=train_time,
+                rollout_time=rollout_time,
+                stats_time=stats_time,
                 run_name=run,
             )
 
@@ -468,8 +473,8 @@ def train(
         if interval := getattr(policy, "l2_init_weight_update_interval", 0):
             maybe_update_l2_weights(policy, epoch, interval, is_master)
 
-        # Save policy - all ranks must participate in checkpoint decision
-        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master):
+        # Save checkpoint - only master performs saves
+        if checkpoint_manager.should_checkpoint(epoch) and is_master:
             saved_record = checkpoint_manager.save_policy(
                 policy=policy,
                 epoch=epoch,
@@ -482,22 +487,20 @@ def train(
             if saved_record:
                 latest_saved_policy_record = saved_record
 
-                # Only master saves training state
-                if is_master:
-                    checkpoint_manager.save_checkpoint(
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        optimizer=optimizer,
-                        policy_path=saved_record.uri,
-                        timer=timer,
-                        run_dir=run_dir,
-                        kickstarter=kickstarter,
-                    )
+                # Save training state
+                checkpoint_manager.save_checkpoint(
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    optimizer=optimizer,
+                    policy_path=saved_record.uri,
+                    timer=timer,
+                    run_dir=run_dir,
+                    kickstarter=kickstarter,
+                )
 
-            # All ranks must synchronize after checkpoint operations
-            # This barrier must be outside the if saved_record block so all ranks hit it
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+        # All ranks synchronize after checkpoint operations
+        if checkpoint_manager.should_checkpoint(epoch) and torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
         # Upload to wandb
         if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
@@ -517,7 +520,7 @@ def train(
 
                 # Create extended simulation suite that includes the training task
                 # Deep merge trainer env_overrides with sim_suite_config env_overrides
-                merged_env_overrides: dict = OmegaConf.to_container(  # type: ignore
+                merged_env_overrides = OmegaConf.to_container(
                     OmegaConf.merge(sim_suite_config.env_overrides, trainer_cfg.env_overrides)
                 )
                 extended_suite_config = SimulationSuiteConfig(
@@ -562,8 +565,8 @@ def train(
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort every 5 epochs
-        if should_run(epoch, 5, is_master):
-            if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
+        if is_master and wandb_run and epoch % 5 == 0:
+            if abort_requested(wandb_run, min_interval_sec=60):
                 logger.info("Abort tag detected. Stopping the run.")
                 trainer_cfg.total_timesteps = int(agent_step)
                 wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
@@ -575,7 +578,7 @@ def train(
         for name, summary in timing_summary.items():
             logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
 
-    # Force final saves - all ranks must participate
+    # Force final saves - only master performs saves
     if is_master:
         saved_record = checkpoint_manager.save_policy(
             policy=policy,
@@ -586,6 +589,7 @@ def train(
             initial_policy_record=initial_policy_record,
             force=True,
         )
+
         if saved_record:
             latest_saved_policy_record = saved_record
 
@@ -601,14 +605,15 @@ def train(
                 force=True,
             )
 
-    # All ranks must synchronize after final save operations
+    # Synchronize after all save operations complete
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
-    if wandb_run and latest_saved_policy_record:
+    # Upload to WandB after all ranks have synchronized - only master uploads
+    if wandb_run and latest_saved_policy_record and is_master:
         upload_policy_artifact(wandb_run, policy_store, latest_saved_policy_record)
 
-    # Final synchronization before cleanup
+    # Ensure all ranks wait for upload to complete
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 

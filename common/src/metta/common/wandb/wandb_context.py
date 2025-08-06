@@ -166,10 +166,14 @@ class WandbContext:
     def cleanup_run(run: WandbRun | None):
         if run:
             try:
+                logger.info(f"Starting W&B cleanup for run: {run.id}")
                 wandb.finish()
+                logger.info("W&B cleanup completed successfully")
             except Exception as e:
                 logger.error(f"Error during W&B cleanup: {str(e)}")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        logger.info("WandbContext.__exit__ called")
         self.cleanup_run(self.run)
+        logger.info("WandbContext.__exit__ completed")
         # No explicit cleanup of the IPC file as per user preference (it's co-located with heartbeat or not written)

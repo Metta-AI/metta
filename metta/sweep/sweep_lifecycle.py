@@ -250,23 +250,37 @@ def _evaluate_sweep_run(
 
 
 def _create_train_job_cfg_for_run(sweep_job_cfg: DictConfig, run_name: str) -> DictConfig:
+    """Create a training job configuration for a specific sweep run.
+
+    This function takes a sweep job configuration and transforms it into a training
+    configuration for a specific run by:
+    1. Setting run-specific variables (run name, sweep directory)
+    2. Resolving all interpolated paths and values
+    3. Extracting the training job configuration
+    4. Configuring WandB with sweep-specific group and run names
+
+    Args:
+        sweep_job_cfg: The base sweep job configuration containing all sweep settings
+        run_name: The specific run name (e.g., "sweep_name.r.1")
+
+    Returns:
+        DictConfig: A fully resolved training job configuration ready for execution
+
+    Note:
+        The function manually sets WandB group and name after config resolution
+        because these values are not automatically resolved by OmegaConf.
+    """
     sweep_job_copy = OmegaConf.create(OmegaConf.to_container(sweep_job_cfg, resolve=False))
 
     # These must be set before resolving the config so that paths are properly interpolated
     sweep_job_copy.run = run_name
     sweep_job_copy.sweep_dir = f"{sweep_job_cfg.data_dir}/sweep/{sweep_job_cfg.sweep_name}"
-    sweep_job_copy.data_dir = f"{sweep_job_copy.sweep_dir}/runs"
     resolved_sweep_job_copy = OmegaConf.create(OmegaConf.to_container(sweep_job_copy, resolve=True))
     train_job_cfg = resolved_sweep_job_copy.sweep_train_job
     assert isinstance(train_job_cfg, DictConfig)
 
-    # Add sweep_name for evaluation
-    train_job_cfg.sweep_name = sweep_job_cfg.sweep_name
-
-    # TODO: This is a hack to get the wandb config to work.
-    # Resolving early messes with the data_dir interpolation for wandb,
-    # so we set it explicitly here.
+    # Prepare wandb config (this is NOT automatic)
     train_job_cfg.wandb.group = sweep_job_cfg.sweep_name
     train_job_cfg.wandb.name = run_name
-    # train_job_cfg.wandb.data_dir = train_job_cfg.run_dir
+    train_job_cfg.wandb.data_dir = train_job_cfg.run_dir  # Important
     return train_job_cfg

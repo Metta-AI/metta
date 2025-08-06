@@ -90,6 +90,8 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
+        with open(os.path.join(cfg.run_dir, "sweep_eval_config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f, resolve=True)
     train_job = TrainJob(cfg.train_job)
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
@@ -185,8 +187,11 @@ def main(cfg: DictConfig) -> int:
         handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
+        logger.info(f"Rank {torch.distributed.get_rank()}: Destroying process group")
         torch.distributed.destroy_process_group()
+        logger.info("Process group destroyed successfully")
 
+    logger.info(f"Process {os.getpid()} exiting with code 0")
     return 0
 
 
