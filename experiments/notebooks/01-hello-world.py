@@ -117,15 +117,24 @@ cfg = OmegaConf.create({
 # We'll also track the agent's inventory and display the score.
 #
 # %%
-env, render_mode = setup_environment(cfg)
-policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
+import io, contextlib
 
+# Suppress all stdout during environment setup and policy initialization
+_dummy_buf = io.StringIO()
+with contextlib.redirect_stdout(_dummy_buf):
+    env, render_mode = setup_environment(cfg)
+    policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
+
+# Create and display widgets
 header = widgets.HTML()
 map_box = widgets.HTML()
 display(header, map_box)
 
+# Reset environment
 obs, info = env.reset()
 total_reward = 0
+
+# Run simulation loop
 for step in range(cfg.renderer_job.num_steps):
     actions = policy.predict(obs)
     obs, rewards, terminals, truncations, info = env.step(actions)
@@ -133,22 +142,24 @@ for step in range(cfg.renderer_job.num_steps):
     agent_obj = next(o for o in env.grid_objects.values() if o.get("agent_id") == 0)
     inv = {env.inventory_item_names[idx]: count for idx, count in agent_obj.get("inventory", {}).items()}
     total_reward = inv.get("ore_red", 0)
-    # Update display
-    header.value = f"<b>Score:</b> {total_reward:.1f} | <b>Step:</b> {step+1}/{cfg.renderer_job.num_steps}"
-    map_box.value = f"<pre>{env.render() or ''}</pre>"
+    # Update header
+    header.value = f"<b>Step:</b> {step+1}/{cfg.renderer_job.num_steps} | <b>Inventory:</b> {inv}"
+    # Get ASCII buffer and update map (suppress stdout from render)
+    with contextlib.redirect_stdout(io.StringIO()):
+        buffer_str = env.render()
+    map_box.value = f"<pre>{buffer_str}</pre>"
     if cfg.renderer_job.sleep_time:
         time.sleep(cfg.renderer_job.sleep_time)
+
 env.close()
 
 # %% [markdown]
 # ### What You'll See:
-# - The agent (`0`) moving back and forth in the hallway
-# - The mine ('m') is continually generating ore (not shown=)
+# - The agent (`0`) moving back and forth randomly in the hallway
+# - The mine ('m') is continually generating ore (not shown)
 # - When the agent reaches the mine, it should sometimes pick up ore
 # - This will increase the agent's "score"
 #
-#
-# When you're ready to keep going, stop the cell above and continue to the next step.
 #
 # ## 4. Doing an Evaluation
 #
