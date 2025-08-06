@@ -118,7 +118,7 @@ def main(cfg: DictConfig) -> None:
                 logger=logger,
                 eval_task_id=eval_task_id,
             )
-            if eval_task_id:
+            if cfg.push_metrics_to_wandb:
                 try:
                     process_policy_evaluator_stats(pr, eval_results)
                 except Exception as e:

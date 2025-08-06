@@ -28,12 +28,15 @@ class PolicyRecord:
         self.metadata = metadata
         self._cached_policy: "PolicyAgent | None" = None
 
-    def get_wandb_info(self) -> tuple[str, str, str]:
+    def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
             raise ValueError("Cannot get wandb info without a valid URI.")
         try:
             entity, project, name = self.uri[len("wandb://") :].split("/")
-            return entity, project, name
+            version: str | None = None
+            if ":" in name:
+                name, version = name.split(":")
+            return entity, project, name, version
         except ValueError as e:
             raise ValueError(
                 f"Failed to parse wandb URI: {self.uri}. Expected format: wandb://<entity>/<project>/<name>"

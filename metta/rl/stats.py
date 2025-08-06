@@ -434,9 +434,9 @@ def process_policy_evaluator_stats(
         return
 
     try:
-        wandb_entity, wandb_project, wandb_run_id = pr.get_wandb_info()
+        wandb_entity, wandb_project, wandb_run_id, _ = pr.extract_wandb_run_info()
     except ValueError as e:
-        logger.warning(f"Failed to get wandb info from policy record: {e}")
+        logger.warning(f"Failed to get wandb info from policy record {pr.uri}: {e}")
         return
 
     if not all((wandb_run_id, wandb_project, wandb_entity)):
