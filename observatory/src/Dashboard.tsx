@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { DashboardState, PolicyScorecardData, Repo, SavedDashboard, SavedDashboardCreate } from './repo'
+import { DashboardState, PolicyScorecardData, Repo, SavedDashboard, SavedDashboardCreate, UnifiedPolicyInfo } from './repo'
 import { PolicySelector } from './components/PolicySelector'
-import { SearchInput } from './components/SearchInput'
 import { EvalSelector } from './components/EvalSelector'
 import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
 import { MetricSelector } from './components/MetricSelector'
@@ -19,6 +18,7 @@ interface DashboardProps {
 export function Dashboard({ repo }: DashboardProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   // Data state
+  const [policies, setPolicies] = useState<UnifiedPolicyInfo[]>([])
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
   const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
   const [scorecardData, setScorecardData] = useState<PolicyScorecardData | null>(null)
@@ -30,12 +30,9 @@ export function Dashboard({ repo }: DashboardProps) {
   const [trainingRunPolicySelector, setTrainingRunPolicySelector] = useState<'latest' | 'best'>('latest')
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState<number>(1)
-
   // UI state
-  const [policySearchText, setPolicySearchText] = useState<string>('')
   const [loading, setLoading] = useState({
+    policies: false,
     evalCategories: false,
     metrics: false,
     scorecard: false,
@@ -53,6 +50,25 @@ export function Dashboard({ repo }: DashboardProps) {
 
   // Dashboard metadata state
   const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null)
+
+  // Load policies on mount
+  useEffect(() => {
+    const loadPolicies = async () => {
+      try {
+        setLoading((prev) => ({ ...prev, policies: true }))
+        setError(null)
+        const response = await repo.getPolicies()
+        setPolicies(response.policies)
+      } catch (err) {
+        setError(`Failed to load policies: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setPolicies([])
+      } finally {
+        setLoading((prev) => ({ ...prev, policies: false }))
+      }
+    }
+
+    loadPolicies()
+  }, [])
 
   // Load eval names when training runs or policies are selected
   useEffect(() => {
@@ -84,7 +100,7 @@ export function Dashboard({ repo }: DashboardProps) {
     }
 
     loadEvalNames()
-  }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds])
+  }, [selectedTrainingRunIds, selectedRunFreePolicyIds])
 
   // Load available metrics when training runs/policies and evaluations are selected
   useEffect(() => {
@@ -129,9 +145,8 @@ export function Dashboard({ repo }: DashboardProps) {
     }
 
     loadMetrics()
-  }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric])
+  }, [selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames])
 
-  // Generate scorecard
   const generateScorecard = async (
     selectedTrainingRunIds: string[],
     selectedRunFreePolicyIds: string[],
@@ -170,15 +185,6 @@ export function Dashboard({ repo }: DashboardProps) {
   const generateScorecardCallback = async () => {
     await generateScorecard(selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric)
   }
-
-  // Stable handlers for PolicySelector to prevent unnecessary re-renders
-  const handleSearchChange = useCallback((searchText: string) => {
-    setPolicySearchText(searchText)
-  }, [])
-
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page)
-  }, [])
 
   const canGenerateScorecard =
     (selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
@@ -302,7 +308,7 @@ export function Dashboard({ repo }: DashboardProps) {
     if (savedId) {
       loadSavedDashboard(savedId)
     }
-  }, [savedId, repo])
+  }, [savedId])
 
   return (
     <div className={styles.dashboardContainer}>
@@ -339,17 +345,20 @@ export function Dashboard({ repo }: DashboardProps) {
               <div className={styles.widget}>
                 <h3 className={styles.widgetTitle}>Policy Selection</h3>
                 <div className={styles.widgetContent}>
-                  <SearchInput searchText={policySearchText} onSearchChange={handleSearchChange} disabled={false} />
-                  <PolicySelector
-                    repo={repo}
-                    searchText={policySearchText}
-                    selectedTrainingRunIds={selectedTrainingRunIds}
-                    selectedRunFreePolicyIds={selectedRunFreePolicyIds}
-                    onTrainingRunSelectionChange={setSelectedTrainingRunIds}
-                    onRunFreePolicySelectionChange={setSelectedRunFreePolicyIds}
-                    currentPage={currentPage}
-                    onPageChange={handlePageChange}
-                  />
+                  {loading.policies ? (
+                    <div className={styles.loadingContainer}>
+                      <span className={styles.loadingSpinner}></span>
+                      Loading policies...
+                    </div>
+                  ) : (
+                    <PolicySelector
+                      policies={policies}
+                      selectedTrainingRunIds={selectedTrainingRunIds}
+                      selectedRunFreePolicyIds={selectedRunFreePolicyIds}
+                      onTrainingRunSelectionChange={setSelectedTrainingRunIds}
+                      onRunFreePolicySelectionChange={setSelectedRunFreePolicyIds}
+                    />
+                  )}
                 </div>
               </div>
 

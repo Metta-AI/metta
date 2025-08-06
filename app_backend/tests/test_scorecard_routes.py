@@ -124,19 +124,15 @@ class TestPolicyScorecardRoutes:
         )
 
         # Get all policies without search
-        response = test_client.post("/heatmap/policies", json={"pagination": {"page": 1, "page_size": 25}})
+        response = test_client.get("/heatmap/policies")
         assert response.status_code == 200
         result = response.json()
 
         # Verify response structure
         assert "policies" in result
-        assert "total_count" in result
-        assert "page" in result
-        assert "page_size" in result
 
         # Should have 2 total policies (1 training run + 1 run-free policy)
         assert len(result["policies"]) >= 2
-        assert result["total_count"] >= 2
 
         # Find training run and policy in unified list
         training_run = next(p for p in result["policies"] if p["type"] == "training_run")
@@ -163,99 +159,6 @@ class TestPolicyScorecardRoutes:
         assert policy["type"] == "policy"
         assert isinstance(policy["tags"], list)
         assert policy["tags"] == []  # Run-free policies have empty tags
-
-    def test_get_policies_with_search(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test policy filtering with search text."""
-        # Create test data first
-        test_data = self._create_test_data(stats_client, "search_test", num_policies=2)
-
-        # Record episodes so policies appear in wide_episodes view
-        self._record_episodes(
-            stats_client,
-            test_data,
-            eval_category="navigation",
-            env_names=["test_env"],
-            metric_values={"policy_0_test_env": 75.0, "policy_1_test_env": 85.0},
-        )
-
-        # Search by training run name
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "search_test", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should return the matching training run
-        assert len(result["policies"]) >= 1
-        policy_names = [p["name"] for p in result["policies"]]
-        assert any("search_test" in name for name in policy_names)
-
-        # Search by user (should match all since same user created all)
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "test_user", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-        # Should have at least our test training run
-        assert len(result["policies"]) >= 1
-
-    def test_get_policies_with_tag_search(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test policy filtering with tag search."""
-        # Create test data first
-        test_data = self._create_test_data(stats_client, "tag_search_test", num_policies=2)
-
-        # Record episodes so policies appear in wide_episodes view
-        self._record_episodes(
-            stats_client,
-            test_data,
-            eval_category="navigation",
-            env_names=["test_env"],
-            metric_values={"policy_0_test_env": 75.0, "policy_1_test_env": 85.0},
-        )
-
-        # Search by tag (tags are ["test_tag", "scorecard_test"] from _create_test_data)
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "test_tag", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should return the matching training run
-        assert len(result["policies"]) >= 1
-        training_run = next(p for p in result["policies"] if p["type"] == "training_run")
-        assert "test_tag" in training_run["tags"]
-
-        # Search by partial tag match
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "scorecard", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should return the matching training run
-        assert len(result["policies"]) >= 1
-        training_run = next(p for p in result["policies"] if p["type"] == "training_run")
-        assert any("scorecard" in tag for tag in training_run["tags"])
-
-        # Search by non-existent tag
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "nonexistent_tag", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should not return any training runs matching this tag
-        tag_match_count = sum(
-            1
-            for p in result["policies"]
-            if p["type"] == "training_run" and any("nonexistent_tag" in tag for tag in p["tags"])
-        )
-        assert tag_match_count == 0
 
     def test_get_eval_categories(self, test_client: TestClient, stats_client: StatsClient) -> None:
         """Test getting evaluation categories for selected policies."""
@@ -672,10 +575,7 @@ class TestPolicyScorecardRoutes:
             )
 
         # Get all policies
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": base_name, "pagination": {"page": 1, "page_size": 25}},
-        )
+        response = test_client.get("/heatmap/policies")
         assert response.status_code == 200
         policies_data = response.json()
 
