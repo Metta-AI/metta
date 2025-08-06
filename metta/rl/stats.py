@@ -450,6 +450,7 @@ def process_policy_evaluator_stats(
         resume="must",
     )
     try:
-        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: epoch}, step=epoch)
+        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: epoch})
+        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
     finally:
         run.finish()
