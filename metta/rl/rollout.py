@@ -147,10 +147,27 @@ def run_dual_policy_rollout(
         device=device,
     )
 
-    # Combine actions, log_probs, values (only training agents contribute to learning)
-    all_actions = torch.cat([training_actions, npc_actions], dim=0)
-    all_log_probs = torch.cat([training_log_probs, npc_log_probs], dim=0)
-    all_values = torch.cat([training_values, npc_values], dim=0)
+    # Reconstruct actions in the correct order for all agents
+    # We need to place training actions and NPC actions back in their original positions
+    total_agents = observations.shape[0]
+    num_training_agents = int(total_agents * training_agents_pct)
+
+    # Create actions tensor for all agents
+    all_actions = torch.zeros(total_agents, *training_actions.shape[1:], device=device, dtype=training_actions.dtype)
+    all_log_probs = torch.zeros(
+        total_agents, *training_log_probs.shape[1:], device=device, dtype=training_log_probs.dtype
+    )
+    all_values = torch.zeros(total_agents, *training_values.shape[1:], device=device, dtype=training_values.dtype)
+
+    # Place training actions in first positions
+    all_actions[:num_training_agents] = training_actions
+    all_log_probs[:num_training_agents] = training_log_probs
+    all_values[:num_training_agents] = training_values
+
+    # Place NPC actions in remaining positions
+    all_actions[num_training_agents:] = npc_actions
+    all_log_probs[num_training_agents:] = npc_log_probs
+    all_values[num_training_agents:] = npc_values
 
     # Return combined results and LSTM state from training policy only
     return all_actions, all_log_probs, all_values, lstm_state
