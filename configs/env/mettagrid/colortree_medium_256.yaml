@@ -28,12 +28,9 @@ game:
       enabled: true
       target_sequence: [0, 1, 2, 0] # Medium: 3 colors, 4 slots - will be randomized by curriculum
       sequence_reward: 1.0
-      num_trials: 4
-      attempts_per_trial: 4
+      num_trials: 1
+      attempts_per_trial: 16
       reward_mode: "dense"
       trial_sequences:
-        - [0, 1, 2, 0] # Same sequence repeated 4 times per episode
-        - [0, 1, 2, 0]
-        - [0, 1, 2, 0]
-        - [0, 1, 2, 0]
+        - [0, 1, 2, 0] # Same sequence for entire 64-step episode
       color_to_item: {0: ore_red, 1: ore_green, 2: ore_blue}
