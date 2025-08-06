@@ -199,9 +199,6 @@ function App() {
               >
                 Training Runs
               </Link>
-              <Link to="/episodes" className={`nav-tab ${location.pathname === '/episodes' ? 'active' : ''}`}>
-                Episodes
-              </Link>
               <Link
                 to="/eval-tasks"
                 className={`nav-tab ${location.pathname.startsWith('/eval-task') ? 'active' : ''}`}
