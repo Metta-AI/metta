@@ -120,7 +120,6 @@ class SingleTaskCurriculum(Curriculum):
 
     def get_task(self) -> Task:
         self._task.reset(self._task_cfg)
-        # return SingleTrialTask(self._task_id, self, self._task_cfg)
         return self._task
 
     def get_task_probs(self) -> dict[str, float]:
