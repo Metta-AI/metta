@@ -9,6 +9,13 @@ defaults:
 game:
   num_agents: 24
   max_steps: 150
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
   agent:
     default_resource_limit: 1
     rewards:
