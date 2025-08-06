@@ -28,6 +28,12 @@ class PolicyRecord:
         self.metadata = metadata
         self._cached_policy: "PolicyAgent | None" = None
 
+    def get_wandb_info(self) -> tuple[str, str, str]:
+        if self.uri is None or not self.uri.startswith("wandb://"):
+            raise ValueError("Cannot get wandb info without a valid URI.")
+        run, project, entity = self.uri[len("wandb://") :].split("/")
+        return run, project, entity
+
     @property
     def metadata(self) -> PolicyMetadata:
         """Get the metadata."""

@@ -1,6 +1,10 @@
+import logging
+
 from pydantic import Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+
+logger = logging.getLogger(__name__)
 
 
 class EvalRewardSummary(BaseModelWithForbidExtra):

@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import wandb
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import PolicyAgent
@@ -16,7 +17,7 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -308,6 +309,8 @@ def build_wandb_stats(
     }
 
     # Combine all stats
+    # Note: Evaluation metrics are now logged separately in evaluate_policy()
+    # to avoid step conflicts with remote evaluations
     return {
         **{f"overview/{k}": v for k, v in overview.items()},
         **{f"losses/{k}": v for k, v in processed_stats["losses_stats"].items()},
@@ -412,3 +415,31 @@ def process_stats(
 
     # Log to wandb
     wandb_run.log(all_stats, step=agent_step)
+
+
+def process_policy_evaluator_stats(
+    pr: PolicyRecord,
+    eval_results: EvalResults,
+) -> None:
+    # TODO: this should also upload replay urls
+    epoch = pr.metadata.get("epoch")
+    try:
+        wandb_run_id, wandb_project, wandb_entity = pr.get_wandb_info()
+    except ValueError as e:
+        logger.warning(f"Failed to get wandb info from policy record: {e}")
+        return
+
+    if wandb_run_id and wandb_project and epoch:
+        metrics_to_log = {
+            f"policy_evaluator/eval_{k}": v for k, v in eval_results.scores.to_wandb_metrics_format().items()
+        }
+        run = wandb.init(
+            id=wandb_run_id,
+            project=wandb_project,
+            entity=wandb_entity,
+            resume="must",
+        )
+        try:
+            run.log(metrics_to_log, step=epoch)
+        finally:
+            run.finish()
