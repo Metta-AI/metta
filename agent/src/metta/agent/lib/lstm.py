@@ -79,19 +79,18 @@ class LSTM(LayerBase):
         else:
             training_env_id = 0
 
-        h_0 = (
-            self.lstm_h[training_env_id]
-            if training_env_id in self.lstm_h
-            else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
-        )
-        c_0 = (
-            self.lstm_c[training_env_id]
-            if training_env_id in self.lstm_c
-            else torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
-        )
-        state = (h_0, c_0)
+        if training_env_id in self.lstm_h and training_env_id in self.lstm_c:
+            h_0 = self.lstm_h[training_env_id]
+            c_0 = self.lstm_c[training_env_id]
+            dones = td.get("dones", None)
+            if dones is not None:
+                h_0[:, dones.bool(), :] = 0
+                c_0[:, dones.bool(), :] = 0
+        else:
+            h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
 
-        hidden, (h_n, c_n) = self._net(hidden, state)
+        hidden, (h_n, c_n) = self._net(hidden, (h_0, c_0))
 
         self.lstm_h[training_env_id] = h_n.detach()
         self.lstm_c[training_env_id] = c_n.detach()
