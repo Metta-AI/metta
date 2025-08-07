@@ -10,7 +10,7 @@ defaults:
   - _self_
 
 trainer:
-  compile: true
+  compile: false
   total_timesteps: 10_000_000
   # curriculum: /env/mettagrid/navigation/training/multienv
   # curriculum: /env/mettagrid/curriculum/arena/learning_progress

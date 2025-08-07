@@ -31,8 +31,13 @@ def evaluate_policy_remote(
     wandb_run: WandbRun | None,
     trainer_cfg: TrainerConfig,
 ) -> TaskResponse | None:
-    # Handle remote evaluation if configured
-    # ensures it was uploaded to wandb
+    """Create a task to evaluate a policy remotely.
+
+    Ensures policy is uploaded to wandb.
+
+    Returns:
+        TaskResponse for the policy evaluation or None if policy is not uploaded to wandb
+    """
     if wandb_run and stats_client and policy_record and wandb_policy_name:
         # Need to upload policy artifact to wandb first and make sure our name
         # reflects that in the version
@@ -76,7 +81,7 @@ def evaluate_policy(
     agent_step: int,
     epoch: int,
 ) -> EvalRewardSummary:
-    """Evaluate policy using the eval service and handle remote evaluation, scoring, and replay uploads.
+    """Evaluate policy using the eval service, handling scoring and replay uploads.
 
     This function orchestrates policy evaluation including:
     - Remote evaluation via stats server if configured
@@ -87,7 +92,6 @@ def evaluate_policy(
     Returns:
         EvalRewardSummary containing the evaluation scores
     """
-    # Local evaluation
     evaluation_results = eval_service_evaluate_policy(
         policy_record=policy_record,
         simulation_suite=sim_suite_config,
