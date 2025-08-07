@@ -19,7 +19,9 @@ game:
     change_color:
       enabled: false
   agent:
-    default_resource_limit: 1
+    resource_limits:
+      ore_red: 1
+      heart: 10
     rewards:
       inventory:
         heart: 1.0

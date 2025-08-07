@@ -2,7 +2,7 @@ defaults:
   - sim_suite
   - _self_
 
-name: operant_conditioning_multiday
+name: operant_conditioning_singleepisode
 
 simulations:
   operant_conditioning_multiday/2_converters_generator_blue:
