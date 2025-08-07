@@ -228,6 +228,16 @@ def train(
     # Get LSTM configuration
     hidden_size, num_lstm_layers = get_lstm_config(policy)
 
+    #####################################################################below
+    # Calculate the number of agents that need LSTM states
+    # In dual-policy mode, only training agents need LSTM states
+    total_agents = vecenv.num_agents  # type: ignore[attr-defined]
+    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
+        lstm_agents = int(total_agents * trainer_cfg.dual_policy.training_agents_pct)
+    else:
+        lstm_agents = total_agents
+    #####################################################################
+
     # Create experience buffer
     experience = Experience(
         total_agents=vecenv.num_agents,  # type: ignore[attr-defined]
@@ -242,6 +252,9 @@ def train(
         cpu_offload=trainer_cfg.cpu_offload,
         num_lstm_layers=num_lstm_layers,
         agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+        #####################################################################below
+        lstm_agents=lstm_agents,  # Pass the number of agents that need LSTM states
+        #####################################################################
     )
 
     # Create optimizer

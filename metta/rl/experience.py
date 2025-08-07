@@ -42,6 +42,9 @@ class Experience:
         cpu_offload: bool = False,
         num_lstm_layers: int = 2,
         agents_per_batch: Optional[int] = None,
+        #####################################################################below
+        lstm_agents: Optional[int] = None,  # Number of agents that need LSTM states (for dual-policy)
+        #####################################################################
     ):
         """Initialize experience buffer with segmented storage."""
         # Store parameters
@@ -100,15 +103,25 @@ class Experience:
         assert num_lstm_layers > 0, f"num_lstm_layers must be positive, got {num_lstm_layers}"
         assert hidden_size > 0, f"hidden_size must be positive, got {hidden_size}"
 
-        # Use provided agents_per_batch or default to total_agents
-        if agents_per_batch is None:
-            agents_per_batch = total_agents
+        #####################################################################below
+        # Use lstm_agents if provided (for dual-policy), otherwise use total_agents
+        num_lstm_agents = lstm_agents if lstm_agents is not None else total_agents
 
-        # Create LSTM states for each batch
-        for i in range(0, total_agents, agents_per_batch):
-            batch_size = min(agents_per_batch, total_agents - i)
+        # Use provided agents_per_batch or default to num_lstm_agents
+        if agents_per_batch is None:
+            agents_per_batch = num_lstm_agents
+            # agents_per_batch = total_agents
+
+        #    # Create LSTM states for each batch
+        #    for i in range(0, total_agents, agents_per_batch):
+        #        batch_size = min(agents_per_batch, total_agents - i)
+
+        # Create LSTM states for each batch (only for agents that need them)
+        for i in range(0, num_lstm_agents, agents_per_batch):
+            batch_size = min(agents_per_batch, num_lstm_agents - i)
             self.lstm_h[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
             self.lstm_c[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
+        #####################################################################
 
         # Minibatch configuration
         self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
