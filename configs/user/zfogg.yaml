@@ -9,6 +9,8 @@ defaults:
   # - /wandb/metta_research
   - _self_
 
+push_metrics_to_wandb: true
+
 trainer:
   compile: false
   total_timesteps: 10_000_000
