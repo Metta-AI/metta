@@ -106,6 +106,24 @@ def train(
     torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
+    # Check if we're in analysis mode
+    if trainer_cfg.analysis_mode:
+        logger.info("Running in curriculum analysis mode")
+        from metta.rl.curriculum_analysis import run_curriculum_analysis
+
+        # Load oracle curriculum if specified
+        oracle_curriculum = None
+        if trainer_cfg.oracle_curriculum:
+            oracle_curriculum = curriculum_from_config_path(
+                trainer_cfg.oracle_curriculum, DictConfig(trainer_cfg.env_overrides)
+            )
+
+        # Run curriculum analysis
+        run_curriculum_analysis(trainer_cfg=trainer_cfg, curriculum=curriculum, oracle_curriculum=oracle_curriculum)
+
+        logger.info("Curriculum analysis completed")
+        return
+
     # Calculate batch sizes
     num_agents = curriculum.get_task().env_cfg().game.num_agents
     target_batch_size, batch_size, num_envs = calculate_batch_sizes(

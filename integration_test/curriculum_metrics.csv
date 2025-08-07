@@ -1,0 +1,7 @@
+epoch,efficiency,time_to_threshold,time_to_first_mastery,final_perf_variance,adaptation_speed,weight_stability
+LearningProgressCurriculum,50.77804284884978,1,1,0.0,0.0,0.0
+LearningProgressCurriculum,51.03766421450444,2,2,6.740325350439112e-06,0.0,0.0
+LearningProgressCurriculum,52.98943897224816,3,3,0.0007663784912267391,0.0,0.0
+LearningProgressCurriculum,51.643160128802826,4,4,0.0011185238857126078,0.0,0.0
+LearningProgressCurriculum,50.4039743542121,5,5,0.0015090516621492933,0.0,0.0
+LearningProgressCurriculum,49.114816449275004,6,6,0.0020885071037219744,0.0,0.0

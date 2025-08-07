@@ -202,6 +202,34 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Disabled by default: Expensive diagnostic for debugging training instability
     grad_mean_variance_interval: int = Field(default=0, ge=0)  # 0 to disable
 
+    # Analysis mode configuration
+    analysis_mode: bool = Field(default=False)
+    analysis_epochs: int = Field(default=100, gt=0)
+    analysis_tasks_per_epoch: int = Field(default=10, gt=0)
+    oracle_curriculum: str | None = None
+    analysis_output_dir: str = Field(default="")
+    analysis_metrics: list[str] = Field(
+        default_factory=lambda: [
+            "efficiency_regret",
+            "time_regret",
+            "normalized_efficiency_regret",
+            "normalized_time_regret",
+            "adaptation_speed",
+            "weight_stability",
+        ]
+    )
+
+    # Curriculum regret analysis settings
+    curriculum_regret_analysis: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "enable": True,
+            "oracle_name": "oracle",
+            "regret_metrics": ["efficiency_regret", "time_regret"],
+            "adaptation_analysis": True,
+            "max_epochs": 200,
+        }
+    )
+
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         validate_assignment=True,

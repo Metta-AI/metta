@@ -1,0 +1,95 @@
+# Curriculum Analysis Configuration
+# This configuration runs curriculum analysis without actual training
+
+num_workers: 1
+curriculum: ???
+env_overrides: {}
+
+# Analysis-specific settings
+analysis_mode: true
+analysis_epochs: 100
+analysis_tasks_per_epoch: 10
+oracle_curriculum: "/env/mettagrid/curriculum/oracle"  # Path to oracle curriculum for comparison
+
+# Disable actual training components
+total_timesteps: 1000  # Very small for analysis
+batch_size: 1024
+minibatch_size: 256
+bptt_horizon: 16
+update_epochs: 1
+
+# Disable expensive operations
+compile: false
+cpu_offload: false
+profiler:
+  interval_epochs: 10000  # Disable profiling
+
+# Disable checkpoints and simulation
+checkpoint:
+  checkpoint_interval: 10000  # Disable checkpoints
+  wandb_checkpoint_interval: 10000
+
+simulation:
+  evaluate_interval: 10000  # Disable evaluation
+
+# Analysis output settings
+analysis_output_dir: ${run_dir}/curriculum_analysis
+analysis_metrics:
+  - efficiency_regret
+  - time_regret
+  - normalized_efficiency_regret
+  - normalized_time_regret
+  - adaptation_speed
+  - weight_stability
+
+# Curriculum regret analysis settings
+curriculum_regret_analysis:
+  enable: true
+  oracle_name: "oracle"
+  regret_metrics: ["efficiency_regret", "time_regret"]
+  adaptation_analysis: true
+  max_epochs: 200
+
+# Standard trainer settings (minimal)
+optimizer:
+  type: adam
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-12
+  learning_rate: 0.000457
+  weight_decay: 0
+
+ppo:
+  clip_coef: 0.1
+  ent_coef: 0.0021
+  gae_lambda: 0.916
+  gamma: 0.977
+  max_grad_norm: 0.5
+  vf_clip_coef: 0.1
+  vf_coef: 0.44
+  l2_reg_loss_coef: 0
+  l2_init_loss_coef: 0
+  norm_adv: true
+  clip_vloss: true
+  target_kl: null
+
+prioritized_experience_replay:
+  prio_alpha: 0.0
+  prio_beta0: 0.6
+
+vtrace:
+  vtrace_rho_clip: 1.0
+  vtrace_c_clip: 1.0
+
+zero_copy: true
+require_contiguous_env_ids: false
+verbose: true
+
+forward_pass_minibatch_target_size: 1024
+async_factor: 1
+scale_batches_by_world_size: false
+
+hyperparameter_scheduler:
+  learning_rate_schedule:
+    type: constant
+    value: 0.000457 
