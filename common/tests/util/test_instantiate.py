@@ -17,9 +17,9 @@ class TestInstantiate:
             "_target_": "collections.OrderedDict",
             "data": {"a": 1, "b": 2}
         }
-        
+
         result = instantiate(config)
-        
+
         from collections import OrderedDict
         assert isinstance(result, OrderedDict)
         assert result["data"] == {"a": 1, "b": 2}
@@ -30,9 +30,9 @@ class TestInstantiate:
             "_target_": "collections.OrderedDict",
             "data": {"a": 1}
         }
-        
+
         result = instantiate(config, data={"b": 2})
-        
+
         from collections import OrderedDict
         assert isinstance(result, OrderedDict)
         assert result["data"] == {"b": 2}  # Kwargs override config
@@ -43,9 +43,9 @@ class TestInstantiate:
             "_target_": "collections.OrderedDict",
             "data": {"x": 10, "y": 20}
         })
-        
+
         result = instantiate(config)
-        
+
         from collections import OrderedDict
         assert isinstance(result, OrderedDict)
         assert result["data"] == {"x": 10, "y": 20}
@@ -58,9 +58,9 @@ class TestInstantiate:
             "_other_meta_": "also_ignored",
             "valid_arg": "should_be_passed"
         }
-        
+
         result = instantiate(config)
-        
+
         from collections import OrderedDict
         assert isinstance(result, OrderedDict)
         assert result["valid_arg"] == "should_be_passed"
@@ -70,21 +70,21 @@ class TestInstantiate:
     def test_instantiate_missing_target_raises_error(self):
         """Test that missing _target_ field raises ValueError."""
         config = {"some_arg": "value"}
-        
+
         with pytest.raises(ValueError, match="Configuration missing '_target_' field"):
             instantiate(config)
 
     def test_instantiate_invalid_module_raises_import_error(self):
         """Test that invalid module path raises ImportError."""
         config = {"_target_": "nonexistent.module.Class"}
-        
+
         with pytest.raises(ImportError, match="Failed to import module nonexistent.module"):
             instantiate(config)
 
     def test_instantiate_invalid_class_raises_attribute_error(self):
         """Test that invalid class name raises AttributeError."""
         config = {"_target_": "collections.NonexistentClass"}
-        
+
         with pytest.raises(AttributeError, match="Module collections has no class NonexistentClass"):
             instantiate(config)
 
@@ -92,7 +92,7 @@ class TestInstantiate:
         """Test that invalid config type raises TypeError."""
         with pytest.raises(TypeError, match="Config must be dict or DictConfig"):
             instantiate("not_a_dict")
-        
+
         with pytest.raises(TypeError, match="Config must be dict or DictConfig"):
             instantiate(123)
 
@@ -112,10 +112,10 @@ class TestInstantiate:
             "_target_": "collections.defaultdict",
             "default_factory": {"_target_": "builtins.list"}
         }
-        
+
         # Note: This test shows the limitation - nested configs need recursive processing
         result = instantiate(config)
-        
+
         from collections import defaultdict
         assert isinstance(result, defaultdict)
         # The default_factory will be a dict, not an instantiated list
@@ -126,9 +126,9 @@ class TestInstantiate:
             "_target_": "collections.defaultdict",
             "default_factory": {"_target_": "builtins.list"}
         }
-        
+
         result = instantiate(config, _recursive_=True)
-        
+
         from collections import defaultdict
         assert isinstance(result, defaultdict)
         assert callable(result.default_factory)
@@ -147,9 +147,9 @@ class TestInstantiate:
                 }
             }
         }
-        
+
         result = instantiate(config, _recursive_=True)
-        
+
         from collections import OrderedDict
         assert isinstance(result, OrderedDict)
         assert isinstance(result["data"]["list_factory"], list)
@@ -165,9 +165,9 @@ class TestInstantiate:
                 "normal_string"
             ]
         }
-        
+
         result = instantiate(config, _recursive_=True)
-        
+
         from collections import OrderedDict
         assert isinstance(result, OrderedDict)
         assert isinstance(result["factories"][0], list)
@@ -182,9 +182,9 @@ class TestInstantiate:
             "base": "test",
             "derived": "${base}_suffix"
         })
-        
+
         result = instantiate(config)
-        
+
         from collections import OrderedDict
         assert isinstance(result, OrderedDict)
         assert result["base"] == "test"
@@ -197,9 +197,9 @@ class TestInstantiate:
             "_target_": "logging.Logger",
             "name": "test_logger"
         }
-        
+
         result = instantiate(config)
-        
+
         import logging
         assert isinstance(result, logging.Logger)
         assert result.name == "test_logger"
@@ -211,9 +211,9 @@ class TestInstantiate:
             "data": {"original": True}
         }
         config_copy = original_config.copy()
-        
+
         result = instantiate(config_copy, data={"modified": True})
-        
+
         # Original should be unchanged
         assert original_config["data"] == {"original": True}
         # Result should use overridden data
@@ -226,25 +226,25 @@ class TestProcessRecursive:
     def test_process_recursive_dict_without_target(self):
         """Test processing regular dict without _target_."""
         config = {"a": 1, "b": {"c": 2}}
-        
+
         result = _process_recursive(config, is_top_level=True)
-        
+
         assert result == {"a": 1, "b": {"c": 2}}
 
     def test_process_recursive_dict_with_target_not_top_level(self):
         """Test processing dict with _target_ that's not top level."""
         config = {"_target_": "builtins.list"}
-        
+
         result = _process_recursive(config, is_top_level=False)
-        
+
         assert isinstance(result, list)
 
     def test_process_recursive_dict_with_target_top_level(self):
         """Test processing dict with _target_ at top level (should not instantiate)."""
         config = {"_target_": "builtins.list", "other": "value"}
-        
+
         result = _process_recursive(config, is_top_level=True)
-        
+
         assert isinstance(result, dict)
         assert result["_target_"] == "builtins.list"
         assert result["other"] == "value"
@@ -257,9 +257,9 @@ class TestProcessRecursive:
             "normal_item",
             {"nested": {"_target_": "builtins.dict"}}
         ]
-        
+
         result = _process_recursive(config, is_top_level=False)
-        
+
         assert isinstance(result[0], list)
         assert isinstance(result[1], set)
         assert result[2] == "normal_item"
@@ -280,24 +280,24 @@ class TestProcessRecursive:
             "base": "test",
             "derived": "${base}_suffix"
         })
-        
+
         # Verify it has metadata
         assert hasattr(config, "_metadata")
-        
+
         result = _process_recursive(config, is_top_level=False)
-        
+
         assert isinstance(result, list)
 
     def test_process_recursive_dictconfig_without_metadata(self):
-        """Test processing DictConfig without metadata - should hit line 41 case.""" 
+        """Test processing DictConfig without metadata - should hit line 41 case."""
         # Create a simple DictConfig that might not have metadata
         config = OmegaConf.create({"_target_": "builtins.set"})
-        
+
         # Force it to be a DictConfig but ensure the _metadata check fails
         # We'll patch the hasattr to return False to test line 41
         with patch('builtins.hasattr', return_value=False):
             result = _process_recursive(config, is_top_level=False)
-        
+
         assert isinstance(result, set)
 
     def test_process_recursive_complex_nesting(self):
@@ -312,9 +312,9 @@ class TestProcessRecursive:
                 }
             }
         }
-        
+
         result = _process_recursive(config, is_top_level=True)
-        
+
         assert isinstance(result["level1"]["level2"]["factories"][0], list)
         assert isinstance(result["level1"]["level2"]["factories"][1]["config"], dict)
 
@@ -326,8 +326,8 @@ class TestProcessRecursive:
             "omega": omega_part,
             "regular": {"_target_": "builtins.set"}
         }
-        
+
         result = _process_recursive(config, is_top_level=True)
-        
+
         assert isinstance(result["omega"], list)
         assert isinstance(result["regular"], set)

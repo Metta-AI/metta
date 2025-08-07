@@ -26,12 +26,12 @@ class TestTraceDecorator:
         @trace
         def add_numbers(a, b):
             return a + b
-        
+
         result = add_numbers(3, 4)
-        
+
         assert result == 7
         assert len(trace_events) == 2  # Begin and End events
-        
+
         # Check begin event
         begin_event = trace_events[0]
         # Function name might be prefixed with test class in some contexts
@@ -44,7 +44,7 @@ class TestTraceDecorator:
         assert begin_event["args"]["filename"].endswith("test_tracing.py")
         assert begin_event["args"]["lineno"] > 0
         assert "stack_trace" in begin_event["args"]
-        
+
         # Check end event
         end_event = trace_events[1]
         assert end_event["name"].endswith("add_numbers")
@@ -60,13 +60,13 @@ class TestTraceDecorator:
             @trace
             def multiply(self, a, b):
                 return a * b
-        
+
         calc = Calculator()
         result = calc.multiply(5, 6)
-        
+
         assert result == 30
         assert len(trace_events) == 2
-        
+
         # Method should be named with class prefix
         begin_event = trace_events[0]
         assert begin_event["name"] == "Calculator.multiply"
@@ -76,10 +76,10 @@ class TestTraceDecorator:
         @trace
         def failing_function():
             raise ValueError("Test error")
-        
+
         with pytest.raises(ValueError, match="Test error"):
             failing_function()
-        
+
         # Should still have begin event, but no end event due to exception
         assert len(trace_events) == 1
         assert trace_events[0]["ph"] == "B"
@@ -90,16 +90,16 @@ class TestTraceDecorator:
         @trace
         def outer_function():
             return inner_function() + 1
-        
+
         @trace
         def inner_function():
             return 42
-        
+
         result = outer_function()
-        
+
         assert result == 43
         assert len(trace_events) == 4  # outer_begin, inner_begin, inner_end, outer_end
-        
+
         # Check order of events
         assert trace_events[0]["name"] == "outer_function"
         assert trace_events[0]["ph"] == "B"
@@ -115,9 +115,9 @@ class TestTraceDecorator:
         @trace
         def complex_function(a, b, c=None, *args, **kwargs):
             return {"a": a, "b": b, "c": c, "args": args, "kwargs": kwargs}
-        
+
         result = complex_function(1, 2, extra="value")
-        
+
         expected = {"a": 1, "b": 2, "c": None, "args": (), "kwargs": {"extra": "value"}}
         assert result == expected
         assert len(trace_events) == 2
@@ -129,7 +129,7 @@ class TestTraceDecorator:
         def documented_function():
             """This is a test function."""
             return "test"
-        
+
         # The wrapper should preserve access to original function
         result = documented_function()
         assert result == "test"
@@ -139,12 +139,12 @@ class TestTraceDecorator:
         @trace
         def test_function():
             return "result"
-        
+
         test_function()
-        
+
         begin_event = trace_events[0]
         stack_trace = begin_event["args"]["stack_trace"]
-        
+
         # Stack trace should be a string with function names separated by '>'
         assert isinstance(stack_trace, str)
         assert "test_function" not in stack_trace  # trace_wrapper is filtered out
@@ -157,16 +157,16 @@ class TestTraceDecorator:
         def slow_function():
             time.sleep(0.01)  # Sleep for 10ms
             return "done"
-        
+
         result = slow_function()
-        
+
         assert result == "done"
         begin_event = trace_events[0]
         end_event = trace_events[1]
-        
+
         # End should be after begin
         assert end_event["ts"] > begin_event["ts"]
-        
+
         # Duration should be at least 10ms (10,000 microseconds)
         duration_us = end_event["ts"] - begin_event["ts"]
         assert duration_us >= 8000  # Allow some variance
@@ -176,11 +176,11 @@ class TestTraceDecorator:
         @trace
         def threaded_function():
             return threading.get_ident()
-        
+
         result = threaded_function()
-        
+
         assert result == threading.get_ident()
-        
+
         begin_event = trace_events[0]
         assert begin_event["pid"] == os.getpid()
         assert begin_event["tid"] == threading.get_ident()
@@ -199,9 +199,9 @@ class TestTracerContextManager:
         with tracer("test_section"):
             time.sleep(0.01)
             result = 42
-        
+
         assert len(trace_events) == 1
-        
+
         event = trace_events[0]
         assert event["name"] == "test_section"
         assert event["category"] == "function"
@@ -210,7 +210,7 @@ class TestTracerContextManager:
         assert "tid" in event
         assert "ts" in event
         assert "dur" in event
-        
+
         # Duration should be reasonable (at least 10ms)
         assert event["dur"] >= 8000  # microseconds
 
@@ -221,16 +221,16 @@ class TestTracerContextManager:
             with tracer("inner_section"):
                 time.sleep(0.005)
                 result = "nested"
-        
+
         assert len(trace_events) == 2
-        
+
         # Events should be in chronological order by start time
         outer_event = next(e for e in trace_events if e["name"] == "outer_section")
         inner_event = next(e for e in trace_events if e["name"] == "inner_section")
-        
+
         # Inner should start after outer
         assert inner_event["ts"] >= outer_event["ts"]
-        
+
         # Inner should end before outer ends
         inner_end = inner_event["ts"] + inner_event["dur"]
         outer_end = outer_event["ts"] + outer_event["dur"]
@@ -241,7 +241,7 @@ class TestTracerContextManager:
         with pytest.raises(RuntimeError, match="Test exception"):
             with tracer("failing_section"):
                 raise RuntimeError("Test exception")
-        
+
         # Should still record the event
         assert len(trace_events) == 1
         event = trace_events[0]
@@ -257,26 +257,26 @@ class TestTracerContextManager:
     def test_tracer_timing_accuracy(self):
         """Test that tracer timing is reasonably accurate."""
         sleep_duration = 0.02  # 20ms
-        
+
         with tracer("timing_test"):
             time.sleep(sleep_duration)
-        
+
         event = trace_events[0]
         duration_ms = event["dur"] / 1000  # Convert to milliseconds
-        
+
         # Should be close to expected duration (allow some variance)
         assert 15 <= duration_ms <= 40  # 15-40ms range
 
     def test_tracer_multiple_sequential(self):
         """Test multiple sequential tracer contexts."""
         names = ["section1", "section2", "section3"]
-        
+
         for name in names:
             with tracer(name):
                 time.sleep(0.001)
-        
+
         assert len(trace_events) == 3
-        
+
         # Check all sections were recorded
         recorded_names = [event["name"] for event in trace_events]
         assert recorded_names == names
@@ -286,14 +286,14 @@ class TestTracerContextManager:
         tracer_instance = Tracer("test")
         assert tracer_instance.name == "test"
         assert tracer_instance.start == 0
-        
+
         # Test __enter__ and __exit__ manually
         tracer_instance.__enter__()
         assert tracer_instance.start > 0
-        
+
         time.sleep(0.001)
         tracer_instance.__exit__(None, None, None)
-        
+
         assert len(trace_events) == 1
         assert trace_events[0]["name"] == "test"
 
@@ -312,24 +312,24 @@ class TestSaveTrace:
         @trace
         def test_function():
             return "test"
-        
+
         test_function()
-        
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             save_trace(temp_path)
-            
+
             # Read back the file
             with open(temp_path, "r") as f:
                 data = json.load(f)
-            
+
             assert "traceEvents" in data
             assert "displayTimeUnit" in data
             assert data["displayTimeUnit"] == "ms"
             assert len(data["traceEvents"]) == 2  # Begin and End events
-            
+
             # Check structure of events
             for event in data["traceEvents"]:
                 assert "name" in event
@@ -338,7 +338,7 @@ class TestSaveTrace:
                 assert "pid" in event
                 assert "tid" in event
                 assert "ts" in event
-        
+
         finally:
             Path(temp_path).unlink()
 
@@ -346,16 +346,16 @@ class TestSaveTrace:
         """Test saving trace with no events."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             save_trace(temp_path)
-            
+
             with open(temp_path, "r") as f:
                 data = json.load(f)
-            
+
             assert data["traceEvents"] == []
             assert data["displayTimeUnit"] == "ms"
-        
+
         finally:
             Path(temp_path).unlink()
 
@@ -365,31 +365,31 @@ class TestSaveTrace:
         @trace
         def traced_func():
             pass
-        
+
         traced_func()
-        
+
         # Add context trace
         with tracer("context_section"):
             pass
-        
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_path = f.name
-        
+
         try:
             save_trace(temp_path)
-            
+
             with open(temp_path, "r") as f:
                 data = json.load(f)
-            
+
             # Should have 3 events: function begin, function end, context complete
             assert len(data["traceEvents"]) == 3
-            
+
             # Check event types
             phases = [event["ph"] for event in data["traceEvents"]]
             assert "B" in phases  # Begin
             assert "E" in phases  # End
             assert "X" in phases  # Complete
-        
+
         finally:
             Path(temp_path).unlink()
 
@@ -398,24 +398,24 @@ class TestSaveTrace:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create path in subdirectory that doesn't exist
             trace_path = Path(temp_dir) / "traces" / "test_trace.json"
-            
+
             @trace
             def test_function():
                 return "test"
-            
+
             test_function()
-            
+
             # Ensure parent directory exists first
             trace_path.parent.mkdir(parents=True, exist_ok=True)
             save_trace(str(trace_path))
-            
+
             assert trace_path.exists()
             assert trace_path.is_file()
-            
+
             # Verify content
             with open(trace_path, "r") as f:
                 data = json.load(f)
-            
+
             assert "traceEvents" in data
 
 
@@ -432,20 +432,20 @@ class TestTraceEventsGlobalState:
         @trace
         def func1():
             return 1
-        
+
         @trace
         def func2():
             return 2
-        
+
         func1()
         assert len(trace_events) == 2
-        
+
         func2()
         assert len(trace_events) == 4
-        
+
         with tracer("section"):
             pass
-        
+
         assert len(trace_events) == 5
 
     def test_trace_events_modification(self):
@@ -453,14 +453,14 @@ class TestTraceEventsGlobalState:
         @trace
         def test_func():
             return "test"
-        
+
         test_func()
         initial_count = len(trace_events)
-        
+
         # Clear events
         trace_events.clear()
         assert len(trace_events) == 0
-        
+
         # Add more events
         test_func()
         assert len(trace_events) == 2
@@ -480,41 +480,41 @@ class TestTracingIntegration:
             @trace
             def __init__(self):
                 self.data = []
-            
+
             @trace
             def process_batch(self, items):
                 with tracer("validation"):
                     self._validate(items)
-                
+
                 with tracer("processing"):
                     for item in items:
                         self._process_item(item)
-                
+
                 return len(self.data)
-            
+
             @trace
             def _validate(self, items):
                 if not items:
                     raise ValueError("Empty batch")
-            
+
             @trace
             def _process_item(self, item):
                 self.data.append(item * 2)
-        
+
         processor = DataProcessor()
         result = processor.process_batch([1, 2, 3])
-        
+
         assert result == 3
         assert processor.data == [2, 4, 6]
-        
+
         # Count different types of events
         function_events = [e for e in trace_events if e.get("ph") in ["B", "E"]]
         context_events = [e for e in trace_events if e.get("ph") == "X"]
-        
+
         # Should have function traces and context traces
         assert len(function_events) > 0
         assert len(context_events) == 2  # validation and processing
-        
+
         # Verify context events
         context_names = {e["name"] for e in context_events}
         assert "validation" in context_names
@@ -527,9 +527,9 @@ class TestTracingIntegration:
             with tracer("inner_work"):
                 time.sleep(0.001)
             return "done"
-        
+
         sample_function()
-        
+
         # Verify all events have required Chrome tracing fields
         for event in trace_events:
             # Required fields
@@ -539,17 +539,17 @@ class TestTracingIntegration:
             assert "pid" in event
             assert "tid" in event
             assert "ts" in event
-            
+
             # Phase-specific requirements
             if event["ph"] == "X":  # Complete events need duration
                 assert "dur" in event
-            
+
             # Check data types
             assert isinstance(event["name"], str)
             assert isinstance(event["pid"], int)
             assert isinstance(event["tid"], int)
             assert isinstance(event["ts"], int)
-            
+
             if "dur" in event:
                 assert isinstance(event["dur"], int)
                 assert event["dur"] >= 0

@@ -19,7 +19,7 @@ class TestFilterRepo:
         with tempfile.TemporaryDirectory() as temp_dir:
             source_path = Path(temp_dir) / "not_a_repo"
             source_path.mkdir()
-            
+
             with pytest.raises(ValueError, match="Not a git repository"):
                 filter_repo(source_path, ["some/path"])
 
@@ -31,13 +31,13 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             temp_target = str(Path(temp_dir) / "temp_filtered")
             mock_mkdtemp.return_value = temp_target
-            
+
             # Mock clone failure
             mock_run_git.side_effect = GitError("Clone failed")
-            
+
             with pytest.raises(RuntimeError, match="Failed to clone: Clone failed"):
                 filter_repo(source_path, ["test/path"])
 
@@ -49,17 +49,17 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             temp_target = str(Path(temp_dir) / "temp_filtered")
             mock_mkdtemp.return_value = temp_target
-            
+
             # Mock successful clone
             mock_run_git.side_effect = [None]
-            
+
             with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                 # Mock git-filter-repo not found
                 mock_subprocess.side_effect = FileNotFoundError("Command not found")
-                
+
                 with pytest.raises(RuntimeError, match="git-filter-repo not found"):
                     filter_repo(source_path, ["test/path"])
 
@@ -71,20 +71,20 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             temp_target = str(Path(temp_dir) / "temp_filtered")
             mock_mkdtemp.return_value = temp_target
-            
+
             # Mock successful clone
             mock_run_git.side_effect = [None]
-            
+
             with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                 # Mock successful version check but failed filter
                 mock_subprocess.side_effect = [
                     Mock(returncode=0),  # version check success
                     Mock(returncode=1, stderr="Filter failed")  # filter failure
                 ]
-                
+
                 with pytest.raises(RuntimeError, match="git-filter-repo failed: Filter failed"):
                     filter_repo(source_path, ["test/path"])
 
@@ -96,19 +96,19 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             temp_target = str(Path(temp_dir) / "temp_filtered")
             mock_mkdtemp.return_value = temp_target
-            
+
             # Mock successful clone
             mock_run_git.side_effect = [None]
-            
+
             with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                 mock_subprocess.side_effect = [
                     Mock(returncode=0),  # version check
                     Mock(returncode=0, stderr="")  # filter success
                 ]
-                
+
                 with patch("metta.common.util.git_filter.get_file_list", return_value=[]):
                     with pytest.raises(RuntimeError, match="Filtered repository is empty!"):
                         filter_repo(source_path, ["nonexistent/path"])
@@ -122,33 +122,33 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             temp_target = str(Path(temp_dir) / "temp_filtered")
             filtered_path = Path(temp_target) / "filtered"
             mock_mkdtemp.return_value = temp_target
-            
+
             # Mock successful clone
             mock_run_git.side_effect = [None]
-            
+
             with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                 mock_subprocess.side_effect = [
                     Mock(returncode=0),  # version check
                     Mock(returncode=0, stderr="")  # filter success
                 ]
-                
+
                 with patch("metta.common.util.git_filter.get_file_list", return_value=["file1.txt", "file2.py"]):
                     with patch("metta.common.util.git_filter.get_commit_count", return_value=10):
                         result = filter_repo(source_path, ["mettagrid/", "common/"])
-                        
+
                         assert result == filtered_path
-                        
+
                         # Verify correct subprocess calls
                         assert len(mock_subprocess.call_args_list) == 2
-                        
+
                         # Check version call
                         version_call = mock_subprocess.call_args_list[0][0][0]
                         assert version_call == ["git", "filter-repo", "--version"]
-                        
+
                         # Check filter call structure
                         filter_call = mock_subprocess.call_args_list[1][0][0]
                         assert "git" in filter_call
@@ -162,7 +162,7 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             with patch("metta.common.util.git_filter.run_git"):
                 with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                     # Mock version check failure
@@ -177,18 +177,18 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             with patch("metta.common.util.git_filter.run_git") as mock_run_git:
                 with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                     mock_subprocess.side_effect = [
                         Mock(returncode=0),  # version check
                         Mock(returncode=0, stderr="")  # filter success
                     ]
-                    
+
                     with patch("metta.common.util.git_filter.get_file_list", return_value=["file1.txt"]):
                         with patch("metta.common.util.git_filter.get_commit_count", return_value=1):
                             filter_repo(source_path, ["test/"])
-                            
+
                             # Verify clone was called with file:// URL
                             clone_call = mock_run_git.call_args_list[0][0]
                             assert clone_call[0] == "clone"
@@ -202,21 +202,21 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             paths = ["mettagrid/", "mettascope/", "common/"]
-            
+
             with patch("metta.common.util.git_filter.run_git"):
                 with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                     mock_subprocess.side_effect = [
                         Mock(returncode=0),  # version check
                         Mock(returncode=0, stderr="")  # filter success
                     ]
-                    
+
                     with patch("metta.common.util.git_filter.get_file_list", return_value=["file1.txt"]):
                         with patch("metta.common.util.git_filter.get_commit_count", return_value=1):
                             with patch("builtins.print"):
                                 filter_repo(source_path, paths)
-                            
+
                             # Verify all paths were included in filter command
                             filter_call = mock_subprocess.call_args_list[1][0][0]
                             for path in paths:
@@ -228,18 +228,18 @@ class TestFilterRepo:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-            
+
             with patch("metta.common.util.git_filter.run_git"):
                 with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                     mock_subprocess.side_effect = [
                         Mock(returncode=0),  # version check
                         Mock(returncode=0, stderr="")  # filter success
                     ]
-                    
+
                     with patch("metta.common.util.git_filter.get_file_list", return_value=["file1.txt"]):
                         with patch("metta.common.util.git_filter.get_commit_count", return_value=1):
                             with patch("builtins.print"):
                                 result = filter_repo(source_path, [])
-                            
+
                             # Should still work with no path filters
                             assert result is not None
