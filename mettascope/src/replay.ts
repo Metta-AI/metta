@@ -3,6 +3,7 @@ import * as Common from './common.js'
 import { ctx, html, state, ui } from './common.js'
 import { onResize, requestFrame, updateStep } from './main.js'
 import { focusFullMap } from './worldmap.js'
+import { validateReplayData, validateReplayStep } from './validation.js'
 
 /** This represents a sequence of values sort of like a movie timeline. */
 export class Sequence<T> {
@@ -561,6 +562,7 @@ function loadReplayJson(url: string, replayJson: any) {
   }
 
   fixReplay()
+  validateReplayData(state.replay)
 
   console.log('Replay: ', state.replay)
 
@@ -580,6 +582,9 @@ function loadReplayJson(url: string, replayJson: any) {
 
 /** Loads a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
+  // Validate the replay step before processing
+  validateReplayStep(replayStep)
+
   // This gets us a simple replay step that we can overwrite.
 
   // Update the grid objects.
@@ -625,6 +630,8 @@ export function loadReplayStep(replayStep: any) {
   }
 
   fixReplay()
+  // this extra validate might be excessive? unsure?
+  // validateReplayData(state.replay)
 
   updateStep(step)
   state.heatmap.update(step)

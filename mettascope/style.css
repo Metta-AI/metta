@@ -327,7 +327,9 @@ input::placeholder {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
   pointer-events: auto;
   transform: translateX(100%);
-  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  transition:
+    transform 0.3s ease-in-out,
+    opacity 0.3s ease-in-out;
   opacity: 0;
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 14px;
@@ -362,6 +364,8 @@ input::placeholder {
   flex: 1;
   line-height: 1.5;
   margin-right: 8px;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .warning-toast-close {
@@ -375,7 +379,9 @@ input::placeholder {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .warning-toast-close:hover {
