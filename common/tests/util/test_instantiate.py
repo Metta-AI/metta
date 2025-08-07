@@ -289,7 +289,7 @@ class TestProcessRecursive:
         assert result["base"] == "test"
         assert result["derived"] == "test_suffix"
 
-    
+
 
     def test_process_recursive_complex_nesting(self):
         """Test processing deeply nested structures."""
