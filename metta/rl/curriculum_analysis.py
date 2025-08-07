@@ -31,6 +31,7 @@ class CurriculumAnalysisResult:
     """Result of curriculum analysis."""
 
     curriculum_name: str
+    performance: float
     efficiency: float
     time_to_threshold: int
     time_to_first_mastery: int
@@ -113,6 +114,7 @@ class CurriculumAnalysisRunner:
             # Create analysis result for this task
             result = CurriculumAnalysisResult(
                 curriculum_name=type(self.curriculum).__name__,
+                performance=self._calculate_performance(),
                 efficiency=self._calculate_efficiency(),
                 time_to_threshold=self._calculate_time_to_threshold(),
                 time_to_first_mastery=self._calculate_time_to_first_mastery(),
@@ -126,42 +128,60 @@ class CurriculumAnalysisRunner:
         return epoch_results
 
     def _simulate_task_completion(self, task_id: str) -> float:
-        """Simulate task completion with realistic performance."""
-        # Base performance varies by task type
-        base_performance = 0.3 + 0.4 * np.random.random()
+        """Simulate task completion with realistic performance requiring many more samples."""
+        # Base performance starts low and requires many samples to improve
+        base_performance = 0.2 + 0.1 * np.random.random()
 
-        # Learning progress effect (performance improves over time)
-        learning_progress = min(1.0, self.current_epoch / 20.0)
+        # Learning progress effect - much slower improvement requiring ~100 epochs
+        # Use a sigmoid-like function that requires many more samples
+        learning_progress = 0.6 * (1 / (1 + np.exp(-(self.current_epoch - 50) / 15)))
+
+        # Add diminishing returns - performance plateaus after many epochs
+        plateau_effect = 0.2 * (1 - np.exp(-self.current_epoch / 80))
 
         # Curriculum-specific performance modifiers
         curriculum_type = type(self.curriculum).__name__
         if "LearningProgress" in curriculum_type:
-            # Learning progress curricula should show better adaptation
-            curriculum_bonus = 0.1 * learning_progress
+            # Learning progress curricula show better adaptation but still require many samples
+            curriculum_bonus = 0.15 * (1 / (1 + np.exp(-(self.current_epoch - 40) / 12)))
         elif "PrioritizeRegressed" in curriculum_type:
-            # Prioritize regressed should show good recovery
-            curriculum_bonus = 0.05 * learning_progress
+            # Prioritize regressed shows good recovery but requires many samples
+            curriculum_bonus = 0.1 * (1 / (1 + np.exp(-(self.current_epoch - 45) / 15)))
         elif "Random" in curriculum_type:
-            # Random should show more variance
-            curriculum_bonus = 0.0
+            # Random shows more variance and slower learning
+            curriculum_bonus = 0.05 * (1 / (1 + np.exp(-(self.current_epoch - 60) / 20)))
         else:
-            curriculum_bonus = 0.02 * learning_progress
+            curriculum_bonus = 0.08 * (1 / (1 + np.exp(-(self.current_epoch - 50) / 15)))
 
-        # Add some noise
-        noise = np.random.normal(0, 0.1)
+        # Add realistic noise that decreases with experience
+        noise_scale = max(0.05, 0.15 * np.exp(-self.current_epoch / 100))
+        noise = np.random.normal(0, noise_scale)
 
-        # Calculate final score
-        score = base_performance + learning_progress + curriculum_bonus + noise
+        # Calculate final score with much slower progression
+        score = base_performance + learning_progress + plateau_effect + curriculum_bonus + noise
+
+        # Ensure score stays within bounds
         return max(0.0, min(1.0, score))
 
-    def _calculate_efficiency(self) -> float:
-        """Calculate current efficiency based on recent performance."""
+    def _calculate_performance(self) -> float:
+        """Calculate current performance based on recent task completions."""
         if not self.task_completion_history:
             return 0.0
 
-        # Use recent task completions to calculate efficiency
+        # Use recent task completions to calculate performance
         recent_scores = [task["score"] for task in self.task_completion_history[-10:]]
         return np.mean(recent_scores) * 100.0  # Scale to 0-100
+
+    def _calculate_efficiency(self) -> float:
+        """Calculate efficiency as the integral of performance across all epochs."""
+        if not self.task_completion_history:
+            return 0.0
+
+        # Calculate efficiency as the area under the performance curve
+        # This is the cumulative sum of performance scores
+        all_scores = [task["score"] for task in self.task_completion_history]
+        efficiency = np.sum(all_scores) * 100.0  # Scale to 0-100
+        return efficiency
 
     def _calculate_time_to_threshold(self) -> int:
         """Calculate time to reach performance threshold."""
@@ -169,7 +189,8 @@ class CurriculumAnalysisRunner:
             return 0
 
         # Find when we first reached a good performance level
-        threshold = 0.7
+        # With the new performance model, threshold should be lower since high performance takes much longer
+        threshold = 0.6  # Lowered threshold since high performance requires many more samples
         for i, task in enumerate(self.task_completion_history):
             if task["score"] >= threshold:
                 return i + 1
@@ -182,7 +203,8 @@ class CurriculumAnalysisRunner:
             return 0
 
         # Find when we first achieved mastery
-        mastery_threshold = 0.9
+        # With the new performance model, mastery should be more achievable but still require many samples
+        mastery_threshold = 0.75  # Lowered since high performance requires many more samples
         for i, task in enumerate(self.task_completion_history):
             if task["score"] >= mastery_threshold:
                 return i + 1
@@ -257,6 +279,7 @@ class CurriculumAnalysisRunner:
             "curriculum_name": type(self.curriculum).__name__,
             "total_epochs": self.current_epoch + 1,
             "total_tasks": len(self.task_completion_history),
+            "average_performance": np.mean([r.performance for r in self.results]),
             "average_efficiency": np.mean([r.efficiency for r in self.results]),
             "average_time_to_threshold": np.mean([r.time_to_threshold for r in self.results]),
             "average_adaptation_speed": np.mean([r.adaptation_metrics["adaptation_speed"] for r in self.results]),
@@ -296,6 +319,7 @@ class CurriculumAnalysisRunner:
             [
                 {
                     "epoch": r.curriculum_name,
+                    "performance": r.performance,
                     "efficiency": r.efficiency,
                     "time_to_threshold": r.time_to_threshold,
                     "time_to_first_mastery": r.time_to_first_mastery,
@@ -350,6 +374,7 @@ def run_curriculum_analysis(
     # Print summary
     logger.info("Curriculum Analysis Summary:")
     logger.info(f"  Curriculum: {results['summary']['curriculum_name']}")
+    logger.info(f"  Average Performance: {results['summary']['average_performance']:.2f}")
     logger.info(f"  Average Efficiency: {results['summary']['average_efficiency']:.2f}")
     logger.info(f"  Average Time to Threshold: {results['summary']['average_time_to_threshold']:.1f}")
 

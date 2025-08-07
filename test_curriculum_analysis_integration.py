@@ -33,8 +33,9 @@ def test_curriculum_analysis_integration(cfg: DictConfig) -> None:
 
         # Set analysis mode
         trainer_cfg.analysis_mode = True
-        trainer_cfg.analysis_epochs = 3  # Very small for testing
-        trainer_cfg.analysis_tasks_per_epoch = 2
+        # Use configuration values instead of overriding
+        # trainer_cfg.analysis_epochs = 3  # Very small for testing
+        # trainer_cfg.analysis_tasks_per_epoch = 2
         trainer_cfg.analysis_output_dir = "integration_test"
 
         logger.info(f"Testing with curriculum: {trainer_cfg.curriculum}")

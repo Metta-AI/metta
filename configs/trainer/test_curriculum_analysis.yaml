@@ -7,7 +7,7 @@ env_overrides: {}
 
 # Analysis mode settings
 analysis_mode: true
-analysis_epochs: 10  # Small number for testing
+analysis_epochs: 100  # Increased to see the full learning curve
 analysis_tasks_per_epoch: 5
 oracle_curriculum: "/env/mettagrid/curriculum/navigation/learning_progress"  # Use same as test
 analysis_output_dir: "test_curriculum_analysis"
