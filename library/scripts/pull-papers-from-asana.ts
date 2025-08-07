@@ -7,11 +7,11 @@
  * Each task in the Asana project represents a research paper with metadata in the task title, description, and custom fields.
  */
 
-import { PrismaClient } from '@prisma/client';
-import * as dotenv from 'dotenv';
+import { PrismaClient } from "@prisma/client";
+import * as dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: ".env.local", quiet: true });
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -66,11 +66,13 @@ const config = {
  */
 async function fetchAsanaTasks(): Promise<AsanaTask[]> {
   if (!config.asanaToken) {
-    throw new Error('ASANA_API_KEY or ASANA_TOKEN environment variable is required');
+    throw new Error(
+      "ASANA_API_KEY or ASANA_TOKEN environment variable is required"
+    );
   }
 
   if (!config.projectId) {
-    throw new Error('ASANA_PAPERS_PROJECT_ID environment variable is required');
+    throw new Error("ASANA_PAPERS_PROJECT_ID environment variable is required");
   }
 
   console.log(`📋 Fetching tasks from Asana project: ${config.projectId}`);
@@ -81,23 +83,26 @@ async function fetchAsanaTasks(): Promise<AsanaTask[]> {
   do {
     const url = `https://app.asana.com/api/1.0/projects/${config.projectId}/tasks`;
     const params = new URLSearchParams({
-      opt_fields: 'gid,name,notes,completed,permalink_url,custom_fields.gid,custom_fields.name,custom_fields.text_value,custom_fields.enum_value.name,tags.name,created_at,modified_at',
-      limit: '100',
+      opt_fields:
+        "gid,name,notes,completed,permalink_url,custom_fields.gid,custom_fields.name,custom_fields.text_value,custom_fields.enum_value.name,tags.name,created_at,modified_at",
+      limit: "100",
     });
 
     if (offset) {
-      params.append('offset', offset);
+      params.append("offset", offset);
     }
 
     const response = await fetch(`${url}?${params}`, {
       headers: {
-        'Authorization': `Bearer ${config.asanaToken}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.asanaToken}`,
+        "Content-Type": "application/json",
       },
     });
 
     if (!response.ok) {
-      throw new Error(`Asana API Error: ${response.status} - ${await response.text()}`);
+      throw new Error(
+        `Asana API Error: ${response.status} - ${await response.text()}`
+      );
     }
 
     const data = await response.json();
@@ -137,28 +142,41 @@ function extractPaperData(task: AsanaTask): PaperData | null {
     const value = field.text_value || field.enum_value?.name;
     if (!value) continue;
 
-    if (field.gid === config.paperLinkFieldId || field.name.toLowerCase().includes('link') || field.name.toLowerCase().includes('url')) {
+    if (
+      field.gid === config.paperLinkFieldId ||
+      field.name.toLowerCase().includes("link") ||
+      field.name.toLowerCase().includes("url")
+    ) {
       paperLink = value;
-    } else if (field.gid === config.arxivIdFieldId || field.name.toLowerCase().includes('arxiv')) {
+    } else if (
+      field.gid === config.arxivIdFieldId ||
+      field.name.toLowerCase().includes("arxiv")
+    ) {
       arxivId = value;
-    } else if (field.gid === config.abstractFieldId || field.name.toLowerCase().includes('abstract')) {
+    } else if (
+      field.gid === config.abstractFieldId ||
+      field.name.toLowerCase().includes("abstract")
+    ) {
       customAbstract = value;
     }
   }
 
   // Use custom abstract if available and longer than notes
-  if (customAbstract && (!abstract || customAbstract.length > abstract.length)) {
+  if (
+    customAbstract &&
+    (!abstract || customAbstract.length > abstract.length)
+  ) {
     abstract = customAbstract;
   }
 
   // Determine source and external ID
-  let source = 'asana';
+  let source = "asana";
   let externalId = task.gid;
   let link = paperLink;
 
   // Check if we have an arXiv paper
-  if (arxivId || (paperLink && paperLink.includes('arxiv.org'))) {
-    source = 'arxiv';
+  if (arxivId || (paperLink && paperLink.includes("arxiv.org"))) {
+    source = "arxiv";
     if (arxivId) {
       externalId = arxivId;
       if (!link) {
@@ -171,16 +189,16 @@ function extractPaperData(task: AsanaTask): PaperData | null {
       }
       link = paperLink;
     }
-  } else if (paperLink && paperLink.includes('biorxiv.org')) {
-    source = 'biorxiv';
+  } else if (paperLink && paperLink.includes("biorxiv.org")) {
+    source = "biorxiv";
     link = paperLink;
   } else if (paperLink) {
-    source = 'external';
+    source = "external";
     link = paperLink;
   }
 
   // Extract tags
-  const tags = (task.tags || []).map(tag => tag.name).filter(Boolean);
+  const tags = (task.tags || []).map((tag) => tag.name).filter(Boolean);
 
   return {
     title,
@@ -238,7 +256,6 @@ async function importPapers(papers: PaperData[]): Promise<void> {
 
       console.log(`   ✅ Imported: ${paper.title}`);
       imported++;
-
     } catch (error) {
       console.error(`   ❌ Error importing "${paper.title}":`, error);
       errors++;
@@ -255,7 +272,7 @@ async function importPapers(papers: PaperData[]): Promise<void> {
  * Main function
  */
 async function main() {
-  console.log('🚀 Starting Asana paper collection import...\n');
+  console.log("🚀 Starting Asana paper collection import...\n");
 
   try {
     // Fetch tasks from Asana
@@ -263,7 +280,7 @@ async function main() {
     console.log(`   Found ${tasks.length} tasks\n`);
 
     // Extract paper data
-    console.log('🔍 Extracting paper data from tasks...');
+    console.log("🔍 Extracting paper data from tasks...");
     const papers = tasks
       .map(extractPaperData)
       .filter((paper): paper is PaperData => paper !== null);
@@ -271,19 +288,18 @@ async function main() {
     console.log(`   Extracted ${papers.length} valid papers\n`);
 
     if (papers.length === 0) {
-      console.log('ℹ️  No papers to import');
+      console.log("ℹ️  No papers to import");
       return;
     }
 
     // Import into database
     await importPapers(papers);
 
-    console.log('\n🎉 Asana paper collection import completed successfully!');
-
+    console.log("\n🎉 Asana paper collection import completed successfully!");
   } catch (error) {
-    console.error('❌ Error during import:', error);
+    console.error("❌ Error during import:", error);
     if (error instanceof Error) {
-      console.error('Error details:', error.message);
+      console.error("Error details:", error.message);
     }
     process.exit(1);
   } finally {

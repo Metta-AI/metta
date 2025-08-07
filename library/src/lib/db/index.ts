@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });      // ← load variables first
+dotenv.config({ path: ".env.local", quiet: true }); // ← load variables first
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 
 // Create a singleton Prisma client instance
 const globalForPrisma = globalThis as unknown as {
@@ -10,6 +10,6 @@ const globalForPrisma = globalThis as unknown as {
 
 export const db = globalForPrisma.prisma ?? new PrismaClient();
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = db;
 }

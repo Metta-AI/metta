@@ -13,7 +13,7 @@ import { fetchArxivPaper, extractArxivId } from "./fetch-arxiv-paper";
 import * as dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env.local", quiet: true });
 
 const prisma = new PrismaClient();
 

@@ -22,7 +22,7 @@ import { promisify } from "util";
 import * as dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env.local", quiet: true });
 
 const execAsync = promisify(exec);
 
