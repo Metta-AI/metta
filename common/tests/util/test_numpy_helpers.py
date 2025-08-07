@@ -133,7 +133,7 @@ class TestCleanNumpyTypes:
         }
 
         result = clean_numpy_types(data)
-        
+
         # Should be identical
         assert result == data
         assert result is not data  # But a new dict

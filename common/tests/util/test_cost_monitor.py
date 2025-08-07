@@ -131,7 +131,7 @@ class TestGetRunningInstanceInfo:
         mock_instance_resp.text = "t3.medium"
         mock_lifecycle_resp = Mock()
         mock_lifecycle_resp.text = "spot"
-        
+
         mock_requests.put.return_value = mock_token_resp
         mock_requests.get.side_effect = [mock_instance_resp, mock_lifecycle_resp]
 
@@ -156,7 +156,7 @@ class TestGetRunningInstanceInfo:
         mock_instance_resp.text = "t3.medium"
         mock_lifecycle_resp = Mock()
         mock_lifecycle_resp.text = "normal"
-        
+
         mock_requests.put.return_value = mock_token_resp
         mock_requests.get.side_effect = [mock_instance_resp, mock_lifecycle_resp]
 
@@ -180,7 +180,7 @@ class TestGetCostInfo:
 
         expected = {
             "instance_type": "t3.medium",
-            "region": "us-west-2", 
+            "region": "us-west-2",
             "zone": "us-west-2a",
             "use_spot": False,
             "instance_hourly_cost": 0.096
@@ -246,7 +246,7 @@ class TestMainFunction:
         """Test successful main execution with on-demand instance."""
         mock_get_cost_info.return_value = {
             "instance_type": "t3.medium",
-            "region": "us-west-2", 
+            "region": "us-west-2",
             "zone": "us-west-2a",
             "use_spot": False,
             "instance_hourly_cost": 0.096
@@ -255,10 +255,10 @@ class TestMainFunction:
         result = main()
 
         assert result == 0
-        
+
         # Should call get_cost_info
         mock_get_cost_info.assert_called_once()
-        
+
         # Check that print was called (cost estimates output)
         assert mock_print.call_count > 0
 
@@ -268,7 +268,7 @@ class TestMainFunction:
         """Test successful main execution with spot instance."""
         mock_get_cost_info.return_value = {
             "instance_type": "t3.medium",
-            "region": "us-west-2", 
+            "region": "us-west-2",
             "zone": None,
             "use_spot": True,
             "instance_hourly_cost": 0.030
@@ -308,7 +308,7 @@ class TestIntegration:
         """Test end-to-end cost info workflow."""
         # Mock SkyPilot cluster info
         cluster_info = {
-            "region": "us-east-1", 
+            "region": "us-east-1",
             "zone": "us-east-1a"
         }
         mock_loads.return_value = cluster_info
@@ -320,7 +320,7 @@ class TestIntegration:
         mock_instance_resp.text = "m5.large"
         mock_lifecycle_resp = Mock()
         mock_lifecycle_resp.text = "normal"
-        
+
         mock_requests.put.return_value = mock_token_resp
         mock_requests.get.side_effect = [mock_instance_resp, mock_lifecycle_resp]
 
@@ -332,7 +332,7 @@ class TestIntegration:
         with patch.dict(os.environ, {"SKYPILOT_CLUSTER_INFO": "{}"}):
             # Get cost info
             cost_info = get_cost_info()
-            
+
             assert cost_info["instance_type"] == "m5.large"
             assert cost_info["region"] == "us-east-1"
             assert cost_info["zone"] == "us-east-1a"
@@ -356,7 +356,7 @@ class TestIntegration:
 
         for instance_type, expected_cost in instance_costs.items():
             mock_cloud.instance_type_to_hourly_cost.return_value = expected_cost
-            
+
             result = get_instance_cost(instance_type, "us-west-2")
             assert result == expected_cost
 

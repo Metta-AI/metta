@@ -73,7 +73,7 @@ class TestUtilityResolvers:
         """Test IIR filtering."""
         result = oc_iir(0.5, 10, 0)
         assert result == 5.0
-        
+
         # Test integer result preservation
         result = oc_iir(0.5, 10, 6)
         assert isinstance(result, int)
@@ -196,6 +196,6 @@ class TestIirEdgeCases:
         """Test type preservation in IIR."""
         int_result = oc_iir(0.5, 10, 6)
         assert isinstance(int_result, int)
-        
+
         float_result = oc_iir(0.3, 10.0, 5.0)
         assert isinstance(float_result, float)
