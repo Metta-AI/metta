@@ -395,7 +395,7 @@ static void DrawVisibility(Hermes& ctx) {
     auto update_visibility = [=, &visibility_map](size_t agent_x, size_t agent_y) {
         auto x = agent_x - view_width;
         auto y1 = agent_y - view_height;
-        auto y2 = y1 + obs_width;
+        auto y2 = y1 + obs_height;
         for (; y1 < y2; y1++) {
             auto y = y1 * grid_width;
             auto x2 = x + obs_width;
@@ -724,11 +724,11 @@ static void Hermes_Cache(Hermes& ctx) {
             if (name_view.ends_with("_red"sv)) {
                 name_view = name_view.substr(0, name_view.size() - 4);
             }
-            else if (name_view.ends_with("_blue"sv)) {
-                name_view = name_view.substr(0, name_view.size() - 5);
-            }
             else if (name_view.ends_with("_green"sv)) {
                 name_view = name_view.substr(0, name_view.size() - 6);
+            }
+            else if (name_view.ends_with("_blue"sv)) {
+                name_view = name_view.substr(0, name_view.size() - 5);
             }
 
             sprite.base  = ctx.sprite_lookup[std::format("objects/{}.png"sv, name_view)];

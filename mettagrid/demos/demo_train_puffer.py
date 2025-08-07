@@ -375,8 +375,8 @@ def main():
         start_time = time.time()
 
         # Run pure PufferLib demos
-        # demo_puffer_env()
-        # demo_random_rollout()
+        demo_puffer_env()
+        demo_random_rollout()
         demo_pufferlib_training()
 
         # Summary
