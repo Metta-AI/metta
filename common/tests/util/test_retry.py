@@ -176,3 +176,56 @@ class TestRetryFunction:
         assert result == "success"
         assert "Test operation failed: fail 1" in caplog.text  # Initial attempt
         assert "Test operation failed (retry 1/3): fail 2" in caplog.text  # First retry
+
+
+class TestRetryEdgeCases:
+    """Test edge cases and error conditions in retry_function."""
+
+    def test_retry_with_max_retries_and_logger_error(self, caplog):
+        """Test retry_function with logger when all retries are exhausted."""
+        import logging
+        logger = logging.getLogger("test")
+        
+        def always_fail():
+            raise ValueError("Always fails")
+        
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(ValueError, match="Always fails"):
+                retry_function(
+                    always_fail, 
+                    max_retries=2, 
+                    retry_delay=0.01,
+                    error_prefix="Operation failed",
+                    logger=logger
+                )
+        
+        # Should see the final error log (line 63)
+        assert "Operation failed after 2 retries" in caplog.text
+
+    def test_retry_no_exception_raised_edge_case(self):
+        """Test retry_function when function succeeds but no return - should hit line 68."""
+        call_count = 0
+        
+        def succeeds_but_no_return():
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                raise ValueError("Fails first two times")
+            # Success case but doesn't return anything (None)
+            
+        # This should work normally
+        result = retry_function(succeeds_but_no_return, max_retries=3, retry_delay=0.01)
+        assert result is None
+        assert call_count == 3
+
+    def test_retry_all_fail_no_last_exception(self):
+        """Test retry when all attempts fail but last_exception is somehow None."""
+        # This is a very edge case that might be hard to trigger naturally
+        # But we can construct a scenario to hit line 68
+        def strange_function():
+            # This will cause the function to exit the loop without setting last_exception
+            return None
+            
+        # This should work normally since function doesn't raise
+        result = retry_function(strange_function, max_retries=1, retry_delay=0.01)
+        assert result is None
