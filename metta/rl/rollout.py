@@ -132,11 +132,12 @@ def run_dual_policy_rollout(
     npc_obs = observations[num_training_agents:]
 
     # Run training policy inference (with experience buffer interaction)
+    # In dual-policy mode, LSTM states are indexed starting from 0 for training agents
     training_actions, training_log_probs, training_values, lstm_state = run_policy_inference(
         policy=training_policy,
         observations=training_obs,
         experience=experience,
-        training_env_id_start=training_env_id_start,
+        training_env_id_start=0,  # Always 0 in dual-policy since we only track training agents
         device=device,
     )
 

@@ -55,13 +55,15 @@ class Experience:
         self.cpu_offload = cpu_offload
 
         # Calculate segments
+        # In dual-policy mode, we only need segments for training agents
+        num_tracked_agents = lstm_agents if lstm_agents is not None else total_agents
         self.segments = batch_size // bptt_horizon
-        if total_agents > self.segments:
-            mini_batch_size = total_agents * bptt_horizon
+        if num_tracked_agents > self.segments:
+            mini_batch_size = num_tracked_agents * bptt_horizon
             raise ValueError(
-                f"batch_size ({batch_size}) is too small for {total_agents} agents.\n"
+                f"batch_size ({batch_size}) is too small for {num_tracked_agents} agents.\n"
                 f"Segments = batch_size // bptt_horizon = {batch_size} // {bptt_horizon} = {self.segments}\n"
-                f"But we need segments >= total_agents ({total_agents}).\n"
+                f"But we need segments >= num_tracked_agents ({num_tracked_agents}).\n"
                 f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
 
@@ -93,9 +95,11 @@ class Experience:
         self.ratio = torch.ones(self.segments, bptt_horizon, device=self.device)
 
         # Episode tracking
-        self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
-        self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
-        self.free_idx = total_agents % self.segments
+        # In dual-policy mode, only track training agents
+        num_tracked_agents = lstm_agents if lstm_agents is not None else total_agents
+        self.ep_lengths = torch.zeros(num_tracked_agents, device=self.device, dtype=torch.int32)
+        self.ep_indices = torch.arange(num_tracked_agents, device=self.device, dtype=torch.int32) % self.segments
+        self.free_idx = num_tracked_agents % self.segments
 
         # LSTM state management
         self.lstm_h: Dict[int, Tensor] = {}
@@ -149,7 +153,7 @@ class Experience:
             )
 
         # Pre-allocate tensor to stores how many agents we have for use during environment reset
-        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
+        self._range_tensor = torch.arange(num_tracked_agents, device=self.device, dtype=torch.int32)
 
     @property
     def ready_for_training(self) -> bool:
@@ -226,7 +230,7 @@ class Experience:
     def reset_for_rollout(self) -> None:
         """Reset tracking variables for a new rollout."""
         self.full_rows = 0
-        self.free_idx = self.total_agents % self.segments
+        self.free_idx = len(self._range_tensor) % self.segments
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
 

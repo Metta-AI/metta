@@ -376,6 +376,10 @@ def train(
                             else torch.ones(num_training_agents, device=device)
                         )
 
+                        # In dual-policy mode, create env_id for training agents only
+                        # Training agents are always the first N agents in the batch
+                        training_env_id_adjusted = slice(0, num_training_agents)
+
                         # Store only training policy experience
                         experience.store(
                             obs=training_obs,
@@ -385,7 +389,7 @@ def train(
                             dones=training_dones,
                             truncations=training_truncations,
                             values=training_values,
-                            env_id=training_env_id,
+                            env_id=training_env_id_adjusted,
                             mask=training_mask,
                             lstm_state=lstm_state_to_store,
                         )
