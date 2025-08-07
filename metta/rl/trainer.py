@@ -252,6 +252,12 @@ def train(
     #####################################################################
 
     # Create experience buffer
+    # In dual-policy mode, don't pass agents_per_batch - let it default to lstm_agents
+    if trainer_cfg.dual_policy.enabled and npc_policy is not None:
+        agents_per_batch_param = None  # Let Experience default it to lstm_agents
+    else:
+        agents_per_batch_param = getattr(vecenv, "agents_per_batch", None)
+
     experience = Experience(
         total_agents=vecenv.num_agents,  # type: ignore[attr-defined]
         batch_size=trainer_cfg.batch_size,  # Already scaled if needed
@@ -264,7 +270,7 @@ def train(
         hidden_size=hidden_size,
         cpu_offload=trainer_cfg.cpu_offload,
         num_lstm_layers=num_lstm_layers,
-        agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+        agents_per_batch=agents_per_batch_param,
         #####################################################################below
         lstm_agents=lstm_agents,  # Pass the number of agents that need LSTM states
         #####################################################################
