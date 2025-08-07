@@ -120,8 +120,9 @@ def _(fetch_metrics, run_names):
     # Option 3: Fetch only specific metrics (much faster)
     # metrics_dfs = fetch_metrics(run_names, samples=5000, keys=["overview/reward", "_step", "losses/policy_loss"])
 
-    # Option 4: Fetch specific step range
+    # Option 4: Fetch specific step range (NOTE: requires samples=None, can be slow)
     # metrics_dfs = fetch_metrics(run_names, samples=None, min_step=1000, max_step=5000)
+    # WARNING: min_step/max_step ONLY work with samples=None. They are ignored when sampling!
 
     # Option 5: Fetch ALL data points (slowest, complete data)
     # metrics_dfs = fetch_metrics(run_names, samples=None)

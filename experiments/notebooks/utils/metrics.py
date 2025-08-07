@@ -37,12 +37,18 @@ def fetch_metrics(
                 Set to a large number (e.g., 10000) for more data without full scan.
                 Default is 1000 for backwards compatibility.
         keys: Optional list of specific metric keys to fetch (speeds up fetching)
-        min_step: Optional minimum step to fetch from
-        max_step: Optional maximum step to fetch to
-        show_progress: Show progress indicator for large fetches
+        min_step: Optional minimum step to fetch from (ONLY works when samples=None)
+        max_step: Optional maximum step to fetch to (ONLY works when samples=None)
+        show_progress: Show progress indicator for large fetches (ONLY works when samples=None)
 
     Returns:
         Dictionary mapping run names to pandas DataFrames containing the metrics
+
+    Note:
+        min_step, max_step, and show_progress parameters ONLY work when samples=None.
+        When using sampling (samples is a number), these parameters are ignored because
+        wandb's history() method doesn't support step filtering - it returns evenly
+        distributed samples across the entire run.
     """
     metrics_dfs = {}
 
@@ -95,6 +101,14 @@ def fetch_metrics(
                 metrics_df = pd.DataFrame(history_records)
             else:
                 # Use sampled history for faster retrieval
+                if min_step is not None or max_step is not None:
+                    print(
+                        f"  ⚠️  Warning: min_step and max_step are ignored when using sampling (samples={samples})"
+                    )
+                    print(
+                        "     To filter by step range, use samples=None for full scan"
+                    )
+
                 if keys:
                     print(f"  Fetching {samples} samples for keys: {keys}")
                 else:
