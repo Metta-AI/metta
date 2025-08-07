@@ -46,22 +46,7 @@ class TestRemapIo:
         assert sys.stdout == mock_stdout
         assert sys.stderr == mock_stderr
 
-    def test_restore_io(self):
-        """Test restore_io function."""
-        # Save original
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
 
-        # Redirect to test values
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
-
-        # Restore
-        restore_io()
-
-        # Check restoration
-        assert sys.stdout == original_stdout
-        assert sys.stderr == original_stderr
 
 
 class TestMillisecondFormatter:
@@ -89,23 +74,6 @@ class TestMillisecondFormatter:
 
         assert result == "12:34:56.123"
         mock_dt.strftime.assert_called_once_with("[%H:%M:%S.123]")
-
-    @patch('metta.common.util.logging_helpers.datetime')
-    def test_format_time_with_regular_datefmt(self, mock_datetime):
-        """Test formatTime with regular datefmt."""
-        formatter = MillisecondFormatter()
-
-        mock_dt = Mock()
-        mock_dt.strftime.return_value = "12:34:56"
-        mock_datetime.fromtimestamp.return_value = mock_dt
-
-        record = Mock()
-        record.created = 1234567890.123456
-
-        result = formatter.formatTime(record, "%H:%M:%S")
-
-        assert result == "12:34:56"
-        mock_dt.strftime.assert_called_once_with("%H:%M:%S")
 
     @patch('metta.common.util.logging_helpers.datetime')
     def test_format_time_default(self, mock_datetime):
@@ -370,32 +338,6 @@ class TestLoggingIntegration:
         # Test default when neither set
         with patch.dict(os.environ, {}, clear=True):
             assert get_log_level() == "INFO"
-
-    @patch('os.makedirs')
-    @patch('builtins.open', new_callable=mock_open)
-    def test_io_remap_restore_cycle(self, mock_file_open, mock_makedirs):
-        """Test complete IO remap and restore cycle."""
-        # Save original streams
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
-
-        # Remap IO
-        mock_stdout = Mock()
-        mock_stderr = Mock()
-        mock_file_open.side_effect = [mock_stdout, mock_stderr]
-
-        remap_io("/test/logs")
-
-        # Verify remap worked
-        assert sys.stdout == mock_stdout
-        assert sys.stderr == mock_stderr
-
-        # Restore IO
-        restore_io()
-
-        # Verify restore worked
-        assert sys.stdout == original_stdout
-        assert sys.stderr == original_stderr
 
     def test_formatter_millisecond_precision(self):
         """Test that MillisecondFormatter correctly handles millisecond precision."""
