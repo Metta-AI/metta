@@ -268,6 +268,7 @@ input::placeholder {
 
 /* very small phone sized screens */
 @media (max-width: 480px) {
+
   /* Even smaller buttons for very small screens */
   #footer .hover-icon {
     width: 24px !important;
@@ -305,5 +306,128 @@ input::placeholder {
   /* Hide placeholder text on very small screens, it gets cut off */
   #header input#search-input::placeholder {
     opacity: 0 !important;
+  }
+}
+
+/* Warning Toast Styles */
+.warning-toast-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 10000;
+  pointer-events: none;
+  max-width: 400px;
+}
+
+.warning-toast {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  opacity: 0;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  color: #f9fafb;
+  max-width: 100%;
+  word-wrap: break-word;
+}
+
+.warning-toast.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.warning-toast.hide {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.warning-toast-content {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+  gap: 12px;
+}
+
+.warning-toast-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning-toast-message {
+  flex: 1;
+  line-height: 1.5;
+  margin-right: 8px;
+}
+
+.warning-toast-close {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.warning-toast-close:hover {
+  color: #f9fafb;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.warning-toast-close:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Type-specific styling */
+.warning-toast-warning {
+  border-left: 4px solid #f59e0b;
+}
+
+.warning-toast-warning .warning-toast-icon {
+  color: #f59e0b;
+}
+
+.warning-toast-error {
+  border-left: 4px solid #ef4444;
+}
+
+.warning-toast-error .warning-toast-icon {
+  color: #ef4444;
+}
+
+.warning-toast-info {
+  border-left: 4px solid #3b82f6;
+}
+
+.warning-toast-info .warning-toast-icon {
+  color: #3b82f6;
+}
+
+/* Responsive adjustments for warning toasts */
+@media (max-width: 640px) {
+  .warning-toast-container {
+    top: 60px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+
+  .warning-toast-content {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .warning-toast-message {
+    font-size: 13px;
   }
 }

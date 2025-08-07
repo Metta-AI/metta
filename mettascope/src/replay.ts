@@ -467,7 +467,6 @@ function convertReplayV1ToV2(replayData: any) {
 
     if (gridObject.agent_id != null) {
       object.agent_id = gridObject.agent_id
-      object.is_object = true
       object.is_frozen = gridObject['agent:frozen']
       object.color = gridObject['agent:color']
       object.action_success = gridObject['action_success']
