@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from metta.agent.lstm_hidden_state import LstmHiddenState
+from metta.agent.lstm_state import LSTMState
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.util.debug import assert_shape
 from metta.common.profiling.stopwatch import Stopwatch
@@ -62,7 +62,7 @@ def run_policy_inference(
 ) -> tuple[Tensor, Tensor, Tensor, dict[str, Tensor] | None]:
     """Run policy inference to get actions and values."""
     with torch.no_grad():
-        state = LstmHiddenState()
+        state = LSTMState()
         lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
         if lstm_h is not None:
             state.lstm_h = lstm_h

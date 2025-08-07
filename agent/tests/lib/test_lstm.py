@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from metta.agent.lib.lstm import LSTM
-from metta.agent.lstm_hidden_state import LstmHiddenState
+from metta.agent.lstm_state import LSTMState
 
 
 @pytest.fixture
@@ -265,7 +265,7 @@ class TestLSTMLayer:
 
         # Create policy states to simulate the different behaviors
         # Original behavior: Use the state directly (which would crash if None)
-        lstm_state_orig = LstmHiddenState(lstm_h=h_state, lstm_c=c_state)
+        lstm_state_orig = LSTMState(lstm_h=h_state, lstm_c=c_state)
 
         # Simulate state being None for some environment IDs
         env_ids = torch.arange(params["batch_size"] // 2)
@@ -279,7 +279,7 @@ class TestLSTMLayer:
             h_new[:, i, :] = 0
             c_new[:, i, :] = 0
 
-        lstm_state_new = LstmHiddenState(lstm_h=h_new, lstm_c=c_new)
+        lstm_state_new = LSTMState(lstm_h=h_new, lstm_c=c_new)
 
         # Create states in the format expected by the LSTM layer
         assert lstm_state_orig.lstm_h is not None

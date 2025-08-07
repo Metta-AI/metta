@@ -1,0 +1,7 @@
+# @package __global__
+
+trainer:
+  env: /env/mettagrid/arena/advanced
+  total_timesteps: 100000
+  simulation:
+    replay_dir: /Users/localmini/github/metta/replay_dir/${run}

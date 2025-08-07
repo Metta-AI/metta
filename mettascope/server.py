@@ -55,7 +55,7 @@ class CustomStaticFiles(StaticFiles):
 
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
     """Clear the memory of the policy."""
-    lstm_state = sim.get_lstm_hidden_state()
+    lstm_state = sim.get_lstm_state()
 
     if lstm_state is None or lstm_state.lstm_c is None or lstm_state.lstm_h is None:
         logger.error("No policy state to clear")
@@ -74,7 +74,7 @@ def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
 
 def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], list[float]]:
     """Copy the memory of the policy."""
-    lstm_state = sim.get_lstm_hidden_state()
+    lstm_state = sim.get_lstm_state()
     if lstm_state is None or lstm_state.lstm_c is None or lstm_state.lstm_h is None:
         logger.error("No policy state to copy")
         return [], []
@@ -87,7 +87,7 @@ def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], li
 
 def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[float], list[float]]):
     """Paste the memory of the policy."""
-    lstm_state = sim.get_lstm_hidden_state()
+    lstm_state = sim.get_lstm_state()
     if lstm_state is None or lstm_state.lstm_c is None or lstm_state.lstm_h is None:
         logger.error("No policy state to paste")
         return

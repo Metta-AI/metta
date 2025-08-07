@@ -23,7 +23,7 @@ import torch
 from einops import rearrange
 from omegaconf import OmegaConf
 
-from metta.agent.lstm_hidden_state import LstmHiddenState
+from metta.agent.lstm_state import LSTMState
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
@@ -218,8 +218,8 @@ class Simulation:
         logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
         self._obs, _ = self._vecenv.reset()
-        self._lstm_state = LstmHiddenState()
-        self._npc_state = LstmHiddenState()
+        self._lstm_state = LSTMState()
+        self._npc_state = LSTMState()
         self._env_done_flags = [False] * self._num_envs
 
         self._t0 = time.time()
@@ -463,7 +463,7 @@ class Simulation:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
 
-    def get_lstm_hidden_state(self):
+    def get_lstm_state(self):
         """Get the LSTM hidden state."""
         return self._lstm_state
 
