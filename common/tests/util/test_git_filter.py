@@ -23,17 +23,13 @@ class TestFilterRepo:
             with pytest.raises(ValueError, match="Not a git repository"):
                 filter_repo(source_path, ["some/path"])
 
-    @patch("metta.common.util.git_filter.run_git")
-    @patch("metta.common.util.git_filter.tempfile.mkdtemp")
-    def test_filter_repo_clone_failure(self, mock_mkdtemp, mock_run_git):
+    @patch("metta.common.util.git_filter.run_git") 
+    def test_filter_repo_clone_failure(self, mock_run_git):
         """Test filter_repo when git clone fails."""
         with tempfile.TemporaryDirectory() as temp_dir:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
-
-            temp_target = str(Path(temp_dir) / "temp_filtered")
-            mock_mkdtemp.return_value = temp_target
 
             # Mock clone failure
             mock_run_git.side_effect = GitError("Clone failed")
@@ -42,8 +38,7 @@ class TestFilterRepo:
                 filter_repo(source_path, ["test/path"])
 
     @patch("metta.common.util.git_filter.run_git")
-    @patch("metta.common.util.git_filter.tempfile.mkdtemp")
-    def test_filter_repo_git_filter_repo_not_found(self, mock_mkdtemp, mock_run_git):
+    def test_filter_repo_git_filter_repo_not_found(self, mock_run_git):
         """Test filter_repo when git-filter-repo is not available."""
         with tempfile.TemporaryDirectory() as temp_dir:
             source_path = Path(temp_dir) / "source"

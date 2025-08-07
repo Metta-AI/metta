@@ -36,12 +36,12 @@ class TestRemapIo:
 
         # Check directory creation
         mock_makedirs.assert_called_once_with("/test/logs", exist_ok=True)
-        
+
         # Check file opening
         assert mock_file_open.call_count == 2
         mock_file_open.assert_any_call("/test/logs/out.log", "a")
         mock_file_open.assert_any_call("/test/logs/error.log", "a")
-        
+
         # Check sys redirection
         assert sys.stdout == mock_stdout
         assert sys.stderr == mock_stderr
@@ -51,14 +51,14 @@ class TestRemapIo:
         # Save original
         original_stdout = sys.stdout
         original_stderr = sys.stderr
-        
+
         # Redirect to test values
         sys.stdout = StringIO()
         sys.stderr = StringIO()
-        
+
         # Restore
         restore_io()
-        
+
         # Check restoration
         assert sys.stdout == original_stdout
         assert sys.stderr == original_stderr
@@ -76,17 +76,17 @@ class TestMillisecondFormatter:
     def test_format_time_with_datefmt_f(self, mock_datetime):
         """Test formatTime with %f in datefmt."""
         formatter = MillisecondFormatter()
-        
+
         mock_dt = Mock()
         mock_dt.microsecond = 123456  # 123 milliseconds
         mock_dt.strftime.return_value = "12:34:56.123"
         mock_datetime.fromtimestamp.return_value = mock_dt
-        
+
         record = Mock()
         record.created = 1234567890.123456
-        
+
         result = formatter.formatTime(record, "[%H:%M:%S.%f]")
-        
+
         assert result == "12:34:56.123"
         mock_dt.strftime.assert_called_once_with("[%H:%M:%S.123]")
 
@@ -94,16 +94,16 @@ class TestMillisecondFormatter:
     def test_format_time_with_regular_datefmt(self, mock_datetime):
         """Test formatTime with regular datefmt."""
         formatter = MillisecondFormatter()
-        
+
         mock_dt = Mock()
         mock_dt.strftime.return_value = "12:34:56"
         mock_datetime.fromtimestamp.return_value = mock_dt
-        
+
         record = Mock()
         record.created = 1234567890.123456
-        
+
         result = formatter.formatTime(record, "%H:%M:%S")
-        
+
         assert result == "12:34:56"
         mock_dt.strftime.assert_called_once_with("%H:%M:%S")
 
@@ -111,17 +111,17 @@ class TestMillisecondFormatter:
     def test_format_time_default(self, mock_datetime):
         """Test formatTime with default format."""
         formatter = MillisecondFormatter()
-        
+
         mock_dt = Mock()
         mock_dt.microsecond = 456789  # 456 milliseconds
         mock_dt.strftime.return_value = "[12:34:56.456]"
         mock_datetime.fromtimestamp.return_value = mock_dt
-        
+
         record = Mock()
         record.created = 1234567890.456789
-        
+
         result = formatter.formatTime(record)
-        
+
         assert result == "[12:34:56.456]"
 
 
@@ -137,13 +137,13 @@ class TestAlwaysShowTimeRichHandler:
     def test_emit_modifies_created_time(self, mock_super_emit):
         """Test that emit modifies record.created for unique timestamps."""
         handler = AlwaysShowTimeRichHandler()
-        
+
         record = Mock()
         record.created = 1234567890.0
         record.relativeCreated = 1500.5  # 1500.5 ms
-        
+
         handler.emit(record)
-        
+
         # Should modify created time
         expected_created = 1234567890.0 + (1500.5 % 1000) / 1000000
         assert abs(record.created - expected_created) < 1e-9
@@ -339,7 +339,7 @@ class TestInitLogging:
     def test_init_logging_removes_existing_handlers(self, mock_get_logger, mock_get_log_level):
         """Test that init_logging removes existing handlers."""
         mock_get_log_level.return_value = "INFO"
-        
+
         # Create mock handlers
         mock_handler1 = Mock()
         mock_handler2 = Mock()
@@ -383,16 +383,16 @@ class TestLoggingIntegration:
         mock_stdout = Mock()
         mock_stderr = Mock()
         mock_file_open.side_effect = [mock_stdout, mock_stderr]
-        
+
         remap_io("/test/logs")
-        
+
         # Verify remap worked
         assert sys.stdout == mock_stdout
         assert sys.stderr == mock_stderr
-        
+
         # Restore IO
         restore_io()
-        
+
         # Verify restore worked
         assert sys.stdout == original_stdout
         assert sys.stderr == original_stderr
@@ -400,19 +400,19 @@ class TestLoggingIntegration:
     def test_formatter_millisecond_precision(self):
         """Test that MillisecondFormatter correctly handles millisecond precision."""
         formatter = MillisecondFormatter()
-        
+
         with patch('metta.common.util.logging_helpers.datetime') as mock_datetime:
             mock_dt = Mock()
             mock_dt.microsecond = 123456  # Should become 123 milliseconds
             mock_dt.strftime.return_value = "formatted_time"
             mock_datetime.fromtimestamp.return_value = mock_dt
-            
+
             record = Mock()
             record.created = 1234567890.123456
-            
+
             # Test with %f format
             result = formatter.formatTime(record, "%H:%M:%S.%f")
-            
+
             # Should replace %f with milliseconds
             mock_dt.strftime.assert_called_with("%H:%M:%S.123")
 
@@ -446,14 +446,14 @@ class TestLoggingIntegration:
         with patch('os.makedirs'), \
              patch('logging.FileHandler') as mock_handler, \
              patch('logging.getLogger'):
-            
+
             # Test rank 0
             with patch.dict(os.environ, {'RANK': '0'}):
                 init_file_logging("/test")
                 mock_handler.assert_called_with("/test/logs/script.log", mode="a")
-                
+
             mock_handler.reset_mock()
-            
+
             # Test rank > 0
             with patch.dict(os.environ, {'RANK': '3'}):
                 init_file_logging("/test")

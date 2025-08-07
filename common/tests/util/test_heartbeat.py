@@ -203,15 +203,15 @@ class TestMonitorHeartbeat:
         """Test monitor_heartbeat when file exists and is recent."""
         mock_time.return_value = 1000.0
         mock_getmtime.return_value = 950.0  # 50 seconds ago
-        
+
         # Stop after one iteration
         mock_sleep.side_effect = KeyboardInterrupt()
-        
+
         try:
             monitor_heartbeat("/tmp/heartbeat.txt", pid=12345, timeout=600.0, check_interval=60.0)
         except KeyboardInterrupt:
             pass
-        
+
         mock_getmtime.assert_called_with("/tmp/heartbeat.txt")
         mock_sleep.assert_called_with(60.0)
 
@@ -224,10 +224,10 @@ class TestMonitorHeartbeat:
         """Test monitor_heartbeat kills process when timeout exceeded."""
         mock_time.return_value = 1000.0
         mock_getmtime.return_value = 100.0  # 900 seconds ago (exceeds 600s timeout)
-        
+
         # Should break out of loop after killing
         monitor_heartbeat("/tmp/heartbeat.txt", pid=12345, timeout=600.0, check_interval=60.0)
-        
+
         # Should send alert and kill process
         mock_alert.assert_called_once()
         assert mock_killpg.call_count >= 1  # SIGTERM and potentially SIGKILL
@@ -239,15 +239,15 @@ class TestMonitorHeartbeat:
         """Test monitor_heartbeat when heartbeat file doesn't exist."""
         mock_time.return_value = 1000.0
         mock_getmtime.side_effect = FileNotFoundError()
-        
+
         # Stop after one iteration
         mock_sleep.side_effect = KeyboardInterrupt()
-        
+
         try:
             monitor_heartbeat("/tmp/nonexistent.txt", pid=12345, timeout=600.0, check_interval=60.0)
         except KeyboardInterrupt:
             pass
-        
+
         # Should handle FileNotFoundError gracefully
         mock_getmtime.assert_called_with("/tmp/nonexistent.txt")
 
@@ -260,7 +260,7 @@ class TestMainFunction:
     def test_main_heartbeat_command(self, mock_makedirs, mock_record):
         """Test _main function with heartbeat command."""
         _main(['heartbeat', '/tmp/heartbeat.txt'])
-        
+
         mock_makedirs.assert_called_once_with('/tmp', exist_ok=True)
         mock_record.assert_called_once()
 
@@ -269,7 +269,7 @@ class TestMainFunction:
         """Test _main function with monitor command using default arguments."""
         with patch('os.getpid', return_value=12345):
             _main(['monitor', '/tmp/heartbeat.txt'])
-        
+
         mock_monitor.assert_called_once_with(
             '/tmp/heartbeat.txt',
             pid=12345,
@@ -281,7 +281,7 @@ class TestMainFunction:
     def test_main_monitor_command_custom_args(self, mock_monitor):
         """Test _main function with monitor command using custom arguments."""
         _main(['monitor', '/tmp/heartbeat.txt', '--pid', '9999', '--timeout', '300', '--interval', '30'])
-        
+
         mock_monitor.assert_called_once_with(
             '/tmp/heartbeat.txt',
             pid=9999,
@@ -299,11 +299,11 @@ class TestIntegration:
         """Test record_heartbeat with real file operations."""
         with tempfile.TemporaryDirectory() as temp_dir:
             heartbeat_file = os.path.join(temp_dir, "test_heartbeat.txt")
-            
+
             with patch.dict(os.environ, {'HEARTBEAT_FILE': heartbeat_file}):
                 with patch('time.time', return_value=1234567890.5):
                     record_heartbeat()
-            
+
             # Verify file was created and contains correct timestamp
             assert os.path.exists(heartbeat_file)
             with open(heartbeat_file, 'r') as f:
@@ -314,7 +314,7 @@ class TestIntegration:
         """Test _send_wandb_alert_with_timeout integration with file system."""
         with tempfile.TemporaryDirectory() as temp_dir:
             ipc_file = os.path.join(temp_dir, "wandb_ipc.json")
-            
+
             # Create IPC file with test data
             ipc_data = {
                 "run_id": "test_run_123",
@@ -323,15 +323,15 @@ class TestIntegration:
             }
             with open(ipc_file, 'w') as f:
                 json.dump(ipc_data, f)
-            
+
             with patch('wandb.Api') as mock_wandb_api:
                 mock_api_instance = Mock()
                 mock_run = Mock()
                 mock_api_instance.run.return_value = mock_run
                 mock_wandb_api.return_value = mock_api_instance
-                
+
                 _send_wandb_alert_with_timeout("Integration Test Alert", ipc_file)
-                
+
                 # Verify W&B API was called correctly
                 mock_wandb_api.assert_called()
                 mock_api_instance.run.assert_called_with("test_entity/test_project/test_run_123")
@@ -348,8 +348,8 @@ class TestIntegration:
                 _main(['heartbeat', '/test/path/heartbeat.txt'])
                 mock_makedirs.assert_called_once()
                 mock_record.assert_called_once()
-        
-        # Test monitor command  
+
+        # Test monitor command
         with patch('metta.common.util.heartbeat.monitor_heartbeat') as mock_monitor:
             _main(['monitor', '/test/path/heartbeat.txt', '--pid', '1234'])
             mock_monitor.assert_called_once()

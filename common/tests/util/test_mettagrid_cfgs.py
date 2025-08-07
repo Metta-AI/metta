@@ -94,7 +94,7 @@ class TestMettagridCfgFileMetadata:
 
         # Should initialize Hydra with correct path
         mock_hydra_init.assert_called_once_with(
-            config_path="../../../../../configs", 
+            config_path="../../../../../configs",
             version_base=None
         )
 
@@ -125,7 +125,7 @@ class TestMettagridCfgFileMetadata:
     def test_absolute_path(self, mock_getcwd):
         """Test absolute_path method."""
         mock_getcwd.return_value = "/current/dir"
-        
+
         metadata = MettagridCfgFileMetadata(path="test/config.yaml", kind="env")
         result = metadata.absolute_path()
 
@@ -136,7 +136,7 @@ class TestMettagridCfgFileMetadata:
     def test_to_dict(self, mock_getcwd):
         """Test to_dict method."""
         mock_getcwd.return_value = "/current/dir"
-        
+
         metadata = MettagridCfgFileMetadata(path="test/config.yaml", kind="env")
         result = metadata.to_dict()
 
@@ -155,7 +155,7 @@ class TestMettagridCfgFile:
         """Test MettagridCfgFile initialization."""
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="env")
         cfg = OmegaConf.create({"test": "value"})
-        
+
         cfg_file = MettagridCfgFile(metadata=metadata, cfg=cfg)
         assert cfg_file.metadata == metadata
         assert cfg_file.cfg == cfg
@@ -164,10 +164,10 @@ class TestMettagridCfgFile:
         """Test to_dict method."""
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="env")
         cfg = OmegaConf.create({"test": "value", "nested": {"key": "val"}})
-        
+
         with patch.object(metadata, 'to_dict') as mock_metadata_to_dict:
             mock_metadata_to_dict.return_value = {"metadata": "dict"}
-            
+
             cfg_file = MettagridCfgFile(metadata=metadata, cfg=cfg)
             result = cfg_file.to_dict()
 
@@ -183,14 +183,14 @@ class TestMettagridCfgFile:
         # Mock the chain of calls
         mock_cfg_file = Mock()
         mock_get_cfg.return_value = mock_cfg_file
-        
+
         with patch.object(MettagridCfgFileMetadata, 'from_path') as mock_from_path:
             mock_metadata = Mock()
             mock_from_path.return_value = mock_metadata
             mock_metadata.get_cfg.return_value = mock_cfg_file
-            
+
             result = MettagridCfgFile.from_path("test/path.yaml")
-            
+
             mock_from_path.assert_called_once_with("test/path.yaml")
             mock_metadata.get_cfg.assert_called_once()
             assert result == mock_cfg_file
@@ -199,7 +199,7 @@ class TestMettagridCfgFile:
         """Test get_map_cfg with map kind config."""
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="map")
         cfg = OmegaConf.create({"map_config": "data"})
-        
+
         cfg_file = MettagridCfgFile(metadata=metadata, cfg=cfg)
         result = cfg_file.get_map_cfg()
 
@@ -210,7 +210,7 @@ class TestMettagridCfgFile:
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="env")
         map_cfg = OmegaConf.create({"map_data": "info"})
         cfg = OmegaConf.create({"game": {"map_builder": map_cfg}})
-        
+
         cfg_file = MettagridCfgFile(metadata=metadata, cfg=cfg)
         result = cfg_file.get_map_cfg()
 
@@ -220,9 +220,9 @@ class TestMettagridCfgFile:
         """Test get_map_cfg with invalid config kind."""
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="curriculum")
         cfg = OmegaConf.create({"some": "data"})
-        
+
         cfg_file = MettagridCfgFile(metadata=metadata, cfg=cfg)
-        
+
         with pytest.raises(ValueError, match="Config test.yaml is not a map or env"):
             cfg_file.get_map_cfg()
 
@@ -242,21 +242,21 @@ class TestMettagridCfgIntegration:
 
         # Test discovery
         all_configs = MettagridCfgFileMetadata.get_all()
-        
+
         assert "env" in all_configs
         assert "map" in all_configs
-        
+
         env_config = all_configs["env"][0]
         map_config = all_configs["map"][0]
-        
+
         # Test metadata properties
         assert env_config.kind == "env"
         assert map_config.kind == "map"
-        
+
         # Test absolute path generation
         env_abs_path = env_config.absolute_path()
         assert env_abs_path == "/project/configs/env/mettagrid/basic_env.yaml"
-        
+
         map_abs_path = map_config.absolute_path()
         assert "/project/configs/env/mettagrid" in map_abs_path
         assert "test_map.yaml" in map_abs_path
@@ -292,7 +292,7 @@ class TestMettagridCfgIntegration:
         mock_walk.return_value = [
             ("configs/env/mettagrid", [], [
                 "config.yaml",
-                "readme.md", 
+                "readme.md",
                 "data.json",
                 "script.py",
                 "another.yaml",
@@ -308,7 +308,7 @@ class TestMettagridCfgIntegration:
         assert "config.yaml" in yaml_files
         assert "another.yaml" in yaml_files
         assert ".hidden.yaml" in yaml_files  # Hidden files are still included if .yaml
-        
+
         # Should exclude non-yaml files
         all_paths = str(yaml_files)
         assert "readme.md" not in all_paths
@@ -319,15 +319,15 @@ class TestMettagridCfgIntegration:
         """Test that MettagridCfgFile.AsDict type annotation is correct."""
         # This test ensures the TypedDict is properly defined
         from metta.common.util.mettagrid_cfgs import MettagridCfgFile
-        
+
         # Check that AsDict is a class attribute
         assert hasattr(MettagridCfgFile, 'AsDict')
-        
+
         # Create a proper instance
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="env")
         cfg = OmegaConf.create({"test": "value"})
         cfg_file = MettagridCfgFile(metadata=metadata, cfg=cfg)
-        
+
         # Test to_dict returns proper structure
         result = cfg_file.to_dict()
         assert "metadata" in result
@@ -341,20 +341,20 @@ class TestMettagridCfgIntegration:
         """Test that Hydra context is properly managed."""
         mock_cfg = OmegaConf.create({"test": "value"})
         mock_config_from_path.return_value = mock_cfg
-        
+
         # Mock context manager
         mock_context = Mock()
         mock_hydra_init.return_value = mock_context
-        
+
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="env")
-        
+
         # Call get_cfg
         result = metadata.get_cfg()
-        
+
         # Verify context manager was used
         mock_context.__enter__.assert_called_once()
         mock_context.__exit__.assert_called_once()
-        
+
         # Verify result
         assert isinstance(result, MettagridCfgFile)
         assert result.cfg == mock_cfg

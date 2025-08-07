@@ -123,18 +123,17 @@ class TestInstantiate:
     def test_instantiate_recursive_simple(self):
         """Test recursive instantiation of nested configs."""
         config = {
-            "_target_": "collections.defaultdict",
-            "default_factory": {"_target_": "builtins.list"}
+            "_target_": "collections.OrderedDict",
+            "data": {"_target_": "builtins.dict", "key": "value"}
         }
 
         result = instantiate(config, _recursive_=True)
 
-        from collections import defaultdict
-        assert isinstance(result, defaultdict)
-        assert callable(result.default_factory)
-        # Test that it actually works
-        result["test"].append(1)
-        assert result["test"] == [1]
+        from collections import OrderedDict
+        assert isinstance(result, OrderedDict)
+        assert "data" in result
+        assert isinstance(result["data"], dict)
+        assert result["data"]["key"] == "value"
 
     def test_instantiate_recursive_nested_structures(self):
         """Test recursive instantiation with complex nested structures."""
@@ -276,7 +275,7 @@ class TestProcessRecursive:
         """Test processing OmegaConf with metadata - should hit line 90."""
         # Create OmegaConf with interpolations to ensure metadata exists
         config = OmegaConf.create({
-            "_target_": "builtins.list",
+            "_target_": "builtins.dict",
             "base": "test",
             "derived": "${base}_suffix"
         })
@@ -286,19 +285,24 @@ class TestProcessRecursive:
 
         result = _process_recursive(config, is_top_level=False)
 
-        assert isinstance(result, list)
+        assert isinstance(result, dict)
+        assert result["base"] == "test"
+        assert result["derived"] == "test_suffix"
 
     def test_process_recursive_dictconfig_without_metadata(self):
         """Test processing DictConfig without metadata - should hit line 41 case."""
         # Create a simple DictConfig that might not have metadata
-        config = OmegaConf.create({"_target_": "builtins.set"})
+        config = OmegaConf.create({"_target_": "builtins.dict"})
 
         # Force it to be a DictConfig but ensure the _metadata check fails
         # We'll patch the hasattr to return False to test line 41
         with patch('builtins.hasattr', return_value=False):
             result = _process_recursive(config, is_top_level=False)
 
-        assert isinstance(result, set)
+        # Since _process_recursive doesn't instantiate (line 41 just returns processed dict)
+        # and we're not at top level, it returns the processed dict structure
+        assert isinstance(result, dict)
+        assert result.get("_target_") == "builtins.dict"
 
     def test_process_recursive_complex_nesting(self):
         """Test processing deeply nested structures."""

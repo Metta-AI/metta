@@ -410,7 +410,7 @@ class TestGetMatchedPr:
     @patch('httpx.get')
     def test_get_matched_pr_success(self, mock_get):
         """Test get_matched_pr with successful API response."""
-    mock_response = Mock()
+        mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
             {"number": 123, "title": "Add new feature"}
@@ -426,7 +426,7 @@ class TestGetMatchedPr:
         """Test get_matched_pr when no PRs found."""
         mock_response = Mock()
         mock_response.status_code = 200
-    mock_response.json.return_value = []
+        mock_response.json.return_value = []
         mock_get.return_value = mock_response
 
         result = get_matched_pr("abc123")
@@ -437,11 +437,11 @@ class TestGetMatchedPr:
     def test_get_matched_pr_http_status_error_404(self, mock_get):
         """Test get_matched_pr with 404 error."""
         import httpx
-        
+
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.text = "Not Found"
-        
+
         error = httpx.HTTPStatusError("404", request=Mock(), response=mock_response)
         mock_get.side_effect = error
 
@@ -453,11 +453,11 @@ class TestGetMatchedPr:
     def test_get_matched_pr_http_status_error_other(self, mock_get):
         """Test get_matched_pr with non-404 HTTP error."""
         import httpx
-        
+
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
-        
+
         error = httpx.HTTPStatusError("500", request=Mock(), response=mock_response)
         mock_get.side_effect = error
 
@@ -468,7 +468,7 @@ class TestGetMatchedPr:
     def test_get_matched_pr_request_error(self, mock_get):
         """Test get_matched_pr with network error."""
         import httpx
-        
+
         error = httpx.RequestError("Network error")
         mock_get.side_effect = error
 
