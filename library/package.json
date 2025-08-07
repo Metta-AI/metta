@@ -19,6 +19,8 @@
     "pull-asana-papers": "tsx scripts/pull-papers-from-asana.ts",
     "extract-authors": "tsx scripts/extract-authors-from-papers.ts",
     "extract-institutions": "tsx scripts/extract-institutions-from-papers.ts",
+    "reset-and-import": "tsx scripts/reset-and-import-all.ts",
+    "quick-reset": "tsx scripts/quick-reset.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
@@ -26,6 +28,7 @@
     "db:reset": "prisma migrate reset"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.58.0",
     "@prisma/client": "^6.12.0",
     "@types/mathjax": "^0.0.40",
     "clsx": "^2.1.1",
@@ -36,6 +39,7 @@
     "next-auth": "5.0.0-beta.29",
     "next-safe-action": "^8.0.8",
     "nuqs": "^2.4.1",
+    "pdfreader": "^3.0.7",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
     "prisma": "^6.12.0",

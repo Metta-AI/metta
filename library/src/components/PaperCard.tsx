@@ -5,13 +5,13 @@ import { FC, useState } from "react";
 import { FeedPostDTO } from "@/posts/data/feed";
 
 interface PaperCardProps {
-  paper: FeedPostDTO['paper'];
+  paper: FeedPostDTO["paper"];
   onPaperClick?: (paperId: string) => void;
 }
 
 /**
  * PaperCard Component
- * 
+ *
  * Displays a paper in a card format with:
  * - Clickable title that opens paper overlay
  * - Expandable abstract
@@ -34,40 +34,41 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4">
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
       {/* Header with title and abstract toggle */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
+      <div className="mb-3 flex items-start justify-between">
+        <div className="min-w-0 flex-1">
           {/* Paper title - clickable */}
-          <h3 
-            className="text-lg font-semibold text-gray-900 mb-2 cursor-pointer hover:text-blue-600 transition-colors"
+          <h3
+            className="mb-2 cursor-pointer text-lg font-semibold text-gray-900 transition-colors hover:text-blue-600"
             onClick={handleTitleClick}
           >
             {paper.title}
           </h3>
         </div>
-        
+
         {/* Abstract toggle button in upper right */}
         {paper.abstract && (
           <button
             onClick={toggleAbstract}
-            className="text-xs text-blue-600 hover:text-blue-700 font-medium ml-4 flex-shrink-0"
+            className="ml-4 flex-shrink-0 cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-700"
+            aria-label={showAbstract ? "Hide abstract" : "Show abstract"}
           >
-            {showAbstract ? 'Hide Abstract' : 'Show Abstract'}
+            {showAbstract ? "Hide Abstract" : "Show Abstract"}
           </button>
         )}
       </div>
 
       {/* Paper metadata */}
-      <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
+      <div className="mb-3 flex items-center gap-4 text-xs text-gray-500">
         {paper.source && (
           <>
             {paper.link ? (
-              <a 
-                href={paper.link} 
-                target="_blank" 
+              <a
+                href={paper.link}
+                target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-blue-600 transition-colors"
+                className="transition-colors hover:text-blue-600"
               >
                 {paper.source}
               </a>
@@ -81,22 +82,23 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
         {paper.institutions && paper.institutions.length > 0 && (
           <>
             <span>•</span>
-            <span>{paper.institutions.join(', ')}</span>
+            <span>{paper.institutions.join(", ")}</span>
           </>
         )}
       </div>
 
       {/* Authors */}
       {paper.authors && paper.authors.length > 0 && (
-        <div className="text-sm text-gray-700 mb-3">
-          <span className="font-medium">Authors:</span> {paper.authors.map(author => author.name).join(', ')}
+        <div className="mb-3 text-sm text-gray-700">
+          <span className="font-medium">Authors:</span>{" "}
+          {paper.authors.map((author) => author.name).join(", ")}
         </div>
       )}
 
       {/* Abstract content */}
       {showAbstract && paper.abstract && (
-        <div className="border-t border-gray-100 pt-3 mb-3">
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+        <div className="mb-3 border-t border-gray-100 pt-3">
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
             {paper.abstract}
           </p>
         </div>
@@ -108,7 +110,7 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
           {paper.tags.map((tag, index) => (
             <span
               key={index}
-              className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
+              className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700"
             >
               {tag}
             </span>
@@ -117,4 +119,4 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
       )}
     </div>
   );
-}; 
+};

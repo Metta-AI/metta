@@ -67,8 +67,10 @@ export default function InstitutionOverlay({
               tags: [],
               source: null,
               externalId: null,
+              starred: null, // Add missing starred property
               isStarredByCurrentUser: false,
               isQueuedByCurrentUser: false,
+              createdAt: new Date(paper.createdAt), // Ensure Date type
               updatedAt: new Date(),
             }));
 
