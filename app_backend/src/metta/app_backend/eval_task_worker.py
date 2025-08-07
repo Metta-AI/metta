@@ -134,6 +134,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             f"stats_server_uri={self._backend_url}",
             "device=cpu",
             "vectorization=serial",
+            "push_metrics_to_wandb=true",
         ]
 
         for key, value in env_overrides.items():
