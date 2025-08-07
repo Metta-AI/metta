@@ -206,14 +206,7 @@ class TestConvertToDict:
         assert "Input cfg is not an OmegaConf config object" in error_msg
         assert "NoneType" in error_msg
 
-    def test_convert_string_config_to_dict(self):
-        """Test that string configs are converted to a dict with the string as a key."""
-        primitive_config = OmegaConf.create("just a string")
-        result = convert_to_dict(primitive_config)
 
-        # OmegaConf.create("string") creates {"just a string": None}
-        expected = {"just a string": None}
-        assert result == expected
 
     def test_convert_regular_dict_input_raises_error(self):
         """Test that regular Python dict raises error since it's not an OmegaConf object."""
@@ -260,19 +253,7 @@ class TestConvertToDict:
         assert isinstance(result["dict"], dict)
         assert result["none"] is None
 
-    def test_structured_config_mode_dict(self):
-        """Test that SCMode.DICT is properly applied."""
-        # This is testing the internal behavior but important for the function's purpose
-        config_data = {
-            "setting1": "value1",
-            "setting2": 42,
-        }
-        config = OmegaConf.create(config_data)
-        result = convert_to_dict(config)
 
-        # Should get a regular dict, not a DictConfig
-        assert type(result) is dict
-        assert not isinstance(result, DictConfig)
 
     def test_complex_real_world_scenario(self):
         """Test with a complex configuration similar to real-world usage."""

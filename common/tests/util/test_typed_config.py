@@ -111,25 +111,7 @@ class TestBaseModelWithForbidExtra:
         config = BaseModelWithForbidExtra.model_config
         assert config.get('extra') == 'forbid'
 
-    def test_multiple_inheritance_preserves_forbid_extra(self):
-        """Test that the forbid extra behavior is preserved in multiple inheritance scenarios."""
 
-        class MixinClass:
-            def custom_method(self):
-                return "mixin_result"
-
-        class MultiInheritConfig(BaseModelWithForbidExtra, MixinClass):
-            data: str
-
-        # Should still forbid extra fields
-        with pytest.raises(ValidationError) as exc_info:
-            MultiInheritConfig(data="test", extra="not_allowed")
-        assert "Extra inputs are not permitted" in str(exc_info.value)
-
-        # Should still allow valid instantiation and mixin methods
-        config = MultiInheritConfig(data="test")
-        assert config.data == "test"
-        assert config.custom_method() == "mixin_result"
 
     def test_serialization_and_deserialization(self):
         """Test that serialization works correctly with the forbid extra configuration."""

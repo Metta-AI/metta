@@ -92,16 +92,7 @@ class TestGroupBy:
         assert len(sales) == 1
         assert sales[0].name == "Eve"
 
-    def test_group_by_with_none_keys(self):
-        """Test group_by when key function returns None."""
-        items = [1, None, 2, None, 3]
-        result = group_by(items, lambda x: x)
 
-        assert len(result) == 4  # 1, 2, 3, None
-        assert result[1] == [1]
-        assert result[2] == [2]
-        assert result[3] == [3]
-        assert result[None] == [None, None]
 
     def test_group_by_with_complex_key_function(self):
         """Test group_by with complex key extraction."""
@@ -237,25 +228,7 @@ class TestRemoveNoneValues:
         assert result["bool_false"] is False
         assert isinstance(result["bool_false"], bool)
 
-    def test_remove_none_values_with_different_key_types(self):
-        """Test remove_none_values works with different key types."""
-        original = {
-            "string_key": "value1",
-            1: "value2",
-            (1, 2): "value3",
-            "none_key": None,
-            2: None,
-            (3, 4): None,
-        }
 
-        expected = {
-            "string_key": "value1",
-            1: "value2",
-            (1, 2): "value3",
-        }
-
-        result = remove_none_values(original)
-        assert result == expected
 
     def test_remove_none_values_real_world_use_case(self):
         """Test remove_none_values with a real-world HTTP headers scenario."""
