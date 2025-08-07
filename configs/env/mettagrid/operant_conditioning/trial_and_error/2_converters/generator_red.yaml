@@ -3,6 +3,8 @@ defaults:
   - _self_
 
 game:
+  obs_width: 6
+  obs_height: 6
   map_builder:
     width: 4
     height: 4

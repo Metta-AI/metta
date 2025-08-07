@@ -3,3 +3,6 @@ _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 tasks:
   /env/mettagrid/operant_conditioning/trial_and_error/2_converters/generator_red: 1
   /env/mettagrid/operant_conditioning/trial_and_error/2_converters/generator_blue: 1
+
+env_overrides:
+  num_trials: 16
