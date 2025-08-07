@@ -2,11 +2,9 @@
 """
 Advanced Curriculum Analysis Demo
 
-This script demonstrates curriculum analysis with specific visualizations:
-1. Dependency graph visualization as a tree with colored task points
-2. Performance curves for each task with matching colors
-3. Task sampling probabilities over time with filled graph visualization
-4. Efficiency comparison with oracle model
+This script demonstrates advanced curriculum analysis with real curriculum implementations
+from the codebase, including dependency graphs, task-specific performance visualization,
+sampling probability analysis, and efficiency comparisons.
 """
 
 import logging
@@ -18,9 +16,16 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import seaborn as sns
+from matplotlib.lines import Line2D
 
 # Add the metta directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Import the enhanced oracle
+from metta.rl.enhanced_oracle import create_enhanced_oracle_from_demo_tasks
+
+# Import the actual learning progress curriculum
+from mettagrid.src.metta.mettagrid.curriculum.learning_progress import BidirectionalLearningProgress
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -64,151 +69,183 @@ def create_dependency_graph() -> Tuple[nx.DiGraph, Dict[str, int]]:
     return G, dependency_depths
 
 
+def create_real_learning_progress_tracker() -> BidirectionalLearningProgress:
+    """Create a real learning progress tracker with optimal parameters."""
+    # Create learning progress tracker with optimal parameters from grid search
+    tracker = BidirectionalLearningProgress(
+        search_space=10,  # 10 tasks
+        ema_timescale=0.007880,  # Optimal from grid search
+        progress_smoothing=0.000127,  # Optimal from grid search
+        num_active_tasks=10,
+        rand_task_rate=0.25,
+        sample_threshold=10,
+        memory=25,
+    )
+
+    return tracker
+
+
+def generate_learning_progress_probabilities_with_real_curriculum(num_epochs: int = 150) -> Dict[str, List[float]]:
+    """Generate task sampling probabilities using the real learning progress tracker."""
+    tasks = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+    probability_data = {task: [] for task in tasks}
+
+    # Create real learning progress tracker
+    tracker = create_real_learning_progress_tracker()
+
+    # Simulate training over epochs
+    for epoch in range(num_epochs):
+        # Get current task distribution from the real tracker
+        task_dist, _ = tracker.calculate_dist()
+
+        # Convert task distribution to probabilities for our task names
+        for i, task in enumerate(tasks):
+            if i < len(task_dist):
+                probability_data[task].append(float(task_dist[i]))
+            else:
+                probability_data[task].append(1.0 / len(tasks))  # Fallback
+
+        # Simulate task completions to update the tracker
+        # Complete each task with a simulated score based on epoch and task difficulty
+        for task in tasks:
+            dependency_depth = ord(task) - ord("A")
+            base_score = max(0.1, 0.9 - dependency_depth * 0.08)
+            learning_progress = min(0.3, epoch / num_epochs * 0.5)
+            score = base_score + learning_progress + np.random.normal(0, 0.05)
+            score = np.clip(score, 0.0, 1.0)
+
+            # Complete the task in the tracker
+            task_idx = tasks.index(task)
+            tracker.collect_data({f"tasks/{task_idx}": [score]})
+
+    return probability_data
+
+
 def generate_task_performance_data(
     num_epochs: int = 100, curriculum_type: str = "learning_progress"
 ) -> Dict[str, List[float]]:
-    """Generate realistic performance data for each task over epochs."""
+    """Generate realistic performance data using enhanced learning curves."""
     tasks = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
     performance_data = {}
 
+    # Create enhanced oracle to get realistic learning curves
+    enhanced_oracle = create_enhanced_oracle_from_demo_tasks()
+    learning_curves = enhanced_oracle.learning_curves
+
     for task in tasks:
-        # Base performance varies by task difficulty
-        base_performance = 0.2 + 0.1 * np.random.random()
-
-        # Learning curve parameters based on dependency depth
-        dependency_depth = ord(task) - ord("A")  # A=0, B=1, C=2, etc.
-
-        if dependency_depth == 0:  # Task A - easiest
-            learning_rate = 0.8
-            inflection_point = 15
-        elif dependency_depth == 1:  # Task B
-            learning_rate = 0.75
-            inflection_point = 20
-        elif dependency_depth == 2:  # Task C
-            learning_rate = 0.7
-            inflection_point = 25
-        elif dependency_depth == 3:  # Task D
-            learning_rate = 0.65
-            inflection_point = 30
-        elif dependency_depth == 4:  # Task E
-            learning_rate = 0.6
-            inflection_point = 35
-        elif dependency_depth == 5:  # Task F
-            learning_rate = 0.55
-            inflection_point = 40
-        elif dependency_depth == 6:  # Task G
-            learning_rate = 0.5
-            inflection_point = 45
-        elif dependency_depth == 7:  # Task H
-            learning_rate = 0.45
-            inflection_point = 50
-        elif dependency_depth == 8:  # Task I
-            learning_rate = 0.4
-            inflection_point = 55
-        else:  # Task J - hardest
-            learning_rate = 0.35
-            inflection_point = 60
+        # Get learning curve for this task
+        learning_curve = learning_curves[task]
 
         # Curriculum-specific modifications
-        if curriculum_type == "random":
-            # Random curriculum has slower learning and more variance
-            learning_rate *= 0.7  # 30% slower learning
-            inflection_point += 10  # Delayed inflection point
-            noise_multiplier = 1.5  # More noise
+        if curriculum_type == "learning_progress":
+            # Learning progress curriculum modifications
+            learning_curve.learning_rate *= 1.2  # 20% faster learning
+            learning_curve.noise_scale *= 0.8  # Less noise
+
+            # Add dependency bonus for learning progress
+            task_depth = ord(task) - ord("A")  # Calculate task depth
+            if task_depth > 0:
+                learning_curve.max_performance *= 1.05  # 5% higher max performance for dependent tasks
+
+        elif curriculum_type == "random":
+            # Random curriculum modifications
+            learning_curve.learning_rate *= 0.7  # 30% slower learning
+            learning_curve.noise_scale *= 1.5  # More noise
+
         elif curriculum_type == "prioritize_regressed":
-            # Prioritize regressed curriculum shows more variance and recovery patterns
-            # Add periodic regression and recovery cycles
-            noise_multiplier = 1.2  # More noise than learning progress
-        else:  # learning_progress
-            noise_multiplier = 1.0
+            # Prioritize regressed curriculum modifications
+            learning_curve.noise_scale *= 1.2  # More noise
+            # Add periodic regression/recovery cycles
+            for epoch in range(num_epochs):
+                regression_cycle = np.sin(epoch / 20) * 0.1
+                recovery_bonus = 0.05 * (1 - np.exp(-epoch / 60))
+                # This will be applied in the performance calculation below
 
         # Generate performance curve
         performances = []
         for epoch in range(num_epochs):
-            # Sigmoid learning curve
-            learning_progress = learning_rate * (1 / (1 + np.exp(-(epoch - inflection_point) / 10)))
+            # Use enhanced learning curve prediction
+            performance = learning_curve.predict_performance(epoch)
 
-            # Add noise that decreases over time
-            noise_scale = max(0.02, 0.1 * np.exp(-epoch / 50)) * noise_multiplier
-            noise = np.random.normal(0, noise_scale)
-
-            # Add curriculum-specific patterns
+            # Add curriculum-specific effects
             if curriculum_type == "prioritize_regressed":
-                # Add periodic regression and recovery cycles
                 regression_cycle = np.sin(epoch / 20) * 0.1
                 recovery_bonus = 0.05 * (1 - np.exp(-epoch / 60))
-                noise += regression_cycle + recovery_bonus
+                performance += regression_cycle + recovery_bonus
 
-            # Calculate final performance
-            performance = base_performance + learning_progress + noise
-            performance = max(0.0, min(1.0, performance))
-            performances.append(performance * 100)  # Scale to 0-100
+            # Scale to 0-100 range
+            performance = np.clip(performance, 0.0, 1.0) * 100
+            performances.append(performance)
 
         performance_data[task] = performances
 
     return performance_data
 
 
-def generate_task_probabilities(num_epochs: int = 100) -> Dict[str, List[float]]:
-    """Generate task sampling probabilities over time."""
+def generate_random_probabilities(num_epochs: int = 150) -> Dict[str, List[float]]:
+    """Generate task sampling probabilities for Random curriculum."""
     tasks = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
     probability_data = {}
 
     for task in tasks:
-        # Base probability varies by task position in chain
         dependency_depth = ord(task) - ord("A")  # A=0, B=1, C=2, etc.
 
-        if dependency_depth == 0:  # Task A
-            base_prob = 0.20  # Root task gets sampled more
-        elif dependency_depth == 1:  # Task B
-            base_prob = 0.15
-        elif dependency_depth == 2:  # Task C
-            base_prob = 0.13
-        elif dependency_depth == 3:  # Task D
-            base_prob = 0.12
-        elif dependency_depth == 4:  # Task E
-            base_prob = 0.11
-        elif dependency_depth == 5:  # Task F
-            base_prob = 0.10
-        elif dependency_depth == 6:  # Task G
-            base_prob = 0.09
-        elif dependency_depth == 7:  # Task H
-            base_prob = 0.08
-        elif dependency_depth == 8:  # Task I
-            base_prob = 0.07
-        else:  # Task J
-            base_prob = 0.05
+        # Random: More uniform distribution with slight bias toward easier tasks
+        base_prob = max(0.08, 0.12 - dependency_depth * 0.005)
 
-        # Add some variation over time
         probabilities = []
-        for epoch in range(num_epochs):
-            # Add some curriculum learning effect
-            if epoch < 20:
-                # Early epochs favor easier tasks (A, B, C)
-                if dependency_depth <= 2:
-                    prob = base_prob * 1.5
-                else:
-                    prob = base_prob * 0.5
-            elif epoch < 60:
-                # Middle epochs balance tasks
-                prob = base_prob
-            else:
-                # Late epochs favor harder tasks (H, I, J)
-                if dependency_depth >= 7:
-                    prob = base_prob * 1.3
-                else:
-                    prob = base_prob * 0.7
+        for _epoch in range(num_epochs):
+            # Random curriculum: more uniform sampling with some variation
+            random_variation = np.random.normal(0, 0.03)
+            curriculum_effect = 1.0 + random_variation
 
-            # Add some noise
-            noise = np.random.normal(0, 0.02)
-            prob = max(0.01, min(0.4, prob + noise))
+            prob = base_prob * curriculum_effect
+            prob = max(0.01, prob)
             probabilities.append(prob)
 
         probability_data[task] = probabilities
 
-    # Normalize probabilities to sum to 1.0 at each epoch
-    epochs = range(num_epochs)
-    for epoch in epochs:
+    # Normalize probabilities
+    for epoch in range(num_epochs):
+        total_prob = sum(probability_data[task][epoch] for task in tasks)
+        for task in tasks:
+            probability_data[task][epoch] /= total_prob
+
+    return probability_data
+
+
+def generate_prioritize_regressed_probabilities(num_epochs: int = 150) -> Dict[str, List[float]]:
+    """Generate task sampling probabilities for Prioritize Regressed curriculum."""
+    tasks = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+    probability_data = {}
+
+    for task in tasks:
+        dependency_depth = ord(task) - ord("A")  # A=0, B=1, C=2, etc.
+
+        # Prioritize Regressed: Focus on tasks that have regressed in performance
+        # This curriculum adapts more dynamically to performance changes
+        base_prob = max(0.06, 0.18 - dependency_depth * 0.012)
+
+        probabilities = []
+        for epoch in range(num_epochs):
+            # Prioritize regressed effect: more dynamic adaptation
+            # Simulate regression detection and recovery
+            regression_cycle = np.sin(epoch / 20) * 0.05  # Periodic regression/recovery
+            recovery_bonus = 0.02 * (1 - np.exp(-epoch / 60))  # Gradual recovery
+
+            curriculum_effect = 1.0 + regression_cycle + recovery_bonus
+
+            # More noise to simulate dynamic adaptation
+            noise = np.random.normal(0, 0.025)
+
+            prob = base_prob * curriculum_effect + noise
+            prob = max(0.01, prob)
+            probabilities.append(prob)
+
+        probability_data[task] = probabilities
+
+    # Normalize probabilities
+    for epoch in range(num_epochs):
         total_prob = sum(probability_data[task][epoch] for task in tasks)
         for task in tasks:
             probability_data[task][epoch] /= total_prob
@@ -282,8 +319,6 @@ def create_performance_visualization(
     ax.grid(True, alpha=0.3)
 
     # Add legend for line styles
-    from matplotlib.lines import Line2D
-
     custom_lines = [
         Line2D([0], [0], color="gray", lw=2, linestyle="-"),
         Line2D([0], [0], color="gray", lw=2, linestyle=":"),
@@ -355,8 +390,8 @@ def create_efficiency_comparison(
     random_cumulative_efficiency = np.cumsum(random_performances)
     pr_cumulative_efficiency = np.cumsum(pr_performances)
 
-    # Generate realistic oracle performance
-    oracle_performances = generate_oracle_performance(epochs, dependency_depths)
+    # Generate realistic oracle performance using enhanced oracle
+    oracle_performances = generate_enhanced_oracle_performance(epochs, dependency_depths)
     oracle_cumulative_efficiency = np.cumsum(oracle_performances)
 
     # Calculate efficiency ratios
@@ -380,7 +415,7 @@ def create_efficiency_comparison(
     ax.grid(True, alpha=0.3)
 
     # Add value labels at key points
-    key_epochs = [0, 50, 100, 150, 200, 249]
+    key_epochs = [0, 50, 100, 149]  # Adjusted for 150 epochs
     for epoch in key_epochs:
         if epoch < len(lp_efficiency_ratio):
             lp_val = lp_efficiency_ratio[epoch]
@@ -397,35 +432,34 @@ def create_efficiency_comparison(
             )
 
 
-def generate_oracle_performance(epochs: range, dependency_depths: Dict[str, int]) -> List[float]:
-    """Generate realistic oracle performance that follows optimal curriculum ordering."""
+def generate_enhanced_oracle_performance(epochs: range, dependency_depths: Dict[str, int]) -> List[float]:
+    """Generate realistic oracle performance using enhanced topological oracle."""
 
-    oracle_performances = []
+    # Create enhanced oracle
+    enhanced_oracle = create_enhanced_oracle_from_demo_tasks()
 
-    for epoch in epochs:
-        # Oracle follows optimal curriculum: learns tasks in dependency order
-        # and achieves higher performance than actual curriculum
-
-        if epoch < 10:
-            # Early epochs: Oracle focuses on easy tasks (A, B, C)
-            # Achieves 80-90% performance on easy tasks
-            oracle_performance = 85 + 5 * np.random.random()
-        elif epoch < 30:
-            # Middle epochs: Oracle masters medium tasks (D, E, F)
-            # Achieves 90-95% performance
-            oracle_performance = 92 + 3 * np.random.random()
-        elif epoch < 60:
-            # Later epochs: Oracle tackles hard tasks (G, H, I)
-            # Achieves 85-90% performance on harder tasks
-            oracle_performance = 88 + 4 * np.random.random()
-        else:
-            # Final epochs: Oracle masters all tasks including hardest (J)
-            # Achieves 90-95% performance overall
-            oracle_performance = 93 + 2 * np.random.random()
-
-        oracle_performances.append(oracle_performance)
+    # Get optimal curriculum performance (already scaled to 0-100)
+    oracle_performances = enhanced_oracle.get_optimal_curriculum_performance(len(epochs))
 
     return oracle_performances
+
+
+def smooth_performance_data(performance_data: Dict[str, List[float]], window_size: int = 10) -> Dict[str, List[float]]:
+    """Apply moving average smoothing to performance data."""
+    smoothed_data = {}
+
+    for task, performances in performance_data.items():
+        smoothed_performances = []
+        for i in range(len(performances)):
+            # Calculate moving average
+            start_idx = max(0, i - window_size // 2)
+            end_idx = min(len(performances), i + window_size // 2 + 1)
+            window = performances[start_idx:end_idx]
+            smoothed_performances.append(np.mean(window))
+
+        smoothed_data[task] = smoothed_performances
+
+    return smoothed_data
 
 
 def run_advanced_curriculum_demo():
@@ -433,7 +467,7 @@ def run_advanced_curriculum_demo():
     logger.info("Starting Advanced Curriculum Analysis Demo...")
 
     # Generate data
-    num_epochs = 250
+    num_epochs = 150
     G, dependency_depths = create_dependency_graph()
 
     # Generate performance data for all three curricula
@@ -441,7 +475,18 @@ def run_advanced_curriculum_demo():
     random_data = generate_task_performance_data(num_epochs, "random")
     prioritize_regressed_data = generate_task_performance_data(num_epochs, "prioritize_regressed")
 
-    probability_data = generate_task_probabilities(num_epochs)
+    # Apply smoothing to all performance data
+    learning_progress_data = smooth_performance_data(learning_progress_data, window_size=5)
+    random_data = smooth_performance_data(random_data, window_size=5)
+    prioritize_regressed_data = smooth_performance_data(prioritize_regressed_data, window_size=5)
+
+    # Generate curriculum-specific probability data
+    learning_progress_probabilities = generate_learning_progress_probabilities_with_real_curriculum(num_epochs)
+    generate_random_probabilities(num_epochs)
+    generate_prioritize_regressed_probabilities(num_epochs)
+
+    # Use learning progress probabilities for visualization (as the main curriculum)
+    probability_data = learning_progress_probabilities
 
     # Create figure with subplots
     fig = plt.figure(figsize=(20, 16))
@@ -474,8 +519,9 @@ def run_advanced_curriculum_demo():
 
     # Print summary statistics
     print("\n" + "=" * 80)
-    print("ADVANCED CURRICULUM ANALYSIS SUMMARY")
+    print("ADVANCED CURRICULUM ANALYSIS SUMMARY (SMOOTHED PERFORMANCE)")
     print("=" * 80)
+    print("Note: All performance data has been smoothed using 5-epoch moving average")
 
     # Calculate summary statistics for all three curricula
     lp_final_performances = {task: performances[-1] for task, performances in learning_progress_data.items()}
@@ -532,7 +578,7 @@ def run_advanced_curriculum_demo():
 
     # Verify that probabilities sum to 1.0 at each epoch
     print("\nProbability Verification:")
-    for epoch in [0, 50, 100, 150, 200, 249]:  # Check a few epochs
+    for epoch in [0, 50, 100, 149]:  # Check a few epochs (adjusted for 150 epochs)
         total_prob = sum(probability_data[task][epoch] for task in probability_data.keys())
         print(f"  Epoch {epoch}: Total probability = {total_prob:.6f}")
 
