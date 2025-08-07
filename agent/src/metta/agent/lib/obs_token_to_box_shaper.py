@@ -1,6 +1,5 @@
 import warnings
 
-import einops
 import torch
 from tensordict import TensorDict
 
@@ -35,16 +34,8 @@ class ObsTokenToBoxShaper(LayerBase):
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
     def _forward(self, td: TensorDict):
-        token_observations = td["x"]
-
-        B = token_observations.shape[0]
-        TT = 1
-        if token_observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = token_observations.shape[1]
-            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
-        td["_BxTT_"] = B * TT
-
-        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+        token_observations = td["env_obs"]
+        B_TT = td.batch_size.numel()
 
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = token_observations[..., 0].to(torch.uint8)
@@ -59,11 +50,11 @@ class ObsTokenToBoxShaper(LayerBase):
         # We'd like to pre-create this as part of initialization, but we don't know the batch size or time steps at
         # that point.
         box_obs = torch.zeros(
-            (B * TT, self.num_layers, self.out_width, self.out_height),
+            (B_TT, self.num_layers, self.out_width, self.out_height),
             dtype=atr_values.dtype,
             device=token_observations.device,
         )
-        batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
+        batch_indices = torch.arange(B_TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
         valid_tokens = coords_byte != 0xFF
 
@@ -89,8 +80,5 @@ class ObsTokenToBoxShaper(LayerBase):
             y_coord_indices[valid_mask],
         ] = atr_values[valid_mask]
 
-        td["_TT_"] = TT
-        td["_batch_size_"] = B
-        td["_BxTT_"] = B * TT
         td[self._name] = box_obs
         return td
