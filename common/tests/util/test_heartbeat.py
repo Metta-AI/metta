@@ -143,7 +143,7 @@ class TestSendWandbAlertWithTimeout:
 
         mock_logger.warning.assert_called()
         warning_msg = mock_logger.warning.call_args[0][0]
-        assert "Failed to parse IPC file" in warning_msg
+        assert "Error decoding W&B IPC file" in warning_msg
 
     @patch('builtins.open')
     @patch('metta.common.util.heartbeat.logger')
@@ -163,7 +163,7 @@ class TestSendWandbAlertWithTimeout:
 
         mock_logger.warning.assert_called()
         warning_msg = mock_logger.warning.call_args[0][0]
-        assert "Missing required W&B info" in warning_msg
+        assert "Missing required W&B identifiers" in warning_msg
 
     @patch('builtins.open')
     @patch('wandb.Api')

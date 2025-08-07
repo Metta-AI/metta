@@ -81,7 +81,7 @@ class TestRunGitCommands:
         result = run_git("status", "--short")
 
         assert result == "test output"
-        mock_run_git_with_cwd.assert_called_once_with(["status", "--short"], None)
+        mock_run_git_with_cwd.assert_called_once_with(["status", "--short"])
 
     @patch('metta.common.util.git.run_git_with_cwd')
     def test_run_git_in_dir(self, mock_run_git_with_cwd):
@@ -286,8 +286,8 @@ class TestGitInfoFunctions:
 
     @patch('metta.common.util.git.get_remote_url')
     def test_is_metta_ai_repo_true(self, mock_get_remote_url):
-        """Test is_metta_ai_repo when URL matches metta-ai/metta."""
-        mock_get_remote_url.return_value = "https://github.com/metta-ai/metta.git"
+        """Test is_metta_ai_repo when URL matches Metta-AI/metta."""
+        mock_get_remote_url.return_value = "https://github.com/Metta-AI/metta.git"
 
         result = is_metta_ai_repo()
 
@@ -410,7 +410,7 @@ class TestGetMatchedPr:
     @patch('httpx.get')
     def test_get_matched_pr_success(self, mock_get):
         """Test get_matched_pr with successful API response."""
-        mock_response = Mock()
+    mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
             {"number": 123, "title": "Add new feature"}
@@ -426,7 +426,7 @@ class TestGetMatchedPr:
         """Test get_matched_pr when no PRs found."""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = []
+    mock_response.json.return_value = []
         mock_get.return_value = mock_response
 
         result = get_matched_pr("abc123")
