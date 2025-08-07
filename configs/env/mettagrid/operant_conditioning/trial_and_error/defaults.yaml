@@ -6,12 +6,11 @@ defaults:
   - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
-num_trials: 8
 desync_episodes: false
 
 game:
   num_agents: 24
-  max_steps: 32
+  max_steps: 256
   actions:
     attack:
       enabled: false
@@ -37,3 +36,14 @@ game:
       params:
         agents: 1
         objects: ??
+  objects:
+    mine_red:
+      cooldown: 50
+    generator_red:
+      cooldown: 50
+    generator_blue:
+      cooldown: 50
+    generator_green:
+      cooldown: 50
+    altar:
+      cooldown: 50

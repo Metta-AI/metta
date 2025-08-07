@@ -4,16 +4,14 @@ defaults:
 
 game:
   map_builder:
-    width: 4
-    height: 4
     root:
       params:
         objects:
           generator_red: 1
           generator_blue: 1
+          mine_red: 1
   objects:
     generator_red:
-      cooldown: 255
       initial_resource_count: 0
       input_resources:
         ore_red: 1
@@ -21,7 +19,6 @@ game:
         heart: 1
         battery_red: 0
     generator_blue:
-      cooldown: 255
       initial_resource_count: 0
       input_resources:
         ore_blue: 0
