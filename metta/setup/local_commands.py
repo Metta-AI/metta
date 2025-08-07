@@ -32,6 +32,7 @@ class LocalCommands:
     def __init__(self):
         self.repo_root = get_repo_root()
         self._kind_manager = None
+        self._datadog_manager = None
 
     def _build_parser(self) -> argparse.ArgumentParser:
         """Build argument parser for local commands."""
@@ -74,6 +75,14 @@ class LocalCommands:
         enter_parser = kind_subparsers.add_parser("enter", help="Enter pod shell")
         enter_parser.add_argument("pod_name", help="Pod name")
 
+        # Datadog command
+        datadog_parser = subparsers.add_parser("datadog", help="Manage Datadog deployment")
+        datadog_subparsers = datadog_parser.add_subparsers(dest="action", help="Datadog actions")
+        datadog_subparsers.add_parser("up", help="Deploy Datadog")
+        datadog_subparsers.add_parser("down", help="Stop Datadog")
+        datadog_subparsers.add_parser("status", help="Check Datadog status")
+        datadog_subparsers.add_parser("logs", help="View Datadog logs")
+
         return parser
 
     def main(self, argv=None) -> None:
@@ -114,6 +123,8 @@ class LocalCommands:
             self.load_policies(load_args)
         elif args.command == "kind":
             self.kind(args)
+        elif args.command == "datadog":
+            self.datadog(args)
         elif args.command == "observatory":
             self.observatory(args, unknown_args)
         elif args.command == "stats-server":
@@ -129,6 +140,14 @@ class LocalCommands:
 
             self._kind_manager = KindLocal()
         return self._kind_manager
+
+    @property
+    def datadog_manager(self):
+        if self._datadog_manager is None:
+            from metta.setup.tools.local.datadog import DatadogLocal
+
+            self._datadog_manager = DatadogLocal()
+        return self._datadog_manager
 
     def _build_img(self, tag: str, dockerfile_path: Path, build_args: list[str] | None = None) -> None:
         cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
@@ -249,6 +268,25 @@ class LocalCommands:
             else:
                 error("Pod name is required for enter command")
                 sys.exit(1)
+
+    def datadog(self, args) -> None:
+        """Handle datadog commands."""
+        action = getattr(args, "action", None)
+        if not action:
+            error("Please specify an action: up, down, status, or logs")
+            sys.exit(1)
+
+        if action == "up":
+            self.datadog_manager.up()
+        elif action == "down":
+            self.datadog_manager.down()
+        elif action == "status":
+            self.datadog_manager.status()
+        elif action == "logs":
+            self.datadog_manager.logs()
+        else:
+            error(f"Unknown action: {action}")
+            sys.exit(1)
 
     def observatory(self, args, unknown_args=None) -> None:
         """Launch Observatory with specified backend."""
