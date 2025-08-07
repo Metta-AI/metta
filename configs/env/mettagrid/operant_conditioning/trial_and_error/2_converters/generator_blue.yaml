@@ -3,7 +3,6 @@ defaults:
   - _self_
 
 game:
-  num_trials: 4
   map_builder:
     width: 4
     height: 4
