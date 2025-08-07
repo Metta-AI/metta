@@ -61,8 +61,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.num_actions = len(self.active_indices)
 
     def _forward(self, td: TensorDict):
-        B_TT = td["_BxTT_"]
-        td["_num_actions_"] = self.num_actions
+        B_TT = td.batch_size.numel()
 
         # get embeddings then expand to match the batch size
         td[self._name] = repeat(self._net(self.active_indices), "a e -> b a e", b=B_TT)

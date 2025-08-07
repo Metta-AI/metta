@@ -35,14 +35,14 @@ lt() {
     local original_dir="$(pwd)"
     cd_repo_root
     local repo_result=$?
-    
+
     if [ $repo_result -eq 0 ]; then
         ./devops/skypilot/launch.py "train" "$@"
         local exit_code=$?
     else
         local exit_code=$repo_result
     fi
-    
+
     cd "$original_dir"
     return $exit_code
 }
