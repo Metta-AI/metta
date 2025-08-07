@@ -202,8 +202,11 @@ class TestRunOnce:
         mock_is_initialized.return_value = True
         mock_get_rank.return_value = 1  # This is rank 1 (not rank 0)
 
-        # Mock the broadcast to simulate receiving the result from rank 0
+                # Mock the broadcast to simulate receiving the result from rank 0
+        initial_call_args = None
         def mock_broadcast(result_list, src):
+            nonlocal initial_call_args
+            initial_call_args = (result_list.copy(), src)  # Capture before modification
             result_list[0] = test_value  # Simulate receiving the broadcasted value
 
         mock_broadcast_object_list.side_effect = mock_broadcast
@@ -212,10 +215,9 @@ class TestRunOnce:
 
         assert result == test_value
         test_function.assert_not_called()  # Function should not be called on non-rank 0
-        # Check that broadcast was called with None initially (before the mock modified it)
-        args, kwargs = mock_broadcast_object_list.call_args
-        assert args[0] == [test_value]  # After mock modification
-        assert kwargs == {"src": 0}
+        # Check that broadcast was called with None initially
+        assert initial_call_args[0] == [None]  # Initial state before modification
+        assert initial_call_args[1] == 0
         mock_destroy_process_group.assert_called_once()
 
     @patch("torch.distributed.broadcast_object_list")

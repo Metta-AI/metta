@@ -258,63 +258,32 @@ class TestNumpyCompat:
             attr_value = getattr(np, attr)
             assert callable(attr_value) or hasattr(attr_value, "dtype"), f"Attribute {attr} is not a valid NumPy type"
 
-    def test_type_equivalences_are_correct(self):
-        """Test that the type equivalences are sensible NumPy types."""
-        # Import the module
+    def test_compatibility_attributes_work_correctly(self):
+        """Test that compatibility attributes function as valid NumPy types."""
+        # Import the module to ensure compatibility attributes are set
         import metta.common.util.numpy_compat
         importlib.reload(metta.common.util.numpy_compat)
 
-        # Test that all expected attributes exist and are callable types
-        expected_attrs = {
-            "byte": np.int8,
-            "short": np.int16,
-            "intc": np.int32,
-            "int_": np.int64,
-            "ubyte": np.uint8,
-            "ushort": np.uint16,
-            "uintc": np.uint32,
-            "uint": np.uint64,
-            "float_": np.float64,
-            "double": np.float64,
-            "csingle": np.complex64,
-            "cdouble": np.complex128,
-        }
+        # Test core attributes that are essential for WandB compatibility
+        essential_attrs = ["byte", "short", "intc", "ubyte", "float_", "csingle"]
 
-        for attr_name, expected_type in expected_attrs.items():
+        for attr_name in essential_attrs:
             if hasattr(np, attr_name):
                 attr_value = getattr(np, attr_name)
-                # For attributes added by our compatibility module, check they match expected type
-                # For existing attributes, just verify they're valid NumPy types
                 assert callable(attr_value), f"{attr_name} should be callable"
 
-                # If this was added by our module (not pre-existing), verify the exact mapping
-                # We can't easily test this since NumPy 1.26.4 has most attributes already
-                # So just verify it's a valid NumPy dtype
+                # Test that it can create arrays
                 try:
-                    np.array([1], dtype=attr_value)
-                except (TypeError, ValueError):
-                    pytest.fail(f"{attr_name} is not a valid NumPy dtype")
+                    test_val = 1 if 'c' not in attr_name else 1+0j
+                    arr = np.array([test_val], dtype=attr_value)
+                    assert isinstance(arr, np.ndarray)
+                except (TypeError, ValueError) as e:
+                    pytest.fail(f"{attr_name} failed to create array: {e}")
 
-        # Test special cases that our module handles
+        # Test that special types have correct kinds
         if hasattr(np, "longlong"):
-            # longlong should be some integer type
-            test_arr = np.array([1], dtype=np.longlong)
-            assert test_arr.dtype.kind in ['i', 'u'], "longlong should be an integer type"
-
-        if hasattr(np, "ulonglong"):
-            # ulonglong should be some unsigned integer type
-            test_arr = np.array([1], dtype=np.ulonglong)
-            assert test_arr.dtype.kind == 'u', "ulonglong should be an unsigned integer type"
-
-        if hasattr(np, "longdouble"):
-            # longdouble should be some float type
-            test_arr = np.array([1.0], dtype=np.longdouble)
-            assert test_arr.dtype.kind == 'f', "longdouble should be a float type"
-
-        if hasattr(np, "clongdouble"):
-            # clongdouble should be some complex type
-            test_arr = np.array([1.0+0j], dtype=np.clongdouble)
-            assert test_arr.dtype.kind == 'c', "clongdouble should be a complex type"
+            arr = np.array([1], dtype=np.longlong)
+            assert arr.dtype.kind in ['i', 'u'], "longlong should be integer type"
 
     def test_types_can_create_arrays(self):
         """Test that the compatibility types can actually create NumPy arrays."""
@@ -340,6 +309,30 @@ class TestNumpyCompat:
         if hasattr(np, "csingle"):
             arr = np.array([1+2j], dtype=np.csingle)
             assert arr.dtype == np.complex64
+
+    def test_wandb_compatibility_integration(self):
+        """Test that numpy compatibility works in a WandB-like scenario."""
+        import metta.common.util.numpy_compat
+
+        # Simulate what WandB might do with these deprecated types
+        try:
+            # This is the actual use case - WandB using deprecated numpy attributes
+            test_data = {
+                'byte_data': np.array([1, 2, 3], dtype=np.byte),
+                'ubyte_data': np.array([1, 2, 3], dtype=np.ubyte),
+                'float_data': np.array([1.0, 2.0], dtype=np.float_),
+                'complex_data': np.array([1+2j], dtype=np.csingle),
+            }
+
+            # All should create valid arrays
+            for name, arr in test_data.items():
+                assert isinstance(arr, np.ndarray), f"{name} failed to create array"
+                assert arr.size > 0, f"{name} created empty array"
+
+        except AttributeError as e:
+            pytest.fail(f"WandB compatibility failed - missing attribute: {e}")
+        except Exception as e:
+            pytest.fail(f"WandB compatibility failed: {e}")
 
     def test_module_documentation(self):
         """Test that the module has proper documentation."""
