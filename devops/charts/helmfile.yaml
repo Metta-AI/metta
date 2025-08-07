@@ -95,6 +95,16 @@ releases:
     values:
       - ./helm.values/skypilot-values.yaml
 
+  ########## Monitoring ##########
+  - name: datadog
+    chart: ./datadog
+    version: 0.1.0
+    namespace: datadog
+    hooks:
+      - events: ["presync"]
+        command: "kubectl"
+        args: ["create", "namespace", "datadog", "--dry-run=client", "-o", "yaml"]
+
   ########## Softmax apps ##########
   - name: orchestrator
     chart: ./orchestrator
