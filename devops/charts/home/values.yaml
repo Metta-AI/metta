@@ -1,0 +1,36 @@
+replicaCount: 1
+
+image: nginx:alpine
+
+host: home.softmax-research.net
+
+cert_manager_issuer: letsencrypt
+
+oauth2_proxy:
+  email_domains:
+    - stem.ai
+    - softmax.com
+  # This secret is terraformed by devops/tf/eks
+  secret_name: softmax-infra-oauth
+
+links:
+  - name: Observatory
+    url: https://observatory.softmax-research.net/
+  - name: Mettascope
+    url: https://metta-ai.github.io/metta/
+  - name: Weights & Biases
+    url: https://wandb.ai/metta-research/metta
+  - name: Skypilot
+    url: https://skypilot-api.softmax-research.net/
+  - name: Datadog Dashboard
+    url: https://app.datadoghq.com/dashboard/gpk-2y2-9er?fromUser=false&refresh_mode=sliding&from_ts=1754597801739&to_ts=1754601401739&live=true
+  - name: GitHub
+    url: http://github.com/metta-ai
+  - name: Public Site
+    url: https://softmax.com/
+  - name: Discord
+    url: https://discord.com/channels/1309708848730345493/1332060892350779453
+  - name: Asana
+    url: https://app.asana.com/1/1209016784099267/home
+  - name: Job Application Form
+    url: https://form.asana.com/?k=Bud764ZSBAtkdcbfkI-fHQ&d=1209016784099267
