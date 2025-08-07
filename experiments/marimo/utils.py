@@ -1,314 +1,247 @@
-from typing import Any
+"""
+Marimo-native scorecard visualization using interactive components.
+"""
 
+from typing import Any, Optional, Dict, Tuple
+import marimo as mo
+import pandas as pd
+import altair as alt
 from metta.app_backend.routes.scorecard_routes import ScorecardData
 
-import marimo as mo
+__all__ = [
+    "prepare_scorecard_data",
+    "render_scorecard_content",
+    "render_comparison_charts",
+    "format_policy_name",
+    "format_eval_name",
+]
 
 
-def create_marimo_scorecard(
+def prepare_scorecard_data(
     data: ScorecardData, metric: str, num_policies: int = 20
-) -> Any:
-    """Create a marimo-native scorecard visualization."""
+) -> Tuple[Optional[pd.DataFrame], Optional[Dict]]:
+    """Prepare data for scorecard visualization."""
     if not data:
-        return mo.Html(
-            """
-            <div style="padding: 40px; text-align: center; color: #6c757d;">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin: 0 auto 16px;">
-                    <path d="M9 11l3 3 8-8M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <p style="font-size: 18px; margin: 0;">No scorecard data available</p>
-                <p style="font-size: 14px; color: #adb5bd; margin-top: 8px;">Select policies and evaluations to generate a scorecard</p>
-            </div>
-            """
-        )
+        return None, None
 
-    # ScorecardData has these attributes: cells, evalNames, policyNames, policyAverageScores
+    # Extract data
     cells = data.cells
     eval_names = data.evalNames
     policy_names = data.policyNames
     policy_averages = data.policyAverageScores
 
-    # Sort policies by average score (worst to best, for display)
-    sorted_policies = sorted(policy_names, key=lambda p: policy_averages.get(p, 0))[
-        -num_policies:
-    ]
+    # Sort policies by average score (best first)
+    sorted_policies = sorted(
+        policy_names, key=lambda p: policy_averages.get(p, 0), reverse=True
+    )[:num_policies]
 
-    # Group evaluations by category
+    # Group evaluations by category for better organization
     eval_by_category = {}
     for eval_name in eval_names:
-        if "/" in eval_name:
-            category, name = eval_name.split("/", 1)
-        else:
-            category = "misc"
-            name = eval_name
+        category = eval_name.split("/")[0] if "/" in eval_name else "misc"
         if category not in eval_by_category:
             eval_by_category[category] = []
-        eval_by_category[category].append((name, eval_name))
+        eval_by_category[category].append(eval_name)
 
-    # Build HTML table
-    html = f"""
-    <style>
-        .scorecard-container {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }}
-        .scorecard-header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }}
-        .scorecard-title {{
-            font-size: 24px;
-            font-weight: 600;
-            margin: 0;
-        }}
-        .scorecard-subtitle {{
-            font-size: 14px;
-            opacity: 0.9;
-            margin-top: 4px;
-        }}
-        .scorecard-metric-badge {{
-            background: rgba(255, 255, 255, 0.2);
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            backdrop-filter: blur(10px);
-        }}
-        .scorecard-wrapper {{
-            overflow-x: auto;
-            background: #f8f9fa;
-        }}
-        .scorecard-table {{
-            border-collapse: separate;
-            border-spacing: 0;
-            font-size: 13px;
-            width: 100%;
-            min-width: 800px;
-            background: white;
-        }}
-        .scorecard-table th {{
-            padding: 12px 8px;
-            text-align: center;
-            background-color: #ffffff;
-            border-bottom: 2px solid #e9ecef;
-            font-weight: 600;
-            font-size: 12px;
-            color: #495057;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            white-space: nowrap;
-        }}
-        .scorecard-table th:first-child {{
-            text-align: left;
-            padding-left: 24px;
-            font-size: 13px;
-        }}
-        .scorecard-table td {{
-            padding: 10px 8px;
-            text-align: center;
-            border-bottom: 1px solid #f1f3f5;
-            transition: all 0.15s ease;
-            position: relative;
-        }}
-        .scorecard-table td:first-child {{
-            text-align: left;
-            font-weight: 500;
-            background-color: #fcfcfc;
-            position: sticky;
-            left: 0;
-            z-index: 5;
-            padding-left: 24px;
-            border-right: 1px solid #e9ecef;
-            color: #212529;
-            font-size: 13px;
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }}
-        .scorecard-table tr {{
-            transition: all 0.15s ease;
-        }}
-        .scorecard-table tbody tr:hover {{
-            background-color: #f8f9fa;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-        }}
-        .scorecard-table tbody tr:hover td:first-child {{
-            background-color: #f1f3f5;
-        }}
-        .scorecard-cell {{
-            position: relative;
-            min-width: 70px;
-            font-weight: 500;
-            border-radius: 6px;
-            margin: 0 2px;
-        }}
-        .category-header {{
-            background: linear-gradient(to bottom, #f8f9fa, #e9ecef) !important;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #6c757d;
-            border-bottom: 2px solid #dee2e6 !important;
-        }}
-        .policy-link {{
-            color: #4c6ef5;
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.15s ease;
-        }}
-        .policy-link:hover {{
-            color: #364fc7;
-            text-decoration: underline;
-        }}
-        .score-cell {{
-            font-weight: 600;
-            color: #212529;
-            border-radius: 6px;
-            position: relative;
-            padding: 4px 8px;
-            display: inline-block;
-            min-width: 48px;
-        }}
-        .overall-score {{
-            font-size: 14px;
-            font-weight: 700;
-        }}
-        .empty-cell {{
-            color: #adb5bd;
-            font-size: 16px;
-        }}
-        .scorecard-legend {{
-            padding: 16px 24px;
-            background: #f8f9fa;
-            border-top: 1px solid #e9ecef;
-            display: flex;
-            align-items: center;
-            gap: 24px;
-            font-size: 12px;
-            color: #6c757d;
-        }}
-        .legend-item {{
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }}
-        .legend-color {{
-            width: 16px;
-            height: 16px;
-            border-radius: 4px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-        }}
-    </style>
-    <div class="scorecard-container">
-        <div class="scorecard-header">
-            <div>
-                <h2 class="scorecard-title">Policy Performance Scorecard</h2>
-                <div class="scorecard-subtitle">Showing top {len(sorted_policies)} policies by performance</div>
-            </div>
-            <div class="scorecard-metric-badge">
-                Metric: {metric.upper()}
-            </div>
-        </div>
-        <div class="scorecard-wrapper">
-            <table class="scorecard-table">
-                <thead>
-                    <tr>
-                        <th>Policy</th>
-                        <th style="background: #f0f8ff; border-bottom-color: #4c6ef5;">Overall</th>
-    """
+    # Prepare data for visualization
+    rows = []
+    for policy in sorted_policies:
+        row = {
+            "Policy": format_policy_name(policy),
+            "Overall Score": round(policy_averages.get(policy, 0), 1),
+            "_original_policy": policy,  # Keep original for linking
+        }
 
-    # Add category headers
-    for category in sorted(eval_by_category.keys()):
-        colspan = len(eval_by_category[category])
-        category_display = category.replace("_", " ").title()
-        html += (
-            f'<th colspan="{colspan}" class="category-header">{category_display}</th>'
-        )
-    html += "</tr><tr><th></th><th style='background: #f0f8ff;'></th>"
-
-    # Add evaluation name headers
-    for category in sorted(eval_by_category.keys()):
-        for name, _ in eval_by_category[category]:
-            display_name = name.replace("_", " ").title()
-            html += f'<th title="{name}">{display_name}</th>'
-    html += "</tr></thead><tbody>"
-
-    # Add data rows
-    for i, policy in enumerate(reversed(sorted_policies)):  # Best policies at top
-        policy_avg = policy_averages.get(policy, 0)
-
-        # Create policy link if it contains version info
-        if ":v" in policy:
-            run_id = policy.split(":v")[0]
-            version = policy.split(":v")[1]
-            policy_display = f'<a href="https://wandb.ai/softmax-ai/metta/runs/{run_id}" target="_blank" class="policy-link" title="View in W&B">{run_id} <span style="color: #868e96; font-weight: normal;">v{version}</span></a>'
-        else:
-            policy_display = f'<span title="{policy}">{policy}</span>'
-
-        row_style = 'style="background: #fafbfc;"' if i == 0 else ""
-        html += f"<tr {row_style}><td>{policy_display}</td>"
-
-        # Overall score with color
-        color = get_score_color(policy_avg, 0, 100)
-        html += f'<td><span class="score-cell overall-score" style="background-color: {color};">{policy_avg:.1f}</span></td>'
-
-        # Individual evaluation scores
-        for category in sorted(eval_by_category.keys()):
-            for _, eval_name in eval_by_category[category]:
-                # In ScorecardData, cells[policy][eval_name] contains a ScorecardCell object
-                cell_data = cells.get(policy, {}).get(eval_name)
-                if cell_data:
-                    # For ScorecardCell objects from the API
-                    if hasattr(cell_data, "value"):
-                        value = cell_data.value  # This is already a float
-                    # For dict representation (when parsed from JSON)
-                    elif isinstance(cell_data, dict) and "value" in cell_data:
-                        value = cell_data["value"]
-                    else:
-                        # Fallback: try to convert directly
-                        try:
-                            value = float(cell_data)
-                        except (TypeError, ValueError):
-                            value = 0
-
-                    color = get_score_color(value, 0, 100)
-                    html += f'<td><span class="score-cell" style="background-color: {color};" title="{eval_name}: {value:.2f}">{value:.1f}</span></td>'
+        # Add evaluation scores
+        for eval_name in eval_names:
+            cell_data = cells.get(policy, {}).get(eval_name)
+            if cell_data:
+                value = cell_data.value if hasattr(cell_data, "value") else cell_data
+                if isinstance(value, (int, float)):
+                    row[format_eval_name(eval_name)] = round(value, 1)
                 else:
-                    html += '<td><span class="empty-cell">-</span></td>'
+                    row[format_eval_name(eval_name)] = value
+            else:
+                row[format_eval_name(eval_name)] = None
 
-        html += "</tr>"
+        rows.append(row)
 
-    return mo.Html(html)
+    # Create DataFrame
+    df = pd.DataFrame(rows)
+
+    # Return data and context
+    return df, {
+        "eval_by_category": eval_by_category,
+        "cells": cells,
+        "metric": metric,
+        "sorted_policies": sorted_policies,
+        "policy_averages": policy_averages,
+        "policy_names": policy_names,
+    }
 
 
-def get_score_color(value: float, min_val: float = 0, max_val: float = 100) -> str:
-    """Get color for score visualization using a diverging color scale."""
-    if value is None:
-        return "#f8f9fa"
+def render_scorecard_content(tabs_value: str, df: pd.DataFrame, context: Dict) -> Any:
+    """Render scorecard content based on selected tab."""
+    if tabs_value == "table":
+        return create_table_view(
+            df, context["eval_by_category"], context["cells"], context["metric"]
+        )
+    elif tabs_value == "heatmap":
+        return create_heatmap_view(df, context["metric"])
+    else:  # comparison
+        return create_comparison_view(df, context["metric"])
 
-    # Normalize to 0-1
-    norm_value = (value - min_val) / (max_val - min_val)
-    norm_value = max(0, min(1, norm_value))
 
-    # Use a diverging color scale (red -> yellow -> green)
-    # Based on RdYlGn color scheme
-    if norm_value < 0.33:
-        # Poor performance (red tones)
-        return "rgba(215, 48, 39, 0.2)"  # #d73027
-    elif norm_value < 0.67:
-        # Fair performance (yellow tones)
-        return "rgba(254, 224, 139, 0.3)"  # #fee08b
-    else:
-        # Good performance (green tones)
-        return "rgba(26, 152, 80, 0.2)"  # #1a9850"
+def create_table_view(df, eval_by_category, cells, metric):
+    """Create an interactive table view."""
+
+    # Create the table without _original_policy column
+    display_df = df.drop(columns=["_original_policy"])
+
+    table = mo.ui.table(
+        data=display_df, selection="single", pagination=True, page_size=15
+    )
+
+    # Return just the table component - details will be handled separately
+    return mo.vstack(
+        [mo.md("*Click on a row to see detailed scores and replay links*"), table],
+        gap=2,
+    )
+
+
+def create_heatmap_view(df, metric):
+    """Create an interactive heatmap visualization."""
+    # Prepare data for heatmap
+    display_df = df.drop(columns=["_original_policy"])
+    df_melted = display_df.melt(
+        id_vars=["Policy", "Overall Score"], var_name="Evaluation", value_name="Score"
+    ).dropna(subset=["Score"])
+
+    # Create the heatmap
+    heatmap = (
+        alt.Chart(df_melted)
+        .mark_rect(stroke="white", strokeWidth=1)
+        .encode(
+            x=alt.X(
+                "Evaluation:N",
+                title="Evaluation",
+                axis=alt.Axis(labelAngle=-45, labelLimit=200),
+            ),
+            y=alt.Y(
+                "Policy:N",
+                title="Policy",
+                sort=alt.SortField("Overall Score", order="descending"),
+            ),
+            color=alt.Color(
+                "Score:Q",
+                scale=alt.Scale(domain=[0, 100], scheme="redyellowgreen", clamp=True),
+                title="Score",
+                legend=alt.Legend(orient="right", gradientLength=200),
+            ),
+            tooltip=[
+                alt.Tooltip("Policy:N", title="Policy"),
+                alt.Tooltip("Evaluation:N", title="Evaluation"),
+                alt.Tooltip("Score:Q", title="Score", format=".1f"),
+            ],
+        )
+        .properties(
+            width=800,
+            height=max(400, len(df) * 25),  # Dynamic height based on policies
+            title={
+                "text": f"Policy Performance Heatmap - {metric.upper()}",
+                "subtitle": "Hover over cells for details",
+                "fontSize": 16,
+                "subtitleFontSize": 12,
+            },
+        )
+        .configure_axis(labelFontSize=11, titleFontSize=13)
+        .configure_legend(labelFontSize=11, titleFontSize=12)
+    )
+
+    return mo.ui.altair_chart(heatmap)
+
+
+def create_comparison_view(df, metric):
+    """Create an interactive comparison chart selector."""
+    # Allow selecting policies to compare
+
+    policy_selector = mo.ui.multiselect(
+        options=df["Policy"].tolist(),
+        value=df["Policy"].head(5).tolist(),  # Default to top 5
+        label="Select policies to compare:",
+        max_selections=10,
+    )
+
+    # Just return the selector - charts will be created in a separate function
+    return policy_selector
+
+
+def render_comparison_charts(policy_selector_value, df, metric):
+    """Render comparison charts based on selected policies."""
+    if not policy_selector_value:
+        return mo.md("*Select policies to compare*")
+
+    display_df = df.drop(columns=["_original_policy"])
+
+    # Filter data for selected policies
+    selected_df = display_df[display_df["Policy"].isin(policy_selector_value)]
+
+    # Melt for visualization
+    comparison_data = selected_df.melt(
+        id_vars=["Policy", "Overall Score"], var_name="Evaluation", value_name="Score"
+    ).dropna(subset=["Score"])
+
+    # Create radar chart using custom encoding
+    base = alt.Chart(comparison_data).encode(
+        theta=alt.Theta("Evaluation:N", stack=None),
+        radius=alt.Radius("Score:Q", scale=alt.Scale(domain=[0, 100])),
+        color=alt.Color("Policy:N", legend=alt.Legend(orient="top", columns=2)),
+        tooltip=["Policy:N", "Evaluation:N", alt.Tooltip("Score:Q", format=".1f")],
+    )
+
+    # Combine line and point marks for better visibility
+    radar = base.mark_line(opacity=0.6, strokeWidth=2) + base.mark_point(size=100)
+
+    radar_chart = radar.properties(
+        width=600, height=600, title=f"Policy Comparison Radar - {metric.upper()}"
+    ).configure_axis(grid=True, gridOpacity=0.3, labelFontSize=10)
+
+    # Alternative bar chart view
+    bar_chart = (
+        alt.Chart(comparison_data)
+        .mark_bar()
+        .encode(
+            x=alt.X("Evaluation:N", axis=alt.Axis(labelAngle=-45)),
+            y=alt.Y("Score:Q", scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color("Policy:N"),
+            xOffset="Policy:N",
+            tooltip=["Policy:N", "Evaluation:N", alt.Tooltip("Score:Q", format=".1f")],
+        )
+        .properties(
+            width=700, height=400, title=f"Policy Comparison Bars - {metric.upper()}"
+        )
+    )
+
+    # Show both visualizations
+    return mo.vstack(
+        [mo.ui.altair_chart(radar_chart), mo.ui.altair_chart(bar_chart)], gap=3
+    )
+
+
+def format_policy_name(policy: str) -> str:
+    """Format policy name for display."""
+    if ":v" in policy:
+        run_id, version = policy.split(":v")
+        # Shorten long run IDs
+        if len(run_id) > 40:
+            run_id = run_id[:37] + "..."
+        return f"{run_id} v{version}"
+    return policy
+
+
+def format_eval_name(eval_name: str) -> str:
+    """Format evaluation name for display."""
+    if "/" in eval_name:
+        _, name = eval_name.split("/", 1)
+        return name.replace("_", " ").title()
+    return eval_name.replace("_", " ").title()
