@@ -533,8 +533,7 @@ def train(
                         wandb_run=wandb_run,
                         trainer_cfg=trainer_cfg,
                     )
-
-                if trainer_cfg.simulation.evaluate_local:
+                else:
                     eval_scores = evaluate_policy(
                         policy_record=latest_saved_policy_record,
                         sim_suite_config=extended_suite_config,
@@ -551,7 +550,7 @@ def train(
                         epoch=epoch,
                     )
 
-                    stats_tracker.update_epoch_tracking(epoch + 1)
+                stats_tracker.update_epoch_tracking(epoch + 1)
 
         # Compute gradient stats
         if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
