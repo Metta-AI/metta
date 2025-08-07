@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
+from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate, EvalTaskRow, EvalTaskWithPolicyName
 from metta.app_backend.route_logger import timed_http_handler
 from metta.common.util.git import get_latest_commit
 
@@ -68,20 +68,25 @@ class TaskResponse(BaseModel):
         return self._attribute_property("workers_spawned") or 0
 
     @classmethod
-    def from_db(cls, task: dict[str, Any]) -> "TaskResponse":
+    def from_db(cls, task: EvalTaskRow | EvalTaskWithPolicyName) -> "TaskResponse":
+        # Handle both EvalTaskRow and EvalTaskWithPolicyName
+        policy_name = None
+        if isinstance(task, EvalTaskWithPolicyName):
+            policy_name = task.policy_name
+        
         return cls(
-            id=task["id"],
-            policy_id=task["policy_id"],
-            sim_suite=task["sim_suite"],
-            status=task["status"],
-            assigned_at=task["assigned_at"],
-            assignee=task["assignee"],
-            created_at=task["created_at"],
-            attributes=task["attributes"] or {},
-            policy_name=task.get("policy_name"),
-            retries=task["retries"],
-            user_id=task.get("user_id"),
-            updated_at=task["updated_at"],
+            id=task.id,
+            policy_id=task.policy_id,
+            sim_suite=task.sim_suite,
+            status=task.status,
+            assigned_at=task.assigned_at,
+            assignee=task.assignee,
+            created_at=task.created_at,
+            attributes=task.attributes or {},
+            policy_name=policy_name,
+            retries=task.retries,
+            user_id=task.user_id,
+            updated_at=task.updated_at,
         )
 
 
@@ -118,7 +123,8 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             "env_overrides": request.env_overrides,
             "git_hash": git_hash,
         }
-        if not await stats_repo.get_policy_by_id(request.policy_id):
+        policy = await stats_repo.get_policy_by_id(request.policy_id)
+        if not policy:
             raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
 
         task = await stats_repo.create_eval_task(
