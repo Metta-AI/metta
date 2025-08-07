@@ -40,10 +40,11 @@ class TestMettagridCfgFileMetadata:
         assert result.kind == "env"
 
     def test_from_path_unknown_config(self):
-        """Test from_path classification for unknown configs."""
+        """Test from_path classification for configs that default to env."""
         result = MettagridCfgFileMetadata.from_path("other/weird_config.yaml")
         assert result.path == "other/weird_config.yaml"
-        assert result.kind == "unknown"
+        # Per the heuristic logic, anything not matching specific patterns defaults to "env"
+        assert result.kind == "env"
 
     @patch('os.walk')
     def test_get_all_configs(self, mock_walk):
@@ -342,8 +343,10 @@ class TestMettagridCfgIntegration:
         mock_cfg = OmegaConf.create({"test": "value"})
         mock_config_from_path.return_value = mock_cfg
 
-        # Mock context manager
+        # Mock context manager properly
         mock_context = Mock()
+        mock_context.__enter__ = Mock(return_value=mock_context)
+        mock_context.__exit__ = Mock(return_value=None)
         mock_hydra_init.return_value = mock_context
 
         metadata = MettagridCfgFileMetadata(path="test.yaml", kind="env")

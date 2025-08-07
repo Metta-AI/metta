@@ -274,7 +274,11 @@ class TestNumpyCompat:
 
                 # Test that it can create arrays
                 try:
-                    test_val = 1 if 'c' not in attr_name else 1+0j
+                    # Use appropriate test values for each type
+                    if attr_name in ['csingle', 'cdouble', 'complex64', 'complex128']:
+                        test_val = 1+0j  # Complex types need complex values
+                    else:
+                        test_val = 1  # All other types can use simple integer
                     arr = np.array([test_val], dtype=attr_value)
                     assert isinstance(arr, np.ndarray)
                 except (TypeError, ValueError) as e:
