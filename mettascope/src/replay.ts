@@ -630,8 +630,6 @@ export function loadReplayStep(replayStep: any) {
   }
 
   fixReplay()
-  // this extra validate might be excessive? unsure?
-  // validateReplayData(state.replay)
 
   updateStep(step)
   state.heatmap.update(step)
