@@ -1,0 +1,37 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1 #how many agents are in the map x2
+  max_steps: ???
+
+  # Disable resource_rewards observation for backward compatibility with pre-trained policies
+  global_obs:
+    episode_completion_pct: true
+    last_action: true
+    last_reward: true
+    resource_rewards: false # This feature wasn't present when older policies were trained
+
+  # Disable unneeded actions from nav evals
+  actions:
+    put_items:
+      enabled: false
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+  agent:
+    rewards:
+      inventory:
+        heart: 1
+
+  objects:
+    altar:
+      initial_resource_count: 1
+
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    border_width: 1

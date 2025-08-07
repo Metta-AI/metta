@@ -1,0 +1,12 @@
+defaults:
+  - /env/mettagrid/operant_conditioning_evals/defaults@
+  - _self_
+
+game:
+  max_steps: 140
+  actions:
+    swap:
+      enabled: true
+  map_builder:
+    border_width: 10
+    uri: "configs/env/mettagrid/maps/operant_conditioning_evals/swap_out.map"

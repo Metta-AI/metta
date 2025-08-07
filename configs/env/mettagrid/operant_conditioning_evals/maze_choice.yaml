@@ -1,0 +1,18 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: 150
+  actions:
+    swap:
+      enabled: false
+  agent:
+    rewards:
+      inventory:
+        heart: 1
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/operant_conditioning_evals/maze_choice.map"

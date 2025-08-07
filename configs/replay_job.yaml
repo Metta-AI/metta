@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: /env/mettagrid/arena/advanced
+    env: /env/mettagrid/operant_conditioning_evals/maze_choice_small
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats
