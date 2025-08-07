@@ -3,11 +3,13 @@ defaults:
   - _self_
 
 game:
+  agent:
+    initial_inventory:
+      battery_red: 1
   map_builder:
     root:
       params:
         objects:
-          factory: 1
           generator_red: 1
           generator_blue: 1
           generator_green: 1
@@ -18,27 +20,17 @@ game:
     generator_blue:
       cooldown: 1
       input_resources:
-        ore_red: 1
+        battery_red: 1
         ore_blue: 0
       output_resources:
         battery_blue: 0
     generator_green:
       cooldown: 1
       input_resources:
-        ore_red: 1
+        battery_red: 1
         ore_green: 0
       output_resources:
         battery_green: 0
-    factory:
-      cooldown: 255
-      input_resources:
-        blueprint: 0
-        ore_red: 0
-        battery_red: 0
-      output_resources:
-        battery_red: 1
-        laser: 0
-        armor: 0
     altar:
       cooldown: 1
       input_resources:
