@@ -22,8 +22,8 @@
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing"
   },
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": true,
+  "python.testing.pytestEnabled": false,
   "python.testing.unittestArgs": ["-v", "-s", "./tests", "-p", "test_*.py"],
   // YAML Configuration
   "[yaml]": {
@@ -46,8 +46,5 @@
     "outputs": true,
     "train_dir": true,
     "wandb": true
-  },
-  "python.testing.pytestArgs": [
-    "."
-  ]
+  }
 }
