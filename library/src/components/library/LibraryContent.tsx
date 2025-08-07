@@ -11,11 +11,17 @@ import { NewPostForm } from "@/app/NewPostForm";
 interface LibraryContentProps {
   activeNav: string;
   initialPosts?: Paginated<FeedPostDTO>;
+  currentUser: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
 }
 
-export const LibraryContent: FC<LibraryContentProps> = ({ 
-  activeNav, 
-  initialPosts 
+export const LibraryContent: FC<LibraryContentProps> = ({
+  activeNav,
+  initialPosts,
+  currentUser,
 }) => {
   // For now, we'll show the feed view as default
   // In the future, this will be determined by the activeNav prop
@@ -23,7 +29,7 @@ export const LibraryContent: FC<LibraryContentProps> = ({
 
   return (
     <div className="flex-1 p-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="mx-auto max-w-4xl">
         <div>
           <NewPostForm />
         </div>
@@ -31,7 +37,7 @@ export const LibraryContent: FC<LibraryContentProps> = ({
           <div>
             <div className="flex flex-col gap-2">
               {page.items?.map((post) => (
-                <FeedPost key={post.id} post={post} />
+                <FeedPost key={post.id} post={post} currentUser={currentUser} />
               ))}
             </div>
             {page.loadNext && <LoadMore loadNext={page.loadNext} />}
@@ -40,4 +46,4 @@ export const LibraryContent: FC<LibraryContentProps> = ({
       </div>
     </div>
   );
-}; 
+};
