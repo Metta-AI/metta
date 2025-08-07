@@ -23,7 +23,7 @@ class TestFilterRepo:
             with pytest.raises(ValueError, match="Not a git repository"):
                 filter_repo(source_path, ["some/path"])
 
-    @patch("metta.common.util.git_filter.run_git") 
+    @patch("metta.common.util.git_filter.run_git")
     def test_filter_repo_clone_failure(self, mock_run_git):
         """Test filter_repo when git clone fails."""
         with tempfile.TemporaryDirectory() as temp_dir:
