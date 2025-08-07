@@ -46,7 +46,8 @@ def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> b
 
 
 POLICY_EVALUATOR_METRIC_PREFIX = "policy_evaluator"
-POLICY_EVALUATOR_STEP_METRIC = "metric/policy_evaluator_epoch"
+POLICY_EVALUATOR_STEP_METRIC = "metric/policy_evaluator_agent_step"
+POLICY_EVALUATOR_EPOCH_METRIC = "metric/policy_evaluator_epoch"
 
 
 # Metrics functions moved from metrics.py
