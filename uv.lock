@@ -1451,6 +1451,7 @@ dependencies = [
     { name = "scipy" },
     { name = "setuptools" },
     { name = "shimmy" },
+    { name = "simple-term-menu" },
     { name = "sympy" },
     { name = "tabulate" },
     { name = "tensordict" },
@@ -1528,6 +1529,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "shimmy", specifier = ">=1.3.0,<2.0" },
+    { name = "simple-term-menu", specifier = ">=1.6.4" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
@@ -3151,6 +3153,15 @@ wheels = [
 gym-v21 = [
     { name = "gym" },
     { name = "pyglet" },
+]
+
+[[package]]
+name = "simple-term-menu"
+version = "1.6.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/80/f0f10b4045628645a841d3d98b584a8699005ee03a211fc7c45f6c6f0e99/simple_term_menu-1.6.6.tar.gz", hash = "sha256:9813d36f5749d62d200a5599b1ec88469c71378312adc084c00c00bfbb383893", size = 35493, upload-time = "2024-12-02T16:31:50.639Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/09/21d993e394c1fe5c44cd90453d88ed44932da8dfca006e424c072d77d29b/simple_term_menu-1.6.6-py3-none-any.whl", hash = "sha256:c2a869efa7a9f7e4a9c25858b42ca6974034951c137d5e281f5339b06ed8c9c2", size = 27600, upload-time = "2024-12-02T16:31:48.934Z" },
 ]
 
 [[package]]
