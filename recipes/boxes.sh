@@ -4,14 +4,14 @@
 # num_agents_per_room=4
 # for seed in 0; do
 #    python3 tools/train.py \
-#     run=$USER.navigation.ffa_BOXES_testING \
+#     run=$USER.navigation.ffa_BOXES_real_test \
 #     trainer.curriculum=env/mettagrid/curriculum/autocurricula/random \
 #     ++trainer.ppo.gamma=0.999 \
 #     ++trainer.minibatch_size=16384 \
 #     ++trainer.env_overrides.special_reward_mode=ffa \
-#     ++trainer.checkpoint.checkpoint_interval=100 \
-#     ++trainer.checkpoint.wandb_checkpoint_interval=100 \
-#     ++trainer.simulation.evaluate_interval=100 \
+#     ++trainer.checkpoint.checkpoint_interval=5 \
+#     ++trainer.checkpoint.wandb_checkpoint_interval=5 \
+#     ++trainer.simulation.evaluate_interval=5 \
 #     seed=${seed} \
 #     sim=navigation \
 #     "$@"
@@ -24,7 +24,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0 1 2 3 4; do
    ./devops/skypilot/launch.py train \
-    run=$USER.navigation.ffa_BOXES_500_regular_FIXED_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_BOXES_500_regular_PASSTHROUGH_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/autocurricula/random \
     --gpus=1 \
     --nodes=1 \
@@ -32,9 +32,9 @@ for seed in 0 1 2 3 4; do
     ++trainer.ppo.gamma=0.977 \
     ++trainer.minibatch_size=16384 \
     ++trainer.env_overrides.special_reward_mode=ffa \
-    ++trainer.checkpoint.checkpoint_interval=100 \
-    ++trainer.checkpoint.wandb_checkpoint_interval=100 \
-    ++trainer.simulation.evaluate_interval=100 \
+    ++trainer.checkpoint.checkpoint_interval=200 \
+    ++trainer.checkpoint.wandb_checkpoint_interval=200 \
+    ++trainer.simulation.evaluate_interval=200 \
     seed=${seed} \
     sim=navigation \
     "$@"
