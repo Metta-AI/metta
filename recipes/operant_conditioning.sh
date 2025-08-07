@@ -3,16 +3,17 @@
 #SMOKE TEST - SINGLE TRIAL
 #agents should always get 50% reward
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.singletrial.smoke_test.$(date +%m-%d) \
+  run=$USER.operant_conditioning.singletrial.smoke_test.2x4.$(date +%m-%d-%H%M) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/2_converters \
-  --gpus=1 \
+  --nodes=2
+  --gpus=4 \
   +trainer.env_overrides.num_trials=1 \
   sim=operant_conditioning_multiday \
   "$@"
 
 #2 converters
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.2converters.$(date +%m-%d) \
+  run=$USER.operant_conditioning.2converters.$(date +%m-%d-%H%M) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/2_converters \
   --gpus=1 \
   trainer.bptt_horizon=256 \
@@ -22,7 +23,7 @@
 
 #3 converters
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.3converters.$(date +%m-%d) \
+  run=$USER.operant_conditioning.3converters.$(date +%m-%d-%H%M) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/3_converters \
   --gpus=1 \
   trainer.bptt_horizon=256 \
@@ -32,7 +33,7 @@
 
 #4 converters
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.4converters.$(date +%m-%d) \
+  run=$USER.operant_conditioning.4converters.$(date +%m-%d-%H%M) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/4_converters \
   --gpus=1 \
   trainer.bptt_horizon=256 \
@@ -42,7 +43,7 @@
 
 #all
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.all.$(date +%m-%d) \
+  run=$USER.operant_conditioning.all.$(date +%m-%d-%H%M) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/all \
   --gpus=1 \
   trainer.bptt_horizon=256 \
