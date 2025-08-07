@@ -19,7 +19,7 @@ from metta.common.util.resolvers import (
     oc_scale,
     oc_to_odd_min3,
     register_resolvers,
-)
+    )
 
 
 class TestBasicResolvers:
@@ -199,3 +199,66 @@ class TestIirEdgeCases:
 
         float_result = oc_iir(0.3, 10.0, 5.0)
         assert isinstance(float_result, float)
+
+
+class TestArithmeticResolvers:
+    """Test cases for arithmetic resolver functions."""
+
+    def test_oc_subtract(self):
+        """Test oc_subtract resolver."""
+        from metta.common.util.resolvers import oc_subtract
+        assert oc_subtract(10, 3) == 7
+        assert oc_subtract(5.5, 2.5) == 3.0
+        assert oc_subtract(0, 5) == -5
+
+    def test_oc_multiply(self):
+        """Test oc_multiply resolver."""
+        from metta.common.util.resolvers import oc_multiply
+        assert oc_multiply(4, 5) == 20
+        assert oc_multiply(2.5, 4) == 10.0
+        assert oc_multiply(-3, 2) == -6
+
+
+class TestComparisonResolvers:
+    """Test cases for comparison resolver functions."""
+
+    def test_oc_greater_than(self):
+        """Test oc_greater_than resolver."""
+        from metta.common.util.resolvers import oc_greater_than
+        assert oc_greater_than(5, 3) is True
+        assert oc_greater_than(3, 5) is False
+        assert oc_greater_than(5, 5) is False
+
+    def test_oc_less_than(self):
+        """Test oc_less_than resolver."""
+        from metta.common.util.resolvers import oc_less_than
+        assert oc_less_than(3, 5) is True
+        assert oc_less_than(5, 3) is False
+        assert oc_less_than(5, 5) is False
+
+    def test_oc_greater_than_or_equal(self):
+        """Test oc_greater_than_or_equal resolver."""
+        from metta.common.util.resolvers import oc_greater_than_or_equal
+        assert oc_greater_than_or_equal(5, 3) is True
+        assert oc_greater_than_or_equal(5, 5) is True
+        assert oc_greater_than_or_equal(3, 5) is False
+
+    def test_oc_less_than_or_equal(self):
+        """Test oc_less_than_or_equal resolver."""
+        from metta.common.util.resolvers import oc_less_than_or_equal
+        assert oc_less_than_or_equal(3, 5) is True
+        assert oc_less_than_or_equal(5, 5) is True
+        assert oc_less_than_or_equal(5, 3) is False
+
+
+class TestScalingResolverEdgeCases:
+    """Test edge cases for oc_scale resolver to hit line 144."""
+
+    def test_oc_scale_float_output_bounds(self):
+        """Test oc_scale with float output bounds to hit line 144."""
+        from metta.common.util.resolvers import oc_scale
+        
+        # This should return a float (line 144) since out_max is float
+        result = oc_scale(5, 0, 10, 0.0, 1.0)
+        assert isinstance(result, float)
+        assert result == 0.5
