@@ -1,0 +1,31 @@
+# Optimized trainer configuration for single-agent ColorTree training
+defaults:
+  - trainer
+  - _self_
+
+# Single-agent optimized batch sizes
+batch_size: 2048        # Much smaller batch for single agent (was 524288)
+minibatch_size: 256     # Proportionally smaller minibatch (was 16384)
+bptt_horizon: 16        # Shorter horizon for simple task (was 64)
+
+# Faster updates for single agent
+update_epochs: 2        # Fewer epochs per update (default is 4)
+forward_pass_minibatch_target_size: 256  # Match minibatch size
+
+# More frequent checkpointing and evaluation for faster feedback
+checkpoint:
+  checkpoint_interval: 100      # More frequent checkpoints
+  wandb_checkpoint_interval: 200
+
+simulation:
+  evaluate_interval: 100        # More frequent evaluation
+
+# PPO hyperparameters optimized for single-agent ColorTree
+ppo:
+  clip_coef: 0.2        # Slightly higher for single agent
+  ent_coef: 0.001       # Lower entropy for deterministic task
+  vf_coef: 0.5
+  gamma: 0.95           # Shorter horizon for 64-step episodes
+
+optimizer:
+  learning_rate: 0.001  # Higher learning rate for faster convergence

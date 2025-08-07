@@ -181,7 +181,6 @@ class Experience:
         # Check if episodes are complete and reset if needed
         if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
-        print(f"episode_length: {episode_length}, bptt_horizon: {self.bptt_horizon}")
 
         # Update LSTM states if provided
         if lstm_state is not None and env_id.start in self.lstm_h:

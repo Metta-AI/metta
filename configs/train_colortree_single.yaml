@@ -1,0 +1,18 @@
+# Complete training configuration for single-agent ColorTree
+defaults:
+  - train_job
+  - override /trainer: colortree_single  # Use our optimized single-agent trainer
+  - _self_
+
+# Use single-agent curriculum
+trainer:
+  curriculum: /env/mettagrid/curriculum/colortree_single_progressive
+
+  # Override number of workers for single agent
+  num_workers: 8  # Fewer workers needed for single agent
+
+# Optional: Use a specific agent architecture optimized for simple tasks
+agent: fast  # or latent_attn_tiny for even faster training
+
+# Give it a clear run name
+run_name_pattern: "{user}.colortree_single.{now}"
