@@ -358,30 +358,22 @@ def train(
                             num_envs=vecenv.num_envs,  # type: ignore
                         )
 
-                        # In dual-policy mode, we need to filter experience to only include training policy agents
-                        # Calculate which agents are training agents
-                        num_agents_per_env = vecenv.num_agents  # type: ignore
-                        num_envs = vecenv.num_envs  # type: ignore
-                        training_agents_per_env = max(
-                            1, int(num_agents_per_env * trainer_cfg.dual_policy.training_agents_pct)
-                        )
+                        # In dual-policy mode, we need to filter data to training agents only for experience storage
+                        # Calculate how many training agents we have
+                        num_training_agents = int(o.shape[0] * trainer_cfg.dual_policy.training_agents_pct)
 
-                        # Create masks for training agents only
-                        total_agents = num_envs * num_agents_per_env
-                        idx_matrix = torch.arange(total_agents, device=device).reshape(num_envs, num_agents_per_env)
-                        training_idxs = idx_matrix[:, :training_agents_per_env].reshape(-1)
-
-                        # Filter observations, actions, logprobs, values, rewards, dones, truncations
-                        # to only training agents
-                        training_obs = o[training_idxs]
-                        training_actions = actions[training_idxs]
-                        training_logprobs = selected_action_log_probs  # Already filtered in run_dual_policy_rollout
-                        training_values = values  # Already filtered in run_dual_policy_rollout
-                        training_rewards = r[training_idxs]
-                        training_dones = d[training_idxs]
-                        training_truncations = t[training_idxs]
+                        # Filter all data to only training agents (first N agents by convention)
+                        training_obs = o[:num_training_agents]
+                        training_actions = actions[:num_training_agents]  # Get training agent actions
+                        training_logprobs = selected_action_log_probs[:num_training_agents]  # Filter log_probs
+                        training_values = values[:num_training_agents]  # Filter values
+                        training_rewards = r[:num_training_agents]
+                        training_dones = d[:num_training_agents]
+                        training_truncations = t[:num_training_agents]
                         training_mask = (
-                            mask[training_idxs] if mask is not None else torch.ones(len(training_idxs), device=device)
+                            mask[:num_training_agents]
+                            if mask is not None
+                            else torch.ones(num_training_agents, device=device)
                         )
 
                         # Store only training policy experience

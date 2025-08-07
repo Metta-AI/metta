@@ -147,12 +147,13 @@ def run_dual_policy_rollout(
         device=device,
     )
 
-    # Combine actions, log_probs, values (only training agents contribute to learning)
+    # Combine actions, log_probs, values for ALL agents (both training and NPC)
     all_actions = torch.cat([training_actions, npc_actions], dim=0)
     all_log_probs = torch.cat([training_log_probs, npc_log_probs], dim=0)
     all_values = torch.cat([training_values, npc_values], dim=0)
 
     # Return combined results and LSTM state from training policy only
+    # Note: Caller must filter to training agents when storing in experience buffer
     return all_actions, all_log_probs, all_values, lstm_state
 
 
