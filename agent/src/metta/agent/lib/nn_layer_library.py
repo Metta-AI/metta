@@ -221,8 +221,8 @@ class Conv2d(ParamLayer):
             (self._input_width + 2 * self._nn_params.padding - self._nn_params.kernel_size) / self._nn_params.stride
         ) + 1
 
-        if not self._output_height.is_integer() or not self._output_width.is_integer():
-            raise ValueError(f"CNN {self._name} output dimensions must be integers. Adjust padding or kernel size.")
+        # if not self._output_height.is_integer() or not self._output_width.is_integer():
+        #     raise ValueError(f"CNN {self._name} output dimensions must be integers. Adjust padding or kernel size.")
 
         self._output_height = int(self._output_height)
         self._output_width = int(self._output_width)
