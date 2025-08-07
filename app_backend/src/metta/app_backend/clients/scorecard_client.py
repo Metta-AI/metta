@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Generic, Literal, TypeVar
 
 from pydantic import RootModel
 
@@ -12,9 +12,18 @@ from metta.app_backend.routes.scorecard_routes import (
 )
 from metta.app_backend.routes.sql_routes import AIQueryRequest, AIQueryResponse, SQLQueryRequest, SQLQueryResponse
 
+T = TypeVar("T")
 
-class ListModel(RootModel[list]):
-    pass
+
+class ListModel(RootModel[list[T]], Generic[T]):
+    @classmethod
+    def model_validate(cls, obj) -> list[T]:
+        # Use RootModel's validation to ensure we get a proper list
+        instance = super().model_validate(obj)
+        return instance.root
+
+    def to_list(self) -> list[T]:
+        return self.root
 
 
 class ScorecardClient(BaseAppBackendClient):
@@ -35,14 +44,14 @@ class ScorecardClient(BaseAppBackendClient):
             AIQueryResponse, "POST", "/sql/generate-query", json=payload.model_dump(mode="json")
         )
 
-    async def get_eval_names(self, training_run_ids: list[str], run_free_policy_ids: list[str]) -> list:
+    async def get_eval_names(self, training_run_ids: list[str], run_free_policy_ids: list[str]) -> list[str]:
         payload = EvalsRequest(
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
         )
-        return list(
-            await self._make_request(ListModel, "POST", "/scorecard/evals", json=payload.model_dump(mode="json"))
-        )
+        return await self._make_request(
+            ListModel[str], "POST", "/scorecard/evals", json=payload.model_dump(mode="json")
+        )  # type: ignore
 
     async def get_available_metrics(
         self, training_run_ids: list[str], run_free_policy_ids: list[str], eval_names: list[str]
@@ -52,14 +61,9 @@ class ScorecardClient(BaseAppBackendClient):
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
         )
-        metrics_tuples = await self._make_request(
-            ListModel, "POST", "/scorecard/metrics", json=payload.model_dump(mode="json")
-        )
-        metric_names = []
-        for metric_tuple in metrics_tuples:
-            category, metrics = metric_tuple
-            metric_names.extend(metrics)
-        return metric_names
+        return await self._make_request(
+            ListModel[str], "POST", "/scorecard/metrics", json=payload.model_dump(mode="json")
+        )  # type: ignore
 
     async def generate_scorecard(
         self,
