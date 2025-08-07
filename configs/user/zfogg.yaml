@@ -19,6 +19,5 @@ trainer:
     wandb_checkpoint_interval: 10
   simulation:
     evaluate_interval: 10 # must be ≥ both checkpoint intervals (policies needed for eval)
-    evaluate_local: false
     evaluate_remote: true
     skip_git_check: true
