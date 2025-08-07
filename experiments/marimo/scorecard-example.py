@@ -13,22 +13,16 @@ def _():
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-    # Policy Scorecard Dashboard
-
-    Interactive dashboard for evaluating and comparing policy performance across different metrics and evaluations.
-    """
-    )
+    mo.md("""# Policy Scorecards""")
     return
 
 
 @app.cell
 def _():
+    import altair as alt
+    import pandas as pd
     from metta.app_backend.clients.scorecard_client import ScorecardClient
     from metta.common.util.collections import group_by
-    import pandas as pd
-    import altair as alt
 
     client = ScorecardClient()
     return alt, client, group_by, pd
@@ -125,7 +119,7 @@ async def _(client, group_by, mo, training_run_selector):
 
 @app.cell
 def _(mo):
-    mo.md(r"""# 3. Configure Scorecard""")
+    mo.md(r"""## 3. Configure Scorecard""")
     return
 
 
