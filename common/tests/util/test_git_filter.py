@@ -45,9 +45,6 @@ class TestFilterRepo:
             source_path.mkdir()
             (source_path / ".git").mkdir()
 
-            temp_target = str(Path(temp_dir) / "temp_filtered")
-            mock_mkdtemp.return_value = temp_target
-
             # Mock successful clone
             mock_run_git.side_effect = [None]
 
