@@ -59,7 +59,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(disabled=True)
 def _():
     # Example: Launch training
 
