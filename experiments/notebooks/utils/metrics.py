@@ -27,7 +27,6 @@ def fetch_metrics(
     keys: list[str] | None = None,
     min_step: int | None = None,
     max_step: int | None = None,
-    show_progress: bool = True,
 ) -> dict[str, pd.DataFrame]:
     """Fetch metrics from wandb runs.
 
@@ -39,16 +38,21 @@ def fetch_metrics(
         keys: Optional list of specific metric keys to fetch (speeds up fetching)
         min_step: Optional minimum step to fetch from (ONLY works when samples=None)
         max_step: Optional maximum step to fetch to (ONLY works when samples=None)
-        show_progress: Show progress indicator for large fetches (ONLY works when samples=None)
 
     Returns:
         Dictionary mapping run names to pandas DataFrames containing the metrics
 
     Note:
-        min_step, max_step, and show_progress parameters ONLY work when samples=None.
+        min_step and max_step parameters ONLY work when samples=None.
         When using sampling (samples is a number), these parameters are ignored because
         wandb's history() method doesn't support step filtering - it returns evenly
         distributed samples across the entire run.
+
+    Warning:
+        Using samples=None with large runs can be VERY slow as scan_history()
+        loads all data from wandb servers before returning. Consider using
+        samples=10000 or samples=50000 for a good balance of data completeness
+        and performance.
     """
     metrics_dfs = {}
 
@@ -63,40 +67,43 @@ def fetch_metrics(
 
         try:
             if samples is None:
-                # Full scan - warn about potential slowness
-                print(
-                    "  ⚠️  Fetching ALL data points using scan_history (this may be slow for large runs)"
-                )
-                print(
-                    "  Tip: Use samples=10000 for faster fetching of many points, or specify 'keys' to fetch only specific metrics"
-                )
-
-                if show_progress:
-                    # Fetch with progress indicator
-
-                    history_records = []
-                    count = 0
-                    print("    Scanning for records...", end="", flush=True)
-                    for record in run.scan_history(
-                        keys=keys, min_step=min_step, max_step=max_step
-                    ):
-                        history_records.append(record)
-                        count += 1
-                        if (
-                            count == 1 or count % 100 == 0
-                        ):  # Show first record and every 100th
-                            print(
-                                f"\r    Fetched {count} records...", end="", flush=True
-                            )
+                # Check if this is likely to be problematic
+                last_step = getattr(run, "lastHistoryStep", None)
+                if last_step and last_step > 10000000:  # 10 million steps
                     print(
-                        f"\r    Fetched {count} records total" + " " * 20
-                    )  # Clear the line with spaces
-                else:
+                        f"  ⚠️  ERROR: This run has {last_step:,} steps (over 10 million)!"
+                    )
+                    print(
+                        "     Fetching all data is not practical and will likely timeout."
+                    )
+                    print(
+                        "     SOLUTION: Use samples=50000 for comprehensive sampling instead."
+                    )
+                    print("     Skipping this run to prevent hanging...")
+                elif last_step and last_step > 1000000:  # 1 million steps
+                    print(f"  ⚠️  WARNING: This run has {last_step:,} steps!")
+                    print("     Fetching all data will take several minutes.")
+                    if min_step is None and max_step is None:
+                        print("     Proceeding with caution... Press Ctrl+C to cancel.")
+
+                print("  Fetching data using scan_history...")
+                if min_step is not None or max_step is not None:
+                    print(f"    Step range: {min_step or 0} to {max_step or 'end'}")
+                if keys:
+                    print(f"    Keys: {keys}")
+
+                # scan_history - this WILL be slow for large datasets
+                try:
                     history_records = list(
                         run.scan_history(
                             keys=keys, min_step=min_step, max_step=max_step
                         )
                     )
+                    print(f"    Loaded {len(history_records)} records from wandb")
+                except Exception as e:
+                    print(f"    ERROR: Failed to load data: {str(e)}")
+                    print("    Try using samples=10000 instead.")
+                    history_records = []
 
                 metrics_df = pd.DataFrame(history_records)
             else:
