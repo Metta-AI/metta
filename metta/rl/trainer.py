@@ -20,7 +20,7 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.env_config import EnvConfig
@@ -256,6 +256,9 @@ def train(
         lstm_agents=lstm_agents,  # Pass the number of agents that need LSTM states
         #####################################################################
     )
+
+    # Get action dtype for environment
+    dtype_actions = vecenv.single_action_space.dtype  # type: ignore[attr-defined]
 
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
