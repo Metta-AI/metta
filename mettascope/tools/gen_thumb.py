@@ -2,6 +2,7 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
+#   "numpy>=1.26.4",
 #   "pixie-python>=4.3.0",
 # ]
 # ///
@@ -16,7 +17,10 @@ import math
 import sys
 import zlib
 
+import numpy as np
 import pixie
+
+obs_radius = 5
 
 colors = {
     "agent": None,
@@ -24,6 +28,7 @@ colors = {
     "$object": pixie.Color(1, 1, 1, 1),
     "$ground": pixie.Color(0.906, 0.831, 0.718, 1),
     "$frame": pixie.Color(0.102, 0.102, 0.102, 1),
+    "$shadow": pixie.Color(0, 0, 0, 0.25),
 }
 
 
@@ -54,9 +59,12 @@ def gen_thumb(input, step, size, output):
         raise ValueError("Step is out of range")
 
     # Setup phase: map object types to drawing functions.
+    agent_type_id = -1
     shape = []
     fills = []
-    for object_type in input["object_types"]:
+    for type_id, object_type in enumerate(input["object_types"]):
+        if object_type == "agent":
+            agent_type_id = type_id
         if object_type in colors:
             fills.append(colors[object_type])
         else:
@@ -125,6 +133,37 @@ def gen_thumb(input, step, size, output):
             if last_fill is None:
                 output.stroke_path(path, stroke, transform, 3)
 
+    # Post-process phase: draw visibility overlay.
+    grid_width = input["map_size"][0]
+    grid_height = input["map_size"][1]
+    visibility_map = np.zeros(grid_width * grid_height, dtype=np.uint8)
+    for group in groups:
+        for object in groups[group]:
+            if object["type"] != agent_type_id:
+                continue
+
+            x = get_position_component(object, step, "c") - obs_radius
+            y1 = get_position_component(object, step, "r") - obs_radius
+            y2 = y1 + obs_radius * 2 + 1
+            while y1 < y2:
+                y = y1 * grid_width
+                x1 = x
+                x2 = x1 + obs_radius * 2 + 1
+                while x1 < x2:
+                    visibility_map[y + x1] = 1
+                    x1 += 1
+                y1 += 1
+
+        path = pixie.Path()
+        for y in range(grid_height):
+            offset = y * grid_width
+            for x in range(grid_width):
+                if visibility_map[offset + x] == 0:
+                    path.rect(x * size, y * size, size, size)
+        path.close_path()
+        paint.color = colors["$shadow"]
+        output.fill_path(path, paint)
+
 
 def gen_frame(image, output):
     path = pixie.Path()
@@ -155,6 +194,7 @@ def main():
         description="Generate a thumbnail image for a given replay file and step number.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--debug", "-d", action="store_true", help="Print debug information (default: False)")
     parser.add_argument("--replay", "-r", type=str, required=True, help="Path to replay file (required)")
     parser.add_argument(
         "--output", "-o", type=str, default="thumb.png", help="Path to output file (default: thumb.png)"
@@ -187,6 +227,10 @@ def main():
         print(f"Error reading replay file: {e}", file=sys.stderr)
         sys.exit(1)
 
+    if args.debug:
+        print("Keys:", input_data.keys())
+        print("Vals:", input_data["grid_objects"][0].keys())
+
     # Transform the replay data into a thumbnail image.
     try:
         bounds = input_data["map_size"]
@@ -196,6 +240,9 @@ def main():
         gen_frame(image, output)
     except Exception as e:
         print(f"Error creating thumbnail image: {e}", file=sys.stderr)
+        import traceback
+
+        print(traceback.format_exc())
         sys.exit(1)
 
     # Output the thumbnail image to another file.
