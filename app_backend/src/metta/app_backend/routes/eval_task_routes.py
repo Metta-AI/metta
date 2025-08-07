@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate, EvalTaskRow, EvalTaskWithPolicyName
+from metta.app_backend.metta_repo import EvalTaskRow, EvalTaskWithPolicyName, MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
 from metta.common.util.git import get_latest_commit
 
@@ -73,7 +73,7 @@ class TaskResponse(BaseModel):
         policy_name = None
         if isinstance(task, EvalTaskWithPolicyName):
             policy_name = task.policy_name
-        
+
         return cls(
             id=task.id,
             policy_id=task.policy_id,

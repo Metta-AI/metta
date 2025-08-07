@@ -58,6 +58,7 @@ class MachineTokenRow(BaseModel):
 
 class EvalTaskRow(BaseModel):
     """Row model that matches the eval_tasks table structure."""
+
     id: uuid.UUID
     policy_id: uuid.UUID
     sim_suite: str
@@ -73,6 +74,7 @@ class EvalTaskRow(BaseModel):
 
 class EvalTaskWithPolicyName(BaseModel):
     """Extended eval task row that includes policy name from JOIN with policies table."""
+
     id: uuid.UUID
     policy_id: uuid.UUID
     sim_suite: str
