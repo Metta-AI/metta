@@ -1,27 +1,24 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: home
+  name: home-oauth2-proxy
   annotations:
-    nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
-    nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
-    nginx.ingress.kubernetes.io/auth-response-headers: |
-      X-Auth-Request-User, X-Auth-Request-Email
     cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
 spec:
   ingressClassName: nginx
   rules:
-    - host: {{ .Values.host }}
+    - host: "{{ .Values.host | required "host is required" }}"
       http:
         paths:
-          - path: /
+          - path: /oauth2
             pathType: Prefix
             backend:
               service:
-                name: home
+                name: home-oauth2-proxy
                 port:
-                  number: 80
+                  number: 4180
   tls:
     - hosts:
         - {{ .Values.host | required "host is required" }}
       secretName: home-tls
+
