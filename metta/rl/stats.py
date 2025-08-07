@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import wandb
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import PolicyAgent
@@ -16,13 +17,14 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
+from metta.rl.wandb import POLICY_EVALUATOR_EPOCH_METRIC, POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
 
 logger = logging.getLogger(__name__)
 
@@ -412,3 +414,43 @@ def process_stats(
 
     # Log to wandb
     wandb_run.log(all_stats, step=agent_step)
+
+
+def process_policy_evaluator_stats(
+    pr: PolicyRecord,
+    eval_results: EvalResults,
+) -> None:
+    # TODO: this should also upload replay urls
+    metrics_to_log: dict[str, float] = {
+        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
+        for k, v in eval_results.scores.to_wandb_metrics_format().items()
+    }
+    if not metrics_to_log:
+        logger.warning("No metrics to log for policy evaluator")
+        return
+
+    if not (epoch := pr.metadata.epoch) or not (agent_step := pr.metadata.agent_step):
+        logger.warning("No epoch or agent_step found in policy record")
+        return
+
+    try:
+        wandb_entity, wandb_project, wandb_run_id, _ = pr.extract_wandb_run_info()
+    except ValueError as e:
+        logger.warning(f"Failed to get wandb info from policy record {pr.uri}: {e}")
+        return
+
+    if not all((wandb_run_id, wandb_project, wandb_entity)):
+        logger.warning("No wandb info found in policy record")
+        return
+
+    run = wandb.init(
+        id=wandb_run_id,
+        project=wandb_project,
+        entity=wandb_entity,
+        resume="must",
+    )
+    try:
+        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
+        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
+    finally:
+        run.finish()
