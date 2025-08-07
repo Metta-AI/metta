@@ -27,10 +27,10 @@ game:
     color_tree:
       enabled: true
       target_sequence: [0, 1, 2, 3] # Hard: 4 colors, 4 slots - will be randomized by curriculum
-      sequence_reward: 1.0
+      sequence_reward: 10.0
       num_trials: 1
       attempts_per_trial: 16
-      reward_mode: "dense"
+      reward_mode: "precise"
       trial_sequences:
         - [0, 1, 2, 3] # Same sequence for entire 64-step episode
       color_to_item: {0: ore_red, 1: ore_green, 2: ore_blue, 3: battery_red}
