@@ -11,6 +11,8 @@ links:
     url: https://metta-ai.github.io/metta/
   - name: Weights & Biases
     url: https://wandb.ai/metta-research/metta
+  - name: Skypilot
+    url: https://skypilot-api.softmax-research.net/
   - name: Datadog Dashboard
     url: https://app.datadoghq.com/dashboard/gpk-2y2-9er?fromUser=false&refresh_mode=sliding&from_ts=1754597801739&to_ts=1754601401739&live=true
   - name: GitHub
