@@ -468,7 +468,8 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
   *agent->reward -= agent->action_failure_penalty;
 }
 
-void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
+void MettaGrid::_step(Actions actions) {
+  _actions = actions;
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -902,7 +903,7 @@ py::object MettaGrid::observation_space() {
   return spaces.attr("Box")(min_value, max_value, space_shape, py::arg("dtype") = dtype_observations());
 }
 
-py::list MettaGrid::action_success() {
+py::list MettaGrid::action_success_py() {
   return py::cast(_action_success);
 }
 
@@ -975,7 +976,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
       .def_property_readonly("action_space", &MettaGrid::action_space)
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
-      .def("action_success", &MettaGrid::action_success)
+      .def("action_success", &MettaGrid::action_success_py)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)

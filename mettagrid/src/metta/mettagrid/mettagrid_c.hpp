@@ -105,16 +105,20 @@ public:
   py::dict get_episode_stats();
   py::object action_space();
   py::object observation_space();
-  py::list action_success();
+  py::list action_success_py();
   py::list max_action_args();
   py::list object_type_names_py();
   py::list inventory_item_names_py();
 
   uint64_t initial_grid_hash;
 
+  using Actions = py::array_t<ActionType, py::array::c_style>;
+  using ActionSuccess = std::vector<bool>;
   using ActionHandlers = std::vector<std::unique_ptr<ActionHandler>>;
 
   const Grid& grid() const { return *_grid; }
+  const Actions& actions() const { return _actions; }
+  const ActionSuccess& action_success() const { return _action_success; }
   const ActionHandlers& action_handlers() const { return _action_handlers; }
 
 private:
@@ -128,6 +132,7 @@ private:
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
 
+  Actions _actions;
   ActionHandlers _action_handlers;
   size_t _num_action_handlers;
   std::vector<unsigned char> _max_action_args;
@@ -153,7 +158,7 @@ private:
 
   std::map<uint8_t, float> _feature_normalizations;
 
-  std::vector<bool> _action_success;
+  ActionSuccess _action_success;
 
   std::mt19937 _rng;
   unsigned int _seed;
