@@ -27,6 +27,7 @@ from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.env_config import create_env_config
+from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
 from tools.utils import get_policy_store_from_cfg
@@ -104,7 +105,7 @@ def main(cfg: DictConfig) -> None:
     for policy_uri, policy_prs in policy_records_by_uri.items():
         results = {"policy_uri": policy_uri, "checkpoints": []}
         for pr in policy_prs:
-            policy_results = evaluate_policy(
+            eval_results = evaluate_policy(
                 policy_record=pr,
                 simulation_suite=sim_job.simulation_suite,
                 stats_dir=sim_job.stats_dir,
@@ -117,18 +118,22 @@ def main(cfg: DictConfig) -> None:
                 logger=logger,
                 eval_task_id=eval_task_id,
             )
+            if cfg.push_metrics_to_wandb:
+                try:
+                    process_policy_evaluator_stats(pr, eval_results)
+                except Exception as e:
+                    logger.error(f"Error logging evaluation results to wandb: {e}")
+
             results["checkpoints"].append(
                 {
                     "name": pr.run_name,
                     "uri": pr.uri,
                     "metrics": {
-                        "reward_avg": policy_results.scores.avg_simulation_score,
-                        "reward_avg_category_normalized": policy_results.scores.avg_category_score,
-                        "detailed": policy_results.scores.to_wandb_metrics_format(),
+                        "reward_avg": eval_results.scores.avg_simulation_score,
+                        "reward_avg_category_normalized": eval_results.scores.avg_category_score,
+                        "detailed": eval_results.scores.to_wandb_metrics_format(),
                     },
-                    "replay_url": next(iter(policy_results.replay_urls.values()))
-                    if policy_results.replay_urls
-                    else None,
+                    "replay_url": next(iter(eval_results.replay_urls.values())) if eval_results.replay_urls else None,
                 }
             )
         all_results["policies"].append(results)

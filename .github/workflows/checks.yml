@@ -238,13 +238,6 @@ jobs:
         with:
           install-mode: "testing"
 
-      - name: Free up disk space
-        id: cleanup
-        uses: ./.github/actions/disk-cleanup
-        with:
-          dry-run: "false"
-          docker-images: "false"
-
       - name: Run tests
         run: |
           # Base pytest arguments (without coverage file specification)
@@ -544,7 +537,7 @@ jobs:
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+          POLICY: wandb://run/m.av.replay.probe.601
         run: |
           uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
