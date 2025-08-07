@@ -27,7 +27,7 @@ echo "export NUM_NODES=\"${SKYPILOT_NUM_NODES}\""                     >> "$METTA
 echo "export MASTER_ADDR=\"$(echo "$SKYPILOT_NODE_IPS" | head -n1)\"" >> "$METTA_ENV_FILE"
 echo "export MASTER_PORT=\"8008\""                                    >> "$METTA_ENV_FILE"
 echo "export NODE_INDEX=\"${SKYPILOT_NODE_RANK}\""                    >> "$METTA_ENV_FILE"
-echo "export NCCL_SHM_DISABLE=${1}"                                   >> "$METTA_ENV_FILE"
+# echo "export NCCL_SHM_DISABLE=${1}"                                   >> "$METTA_ENV_FILE"
 
 # Create job secrets (idempotent - overwrites if exists)
 if [ -z "$WANDB_PASSWORD" ]; then
