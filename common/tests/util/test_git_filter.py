@@ -56,29 +56,31 @@ class TestFilterRepo:
                     filter_repo(source_path, ["test/path"])
 
     @patch("metta.common.util.git_filter.run_git")
-    @patch("metta.common.util.git_filter.tempfile.mkdtemp")
-    def test_filter_repo_filter_command_fails(self, mock_mkdtemp, mock_run_git):
+    def test_filter_repo_filter_command_fails(self, mock_run_git):
         """Test filter_repo when the filter command fails."""
         with tempfile.TemporaryDirectory() as temp_dir:
             source_path = Path(temp_dir) / "source"
             source_path.mkdir()
             (source_path / ".git").mkdir()
 
-            temp_target = str(Path(temp_dir) / "temp_filtered")
-            mock_mkdtemp.return_value = temp_target
-
             # Mock successful clone
             mock_run_git.side_effect = [None]
 
-            with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
-                # Mock successful version check but failed filter
-                mock_subprocess.side_effect = [
-                    Mock(returncode=0),  # version check success
-                    Mock(returncode=1, stderr="Filter failed")  # filter failure
-                ]
+            with patch("metta.common.util.git_filter.tempfile.mkdtemp") as mock_mkdtemp:
+                # Make mkdtemp return a real directory path within our temp_dir
+                temp_target = str(Path(temp_dir) / "temp_filtered")
+                Path(temp_target).mkdir()  # Create the directory that mkdtemp would create
+                mock_mkdtemp.return_value = temp_target
 
-                with pytest.raises(RuntimeError, match="git-filter-repo failed: Filter failed"):
-                    filter_repo(source_path, ["test/path"])
+                with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
+                    # Mock successful version check but failed filter
+                    mock_subprocess.side_effect = [
+                        Mock(returncode=0),  # version check success
+                        Mock(returncode=1, stderr="Filter failed")  # filter failure
+                    ]
+
+                    with pytest.raises(RuntimeError, match="git-filter-repo failed: Filter failed"):
+                        filter_repo(source_path, ["test/path"])
 
     @patch("metta.common.util.git_filter.run_git")
     @patch("metta.common.util.git_filter.tempfile.mkdtemp")
@@ -89,7 +91,9 @@ class TestFilterRepo:
             source_path.mkdir()
             (source_path / ".git").mkdir()
 
+            # Make mkdtemp return a real directory path within our temp_dir
             temp_target = str(Path(temp_dir) / "temp_filtered")
+            Path(temp_target).mkdir()  # Create the directory that mkdtemp would create
             mock_mkdtemp.return_value = temp_target
 
             # Mock successful clone
@@ -115,7 +119,9 @@ class TestFilterRepo:
             source_path.mkdir()
             (source_path / ".git").mkdir()
 
+            # Make mkdtemp return a real directory path within our temp_dir
             temp_target = str(Path(temp_dir) / "temp_filtered")
+            Path(temp_target).mkdir()  # Create the directory that mkdtemp would create
             filtered_path = Path(temp_target) / "filtered"
             mock_mkdtemp.return_value = temp_target
 
