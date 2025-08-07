@@ -287,17 +287,17 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
-            my_obs = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[0])
+            td = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[0])
             policy = self._policy_pr.policy
-            td = policy(my_obs)
+            policy(td)
             policy_actions = td["actions"]
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
-                npc_obs = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[0])
+                td = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[0])
                 npc_policy = self._npc_pr.policy
                 try:
-                    td = npc_policy(npc_obs)
+                    npc_policy(td)
                     npc_actions = td["actions"]
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")

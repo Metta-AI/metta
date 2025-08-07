@@ -4,11 +4,11 @@ from collections import defaultdict
 from typing import cast
 
 import numpy as np
-import tensordict
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
+from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
@@ -202,8 +202,7 @@ def train(
     policy_spec = policy.get_agent_experience_spec()
     act_space = vecenv.single_action_space
     act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-    # check for dups between policy_spec and loss_spec
-    loss_spec = get_loss_experience_spec(*act_space.shape, act_dtype)
+    loss_spec = get_loss_experience_spec(act_space.nvec, act_dtype)
 
     # Create experience buffer
     experience = Experience(
@@ -212,7 +211,7 @@ def train(
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
-        experience_spec=tensordict.merge_tensordicts(policy_spec, loss_spec),
+        experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
         device=device,
         cpu_offload=trainer_cfg.cpu_offload,
     )
@@ -315,7 +314,7 @@ def train(
 
                     # Inference
                     with torch.no_grad():
-                        td = policy(td)
+                        policy(td)
 
                     # Store experience
                     experience.store(

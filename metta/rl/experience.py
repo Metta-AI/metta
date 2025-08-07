@@ -20,6 +20,9 @@ from typing import Dict
 import torch
 from tensordict import TensorDict
 from torch import Tensor
+from torchrl.data import Composite
+
+from metta.common.util.datastruct import duplicates
 
 
 class Experience:
@@ -32,7 +35,7 @@ class Experience:
         bptt_horizon: int,
         minibatch_size: int,
         max_minibatch_size: int,
-        experience_spec: TensorDict,
+        experience_spec: Composite,
         device: torch.device | str,
         cpu_offload: bool = False,
     ):
@@ -57,14 +60,8 @@ class Experience:
                 f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
 
-        self.buffer: TensorDict = experience_spec.expand(self.segments, self.bptt_horizon).clone()
-        self.buffer = self.buffer.to(self.device)
-        if self.cpu_offload:
-            # Offload obs to CPU after creation to save GPU memory
-            # AV: this might be deprecated sinc TD keeps all tensors on the same device. We'd have to break it into
-            # a seperate tensor and update the agent's forward args.
-            if "obs" in self.buffer.keys():
-                self.buffer["obs"] = self.buffer["obs"].to("cpu")
+        spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.device)
+        self.buffer = spec.zero()
 
         # Episode tracking
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
@@ -99,15 +96,11 @@ class Experience:
         # Pre-allocate tensor to stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
-    def _check_for_duplicate_keys(self, experience_spec: TensorDict) -> None:
+    def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
-        if len(all_keys) > len(set(all_keys)):
-            counts = {}
-            for key in all_keys:
-                counts[key] = counts.get(key, 0) + 1
-            duplicates = [key for key, count in counts.items() if count > 1]
-            raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicates]}")
+        if duplicate_keys := duplicates(all_keys):
+            raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
 
     @property
     def full(self) -> bool:

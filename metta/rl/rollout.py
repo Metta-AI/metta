@@ -1,14 +1,11 @@
 """Rollout phase functions for Metta training."""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import torch
 from torch import Tensor
-
-if TYPE_CHECKING:
-    pass
 
 from metta.common.profiling.stopwatch import Stopwatch
 

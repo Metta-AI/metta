@@ -36,7 +36,9 @@ class LSTM(LayerBase):
 
         self.lstm_h: Dict[int, torch.Tensor] = {}
         self.lstm_c: Dict[int, torch.Tensor] = {}
-        self._memory = True
+
+    def has_memory(self):
+        return True
 
     def get_memory(self):
         return self.lstm_h, self.lstm_c

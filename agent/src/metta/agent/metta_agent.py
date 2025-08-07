@@ -8,10 +8,12 @@ from omegaconf import DictConfig, OmegaConf
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
+from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
 from metta.rl.env_config import EnvConfig
 from metta.rl.puffer_policy import PytorchAgent
@@ -149,17 +151,13 @@ class MettaAgent(nn.Module):
                 raise RuntimeError(
                     f"Component {name} in MettaAgent was never setup. It might not be accessible by other components."
                 )
-            if hasattr(component, "_memory"):
+            if component.has_memory():
                 self.components_with_memory.append(name)
 
         # check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
-        if len(all_names) > len(set(all_names)):
-            from collections import Counter
-
-            counts = Counter(all_names)
-            duplicates = [name for name, count in counts.items() if count > 1]
-            raise ValueError(f"Duplicate component names found: {duplicates}")
+        if duplicate_names := duplicates(all_names):
+            raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
         self.components = self.components.to(device)
 
@@ -176,14 +174,9 @@ class MettaAgent(nn.Module):
             memory[name] = self.components[name].get_memory()
         return memory
 
-    def get_agent_experience_spec(self) -> TensorDict:
-        """Get the specification to pass in for the init of experience buffer."""
-        return TensorDict(
-            {
-                "env_obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
-                # "dropout_mask": torch.zeros((), dtype=torch.float32),
-            },
-            batch_size=[],
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
 
     def _setup_components(self, component):

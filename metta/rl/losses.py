@@ -6,6 +6,7 @@ from typing import Any
 import torch
 from tensordict import TensorDict
 from torch import Tensor
+from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
@@ -55,18 +56,20 @@ class Losses:
         }
 
 
-def get_loss_experience_spec(act_shape: tuple[int, ...], act_dtype: torch.dtype) -> TensorDict:
-    return TensorDict(
-        {
-            "rewards": torch.zeros((), dtype=torch.float32),
-            "dones": torch.zeros((), dtype=torch.float32),
-            "truncateds": torch.zeros((), dtype=torch.float32),
-            "actions": torch.zeros(act_shape, dtype=act_dtype),
-            "act_log_prob": torch.zeros((), dtype=torch.float32),
-            "values": torch.zeros((), dtype=torch.float32),
-            "returns": torch.zeros((), dtype=torch.float32),
-        },
-        batch_size=[],
+def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dtype) -> Composite:
+    scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
+
+    return Composite(
+        rewards=scalar_f32,
+        dones=scalar_f32,
+        truncateds=scalar_f32,
+        actions=MultiCategorical(
+            nvec=nvec,
+            dtype=act_dtype,
+        ),
+        act_log_prob=scalar_f32,
+        values=scalar_f32,
+        returns=scalar_f32,
     )
 
 
@@ -84,13 +87,13 @@ def process_minibatch_update(
     device: torch.device,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
-    td = policy(policy_td, action=minibatch["actions"])
+    policy_td = policy(policy_td, action=minibatch["actions"])
 
     old_act_log_prob = minibatch["act_log_prob"]
-    new_logprob = td["act_log_prob"].reshape(old_act_log_prob.shape)
-    entropy = td["entropy"]
-    newvalue = td["value"]
-    full_logprobs = td["full_log_probs"]
+    new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
+    entropy = policy_td["entropy"]
+    newvalue = policy_td["value"]
+    full_logprobs = policy_td["full_log_probs"]
 
     logratio = new_logprob - old_act_log_prob
     importance_sampling_ratio = logratio.exp()
@@ -131,7 +134,7 @@ def process_minibatch_update(
         agent_step,
         full_logprobs,
         newvalue,
-        td["env_obs"],
+        policy_td["env_obs"],
     )
 
     # L2 init loss
