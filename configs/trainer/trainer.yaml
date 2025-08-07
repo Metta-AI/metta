@@ -70,7 +70,7 @@ bptt_horizon: 64
 update_epochs: 1
 
 cpu_offload: false
-compile: true
+compile: false
 compile_mode: reduce-overhead
 profiler:
   interval_epochs: 10000
