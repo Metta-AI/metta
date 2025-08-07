@@ -6,8 +6,6 @@ from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.scorecard_routes import (
     EvalsRequest,
     MetricsRequest,
-    PaginationRequest,
-    PoliciesRequest,
     PoliciesResponse,
     ScorecardData,
     ScorecardRequest,
@@ -19,14 +17,8 @@ class ListModel(RootModel[list]):
 
 
 class ScorecardClient(BaseAppBackendClient):
-    async def get_policies(self, search_text: str | None = None, page_size: int = 50):
-        payload = PoliciesRequest(
-            search_text=search_text,
-            pagination=PaginationRequest(page=1, page_size=page_size),
-        )
-        return await self._make_request(
-            PoliciesResponse, "POST", "/scorecard/policies", json=payload.model_dump(mode="json")
-        )
+    async def get_policies(self):
+        return await self._make_request(PoliciesResponse, "GET", "/scorecard/policies")
 
     async def get_eval_names(self, training_run_ids: list[str], run_free_policy_ids: list[str]) -> list:
         payload = EvalsRequest(
