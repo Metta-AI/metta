@@ -32,6 +32,11 @@ echo "Num workers: $NUM_WORKERS"
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 export METTA_RUN_ID="$RUN_NAME"
 
+# Activate virtual environment if it exists
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+fi
+
 # Create run directory
 RUN_DIR="./train_dir/$RUN_NAME"
 mkdir -p "$RUN_DIR"

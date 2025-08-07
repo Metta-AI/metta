@@ -9,8 +9,6 @@ from torch import Tensor
 if TYPE_CHECKING:
     pass
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_record import PolicyRecord
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.rl.experience import Experience
 
@@ -99,7 +97,7 @@ def run_npc_policy_inference(
 
 def run_dual_policy_rollout(
     training_policy: torch.nn.Module,
-    npc_policy_record: PolicyRecord,
+    npc_policy: torch.nn.Module,
     observations: Tensor,
     experience: Experience,
     training_env_id_start: int,
@@ -112,7 +110,7 @@ def run_dual_policy_rollout(
 
     Args:
         training_policy: The policy being trained
-        npc_policy_record: The NPC policy record loaded from wandb URI
+        npc_policy: The NPC policy module (already initialized to environment)
         observations: Observations tensor of shape (total_agents, *obs_shape)
         experience: Experience buffer (only used for training policy)
         training_env_id_start: Starting environment ID for training
@@ -143,7 +141,7 @@ def run_dual_policy_rollout(
 
     # Run NPC policy inference (without experience buffer interaction)
     npc_actions, npc_log_probs, npc_values = run_npc_policy_inference(
-        npc_policy=npc_policy_record.policy,
+        npc_policy=npc_policy,
         observations=npc_obs,
         device=device,
     )
@@ -159,7 +157,7 @@ def run_dual_policy_rollout(
 
 
 def run_policy_inference(
-    policy: PolicyAgent,
+    policy: torch.nn.Module,
     observations: Tensor,
     experience: Experience,
     training_env_id_start: int,
@@ -198,22 +196,28 @@ def get_lstm_config(policy: torch.nn.Module) -> Tuple[int, int]:
     if hasattr(policy, "lstm"):
         lstm = policy.lstm
         if hasattr(lstm, "hidden_size") and hasattr(lstm, "num_layers"):
-            return int(lstm.hidden_size), int(lstm.num_layers)
+            hidden_size = lstm.hidden_size
+            num_layers = lstm.num_layers
+            return int(hidden_size), int(num_layers)
 
     # For external policies with LSTM wrapper
     if hasattr(policy, "recurrent"):
         recurrent = policy.recurrent
         if hasattr(recurrent, "hidden_size"):
+            hidden_size = recurrent.hidden_size
             # External policies typically use 1 layer
-            return int(recurrent.hidden_size), 1
+            return int(hidden_size), 1
 
     # For policies with direct LSTM attributes
     if hasattr(policy, "hidden_size") and hasattr(policy, "num_lstm_layers"):
-        return int(policy.hidden_size), int(policy.num_lstm_layers)
+        hidden_size = policy.hidden_size
+        num_lstm_layers = policy.num_lstm_layers
+        return int(hidden_size), int(num_lstm_layers)
 
     # For policies with hidden_size but no explicit layers
     if hasattr(policy, "hidden_size"):
-        return int(policy.hidden_size), 1
+        hidden_size = policy.hidden_size
+        return int(hidden_size), 1
 
     # Default values if no LSTM found
     return 256, 1
