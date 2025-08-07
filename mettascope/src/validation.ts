@@ -305,7 +305,6 @@ export function validateReplayData(replay: Replay): void {
     validateReplaySchema(replay)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.warn('Replay validation failed:', message)
     showWarningToast(`Replay validation: ${message}`, 'error', 'replay-validation-error')
   }
 }
@@ -375,7 +374,6 @@ export function validateReplayStep(replayStep: any): void {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.warn('Step validation failed:', message)
     showWarningToast(`Step validation: ${message}`, 'warning', 'step-validation-error')
   }
 }
