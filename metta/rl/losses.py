@@ -1,11 +1,12 @@
 """Loss computation functions for PPO training."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import torch
 from torch import Tensor
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_state import PolicyState
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
@@ -54,10 +55,9 @@ class Losses:
 
 
 def process_minibatch_update(
-    policy: torch.nn.Module,
+    policy: PolicyAgent,
     experience: Experience,
-    minibatch: Dict[str, Tensor],
-    advantages: Tensor,
+    minibatch: dict[str, Tensor],
     trainer_cfg: Any,
     kickstarter: Any,
     agent_step: int,

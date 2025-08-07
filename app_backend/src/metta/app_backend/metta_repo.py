@@ -392,6 +392,13 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
         ],
     ),
+    SqlMigration(
+        version=22,
+        description="Add index on episodes.primary_policy_id",
+        sql_statements=[
+            """CREATE INDEX IF NOT EXISTS idx_episodes_primary_policy_id ON episodes(primary_policy_id)""",
+        ],
+    ),
 ]
 
 
@@ -1388,11 +1395,17 @@ class MettaRepo:
 
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
         async with self.connect() as con:
+            if not assignees:
+                return {}
+
+            # Use ANY() for proper list handling in PostgreSQL
             queryRes = await con.execute(
-                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee IN %s", (assignees,)
+                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee = ANY(%s)",
+                (assignees,),
             )
             rows = await queryRes.fetchall()
             res: dict[str, list[str]] = defaultdict(list)
             for row in rows:
-                res[row[0]].append(row[1])
+                if row[1]:  # Only add non-null git hashes
+                    res[row[0]].append(row[1])
             return res

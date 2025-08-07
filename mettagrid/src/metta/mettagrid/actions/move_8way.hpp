@@ -32,6 +32,19 @@ protected:
         target_location.r -= 1;
         target_location.c += 1;
         new_orientation = Orientation::Up;
+        if (!_is_valid_square(target_location)) {
+            // Tries clockwise adj cardinal dir
+            target_location.r += 1;
+            new_orientation = Orientation::Up;
+            if (!_is_valid_square(target_location)) {
+                // Tries counter-clockwise adj cardinal dir
+                target_location.r -= 1;
+                target_location.c -= 1;
+                new_orientation = Orientation::Right;
+                break;
+            }
+            break;
+        }
         break;
       case 2:  // East
         target_location.c += 1;
@@ -41,6 +54,19 @@ protected:
         target_location.r += 1;
         target_location.c += 1;
         new_orientation = Orientation::Down;
+        if (!_is_valid_square(target_location)) {
+            // Tries clockwise adj cardinal dir
+            target_location.c -= 1;
+            new_orientation = Orientation::Right;
+            if (!_is_valid_square(target_location)) {
+                // Tries counter-clockwise adj cardinal dir
+                target_location.r -= 1;
+                target_location.c += 1;
+                new_orientation = Orientation::Down;
+                break;
+            }
+            break;
+        }
         break;
       case 4:  // South
         target_location.r += 1;
@@ -50,6 +76,19 @@ protected:
         target_location.r += 1;
         target_location.c -= 1;
         new_orientation = Orientation::Down;
+        if (!_is_valid_square(target_location)) {
+            // Tries clockwise adj cardinal dir
+            target_location.r -= 1;
+            new_orientation = Orientation::Down;
+            if (!_is_valid_square(target_location)) {
+                // Tries counter-clockwise adj cardinal dir
+                target_location.r += 1;
+                target_location.c += 1;
+                new_orientation = Orientation::Left;
+                break;
+            }
+            break;
+        }
         break;
       case 6:  // West
         target_location.c -= 1;
@@ -59,17 +98,26 @@ protected:
         target_location.r -= 1;
         target_location.c -= 1;
         new_orientation = Orientation::Up;
+        if (!_is_valid_square(target_location)) {
+            // Tries clockwise adj cardinal dir
+            target_location.c += 1;
+            new_orientation = Orientation::Left;
+            if (!_is_valid_square(target_location)) {
+                // Tries counter-clockwise adj cardinal dir
+                target_location.r += 1;
+                target_location.c -= 1;
+                new_orientation = Orientation::Up;
+                break;
+            }
+            break;
+        }
         break;
       default:
         return false;
     }
 
-    // Check if target location is valid and empty
-    if (!_grid->is_valid_location(target_location)) {
-      return false;
-    }
-
-    if (!_grid->is_empty(target_location.r, target_location.c)) {
+    // Check if only/remaining target location is valid and empty
+    if (!_is_valid_square(target_location)) {
       return false;
     }
 
@@ -78,6 +126,15 @@ protected:
 
     // Move the agent with new orientation
     return _grid->move_object(actor->id, target_location);
+  }
+  bool _is_valid_square(GridLocation target_location) {
+    if (!_grid->is_valid_location(target_location)) {
+      return false;
+    }
+    if (!_grid->is_empty(target_location.r, target_location.c)) {
+      return false;
+    }
+    return true;
   }
 };
 

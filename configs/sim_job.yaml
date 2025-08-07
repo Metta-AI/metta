@@ -18,3 +18,5 @@ sim_job:
 eval_task_id: null
 
 cmd: sim
+
+push_metrics_to_wandb: false

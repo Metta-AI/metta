@@ -12,7 +12,7 @@ from metta.common.util.instantiate import instantiate
 logger = logging.getLogger("policy")
 
 
-def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig = None):
+def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig | None = None) -> "PytorchAgent":
     """Load a PyTorch policy from checkpoint and wrap it in PytorchAgent.
 
     Args:
@@ -23,9 +23,10 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     Returns:
         PytorchAgent wrapping the loaded policy
     """
-    weights = torch.load(path, map_location=device, weights_only=True)
 
     try:
+        weights = torch.load(path, map_location=device, weights_only=True)
+
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
         num_action_args, _ = weights["policy.actor.1.weight"].shape
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
@@ -66,11 +67,12 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     else:
         # Use the common instantiate utility
         policy = instantiate(pytorch_cfg, env=env, policy=None)
+    try:
+        policy.load_state_dict(weights)
+    except Exception as e:
+        logger.warning(f"Failed automatic load from weights: {e}")
+        logger.warning("Using randomly initialized weights")
 
-    policy.load_state_dict(weights)
-
-    # Wrap in PytorchAgent and move to device
-    policy = PytorchAgent(policy).to(device)
     return policy
 
 
@@ -248,11 +250,6 @@ class PytorchAgent(nn.Module):
         if hasattr(self.policy, "l2_init_loss"):
             return self.policy.l2_init_loss()
         return torch.tensor(0.0, device=getattr(self, "device", "cpu"), dtype=torch.float32)
-
-    def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copy."""
-        if hasattr(self.policy, "update_l2_init_weight_copy"):
-            self.policy.update_l2_init_weight_copy()
 
     def clip_weights(self):
         """Clip weights."""

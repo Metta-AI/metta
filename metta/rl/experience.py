@@ -18,8 +18,6 @@ Key features:
 - Manages minibatch creation for training
 """
 
-from typing import Dict, Optional
-
 import numpy as np
 import torch
 from torch import Tensor
@@ -37,18 +35,18 @@ class Experience:
         max_minibatch_size: int,
         obs_space,
         atn_space,
-        device: torch.device | str,
+        device: torch.device,
         hidden_size: int,
         cpu_offload: bool = False,
         num_lstm_layers: int = 2,
-        agents_per_batch: Optional[int] = None,
+        agents_per_batch: int | None = None,
     ):
         """Initialize experience buffer with segmented storage."""
         # Store parameters
         self.total_agents = total_agents
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
-        self.device = device if isinstance(device, torch.device) else torch.device(device)
+        self.device = device
         self.cpu_offload = cpu_offload
 
         # Calculate segments
@@ -95,8 +93,8 @@ class Experience:
         self.free_idx = total_agents % self.segments
 
         # LSTM state management
-        self.lstm_h: Dict[int, Tensor] = {}
-        self.lstm_c: Dict[int, Tensor] = {}
+        self.lstm_h: dict[int, Tensor] = {}
+        self.lstm_c: dict[int, Tensor] = {}
         assert num_lstm_layers > 0, f"num_lstm_layers must be positive, got {num_lstm_layers}"
         assert hidden_size > 0, f"hidden_size must be positive, got {hidden_size}"
 
@@ -154,7 +152,7 @@ class Experience:
         values: Tensor,
         env_id: slice,
         mask: Tensor,
-        lstm_state: Optional[Dict[str, Tensor]] = None,
+        lstm_state: dict[str, Tensor] | None = None,
     ) -> int:
         """Store a batch of experience data."""
         assert isinstance(env_id, slice), (
@@ -198,7 +196,7 @@ class Experience:
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
-    def get_lstm_state(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
+    def get_lstm_state(self, env_id_start: int) -> tuple[Tensor | None, Tensor | None]:
         """Get LSTM state as tensors."""
         if env_id_start not in self.lstm_h:
             return None, None
@@ -226,9 +224,7 @@ class Experience:
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-        minibatch_idx: int,
-        total_minibatches: int,
-    ) -> Dict[str, Tensor]:
+    ) -> dict[str, Tensor]:
         """Sample a prioritized minibatch for training."""
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)
@@ -265,7 +261,7 @@ class Experience:
         """Update importance sampling ratios for given indices."""
         self.ratio[indices] = new_ratio.detach()
 
-    def stats(self) -> Dict[str, float]:
+    def stats(self) -> dict[str, float]:
         """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.rewards.mean().item(),

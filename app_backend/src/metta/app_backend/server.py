@@ -13,7 +13,6 @@ from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     dashboard_routes,
     entity_routes,
-    episode_routes,
     eval_task_routes,
     scorecard_routes,
     sql_routes,
@@ -105,7 +104,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
     # Create routers with the provided StatsRepo
     dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
-    episode_router = episode_routes.create_episode_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
@@ -115,7 +113,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     entity_router = entity_routes.create_entity_router(stats_repo)
 
     app.include_router(dashboard_router)
-    app.include_router(episode_router)
     app.include_router(eval_task_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
