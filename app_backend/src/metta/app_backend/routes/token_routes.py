@@ -72,16 +72,16 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
     async def list_tokens(user_email: UserEmail) -> TokenListResponse:
         """List all machine tokens for the authenticated user."""
         try:
-            token_dicts = await metta_repo.list_machine_tokens(user_email)
+            token_rows = await metta_repo.list_machine_tokens(user_email)
             tokens = [
                 TokenInfo(
-                    id=token_dict["id"],
-                    name=token_dict["name"],
-                    created_at=str(token_dict["created_at"]),
-                    expiration_time=str(token_dict["expiration_time"]),
-                    last_used_at=str(token_dict["last_used_at"]) if token_dict["last_used_at"] else None,
+                    id=str(token_row.id),
+                    name=token_row.name,
+                    created_at=str(token_row.created_at),
+                    expiration_time=str(token_row.expiration_time),
+                    last_used_at=str(token_row.last_used_at) if token_row.last_used_at else None,
                 )
-                for token_dict in token_dicts
+                for token_row in token_rows
             ]
             return TokenListResponse(tokens=tokens)
         except Exception as e:

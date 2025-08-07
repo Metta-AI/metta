@@ -27,6 +27,7 @@ const tooltipTitles: TooltipConfig = {
   '#agent-panel-toggle': 'Toggle agent panel',
   '#traces-toggle': 'Toggle traces',
   '#resources-toggle': 'Toggle resources',
+  '#heatmap-toggle': 'Toggle heatmap',
   '#grid-toggle': 'Toggle grid',
   '#visual-range-toggle': 'Toggle visual range',
   '#fog-of-war-toggle': 'Toggle fog of war',

@@ -1,17 +1,20 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import gymnasium as gym
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
+from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.policy_state import PolicyState
+from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
+from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
 from metta.rl.env_config import EnvConfig
 from metta.rl.puffer_policy import PytorchAgent
@@ -30,10 +33,16 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
         }
     )
 
-    # We know this will be a dict
-    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)  # type: ignore
+    # Check if agent_cfg specifies a pytorch agent type
+    if "agent_type" in agent_cfg and agent_cfg.agent_type in agent_classes:
+        AgentClass = agent_classes[agent_cfg.agent_type]
+        agent = AgentClass(env=env)
+        logger.info(f"Using Pytorch Policy: {agent} (type: {agent_cfg.agent_type})")
+        return agent
 
-    # Create MettaAgent directly without Hydra
+    # For backward compatibility with YAML configs (to be removed in future PR)
+    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)
+
     return MettaAgent(
         obs_space=obs_space,
         obs_width=env.obs_width,
@@ -46,37 +55,32 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    def __init__(self, agent, device):
+    """
+    Because this class passes through __getattr__ to its self.module, it implements everything
+    MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
+    """
+
+    module: "MettaAgent"
+
+    def __init__(self, agent: "MettaAgent", device: torch.device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
 
-        # Handle CPU vs GPU initialization
+        # This maintains the same interface as the input MettaAgent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+
+        # Pass device_ids for GPU, but not for CPU
         if device.type == "cpu":
-            # For CPU, don't pass device_ids
-            super().__init__(agent)
+            super().__init__(module=layers_converted_agent)
         else:
-            # For GPU, pass device_ids
-            super().__init__(agent, device_ids=[device], output_device=device)
+            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
+        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
         try:
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device: torch.device,
-        is_training: bool = True,
-    ) -> None:
-        # is_training parameter is deprecated and ignored - mode is auto-detected
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
 
 
 class MettaAgent(nn.Module):
@@ -97,8 +101,6 @@ class MettaAgent(nn.Module):
 
         logger.info(f"obs_space: {obs_space} ")
 
-        self.hidden_size = cfg.components._core_.output_size
-        self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
 
         assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
@@ -116,8 +118,6 @@ class MettaAgent(nn.Module):
             "obs_height": obs_height,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
-            "hidden_size": self.hidden_size,
-            "core_num_layers": self.core_num_layers,
         }
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
@@ -142,16 +142,39 @@ class MettaAgent(nn.Module):
         component = self.components["_action_"]
         self._setup_components(component)
 
+        self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(
                     f"Component {name} in MettaAgent was never setup. It might not be accessible by other components."
                 )
+            if component.has_memory():
+                self.components_with_memory.append(name)
+
+        # check for duplicate component names
+        all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
+        if duplicate_names := duplicates(all_names):
+            raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
         self.components = self.components.to(device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
+
+    def reset_memory(self):
+        for name in self.components_with_memory:
+            self.components[name].reset_memory()
+
+    def get_memory(self):
+        memory = {}
+        for name in self.components_with_memory:
+            memory[name] = self.components[name].get_memory()
+        return memory
+
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+        )
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
@@ -178,7 +201,6 @@ class MettaAgent(nn.Module):
         action_names: list[str],
         action_max_params: list[int],
         device,
-        is_training: bool = True,
     ):
         """
         Initialize the policy to the current environment's features and actions.
@@ -196,13 +218,12 @@ class MettaAgent(nn.Module):
             action_names: List of action names
             action_max_params: List of maximum parameters for each action
             device: Device to place tensors on
-            is_training: Deprecated. Training mode is now automatically detected.
         """
         # Use PyTorch's built-in training mode detection
-        self._initialize_observations(features, device, self.training)
+        self._initialize_observations(features, device)
         self.activate_actions(action_names, action_max_params, device)
 
-    def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
+    def _initialize_observations(self, features: dict[str, dict], device):
         """Initialize observation features by storing the feature mapping."""
         self.active_features = features
         self.device = device
@@ -219,9 +240,9 @@ class MettaAgent(nn.Module):
             logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
             # Create remapping for subsequent initializations
-            self._create_feature_remapping(features, is_training)
+            self._create_feature_remapping(features)
 
-    def _create_feature_remapping(self, features: dict[str, dict], is_training: bool):
+    def _create_feature_remapping(self, features: dict[str, dict]):
         """Create a remapping dictionary to translate new feature IDs to original ones."""
         UNKNOWN_FEATURE_ID = 255
         self.feature_id_remap = {}
@@ -234,7 +255,7 @@ class MettaAgent(nn.Module):
                 original_id = self.original_feature_mapping[name]
                 if new_id != original_id:
                     self.feature_id_remap[new_id] = original_id
-            elif not is_training:
+            elif not self.training:
                 # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
                 self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
                 unknown_features.append(name)
@@ -331,43 +352,26 @@ class MettaAgent(nn.Module):
         logger.info(f"Agent actions initialized with: {self.active_actions}")
 
     @property
-    def lstm(self):
-        return self.components["_core_"]._net
-
-    @property
     def total_params(self):
         return self._total_params
 
-    def forward_inference(
-        self, value: torch.Tensor, logits: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward_inference(self, td: TensorDict) -> TensorDict:
         """
-        Forward pass for inference mode - samples new actions based on the policy.
-
-        Args:
-            value: Value estimate tensor, shape (BT, 1)
-            logits: Action logits tensor, shape (BT, A)
-
-        Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Sampled action, shape (BT, 2)
-            - action_log_prob: Log probability of the sampled action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT, 1)
-            - log_probs: Log-softmax of logits, shape (BT, A)
+        Forward pass for inference mode - softmaxes action logits then samples them and outputs new actions.
         """
+        value = td["_value_"]
+        logits = td["_action_"]
+
         if __debug__:
             assert_shape(value, ("BT", 1), "inference_value")
             assert_shape(logits, ("BT", "A"), "inference_logits")
 
         # Sample actions
-        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+        action_logit_index, action_log_prob, _, full_log_probs = sample_actions(logits)
 
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "action_logit_index")
             assert_shape(action_log_prob, ("BT",), "action_log_prob")
-            assert_shape(entropy, ("BT",), "entropy")
-            assert_shape(log_probs, ("BT", "A"), "log_probs")
 
         # Convert logit index to action
         action = self._convert_logit_index_to_action(action_logit_index)
@@ -375,27 +379,21 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action, ("BT", 2), "inference_output_action")
 
-        return action, action_log_prob, entropy, value, log_probs
+        td["actions"] = action
+        td["act_log_prob"] = action_log_prob
+        td["values"] = value.flatten()
+        td["full_log_probs"] = full_log_probs
 
-    def forward_training(
-        self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        return td
+
+    def forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
         """
-        Forward pass for training mode - evaluates the policy on provided actions.
-
-        Args:
-            value: Value estimate tensor, shape (BT, 1)
-            logits: Action logits tensor, shape (BT, A)
-            action: Action tensor for evaluation, shape (B, T, 2)
-
-        Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Same as input action, shape (B, T, 2)
-            - action_log_prob: Log probability of the provided action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT, 1)
-            - log_probs: Log-softmax of logits, shape (BT, A)
+        Forward pass for training mode - evaluates the policy on provided actions from rollout.
+        Finds the action logprobs and calculates entropy.
         """
+        value = td["_value_"]
+        logits = td["_action_"]
+
         if __debug__:
             assert_shape(value, ("BT", 1), "training_value")
             assert_shape(logits, ("BT", "A"), "training_logits")
@@ -408,97 +406,58 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
 
-        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
+        action_log_prob, entropy, full_log_probs = evaluate_actions(logits, action_logit_index)
 
         if __debug__:
             assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
             assert_shape(entropy, ("BT",), "training_entropy")
-            assert_shape(log_probs, ("BT", "A"), "training_log_probs")
-            assert_shape(action, ("B", "T", 2), "training_output_action")
+            assert_shape(full_log_probs, ("BT", "A"), "training_log_probs")
 
-        return action, action_log_prob, entropy, value, log_probs
+        td["act_log_prob"] = action_log_prob
+        td["entropy"] = entropy
+        td["value"] = value
+        td["full_log_probs"] = full_log_probs
 
-    def forward(
-        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        return td
+
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         """
         Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
         Args:
-            x: Input observation tensor
-            state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor for BPTT
+            input_td: A TensorDict containing at least "env_obs". In training, it should also contain the keys that are
+            specified in the experience buffer spec function also defined in this class.
+            action: Optional action tensor for BPTT (training mode).
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            A TensorDict containing the model's output.
+            - In inference mode, this contains data to be stored in the experience buffer.
+            - In training mode, this contains data for loss calculation.
         """
-        if __debug__:
-            # Default values in case obs_shape is not available
-            obs_w, obs_h, features = "W", "H", "F"
+        td.bptt = 1
+        td.batch = td.batch_size.numel()
+        if td.batch_dims > 1:
+            B = td.batch_size[0]
+            TT = td.batch_size[1]
+            td = td.reshape(td.batch_size.numel())
+            td.bptt = TT
+            td.batch = B
 
-            # Check if agent_attributes exists, is not None, and contains obs_shape
-            if (
-                hasattr(self, "agent_attributes")
-                and self.agent_attributes is not None
-                and "obs_shape" in self.agent_attributes
-            ):
-                # Get obs_shape and ensure it has the expected format
-                obs_shape = self.agent_attributes["obs_shape"]
-                if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
-                    obs_w, obs_h, features = obs_shape
-
-            # TODO: redo this and the above once we converge on token obs space. Commenting out for now.
-            if action is None:
-                # Inference: x should have shape (BT, obs_w, obs_h, features)
-                pass
-            else:
-                # Training: x should have shape (B, T, obs_w, obs_h, features)
-                B, T, A = action.shape
-                assert A == 2, f"Action dimensionality should be 2, got {A}"
-                # assert_shape(action, (B, T, 2), "training_input_action")
-
-        # Initialize dictionary for TensorDict
-        td = {"x": x, "state": None}
-
-        # Safely handle LSTM state
-        if state.lstm_h is not None and state.lstm_c is not None:
-            # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)
-            lstm_c = state.lstm_c.to(x.device)
-            # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
-
-        # Forward pass through value network
+        # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)
-        value = td["_value_"]
 
-        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
-        # This design supports potential future extensions like distributional value functions
-        # or multi-head value networks which would require more than a scalar per state
-        if __debug__:
-            assert_shape(value, ("BT", 1), "value")
-
-        # Forward pass through action network
+        # Forward pass through action network. This will reuse the core network's output.
         self.components["_action_"](td)
-        logits = td["_action_"]
 
-        if __debug__:
-            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
-            assert_shape(logits, ("BT", "A"), "logits")
-
-        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
-        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
-        # - Inference input: (BT, *obs_shape) stays as (BT, *)
-
-        # Update LSTM states
-        split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
+        # TODO: future work could allow losses to decide which leaf nodes to run eg for reconstruction loss
 
         if action is None:
-            return self.forward_inference(value, logits)
+            output_td = self.forward_inference(td)
         else:
-            return self.forward_training(value, logits, action)
+            output_td = self.forward_training(td, action)
+            output_td = output_td.reshape(B, TT)
+
+        return output_td
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """

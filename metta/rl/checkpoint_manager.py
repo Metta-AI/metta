@@ -95,7 +95,7 @@ class CheckpointManager:
         agent_step: int,
         evals: EvalRewardSummary,
         timer: Stopwatch,
-        initial_policy_record: PolicyRecord | None,
+        initial_policy_record: PolicyRecord,
     ) -> PolicyRecord:
         """Save policy with metadata if needed."""
 
@@ -229,7 +229,7 @@ def maybe_establish_checkpoint(
     agent_step: int,
     eval_scores: EvalRewardSummary,
     timer: Stopwatch,
-    initial_policy_record: PolicyRecord | None,
+    initial_policy_record: PolicyRecord,
     optimizer: torch.optim.Optimizer,
     run_dir: str,
     kickstarter: Kickstarter | None,
