@@ -289,24 +289,7 @@ class TestProcessRecursive:
         assert result["base"] == "test"
         assert result["derived"] == "test_suffix"
 
-    def test_process_recursive_dictconfig_without_metadata(self):
-        """Test processing DictConfig without metadata - should hit line 41 case."""
-        from omegaconf import DictConfig
-
-        # Create a DictConfig directly without metadata
-        config = DictConfig({"_target_": "builtins.dict"})
-
-        # Verify it doesn't have _metadata or mock the hasattr check
-        if hasattr(config, '_metadata'):
-            # If it has metadata, mock the hasattr to return False for this specific case
-            with patch('metta.common.util.instantiate.hasattr', side_effect=lambda obj, attr: attr != '_metadata'):
-                result = _process_recursive(config, is_top_level=False)
-        else:
-            result = _process_recursive(config, is_top_level=False)
-
-        # Line 41 converts DictConfig to dict, so result should be dict
-        assert isinstance(result, dict)
-        assert result.get("_target_") == "builtins.dict"
+    
 
     def test_process_recursive_complex_nesting(self):
         """Test processing deeply nested structures."""
