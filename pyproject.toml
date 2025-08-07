@@ -64,6 +64,7 @@ dependencies = [
   "pydantic-settings>=2.10.1",
   "marimo>=0.14.16",
   "altair>=5.5.0",
+  "pyarrow>=21.0.0",
 ]
 name = "metta"
 version = "0.1"

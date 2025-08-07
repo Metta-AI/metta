@@ -13,38 +13,36 @@ def _():
 
 @app.cell
 def _(mo):
-    mo.md(
-        r"""
-    # Policy Scorecard Dashboard
-
-    Interactive dashboard for evaluating and comparing policy performance across different metrics and evaluations.
-    """
-    )
+    mo.md("""# Policy Scorecards""")
     return
 
 
 @app.cell
 def _():
+    import altair as alt
+    import pandas as pd
     from metta.app_backend.clients.scorecard_client import ScorecardClient
-    from experiments.marimo.utils import (
-        create_marimo_scorecard,
-    )
+    from metta.common.util.collections import group_by
 
     client = ScorecardClient()
-    return client, create_marimo_scorecard
+    return alt, client, group_by, pd
 
 
 @app.cell
-async def _(client):
+async def _(client, group_by):
     # Load all policies
     policies_response = await client.get_policies()
     all_policies = policies_response.policies
 
     # Separate training runs and run-free policies
-    training_run_policies = [p for p in all_policies if p.type == "training_run"]
-    run_free_policies = [p for p in all_policies if p.type == "policy"]
+    policy_groups = group_by(all_policies, key_fn=lambda x: x.type)
+    training_run_policies = policy_groups.get("training_run", [])
+    run_free_policies = policy_groups.get("policy", [])
+
     print(
-        f"Fetched {len(training_run_policies)} training run policies and {len(run_free_policies)} run-free policies"
+        f"Fetched {len(all_policies)} policies:\n"
+        f"  - training runs: {len(training_run_policies)}\n"
+        f"  - run-free policies: {len(run_free_policies)}"
     )
     return run_free_policies, training_run_policies
 
@@ -77,9 +75,7 @@ def _(mo):
 
 
 @app.cell
-async def _(client, mo, training_run_selector):
-    from metta.common.util.collections import group_by
-
+async def _(client, group_by, mo, training_run_selector):
     if training_run_selector.value:
         available_evals = await client.get_eval_names(
             training_run_ids=training_run_selector.value, run_free_policy_ids=[]
@@ -123,7 +119,7 @@ async def _(client, mo, training_run_selector):
 
 @app.cell
 def _(mo):
-    mo.md(r"""# 3. Configure Scorecard""")
+    mo.md(r"""## 3. Configure Scorecard""")
     return
 
 
@@ -152,34 +148,18 @@ def _(available_metrics, mo):
         value="reward",
         label="Metric:",
     )
-
-    policy_selector = mo.ui.radio(
+    policy_selector_selector = mo.ui.radio(
         options=["best", "latest"],
         value="best",
         label="Policy version:",
     )
 
-    num_policies_slider = mo.ui.slider(
-        start=5,
-        stop=30,
-        value=15,
-        step=5,
-        label="Number of policies:",
-    )
-
-    # Display all selectors vertically for better alignment
-    mo.vstack([metric_selector, policy_selector, num_policies_slider], gap=2)
-    return metric_selector, num_policies_slider, policy_selector
+    mo.vstack([metric_selector, policy_selector_selector], gap=2)
+    return metric_selector, policy_selector_selector
 
 
 @app.cell
-def _(
-    metric_selector,
-    mo,
-    num_policies_slider,
-    selected_eval_names,
-    training_run_selector,
-):
+def _(metric_selector, mo, selected_eval_names, training_run_selector):
     can_generate = (
         training_run_selector.value and selected_eval_names and metric_selector.value
     )
@@ -191,21 +171,7 @@ def _(
         on_click=lambda value: value + 1,
     )
 
-    mo.vstack(
-        [
-            generate_button,
-            mo.md(f"""
-        **Selected:**
-
-        - {len(training_run_selector.value)} training runs
-        - {len(selected_eval_names)} evals
-        - Metric: {metric_selector.value}
-        - Show top {num_policies_slider.value} policies
-        """)
-            if can_generate
-            else mo.md("Select runs and evals to generate a scorecard"),
-        ]
-    )
+    generate_button
     return (generate_button,)
 
 
@@ -215,10 +181,11 @@ async def _(
     generate_button,
     metric_selector,
     mo,
-    policy_selector,
+    policy_selector_selector,
     selected_eval_names,
     training_run_selector,
 ):
+    scorecard_data = None
     if generate_button.value:
         with mo.status.spinner("Generating scorecard..."):
             scorecard_data = await client.generate_scorecard(
@@ -226,38 +193,117 @@ async def _(
                 run_free_policy_ids=[],
                 eval_names=selected_eval_names,
                 metric=metric_selector.value,
-                policy_selector=policy_selector.value,
+                policy_selector=policy_selector_selector.value,
             )
-
-    else:
-        scorecard_data = None
-        print("Have not opted to generate yet")
     return (scorecard_data,)
 
 
 @app.cell
-def _(
-    create_marimo_scorecard,
-    metric_selector,
-    mo,
-    num_policies_slider,
-    scorecard_data,
-):
-    mo.vstack(
-        [
-            mo.md("## Scorecard Results"),
-            create_marimo_scorecard(
-                scorecard_data,
-                metric_selector.value,
-                num_policies=num_policies_slider.value,
-            ),
-        ]
-    ) if scorecard_data else mo.md("")
-    return
+def _(pd, scorecard_data):
+    def _get_table_df():
+        sorted_policies = sorted(
+            (scorecard_data and scorecard_data.policyNames) or [],
+            key=lambda p: scorecard_data.policyAverageScores.get(p, 0),
+            reverse=True,
+        )
+        if not (scorecard_data and sorted_policies):
+            return pd.DataFrame({"Policy": [], "Overall Score": []})
+        rows = []
+        for policy in sorted_policies:
+            row = {
+                "Policy": policy.split(":v")[0][:40] if ":v" in policy else policy[:40],
+                "Overall Score": round(
+                    scorecard_data.policyAverageScores.get(policy, 0), 1
+                ),
+                "_original_policy": policy,
+            }
+
+            # Add evaluation scores
+            for eval_name in scorecard_data.evalNames:
+                cell_data = scorecard_data.cells.get(policy, {}).get(eval_name)
+                eval_display = (
+                    eval_name.split("/", 1)[1].replace("_", " ").title()
+                    if "/" in eval_name
+                    else eval_name.replace("_", " ").title()
+                )
+                if not cell_data:
+                    row[eval_display] = None
+                else:
+                    value = (
+                        cell_data.value if hasattr(cell_data, "value") else cell_data
+                    )
+                    if isinstance(value, (int, float)):
+                        row[eval_display] = round(value, 2)
+                    else:
+                        row[eval_display] = value
+            rows.append(row)
+
+        visualization_df = pd.DataFrame(rows)
+        return visualization_df.drop(columns=["_original_policy"])
+
+    table_df = _get_table_df()
+    return (table_df,)
 
 
 @app.cell
-def _():
+def _(alt, metric_selector, mo, table_df):
+    def _get_heatmap(table_df):
+        if len(table_df) > 0:
+            # Heatmap view
+            eval_cols = [
+                col
+                for col in table_df.columns
+                if col not in ["Policy", "Overall Score"]
+            ]
+
+            if eval_cols:  # Only create heatmap if we have evaluation columns
+                # Melt data for Altair
+                df_melted = table_df.melt(
+                    id_vars=["Policy", "Overall Score"],
+                    var_name="Evaluation",
+                    value_name="Score",
+                ).dropna(subset=["Score"])
+
+                # Create heatmap
+                heatmap = (
+                    alt.Chart(df_melted)
+                    .mark_rect(stroke="white", strokeWidth=1)
+                    .encode(
+                        x=alt.X(
+                            "Evaluation:N",
+                            title="Evaluation",
+                            axis=alt.Axis(labelAngle=-45, labelLimit=200),
+                        ),
+                        y=alt.Y(
+                            "Policy:N",
+                            title="Policy",
+                            sort=alt.SortField("Overall Score", order="descending"),
+                        ),
+                        color=alt.Color(
+                            "Score:Q",
+                            scale=alt.Scale(scheme="redyellowgreen"),
+                            title="Score",
+                        ),
+                        tooltip=[
+                            alt.Tooltip("Policy:N", title="Policy"),
+                            alt.Tooltip("Evaluation:N", title="Evaluation"),
+                            alt.Tooltip("Score:Q", title="Score", format=".1f"),
+                        ],
+                    )
+                    .properties(
+                        width=800,
+                        height=max(400, len(table_df) * 25),
+                        title=f"Policy Performance Heatmap - {metric_selector.value.upper()}",
+                    )
+                )
+
+                return mo.ui.altair_chart(heatmap)
+            else:
+                return mo.md("No evaluation data to display in heatmap")
+        else:
+            return mo.md("No data to display")
+
+    mo.vstack([_get_heatmap(table_df), table_df], align="stretch")
     return
 
 
