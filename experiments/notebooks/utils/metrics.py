@@ -77,16 +77,16 @@ def fetch_metrics(
                         "     Fetching all data is not practical and will likely timeout."
                     )
                     print(
-                        "     SOLUTION: Use samples=50000 for comprehensive sampling instead."
+                        "     SOLUTION: Use samples=50000 or similar for comprehensive sampling instead."
                     )
-                    print("     Skipping this run to prevent hanging...")
                 elif last_step and last_step > 1000000:  # 1 million steps
                     print(f"  ⚠️  WARNING: This run has {last_step:,} steps!")
                     print("     Fetching all data will take several minutes.")
                     if min_step is None and max_step is None:
-                        print("     Proceeding with caution... Press Ctrl+C to cancel.")
+                        print(
+                            "     Proceed with caution. Be prepared to be patient or cancel this python process."
+                        )
 
-                print("  Fetching data using scan_history...")
                 if min_step is not None or max_step is not None:
                     print(f"    Step range: {min_step or 0} to {max_step or 'end'}")
                 if keys:
