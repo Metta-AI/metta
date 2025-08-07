@@ -11,7 +11,7 @@ run: ${oc.env:USER}.local.${run_id}
 
 # LSTM policy for ColorTree tasks
 agent:
-  _target_: metta.agent.external.example.Recurrent
+  _target_: metta.agent.external.lstm_transformer.Recurrent
 
 # PPO hyperparameters optimized for ColorTree
 trainer:
