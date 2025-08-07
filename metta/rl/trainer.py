@@ -258,7 +258,10 @@ def train(
     )
 
     # Get action dtype for environment
-    dtype_actions = vecenv.single_action_space.dtype  # type: ignore[attr-defined]
+    # MettaGrid uses int32 for actions (MultiDiscrete action space)
+    import numpy as np
+
+    dtype_actions = np.int32
 
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
