@@ -23,12 +23,12 @@ trainer:
   optimizer:
     learning_rate: 0.0008 # Larger step for small rewards
 
-  # Optimized batch sizes for single-agent training
-  batch_size: 2048
-  minibatch_size: 256
-  bptt_horizon: 64
-  update_epochs: 2
-  forward_pass_minibatch_target_size: 256
+  # # Optimized batch sizes for single-agent training
+  # batch_size: 2048
+  # minibatch_size: 256
+  # bptt_horizon: 64
+  # update_epochs: 2
+  # forward_pass_minibatch_target_size: 256
 
   # Fewer workers for single agent
-  num_workers: 8
+  # num_workers: 8
