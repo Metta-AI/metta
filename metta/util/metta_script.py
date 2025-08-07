@@ -81,7 +81,6 @@ def metta_script(
             pre_main(cfg)
 
         try:
-
             if cfg.py_agent:
                 # Convert py_agent string to a DictConfig with agent_type
                 # Remove .py extension if present
@@ -89,7 +88,6 @@ def metta_script(
                 cfg.agent = DictConfig({"agent_type": agent_type})
         except AttributeError:
             logger.info("No py_agent specified, using the default agent.")
-
 
         apply_mac_device_overrides(cfg)
 
