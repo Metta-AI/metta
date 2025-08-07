@@ -1,0 +1,3 @@
+_target_: metta.mettagrid.curriculum.core.SingleTaskCurriculum
+
+task: /env/mettagrid/colortree_easy

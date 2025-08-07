@@ -26,7 +26,7 @@ trainer:
   # Optimized batch sizes for single-agent training
   batch_size: 2048        # Much smaller for single agent
   minibatch_size: 256     # Proportionally smaller
-  bptt_horizon: 64        # Shorter horizon for simple task
+  bptt_horizon: 4        # Shorter horizon for simple task
   update_epochs: 2        # Fewer epochs per update
   forward_pass_minibatch_target_size: 256
 
