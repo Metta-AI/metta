@@ -31,5 +31,3 @@ game:
         ore_green: 0
       output_resources:
         battery_green: 0
-    mine_blue:
-      cooldown: 100

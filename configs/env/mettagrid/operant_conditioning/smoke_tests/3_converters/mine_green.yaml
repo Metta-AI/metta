@@ -35,5 +35,3 @@ game:
       output_resources:
         battery_green: 0
         heart: 1
-    mine_green:
-      cooldown: 100
