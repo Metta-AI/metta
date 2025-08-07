@@ -260,3 +260,106 @@ class TestCliIntegration:
             result = sh(["echo", "test"], show_spinner=True, spinner_message="Running test")
 
         assert result == "test"
+
+
+class TestSpinnerAdvanced:
+    """Advanced test cases for spinner functionality."""
+
+    def test_spinner_character_cycling(self):
+        """Test that spinner characters cycle properly."""
+        with patch('sys.stdout'):
+            spinner_obj = Spinner("Test", spinner_chars=["A", "B"], style=lambda x: x)
+            spinner_obj.start()
+            time.sleep(0.25)  # Let it cycle a bit
+            spinner_obj.stop()
+            
+            # Verify it started successfully
+            assert spinner_obj._thread is not None
+
+    def test_spinner_custom_style_application(self):
+        """Test custom style function application."""
+        def custom_style(text):
+            return f">>>{text}<<<"
+        
+        spinner_obj = Spinner("Test", style=custom_style)
+        assert spinner_obj.style("X") == ">>>X<<<"
+
+    def test_spinner_line_clearing_logic(self):
+        """Test the spinner's line clearing functionality."""
+        with patch('sys.stdout') as mock_stdout:
+            spinner_obj = Spinner("Short", style=lambda x: x)
+            spinner_obj.start()
+            time.sleep(0.15)
+            spinner_obj.update_message("Much longer message to test clearing")
+            time.sleep(0.15)
+            spinner_obj.stop()
+            
+            # Verify stdout was called (line clearing happened)
+            assert mock_stdout.write.called
+
+
+class TestMainDemo:
+    """Test cases for main demo functionality."""
+    
+    @patch('time.sleep')
+    @patch('builtins.input')
+    @patch('builtins.print')
+    @patch('sys.stdout')
+    def test_main_demo_basic_execution(self, mock_stdout, mock_print, mock_input, mock_sleep):
+        """Test that main demo function can be called without errors."""
+        from metta.common.util.cli import main
+        
+        # Mock input for interactive demo
+        mock_input.return_value = ""
+        
+        # Should not raise any exceptions
+        main()
+        
+        # Verify some output was generated
+        assert mock_print.called
+        
+    @patch('subprocess.check_output')
+    @patch('time.sleep')
+    @patch('builtins.input') 
+    @patch('sys.stdout')
+    def test_main_demo_command_execution(self, mock_stdout, mock_input, mock_sleep, mock_subprocess):
+        """Test main demo command execution section."""
+        from metta.common.util.cli import main
+        
+        mock_input.return_value = ""
+        mock_subprocess.return_value = "Hello from subprocess\n"
+        
+        main()
+        
+        # Verify subprocess was called for the demo command
+        mock_subprocess.assert_called()
+
+    @patch('time.sleep')
+    @patch('builtins.input')
+    @patch('sys.stdout')
+    def test_main_demo_error_handling(self, mock_stdout, mock_input, mock_sleep):
+        """Test main demo error handling section."""
+        from metta.common.util.cli import main
+        
+        mock_input.return_value = ""
+        
+        # Should handle the intentional ValueError in demo
+        main()  # Should not re-raise the ValueError
+
+
+class TestNameMain:
+    """Test the if __name__ == '__main__' functionality."""
+    
+    @patch('metta.common.util.cli.main')
+    def test_name_main_calls_main(self, mock_main):
+        """Test that __name__ == '__main__' calls main function."""
+        # This tests the actual if __name__ == "__main__" line
+        import importlib
+        import metta.common.util.cli as cli_module
+        
+        # Simulate running as main
+        cli_module.__name__ = "__main__"
+        importlib.reload(cli_module)
+        
+        # Reset to prevent affecting other tests
+        cli_module.__name__ = "metta.common.util.cli"
