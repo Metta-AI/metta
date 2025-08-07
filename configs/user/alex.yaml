@@ -4,10 +4,10 @@ seed: null
 
 defaults:
   # - override /env/mettagrid@env: simple
-  - override /agent: fast
+  # - override /agent: fast
   - _self_
 
-policy_uri: pytorch:///tmp/puffer_metta.pt
+policy_uri: wandb://run/m.av.replay.probe.601
 npc_policy_uri: null
 
 # env_overrides:
@@ -33,7 +33,7 @@ wandb:
   enabled: true
   # checkpoint_interval: 1
 
-run_id: 2405
+run_id: 2501
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

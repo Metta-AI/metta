@@ -72,15 +72,13 @@ class LSTM(LayerBase):
     def _forward(self, td: TensorDict):
         hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
-        TT = td.bptt
-        B = td.batch
+        TT = td["bptt"]
+        B = td["batch"]
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        if hasattr(td, "training_env_id"):
-            training_env_id = td.training_env_id.start
-        else:
-            training_env_id = 0
+        raw_training_env_id = td.get("training_env_id")
+        training_env_id = raw_training_env_id.data.start if raw_training_env_id is not None else 0
 
         if training_env_id in self.lstm_h and training_env_id in self.lstm_c:
             h_0 = self.lstm_h[training_env_id]

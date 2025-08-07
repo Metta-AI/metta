@@ -5,7 +5,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -425,7 +425,7 @@ class MettaAgent(nn.Module):
         Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
         Args:
-            input_td: A TensorDict containing at least "env_obs". In training, it should also contain the keys that are
+            td: A TensorDict containing at least "env_obs". In training, it should also contain the keys that are
             specified in the experience buffer spec function also defined in this class.
             action: Optional action tensor for BPTT (training mode).
 
@@ -434,14 +434,14 @@ class MettaAgent(nn.Module):
             - In inference mode, this contains data to be stored in the experience buffer.
             - In training mode, this contains data for loss calculation.
         """
-        td.bptt = 1
-        td.batch = td.batch_size.numel()
         if td.batch_dims > 1:
-            B = td.batch_size[0]
-            TT = td.batch_size[1]
-            td = td.reshape(td.batch_size.numel())
-            td.bptt = TT
-            td.batch = B
+            B, TT = td.batch_size
+            td.set("bptt", NonTensorData(TT))
+            td.set("batch", NonTensorData(B))
+            td = td.reshape(B * TT)
+        else:
+            td.set("bptt", NonTensorData(1))
+            td.set("batch", NonTensorData(td.batch_size.numel()))
 
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)
