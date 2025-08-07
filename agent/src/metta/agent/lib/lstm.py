@@ -2,7 +2,6 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
-from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -72,17 +71,17 @@ class LSTM(LayerBase):
     def _forward(self, td: TensorDict):
         hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
-        TT = td["bptt"]
-        B = td["batch"]
+        TT = td["bptt"][0]
+        B = td["batch"][0]
 
-        hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
+        h_size = hidden.shape[-1]
+        hidden = hidden.view(B, TT, h_size).transpose(0, 1)
 
-        raw_training_env_id = td.get("training_env_id")
-        training_env_id = raw_training_env_id.data.start if raw_training_env_id is not None else 0
+        training_env_id_start = td.get("training_env_id_start", torch.tensor([0]))[0].item()
 
-        if training_env_id in self.lstm_h and training_env_id in self.lstm_c:
-            h_0 = self.lstm_h[training_env_id]
-            c_0 = self.lstm_c[training_env_id]
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            h_0 = self.lstm_h[training_env_id_start]
+            c_0 = self.lstm_c[training_env_id_start]
             # reset the hidden state if the episode is done or truncated
             dones = td.get("dones", None)
             truncateds = td.get("truncateds", None)
@@ -96,10 +95,10 @@ class LSTM(LayerBase):
 
         hidden, (h_n, c_n) = self._net(hidden, (h_0, c_0))
 
-        self.lstm_h[training_env_id] = h_n.detach()
-        self.lstm_c[training_env_id] = c_n.detach()
+        self.lstm_h[training_env_id_start] = h_n.detach()
+        self.lstm_c[training_env_id_start] = c_n.detach()
 
-        hidden = rearrange(hidden, "t b h -> (b t) h")
+        hidden = hidden.transpose(0, 1).reshape(B * TT, h_size)
 
         td[self._name] = hidden
 

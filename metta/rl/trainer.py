@@ -8,7 +8,6 @@ import torch
 import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
-from tensordict import NonTensorData
 from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
@@ -313,7 +312,15 @@ def train(
                     td["rewards"] = r
                     td["dones"] = d.float()
                     td["truncateds"] = t.float()
-                    td.set("training_env_id", NonTensorData(training_env_id))
+                    td.set(
+                        "training_env_id_start",
+                        torch.full(
+                            td.batch_size,
+                            training_env_id.start,
+                            device=td.device,
+                            dtype=torch.long,
+                        ),
+                    )
 
                     # Inference
                     with torch.no_grad():

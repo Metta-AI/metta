@@ -5,7 +5,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -436,12 +436,28 @@ class MettaAgent(nn.Module):
         """
         if td.batch_dims > 1:
             B, TT = td.batch_size
-            td.set("bptt", NonTensorData(TT))
-            td.set("batch", NonTensorData(B))
             td = td.reshape(B * TT)
+            # these need to be tensors to be friendly with torch.compile
+            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+            td.set(
+                "batch",
+                torch.full((B * TT,), B, device=td.device, dtype=torch.long),
+            )
         else:
-            td.set("bptt", NonTensorData(1))
-            td.set("batch", NonTensorData(td.batch_size.numel()))
+            batch_size_num = td.batch_size.numel()
+            td.set(
+                "bptt",
+                torch.full((batch_size_num,), 1, device=td.device, dtype=torch.long),
+            )
+            td.set(
+                "batch",
+                torch.full(
+                    (batch_size_num,),
+                    batch_size_num,
+                    device=td.device,
+                    dtype=torch.long,
+                ),
+            )
 
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)
