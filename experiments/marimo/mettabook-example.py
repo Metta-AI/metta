@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.14.16"
-app = marimo.App(width="medium")
+app = marimo.App(width="full")
 
 
 @app.cell
@@ -111,7 +111,21 @@ def _(mo):
 
 @app.cell
 def _(fetch_metrics, run_names):
+    # Option 1: Fetch with sampling (fast, returns 500 data points)
     metrics_dfs = fetch_metrics(run_names, samples=500)
+
+    # Option 2: Fetch many samples without full scan (good balance)
+    # metrics_dfs = fetch_metrics(run_names, samples=10000)
+
+    # Option 3: Fetch only specific metrics (much faster)
+    # metrics_dfs = fetch_metrics(run_names, samples=5000, keys=["overview/reward", "_step", "losses/policy_loss"])
+
+    # Option 4: Fetch specific step range
+    # metrics_dfs = fetch_metrics(run_names, samples=None, min_step=1000, max_step=5000)
+
+    # Option 5: Fetch ALL data points (slowest, complete data)
+    # metrics_dfs = fetch_metrics(run_names, samples=None)
+
     return (metrics_dfs,)
 
 
