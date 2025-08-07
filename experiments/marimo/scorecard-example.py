@@ -148,7 +148,7 @@ async def _(category_selectors, client, training_run_selector):
 @app.cell
 def _(available_metrics, mo):
     metric_selector = mo.ui.dropdown(
-        options=sorted(available_metrics),
+        options=sorted(available_metrics + ["reward"]),
         value="reward",
         label="Metric:",
     )
