@@ -268,7 +268,6 @@ input::placeholder {
 
 /* very small phone sized screens */
 @media (max-width: 480px) {
-
   /* Even smaller buttons for very small screens */
   #footer .hover-icon {
     width: 24px !important;

@@ -1,5 +1,5 @@
-import { showWarningToast, dismissAllWarningToasts } from './warning_toast.js'
-import { Replay, Sequence } from './replay.js'
+import { showWarningToast } from './warning_toast.js'
+import { Replay } from './replay.js'
 
 const REQUIRED_KEYS = [
   'version',
@@ -63,16 +63,11 @@ function validateStringList(lst: any, fieldName: string, allowEmpty: boolean = f
   }
 }
 
-function validateTimeSeries(data: any, fieldName: string, expectedType: string): void {
-  if (
-    (expectedType === 'number' && typeof data === 'number') ||
-    (expectedType === 'boolean' && typeof data === 'boolean')
-  ) {
-    return
-  }
+function validateTimeSeries(data: any, fieldName: string, validator: (value: any) => boolean): void {
+  if (validator(data)) return
 
   if (!Array.isArray(data)) {
-    throw new Error(`'${fieldName}' must be ${expectedType} or time series of [step, ${expectedType}] pairs`)
+    throw new Error(`'${fieldName}' must be valid value or time series of [step, value] pairs`)
   }
 
   if (data.length === 0) return
@@ -86,7 +81,9 @@ function validateTimeSeries(data: any, fieldName: string, expectedType: string):
       throw new Error(`'${fieldName}' time series step must be non-negative`)
     }
 
-    validateType(item[1], expectedType, `${fieldName} time series value`)
+    if (!validator(item[1])) {
+      throw new Error(`'${fieldName}' time series value is invalid`)
+    }
   }
 
   if (data.length > 0 && data[0][0] !== 0) {
@@ -94,54 +91,27 @@ function validateTimeSeries(data: any, fieldName: string, expectedType: string):
   }
 }
 
+function isNumber(value: any): boolean {
+  return typeof value === 'number'
+}
+
+function isBoolean(value: any): boolean {
+  return typeof value === 'boolean'
+}
+
+function isCoordinates(value: any): boolean {
+  return Array.isArray(value) && value.length === 3 && value.every(coord => typeof coord === 'number')
+}
+
 function requireFields(obj: any, fields: string[], objName: string): void {
-  const missing = fields.filter((field) => !(field in obj))
+  const missing = fields.filter(field => !(field in obj))
   if (missing.length > 0) {
     throw new Error(`${objName} missing required fields: ${missing.join(', ')}`)
   }
 }
 
 function validateLocation(location: any, objName: string): void {
-  const fieldName = `${objName}.location`
-
-  // Single location [x, y, z]
-  if (Array.isArray(location) && location.length === 3 && location.every((coord) => typeof coord === 'number')) {
-    return
-  }
-
-  if (!Array.isArray(location)) {
-    throw new Error(`${fieldName} must be array`)
-  }
-
-  if (location.length === 0) {
-    throw new Error(`${fieldName} must have at least one entry`)
-  }
-
-  // Time series of [step, [x, y, z]] pairs
-  for (const stepData of location) {
-    if (!Array.isArray(stepData) || stepData.length !== 2) {
-      throw new Error(`${fieldName} items must be [step, [x, y, z]] pairs`)
-    }
-
-    if (typeof stepData[0] !== 'number' || stepData[0] < 0) {
-      throw new Error(`${fieldName} step must be non-negative`)
-    }
-
-    const coords = stepData[1]
-    if (!Array.isArray(coords) || coords.length !== 3) {
-      throw new Error(`${fieldName} coordinates must be [x, y, z]`)
-    }
-
-    for (let j = 0; j < 3; j++) {
-      if (typeof coords[j] !== 'number') {
-        throw new Error(`${fieldName} coord[${j}] must be number`)
-      }
-    }
-  }
-
-  if (location.length > 0 && location[0][0] !== 0) {
-    throw new Error(`${fieldName} must start with step 0`)
-  }
+  validateTimeSeries(location, `${objName}.location`, isCoordinates)
 }
 
 function validateInventoryList(inventoryList: any, fieldName: string): void {
@@ -210,9 +180,9 @@ function validateObject(obj: any, objIndex: number, replayData: any): void {
   }
 
   validateLocation(obj.location, objName)
-  validateTimeSeries(obj.orientation, `${objName}.orientation`, 'number')
+  validateTimeSeries(obj.orientation, `${objName}.orientation`, isNumber)
   validateInventoryFormat(obj.inventory, `${objName}.inventory`)
-  validateTimeSeries(obj.color, `${objName}.color`, 'number')
+  validateTimeSeries(obj.color, `${objName}.color`, isNumber)
 
   if (obj.isAgent || obj.agentId !== undefined) {
     validateAgentFields(obj, objName, replayData)
@@ -229,10 +199,10 @@ function validateAgentFields(obj: any, objName: string, replayData: any): void {
     throw new Error(`${objName}.agentId ${obj.agentId} out of range`)
   }
 
-  validateTimeSeries(obj.actionId, `${objName}.actionId`, 'number')
-  validateTimeSeries(obj.currentReward, `${objName}.currentReward`, 'number')
-  validateTimeSeries(obj.totalReward, `${objName}.totalReward`, 'number')
-  validateTimeSeries(obj.isFrozen, `${objName}.isFrozen`, 'boolean')
+  validateTimeSeries(obj.actionId, `${objName}.actionId`, isNumber)
+  validateTimeSeries(obj.currentReward, `${objName}.currentReward`, isNumber)
+  validateTimeSeries(obj.totalReward, `${objName}.totalReward`, isNumber)
+  validateTimeSeries(obj.isFrozen, `${objName}.isFrozen`, isBoolean)
 }
 
 function validateReplaySchema(data: any): void {
@@ -408,29 +378,4 @@ export function validateReplayStep(replayStep: any): void {
     console.warn('Step validation failed:', message)
     showWarningToast(`Step validation: ${message}`, 'warning', 'step-validation-error')
   }
-}
-
-export function validateSequenceStructure<T>(sequence: Sequence<T>, name: string, expectedLength?: number): string[] {
-  const issues: string[] = []
-
-  if (!sequence) {
-    return [`${name} sequence is null or undefined`]
-  }
-
-  const requiredMethods = ['get', 'isSequence', 'length']
-  for (const method of requiredMethods) {
-    if (typeof (sequence as any)[method] !== 'function') {
-      issues.push(`${name} sequence missing ${method}() method`)
-    }
-  }
-
-  if (expectedLength !== undefined && sequence?.length() !== expectedLength) {
-    issues.push(`${name} sequence length (${sequence.length()}) doesn't match expected (${expectedLength})`)
-  }
-
-  return issues
-}
-
-export function clearValidationWarnings(): void {
-  dismissAllWarningToasts()
 }
