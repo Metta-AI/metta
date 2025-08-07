@@ -85,10 +85,25 @@ def get_commit_message(commit_hash: str) -> str:
     return run_git("log", "-1", "--pretty=%B", commit_hash)
 
 
-def has_unstaged_changes() -> bool:
-    """Check if there are any unstaged changes."""
+def has_unstaged_tracked_changes() -> tuple[bool, str]:
+    """Return (is_dirty_tracked, status_output) considering only tracked file changes.
+
+    Interpretation of porcelain codes:
+    - Lines starting with '??' indicate untracked files (ignored)
+    - Any other status lines indicate changes to tracked files
+    """
     status_output = run_git("status", "--porcelain")
-    return bool(status_output)
+    is_dirty_tracked = False
+    for line in status_output.splitlines():
+        if not line.strip():
+            continue
+        if line.startswith("??"):
+            # untracked file, ignore
+            continue
+        # any other status code refers to tracked file state change
+        is_dirty_tracked = True
+        break
+    return is_dirty_tracked, status_output
 
 
 def is_commit_pushed(commit_hash: str) -> bool:
@@ -209,14 +224,19 @@ def get_git_hash_for_remote_task(
             logger.warning("Origin not set to metta-ai/metta, using git_hash=None")
         return None
 
-    if has_unstaged_changes():
+    dirty_tracked, status_output = has_unstaged_tracked_changes()
+    if dirty_tracked:
+        if logger:
+            logger.warning("Working tree has uncommitted tracked changes.\n" + status_output)
         if not skip_git_check:
             raise GitError(
-                f"You have uncommitted changes that won't be reflected in the remote task.\n"
+                "You have uncommitted changes to tracked files that won't be reflected in the remote task.\n"
                 f"You can push your changes or specify to skip this check with {skip_cmd}"
             )
-        elif logger:
-            logger.info("Proceeding with uncommitted changes")
+    else:
+        # Only untracked files present (or clean). Log for visibility if untracked exist.
+        if status_output and logger:
+            logger.info("Proceeding with untracked-only changes.\n" + status_output)
 
     if not is_commit_pushed(current_commit):
         short_commit = current_commit[:8]
