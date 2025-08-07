@@ -245,7 +245,7 @@ def train(
     # Calculate the number of agents that need LSTM states
     # In dual-policy mode, only training agents need LSTM states
     total_agents = vecenv.num_agents  # type: ignore[attr-defined]
-    if trainer_cfg.dual_policy.enabled and npc_policy is not None:
+    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
         lstm_agents = int(total_agents * trainer_cfg.dual_policy.training_agents_pct)
     else:
         lstm_agents = total_agents
@@ -253,7 +253,7 @@ def train(
 
     # Create experience buffer
     # In dual-policy mode, don't pass agents_per_batch - let it default to lstm_agents
-    if trainer_cfg.dual_policy.enabled and npc_policy is not None:
+    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
         agents_per_batch_param = None  # Let Experience default it to lstm_agents
     else:
         agents_per_batch_param = getattr(vecenv, "agents_per_batch", None)
