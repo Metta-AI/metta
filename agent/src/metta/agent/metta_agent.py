@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -9,6 +9,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -30,10 +31,16 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
         }
     )
 
-    # We know this will be a dict
-    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)  # type: ignore
+    # Check if agent_cfg specifies a pytorch agent type
+    if "agent_type" in agent_cfg and agent_cfg.agent_type in agent_classes:
+        AgentClass = agent_classes[agent_cfg.agent_type]
+        agent = AgentClass(env=env)
+        logger.info(f"Using Pytorch Policy: {agent} (type: {agent_cfg.agent_type})")
+        return agent
 
-    # Create MettaAgent directly without Hydra
+    # For backward compatibility with YAML configs (to be removed in future PR)
+    dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)
+
     return MettaAgent(
         obs_space=obs_space,
         obs_width=env.obs_width,
@@ -46,37 +53,32 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    def __init__(self, agent, device):
+    """
+    Because this class passes through __getattr__ to its self.module, it implements everything
+    MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
+    """
+
+    module: "MettaAgent"
+
+    def __init__(self, agent: "MettaAgent", device: torch.device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
 
-        # Handle CPU vs GPU initialization
+        # This maintains the same interface as the input MettaAgent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+
+        # Pass device_ids for GPU, but not for CPU
         if device.type == "cpu":
-            # For CPU, don't pass device_ids
-            super().__init__(agent)
+            super().__init__(module=layers_converted_agent)
         else:
-            # For GPU, pass device_ids
-            super().__init__(agent, device_ids=[device], output_device=device)
+            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
+        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
         try:
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device: torch.device,
-        is_training: bool = True,
-    ) -> None:
-        # is_training parameter is deprecated and ignored - mode is auto-detected
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
 
 
 class MettaAgent(nn.Module):
