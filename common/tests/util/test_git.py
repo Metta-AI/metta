@@ -12,8 +12,10 @@ from metta.common.util.git import (
     get_current_branch,
     get_current_commit,
     get_matched_pr,
+    get_remote_url,
     has_unstaged_changes,
     is_commit_pushed,
+    is_metta_ai_repo,
     run_gh,
     run_git,
     run_git_in_dir,
@@ -55,7 +57,7 @@ class TestRunGitCommands:
         )
 
     @patch('subprocess.run')
-    def test_run_git_with_cwd_error(self, mock_run):
+    def test_run_git_with_cwd_called_process_error(self, mock_run):
         """Test git command failure handling."""
         error = subprocess.CalledProcessError(1, "git", stderr="fatal: error")
         mock_run.side_effect = error
@@ -64,7 +66,7 @@ class TestRunGitCommands:
             run_git_with_cwd(["status"])
 
     @patch('subprocess.run')
-    def test_run_git_not_installed(self, mock_run):
+    def test_run_git_with_cwd_file_not_found(self, mock_run):
         """Test git not installed error handling."""
         mock_run.side_effect = FileNotFoundError()
 
@@ -104,12 +106,20 @@ class TestRunGitCommands:
         assert result == "github output"
 
     @patch('subprocess.run')
-    def test_run_gh_error(self, mock_run):
+    def test_run_gh_called_process_error(self, mock_run):
         """Test GitHub CLI command failure handling."""
         error = subprocess.CalledProcessError(2, "gh", stderr="auth required")
         mock_run.side_effect = error
 
         with pytest.raises(GitError, match="GitHub CLI command failed \\(2\\): auth required"):
+            run_gh("repo", "list")
+
+    @patch('subprocess.run')
+    def test_run_gh_file_not_found(self, mock_run):
+        """Test GitHub CLI not installed error handling."""
+        mock_run.side_effect = FileNotFoundError()
+
+        with pytest.raises(GitError, match="GitHub CLI \\(gh\\) is not installed!"):
             run_gh("repo", "list")
 
 
@@ -124,6 +134,7 @@ class TestGitInfoFunctions:
         result = get_current_branch()
 
         assert result == "main"
+        mock_run_git.assert_called_once_with("symbolic-ref", "--short", "HEAD")
 
     @patch('metta.common.util.git.run_git')
     def test_get_current_branch_not_git_repo(self, mock_run_git):
@@ -143,6 +154,15 @@ class TestGitInfoFunctions:
         result = get_current_branch()
 
         assert result == "abc123"
+        mock_get_commit.assert_called_once()
+
+    @patch('metta.common.util.git.run_git')
+    def test_get_current_branch_other_error(self, mock_run_git):
+        """Test get_current_branch with other GitError."""
+        mock_run_git.side_effect = GitError("some other error")
+
+        with pytest.raises(GitError, match="some other error"):
+            get_current_branch()
 
     @patch('metta.common.util.git.run_git')
     def test_get_current_commit(self, mock_run_git):
@@ -152,9 +172,20 @@ class TestGitInfoFunctions:
         result = get_current_commit()
 
         assert result == "abc123def456"
+        mock_run_git.assert_called_once_with("rev-parse", "HEAD")
 
     @patch('metta.common.util.git.run_git')
-    def test_get_branch_commit_with_fetch(self, mock_run_git):
+    def test_get_branch_commit_local_branch(self, mock_run_git):
+        """Test getting commit for local branch."""
+        mock_run_git.return_value = "def456abc789"
+
+        result = get_branch_commit("feature-branch")
+
+        assert result == "def456abc789"
+        mock_run_git.assert_called_once_with("rev-parse", "--verify", "feature-branch")
+
+    @patch('metta.common.util.git.run_git')
+    def test_get_branch_commit_remote_branch_with_fetch(self, mock_run_git):
         """Test getting commit for remote branch with fetch."""
         def mock_git_calls(*args):
             if args == ("fetch", "--quiet"):
@@ -168,24 +199,43 @@ class TestGitInfoFunctions:
         result = get_branch_commit("origin/main")
 
         assert result == "remote123hash"
+        assert mock_run_git.call_count == 2
+
+    @patch('metta.common.util.git.run_git')
+    def test_get_branch_commit_fetch_failure(self, mock_run_git):
+        """Test get_branch_commit when fetch fails (network issues)."""
+        def mock_git_calls(*args):
+            if args == ("fetch", "--quiet"):
+                raise GitError("network error")
+            elif args == ("rev-parse", "--verify", "origin/feature"):
+                return "feature123hash"
+            return ""
+
+        mock_run_git.side_effect = mock_git_calls
+
+        result = get_branch_commit("origin/feature")
+
+        assert result == "feature123hash"
 
     @patch('metta.common.util.git.run_git')
     def test_get_commit_message(self, mock_run_git):
         """Test getting commit message."""
-        mock_run_git.return_value = "Add new feature"
+        mock_run_git.return_value = "Add new feature\n\nThis commit adds a new feature."
 
         result = get_commit_message("abc123")
 
-        assert result == "Add new feature"
+        assert result == "Add new feature\n\nThis commit adds a new feature."
+        mock_run_git.assert_called_once_with("log", "-1", "--pretty=%B", "abc123")
 
     @patch('metta.common.util.git.run_git')
     def test_has_unstaged_changes_true(self, mock_run_git):
         """Test has_unstaged_changes when there are changes."""
-        mock_run_git.return_value = " M file1.py"
+        mock_run_git.return_value = " M file1.py\n?? file2.txt"
 
         result = has_unstaged_changes()
 
         assert result is True
+        mock_run_git.assert_called_once_with("status", "--porcelain")
 
     @patch('metta.common.util.git.run_git')
     def test_has_unstaged_changes_false(self, mock_run_git):
@@ -204,6 +254,7 @@ class TestGitInfoFunctions:
         result = validate_git_ref("HEAD")
 
         assert result == "abc123def456"
+        mock_run_git.assert_called_once_with("rev-parse", "--verify", "HEAD")
 
     @patch('metta.common.util.git.run_git')
     def test_validate_git_ref_invalid(self, mock_run_git):
@@ -213,6 +264,52 @@ class TestGitInfoFunctions:
         result = validate_git_ref("invalid-ref")
 
         assert result is None
+
+    @patch('metta.common.util.git.run_git')
+    def test_get_remote_url_success(self, mock_run_git):
+        """Test getting remote URL successfully."""
+        mock_run_git.return_value = "https://github.com/user/repo.git"
+
+        result = get_remote_url()
+
+        assert result == "https://github.com/user/repo.git"
+        mock_run_git.assert_called_once_with("remote", "get-url", "origin")
+
+    @patch('metta.common.util.git.run_git')
+    def test_get_remote_url_failure(self, mock_run_git):
+        """Test get_remote_url when git command fails."""
+        mock_run_git.side_effect = GitError("no remote")
+
+        result = get_remote_url()
+
+        assert result is None
+
+    @patch('metta.common.util.git.get_remote_url')
+    def test_is_metta_ai_repo_true(self, mock_get_remote_url):
+        """Test is_metta_ai_repo when URL matches metta-ai/metta."""
+        mock_get_remote_url.return_value = "https://github.com/metta-ai/metta.git"
+
+        result = is_metta_ai_repo()
+
+        assert result is True
+
+    @patch('metta.common.util.git.get_remote_url')
+    def test_is_metta_ai_repo_false_different_repo(self, mock_get_remote_url):
+        """Test is_metta_ai_repo with different repository."""
+        mock_get_remote_url.return_value = "https://github.com/other/repo.git"
+
+        result = is_metta_ai_repo()
+
+        assert result is False
+
+    @patch('metta.common.util.git.get_remote_url')
+    def test_is_metta_ai_repo_false_no_remote(self, mock_get_remote_url):
+        """Test is_metta_ai_repo when no remote URL."""
+        mock_get_remote_url.return_value = None
+
+        result = is_metta_ai_repo()
+
+        assert result is False
 
 
 class TestIsCommitPushed:
@@ -248,15 +345,35 @@ class TestIsCommitPushed:
 
     @patch('metta.common.util.git.get_current_branch')
     @patch('metta.common.util.git.run_git')
-    def test_is_commit_pushed_fallback(self, mock_run_git, mock_get_branch):
-        """Test is_commit_pushed fallback when no upstream."""
+    def test_is_commit_pushed_fast_path_false(self, mock_run_git, mock_get_branch):
+        """Test is_commit_pushed fast path when commit is not pushed."""
+        def mock_git_calls(*args):
+            if args == ("rev-parse", "--verify", "abc123"):
+                return "abc123"
+            elif args == ("rev-parse", "--abbrev-ref", "main@{u}"):
+                return "origin/main"
+            elif args == ("merge-base", "--is-ancestor", "abc123", "origin/main"):
+                raise GitError("not an ancestor")
+            return ""
+
+        mock_run_git.side_effect = mock_git_calls
+        mock_get_branch.return_value = "main"
+
+        result = is_commit_pushed("abc123")
+
+        assert result is False
+
+    @patch('metta.common.util.git.get_current_branch')
+    @patch('metta.common.util.git.run_git')
+    def test_is_commit_pushed_fallback_true(self, mock_run_git, mock_get_branch):
+        """Test is_commit_pushed fallback when no upstream and commit is in remote."""
         def mock_git_calls(*args):
             if args == ("rev-parse", "--verify", "abc123"):
                 return "abc123"
             elif args == ("rev-parse", "--abbrev-ref", "main@{u}"):
                 raise GitError("no upstream")
             elif args == ("branch", "-r", "--contains", "abc123"):
-                return "origin/main"
+                return "origin/main\norigin/develop"
             return ""
 
         mock_run_git.side_effect = mock_git_calls
@@ -265,6 +382,26 @@ class TestIsCommitPushed:
         result = is_commit_pushed("abc123")
 
         assert result is True
+
+    @patch('metta.common.util.git.get_current_branch')
+    @patch('metta.common.util.git.run_git')
+    def test_is_commit_pushed_fallback_false(self, mock_run_git, mock_get_branch):
+        """Test is_commit_pushed fallback when no upstream and commit not in remote."""
+        def mock_git_calls(*args):
+            if args == ("rev-parse", "--verify", "abc123"):
+                return "abc123"
+            elif args == ("rev-parse", "--abbrev-ref", "main@{u}"):
+                raise GitError("no upstream")
+            elif args == ("branch", "-r", "--contains", "abc123"):
+                return ""
+            return ""
+
+        mock_run_git.side_effect = mock_git_calls
+        mock_get_branch.return_value = "main"
+
+        result = is_commit_pushed("abc123")
+
+        assert result is False
 
 
 class TestGetMatchedPr:
@@ -276,7 +413,7 @@ class TestGetMatchedPr:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = [
-            {"number": 123, "title": "Add new feature", "state": "open"}
+            {"number": 123, "title": "Add new feature"}
         ]
         mock_get.return_value = mock_response
 
@@ -289,7 +426,7 @@ class TestGetMatchedPr:
         """Test get_matched_pr when no PRs found."""
         mock_response = Mock()
         mock_response.status_code = 200
-    mock_response.json.return_value = []
+        mock_response.json.return_value = []
         mock_get.return_value = mock_response
 
         result = get_matched_pr("abc123")
@@ -297,10 +434,43 @@ class TestGetMatchedPr:
         assert result is None
 
     @patch('httpx.get')
-    def test_get_matched_pr_error(self, mock_get):
-        """Test get_matched_pr with HTTP error."""
-        mock_get.side_effect = Exception("Network error")
+    def test_get_matched_pr_http_status_error_404(self, mock_get):
+        """Test get_matched_pr with 404 error."""
+        import httpx
+        
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.text = "Not Found"
+        
+        error = httpx.HTTPStatusError("404", request=Mock(), response=mock_response)
+        mock_get.side_effect = error
 
         result = get_matched_pr("abc123")
 
         assert result is None
+
+    @patch('httpx.get')
+    def test_get_matched_pr_http_status_error_other(self, mock_get):
+        """Test get_matched_pr with non-404 HTTP error."""
+        import httpx
+        
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        
+        error = httpx.HTTPStatusError("500", request=Mock(), response=mock_response)
+        mock_get.side_effect = error
+
+        with pytest.raises(GitError, match="GitHub API error \\(500\\)"):
+            get_matched_pr("abc123")
+
+    @patch('httpx.get')
+    def test_get_matched_pr_request_error(self, mock_get):
+        """Test get_matched_pr with network error."""
+        import httpx
+        
+        error = httpx.RequestError("Network error")
+        mock_get.side_effect = error
+
+        with pytest.raises(GitError, match="Network error while querying GitHub"):
+            get_matched_pr("abc123")
