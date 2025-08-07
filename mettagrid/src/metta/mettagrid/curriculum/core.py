@@ -36,27 +36,29 @@ class Task:
     _name: str
     _id: str
     _curricula: List[Tuple[Curriculum, str]]
+    _is_complete: bool
 
     def __init__(self, id: str, curriculum: Curriculum):
         self._id = id
         self._name = id
         self._curricula = [(curriculum, id)]
+        self._is_complete = False
 
     def complete_trial(self, score: float) -> bool:
         """Lets the task know that a trial has been completed.
 
         Based on this, the task should expose a new trial, or become complete.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
     def is_complete(self):
         """True if the task is complete, false otherwise."""
-        pass
+        return self._is_complete
 
     def env_cfg(self) -> DictConfig:
         """Returns the environment configuration for the current trial."""
         # TODO: ideally we'd have a separate config for the task itself (same for a separate config for the curriculum)
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
     def id(self) -> str:
         """Returns the id of the task."""
@@ -84,7 +86,6 @@ class SingleTrialTask(Task):
         self._total_score = 0.0
         self._num_trials = env_cfg.get("num_trials", 1)
         self._current_trial = 0
-        self._is_complete = False
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
@@ -97,9 +98,6 @@ class SingleTrialTask(Task):
             self._is_complete = True
             for curriculum, id in self._curricula:
                 curriculum.complete_task(id, self._total_score)
-
-    def is_complete(self):
-        return self._is_complete
 
     def env_cfg(self) -> DictConfig:
         assert self._env_cfg is not None, "Task has no environment configuration"

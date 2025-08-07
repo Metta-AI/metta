@@ -6,7 +6,6 @@ import uuid
 import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
@@ -72,7 +71,6 @@ def evaluate_policy(
     wandb_policy_name: str | None,
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
-    cfg: DictConfig,
     wandb_run: WandbRun | None,
     trainer_cfg: TrainerConfig,
     agent_step: int,
@@ -106,14 +104,9 @@ def evaluate_policy(
 
     eval_scores = evaluation_results.scores
 
-    # Get target metric (for logging) from sweep config
-    # and write top-level score for policy selection.
-    # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
-    target_metric = getattr(cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
     category_scores = list(eval_scores.category_scores.values())
     if category_scores and policy_record:
         policy_record.metadata["score"] = float(np.mean(category_scores))
-        logger.info(f"Set policy metadata score to {policy_record.metadata['score']} using {target_metric} metric")
 
     # Generate and upload replay HTML if we have wandb
     if wandb_run is not None and evaluation_results.replay_urls:

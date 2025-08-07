@@ -33,11 +33,11 @@ function trackPageErrors(page: Page): ErrorCollections {
 }
 
 function expectNoErrors(errors: ErrorCollections) {
-  if (errors.consoleErrors.length > 0) {
-    throw new Error(`Console errors detected:\n${errors.consoleErrors.join('\n')}`)
-  }
   if (errors.networkErrors.length > 0) {
     throw new Error(`Network errors detected:\n${errors.networkErrors.join('\n')}`)
+  }
+  if (errors.consoleErrors.length > 0) {
+    throw new Error(`Console errors detected:\n${errors.consoleErrors.join('\n')}`)
   }
 }
 

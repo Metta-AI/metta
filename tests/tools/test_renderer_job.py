@@ -41,6 +41,7 @@ class TestRendererJob:
         assert config_path.exists(), "Renderer job config not found"
         assert config_path.is_file(), "Renderer job config path is not a file"
 
+    @pytest.mark.slow
     def test_renderer_with_debug_environments(self):
         """Test that renderer can load and initialize debug environments."""
         # Simple renderer test with very short duration
@@ -108,6 +109,7 @@ class TestRendererJob:
             agent_count = content.count("@")
             assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"
 
+    @pytest.mark.slow
     @pytest.mark.parametrize("env_name,map_path", DEBUG_ENVIRONMENTS.items())
     def test_basic_training_validation(self, env_name, map_path):
         """Test very basic training validation - just that the environment loads."""
@@ -126,22 +128,26 @@ class TestRendererJob:
             print(f"Map file exists: {full_map_path.exists()}")
 
             # Detect if running in CI
-            is_ci = os.environ.get("CI", "").lower() == "true"
-            ci_config = "+user=ci" if is_ci else ""
+            optional_ci_config = "+user=ci" if os.environ.get("CI", "").lower() == "true" else None
 
-            cmd = [
-                "python",
-                "-m",
-                "tools.train",
-                f"run={run_name}",
-                ci_config,
-                f"data_dir={temp_dir}",
-                "trainer.simulation.replay_dir=${run_dir}/replays/",
-                "trainer.curriculum=/env/mettagrid/debug",
-                "trainer.total_timesteps=50",  # Minimal training
-                "trainer.num_workers=1",
-                "wandb=off",
-            ]
+            cmd = list(
+                filter(
+                    None,
+                    [
+                        "python",
+                        "-m",
+                        "tools.train",
+                        f"run={run_name}",
+                        optional_ci_config,
+                        f"data_dir={temp_dir}",
+                        "trainer.simulation.replay_dir=${run_dir}/replays/",
+                        "trainer.curriculum=/env/mettagrid/debug",
+                        "trainer.total_timesteps=50",  # Minimal training
+                        "trainer.num_workers=1",
+                        "wandb=off",
+                    ],
+                )
+            )
 
             # Set environment variable to specify the map
             env = os.environ.copy()
