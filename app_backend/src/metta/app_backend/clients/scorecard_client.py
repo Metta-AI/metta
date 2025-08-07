@@ -10,6 +10,7 @@ from metta.app_backend.routes.scorecard_routes import (
     ScorecardData,
     ScorecardRequest,
 )
+from metta.app_backend.routes.sql_routes import AIQueryRequest, AIQueryResponse, SQLQueryRequest, SQLQueryResponse
 
 
 class ListModel(RootModel[list]):
@@ -19,6 +20,20 @@ class ListModel(RootModel[list]):
 class ScorecardClient(BaseAppBackendClient):
     async def get_policies(self):
         return await self._make_request(PoliciesResponse, "GET", "/scorecard/policies")
+
+    async def sql_query(self, sql: str):
+        payload = SQLQueryRequest(
+            query=sql,
+        )
+        return await self._make_request(SQLQueryResponse, "POST", "/sql/query", json=payload.model_dump(mode="json"))
+
+    async def generate_ai_query(self, description: str):
+        payload = AIQueryRequest(
+            description=description,
+        )
+        return await self._make_request(
+            AIQueryResponse, "POST", "/sql/generate-query", json=payload.model_dump(mode="json")
+        )
 
     async def get_eval_names(self, training_run_ids: list[str], run_free_policy_ids: list[str]) -> list:
         payload = EvalsRequest(
