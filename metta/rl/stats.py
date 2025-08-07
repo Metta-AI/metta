@@ -4,21 +4,27 @@ import logging
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 import torch
+import wandb
+from omegaconf import DictConfig
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyRecord
+from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.utils import should_run
+from metta.rl.wandb import POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +34,10 @@ class StatsTracker:
     """Manages training statistics and database tracking."""
 
     # Rollout stats collected during episodes
-    rollout_stats: Dict[str, Any] = field(default_factory=dict)
+    rollout_stats: dict[str, Any] = field(default_factory=dict)
 
     # Gradient statistics (computed periodically)
-    grad_stats: Dict[str, float] = field(default_factory=dict)
+    grad_stats: dict[str, float] = field(default_factory=dict)
 
     # Database tracking for stats service
     stats_epoch_start: int = 0
@@ -53,7 +59,7 @@ class StatsTracker:
 
 def accumulate_rollout_stats(
     raw_infos: list,
-    stats: Dict[str, Any],
+    stats: dict[str, Any],
 ) -> None:
     """Accumulate rollout statistics from info dictionaries."""
     infos = defaultdict(list)
@@ -85,7 +91,7 @@ def accumulate_rollout_stats(
                     stats[k] = [stats[k], v]  # fallback: bundle as list
 
 
-def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
+def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
     """Filter movement metrics to only keep core values, removing derived stats."""
     filtered = {}
 
@@ -118,12 +124,12 @@ def filter_movement_metrics(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def process_training_stats(
-    raw_stats: Dict[str, Any],
+    raw_stats: dict[str, Any],
     losses: Losses,
     experience: Experience,
     trainer_config: TrainerConfig,
     kickstarter: Kickstarter | None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process training statistics into a clean format.
 
     Args:
@@ -191,7 +197,7 @@ def process_training_stats(
 def compute_timing_stats(
     timer: Stopwatch,
     agent_step: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Compute timing statistics from a Stopwatch timer.
 
     Args:
@@ -251,18 +257,18 @@ def compute_timing_stats(
 
 
 def build_wandb_stats(
-    processed_stats: Dict[str, Any],
-    timing_info: Dict[str, Any],
-    weight_stats: Dict[str, Any],
-    grad_stats: Dict[str, Any],
-    system_stats: Dict[str, Any],
-    memory_stats: Dict[str, Any],
-    parameters: Dict[str, Any],
-    hyperparameters: Dict[str, Any],
+    processed_stats: dict[str, Any],
+    timing_info: dict[str, Any],
+    weight_stats: dict[str, Any],
+    grad_stats: dict[str, Any],
+    system_stats: dict[str, Any],
+    memory_stats: dict[str, Any],
+    parameters: dict[str, Any],
+    hyperparameters: dict[str, Any],
     evals: EvalRewardSummary,
     agent_step: int,
     epoch: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build complete statistics dictionary for wandb logging.
 
     Args:
@@ -322,22 +328,22 @@ def build_wandb_stats(
 
 
 def process_stats(
-    stats: Dict[str, Any],
+    stats: dict[str, Any],
     losses: Losses,
     evals: EvalRewardSummary,
-    grad_stats: Dict[str, float],
+    grad_stats: dict[str, float],
     experience: Experience,
     policy: PolicyAgent,
     timer: Stopwatch,
     trainer_cfg: TrainerConfig,
+    agent_cfg: DictConfig,
     agent_step: int,
     epoch: int,
-    world_size: int,
     wandb_run: WandbRun | None,
-    memory_monitor: Any | None,
-    system_monitor: Any | None,
-    latest_saved_policy_record: PolicyRecord | None,
-    optimizer: torch.optim.Optimizer | None = None,
+    memory_monitor: MemoryMonitor,
+    system_monitor: SystemMonitor,
+    latest_saved_policy_record: PolicyRecord,
+    optimizer: torch.optim.Optimizer,
     kickstarter: Kickstarter | None = None,
 ) -> None:
     """Process and log training statistics."""
@@ -361,8 +367,8 @@ def process_stats(
 
     # Compute weight stats if configured
     weight_stats = {}
-    if policy and hasattr(trainer_cfg, "agent") and hasattr(trainer_cfg.agent, "analyze_weights_interval"):
-        if trainer_cfg.agent.analyze_weights_interval != 0 and epoch % trainer_cfg.agent.analyze_weights_interval == 0:
+    if hasattr(agent_cfg, "analyze_weights_interval"):
+        if should_run(epoch, agent_cfg.analyze_weights_interval):
             for metrics in policy.compute_weight_metrics():
                 name = metrics.get("name", "unknown")
                 for key, value in metrics.items():
@@ -378,8 +384,8 @@ def process_stats(
     }
 
     # Get system stats - note: can impact performance
-    system_stats = system_monitor.stats() if system_monitor else {}
-    memory_stats = memory_monitor.stats() if memory_monitor else {}
+    system_stats = system_monitor.stats()
+    memory_stats = memory_monitor.stats()
 
     # Current hyperparameter values (after potential scheduler updates)
     hyperparameters = {
@@ -408,3 +414,43 @@ def process_stats(
 
     # Log to wandb
     wandb_run.log(all_stats, step=agent_step)
+
+
+def process_policy_evaluator_stats(
+    pr: PolicyRecord,
+    eval_results: EvalResults,
+) -> None:
+    # TODO: this should also upload replay urls
+    metrics_to_log: dict[str, float] = {
+        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
+        for k, v in eval_results.scores.to_wandb_metrics_format().items()
+    }
+    if not metrics_to_log:
+        logger.warning("No metrics to log for policy evaluator")
+        return
+
+    if not (epoch := pr.metadata.get("epoch")):
+        logger.warning("No epoch found in policy record")
+        return
+
+    try:
+        wandb_entity, wandb_project, wandb_run_id, _ = pr.extract_wandb_run_info()
+    except ValueError as e:
+        logger.warning(f"Failed to get wandb info from policy record {pr.uri}: {e}")
+        return
+
+    if not all((wandb_run_id, wandb_project, wandb_entity)):
+        logger.warning("No wandb info found in policy record")
+        return
+
+    run = wandb.init(
+        id=wandb_run_id,
+        project=wandb_project,
+        entity=wandb_entity,
+        resume="must",
+    )
+    try:
+        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: epoch})
+        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
+    finally:
+        run.finish()
