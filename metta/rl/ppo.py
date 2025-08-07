@@ -137,8 +137,8 @@ def ppo(
                 optimizer.step()
 
                 # Optional weight clipping
-                if hasattr(policy, "clip_weights"):
-                    policy.clip_weights()
+                if hasattr(policy.policy, "clip_weights"):
+                    policy.policy.clip_weights()
 
                 if str(device).startswith("cuda"):
                     torch.cuda.synchronize()

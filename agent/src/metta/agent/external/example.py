@@ -7,18 +7,13 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from metta.agent.metta_agent import MettaAgent
-from typing import Dict, Optional
-from gym import spaces
 import numpy as np
-
-from metta.agent.policy_base import PolicyBase
 
 logger = logging.getLogger(__name__)
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=512, hidden_size=512):
+    def __init__(self, env, policy=None, cnn_channels=128, input_size=256, hidden_size=256):
         if policy is None:
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
         super().__init__(env, policy, input_size, hidden_size)
@@ -62,7 +57,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         logger.info(f"Policy actions initialized with: {self.active_actions}")
 
-    def forward(self, observations, state=None, action=None):
+    def forward(self, observations, state, action):
         """
         Forward pass through the recurrent policy.
 
@@ -100,6 +95,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         # LSTM forward pass
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # Shape: (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)  # Shape: (B * TT, hidden_size)
 
         # Decode actions and value
@@ -279,39 +275,3 @@ class Policy(nn.Module):
         value = self.value(hidden)
         return logits, value
 
-
-
-
-# External Policy Wrapper
-class PufferlibRecurrentPolicy(PolicyBase):
-    def __init__(self, env):
-        super().__init__("PufferlibRecurrent")
-        self.action_space = env.single_action_space
-
-        if isinstance(self.action_space, spaces.Discrete):
-            # treat Discrete(N) as a 1-D MultiDiscrete([N])
-            self.action_nvec = np.array([self.action_space.n], dtype=int)
-        elif isinstance(self.action_space, spaces.multi_discrete.MultiDiscrete):
-            self.action_nvec = self.action_space.nvec
-        else:
-            self.action_nvec = self.action_space.nvec
-            # raise NotImplementedError(f"Unsupported action space: {type(self.action_space)}")
-
-        self.recurrent_agent = Recurrent(env, input_size=128, hidden_size=128)
-        self.recurrent_agent.device = "cpu"
-        self.recurrent_agent.eval()  # Optional: set eval mode
-
-    def forward(
-        self,
-        agent: MettaAgent,
-        obs: Dict[str, torch.Tensor],
-        state: Optional[dict] = None,
-        action: Optional[torch.Tensor] = None,
-    ):
-        """
-        MettaAgent's obs -> Tensor: (B, M, 3) or (B, TT, M, 3)
-        You must convert the dictionary to the tensor format expected by the pufferlib agent.
-        """
-        observations = obs # Use correct key based on env
-        output = self.recurrent_agent(observations, state=state, action=action)
-        return output

@@ -24,12 +24,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("metta_agent")
 
-class PytorchPolicy(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        pass
 
 class ComponentPolicy(nn.Module):
     def __init__(
@@ -37,6 +31,7 @@ class ComponentPolicy(nn.Module):
     ):
         super().__init__()
         self.components = None
+        self.clip_range = 0.0
 
     def forward(self, agent: "MettaAgent", obs: Dict[str, torch.Tensor], state: Optional[PolicyState] = None, action: Optional[torch.Tensor] = None) -> Tuple:
         """Execute policy forward pass."""
@@ -137,6 +132,12 @@ class ComponentPolicy(nn.Module):
         return self.action_index_tensor[action_logit_index]
 
 
+    def clip_weights(self):
+        """Apply weight clipping if enabled."""
+        if self.clip_range > 0:
+            self._apply_to_components("clip_weights")
+
+
 
 class MettaAgent(nn.Module):
     """Clean and simplified MettaAgent implementation."""
@@ -156,7 +157,6 @@ class MettaAgent(nn.Module):
         self.cfg = cfg
         self.policy = policy
         self.device = device
-
 
         self.obs_space = obs_space
         self.obs_width = obs_width
@@ -181,54 +181,60 @@ class MettaAgent(nn.Module):
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
-        return self.policy.forward(self, obs, state, action)
+        if isinstance(self.policy, ComponentPolicy):
+            return self.policy.forward(self, obs, state, action)
+
+        return self.policy(obs, state, action)
 
 
     def initialize_to_environment(self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device, is_training: bool = True):
         """Initialize the agent to the current environment."""
         self._initialize_observations(features, device, self.training)
-        self.activate_policy()
-        self.activate_actions(action_names, action_max_params, device)
+
+        if isinstance(self.policy, ComponentPolicy):
+            self.activate_policy()
+            self.activate_actions(action_names, action_max_params, device)
+        else:
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+
 
 
 
     def activate_policy(self):
-        if not isinstance(self.policy, ComponentPolicy):
-            # self.policy.action_index_tensor = self.action_index_tensor
-            # self.policy.cum_action_max_params = self.cum_action_max_params
+        logger.info(f"Config are: {self.cfg}")
 
-            # Extract key configuration
-            self.hidden_size = self.cfg.components._core_.output_size
-            self.core_num_layers = self.cfg.components._core_.nn_params.num_layers
-            self.clip_range = self.cfg.clip_range
+        self.hidden_size = self.cfg.components._core_.output_size
+        self.core_num_layers = self.cfg.components._core_.nn_params.num_layers
+        self.clip_range = self.cfg.clip_range
 
-            # Validate and extract observation key
-            if not (hasattr(self.cfg.observations, "obs_key") and self.cfg.observations.obs_key is not None):
-                raise ValueError("Configuration missing required field 'observations.obs_key'")
+        # Validate and extract observation key
+        if not (hasattr(self.cfg.observations, "obs_key") and self.cfg.observations.obs_key is not None):
+            raise ValueError("Configuration missing required field 'observations.obs_key'")
 
-            obs_key = self.cfg.observations.obs_key
-            obs_shape = safe_get_from_obs_space(self.obs_space, obs_key, "shape")
+        obs_key = self.cfg.observations.obs_key
+        obs_shape = safe_get_from_obs_space(self.obs_space, obs_key, "shape")
 
-            # Prepare agent attributes for component instantiation
-            self.agent_attributes = {
-                "clip_range": self.clip_range,
-                "action_space": self.action_space,
-                "feature_normalizations": self.feature_normalizations,
-                "obs_width": self.obs_width,
-                "obs_height": self.obs_height,
-                "obs_key": obs_key,
-                "obs_shape": obs_shape,
-                "hidden_size": self.hidden_size,
-                "core_num_layers": self.core_num_layers,
-            }
+        # Prepare agent attributes for component instantiation
+        self.agent_attributes = {
+            "clip_range": self.clip_range,
+            "action_space": self.action_space,
+            "feature_normalizations": self.feature_normalizations,
+            "obs_width": self.obs_width,
+            "obs_height": self.obs_height,
+            "obs_key": obs_key,
+            "obs_shape": obs_shape,
+            "hidden_size": self.hidden_size,
+            "core_num_layers": self.core_num_layers,
+        }
 
-            self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-            self.components =  self._build_components().to(self.device)
-            # self.policy.components = self.components
+        self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        self.components = self._build_components().to(self.device)
 
+        logger.info(f"MettaAgent components: {self.components}")
 
-        elif isinstance(self.policy, PytorchPolicy):
-            pass
+        self.policy.components = self.components
+        self.policy.clip_range = self.clip_range
+
 
 
     def _build_components(self) -> nn.ModuleDict:
@@ -271,7 +277,6 @@ class MettaAgent(nn.Module):
 
         if hasattr(component, 'setup'):
             component.setup(source_components)
-
 
 
 
@@ -370,6 +375,11 @@ class MettaAgent(nn.Module):
         logger.info(f"Actions initialized: {self.active_actions}")
 
 
+        # Activate policy attributes
+        self.policy.action_index_tensor = self.action_index_tensor
+        self.policy.cum_action_max_params = self.cum_action_max_params
+
+
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving."""
         return getattr(self, "original_feature_mapping", None)
@@ -413,10 +423,6 @@ class MettaAgent(nn.Module):
         """Update L2 initialization weight copies."""
         self._apply_to_components("update_l2_init_weight_copy")
 
-    def clip_weights(self):
-        """Apply weight clipping if enabled."""
-        if self.clip_range > 0:
-            self._apply_to_components("clip_weights")
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for analysis."""

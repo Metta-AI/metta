@@ -15,8 +15,9 @@ npc_policy_uri: null
 
 pytorch:
  _target_: metta.agent.external.example.Recurrent
- hidden_size: 512
+ hidden_size: 256
  cnn_channels: 128
+ input_size: 256
 
 #run: andre_local_2025_05_26_a
 #policy_uri: wandb://run/andre_local_2025_05_26_a
@@ -28,8 +29,8 @@ trainer:
   simulation:
     evaluate_interval: 300
     #env: /env/mettagrid/navigation/training/multienv
-  #initial_policy:
-  #  uri: pytorch://checkpoints/metta-example/model_019074.pt
+  initial_policy:
+   uri: pytorch://checkpoints/metta-new/metta.pt
   #  #uri: pytorch://checkpoints/metta-example/model_019074.pt
   #env: /env/mettagrid//training/multienv_nc
 

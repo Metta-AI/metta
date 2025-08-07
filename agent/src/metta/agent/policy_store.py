@@ -23,7 +23,7 @@ import torch
 import wandb
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent_builder import make_policy
+from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
@@ -352,12 +352,14 @@ class PolicyStore:
         raise ValueError(f"Invalid URI: {uri}")
 
     def _load_from_pytorch(self, path: str) -> PolicyRecord:
+        """Load a PyTorch policy from checkpoint and wrap it in PolicyRecord."""
+
         name = os.path.basename(path)
         # PolicyMetadata only requires: agent_step, epoch, generation, train_time
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
         pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
-        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
+        pr._cached_policy = load_pytorch_policy(path, self._device, self._cfg, pytorch_cfg=self._cfg.get("pytorch") )
         return pr
 
     def _make_codebase_backwards_compatible(self):
@@ -494,7 +496,8 @@ class PolicyStore:
                     global_features=[],
                 )
 
-                policy = make_policy(env, self._cfg)  # type: ignore
+
+                policy = MettaAgentBuilder(env, self._cfg).build()  # type: ignore
 
                 # Load state dict from checkpoint
                 state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)

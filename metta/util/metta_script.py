@@ -20,7 +20,6 @@ from metta.util.init.mettagrid_environment import init_mettagrid_environment
 
 logger = logging.getLogger(__name__)
 
-
 def apply_mac_device_overrides(cfg: DictConfig) -> None:
     if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
         cfg.device = "cpu"

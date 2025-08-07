@@ -8,7 +8,7 @@ import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
-from metta.agent.metta_agent_builder import make_policy
+from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.fs import wait_for_file
@@ -180,7 +180,7 @@ def maybe_load_checkpoint(
         # Master creates new policy
         name = policy_store.make_model_name(0)
         pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
+        pr.policy = MettaAgentBuilder(metta_grid_env, cfg).build()
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
@@ -265,7 +265,7 @@ def load_or_initialize_policy(
         logger.info("No existing policy found, creating new one")
         name = policy_store.make_model_name(0)
         pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
+        pr.policy = MettaAgentBuilder(metta_grid_env, cfg).build()
         saved_pr = policy_store.save(pr)
         logger.info(f"Created and saved new policy to {saved_pr.uri}")
 

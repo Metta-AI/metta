@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent
-from metta.agent.metta_agent_builder import make_policy
+from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalRewardSummary
@@ -118,7 +118,8 @@ class CheckpointManager:
             # Master creates new policy
             name = self.policy_store.make_model_name(0)
             pr = self.policy_store.create_empty_policy_record(name)
-            pr.policy = make_policy(metta_grid_env, cfg)
+
+            pr.policy = MettaAgentBuilder(metta_grid_env, cfg).build()
             saved_pr = self.policy_store.save(pr)
             logger.info(f"Created and saved new policy to {saved_pr.uri}")
 
