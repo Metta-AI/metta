@@ -48,7 +48,7 @@ def check_git_state(commit_hash: str) -> str | None:
     if has_unstaged_tracked_changes():
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
-        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
+        error_lines.append("  - Commit: git add -u && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
         return "\n".join(error_lines)
 
