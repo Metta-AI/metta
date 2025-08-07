@@ -148,40 +148,24 @@ async def _(category_selectors, client, training_run_selector):
 
 
 @app.cell
-def _(available_metrics, mo, training_run_selector):
+def _(available_metrics, mo):
     metric_selector = mo.ui.dropdown(
         options=sorted(available_metrics + ["reward"]),
         value="reward",
         label="Metric:",
     )
-
     policy_selector_selector = mo.ui.radio(
         options=["best", "latest"],
         value="best",
         label="Policy version:",
     )
 
-    num_policies_slider = mo.ui.slider(
-        start=1,
-        stop=max(len(training_run_selector.value), 1),
-        value=max(len(training_run_selector.value), 1),
-        step=1,
-        label="Number of policies:",
-    )
-
-    # Display all selectors vertically for better alignment
-    mo.vstack([metric_selector, policy_selector_selector, num_policies_slider], gap=2)
-    return metric_selector, num_policies_slider, policy_selector_selector
+    mo.vstack([metric_selector, policy_selector_selector], gap=2)
+    return metric_selector, policy_selector_selector
 
 
 @app.cell
-def _(
-    metric_selector,
-    mo,
-    num_policies_slider,
-    selected_eval_names,
-    training_run_selector,
-):
+def _(metric_selector, mo, selected_eval_names, training_run_selector):
     can_generate = (
         training_run_selector.value and selected_eval_names and metric_selector.value
     )
@@ -193,21 +177,7 @@ def _(
         on_click=lambda value: value + 1,
     )
 
-    mo.vstack(
-        [
-            generate_button,
-            mo.md(f"""
-        **Selected:**
-
-        - {len(training_run_selector.value)} training runs
-        - {len(selected_eval_names)} evals
-        - Metric: {metric_selector.value}
-        - Show top {num_policies_slider.value} policies
-        """)
-            if can_generate
-            else mo.md("Select runs and evals to generate a scorecard"),
-        ]
-    )
+    generate_button
     return (generate_button,)
 
 
@@ -235,13 +205,13 @@ async def _(
 
 
 @app.cell
-def _(num_policies_slider, pd, scorecard_data):
+def _(pd, scorecard_data):
     def _get_table_df():
         sorted_policies = sorted(
             (scorecard_data and scorecard_data.policyNames) or [],
             key=lambda p: scorecard_data.policyAverageScores.get(p, 0),
             reverse=True,
-        )[: num_policies_slider.value]
+        )
         if not (scorecard_data and sorted_policies):
             return pd.DataFrame({"Policy": [], "Overall Score": []})
         rows = []
