@@ -257,7 +257,7 @@ class TestScalingResolverEdgeCases:
     def test_oc_scale_float_output_bounds(self):
         """Test oc_scale with float output bounds to hit line 144."""
         from metta.common.util.resolvers import oc_scale
-        
+
         # This should return a float (line 144) since out_max is float
         result = oc_scale(5, 0, 10, 0.0, 1.0)
         assert isinstance(result, float)

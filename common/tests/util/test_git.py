@@ -441,11 +441,11 @@ class TestGetGitHashForRemoteTask:
     def test_get_git_hash_no_git_repo(self, mock_get_commit):
         """Test when not in a git repository."""
         from metta.common.util.git import get_git_hash_for_remote_task
-        
+
         mock_get_commit.side_effect = GitError("Not a git repository")
-        
+
         result = get_git_hash_for_remote_task()
-        
+
         assert result is None
 
     @patch('metta.common.util.git.is_metta_ai_repo')
@@ -453,12 +453,12 @@ class TestGetGitHashForRemoteTask:
     def test_get_git_hash_not_metta_repo(self, mock_get_commit, mock_is_metta):
         """Test when not in metta-ai repo."""
         from metta.common.util.git import get_git_hash_for_remote_task
-        
+
         mock_get_commit.return_value = "abc123"
         mock_is_metta.return_value = False
-        
+
         result = get_git_hash_for_remote_task()
-        
+
         assert result is None
 
     @patch('metta.common.util.git.is_commit_pushed')
@@ -468,12 +468,12 @@ class TestGetGitHashForRemoteTask:
     def test_get_git_hash_with_uncommitted_changes_error(self, mock_get_commit, mock_is_metta, mock_has_changes, mock_is_pushed):
         """Test with uncommitted changes (should raise)."""
         from metta.common.util.git import get_git_hash_for_remote_task
-        
+
         mock_get_commit.return_value = "abc123"
         mock_is_metta.return_value = True
         mock_has_changes.return_value = True
         mock_is_pushed.return_value = True
-        
+
         with pytest.raises(GitError, match="uncommitted changes"):
             get_git_hash_for_remote_task(skip_git_check=False)
 
@@ -484,14 +484,14 @@ class TestGetGitHashForRemoteTask:
     def test_get_git_hash_with_uncommitted_changes_skip(self, mock_get_commit, mock_is_metta, mock_has_changes, mock_is_pushed):
         """Test with uncommitted changes but skip_git_check=True."""
         from metta.common.util.git import get_git_hash_for_remote_task
-        
+
         mock_get_commit.return_value = "abc123"
         mock_is_metta.return_value = True
         mock_has_changes.return_value = True
         mock_is_pushed.return_value = True
-        
+
         result = get_git_hash_for_remote_task(skip_git_check=True)
-        
+
         assert result == "abc123"
 
     @patch('metta.common.util.git.is_commit_pushed')
@@ -501,12 +501,12 @@ class TestGetGitHashForRemoteTask:
     def test_get_git_hash_with_unpushed_commit_error(self, mock_get_commit, mock_is_metta, mock_has_changes, mock_is_pushed):
         """Test with unpushed commit (should raise)."""
         from metta.common.util.git import get_git_hash_for_remote_task
-        
+
         mock_get_commit.return_value = "abc123"
         mock_is_metta.return_value = True
         mock_has_changes.return_value = False
         mock_is_pushed.return_value = False
-        
+
         with pytest.raises(GitError, match="hasn't been pushed"):
             get_git_hash_for_remote_task(skip_git_check=False)
 
@@ -517,14 +517,14 @@ class TestGetGitHashForRemoteTask:
     def test_get_git_hash_success(self, mock_get_commit, mock_is_metta, mock_has_changes, mock_is_pushed):
         """Test successful case."""
         from metta.common.util.git import get_git_hash_for_remote_task
-        
+
         mock_get_commit.return_value = "abc123"
         mock_is_metta.return_value = True
         mock_has_changes.return_value = False
         mock_is_pushed.return_value = True
-        
+
         result = get_git_hash_for_remote_task()
-        
+
         assert result == "abc123"
 
 
@@ -535,11 +535,11 @@ class TestGetFileList:
     def test_get_file_list_default(self, mock_run_git):
         """Test get_file_list with default parameters."""
         from metta.common.util.git import get_file_list
-        
+
         mock_run_git.side_effect = ["", "file1.txt\nfile2.py\ndir/file3.md"]
-        
+
         result = get_file_list()
-        
+
         assert result == ["file1.txt", "file2.py", "dir/file3.md"]
         mock_run_git.assert_any_call("rev-parse", "--verify", "HEAD")
         mock_run_git.assert_any_call("ls-tree", "-r", "--name-only", "HEAD")
@@ -549,12 +549,12 @@ class TestGetFileList:
         """Test get_file_list with custom repo path."""
         from metta.common.util.git import get_file_list
         from pathlib import Path
-        
+
         repo_path = Path("/tmp/repo")
         mock_run_git_in_dir.side_effect = ["", "file1.txt\nfile2.py"]
-        
+
         result = get_file_list(repo_path, "main")
-        
+
         assert result == ["file1.txt", "file2.py"]
         mock_run_git_in_dir.assert_any_call(repo_path, "rev-parse", "--verify", "main")
         mock_run_git_in_dir.assert_any_call(repo_path, "ls-tree", "-r", "--name-only", "main")
@@ -563,22 +563,22 @@ class TestGetFileList:
     def test_get_file_list_empty_repo(self, mock_run_git):
         """Test get_file_list with empty repository."""
         from metta.common.util.git import get_file_list
-        
+
         mock_run_git.side_effect = [GitError("Not a valid object name")]
-        
+
         result = get_file_list()
-        
+
         assert result == []
 
     @patch('metta.common.util.git.run_git')
     def test_get_file_list_empty_output(self, mock_run_git):
         """Test get_file_list with empty output."""
         from metta.common.util.git import get_file_list
-        
+
         mock_run_git.side_effect = ["", ""]
-        
+
         result = get_file_list()
-        
+
         assert result == []
 
 
@@ -589,11 +589,11 @@ class TestGetCommitCount:
     def test_get_commit_count_default(self, mock_run_git):
         """Test get_commit_count with default parameters."""
         from metta.common.util.git import get_commit_count
-        
+
         mock_run_git.side_effect = ["", "42"]
-        
+
         result = get_commit_count()
-        
+
         assert result == 42
         mock_run_git.assert_any_call("rev-parse", "--verify", "HEAD")
         mock_run_git.assert_any_call("rev-list", "--count", "HEAD")
@@ -603,12 +603,12 @@ class TestGetCommitCount:
         """Test get_commit_count with custom repo path."""
         from metta.common.util.git import get_commit_count
         from pathlib import Path
-        
+
         repo_path = Path("/tmp/repo")
         mock_run_git_in_dir.side_effect = ["", "123"]
-        
+
         result = get_commit_count(repo_path)
-        
+
         assert result == 123
         mock_run_git_in_dir.assert_any_call(repo_path, "rev-parse", "--verify", "HEAD")
         mock_run_git_in_dir.assert_any_call(repo_path, "rev-list", "--count", "HEAD")
@@ -617,11 +617,11 @@ class TestGetCommitCount:
     def test_get_commit_count_empty_repo(self, mock_run_git):
         """Test get_commit_count with empty repository."""
         from metta.common.util.git import get_commit_count
-        
+
         mock_run_git.side_effect = [GitError("Not a valid object name")]
-        
+
         result = get_commit_count()
-        
+
         assert result == 0
 
 
@@ -632,12 +632,12 @@ class TestAddRemote:
     def test_add_remote_default(self, mock_run_git):
         """Test add_remote with default parameters."""
         from metta.common.util.git import add_remote
-        
+
         # Mock remove to succeed (remote exists)
         mock_run_git.return_value = ""
-        
+
         add_remote("origin", "https://github.com/user/repo.git")
-        
+
         # Should call remove first, then add
         expected_calls = [
             call("remote", "remove", "origin"),
@@ -645,20 +645,20 @@ class TestAddRemote:
         ]
         mock_run_git.assert_has_calls(expected_calls)
 
-    @patch('metta.common.util.git.run_git')  
+    @patch('metta.common.util.git.run_git')
     def test_add_remote_not_exists(self, mock_run_git):
         """Test add_remote when remote doesn't exist."""
         from metta.common.util.git import add_remote
-        
+
         # Mock remove to fail (remote doesn't exist), add to succeed
         def side_effect(*args):
             if "remove" in args:
                 raise GitError("Remote doesn't exist")
             return ""
         mock_run_git.side_effect = side_effect
-        
+
         add_remote("origin", "https://github.com/user/repo.git")
-        
+
         # Should still call both remove (fails) and add (succeeds)
         expected_calls = [
             call("remote", "remove", "origin"),
@@ -671,13 +671,13 @@ class TestAddRemote:
         """Test add_remote with custom repo path."""
         from metta.common.util.git import add_remote
         from pathlib import Path
-        
+
         repo_path = Path("/tmp/repo")
         mock_run_git_in_dir.return_value = ""
-        
+
         add_remote("upstream", "git@github.com:upstream/repo.git", repo_path)
-        
-        # Should call remove first, then add  
+
+        # Should call remove first, then add
         expected_calls = [
             call(repo_path, "remote", "remove", "upstream"),
             call(repo_path, "remote", "add", "upstream", "git@github.com:upstream/repo.git")

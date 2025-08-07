@@ -554,15 +554,15 @@ class TestConfigDataValidation:
             value: int
 
         config_instance = SimpleConfig(value=1)
-        
+
         # Test prepare_dict with data that dict() can process but returns non-dict
         # This will trigger the isinstance(data, dict) check on line 50 and raise on line 54
         # Create something that dict() can accept but doesn't return a dict
-        
+
         # Mock the case where OmegaConf.to_container or dict() returns non-dict data
         with patch('metta.common.util.config.OmegaConf.to_container', return_value="not_a_dict"):
             from omegaconf import DictConfig
             dummy_config = DictConfig({})
-            
+
             with pytest.raises(TypeError, match="Data must be convertible to a dictionary"):
                 config_instance.prepare_dict(dummy_config)

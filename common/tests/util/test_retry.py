@@ -185,34 +185,34 @@ class TestRetryEdgeCases:
         """Test retry_function with logger when all retries are exhausted."""
         import logging
         logger = logging.getLogger("test")
-        
+
         def always_fail():
             raise ValueError("Always fails")
-        
+
         with caplog.at_level(logging.ERROR):
             with pytest.raises(ValueError, match="Always fails"):
                 retry_function(
-                    always_fail, 
-                    max_retries=2, 
+                    always_fail,
+                    max_retries=2,
                     retry_delay=0.01,
                     error_prefix="Operation failed",
                     logger=logger
                 )
-        
+
         # Should see the final error log (line 63)
         assert "Operation failed after 2 retries" in caplog.text
 
     def test_retry_no_exception_raised_edge_case(self):
         """Test retry_function when function succeeds but no return - should hit line 68."""
         call_count = 0
-        
+
         def succeeds_but_no_return():
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
                 raise ValueError("Fails first two times")
             # Success case but doesn't return anything (None)
-            
+
         # This should work normally
         result = retry_function(succeeds_but_no_return, max_retries=3, retry_delay=0.01)
         assert result is None
@@ -225,7 +225,7 @@ class TestRetryEdgeCases:
         def strange_function():
             # This will cause the function to exit the loop without setting last_exception
             return None
-            
+
         # This should work normally since function doesn't raise
         result = retry_function(strange_function, max_retries=1, retry_delay=0.01)
         assert result is None
