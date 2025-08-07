@@ -229,9 +229,9 @@ class KindLocal(Kind):
 class EksProd(Kind):
     aws_account_id = METTA_AWS_ACCOUNT_ID
     aws_region = METTA_AWS_REGION
-    cluster_name = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/main"
+    cluster_name = "main"
     namespace = "orchestrator"
-    context = cluster_name
+    context = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/{cluster_name}"
     helm_release_name = "orchestrator"
     helm_chart_path = repo_root / "devops/charts/orchestrator"
     environment_values_file = None
