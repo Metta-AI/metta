@@ -349,8 +349,13 @@ export function validateReplayData(replay: Replay): void {
   }
 
   const issues: ValidationIssue[] = []
+  // TESTING: Add artificial validation issues to test the modal
+  issues.push({ message: "TEST: This is a test validation error to verify the modal works", field: "test" })
+  issues.push({ message: "TEST: Another test error for demonstration purposes", field: "test2" })
+  issues.push({ message: "TEST: Version validation is working correctly", field: "version" })
   validateReplaySchema(replay, issues)
 
+  console.log("validation modal with", issues.length, "issues")
   if (issues.length > 0) {
     showValidationModal(issues)
   }

@@ -562,6 +562,9 @@ function loadReplayJson(url: string, replayJson: any) {
   }
 
   fixReplay()
+  // close the initial 'connecting' modal before we validate replay data
+  // replay data will re-open the modal if there are validation issues
+  Common.closeModal()
   validateReplayData(state.replay)
 
   console.log('Replay: ', state.replay)
@@ -572,7 +575,6 @@ function loadReplayJson(url: string, replayJson: any) {
     html.fileName.textContent = url.split('/').pop() || 'unknown'
   }
 
-  Common.closeModal()
   focusFullMap(ui.mapPanel)
   updateAgentTable()
   onResize()
