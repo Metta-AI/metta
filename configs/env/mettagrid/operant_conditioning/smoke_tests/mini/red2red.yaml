@@ -1,0 +1,27 @@
+defaults:
+  - /env/mettagrid/operant_conditioning/smoke_tests/defaults@
+  - _self_
+
+game:
+  map_builder:
+    root:
+      params:
+        uri: "configs/env/mettagrid/maps/operant_conditioning/red_2.map"
+
+  objects:
+    generator_red:
+      cooldown: 1
+      input_resources:
+        ore_blue: 0
+        ore_red: 1
+      output_resources:
+        battery_red: 0
+        heart: 1
+    generator_blue:
+      cooldown: 1
+      input_resources:
+        ore_blue: 0
+        ore_red: 1
+      output_resources:
+        battery_blue: 0
+        heart: 0

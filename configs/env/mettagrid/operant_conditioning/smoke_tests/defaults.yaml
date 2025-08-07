@@ -28,20 +28,14 @@ game:
         battery_green: 0
         heart: 1.0
   map_builder:
-    _target_: metta.map.mapgen.MapGen
+    target: metta.map.mapgen.MapGen
     instances: ${..num_agents}
-    width: 6
-    height: 6
+    root:
+      type: metta.map.scenes.ascii.Ascii
+      params:
+        uri: ??
 
     root:
       type: metta.map.scenes.random.Random
       params:
-        agents: 1
-        objects: ??
-  objects:
-    mine_red:
-      cooldown: 255
-    mine_blue:
-      cooldown: 255
-    mine_green:
-      cooldown: 255
+        uri: "configs/env/mettagrid/maps/operant_conditioning/smoke_tests/red_2.map"
