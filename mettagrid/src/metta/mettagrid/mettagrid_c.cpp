@@ -199,6 +199,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
+        // Only initialize visitation grid if visitation counts are enabled
+        if (_global_obs_config.visitation_counts) {
+          agent->init_visitation_grid(height, width);
+        }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -333,6 +337,15 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Add inventory rewards for this agent
   if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
     global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
+  }
+
+  // Add visitation counts for this agent
+  if (_global_obs_config.visitation_counts) {
+    auto& agent = _agents[agent_idx];
+    auto visitation_counts = agent->get_visitation_counts();
+    for (size_t i = 0; i < 5; i++) {
+      global_tokens.push_back({ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
+    }
   }
 
   // Global tokens are always at the center of the observation.
@@ -488,6 +501,13 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 py::tuple MettaGrid::reset() {
   if (current_step > 0) {
     throw std::runtime_error("Cannot reset after stepping");
+  }
+
+  // Reset visitation counts for all agents (only if enabled)
+  if (_global_obs_config.visitation_counts) {
+    for (auto& agent : _agents) {
+      agent->reset_visitation_counts();
+    }
   }
 
   // Reset all buffers
@@ -918,7 +938,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
-                    float>(),
+                    float,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -930,7 +951,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
            py::arg("stat_rewards") = std::map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
-           py::arg("group_reward_pct") = 0)
+           py::arg("group_reward_pct") = 0,
+           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)
@@ -942,7 +964,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
       .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
-      .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct);
+      .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct)
+      .def_readwrite("initial_inventory", &AgentConfig::initial_inventory);
 
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
       .def(py::init<TypeId,
@@ -1008,15 +1031,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
-           py::arg("resource_rewards") = false)
+           py::arg("resource_rewards") = false,
+           py::arg("visitation_counts") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards);
+      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards)
+      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,

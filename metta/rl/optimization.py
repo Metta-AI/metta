@@ -36,28 +36,3 @@ def compute_gradient_stats(policy: PolicyAgent) -> dict[str, float]:
     }
 
     return grad_stats
-
-
-def maybe_update_l2_weights(
-    agent: PolicyAgent,
-    epoch: int,
-    interval: int,
-    is_master: bool = True,
-    force: bool = False,
-) -> None:
-    """Update L2 weights if on interval.
-
-    Args:
-        agent: Policy/agent with update_l2_init_weight_copy method
-        epoch: Current epoch
-        interval: Update interval (0 to disable)
-        is_master: Whether this is the master process
-        force: Force update regardless of interval
-    """
-    if not is_master or not interval:
-        return
-
-    if force or epoch % interval == 0:
-        if hasattr(agent, "update_l2_init_weight_copy"):
-            agent.update_l2_init_weight_copy()
-            logger.info(f"Updated L2 init weight copy at epoch {epoch}")

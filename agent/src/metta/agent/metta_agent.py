@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -46,37 +46,32 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    def __init__(self, agent, device):
+    """
+    Because this class passes through __getattr__ to its self.module, it implements everything
+    MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
+    """
+
+    module: "MettaAgent"
+
+    def __init__(self, agent: "MettaAgent", device: torch.device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
 
-        # Handle CPU vs GPU initialization
+        # This maintains the same interface as the input MettaAgent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+
+        # Pass device_ids for GPU, but not for CPU
         if device.type == "cpu":
-            # For CPU, don't pass device_ids
-            super().__init__(agent)
+            super().__init__(module=layers_converted_agent)
         else:
-            # For GPU, pass device_ids
-            super().__init__(agent, device_ids=[device], output_device=device)
+            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
+        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
         try:
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device: torch.device,
-        is_training: bool = True,
-    ) -> None:
-        # is_training parameter is deprecated and ignored - mode is auto-detected
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
 
 
 class MettaAgent(nn.Module):
@@ -588,10 +583,6 @@ class MettaAgent(nn.Module):
             return torch.sum(torch.stack(component_loss_tensors))
         else:
             return torch.tensor(0.0, device=self.device, dtype=torch.float32)
-
-    def update_l2_init_weight_copy(self):
-        """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
-        self._apply_to_components("update_l2_init_weight_copy")
 
     def clip_weights(self):
         """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
