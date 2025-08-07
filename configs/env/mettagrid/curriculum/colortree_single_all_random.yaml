@@ -1,0 +1,7 @@
+# Comprehensive random sequence curriculum for all single-agent ColorTree difficulties
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/colortree_single_easy_random: 0.4
+  /env/mettagrid/curriculum/colortree_single_medium_random: 0.35
+  /env/mettagrid/curriculum/colortree_single_hard_random: 0.25

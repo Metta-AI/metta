@@ -1,0 +1,8 @@
+# Random sequence curriculum for single-agent easy ColorTree (2 colors)
+_target_: metta.mettagrid.curriculum.colortree_random.ColorTreeRandomFromSetCurriculum
+
+tasks:
+  /env/mettagrid/colortree_single_easy: 1.0
+
+num_colors: 2
+sequence_length: 4

@@ -1,0 +1,5 @@
+# Simple curriculum for single-agent ColorTree sequence learning
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/colortree_single_easy: 1.0

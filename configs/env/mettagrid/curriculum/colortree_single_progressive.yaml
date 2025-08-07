@@ -1,0 +1,7 @@
+# Progressive curriculum for single-agent ColorTree: easy -> medium -> hard
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/colortree_single_easy: 0.5
+  /env/mettagrid/colortree_single_medium: 0.3
+  /env/mettagrid/colortree_single_hard: 0.2
