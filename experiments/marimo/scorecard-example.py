@@ -317,9 +317,7 @@ def _(alt, metric_selector, mo, table_df):
                         ),
                         color=alt.Color(
                             "Score:Q",
-                            scale=alt.Scale(
-                                domain=[0, 100], scheme="redyellowgreen", clamp=True
-                            ),
+                            scale=alt.Scale(scheme="redyellowgreen"),
                             title="Score",
                         ),
                         tooltip=[
