@@ -166,7 +166,7 @@ export const html = {
   gridToggle: find('#grid-toggle'),
   visualRangeToggle: find('#visual-range-toggle'),
   fogOfWarToggle: find('#fog-of-war-toggle'),
-  // heatmapToggle: find('#heatmap-toggle'),
+  heatmapToggle: find('#heatmap-toggle'),
 
   stepCounter: find('#step-counter'),
 
