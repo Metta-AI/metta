@@ -91,16 +91,7 @@ class MapGen(LevelBuilder):
         if isinstance(self.root, DictConfig):
             self.root = cast(dict, OmegaConf.to_container(self.root))
 
-        self.instance_map = params.instance_map
-
-        self.width = params.width
-        self.height = params.height
-        self.border_width = params.border_width
-        self.instances = params.instances
-        self.num_agents = params.num_agents
-        self.instance_border_width = params.instance_border_width
-        self.seed = params.seed
-        self.rng = np.random.default_rng(self.seed)
+        self.rng = np.random.default_rng(self.params.seed)
 
     def prebuild_instances(self):
         """
@@ -117,18 +108,29 @@ class MapGen(LevelBuilder):
 
         Note that we prefer _not_ to prebuild scenes in advance: this complicates the final scene tree and the
         implementation logic. (It's also a little bit slower, but this part is negligible.)
+
+        After this method is done, we'll have the following fields set:
+        - `self.instances` (either copied from the config, or derived from the number of agents)
+        - `self.width` (either copied from the config, or derived from the instance map)
+        - `self.height` (either copied from the config, or derived from the instance map)
+        - `self.instance_scene_factories` (a list of scene factories, one for each instance)
         """
         self.instance_scene_factories: list[SceneCfg] = []
+
+        # Can be None, but we'll set these fields to their actual values after the loop.
+        self.width = self.params.width
+        self.height = self.params.height
+        self.instances = self.params.instances
 
         def continue_to_prerender():
             if not self.width or not self.height:
                 # We haven't detected the instance size yet.
                 return True
-            if self.num_agents and not len(self.instance_scene_factories):
+            if self.params.num_agents and not len(self.instance_scene_factories):
                 # We need to derive the number of instances from the number of agents by rendering at least one
                 # instance.
                 return True
-            if self.instance_map and self.instances and self.instances > len(self.instance_scene_factories):
+            if self.params.instance_map and self.instances and self.instances > len(self.instance_scene_factories):
                 # We need to prebuild all instances.
                 return True
             return False
@@ -160,11 +162,11 @@ class MapGen(LevelBuilder):
                     )
                 )
             else:
-                assert self.instance_map is not None
+                assert self.params.instance_map is not None
                 # Instance is a map, not a scene, so it defines its own size.
                 # We need to prerender it to find the full size of our grid.
-                instance_map_cls = load_class(self.instance_map["type"], check_is_scene=False)
-                instance_map = instance_map_cls(**self.instance_map["params"])
+                instance_map_cls = load_class(self.params.instance_map["type"], check_is_scene=False)
+                instance_map = instance_map_cls(**self.params.instance_map["params"])
                 if not isinstance(instance_map, LevelBuilder):
                     raise ValueError("instance_map must be a LevelBuilder")
 
@@ -182,15 +184,15 @@ class MapGen(LevelBuilder):
                 self.width = max(self.width or 0, instance_grid.shape[1])
                 self.height = max(self.height or 0, instance_grid.shape[0])
 
-            if self.num_agents and len(self.instance_scene_factories) == 1:
+            if self.params.num_agents and len(self.instance_scene_factories) == 1:
                 # First prebuilt instance, let's derive the number of instances from the number of agents.
                 instance_num_agents = int(np.count_nonzero(np.char.startswith(instance_grid, "agent")))
-                if self.num_agents % instance_num_agents != 0:
+                if self.params.num_agents % instance_num_agents != 0:
                     raise ValueError(
-                        f"Number of agents {self.num_agents} is not divisible by number of agents in a single instance"
-                        f" {instance_num_agents}"
+                        f"Number of agents {self.params.num_agents} is not divisible by number of agents"
+                        f" in a single instance {instance_num_agents}"
                     )
-                instances = self.num_agents // instance_num_agents
+                instances = self.params.num_agents // instance_num_agents
 
                 # Usually, when num_agents is set, you don't need to set `instances` explicitly.
                 if self.instances and self.instances != instances:
@@ -200,22 +202,28 @@ class MapGen(LevelBuilder):
                     )
                 self.instances = instances
 
+        if self.instances is None:
+            self.instances = 1
+
     def prepare_grid(self):
         """
         Prepare the full grid and its inner area.
         """
-        if self.instances is None:
-            self.instances = 1
+        assert self.instances is not None
 
         self.instance_rows = int(np.ceil(np.sqrt(self.instances)))
         self.instance_cols = int(np.ceil(self.instances / self.instance_rows))
 
         assert self.width is not None and self.height is not None
 
-        self.inner_width = self.width * self.instance_cols + (self.instance_cols - 1) * self.instance_border_width
-        self.inner_height = self.height * self.instance_rows + (self.instance_rows - 1) * self.instance_border_width
+        self.inner_width = (
+            self.width * self.instance_cols + (self.instance_cols - 1) * self.params.instance_border_width
+        )
+        self.inner_height = (
+            self.height * self.instance_rows + (self.instance_rows - 1) * self.params.instance_border_width
+        )
 
-        bw = self.border_width
+        bw = self.params.border_width
 
         self.grid: MapGrid = np.full(
             (self.inner_height + 2 * bw, self.inner_width + 2 * bw),
@@ -287,7 +295,7 @@ class MapGen(LevelBuilder):
             RoomGridParams(
                 rows=self.instance_rows,
                 columns=self.instance_cols,
-                border_width=self.instance_border_width,
+                border_width=self.params.instance_border_width,
             ),
             children_actions=children_actions,
         )
