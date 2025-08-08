@@ -29,7 +29,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers used by the setup tests."""
     config.addinivalue_line("markers", "profile(name): test requires the given profile to be active")
-    config.addinivalue_line("markers", "stream: disable output capturing to stream logs live")
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
