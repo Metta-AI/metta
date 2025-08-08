@@ -1,0 +1,114 @@
+# Synthetic tasks for curriculum analysis
+# These are simple single-task curricula that can be used by the main curricula
+
+# Chain graph tasks
+/curriculum_analysis/synthetic/chain/task_0:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_0
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_chain
+      depth: 0
+
+/curriculum_analysis/synthetic/chain/task_1:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_1
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_chain
+      depth: 1
+
+/curriculum_analysis/synthetic/chain/task_2:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_2
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_chain
+      depth: 2
+
+/curriculum_analysis/synthetic/chain/task_3:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_3
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_chain
+      depth: 3
+
+/curriculum_analysis/synthetic/chain/task_4:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_4
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_chain
+      depth: 4
+
+# Binary tree tasks
+/curriculum_analysis/synthetic/binary_tree/task_0:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_0
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_binary_tree
+      depth: 0
+
+/curriculum_analysis/synthetic/binary_tree/task_1:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_1
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_binary_tree
+      depth: 1
+
+/curriculum_analysis/synthetic/binary_tree/task_2:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_2
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_binary_tree
+      depth: 2
+
+/curriculum_analysis/synthetic/binary_tree/task_3:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_3
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_binary_tree
+      depth: 3
+
+/curriculum_analysis/synthetic/binary_tree/task_4:
+  _target_: metta.mettagrid.curriculum.single_task.SingleTaskCurriculum
+  task_id: task_4
+  env_cfg:
+    game:
+      num_agents: 1
+      max_steps: 100
+    curriculum:
+      type: synthetic_binary_tree
+      depth: 4 

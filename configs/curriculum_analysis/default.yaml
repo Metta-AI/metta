@@ -1,0 +1,45 @@
+# Curriculum Analysis Configuration
+# This configuration runs curriculum analysis with real Hydra instantiation
+
+# Analysis settings
+analysis:
+  num_epochs: 150
+  num_tasks: 10
+  graph_type: "chain"  # or "binary_tree"
+  
+# Curriculum configurations
+curricula:
+  learning_progress:
+    _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+    ema_timescale: 0.001
+    progress_smoothing: 0.05
+    num_active_tasks: 16
+    rand_task_rate: 0.25
+    sample_threshold: 10
+    memory: 25
+    
+  random:
+    _target_: metta.mettagrid.curriculum.random.RandomCurriculum
+    
+  prioritize_regressed:
+    _target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+    moving_avg_decay_rate: 0.01
+
+# Grid search settings
+grid_search:
+  enable: true
+  ema_timescales: [0.00001, 0.0001, 0.001, 0.01, 0.1]
+  progress_smoothings: [0.001, 0.01, 0.05, 0.1, 0.2]
+
+# Wandb settings
+wandb:
+  project: "curriculum-analysis"
+  entity: null  # Will use default entity
+  log_images: true
+  log_metrics: true
+
+# Visualization settings
+visualization:
+  save_local: true
+  dpi: 300
+  figsize: [20, 12] 

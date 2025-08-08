@@ -1,0 +1,13 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /synthetic/chain/task_0: 1
+  /synthetic/chain/task_1: 1
+  /synthetic/chain/task_2: 1
+  /synthetic/chain/task_3: 1
+  /synthetic/chain/task_4: 1
+  /synthetic/chain/task_5: 1
+  /synthetic/chain/task_6: 1
+  /synthetic/chain/task_7: 1
+  /synthetic/chain/task_8: 1
+  /synthetic/chain/task_9: 1 

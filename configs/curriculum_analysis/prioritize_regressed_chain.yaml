@@ -1,0 +1,15 @@
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+
+tasks:
+  /curriculum_analysis/synthetic/chain/task_0: 1
+  /curriculum_analysis/synthetic/chain/task_1: 1
+  /curriculum_analysis/synthetic/chain/task_2: 1
+  /curriculum_analysis/synthetic/chain/task_3: 1
+  /curriculum_analysis/synthetic/chain/task_4: 1
+  /curriculum_analysis/synthetic/chain/task_5: 1
+  /curriculum_analysis/synthetic/chain/task_6: 1
+  /curriculum_analysis/synthetic/chain/task_7: 1
+  /curriculum_analysis/synthetic/chain/task_8: 1
+  /curriculum_analysis/synthetic/chain/task_9: 1
+
+moving_avg_decay_rate: 0.01 

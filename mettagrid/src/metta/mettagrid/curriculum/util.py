@@ -6,6 +6,12 @@ from metta.mettagrid.util.hydra import config_from_path
 
 
 def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> Curriculum:
+    if config_path.startswith("/synthetic/"):
+        # Load plain YAML under the current config search path (e.g., configs/curriculum_analysis)
+        cfg = config_from_path(config_path, env_overrides)
+        task_id = config_path.split("/")[-1]
+        return SingleTaskCurriculum(task_id, cfg)
+
     if "_target_" in config_from_path(config_path, None):
         return hydra.utils.instantiate(
             # (a) Don't recurse here. We want one level of instantiation so we get the curriculum object, but

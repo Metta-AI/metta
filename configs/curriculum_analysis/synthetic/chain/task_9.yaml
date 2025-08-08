@@ -1,0 +1,6 @@
+game:
+  num_agents: 1
+  max_steps: 100
+mock:
+  type: chain
+  depth: 9 

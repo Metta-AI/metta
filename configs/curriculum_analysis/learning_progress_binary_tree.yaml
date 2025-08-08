@@ -1,0 +1,15 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /curriculum_analysis/synthetic/binary_tree/task_0: 1
+  /curriculum_analysis/synthetic/binary_tree/task_1: 1
+  /curriculum_analysis/synthetic/binary_tree/task_2: 1
+  /curriculum_analysis/synthetic/binary_tree/task_3: 1
+  /curriculum_analysis/synthetic/binary_tree/task_4: 1
+
+ema_timescale: 0.001
+progress_smoothing: 0.05
+num_active_tasks: 5
+rand_task_rate: 0.25
+sample_threshold: 10
+memory: 25 

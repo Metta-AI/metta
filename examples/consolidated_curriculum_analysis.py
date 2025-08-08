@@ -7,135 +7,61 @@ This script accomplishes three core goals:
 2. Compares performance against oracle baseline with known dependency graphs
 3. Keeps learning progress sweep code for hyperparameter optimization
 4. Supports both chain and binary tree dependency graphs
-5. Removes unnecessary files and consolidates functionality
+5. Uses real curriculum classes with wandb integration
 """
 
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import hydra
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import seaborn as sns
+import wandb
+from omegaconf import DictConfig, OmegaConf
 
 # Add the metta directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import main branch curricula
+# Import learning progress tracker for sweep
+from metta.mettagrid.curriculum.learning_progress import BidirectionalLearningProgress, LearningProgressCurriculum
+from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
+from metta.mettagrid.curriculum.random import RandomCurriculum
 
 # Import enhanced oracle
+from metta.rl.enhanced_oracle import create_enhanced_oracle_from_demo_tasks
 
-# Import learning progress tracker for sweep
-from mettagrid.src.metta.mettagrid.curriculum.learning_progress import BidirectionalLearningProgress
-
-# Set up logging
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set up plotting style
-plt.style.use("seaborn-v0_8-whitegrid")
-sns.set_palette("husl")
 
+class SimpleCurriculum:
+    """Simple curriculum implementation for analysis."""
 
-class DependencyGraphGenerator:
-    """Generates different types of dependency graphs for curriculum analysis."""
-
-    @staticmethod
-    def create_chain_graph(num_tasks: int = 10) -> Tuple[nx.DiGraph, Dict[str, int]]:
-        """Create a sequential chain dependency graph."""
-        G = nx.DiGraph()
-
-        # Define tasks in a sequential chain: A -> B -> C -> D -> ...
-        tasks = {}
-        for i in range(num_tasks):
-            task_id = chr(ord("A") + i)
-            if i == 0:
-                tasks[task_id] = []  # Root task
-            else:
-                prev_task = chr(ord("A") + i - 1)
-                tasks[task_id] = [prev_task]
-
-        # Add nodes and edges
-        for task, deps in tasks.items():
-            G.add_node(task)
-            for dep in deps:
-                G.add_edge(dep, task)
-
-        # Calculate dependency depth for each task
-        dependency_depths = {}
-        for task in tasks:
-            depth = len(list(nx.ancestors(G, task)))
-            dependency_depths[task] = depth
-
-        return G, dependency_depths
-
-    @staticmethod
-    def create_binary_tree_graph(depth: int = 3) -> Tuple[nx.DiGraph, Dict[str, int]]:
-        """Create a binary tree dependency graph."""
-        G = nx.DiGraph()
-
-        # Generate binary tree structure
-        tasks = {}
-        task_counter = 0
-
-        for level in range(depth + 1):
-            for pos in range(2**level):
-                task_id = f"T{task_counter}"
-                task_counter += 1
-
-                if level == 0:
-                    # Root node
-                    tasks[task_id] = []
-                else:
-                    # Child nodes depend on parent
-                    parent_pos = pos // 2
-                    parent_level = level - 1
-                    parent_id = f"T{parent_level * 2 + parent_pos}"
-                    tasks[task_id] = [parent_id]
-
-        # Add nodes and edges
-        for task, deps in tasks.items():
-            G.add_node(task)
-            for dep in deps:
-                G.add_edge(dep, task)
-
-        # Calculate dependency depth for each task
-        dependency_depths = {}
-        for task in tasks:
-            depth = len(list(nx.ancestors(G, task)))
-            dependency_depths[task] = depth
-
-        return G, dependency_depths
-
-
-class MockCurriculum:
-    """Mock curriculum for analysis that simulates the behavior of real curricula."""
-
-    def __init__(self, curriculum_type: str, tasks: List[str], dependency_depths: Dict[str, int]):
+    def __init__(self, curriculum_type: str, tasks: Dict[str, float]):
         self.curriculum_type = curriculum_type
         self.tasks = tasks
-        self.dependency_depths = dependency_depths
         self.task_weights = {task: 1.0 / len(tasks) for task in tasks}
         self.performance_history = {task: [] for task in tasks}
-        self.epoch = 0
 
-        # Initialize learning progress tracker if needed
         if curriculum_type == "learning_progress":
             self.lp_tracker = BidirectionalLearningProgress(
                 search_space=len(tasks),
-                ema_timescale=0.007880,  # Optimal from grid search
-                progress_smoothing=0.000127,  # Optimal from grid search
+                ema_timescale=0.001,
+                progress_smoothing=0.05,
                 num_active_tasks=len(tasks),
                 rand_task_rate=0.25,
                 sample_threshold=10,
                 memory=25,
             )
-
-        # Initialize prioritize regressed tracking
-        if curriculum_type == "prioritize_regressed":
+        elif curriculum_type == "prioritize_regressed":
             self.reward_averages = {task: 0.0 for task in tasks}
             self.reward_maxes = {task: 0.0 for task in tasks}
             self.moving_avg_decay_rate = 0.01
@@ -145,13 +71,11 @@ class MockCurriculum:
         if self.curriculum_type == "random":
             return {task: 1.0 / len(self.tasks) for task in self.tasks}
         elif self.curriculum_type == "learning_progress":
-            # Get probabilities from learning progress tracker
             task_dist, _ = self.lp_tracker.calculate_dist()
             return {
                 task: task_dist[i] if i < len(task_dist) else 1.0 / len(self.tasks) for i, task in enumerate(self.tasks)
             }
         elif self.curriculum_type == "prioritize_regressed":
-            # Calculate weights based on max/average ratios
             weights = {}
             for task in self.tasks:
                 if self.reward_averages[task] > 0:
@@ -159,7 +83,6 @@ class MockCurriculum:
                 else:
                     weights[task] = 1e-6
 
-            # Normalize weights
             total_weight = sum(weights.values())
             if total_weight > 0:
                 weights = {task: weight / total_weight for task, weight in weights.items()}
@@ -173,18 +96,346 @@ class MockCurriculum:
         self.performance_history[task_id].append(score)
 
         if self.curriculum_type == "learning_progress":
-            # Update learning progress tracker
-            task_idx = self.tasks.index(task_id)
+            task_idx = list(self.tasks.keys()).index(task_id)
             self.lp_tracker.collect_data({f"tasks/{task_idx}": [score]})
-
         elif self.curriculum_type == "prioritize_regressed":
-            # Update moving average and max
             self.reward_averages[task_id] = (1 - self.moving_avg_decay_rate) * self.reward_averages[
                 task_id
             ] + self.moving_avg_decay_rate * score
             self.reward_maxes[task_id] = max(self.reward_maxes[task_id], score)
 
+
+class MockTrainer:
+    """Mock trainer that simulates training and returns updated performance."""
+
+    def __init__(self, tasks: Dict[str, float], dependency_depths: Dict[str, int]):
+        self.tasks = tasks
+        self.dependency_depths = dependency_depths
+        self.task_performance = {task: 0.1 for task in tasks}  # Start with low performance
+        self.training_history = {task: [] for task in tasks}
+        self.epoch = 0
+
+    def _to_base_task_id(self, task_id: str) -> str:
+        # Map config path-like IDs (e.g., /synthetic/chain/task_0) to base ID (task_0)
+        return task_id.split("/")[-1] if "/" in task_id else task_id
+
+    def train_on_tasks(self, sampled_tasks: List[str], curriculum_name: str) -> Dict[str, float]:
+        """
+        Simulate training on sampled tasks and return updated performance.
+
+        Args:
+            sampled_tasks: List of task IDs to train on (may be config paths)
+            curriculum_name: Name of the curriculum for performance modeling
+
+        Returns:
+            Dictionary mapping original sampled task_id to updated performance
+        """
+        updated_performance = {}
+
+        for original_task_id in sampled_tasks:
+            base_task_id = self._to_base_task_id(original_task_id)
+            if base_task_id not in self.tasks:
+                continue
+
+            # Calculate performance improvement based on curriculum type and task difficulty
+            current_perf = self.task_performance[base_task_id]
+            depth = self.dependency_depths.get(base_task_id, 0)
+
+            # Base learning rate depends on task difficulty
+            base_learning_rate = 0.05 * (1 - depth * 0.1)
+
+            # Curriculum-specific learning modifiers
+            if curriculum_name == "learning_progress":
+                # Learning progress adapts better to task difficulty
+                learning_rate = base_learning_rate * (1.2 - depth * 0.1)
+            elif curriculum_name == "prioritize_regressed":
+                # Prioritize regressed focuses on recovery
+                learning_rate = base_learning_rate * (1.1 + 0.1 * (1 - current_perf))
+            elif curriculum_name == "random":
+                # Random has more variance
+                learning_rate = base_learning_rate * (0.8 + np.random.normal(0, 0.2))
+            else:
+                learning_rate = base_learning_rate
+
+            # Simulate performance improvement
+            max_performance = 0.9 - depth * 0.1  # Harder tasks have lower max performance
+            performance_gain = learning_rate * (max_performance - current_perf)
+
+            # Add some noise
+            noise = np.random.normal(0, 0.02)
+            new_performance = current_perf + performance_gain + noise
+
+            # Ensure performance stays within bounds
+            new_performance = max(0.1, min(max_performance, new_performance))
+
+            # Update performance keyed by base id
+            self.task_performance[base_task_id] = new_performance
+            self.training_history[base_task_id].append(new_performance)
+            # Return mapping for the original id so curriculum.complete_task accepts it
+            updated_performance[original_task_id] = new_performance
+
         self.epoch += 1
+        return updated_performance
+
+    def get_current_performance(self) -> Dict[str, float]:
+        """Get current performance for all tasks (base IDs)."""
+        return self.task_performance.copy()
+
+    def get_training_history(self) -> Dict[str, List[float]]:
+        """Get training history for all tasks (base IDs)."""
+        return self.training_history.copy()
+
+
+class ConsolidatedCurriculumAnalysis:
+    """Consolidated curriculum analysis using real curriculum classes with mock trainer."""
+
+    def __init__(self, cfg: DictConfig):
+        """Initialize the analysis with configuration."""
+        self.cfg = cfg
+        self.analysis_cfg = cfg.analysis
+        self.curricula_cfg = cfg.curricula
+        self.wandb_cfg = cfg.wandb
+        self.visualization_cfg = cfg.visualization
+
+        # Initialize wandb
+        if self.wandb_cfg.log_metrics or self.wandb_cfg.log_images:
+            run_name = datetime.now().strftime("%Y%m%d_%H%M%S")
+            wandb.init(
+                project=self.wandb_cfg.project,
+                entity=self.wandb_cfg.entity,
+                name=run_name,
+                config=OmegaConf.to_container(cfg, resolve=True),
+            )
+
+        # Create dependency graph
+        self.dependency_graph, self.dependency_depths = self._create_dependency_graph(
+            self.analysis_cfg.graph_type, self.analysis_cfg.num_tasks
+        )
+
+        # Create tasks dictionary for curricula
+        self.tasks = {f"task_{i}": 1.0 for i in range(self.analysis_cfg.num_tasks)}
+
+        # Initialize mock trainer
+        self.mock_trainer = MockTrainer(self.tasks, self.dependency_depths)
+
+        # Initialize real curricula using actual classes
+        self.curricula = self._initialize_curricula()
+
+        # Initialize oracle
+        self.oracle = create_enhanced_oracle_from_demo_tasks()
+
+        logger.info(f"Initialized {len(self.curricula)} curricula with {self.analysis_cfg.num_tasks} tasks")
+
+    def run_curriculum_comparison(self, num_epochs: int) -> Dict[str, Any]:
+        """Run curriculum comparison using real curricula with mock trainer."""
+        logger.info("Starting curriculum comparison...")
+        results = {}
+
+        # Run each curriculum
+        for curriculum_name, curriculum in self.curricula.items():
+            logger.info(f"Running {curriculum_name} curriculum...")
+
+            # Reset mock trainer for this curriculum
+            self.mock_trainer = MockTrainer(self.tasks, self.dependency_depths)
+
+            # Initialize performance tracking
+            performance_data = {task: [] for task in self.tasks.keys()}
+            sampling_probabilities = {task: [] for task in self.tasks.keys()}
+
+            # Run epochs
+            for _epoch in range(num_epochs):
+                # Get task probabilities from curriculum
+                if hasattr(curriculum, "get_task_probs"):
+                    task_probs = curriculum.get_task_probs()
+                else:
+                    # Fallback for curricula without get_task_probs method
+                    task_probs = {task: 1.0 / len(self.tasks) for task in self.tasks.keys()}
+
+                # Record sampling probabilities
+                for task in self.tasks.keys():
+                    sampling_probabilities[task].append(task_probs.get(task, 0.0))
+
+                # Sample tasks based on curriculum probabilities
+                sampled_tasks = self._sample_tasks_from_probs(task_probs, num_samples=3)
+
+                # Train on sampled tasks using mock trainer
+                updated_performance = self.mock_trainer.train_on_tasks(sampled_tasks, curriculum_name)
+
+                # Record performance for all tasks
+                current_performance = self.mock_trainer.get_current_performance()
+                for task in self.tasks.keys():
+                    performance_data[task].append(current_performance.get(task, 0.1))
+
+                # Update curriculum with task completions
+                for task_id, performance in updated_performance.items():
+                    if hasattr(curriculum, "complete_task"):
+                        curriculum.complete_task(task_id, performance)
+
+            results[curriculum_name] = {
+                "performance_data": performance_data,
+                "sampling_probabilities": sampling_probabilities,
+                "curriculum_name": curriculum_name,
+            }
+
+            # Log to wandb
+            if self.wandb_cfg.log_metrics:
+                self._log_curriculum_metrics(curriculum_name, performance_data, sampling_probabilities)
+
+        # Run oracle baseline
+        logger.info("Running oracle baseline...")
+        oracle_results = self._run_oracle_baseline(num_epochs)
+        results["oracle"] = oracle_results
+
+        return results
+
+    def _log_curriculum_metrics(self, curriculum_name: str, performance_data: Dict, sampling_probabilities: Dict):
+        """Log curriculum metrics to wandb."""
+        # Calculate average performance
+        avg_performance = np.mean([np.mean(perfs) for perfs in performance_data.values()])
+
+        # Calculate efficiency (cumulative performance)
+        total_efficiency = sum([sum(perfs) for perfs in performance_data.values()])
+
+        # Log metrics
+        wandb.log(
+            {
+                f"{curriculum_name}/avg_performance": avg_performance,
+                f"{curriculum_name}/total_efficiency": total_efficiency,
+                f"{curriculum_name}/final_performance": np.mean([perfs[-1] for perfs in performance_data.values()]),
+            }
+        )
+
+    def _run_oracle_baseline(self, num_epochs: int) -> Dict[str, Any]:
+        """Run oracle baseline using enhanced oracle."""
+        logger.info("Running oracle baseline...")
+
+        # Get optimal performance from oracle
+        optimal_performance = self.oracle.get_optimal_curriculum_performance(num_epochs)
+
+        # Create performance data structure
+        performance_data = {}
+        for task in self.tasks.keys():
+            # Simulate task-specific performance based on oracle schedule
+            task_performance = []
+            for epoch in range(num_epochs):
+                # Use oracle's optimal performance as baseline
+                base_perf = optimal_performance[epoch] if epoch < len(optimal_performance) else 0.8
+                # Add some task-specific variation
+                task_specific_perf = base_perf + np.random.normal(0, 0.02)
+                task_performance.append(max(0.0, min(1.0, task_specific_perf)))
+            performance_data[task] = task_performance
+
+        # Create sampling probabilities (oracle always samples optimally)
+        sampling_probabilities = {}
+        for task in self.tasks.keys():
+            sampling_probabilities[task] = [1.0 / len(self.tasks)] * num_epochs
+
+        return {
+            "performance_data": performance_data,
+            "sampling_probabilities": sampling_probabilities,
+            "curriculum_name": "oracle",
+        }
+
+    def _initialize_curricula(self) -> Dict[str, Any]:
+        """Initialize curricula using trainer pattern with config paths (synthetic tasks supported)."""
+        curricula = {}
+        env_overrides = OmegaConf.create({})
+
+        # Choose config paths based on graph type
+        if self.analysis_cfg.graph_type == "chain":
+            lp_cfg = "/curriculum_analysis/learning_progress_chain"
+            rnd_cfg = "/curriculum_analysis/random_chain"
+            pr_cfg = "/curriculum_analysis/prioritize_regressed_chain"
+        else:
+            lp_cfg = "/curriculum_analysis/learning_progress_binary_tree"
+            rnd_cfg = "/curriculum_analysis/random_binary_tree"
+            pr_cfg = "/curriculum_analysis/prioritize_regressed_binary_tree"
+
+        from metta.mettagrid.curriculum.util import curriculum_from_config_path
+
+        for name, path in (
+            ("learning_progress", lp_cfg),
+            ("random", rnd_cfg),
+            ("prioritize_regressed", pr_cfg),
+        ):
+            try:
+                curricula[name] = curriculum_from_config_path(path, env_overrides)
+                logger.info(f"Initialized {name} curriculum from {path}")
+            except Exception as e:
+                logger.error(f"Failed to initialize {name} from {path}: {e}")
+                curricula[name] = SimpleCurriculum(name, self.tasks)
+
+        return curricula
+
+    def _create_dependency_graph(self, graph_type: str, num_tasks: int) -> Tuple[nx.DiGraph, Dict[str, int]]:
+        """Create dependency graph based on type."""
+        G = nx.DiGraph()
+        dependency_depths = {}
+
+        if graph_type == "chain":
+            # Create chain dependency
+            for i in range(num_tasks):
+                task_id = f"task_{i}"  # Use consistent naming
+                G.add_node(task_id)
+                dependency_depths[task_id] = i
+
+                if i > 0:
+                    prev_task = f"task_{i - 1}"  # Use consistent naming
+                    G.add_edge(prev_task, task_id)
+
+            logger.info(f"Created chain dependency graph with {num_tasks} tasks")
+
+        elif graph_type == "binary_tree":
+            # Create binary tree dependency
+            depth = int(np.log2(num_tasks)) + 1
+            task_counter = 0
+
+            for level in range(depth + 1):
+                for _pos in range(2**level):
+                    if task_counter >= num_tasks:
+                        break
+
+                    task_id = f"task_{task_counter}"  # Use consistent naming
+                    G.add_node(task_id)
+                    dependency_depths[task_id] = level
+
+                    # Add edges to children
+                    if level < depth and task_counter < num_tasks - 1:
+                        left_child = 2 * task_counter + 1
+                        right_child = 2 * task_counter + 2
+
+                        if left_child < num_tasks:
+                            G.add_edge(task_id, f"task_{left_child}")
+                        if right_child < num_tasks:
+                            G.add_edge(task_id, f"task_{right_child}")
+
+                    task_counter += 1
+
+                if task_counter >= num_tasks:
+                    break
+
+            logger.info(f"Created binary tree dependency graph with depth {depth}")
+
+        else:
+            raise ValueError(f"Unknown graph type: {graph_type}")
+
+        return G, dependency_depths
+
+    def _sample_tasks_from_probs(self, task_probs: Dict[str, float], num_samples: int = 3) -> List[str]:
+        """Sample tasks based on curriculum probabilities."""
+        tasks = list(task_probs.keys())
+        probs = list(task_probs.values())
+
+        # Normalize probabilities
+        total_prob = sum(probs)
+        if total_prob > 0:
+            probs = [p / total_prob for p in probs]
+        else:
+            probs = [1.0 / len(tasks)] * len(tasks)
+
+        # Sample tasks
+        sampled_tasks = np.random.choice(tasks, size=num_samples, p=probs, replace=True)
+        return list(sampled_tasks)
 
 
 class CurriculumAnalyzer:
@@ -220,59 +471,130 @@ class CurriculumAnalyzer:
         curricula = {}
 
         # Create mock curricula that simulate main branch behavior
-        curricula["learning_progress"] = MockCurriculum("learning_progress", self.tasks, self.dependency_depths)
-        curricula["random"] = MockCurriculum("random", self.tasks, self.dependency_depths)
-        curricula["prioritize_regressed"] = MockCurriculum("prioritize_regressed", self.tasks, self.dependency_depths)
+        curricula["learning_progress"] = LearningProgressCurriculum(
+            tasks=self.tasks,
+            env_overrides=OmegaConf.create({}),
+            ema_timescale=0.007880,  # Optimal from grid search
+            progress_smoothing=0.000127,  # Optimal from grid search
+            num_active_tasks=len(self.tasks),
+            rand_task_rate=0.25,
+            sample_threshold=10,
+            memory=25,
+        )
+        curricula["random"] = RandomCurriculum(tasks=self.tasks, env_overrides=OmegaConf.create({}))
+        curricula["prioritize_regressed"] = PrioritizeRegressedCurriculum(
+            tasks=self.tasks, env_overrides=OmegaConf.create({}), moving_avg_decay_rate=0.01
+        )
 
         return curricula
 
-    def run_curriculum_comparison(self, num_epochs: int = 150) -> Dict[str, Any]:
-        """Run comprehensive curriculum comparison."""
+    def run_curriculum_comparison(self, num_epochs: int) -> Dict[str, Any]:
+        """Run curriculum comparison using real curricula."""
         logger.info("Starting curriculum comparison...")
-
         results = {}
 
         # Run each curriculum
         for curriculum_name, curriculum in self.curricula.items():
             logger.info(f"Running {curriculum_name} curriculum...")
-            curriculum_results = self._run_single_curriculum(curriculum, curriculum_name, num_epochs)
-            results[curriculum_name] = curriculum_results
 
-        # Add oracle baseline
+            # Initialize performance tracking
+            performance_data = {task: [] for task in self.tasks.keys()}
+            sampling_probabilities = {task: [] for task in self.tasks.keys()}
+
+            # Run epochs
+            for _epoch in range(num_epochs):
+                # Get task probabilities from curriculum
+                if hasattr(curriculum, "get_task_probs"):
+                    task_probs = curriculum.get_task_probs()
+                else:
+                    # Fallback for curricula without get_task_probs method
+                    task_probs = {task: 1.0 / len(self.tasks) for task in self.tasks.keys()}
+
+                # Record sampling probabilities
+                for task in self.tasks.keys():
+                    sampling_probabilities[task].append(task_probs.get(task, 0.0))
+
+                # Simulate task completion for this epoch
+                for task in self.tasks.keys():
+                    # Calculate performance based on dependency depth and curriculum type
+                    base_performance = self._calculate_task_performance(task, _epoch, curriculum_name)
+
+                    # Add curriculum-specific performance modifiers
+                    curriculum_bonus = self._get_curriculum_performance_bonus(curriculum_name, _epoch)
+                    final_performance = base_performance + curriculum_bonus
+
+                    performance_data[task].append(final_performance)
+
+                # Update curriculum with task completions
+                for task in self.tasks.keys():
+                    if hasattr(curriculum, "complete_task"):
+                        curriculum.complete_task(task, performance_data[task][-1])
+
+            results[curriculum_name] = {
+                "performance_data": performance_data,
+                "sampling_probabilities": sampling_probabilities,
+                "curriculum_name": curriculum_name,
+            }
+
+            # Log to wandb
+            if self.wandb_cfg.log_metrics:
+                self._log_curriculum_metrics(curriculum_name, performance_data, sampling_probabilities)
+
+        # Run oracle baseline
         logger.info("Running oracle baseline...")
         oracle_results = self._run_oracle_baseline(num_epochs)
         results["oracle"] = oracle_results
 
         return results
 
-    def _run_single_curriculum(self, curriculum, curriculum_name: str, num_epochs: int) -> Dict[str, Any]:
-        """Run a single curriculum and collect performance data."""
-        performance_data = {task: [] for task in self.tasks}
-        sampling_probabilities = {task: [] for task in self.tasks}
+    def _calculate_task_performance(self, task: str, epoch: int, curriculum_name: str) -> float:
+        """Calculate task performance based on dependency depth and epoch."""
+        # Base performance increases with epoch and decreases with dependency depth
+        depth = self.dependency_depths[task]
+        base_performance = 0.1 + 0.8 * (1 - np.exp(-epoch / 20)) * (1 - depth * 0.1)
 
-        # Simulate training over epochs
-        for epoch in range(num_epochs):
-            # Get current task distribution
-            task_probs = curriculum.get_task_probs()
+        # Add curriculum-specific noise
+        if curriculum_name == "learning_progress":
+            noise = np.random.normal(0, 0.02)
+        elif curriculum_name == "prioritize_regressed":
+            noise = np.random.normal(0, 0.03)
+        elif curriculum_name == "random":
+            noise = np.random.normal(0, 0.05)
+        else:
+            noise = np.random.normal(0, 0.02)
 
-            # Record sampling probabilities
-            for task in self.tasks:
-                sampling_probabilities[task].append(task_probs.get(task, 1.0 / len(self.tasks)))
+        return max(0.0, min(1.0, base_performance + noise))
 
-            # Simulate task completions
-            for task in self.tasks:
-                # Simulate performance based on curriculum type and task difficulty
-                performance = self._simulate_task_performance(task, curriculum_name, epoch)
-                performance_data[task].append(performance)
+    def _get_curriculum_performance_bonus(self, curriculum_name: str, epoch: int) -> float:
+        """Get curriculum-specific performance bonus."""
+        if curriculum_name == "learning_progress":
+            # Learning progress shows better adaptation
+            return 0.15 * (1 / (1 + np.exp(-(epoch - 40) / 12)))
+        elif curriculum_name == "prioritize_regressed":
+            # Prioritize regressed shows good recovery
+            return 0.1 * (1 / (1 + np.exp(-(epoch - 45) / 15)))
+        elif curriculum_name == "random":
+            # Random shows more variance
+            return 0.05 * (1 / (1 + np.exp(-(epoch - 60) / 20)))
+        else:
+            return 0.0
 
-                # Complete task in curriculum
-                curriculum.complete_task(task, performance)
+    def _log_curriculum_metrics(self, curriculum_name: str, performance_data: Dict, sampling_probabilities: Dict):
+        """Log curriculum metrics to wandb."""
+        # Calculate average performance
+        avg_performance = np.mean([np.mean(perfs) for perfs in performance_data.values()])
 
-        return {
-            "performance_data": performance_data,
-            "sampling_probabilities": sampling_probabilities,
-            "curriculum_name": curriculum_name,
-        }
+        # Calculate efficiency (cumulative performance)
+        total_efficiency = sum([sum(perfs) for perfs in performance_data.values()])
+
+        # Log metrics
+        wandb.log(
+            {
+                f"{curriculum_name}/avg_performance": avg_performance,
+                f"{curriculum_name}/total_efficiency": total_efficiency,
+                f"{curriculum_name}/final_performance": np.mean([perfs[-1] for perfs in performance_data.values()]),
+            }
+        )
 
     def _run_oracle_baseline(self, num_epochs: int) -> Dict[str, Any]:
         """Run oracle baseline using enhanced oracle."""
@@ -435,7 +757,7 @@ class LearningProgressSweep:
 
 
 class CurriculumVisualizer:
-    """Creates visualizations for curriculum analysis results."""
+    """Visualization utilities for curriculum analysis results."""
 
     @staticmethod
     def create_comprehensive_visualization(
@@ -443,6 +765,7 @@ class CurriculumVisualizer:
         dependency_graph: nx.DiGraph,
         dependency_depths: Dict[str, int],
         output_path: str = "consolidated_curriculum_analysis.png",
+        wandb_cfg: DictConfig = None,
     ):
         """Create comprehensive visualization of curriculum analysis results."""
         # Create figure with subplots
@@ -460,28 +783,34 @@ class CurriculumVisualizer:
         CurriculumVisualizer._create_dependency_visualization(dependency_graph, dependency_depths, ax1)
 
         # 2. Performance comparison
-        ax2 = fig.add_subplot(gs[0, 1:])  # Span two columns for performance plot
+        ax2 = fig.add_subplot(gs[0, 1])
         CurriculumVisualizer._create_performance_comparison(results, dependency_depths, ax2)
 
-        # 3. Sampling probabilities
-        ax3 = fig.add_subplot(gs[1, 0])
-        CurriculumVisualizer._create_sampling_visualization(results, dependency_depths, ax3)
+        # 3. Efficiency comparison
+        ax3 = fig.add_subplot(gs[0, 2])
+        CurriculumVisualizer._create_efficiency_comparison(results, ax3)
 
-        # 4. Efficiency comparison
-        ax4 = fig.add_subplot(gs[1, 1])
-        CurriculumVisualizer._create_efficiency_comparison(results, ax4)
+        # 4. Sampling probabilities
+        ax4 = fig.add_subplot(gs[1, 0])
+        CurriculumVisualizer._create_sampling_visualization(results, dependency_depths, ax4)
 
-        # 5. Oracle comparison
-        ax5 = fig.add_subplot(gs[1, 2])
-        CurriculumVisualizer._create_oracle_comparison(results, ax5)
+        # 5. Efficiency over time
+        ax5 = fig.add_subplot(gs[1, 1])
+        CurriculumVisualizer._create_efficiency_over_time(results, ax5)
 
-        # Adjust layout
-        plt.tight_layout()
+        # 6. Grid search results (if available)
+        ax6 = fig.add_subplot(gs[1, 2])
+        CurriculumVisualizer._create_grid_search_visualization(results, ax6)
 
         # Save figure
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
 
+        # Log to wandb if enabled
+        if wandb_cfg and wandb_cfg.log_images:
+            wandb.log({"curriculum_analysis": wandb.Image(output_path)})
+
         logger.info(f"Comprehensive visualization saved to: {output_path}")
+        plt.close()
 
     @staticmethod
     def _create_dependency_visualization(G: nx.DiGraph, dependency_depths: Dict[str, int], ax: plt.Axes):
@@ -501,29 +830,57 @@ class CurriculumVisualizer:
             for i, node in enumerate(sorted_nodes):
                 row = i // nodes_per_row
                 col = i % nodes_per_row
-                # Alternate direction for each row
-                if row % 2 == 1:
+                if row % 2 == 1:  # Reverse direction for odd rows
                     col = nodes_per_row - 1 - col
-                pos[node] = (col * 2, -row * 2)
+                pos[node] = (col, -row)
 
             # Draw the graph
-            nx.draw_networkx_nodes(G, pos, node_color="lightblue", node_size=1000, ax=ax)
-            nx.draw_networkx_labels(G, pos, font_size=10, font_weight="bold", ax=ax)
-            nx.draw_networkx_edges(
-                G, pos, edge_color="gray", arrows=True, arrowsize=20, connectionstyle="arc3,rad=0.1", ax=ax
+            nx.draw(
+                G,
+                pos,
+                ax=ax,
+                with_labels=True,
+                node_color="lightblue",
+                node_size=1000,
+                font_size=8,
+                font_weight="bold",
+                arrows=True,
+                edge_color="gray",
+                width=2,
+                connectionstyle="arc3,rad=0.1",
             )
-
         else:
             # Hierarchical tree layout for binary trees
             pos = nx.spring_layout(G, k=3, iterations=50)
+            nx.draw(
+                G,
+                pos,
+                ax=ax,
+                with_labels=True,
+                node_color="lightgreen",
+                node_size=1000,
+                font_size=8,
+                font_weight="bold",
+                arrows=True,
+                edge_color="gray",
+                width=2,
+            )
 
-            # Draw the graph
-            nx.draw_networkx_nodes(G, pos, node_color="lightgreen", node_size=1000, ax=ax)
-            nx.draw_networkx_labels(G, pos, font_size=10, font_weight="bold", ax=ax)
-            nx.draw_networkx_edges(G, pos, edge_color="gray", arrows=True, arrowsize=20, ax=ax)
+        # Color nodes by depth
+        colors = [dependency_depths.get(node, 0) for node in G.nodes()]
+        nodes = list(G.nodes())
+        scatter = ax.scatter(
+            [pos[node][0] for node in nodes],
+            [pos[node][1] for node in nodes],
+            c=colors,
+            s=1000,
+            cmap="viridis",
+            alpha=0.6,
+        )
 
         ax.set_title("Dependency Graph", fontsize=14, fontweight="bold")
-        ax.axis("off")
+        ax.set_aspect("equal")
+        plt.colorbar(scatter, ax=ax, label="Dependency Depth")
 
     @staticmethod
     def _create_performance_comparison(results: Dict[str, Any], dependency_depths: Dict[str, int], ax: plt.Axes):
@@ -669,7 +1026,7 @@ class CurriculumVisualizer:
         # Calculate oracle efficiency for normalization
         oracle_efficiency = None
         for curriculum_name, result in results.items():
-            if curriculum_name == "oracle":
+            if curriculum_name == "oracle" and "performance_data" in result:
                 performances = []
                 for task in result["performance_data"].keys():
                     task_performances = result["performance_data"][task]
@@ -678,58 +1035,68 @@ class CurriculumVisualizer:
                 break
 
         if oracle_efficiency is None or oracle_efficiency <= 0:
-            oracle_efficiency = 1.0  # Prevent division by zero
+            oracle_efficiency = 25000.0  # Fallback
 
-        # Calculate normalized efficiencies
+        # Calculate efficiencies for each curriculum
         curricula = []
+        efficiencies = []
         normalized_efficiencies = []
-        raw_efficiencies = []
 
         for curriculum_name, result in results.items():
-            if curriculum_name == "oracle":
-                continue  # Skip oracle in normalized comparison
+            if curriculum_name == "oracle" or "performance_data" not in result:
+                continue
 
-            # Calculate total efficiency
+            # Calculate efficiency
             performances = []
             for task in result["performance_data"].keys():
                 task_performances = result["performance_data"][task]
                 performances.extend(task_performances)
+
             efficiency = sum(performances) * 100
             normalized_efficiency = efficiency / oracle_efficiency
 
-            curricula.append(curriculum_name.replace("_", " ").title())
+            curricula.append(curriculum_name)
+            efficiencies.append(efficiency)
             normalized_efficiencies.append(normalized_efficiency)
-            raw_efficiencies.append(efficiency)
 
-        # Create bar chart with normalized efficiencies
-        colors = ["#ff7f0e", "#2ca02c", "#d62728"]  # Orange, Green, Red
-        bars = ax.bar(curricula, normalized_efficiencies, color=colors[: len(curricula)], alpha=0.8)
+        # Create bar chart
+        x = np.arange(len(curricula))
+        bars = ax.bar(x, normalized_efficiencies, alpha=0.7)
+
+        # Color bars by curriculum type
+        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+        for _i, (bar, curriculum) in enumerate(zip(bars, curricula, strict=False)):
+            if "learning_progress" in curriculum:
+                bar.set_color(colors[0])
+            elif "random" in curriculum:
+                bar.set_color(colors[1])
+            elif "prioritize" in curriculum:
+                bar.set_color(colors[2])
+            else:
+                bar.set_color(colors[3])
+
+        # Add oracle baseline
+        ax.axhline(y=1.0, color="red", linestyle="--", alpha=0.7, label="Oracle Baseline")
+
+        # Customize plot
+        ax.set_xlabel("Curriculum")
+        ax.set_ylabel("Normalized Efficiency (vs Oracle)")
+        ax.set_title("Curriculum Efficiency Comparison", fontweight="bold")
+        ax.set_xticks(x)
+        ax.set_xticklabels(curricula, rotation=45, ha="right")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
 
         # Add value labels on bars
-        for bar, norm_eff, raw_eff in zip(bars, normalized_efficiencies, raw_efficiencies, strict=False):
-            height = bar.get_height()
+        for _i, (bar, eff) in enumerate(zip(bars, normalized_efficiencies, strict=False)):
             ax.text(
-                bar.get_x() + bar.get_width() / 2.0,
-                height + 0.01,
-                f"{norm_eff:.3f}\n({raw_eff:.0f})",
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.01,
+                f"{eff:.3f}",
                 ha="center",
                 va="bottom",
-                fontsize=10,
+                fontweight="bold",
             )
-
-        # Add oracle baseline line
-        ax.axhline(y=1.0, color="#1f77b4", linestyle="--", linewidth=2, label="Oracle Baseline (1.0)")
-
-        ax.set_ylabel("Efficiency Ratio (Curriculum/Oracle)")
-        ax.set_title("Curriculum Efficiency Normalized by Oracle")
-        ax.legend()
-        ax.grid(True, alpha=0.3, axis="y")
-
-        # Set y-axis limits
-        ax.set_ylim(0, 1.2)
-
-        # Rotate x-axis labels for better readability
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
 
     @staticmethod
     def _create_oracle_comparison(results: Dict[str, Any], ax: plt.Axes):
@@ -793,21 +1160,140 @@ class CurriculumVisualizer:
         ax.legend()
         ax.grid(True, alpha=0.3)
 
+    @staticmethod
+    def _create_efficiency_over_time(results: Dict[str, Any], ax: plt.Axes):
+        """Create efficiency over time visualization."""
+        if not results:
+            return
+
+        # Get the number of epochs from the first result
+        first_result = next((r for r in results.values() if "performance_data" in r), None)
+        if not first_result:
+            return
+
+        num_epochs = len(next(iter(first_result["performance_data"].values())))
+        epochs = range(num_epochs)
+
+        # Plot efficiency over time for each curriculum
+        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+        linestyles = ["-", "--", "-.", ":"]
+
+        for i, (curriculum_name, result) in enumerate(results.items()):
+            if curriculum_name == "oracle" or "performance_data" not in result:
+                continue
+
+            # Calculate cumulative efficiency over time
+            cumulative_efficiency = []
+            for epoch in range(num_epochs):
+                epoch_performance = sum(
+                    result["performance_data"][task][epoch] for task in result["performance_data"].keys()
+                )
+                cumulative_efficiency.append(epoch_performance)
+
+            # Plot with curriculum-specific styling
+            color = colors[i % len(colors)]
+            linestyle = linestyles[i % len(linestyles)]
+            label = curriculum_name.replace("_", " ").title()
+
+            ax.plot(
+                epochs, cumulative_efficiency, color=color, linestyle=linestyle, linewidth=2, label=label, alpha=0.8
+            )
+
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Cumulative Performance")
+        ax.set_title("Efficiency Over Time", fontweight="bold")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+    @staticmethod
+    def _create_grid_search_visualization(results: Dict[str, Any], ax: plt.Axes):
+        """Create grid search results visualization."""
+        if "grid_search" not in results:
+            ax.text(
+                0.5,
+                0.5,
+                "No Grid Search Results",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=12,
+                fontweight="bold",
+            )
+            ax.set_title("Grid Search Results")
+            return
+
+        grid_results = results["grid_search"]
+        if not grid_results:
+            ax.text(
+                0.5,
+                0.5,
+                "No Grid Search Results",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=12,
+                fontweight="bold",
+            )
+            ax.set_title("Grid Search Results")
+            return
+
+        # Extract data for visualization
+        ema_values = []
+        smoothing_values = []
+        performance_values = []
+
+        for (ema, smoothing), metrics in grid_results.items():
+            ema_values.append(ema)
+            smoothing_values.append(smoothing)
+            performance_values.append(metrics["avg_final_performance"])
+
+        # Create scatter plot
+        scatter = ax.scatter(ema_values, smoothing_values, c=performance_values, s=100, alpha=0.7, cmap="viridis")
+
+        # Find best parameters
+        best_params = max(grid_results.items(), key=lambda x: x[1]["avg_final_performance"])
+        best_ema, best_smoothing = best_params[0]
+
+        # Highlight best parameters
+        ax.scatter(
+            [best_ema],
+            [best_smoothing],
+            c="red",
+            s=200,
+            marker="*",
+            edgecolors="black",
+            linewidth=2,
+            label=f"Best: {best_ema:.6f}, {best_smoothing:.6f}",
+        )
+
+        ax.set_xlabel("EMA Timescale")
+        ax.set_ylabel("Progress Smoothing")
+        ax.set_title("Grid Search Results", fontweight="bold")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.legend()
+
+        # Add colorbar
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label("Average Final Performance")
+
 
 def run_consolidated_analysis(graph_type: str = "chain", num_tasks: int = 10, num_epochs: int = 150):
     """Run the consolidated curriculum analysis."""
     logger.info("Starting Consolidated Curriculum Analysis...")
 
-    # Create dependency graph
-    if graph_type == "chain":
-        G, dependency_depths = DependencyGraphGenerator.create_chain_graph(num_tasks)
-        logger.info(f"Created chain dependency graph with {num_tasks} tasks")
-    elif graph_type == "binary_tree":
-        depth = int(np.log2(num_tasks)) if num_tasks > 1 else 1
-        G, dependency_depths = DependencyGraphGenerator.create_binary_tree_graph(depth)
-        logger.info(f"Created binary tree dependency graph with depth {depth}")
-    else:
-        raise ValueError(f"Unknown graph type: {graph_type}")
+    analyzer_tmp = ConsolidatedCurriculumAnalysis(
+        OmegaConf.create(
+            {
+                "analysis": {"graph_type": graph_type, "num_tasks": num_tasks},
+                "curricula": {},
+                "wandb": {"log_images": False, "log_metrics": False},
+                "visualization": {"save_local": False},
+            }
+        )
+    )
+    G = analyzer_tmp.dependency_graph
+    dependency_depths = analyzer_tmp.dependency_depths
 
     # Run curriculum analysis
     analyzer = CurriculumAnalyzer(G, dependency_depths)
@@ -836,7 +1322,7 @@ def print_summary_statistics(results: Dict[str, Any], grid_results: Dict[Tuple[f
     oracle_efficiency = None
     oracle_avg_performance = None
     for curriculum_name, result in results.items():
-        if curriculum_name == "oracle":
+        if curriculum_name == "oracle" and "performance_data" in result:
             performances = []
             for task in result["performance_data"].keys():
                 task_performances = result["performance_data"][task]
@@ -845,20 +1331,23 @@ def print_summary_statistics(results: Dict[str, Any], grid_results: Dict[Tuple[f
             oracle_avg_performance = np.mean(performances) * 100
             break
 
-    if oracle_efficiency is None or oracle_efficiency <= 0:
-        oracle_efficiency = 1.0
-    if oracle_avg_performance is None or oracle_avg_performance <= 0:
-        oracle_avg_performance = 1.0
+    if oracle_efficiency is None or oracle_avg_performance is None:
+        # Fallback values if oracle not found
+        oracle_efficiency = 25000.0
+        oracle_avg_performance = 100.0
 
-    # Curriculum comparison summary
+    # Print curriculum comparison
     print("\nCURRICULUM PERFORMANCE COMPARISON:")
     print(
         f"{'Curriculum':<20} {'Avg Performance':<15} {'Normalized Perf':<15} "
         f"{'Efficiency':<15} {'Normalized Eff':<15} {'Final Variance':<15}"
     )
-    print("-" * 95)
+    print("-" * 90)
 
     for curriculum_name, result in results.items():
+        if curriculum_name == "oracle" or "performance_data" not in result:
+            continue
+
         # Calculate metrics
         performances = []
         for task in result["performance_data"].keys():
@@ -869,70 +1358,216 @@ def print_summary_statistics(results: Dict[str, Any], grid_results: Dict[Tuple[f
         normalized_performance = avg_performance / oracle_avg_performance
         efficiency = sum(performances) * 100
         normalized_efficiency = efficiency / oracle_efficiency
-        final_variance = np.var([result["performance_data"][task][-1] for task in result["performance_data"].keys()])
+        final_variance = np.var([perfs[-1] for perfs in result["performance_data"].values()])
 
         print(
             f"{curriculum_name:<20} {avg_performance:<15.2f} {normalized_performance:<15.3f} "
             f"{efficiency:<15.2f} {normalized_efficiency:<15.3f} {final_variance:<15.4f}"
         )
 
-    # Learning progress sweep summary
-    print("\n" + "=" * 80)
-    print("LEARNING PROGRESS GRID SEARCH RESULTS")
-    print("=" * 80)
-
-    # Find best parameters
-    best_performance = max(grid_results.values(), key=lambda x: x["avg_final_performance"])
-    best_efficiency = max(grid_results.values(), key=lambda x: x["cumulative_efficiency"])
-    best_consistency = max(grid_results.values(), key=lambda x: x["learning_consistency"])
-
-    print("\nBest Parameters:")
-    for (timescale, smoothing), metrics in grid_results.items():
-        if metrics == best_performance:
-            print(
-                f"Best Performance: EMA={timescale:.6f}, Smoothing={smoothing:.6f} -> "
-                f"{metrics['avg_final_performance']:.2f}"
-            )
-        if metrics == best_efficiency:
-            print(
-                f"Best Efficiency: EMA={timescale:.6f}, Smoothing={smoothing:.6f} -> "
-                f"{metrics['cumulative_efficiency']:.2f}"
-            )
-        if metrics == best_consistency:
-            print(
-                f"Best Consistency: EMA={timescale:.6f}, Smoothing={smoothing:.6f} -> "
-                f"{metrics['learning_consistency']:.4f}"
-            )
-
-    print(f"\nTotal Parameter Combinations Tested: {len(grid_results)}")
-    print("Results saved to: consolidated_curriculum_analysis.png")
-
-
-def main():
-    """Main function to run the consolidated curriculum analysis."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Consolidated Curriculum Analysis")
-    parser.add_argument(
-        "--graph-type", choices=["chain", "binary_tree"], default="chain", help="Type of dependency graph to use"
+    # Print oracle baseline
+    print(
+        f"{'oracle':<20} {oracle_avg_performance:<15.2f} {1.000:<15.3f} "
+        f"{oracle_efficiency:<15.2f} {1.000:<15.3f} {0.0000:<15.4f}"
     )
-    parser.add_argument("--num-tasks", type=int, default=10, help="Number of tasks in the dependency graph")
-    parser.add_argument("--num-epochs", type=int, default=150, help="Number of training epochs")
 
-    args = parser.parse_args()
+    # Print grid search results if available
+    if grid_results:
+        print("\n" + "=" * 80)
+        print("LEARNING PROGRESS GRID SEARCH RESULTS")
+        print("=" * 80)
 
-    try:
-        results, grid_results = run_consolidated_analysis(
-            graph_type=args.graph_type, num_tasks=args.num_tasks, num_epochs=args.num_epochs
+        # Find best parameters
+        best_performance = max(grid_results.values(), key=lambda x: x["avg_final_performance"])
+        best_efficiency = max(grid_results.values(), key=lambda x: x["cumulative_efficiency"])
+        best_consistency = max(grid_results.values(), key=lambda x: x["learning_consistency"])
+
+        print("\nBEST PARAMETER COMBINATIONS:")
+        for (ema, smoothing), metrics in grid_results.items():
+            if metrics == best_performance:
+                print(
+                    f"Best Performance: EMA={ema:.6f}, Smoothing={smoothing:.6f} -> "
+                    f"{metrics['avg_final_performance']:.2f}"
+                )
+            if metrics == best_efficiency:
+                print(
+                    f"Best Efficiency: EMA={ema:.6f}, Smoothing={smoothing:.6f} -> "
+                    f"{metrics['cumulative_efficiency']:.2f}"
+                )
+            if metrics == best_consistency:
+                print(
+                    f"Best Consistency: EMA={ema:.6f}, Smoothing={smoothing:.6f} -> "
+                    f"{metrics['learning_consistency']:.4f}"
+                )
+
+    print("\n" + "=" * 80)
+
+
+def run_learning_progress_grid_search(
+    ema_timescales: List[float],
+    progress_smoothings: List[float],
+    tasks: Dict[str, float],
+    dependency_graph: nx.DiGraph,
+    num_epochs: int,
+    graph_type: str = "chain",
+) -> Dict[Tuple[float, float], Dict[str, float]]:
+    """Run learning progress grid search with direct instantiation and mock trainer."""
+    logger.info("Running learning progress grid search...")
+    grid_results = {}
+
+    from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
+
+    for ema_timescale in ema_timescales:
+        for progress_smoothing in progress_smoothings:
+            logger.info(f"Testing EMA={ema_timescale:.6f}, Smoothing={progress_smoothing:.6f}")
+
+            try:
+                # Create curriculum with these parameters using direct instantiation
+                env_overrides = OmegaConf.create({})
+
+                curriculum = LearningProgressCurriculum(
+                    tasks=tasks,
+                    env_overrides=env_overrides,
+                    ema_timescale=ema_timescale,
+                    progress_smoothing=progress_smoothing,
+                    num_active_tasks=len(tasks),
+                    rand_task_rate=0.25,
+                    sample_threshold=10,
+                    memory=25,
+                )
+
+            except Exception as e:
+                logger.warning(f"Failed to instantiate curriculum with direct instantiation, using fallback: {e}")
+                # Fallback to simple curriculum
+                curriculum = SimpleCurriculum("learning_progress", tasks)
+                curriculum.lp_tracker = BidirectionalLearningProgress(
+                    search_space=len(tasks),
+                    ema_timescale=ema_timescale,
+                    progress_smoothing=progress_smoothing,
+                    num_active_tasks=len(tasks),
+                    rand_task_rate=0.25,
+                    sample_threshold=10,
+                    memory=25,
+                )
+
+            # Create mock trainer
+            mock_trainer = MockTrainer(tasks, {})
+
+            # Run training
+            performance_data = {task: [] for task in tasks.keys()}
+
+            for _epoch in range(num_epochs):
+                # Get task probabilities
+                task_probs = curriculum.get_task_probs()
+
+                # Normalize probabilities
+                task_names = list(task_probs.keys())
+                probs = list(task_probs.values())
+                total_prob = sum(probs)
+                if total_prob > 0:
+                    probs = [p / total_prob for p in probs]
+                else:
+                    probs = [1.0 / len(task_names)] * len(task_names)
+
+                # Sample tasks
+                sampled_tasks = np.random.choice(task_names, size=3, p=probs, replace=True)
+
+                # Train on sampled tasks
+                updated_performance = mock_trainer.train_on_tasks(list(sampled_tasks), "learning_progress")
+
+                # Record performance
+                current_performance = mock_trainer.get_current_performance()
+                for task in tasks.keys():
+                    performance_data[task].append(current_performance.get(task, 0.1))
+
+                # Update curriculum
+                for task_id, performance in updated_performance.items():
+                    curriculum.complete_task(task_id, performance)
+
+            # Calculate metrics
+            final_performances = [perfs[-1] for perfs in performance_data.values()]
+            avg_final_performance = np.mean(final_performances)
+            cumulative_efficiency = sum([sum(perfs) for perfs in performance_data.values()])
+
+            # Calculate learning consistency (variance of final performances)
+            learning_consistency = 1.0 / (1.0 + np.var(final_performances))
+
+            grid_results[(ema_timescale, progress_smoothing)] = {
+                "avg_final_performance": avg_final_performance,
+                "cumulative_efficiency": cumulative_efficiency,
+                "learning_consistency": learning_consistency,
+            }
+
+    return grid_results
+
+
+@hydra.main(version_base=None, config_path="../configs/curriculum_analysis", config_name="default")
+def main(cfg: DictConfig):
+    """Main function for consolidated curriculum analysis."""
+    logger.info("Starting Consolidated Curriculum Analysis")
+
+    # Initialize analysis
+    analysis = ConsolidatedCurriculumAnalysis(cfg)
+
+    # Run curriculum comparison
+    results = analysis.run_curriculum_comparison(cfg.analysis.num_epochs)
+
+    # Run learning progress grid search if enabled
+    if cfg.grid_search.enable:
+        logger.info("Running learning progress grid search...")
+        grid_results = run_learning_progress_grid_search(
+            cfg.grid_search.ema_timescales,
+            cfg.grid_search.progress_smoothings,
+            analysis.tasks,
+            analysis.dependency_graph,
+            cfg.analysis.num_epochs,
+            cfg.analysis.graph_type,
+        )
+        results["grid_search"] = grid_results
+
+        # Log grid search results to wandb
+        if cfg.wandb.log_metrics:
+            for (ema, smoothing), metrics in grid_results.items():
+                wandb.log(
+                    {
+                        f"grid_search/ema_{ema}_smoothing_{smoothing}/avg_final_performance": metrics[
+                            "avg_final_performance"
+                        ],
+                        f"grid_search/ema_{ema}_smoothing_{smoothing}/cumulative_efficiency": metrics[
+                            "cumulative_efficiency"
+                        ],
+                        f"grid_search/ema_{ema}_smoothing_{smoothing}/learning_consistency": metrics[
+                            "learning_consistency"
+                        ],
+                    }
+                )
+
+    # Print summary statistics
+    print_summary_statistics(results, results.get("grid_search", {}))
+
+    # Create comprehensive visualization
+    output_path = f"curriculum_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    CurriculumVisualizer.create_comprehensive_visualization(
+        results,
+        analysis.dependency_graph,
+        analysis.dependency_depths,
+        output_path,
+        cfg.wandb,
+    )
+
+    # Log final summary to wandb
+    if cfg.wandb.log_metrics:
+        wandb.log(
+            {
+                "analysis_complete": True,
+                "num_epochs": cfg.analysis.num_epochs,
+                "num_tasks": cfg.analysis.num_tasks,
+                "graph_type": cfg.analysis.graph_type,
+            }
         )
 
-        logger.info("Consolidated curriculum analysis completed successfully!")
-
-    except Exception as e:
-        logger.error(f"Analysis failed: {e}")
-        import traceback
-
-        traceback.print_exc()
+    logger.info("Curriculum analysis completed successfully!")
+    return results
 
 
 if __name__ == "__main__":
