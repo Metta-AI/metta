@@ -50,7 +50,7 @@ def check_git_state(commit_hash: str) -> str | None:
         error_lines.append("Options:")
         error_lines.append("  - Commit: git add -u && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
-        error_lines.append("\nDebug:\n" + status_output)  # optional
+        error_lines.append("\nDebug:\n" + status_output)
         return "\n".join(error_lines)
 
     if not is_commit_pushed(commit_hash):
