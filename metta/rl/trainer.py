@@ -412,7 +412,10 @@ def train(
                             optimizer.step()
 
                             # Optional weight clipping
-                            policy.policy.clip_weights()
+                            try:
+                                policy.policy.clip_weights()
+                            except Exception as e:
+                                pass
 
                             if device.type == "cuda":
                                 torch.cuda.synchronize()

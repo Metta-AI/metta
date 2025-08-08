@@ -6,6 +6,7 @@ import numpy as np
 from omegaconf import OmegaConf, DictConfig
 
 from metta.agent.metta_agent import MettaAgent, ComponentPolicy
+from metta.agent.pytorch.agent_mapper import agent_classes
 
 logger = logging.getLogger("metta_agent_builder")
 
@@ -57,6 +58,22 @@ class MettaAgentBuilder:
         Raises:
             RuntimeError: If agent construction fails.
         """
+        # Check if agent_cfg specifies a pytorch agent type
+        if "agent_type" in self.agent_cfg and self.agent_cfg.agent_type in agent_classes:
+            AgentClass = agent_classes[self.agent_cfg.agent_type]
+            agent = AgentClass(env=self.env)
+            logger.info(f"Using Pytorch Policy: {agent} (type: {self.agent_cfg.agent_type})")
+            return MettaAgent(
+                obs_space=self.obs_space,
+                obs_width=self.env.obs_width,
+                obs_height=self.env.obs_height,
+                action_space=self.env.single_action_space,
+                feature_normalizations=self.env.feature_normalizations,
+                device="cpu",
+                cfg=self.agent_cfg,
+                policy=agent
+            )
+
         try:
             policy = policy or ComponentPolicy()
 

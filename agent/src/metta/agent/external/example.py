@@ -30,6 +30,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
     ):
         self.activate_actions(action_names, action_max_params, device)
 
+
     def activate_actions(self, action_names, action_max_params, device):
         """
         Initialize the action space, similar to MettaAgent.activate_actions.
@@ -146,6 +147,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             value,  # Keep value as [B*TT, 1] which should be [B, 1] when TT=1
             logits_list,
         )
+
+
 
 
 class Policy(nn.Module):
@@ -304,4 +307,6 @@ class Policy(nn.Module):
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
+
+
 

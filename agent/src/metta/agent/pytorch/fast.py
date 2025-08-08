@@ -209,13 +209,15 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         selected_action_log_probs = torch.stack(selected_action_log_probs, dim=-1)
         entropy = torch.stack(entropies, dim=-1).sum(-1)
 
-        return (
-            torch.zeros(actions_tensor.shape).to(dtype=torch.int32),
-            selected_action_log_probs.mean(dim=-1),
-            entropy,
-            value,
-            logits_list,
-        )
+        td = {
+            "env_obs": observations,
+            "actions": torch.zeros(actions_tensor.shape).to(dtype=torch.int32),
+            "act_log_prob": selected_action_log_probs.mean(dim=-1),
+            "value": value,
+            "entropy": entropy,
+            "full_log_probs": logits_list,
+        }
+        return td
 
 
 class Policy(nn.Module):
@@ -306,6 +308,7 @@ class Policy(nn.Module):
         Returns:
             hidden: Encoded representation, shape (B * TT, hidden_size)
         """
+
         observations = observations.to(self.device)
         token_observations = observations
         B = token_observations.shape[0]

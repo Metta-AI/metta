@@ -16,7 +16,6 @@ from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
-# from metta.agent.policy_base import PolicyBase
 
 
 from typing import Dict
@@ -65,6 +64,8 @@ class ComponentPolicy(nn.Module):
 
         return output_td
 
+
+
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Inference mode - sample actions and store them in td."""
         value = td["_value_"]
@@ -89,6 +90,7 @@ class ComponentPolicy(nn.Module):
         td["act_log_prob"] = action_log_prob
         td["values"] = value.flatten()
         td["full_log_probs"] = full_log_probs
+
 
         return td
 
@@ -183,9 +185,12 @@ class MettaAgent(nn.Module):
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
         if isinstance(self.policy, ComponentPolicy):
+
             return self.policy.forward(obs, action)
 
-        return self.policy(obs, state, action)
+        logger.info(f"Obervation: {obs['env_obs'].shape}")
+
+        return self.policy(obs['env_obs'], state, action)
 
 
     def initialize_to_environment(self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device, is_training: bool = True):
@@ -201,8 +206,6 @@ class MettaAgent(nn.Module):
 
 
     def activate_policy(self):
-        logger.info(f"Config are: {self.cfg}")
-
         # self.hidden_size = self.cfg.components._core_.output_size
         # self.core_num_layers = self.cfg.components._core_.nn_params.num_layers
         self.clip_range = self.cfg.clip_range
@@ -255,6 +258,8 @@ class MettaAgent(nn.Module):
             if component.has_memory():
                 self.components_with_memory.append(name)
 
+        # logger.info(f"Components with memory: {self.components_with_memory}")
+
         # check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
         if duplicate_names := duplicates(all_names):
@@ -269,13 +274,15 @@ class MettaAgent(nn.Module):
 
 
     def reset_memory(self):
-        for name in self.components_with_memory:
-            self.components[name].reset_memory()
+        if isinstance(self.policy, ComponentPolicy):
+            for name in self.components_with_memory:
+                self.components[name].reset_memory()
 
     def get_memory(self):
         memory = {}
-        for name in self.components_with_memory:
-            memory[name] = self.components[name].get_memory()
+        if isinstance(self.policy, ComponentPolicy):
+            for name in self.components_with_memory:
+                memory[name] = self.components[name].get_memory()
         return memory
 
     def get_agent_experience_spec(self) -> Composite:
