@@ -85,3 +85,6 @@ sweep_id
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
+
+# A/B test results
+ab_test_results/
