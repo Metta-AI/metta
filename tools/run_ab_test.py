@@ -36,23 +36,46 @@ def load_experiment_from_file(file_path: str) -> Any:
     # Look for experiment creation functions
     experiment = None
 
-    # Try common function names
-    for func_name in ["create_experiment", "get_experiment", "experiment"]:
-        if hasattr(module, func_name):
-            func = getattr(module, func_name)
+    # Try functions that start with 'create_' and end with '_experiment' first (most specific)
+    for attr_name in dir(module):
+        if attr_name.startswith("create_") and attr_name.endswith("_experiment"):
+            func = getattr(module, attr_name)
             if callable(func):
-                experiment = func()
-                break
+                try:
+                    experiment = func()
+                    break
+                except Exception:
+                    # Silently continue to next function
+                    continue
+
+    # Try common function names (but not the imported create_experiment function)
+    if experiment is None:
+        for func_name in ["get_experiment", "experiment"]:
+            if hasattr(module, func_name):
+                func = getattr(module, func_name)
+                if callable(func):
+                    try:
+                        experiment = func()
+                        break
+                    except Exception:
+                        # Silently continue to next function
+                        continue
 
     # If no function found, look for a variable named 'experiment'
     if experiment is None and hasattr(module, "experiment"):
         experiment = module.experiment
 
     if experiment is None:
+        # List available functions for debugging
+        available_functions = [
+            name for name in dir(module) if callable(getattr(module, name)) and not name.startswith("_")
+        ]
         raise ValueError(
             f"No experiment found in {file_path}. "
-            f"Expected a function named 'create_experiment', 'get_experiment', or 'experiment', "
-            f"or a variable named 'experiment'."
+            f"Expected a function named 'create_experiment', 'get_experiment', 'experiment', "
+            f"or a function starting with 'create_' and ending with '_experiment', "
+            f"or a variable named 'experiment'. "
+            f"Available functions: {available_functions}"
         )
 
     return experiment
@@ -88,6 +111,13 @@ Examples:
     parser.add_argument("--no-retry", action="store_true", help="Don't retry failed runs")
 
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+
+    # SkyPilot cloud execution options
+    parser.add_argument("--skypilot", action="store_true", help="Use SkyPilot for cloud execution")
+    parser.add_argument("--gpus", type=int, help="Number of GPUs for SkyPilot (default: 1)")
+    parser.add_argument("--cpus", type=int, help="Number of CPUs for SkyPilot")
+    parser.add_argument("--no-spot", action="store_true", help="Use on-demand instances (no spot)")
+    parser.add_argument("--max-runtime-hours", type=int, help="Maximum runtime in hours for SkyPilot jobs")
 
     args = parser.parse_args()
 
@@ -128,6 +158,11 @@ Examples:
             parallel_runs=args.parallel,
             max_parallel_runs=args.max_parallel,
             retry_failed_runs=not args.no_retry,
+            use_skypilot=args.skypilot,
+            skypilot_gpus=args.gpus,
+            skypilot_cpus=args.cpus,
+            skypilot_no_spot=args.no_spot,
+            skypilot_max_runtime_hours=args.max_runtime_hours,
         )
 
         # Display results summary

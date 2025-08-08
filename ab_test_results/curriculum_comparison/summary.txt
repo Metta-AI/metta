@@ -1,0 +1,188 @@
+A/B Test Experiment Summary
+==========================
+
+Experiment: curriculum_comparison
+Description: Learning Progress vs Prioritized Regressed Curriculum
+Date: 2025-08-08
+WandB Project: ab_test_curriculum_comparison_2025-08-08
+
+Variant: learning_progress
+  Successful runs: 0/5
+  Failed runs: 5/5
+  Failed run errors:
+    learning_progress_run_1: Training failed with return code 1
+Stderr: W0808 11:11:48.515000 15040 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    learning_progress_run_2: Training failed with return code 1
+Stderr: W0808 11:11:54.208000 15065 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    learning_progress_run_3: Training failed with return code 1
+Stderr: W0808 11:11:56.868000 15081 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    learning_progress_run_4: Training failed with return code 1
+Stderr: W0808 11:11:59.451000 15086 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    learning_progress_run_5: Training failed with return code 1
+Stderr: W0808 11:12:02.061000 15096 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+
+Variant: prioritized_regressed
+  Successful runs: 0/5
+  Failed runs: 5/5
+  Failed run errors:
+    prioritized_regressed_run_1: Training failed with return code 1
+Stderr: W0808 11:12:04.547000 15101 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    prioritized_regressed_run_2: Training failed with return code 1
+Stderr: W0808 11:12:07.071000 15111 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    prioritized_regressed_run_3: Training failed with return code 1
+Stderr: W0808 11:12:09.580000 15117 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    prioritized_regressed_run_4: Training failed with return code 1
+Stderr: W0808 11:12:12.079000 15127 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+    prioritized_regressed_run_5: Training failed with return code 1
+Stderr: W0808 11:12:14.603000 15132 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Traceback (most recent call last):
+  File "/Users/bullm/Documents/GitHub/metta/tools/train.py", line 193, in <module>
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+  File "/Users/bullm/Documents/GitHub/metta/metta/util/metta_script.py", line 133, in metta_script
+    configured_main()
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/_internal/utils.py", line 335, in _run_hydra
+    validate_config_path(config_path)
+  File "/Users/bullm/Documents/GitHub/metta/.venv/lib/python3.11/site-packages/hydra/core/utils.py", line 293, in validate_config_path
+    raise ValueError(msg)
+ValueError: Using config_path to specify the config name is not supported, specify the config name via config_name.
+See https://hydra.cc/docs/1.2/upgrades/0.11_to_1.0/config_path_changes
+
+
+

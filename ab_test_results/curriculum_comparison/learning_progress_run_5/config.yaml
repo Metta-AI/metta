@@ -1,0 +1,23 @@
+defaults:
+- /common
+- /agent/fast
+- /trainer/trainer
+- /sim/all
+total_timesteps: 1000000000
+trainer__num_workers: 4
+trainer__simulation__evaluate_interval: 100
+trainer__checkpoint__wandb_checkpoint_interval: 100
+trainer__curriculum: /env/mettagrid/curriculum/navigation/learning_progress
+run: learning_progress_run_5
+run_dir: ab_test_results/curriculum_comparison/learning_progress_run_5
+wandb:
+  enabled: true
+  project: ab_test_curriculum_comparison_2025-08-08
+  entity: metta-research
+  group: curriculum_comparison
+  name: learning_progress_run_5
+  run_id: learning_progress_run_5
+  tags:
+  - variant:learning_progress
+  notes: 'Variant: learning_progress - Learning progress curriculum for navigation
+    tasks'

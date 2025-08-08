@@ -43,8 +43,6 @@ class ABExperiment:
             raise ValueError("Experiment name cannot be empty")
         if not self.description:
             raise ValueError("Experiment description cannot be empty")
-        if len(self.variants) < 2:
-            raise ValueError("Experiment must have at least 2 variants")
         if self.runs_per_variant < 1:
             raise ValueError("runs_per_variant must be at least 1")
 
@@ -55,6 +53,11 @@ class ABExperiment:
         # Auto-generate wandb project name if not provided
         if self.wandb_project is None:
             self.wandb_project = f"ab_test_{self.name}_{self.date}"
+
+    def validate(self):
+        """Validate the complete experiment configuration."""
+        if len(self.variants) < 2:
+            raise ValueError("Experiment must have at least 2 variants")
 
     def add_variant(self, variant: ABVariant) -> None:
         """Add a variant to the experiment."""
@@ -77,6 +80,13 @@ class ABTestConfig:
     max_parallel_runs: int = 4
     retry_failed_runs: bool = True
     max_retries: int = 3
+
+    # SkyPilot cloud execution options
+    use_skypilot: bool = False
+    skypilot_gpus: Optional[int] = None
+    skypilot_cpus: Optional[int] = None
+    skypilot_no_spot: bool = False
+    skypilot_max_runtime_hours: Optional[int] = None
 
     def __post_init__(self):
         """Validate configuration."""
@@ -118,6 +128,7 @@ class ExperimentBuilder:
 
     def build(self) -> ABExperiment:
         """Build and return the experiment."""
+        self.experiment.validate()
         return self.experiment
 
 

@@ -49,8 +49,11 @@ experiment = create_my_experiment()
 ### 2. Run the Experiment
 
 ```bash
-# Run the experiment
+# Run the experiment locally
 python tools/run_ab_test.py my_experiment.py
+
+# Run on SkyPilot cloud
+python tools/run_ab_test.py my_experiment.py --skypilot --gpus 2 --max-runtime-hours 8
 
 # Dry run to see configuration
 python tools/run_ab_test.py my_experiment.py --dry-run
@@ -165,6 +168,13 @@ Options:
   --max-parallel N       Maximum parallel runs (default: 4)
   --no-retry             Don't retry failed runs
   --verbose, -v          Enable verbose logging
+
+SkyPilot Cloud Options:
+  --skypilot             Use SkyPilot for cloud execution
+  --gpus N               Number of GPUs for SkyPilot (default: 1)
+  --cpus N               Number of CPUs for SkyPilot
+  --no-spot              Use on-demand instances (no spot)
+  --max-runtime-hours N  Maximum runtime in hours for SkyPilot jobs
 ```
 
 ## Advanced Usage

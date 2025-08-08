@@ -83,10 +83,19 @@ class ABTestRunner:
         wandb_run_id = None
 
         try:
-            # Run training using the existing train.py script
-            cmd = ["python", "tools/train.py", "--config-path", str(config_path), "--config-name", "config"]
+            if self.config.use_skypilot:
+                # Use SkyPilot for cloud execution
+                cmd = self._build_skypilot_command(variant, run_name, config_path)
+                logger.debug(f"Executing SkyPilot command: {' '.join(cmd)}")
+            else:
+                # Use local execution - pass config overrides as command-line arguments
+                cmd = ["python", "tools/train.py"]
 
-            logger.debug(f"Executing command: {' '.join(cmd)}")
+                # Add configuration overrides from the generated config
+                for key, value in self._flatten_config(config).items():
+                    cmd.append(f"{key}={value}")
+
+                logger.debug(f"Executing local command: {' '.join(cmd)}")
 
             result = subprocess.run(
                 cmd,
@@ -126,6 +135,30 @@ class ABTestRunner:
             "run_dir": str(run_dir),
         }
 
+    def _build_skypilot_command(self, variant: ABVariant, run_name: str, config_path: Path) -> List[str]:
+        """Build SkyPilot launch command for cloud execution."""
+        cmd = [
+            "./devops/skypilot/launch.py",
+            "train",
+            f"run={run_name}",
+        ]
+
+        # Add SkyPilot-specific options
+        if self.config.skypilot_gpus:
+            cmd.extend(["--gpus", str(self.config.skypilot_gpus)])
+        if self.config.skypilot_cpus:
+            cmd.extend(["--cpus", str(self.config.skypilot_cpus)])
+        if self.config.skypilot_no_spot:
+            cmd.append("--no-spot")
+        if self.config.skypilot_max_runtime_hours:
+            cmd.extend(["--max-runtime-hours", str(self.config.skypilot_max_runtime_hours)])
+
+        # Add configuration overrides from the variant
+        for key, value in variant.overrides.items():
+            cmd.append(f"{key}={value}")
+
+        return cmd
+
     def _create_run_config(self, variant: ABVariant, run_name: str) -> DictConfig:
         """Create the configuration for a single run."""
         # Start with base configuration
@@ -154,10 +187,52 @@ class ABTestRunner:
 
         return OmegaConf.create(config_dict)
 
+    def _flatten_config(self, config: DictConfig) -> Dict[str, Any]:
+        """Flatten a nested configuration into key=value pairs for command line."""
+        flattened = {}
+
+        def _flatten_dict(d: Any, prefix: str = "") -> None:
+            if isinstance(d, dict):
+                for key, value in d.items():
+                    new_prefix = f"{prefix}.{key}" if prefix else key
+                    _flatten_dict(value, new_prefix)
+            elif isinstance(d, list):
+                # Handle lists by converting to string representation
+                flattened[prefix] = str(d)
+            else:
+                # Convert value to string for command line
+                flattened[prefix] = str(d)
+
+        # Convert DictConfig to dict first
+        config_dict = OmegaConf.to_container(config, resolve=True)
+        _flatten_dict(config_dict)
+
+        # Handle special Hydra keys that need + prefix
+        special_keys = ["defaults"]
+        for key in special_keys:
+            if key in flattened:
+                value = flattened.pop(key)
+                flattened[f"+{key}"] = value
+
+        # Convert underscores to dots for nested keys (e.g., trainer__total_timesteps -> trainer.total_timesteps)
+        converted = {}
+        for key, value in flattened.items():
+            if "__" in key:
+                converted[key.replace("__", ".")] = value
+            else:
+                converted[key] = value
+
+        return converted
+
     def _apply_overrides(self, config: Dict, overrides: Dict[str, Any]) -> None:
         """Apply overrides to the configuration dictionary."""
         for key, value in overrides.items():
-            keys = key.split(".")
+            # Handle both dot notation (trainer.total_timesteps) and underscore notation (trainer__total_timesteps)
+            if "__" in key:
+                keys = key.split("__")
+            else:
+                keys = key.split(".")
+
             current = config
 
             # Navigate to the parent of the target key
