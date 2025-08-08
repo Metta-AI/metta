@@ -90,11 +90,18 @@ def read_replay_map(input, step):
 
 def read_ascii_map(input):
     width = input.find(b"\n")
-    if width == -1:
-        raise ValueError()
+    if width <= 1:
+        raise ValueError("Failed to detect the ascii map width.")
 
-    width1 = width + 1  # Account for the /n on each line
-    height = int((len(input) + 1) / width1)  # Assume it's missing a trailing newline
+    input_len = len(input)
+    newline_width = 2 if chr(input[width - 1]) == "\r" else 1
+    trailing_newline = 0 if chr(input[input_len - 1]) == "\n" else newline_width
+
+    width1 = width + newline_width
+    height_f = (input_len + trailing_newline) / width1
+    height = int(height_f)
+    if height != height_f:  # All rows are complete when height_f is *.0
+        raise ValueError("Failed to detect the ascii map height.")
 
     nodes = [0] * (width * height)
     num_nodes = 0
