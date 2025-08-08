@@ -388,7 +388,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [softmax, external, cloud]
+        profile: [softmax, external, cloud, softmax-docker]
     env:
       METTA_TEST_ENV: 1
       AWS_SSO_NONINTERACTIVE: 1

@@ -25,13 +25,14 @@ dev:
 
 test:
 	@echo "Running python tests with coverage"
-	uv run  --active metta test --cov=metta --cov-report=term-missing --durations=10
+	uv run --active metta test -n auto --cov=metta --cov-report=term-missing --durations=10
 
 test-setup:
 	@echo "Running setup integration tests..."
-	export META_TEST_ENV=1
+	export METTA_TEST_ENV=1
+	export METTA_TEST_PROFILE=$(METTA_PROFILE)
 	export AWS_SSO_NONINTERACTIVE=1
-	uv run --active metta test tests/setup -v -n auto --metta-profile=$(METTA_PROFILE)
+	uv run --active metta test tests/setup -v -n auto
 
 install:
 	@echo "Installing package in editable mode..."
@@ -39,6 +40,6 @@ install:
 
 pytest: install
 	@echo "Running Python tests..."
-	uv run  --active metta test
+	uv run --active metta test -n auto
 
 all: dev test

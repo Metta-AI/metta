@@ -21,7 +21,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--metta-profile",
         action="store",
-        default=os.environ.get("METTA_TEST_PROFILE", "softmax"),
+        default=os.environ.get("METTA_TEST_PROFILE"),
         help="Active Metta profile for tests (default from METTA_TEST_PROFILE or 'softmax').",
     )
 

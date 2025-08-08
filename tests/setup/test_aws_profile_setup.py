@@ -7,10 +7,6 @@ that `export AWS_PROFILE=softmax` is added to shell config files when
 using the softmax profile.
 """
 
-import os
-import subprocess
-import sys
-
 import pytest
 
 from metta.setup.profiles import UserType
@@ -44,17 +40,8 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         self._create_test_config(UserType.SOFTMAX)
 
         # Run AWS install (bypass base class mocking)
-        import sys
 
-        cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "aws", "--force"]
-        result = subprocess.run(
-            cmd,
-            cwd=self.repo_root,
-            capture_output=True,
-            text=True,
-            env=os.environ.copy(),
-        )
-
+        result = self._run_metta_command(["install", "aws", "--force"])
         assert result.returncode == 0, f"AWS install failed: {result.stderr}"
 
         # Check that AWS_PROFILE export was added to shell config
@@ -108,15 +95,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         self._create_test_config(UserType.SOFTMAX)
 
         # Run AWS install (bypass base class mocking)
-        cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "aws", "--force"]
-        result = subprocess.run(
-            cmd,
-            cwd=self.repo_root,
-            capture_output=True,
-            text=True,
-            env=os.environ.copy(),
-        )
-
+        result = self._run_metta_command(["install", "aws", "--force"])
         assert result.returncode == 0, f"AWS install failed: {result.stderr}"
 
         # Check that AWS_PROFILE export was added to shell config in ZDOTDIR
@@ -156,15 +135,7 @@ class TestAWSProfileExternal(AWSAssertionsMixin, BaseMettaSetupTest):
         self._create_test_config(UserType.EXTERNAL)
 
         # Run install (bypass base class mocking)
-        cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "aws"]
-        result = subprocess.run(
-            cmd,
-            cwd=self.repo_root,
-            capture_output=True,
-            text=True,
-            env=os.environ.copy(),
-        )
-
+        result = self._run_metta_command(["install", "aws"])
         assert result.returncode == 0, f"Install failed: {result.stderr}"
 
         # Assert no AWS config directory/file was created
