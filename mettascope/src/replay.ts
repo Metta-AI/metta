@@ -562,7 +562,7 @@ function loadReplayJson(url: string, replayJson: any) {
   }
 
   fixReplay()
-  // close the initial 'connecting' modal before we validate replay data
+  // close the initial 'connecting' modal before we validate replay data.
   // replay data will re-open the modal if there are validation issues.
   Common.closeModal()
   validateReplayData(state.replay)
@@ -584,7 +584,7 @@ function loadReplayJson(url: string, replayJson: any) {
 
 /** Loads a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
-  // Validate the replay step before processing
+
   validateReplayStep(replayStep)
 
   // This gets us a simple replay step that we can overwrite.
