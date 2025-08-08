@@ -85,14 +85,19 @@ def get_commit_message(commit_hash: str) -> str:
     return run_git("log", "-1", "--pretty=%B", commit_hash)
 
 
-def has_unstaged_tracked_changes() -> tuple[bool, str]:
-    """Return (is_dirty_tracked, status_output) considering only tracked file changes.
+def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
+    """Returns if there are any unstaged changes in the local git checkout.
+
+    If allow_untracked is True, then unstaged changes in the form of new untracked files will be ignored.
 
     Interpretation of porcelain codes:
-    - Lines starting with '??' indicate untracked files (ignored)
+    - Lines starting with '??' indicate untracked files
     - Any other status lines indicate changes to tracked files
     """
     status_output = run_git("status", "--porcelain")
+    if not allow_untracked:
+        return bool(status_output), status_output
+
     is_dirty_tracked = False
     for line in status_output.splitlines():
         if not line.strip():
@@ -224,8 +229,8 @@ def get_git_hash_for_remote_task(
             logger.warning("Origin not set to metta-ai/metta, using git_hash=None")
         return None
 
-    dirty_tracked, status_output = has_unstaged_tracked_changes()
-    if dirty_tracked:
+    has_changes, status_output = has_unstaged_changes(allow_untracked=True)
+    if has_changes:
         if logger:
             logger.warning("Working tree has uncommitted tracked changes.\n" + status_output)
         if not skip_git_check:

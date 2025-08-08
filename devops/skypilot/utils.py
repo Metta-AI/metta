@@ -8,7 +8,7 @@ import sky.jobs
 import sky.server.common
 
 import metta.common.util.stats_client_cfg
-from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_tracked_changes, is_commit_pushed
+from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -44,11 +44,11 @@ def launch_task(task: sky.Task, dry_run=False):
 def check_git_state(commit_hash: str) -> str | None:
     error_lines = []
 
-    is_dirty_tracked, status_output = has_unstaged_tracked_changes()
-    if is_dirty_tracked:
+    has_changes, status_output = has_unstaged_changes()
+    if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
-        error_lines.append("  - Commit: git add -u && git commit -m 'your message'")
+        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
         error_lines.append("\nDebug:\n" + status_output)
         return "\n".join(error_lines)
