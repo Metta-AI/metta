@@ -149,8 +149,11 @@ def temp_test_env() -> Generator[Path, None, None]:
 
 
 @pytest.fixture(scope="function")
-def clean_config(test_env: Path) -> Path:
+
+@pytest.fixture(scope="function")
+def clean_config(temp_test_env: Path) -> Path:
     """Create a clean configuration directory."""
-    config_dir = test_env / ".metta"
+    config_dir = temp_test_env / ".metta"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
+
