@@ -2,7 +2,7 @@ experiment:
   name: curriculum_comparison
   description: Learning Progress vs Prioritized Regressed Curriculum
   date: '2025-08-08'
-  runs_per_variant: 1
+  runs_per_variant: 5
   wandb_project: ab_test_curriculum_comparison_2025-08-08
   wandb_entity: metta-research
   variants:

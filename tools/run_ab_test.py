@@ -148,6 +148,20 @@ Examples:
 
         if args.dry_run:
             print("\nDRY RUN - No experiments will be executed")
+            # Run with dry_run flag to show commands
+            results = run_ab_test(
+                experiment,
+                output_dir=args.output_dir,
+                parallel_runs=args.parallel,
+                max_parallel_runs=args.max_parallel,
+                retry_failed_runs=not args.no_retry,
+                dry_run=True,
+                use_skypilot=args.skypilot,
+                skypilot_gpus=args.gpus,
+                skypilot_cpus=args.cpus,
+                skypilot_no_spot=args.no_spot,
+                skypilot_max_runtime_hours=args.max_runtime_hours,
+            )
             return 0
 
         # Run experiment

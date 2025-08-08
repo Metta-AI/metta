@@ -87,6 +87,18 @@ class ABTestRunner:
                 # Use SkyPilot for cloud execution
                 cmd = self._build_skypilot_command(variant, run_name, config_path)
                 logger.debug(f"Executing SkyPilot command: {' '.join(cmd)}")
+                if self.config.dry_run:
+                    logger.info(f"DRY RUN - Would execute SkyPilot command: {' '.join(cmd)}")
+                    return {
+                        "run_name": run_name,
+                        "variant": variant.name,
+                        "success": True,
+                        "error": None,
+                        "duration": 0,
+                        "wandb_run_id": None,
+                        "config_path": str(config_path),
+                        "run_dir": str(run_dir),
+                    }
             else:
                 # Use local execution - pass config overrides as command-line arguments
                 cmd = ["python", "tools/train.py"]
@@ -96,6 +108,18 @@ class ABTestRunner:
                     cmd.append(f"{key}={value}")
 
                 logger.debug(f"Executing local command: {' '.join(cmd)}")
+                if self.config.dry_run:
+                    logger.info(f"DRY RUN - Would execute local command: {' '.join(cmd)}")
+                    return {
+                        "run_name": run_name,
+                        "variant": variant.name,
+                        "success": True,
+                        "error": None,
+                        "duration": 0,
+                        "wandb_run_id": None,
+                        "config_path": str(config_path),
+                        "run_dir": str(run_dir),
+                    }
 
             result = subprocess.run(
                 cmd,
@@ -116,6 +140,8 @@ class ABTestRunner:
                 error = f"Training failed with return code {result.returncode}"
                 if result.stderr:
                     error += f"\nStderr: {result.stderr}"
+                if result.stdout:
+                    error += f"\nStdout: {result.stdout}"
 
         except subprocess.TimeoutExpired:
             error = "Training run timed out after 24 hours"
@@ -141,6 +167,7 @@ class ABTestRunner:
             "./devops/skypilot/launch.py",
             "train",
             f"run={run_name}",
+            "--skip-git-check",  # Skip git state validation for A/B tests
         ]
 
         # Add SkyPilot-specific options
@@ -153,8 +180,12 @@ class ABTestRunner:
         if self.config.skypilot_max_runtime_hours:
             cmd.extend(["--max-runtime-hours", str(self.config.skypilot_max_runtime_hours)])
 
-        # Add configuration overrides from the variant
-        for key, value in variant.overrides.items():
+        # Create the full configuration for this run
+        config = self._create_run_config(variant, run_name)
+
+        # Flatten the configuration and add all overrides
+        flattened_config = self._flatten_config(config)
+        for key, value in flattened_config.items():
             cmd.append(f"{key}={value}")
 
         return cmd

@@ -4,6 +4,7 @@ Configuration classes for A/B testing framework.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -72,14 +73,15 @@ class ABExperiment:
 
 @dataclass
 class ABTestConfig:
-    """Configuration for running A/B tests."""
+    """Configuration for A/B test execution."""
 
     experiment: ABExperiment
-    output_dir: str = "ab_test_results"
+    output_dir: Path = Path("ab_test_results")
     parallel_runs: bool = False
     max_parallel_runs: int = 4
     retry_failed_runs: bool = True
     max_retries: int = 3
+    dry_run: bool = False
 
     # SkyPilot cloud execution options
     use_skypilot: bool = False

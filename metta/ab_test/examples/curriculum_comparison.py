@@ -28,7 +28,7 @@ def create_curriculum_comparison_experiment():
             trainer__curriculum="/env/mettagrid/curriculum/nav_memory_sequence",
             run="curriculum_pr",
         )
-        .set_runs_per_variant(1)  # Temporarily 1 for testing
+        .set_runs_per_variant(5)
         .set_base_config(
             defaults=["/common", "/agent/fast", "/trainer/trainer", "/sim/all"],
             trainer__total_timesteps=1_000_000_000,

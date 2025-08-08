@@ -3,11 +3,12 @@ defaults:
 - /agent/fast
 - /trainer/trainer
 - /sim/all
-total_timesteps: 1000000000
+trainer__total_timesteps: 1000000000
 trainer__num_workers: 4
 trainer__simulation__evaluate_interval: 100
 trainer__checkpoint__wandb_checkpoint_interval: 100
-trainer__curriculum: /env/mettagrid/curriculum/nav_memory_sequence
+trainer:
+  curriculum: /env/mettagrid/curriculum/nav_memory_sequence
 run: prioritized_regressed_run_3
 run_dir: ab_test_results/curriculum_comparison/prioritized_regressed_run_3
 wandb:
