@@ -245,7 +245,7 @@ class MettaGridEnv(MettaGridPufferBase):
             New MettaGridCpp instance
         """
         # Handle episode desyncing for training
-        if self._task.env_cfg().get("desync_episodes", True) and self._is_training and self._resets == 0:
+        if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             # Recreate with random max_steps
             game_config_dict = game_config_dict.copy()  # Don't modify original
@@ -303,11 +303,6 @@ class MettaGridEnv(MettaGridPufferBase):
             "completion_time": time.time(),
         }
         infos["attributes"] = attributes
-
-        # keep track of per-trial rewards
-        if self._task.env_cfg().get("num_trials", 1) > 1:
-            current_trial = self._task.env_cfg().current_trial
-            infos[f"per_trial_rewards/trial_{current_trial}"] = episode_rewards_mean
 
         # Handle replay writing
         replay_url = None
