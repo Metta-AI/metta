@@ -14,7 +14,7 @@ echo "  - Nodes: $NUM_NODES"
 echo "  - Master address: $MASTER_ADDR"
 echo "  - Master port: $MASTER_PORT"
 echo "  - Node index: $NODE_INDEX"
-echo "  - Arguments: $args"
+echo "  - Arguments: $*"
 
 echo "[INFO] Starting training..."
 
