@@ -40,8 +40,7 @@ protected:
         return false;
       }
       success = _grid->ghost_move_object(actor->id, target_location);
-    }
-    else {
+    } else {
       // Check if we are blocked by an obstacle/agent
       if (!_grid->is_empty(target_location.r, target_location.c)) {
         return false;

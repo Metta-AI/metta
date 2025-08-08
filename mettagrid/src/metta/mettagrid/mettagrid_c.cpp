@@ -194,10 +194,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        if(_no_agent_interference) {
+        if (_no_agent_interference) {
           _grid->ghost_add_object(agent);
-        }
-        else {
+        } else {
           _grid->add_object(agent);
         }
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
@@ -376,8 +375,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
       GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c), layer);
       auto obj = _grid->object_at(object_loc);
-      if(_no_agent_interference) {
-        if(layer == GridLayer::ObjectLayer) {
+      if (_no_agent_interference) {
+        if (layer == GridLayer::ObjectLayer) {
           if (!obj) continue;
         }
         if (layer == GridLayer::AgentLayer) {
@@ -388,8 +387,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
             continue;
           }
         }
-      }
-      else {
+      } else {
         if (!obj) continue;
       }
 
