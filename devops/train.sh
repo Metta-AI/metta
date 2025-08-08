@@ -16,16 +16,23 @@ echo "  - Master port: $MASTER_PORT"
 echo "  - Node index: $NODE_INDEX"
 echo "  - Arguments: $*"
 
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONOPTIMIZE=1
+export HYDRA_FULL_ERROR=1
+export WANDB_DIR="./wandb"
+export DATA_DIR=${DATA_DIR:-./train_dir}
+
 echo "[INFO] Starting training..."
 
 # run torchrun; preserve exit code and print a friendly line
 set +e
-PYTHONPATH=$PYTHONPATH:. uv run torchrun \
-  --nnodes="$NUM_NODES" \
-  --nproc-per-node="$NUM_GPUS" \
-  --master-addr="$MASTER_ADDR" \
-  --master-port="$MASTER_PORT" \
-  --node-rank="$NODE_INDEX" \
+uv run torchrun \
+  --nnodes=$NUM_NODES \
+  --nproc-per-node=$NUM_GPUS \
+  --master-addr=$MASTER_ADDR \
+  --master-port=$MASTER_PORT \
+  --node-rank=$NODE_INDEX \
   tools/train.py \
   trainer.num_workers=null \
   "$@"
