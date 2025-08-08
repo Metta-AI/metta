@@ -3,10 +3,12 @@ import os
 from collections import defaultdict
 from typing import cast
 
+import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
+from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
@@ -25,10 +27,10 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.env_config import EnvConfig
-from metta.rl.evaluate import evaluate_policy
+from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, process_minibatch_update
+from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -36,7 +38,7 @@ from metta.rl.policy_management import (
     initialize_policy_for_environment,
     wrap_agent_distributed,
 )
-from metta.rl.rollout import get_lstm_config, get_observation, run_policy_inference, send_observation
+from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -199,24 +201,22 @@ def train(
         metta_grid_env=metta_grid_env,
     )
 
-    # Get LSTM configuration
-    logger.info("about to initialize_to_environment")
-    hidden_size, num_lstm_layers = get_lstm_config(policy)
+    # Get the experience buffer specification from the policy
+    policy_spec = policy.get_agent_experience_spec()
+    act_space = vecenv.single_action_space
+    act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+    loss_spec = get_loss_experience_spec(act_space.nvec, act_dtype)
 
     # Create experience buffer
     experience = Experience(
-        total_agents=vecenv.num_agents,  # type: ignore[attr-defined]
-        batch_size=trainer_cfg.batch_size,  # Already scaled if needed
+        total_agents=vecenv.num_agents,
+        batch_size=trainer_cfg.batch_size,
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
-        obs_space=vecenv.single_observation_space,  # type: ignore[attr-defined]
-        atn_space=vecenv.single_action_space,  # type: ignore[attr-defined]
+        experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
         device=device,
-        hidden_size=hidden_size,
         cpu_offload=trainer_cfg.cpu_offload,
-        num_lstm_layers=num_lstm_layers,
-        agents_per_batch=getattr(vecenv, "agents_per_batch", None),
     )
 
     # Create optimizer
@@ -301,32 +301,33 @@ def train(
                 experience.reset_for_rollout()
                 total_steps = 0
 
+                policy.reset_memory()
+                buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+
                 while not experience.ready_for_training:
                     # Get observation
-                    o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
+                    o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
+                    td = buffer_step[training_env_id].clone()
+                    td["env_obs"] = o
+                    td["rewards"] = r
+                    td["dones"] = d.float()
+                    td["truncateds"] = t.float()
+                    td.training_env_id = training_env_id
+
                     # Inference
-                    actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                        policy, o, experience, training_env_id.start, device
-                    )
+                    with torch.no_grad():
+                        policy(td)
 
                     # Store experience
                     experience.store(
-                        obs=o,
-                        actions=actions,
-                        logprobs=selected_action_log_probs,
-                        rewards=r,
-                        dones=d,
-                        truncations=t,
-                        values=values,
+                        data_td=td,
                         env_id=training_env_id,
-                        mask=mask,
-                        lstm_state=lstm_state_to_store,
                     )
 
                     # Send observation
-                    send_observation(vecenv, actions, dtype_actions, timer)
+                    send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                     if info:
                         raw_infos.extend(info)
@@ -350,13 +351,13 @@ def train(
                 )
 
                 # Compute initial advantages
-                advantages = torch.zeros(experience.values.shape, device=device)
-                initial_importance_sampling_ratio = torch.ones_like(experience.values)
+                advantages = torch.zeros(experience.buffer["values"].shape, device=device)
+                initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
                 advantages = compute_advantage(
-                    experience.values,
-                    experience.rewards,
-                    experience.dones,
+                    experience.buffer["values"],
+                    experience.buffer["rewards"],
+                    experience.buffer["dones"],
                     initial_importance_sampling_ratio,
                     advantages,
                     trainer_cfg.ppo.gamma,
@@ -369,21 +370,28 @@ def train(
                 # Train for multiple epochs
                 minibatch_idx = 0
                 epochs_trained = 0
+                policy_spec = policy.get_agent_experience_spec()
 
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     for _ in range(experience.num_minibatches):
+                        policy.reset_memory()
                         # Sample minibatch
-                        minibatch = experience.sample_minibatch(
+                        minibatch, indices, prio_weights = experience.sample_minibatch(
                             advantages=advantages,
                             prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                             prio_beta=anneal_beta,
                         )
+
+                        policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
                         # Process minibatch
                         loss = process_minibatch_update(
                             policy=policy,
                             experience=experience,
                             minibatch=minibatch,
+                            policy_td=policy_td,
+                            indices=indices,
+                            prio_weights=prio_weights,
                             trainer_cfg=trainer_cfg,
                             kickstarter=kickstarter,
                             agent_step=agent_step,
@@ -417,8 +425,8 @@ def train(
                             break
 
                 # Calculate explained variance
-                y_pred = experience.values.flatten()
-                y_true = advantages.flatten() + experience.values.flatten()
+                y_pred = experience.buffer["values"].flatten()
+                y_true = advantages.flatten() + experience.buffer["values"].flatten()
                 var_y = y_true.var()
                 losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             epoch += epochs_trained
@@ -517,22 +525,32 @@ def train(
                 )
                 extended_suite_config.simulations["eval/training_task"] = training_task_config
 
-                # Evaluate policy using the extracted evaluation function
-                eval_scores = evaluate_policy(
-                    policy_record=latest_saved_policy_record,
-                    sim_suite_config=extended_suite_config,
-                    device=device,
-                    vectorization=env_cfg.vectorization,
-                    replay_dir=trainer_cfg.simulation.replay_dir,
-                    stats_epoch_id=stats_tracker.stats_epoch_id,
-                    wandb_policy_name=wandb_policy_name,
-                    policy_store=policy_store,
-                    stats_client=stats_client,
-                    wandb_run=wandb_run,
-                    trainer_cfg=trainer_cfg,
-                    agent_step=agent_step,
-                    epoch=epoch,
-                )
+                if trainer_cfg.simulation.evaluate_remote:
+                    evaluate_policy_remote(
+                        policy_record=latest_saved_policy_record,
+                        sim_suite_config=extended_suite_config,
+                        stats_epoch_id=stats_tracker.stats_epoch_id,
+                        wandb_policy_name=wandb_policy_name,
+                        stats_client=stats_client,
+                        wandb_run=wandb_run,
+                        trainer_cfg=trainer_cfg,
+                    )
+                else:
+                    eval_scores = evaluate_policy(
+                        policy_record=latest_saved_policy_record,
+                        sim_suite_config=extended_suite_config,
+                        device=device,
+                        vectorization=env_cfg.vectorization,
+                        replay_dir=trainer_cfg.simulation.replay_dir,
+                        stats_epoch_id=stats_tracker.stats_epoch_id,
+                        wandb_policy_name=wandb_policy_name,
+                        policy_store=policy_store,
+                        stats_client=stats_client,
+                        wandb_run=wandb_run,
+                        trainer_cfg=trainer_cfg,
+                        agent_step=agent_step,
+                        epoch=epoch,
+                    )
 
                 stats_tracker.update_epoch_tracking(epoch + 1)
 

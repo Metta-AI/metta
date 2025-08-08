@@ -287,7 +287,6 @@ class Policy(nn.Module):
         self.to(self.device)
 
     def network_forward(self, x):
-        logger.info(f"X shape: {x.shape}")
         x = x / self.max_vec
         x = self.cnn1(x)
         x = self.cnn2(x)

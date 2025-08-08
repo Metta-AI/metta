@@ -135,6 +135,7 @@
     "makereport",
     "malloc",
     "mapgen",
+    "marimo",
     "matplotlib",
     "maxcolwidths",
     "maxfail",
