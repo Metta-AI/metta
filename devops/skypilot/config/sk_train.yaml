@@ -33,6 +33,7 @@ config:
       - --cap-add=IPC_LOCK
       - --ulimit memlock=-1:-1
       - --ipc=host
+      - --userns=host
       - --shm-size=4g
       - --security-opt seccomp=unconfined
       - --security-opt apparmor=unconfined
@@ -139,6 +140,19 @@ run: |
   echo "  NETWORK_INTERFACE=$(ip -o addr show ${NCCL_SOCKET_IFNAME:-enp39s0} | head -1 || echo 'Interface ${NCCL_SOCKET_IFNAME:-enp39s0} not found')"
   echo "  IPC=$(readlink /proc/1/ns/ipc)"
   echo "  SHM_DF=$(df -h /dev/shm | tail -1)"
+  echo "  USERNS=$(docker info | grep -i 'userns')"
+  echo "  UMASK=$(umask)"
+
+
+  echo "== SHM info =="
+  mount | grep /dev/shm || true
+  df -h /dev/shm || true
+  ls -ld /dev/shm || true
+  ipcs -m | head -20 || true   # (SysV shm - NCCL uses POSIX shm, but still useful)
+  docker info | grep -i userns || true
+
+  echo "== NCCL env =="
+  env | egrep 'NCCL_|MASTER_|RANK|LOCAL_RANK|WORLD_SIZE'
 
   # Log NCCL configuration
   echo "Rendezvous: $MASTER_ADDR:$MASTER_PORT | IFACE=${NCCL_SOCKET_IFNAME:-enp39s0} AF=${NCCL_SOCKET_FAMILY:-AF_INET} PORT_RANGE=${NCCL_PORT_RANGE:-43000-43063}"
