@@ -541,7 +541,7 @@ def train(
                         wandb_run=wandb_run,
                         trainer_cfg=trainer_cfg,
                     )
-                else:
+                if trainer_cfg.simulation.evaluate_local:
                     eval_scores = evaluate_policy(
                         policy_record=latest_saved_policy_record,
                         sim_suite_config=extended_suite_config,
