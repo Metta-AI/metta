@@ -537,7 +537,7 @@ jobs:
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          POLICY: wandb://run/m.av.replay.probe.601
+          POLICY: wandb://run/m.av.replay.probe.751
         run: |
           uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
