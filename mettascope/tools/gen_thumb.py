@@ -146,15 +146,14 @@ def gen_thumb(input, step, size, output):
             y1 = get_position_component(object, step, "r") - obs_radius
             y2 = y1 + obs_radius * 2 + 1
             while y1 < y2:
-                if y1 < 0 or y1 >= grid_height:
-                    continue
-                y = y1 * grid_width
-                x1 = x
-                x2 = x1 + obs_radius * 2 + 1
-                while x1 < x2:
-                    if x1 >= 0 and x1 < grid_width:
-                        visibility_map[y + x1] = 1
-                        x1 += 1
+                if y1 > 0 and y1 < grid_height:
+                    y = y1 * grid_width
+                    x1 = x
+                    x2 = x1 + obs_radius * 2 + 1
+                    while x1 < x2:
+                        if x1 >= 0 and x1 < grid_width:
+                            visibility_map[y + x1] = 1
+                            x1 += 1
                 y1 += 1
 
         path = pixie.Path()
