@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
 import mettascope.replays as replays
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
+from metta.mettagrid.grid_object_formatter import format_grid_object
 from metta.util.metta_script import metta_script
 
 # Set up logging
@@ -165,17 +167,16 @@ def make_app(cfg: DictConfig):
             for i, grid_object in enumerate(env.grid_objects.values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
-                for key, value in grid_object.items():
-                    grid_objects[i][key] = value
+
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
-                    grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
-                    grid_objects[i]["action"] = actions[agent_id].tolist()
-                    grid_objects[i]["reward"] = env.rewards[agent_id].item()
                     total_rewards[agent_id] += env.rewards[agent_id]
-                    grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
 
-            await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
+                update_object = format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+
+                grid_objects[i] = update_object
+
+            await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
 
         # Send the first replay step.
         await send_replay_step()
@@ -220,8 +221,8 @@ def make_app(cfg: DictConfig):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id][0] = action_message["action"][0]
-                    actions[agent_id][1] = action_message["action"][1]
+                    actions[agent_id][0] = action_message["action_id"]
+                    actions[agent_id][1] = action_message["action_param"]
                 sim.step_simulation(actions)
 
                 await send_replay_step()
@@ -239,7 +240,7 @@ def run(cfg: DictConfig, open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
-        server_url = "http://localhost:8000"
+        server_url = DEV_METTASCOPE_FRONTEND_URL
 
         @app.on_event("startup")
         async def _open_browser():

@@ -7,7 +7,7 @@ metta_src_dir = str(Path(__file__).parent.resolve())
 mettagrid_src_dir = str((Path(__file__).parent.parent / "mettagrid/src/metta").resolve())
 
 # Prioritize the main metta source directory
-# This ensures that imports like `metta.rl.util` resolve to the correct package,
+# This ensures that imports like `metta.rl` resolve to the correct package,
 # not a conflicting module in the mettagrid source tree.
 if metta_src_dir in sys.path:
     sys.path.remove(metta_src_dir)

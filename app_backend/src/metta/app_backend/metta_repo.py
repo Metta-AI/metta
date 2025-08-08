@@ -1,12 +1,13 @@
 import hashlib
-import json
 import secrets
 import uuid
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
 from psycopg import Connection
+from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field
@@ -21,6 +22,89 @@ class TaskStatusUpdate(BaseModel):
     status: TaskStatus
     clear_assignee: bool = False
     attributes: dict[str, Any] = Field(default_factory=dict)
+
+
+# Row models for database tables
+class SavedDashboardRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None
+    type: str
+    dashboard_state: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    user_id: str
+
+
+class TrainingRunRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    user_id: str
+    finished_at: datetime | None
+    status: str
+    url: str | None
+    description: str | None
+    tags: list[str]
+
+
+class MachineTokenRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    expiration_time: datetime
+    last_used_at: datetime | None
+
+
+class EvalTaskRow(BaseModel):
+    """Row model that matches the eval_tasks table structure."""
+
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    sim_suite: str
+    status: str
+    assigned_at: datetime | None
+    assignee: str | None
+    created_at: datetime
+    attributes: dict[str, Any]
+    retries: int
+    user_id: str | None
+    updated_at: datetime
+
+
+class EvalTaskWithPolicyName(BaseModel):
+    """Extended eval task row that includes policy name from JOIN with policies table."""
+
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    sim_suite: str
+    status: str
+    assigned_at: datetime | None
+    assignee: str | None
+    created_at: datetime
+    attributes: dict[str, Any]
+    retries: int
+    policy_name: str | None
+    user_id: str | None
+    updated_at: datetime
+
+
+class SweepRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    project: str
+    entity: str
+    wandb_sweep_id: str
+    state: str
+    run_counter: int
+    user_id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class PolicyRow(BaseModel):
+    id: uuid.UUID
+    name: str
 
 
 # This is a list of migrations that will be applied to the eval database.
@@ -160,7 +244,7 @@ MIGRATIONS = [
     ),
     SqlMigration(
         version=6,
-        description="Add heatmap performance indexes",
+        description="Add scorecard performance indexes",
         sql_statements=[
             # Critical index for episode_agent_metrics main query
             """ALTER TABLE episode_agent_metrics DROP CONSTRAINT episode_agent_metrics_pkey""",
@@ -376,6 +460,29 @@ MIGRATIONS = [
             """,
         ],
     ),
+    SqlMigration(
+        version=20,
+        description="Add user_id to eval_tasks",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN user_id TEXT""",
+            """CREATE INDEX idx_eval_tasks_user_id ON eval_tasks(user_id)""",
+        ],
+    ),
+    SqlMigration(
+        version=21,
+        description="Add updated_at to eval_tasks",
+        sql_statements=[
+            """ALTER TABLE eval_tasks ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP""",
+            """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
+        ],
+    ),
+    SqlMigration(
+        version=22,
+        description="Add index on episodes.primary_policy_id",
+        sql_statements=[
+            """CREATE INDEX IF NOT EXISTS idx_episodes_primary_policy_id ON episodes(primary_policy_id)""",
+        ],
+    ),
 ]
 
 
@@ -413,23 +520,18 @@ class MettaRepo:
 
     # All methods are async - no sync versions
 
-    async def get_policy_by_id(self, policy_id: uuid.UUID) -> dict[str, Any] | None:
+    async def get_policy_by_id(self, policy_id: uuid.UUID) -> PolicyRow | None:
         async with self.connect() as con:
-            res = await con.execute(
-                """
-                SELECT id, name
-                FROM policies
-                WHERE id = %s
-                """,
-                (policy_id,),
-            )
-            row = await res.fetchone()
-            if row is None:
-                return None
-            return {
-                "id": str(row[0]),
-                "name": row[1],
-            }
+            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name
+                    FROM policies
+                    WHERE id = %s
+                    """,
+                    (policy_id,),
+                )
+                return await cur.fetchone()
 
     async def get_policy_ids(self, policy_names: list[str]) -> dict[str, uuid.UUID]:
         if not policy_names:
@@ -659,33 +761,21 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_training_runs(self) -> list[dict[str, Any]]:
+    async def get_training_runs(self) -> list[TrainingRunRow]:
         """Get all training runs."""
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
-                FROM training_runs
-                ORDER BY created_at DESC
-                """
-            )
-            rows = await result.fetchall()
-            return [
-                {
-                    "id": str(row[0]),
-                    "name": row[1],
-                    "created_at": row[2].isoformat(),
-                    "user_id": row[3],
-                    "finished_at": row[4].isoformat() if row[4] else None,
-                    "status": row[5],
-                    "url": row[6],
-                    "description": row[7],
-                    "tags": row[8] or [],
-                }
-                for row in rows
-            ]
+            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, created_at, user_id, finished_at, status, url, description, 
+                           COALESCE(tags, ARRAY[]::TEXT[]) as tags
+                    FROM training_runs
+                    ORDER BY created_at DESC
+                    """
+                )
+                return await cur.fetchall()
 
-    async def get_training_run(self, run_id: str) -> dict[str, Any] | None:
+    async def get_training_run(self, run_id: str) -> TrainingRunRow | None:
         """Get a specific training run by ID."""
         try:
             run_uuid = uuid.UUID(run_id)
@@ -693,30 +783,17 @@ class MettaRepo:
             return None
 
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
-                FROM training_runs
-                WHERE id = %s
-                """,
-                (run_uuid,),
-            )
-            row = await result.fetchone()
-
-            if row is None:
-                return None
-
-            return {
-                "id": str(row[0]),
-                "name": row[1],
-                "created_at": row[2].isoformat(),
-                "user_id": row[3],
-                "finished_at": row[4].isoformat() if row[4] else None,
-                "status": row[5],
-                "url": row[6],
-                "description": row[7],
-                "tags": row[8] or [],
-            }
+            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, created_at, user_id, finished_at, status, url, description,
+                           COALESCE(tags, ARRAY[]::TEXT[]) as tags
+                    FROM training_runs
+                    WHERE id = %s
+                    """,
+                    (run_uuid,),
+                )
+                return await cur.fetchone()
 
     async def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
         """Create a new machine token for a user."""
@@ -738,29 +815,20 @@ class MettaRepo:
 
         return token
 
-    async def list_machine_tokens(self, user_id: str) -> list[dict[str, Any]]:
+    async def list_machine_tokens(self, user_id: str) -> list[MachineTokenRow]:
         """List all machine tokens for a user."""
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, name, created_at, expiration_time, last_used_at
-                FROM machine_tokens
-                WHERE user_id = %s
-                ORDER BY created_at DESC
-                """,
-                (user_id,),
-            )
-            rows = await result.fetchall()
-            return [
-                {
-                    "id": str(row[0]),
-                    "name": row[1],
-                    "created_at": row[2],
-                    "expiration_time": row[3],
-                    "last_used_at": row[4],
-                }
-                for row in rows
-            ]
+            async with con.cursor(row_factory=class_row(MachineTokenRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, created_at, expiration_time, last_used_at
+                    FROM machine_tokens
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    """,
+                    (user_id,),
+                )
+                return await cur.fetchall()
 
     async def delete_machine_token(self, user_id: str, token_id: str) -> bool:
         """Delete a machine token."""
@@ -825,32 +893,20 @@ class MettaRepo:
                 raise RuntimeError("Failed to create saved dashboard")
             return row[0]
 
-    async def list_saved_dashboards(self) -> list[dict[str, Any]]:
+    async def list_saved_dashboards(self) -> list[SavedDashboardRow]:
         """List all saved dashboards."""
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
-                FROM saved_dashboards
-                ORDER BY updated_at DESC
-                """
-            )
-            rows = await result.fetchall()
-            return [
-                {
-                    "id": str(row[0]),
-                    "name": row[1],
-                    "description": row[2],
-                    "type": row[3],
-                    "dashboard_state": row[4],
-                    "created_at": row[5],
-                    "updated_at": row[6],
-                    "user_id": row[7],
-                }
-                for row in rows
-            ]
+            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
+                    FROM saved_dashboards
+                    ORDER BY updated_at DESC
+                    """
+                )
+                return await cur.fetchall()
 
-    async def get_saved_dashboard(self, dashboard_id: str) -> dict[str, Any] | None:
+    async def get_saved_dashboard(self, dashboard_id: str) -> SavedDashboardRow | None:
         """Get a specific saved dashboard by ID."""
         try:
             dashboard_uuid = uuid.UUID(dashboard_id)
@@ -858,29 +914,16 @@ class MettaRepo:
             return None
 
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
-                FROM saved_dashboards
-                WHERE id = %s
-                """,
-                (dashboard_uuid,),
-            )
-            row = await result.fetchone()
-
-            if row is None:
-                return None
-
-            return {
-                "id": str(row[0]),
-                "name": row[1],
-                "description": row[2],
-                "type": row[3],
-                "dashboard_state": row[4],
-                "created_at": row[5],
-                "updated_at": row[6],
-                "user_id": row[7],
-            }
+            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
+                    FROM saved_dashboards
+                    WHERE id = %s
+                    """,
+                    (dashboard_uuid,),
+                )
+                return await cur.fetchone()
 
     async def delete_saved_dashboard(self, user_id: str, dashboard_id: str) -> bool:
         """Delete a saved dashboard."""
@@ -899,13 +942,10 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    async def update_saved_dashboard(
+    async def update_dashboard_state(
         self,
         user_id: str,
         dashboard_id: str,
-        name: str,
-        description: str | None,
-        dashboard_type: str,
         dashboard_state: dict[str, Any],
     ) -> bool:
         """Update an existing saved dashboard."""
@@ -918,10 +958,10 @@ class MettaRepo:
             result = await con.execute(
                 """
                 UPDATE saved_dashboards
-                SET name = %s, description = %s, type = %s, dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
+                SET dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s AND user_id = %s
                 """,
-                (name, description, dashboard_type, Jsonb(dashboard_state), dashboard_uuid, user_id),
+                (Jsonb(dashboard_state), dashboard_uuid, user_id),
             )
             return result.rowcount > 0
 
@@ -966,63 +1006,42 @@ class MettaRepo:
         policy_id: uuid.UUID,
         sim_suite: str,
         attributes: dict[str, Any],
-    ) -> dict[str, Any]:
+        user_id: str | None = None,
+    ) -> EvalTaskRow:
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO eval_tasks (policy_id, sim_suite, attributes)
-                VALUES (%s, %s, %s)
-                RETURNING id, policy_id, sim_suite, status, assigned_at,
-                         assignee, created_at, attributes, retries
-                """,
-                (policy_id, sim_suite, Jsonb(attributes)),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to create eval task")
-            return {
-                "id": row[0],
-                "policy_id": row[1],
-                "sim_suite": row[2],
-                "status": row[3],
-                "assigned_at": row[4],
-                "assignee": row[5],
-                "created_at": row[6],
-                "attributes": row[7],
-                "retries": row[8],
-            }
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
+                await cur.execute(
+                    """
+                    INSERT INTO eval_tasks (policy_id, sim_suite, attributes, user_id)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, policy_id, sim_suite, status, assigned_at,
+                             assignee, created_at, attributes, retries, user_id, updated_at
+                    """,
+                    (policy_id, sim_suite, Jsonb(attributes), user_id),
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    raise RuntimeError("Failed to create eval task")
+                return row
 
-    async def get_available_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
+    async def get_available_tasks(self, limit: int = 200) -> list[EvalTaskWithPolicyName]:
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name
-                FROM eval_tasks et
-                JOIN policies p ON et.policy_id = p.id
-                WHERE status = 'unprocessed'
-                  AND assignee IS NULL
-                ORDER BY et.created_at ASC
-                LIMIT %s
-                """,
-                (limit,),
-            )
-            rows = await result.fetchall()
-            return [
-                {
-                    "id": row[0],
-                    "policy_id": row[1],
-                    "sim_suite": row[2],
-                    "status": row[3],
-                    "assigned_at": row[4],
-                    "assignee": row[5],
-                    "created_at": row[6],
-                    "attributes": row[7],
-                    "retries": row[8],
-                    "policy_name": row[9],
-                }
-                for row in rows
-            ]
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    """
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, et.attributes, et.retries, 
+                           p.name as policy_name, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    JOIN policies p ON et.policy_id = p.id
+                    WHERE status = 'unprocessed'
+                      AND assignee IS NULL
+                    ORDER BY et.created_at ASC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                return await cur.fetchall()
 
     async def claim_tasks(
         self,
@@ -1036,7 +1055,7 @@ class MettaRepo:
             result = await con.execute(
                 """
                 UPDATE eval_tasks
-                SET assignee = %s, assigned_at = NOW(), retries = retries +1
+                SET assignee = %s, assigned_at = NOW(), retries = retries +1, updated_at = NOW()
                 WHERE id = ANY(%s)
                     AND status = 'unprocessed'
                     AND assignee IS NULL
@@ -1047,107 +1066,71 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_claimed_tasks(self, assignee: str | None = None) -> list[dict[str, Any]]:
+    async def get_claimed_tasks(self, assignee: str | None = None) -> list[EvalTaskWithPolicyName]:
         async with self.connect() as con:
-            if assignee is not None:
-                result = await con.execute(
-                    """
-                    SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE assignee = %s AND status = 'unprocessed'
-                    ORDER BY et.created_at ASC
-                    """,
-                    (assignee,),
-                )
-            else:
-                result = await con.execute(
-                    """
-                    SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                            assignee, et.created_at, attributes, retries, p.name
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE status = 'unprocessed' AND assignee IS NOT NULL
-                    ORDER BY et.created_at ASC
-                    """,
-                )
-            rows = await result.fetchall()
-            return [
-                {
-                    "id": row[0],
-                    "policy_id": row[1],
-                    "sim_suite": row[2],
-                    "status": row[3],
-                    "assigned_at": row[4],
-                    "assignee": row[5],
-                    "created_at": row[6],
-                    "attributes": row[7],
-                    "retries": row[8],
-                    "policy_name": row[9],
-                }
-                for row in rows
-            ]
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                if assignee is not None:
+                    await cur.execute(
+                        """
+                        SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                                et.assignee, et.created_at, et.attributes, et.retries, 
+                                p.name as policy_name, et.user_id, et.updated_at
+                        FROM eval_tasks et
+                        JOIN policies p ON et.policy_id = p.id
+                        WHERE assignee = %s AND status = 'unprocessed'
+                        ORDER BY et.created_at ASC
+                        """,
+                        (assignee,),
+                    )
+                else:
+                    await cur.execute(
+                        """
+                        SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                                et.assignee, et.created_at, et.attributes, et.retries, 
+                                p.name as policy_name, et.user_id, et.updated_at
+                        FROM eval_tasks et
+                        JOIN policies p ON et.policy_id = p.id
+                        WHERE status = 'unprocessed' AND assignee IS NOT NULL
+                        ORDER BY et.created_at ASC
+                        """,
+                    )
+                return await cur.fetchall()
 
     async def update_task_statuses(
         self,
         updates: dict[uuid.UUID, TaskStatusUpdate],
         require_assignee: str | None = None,
-    ) -> dict[uuid.UUID, str]:
+    ) -> dict[uuid.UUID, TaskStatus]:
         if not updates:
             return {}
 
         updated = {}
         async with self.connect() as con:
             for task_id, update in updates.items():
-                if not require_assignee:
-                    if update.clear_assignee:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                assignee = NULL,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id),
-                        )
-                    else:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id),
-                        )
+                if require_assignee:
+                    filter_clause = "id = %s AND assignee = %s"
+                    filter_params = (task_id, require_assignee)
                 else:
-                    if update.clear_assignee:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                assignee = NULL,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s AND assignee = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id, require_assignee),
-                        )
-                    else:
-                        result = await con.execute(
-                            """
-                            UPDATE eval_tasks
-                            SET status = %s,
-                                attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
-                            WHERE id = %s AND assignee = %s
-                            RETURNING id
-                            """,
-                            (update.status, json.dumps(update.attributes), task_id, require_assignee),
-                        )
+                    filter_clause = "id = %s"
+                    filter_params = (task_id,)
+
+                if update.clear_assignee:
+                    assignee_clause = "assignee = NULL,"
+                else:
+                    assignee_clause = ""
+
+                query = f"""
+                UPDATE eval_tasks
+                SET status = %s,
+                    {assignee_clause}
+                    attributes = COALESCE(attributes, '{{}}'::jsonb) || %s::jsonb,
+                    updated_at = NOW()
+                WHERE {filter_clause}
+                RETURNING id
+                """
+                params = (update.status, Jsonb(update.attributes)) + filter_params
+                result = await con.execute(query, params)
+
                 if result.rowcount > 0:
                     updated[task_id] = update.status
 
@@ -1244,33 +1227,20 @@ class MettaRepo:
                 raise ValueError("Failed to create sweep")
             return row[0]
 
-    async def get_sweep_by_name(self, name: str) -> dict[str, Any] | None:
+    async def get_sweep_by_name(self, name: str) -> SweepRow | None:
         """Get sweep by name."""
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, name, project, entity, wandb_sweep_id, state, run_counter,
-                       user_id, created_at, updated_at
-                FROM sweeps
-                WHERE name = %s
-                """,
-                (name,),
-            )
-            row = await result.fetchone()
-            if row is None:
-                return None
-            return {
-                "id": str(row[0]),
-                "name": row[1],
-                "project": row[2],
-                "entity": row[3],
-                "wandb_sweep_id": row[4],
-                "state": row[5],
-                "run_counter": row[6],
-                "user_id": row[7],
-                "created_at": row[8],
-                "updated_at": row[9],
-            }
+            async with con.cursor(row_factory=class_row(SweepRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, project, entity, wandb_sweep_id, state, run_counter,
+                           user_id, created_at, updated_at
+                    FROM sweeps
+                    WHERE name = %s
+                    """,
+                    (name,),
+                )
+                return await cur.fetchone()
 
     async def get_next_sweep_run_counter(self, sweep_id: uuid.UUID) -> int:
         """Atomically increment and return the next run counter for a sweep."""
@@ -1290,64 +1260,89 @@ class MettaRepo:
                 raise ValueError(f"Sweep {sweep_id} not found")
             return row[0]
 
-    async def get_latest_assigned_task_for_worker(self, assignee: str) -> dict[str, Any] | None:
+    async def get_latest_assigned_task_for_worker(self, assignee: str) -> EvalTaskWithPolicyName | None:
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT et.id, policy_id, sim_suite, status, assigned_at,
-                       assignee, et.created_at, attributes, retries, p.name
-                FROM eval_tasks et
-                JOIN policies p ON et.policy_id = p.id
-                WHERE assignee = %s
-                  AND assigned_at IS NOT NULL
-                ORDER BY assigned_at DESC
-                LIMIT 1
-                """,
-                (assignee,),
-            )
-            row = await result.fetchone()
-            if row is None:
-                return None
-            return {
-                "id": row[0],
-                "policy_id": row[1],
-                "sim_suite": row[2],
-                "status": row[3],
-                "assigned_at": row[4],
-                "assignee": row[5],
-                "created_at": row[6],
-                "attributes": row[7],
-                "retries": row[8],
-                "policy_name": row[9],
-            }
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    """
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, et.attributes, et.retries, 
+                           p.name as policy_name, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    JOIN policies p ON et.policy_id = p.id
+                    WHERE assignee = %s
+                      AND assigned_at IS NOT NULL
+                    ORDER BY assigned_at DESC
+                    LIMIT 1
+                    """,
+                    (assignee,),
+                )
+                return await cur.fetchone()
 
-    async def get_all_tasks(self, limit: int = 500) -> list[dict[str, Any]]:
+    async def get_all_tasks(
+        self,
+        limit: int = 500,
+        statuses: list[TaskStatus] | None = None,
+        git_hash: str | None = None,
+        policy_ids: list[uuid.UUID] | None = None,
+        sim_suites: list[str] | None = None,
+    ) -> list[EvalTaskWithPolicyName]:
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                       et.assignee, et.created_at, et.attributes, et.retries,
-                       p.name as policy_name
-                FROM eval_tasks et
-                LEFT JOIN policies p ON et.policy_id = p.id
-                ORDER BY et.created_at DESC
-                LIMIT %s
-                """,
-                (limit,),
+            # Build the WHERE clause dynamically
+            where_conditions = []
+            params = []
+
+            if statuses:
+                placeholders = ", ".join(["%s"] * len(statuses))
+                where_conditions.append(f"et.status IN ({placeholders})")
+                params.extend(statuses)
+
+            if git_hash:
+                where_conditions.append("et.attributes->>'git_hash' = %s")
+                params.append(git_hash)
+
+            if policy_ids:
+                placeholders = ", ".join(["%s"] * len(policy_ids))
+                where_conditions.append(f"et.policy_id IN ({placeholders})")
+                params.extend(policy_ids)
+
+            if sim_suites:
+                placeholders = ", ".join(["%s"] * len(sim_suites))
+                where_conditions.append(f"et.sim_suite IN ({placeholders})")
+                params.extend(sim_suites)
+
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            params.append(limit)
+
+            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                           et.assignee, et.created_at, et.attributes, et.retries,
+                           p.name as policy_name, et.user_id, et.updated_at
+                    FROM eval_tasks et
+                    LEFT JOIN policies p ON et.policy_id = p.id
+                    WHERE {where_clause}
+                    ORDER BY et.created_at DESC
+                    LIMIT %s
+                    """,
+                    params,
+                )
+                return await cur.fetchall()
+
+    async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
+        async with self.connect() as con:
+            if not assignees:
+                return {}
+
+            # Use ANY() for proper list handling in PostgreSQL
+            queryRes = await con.execute(
+                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee = ANY(%s)",
+                (assignees,),
             )
-            rows = await result.fetchall()
-            return [
-                {
-                    "id": row[0],
-                    "policy_id": row[1],
-                    "sim_suite": row[2],
-                    "status": row[3],
-                    "assigned_at": row[4],
-                    "assignee": row[5],
-                    "created_at": row[6],
-                    "attributes": row[7],
-                    "retries": row[8],
-                    "policy_name": row[9],
-                }
-                for row in rows
-            ]
+            rows = await queryRes.fetchall()
+            res: dict[str, list[str]] = defaultdict(list)
+            for row in rows:
+                if row[1]:  # Only add non-null git hashes
+                    res[row[0]].append(row[1])
+            return res

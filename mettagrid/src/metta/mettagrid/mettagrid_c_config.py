@@ -63,6 +63,11 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 stat_name = k[:-4]
                 stat_reward_max[stat_name] = v
 
+        # Process potential initial inventory
+        initial_inventory = {}
+        for k, v in agent_group_props["initial_inventory"].items():
+            initial_inventory[resource_name_to_id[k]] = v
+
         agent_cpp_params = {
             "freeze_duration": agent_group_props["freeze_duration"],
             "group_id": group_config.id,
@@ -79,6 +84,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             "group_reward_pct": group_config.group_reward_pct,
             "type_id": 0,
             "type_name": "agent",
+            "initial_inventory": initial_inventory,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -100,6 +106,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                     if v > 0 and k in resource_name_to_id
                 },
                 max_output=object_config.max_output,
+                max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
@@ -132,6 +139,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
         resource_rewards=global_obs_config.resource_rewards,
+        visitation_counts=global_obs_config.visitation_counts,
     )
     game_cpp_params["global_obs"] = global_obs_cpp
 

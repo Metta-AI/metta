@@ -90,6 +90,7 @@ class PyAgentConfig(BaseModelWithForbidExtra):
     freeze_duration: Optional[int] = Field(default=0, ge=-1)
     rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
     action_failure_penalty: Optional[float] = Field(default=0, ge=0)
+    initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
 class PyGroupConfig(BaseModelWithForbidExtra):
@@ -133,6 +134,8 @@ class PyActionsConfig(BaseModelWithForbidExtra):
 
     noop: Optional[PyActionConfig] = None
     move: Optional[PyActionConfig] = None
+    move_8way: Optional[PyActionConfig] = None
+    move_cardinal: Optional[PyActionConfig] = None
     rotate: Optional[PyActionConfig] = None
     put_items: Optional[PyActionConfig] = None
     get_items: Optional[PyActionConfig] = None
@@ -154,6 +157,9 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
     # Controls whether resource rewards are included in observations
     resource_rewards: bool = Field(default=False)
 
+    # Controls whether visitation counts are included in observations
+    visitation_counts: bool = Field(default=False)
+
 
 class PyWallConfig(BaseModelWithForbidExtra):
     """Python wall/block configuration."""
@@ -169,6 +175,7 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1)
+    max_conversions: int = Field(default=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)

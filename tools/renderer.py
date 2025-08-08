@@ -9,8 +9,7 @@ from typing import Any, List, Protocol, Tuple
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import (
+from metta.mettagrid import (
     MettaGridEnv,
     dtype_actions,
     dtype_observations,
@@ -18,9 +17,11 @@ from metta.mettagrid.mettagrid_env import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.mettagrid.util.hydra import get_cfg
 from metta.util.metta_script import metta_script
+from tools.utils import get_policy_store_from_cfg
 
 
 class Policy(Protocol):
@@ -207,9 +208,7 @@ def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
 def _load_trained_policy(env: MettaGridEnv, cfg: DictConfig) -> Policy:
     """Attempt to load a trained policy, falling back to simple policy on failure."""
     try:
-        from metta.agent.policy_store import PolicyStore
-
-        policy_store = PolicyStore(cfg, None)
+        policy_store = get_policy_store_from_cfg(cfg)
         policy_pr = policy_store.policy_record(cfg.policy_uri)
         return TrainedPolicyWrapper(policy_pr.policy, env)
     except Exception as e:

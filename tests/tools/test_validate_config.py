@@ -55,8 +55,9 @@ class TestValidateConfig(unittest.TestCase):
             with redirect_stdout(f):
                 load_and_print_config("trainer/trainer")
             output = f.getvalue()
-            # Should have trainer configuration
-            self.assertIn("_target_:", output)
+            # Should have trainer configuration fields
+            self.assertIn("batch_size:", output)
+            self.assertIn("ppo:", output)
         except SystemExit as e:
             if e.code != 0:
                 self.fail(f"Failed to load trainer/trainer.yaml: {e}")
@@ -94,7 +95,7 @@ class TestValidateConfig(unittest.TestCase):
         self.assertEqual(result.returncode, 0, f"Script failed: {result.stderr}")
         # Should contain trainer config elements
         self.assertTrue(
-            any(x in result.stdout for x in ["_target_:", "trainer", "batch_size"]),
+            any(x in result.stdout for x in ["batch_size", "ppo", "optimizer"]),
             f"Expected trainer config content not found in output: {result.stdout[:500]}",
         )
 

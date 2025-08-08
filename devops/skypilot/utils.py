@@ -1,4 +1,5 @@
-import re
+import netrc
+import os
 import sys
 from pathlib import Path
 
@@ -6,8 +7,9 @@ import sky
 import sky.jobs
 import sky.server.common
 
+import metta.common.util.stats_client_cfg
 from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
-from metta.common.util.text_styles import blue, bold, cyan, green, magenta, red, yellow
+from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
 def get_jobs_controller_name() -> str:
@@ -19,13 +21,6 @@ def get_jobs_controller_name() -> str:
 
 def print_tip(text: str):
     print(blue(text), file=sys.stderr)
-
-
-def dashboard_url() -> str:
-    url = sky.server.common.get_server_url()
-    # strip username and password from server_url
-    url = re.sub("https://.*@", "https://", url)
-    return url
 
 
 def launch_task(task: sky.Task, dry_run=False):
@@ -41,20 +36,20 @@ def launch_task(task: sky.Task, dry_run=False):
 
     short_request_id = request_id.split("-")[0]
 
-    print(f"- Check logs with: {magenta(f'sky api logs {short_request_id}')}")
-    print(f"- Or, visit: {yellow(f'{dashboard_url()}/api/stream?request_id={short_request_id}')}")
-    print(f"  - To sign in, use credentials from your {cyan('~/.sky/config.yaml')} file.")
-    print(f"- To cancel the request, run: {magenta(f'sky api cancel {short_request_id}')}")
+    print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
+    dashboard_url = sky.server.common.get_server_url() + "/dashboard/jobs"
+    print(f"- Or, visit: {yellow(dashboard_url)}")
 
 
 def check_git_state(commit_hash: str) -> str | None:
     """Check that the commit has been pushed and there are no staged changes."""
     error_lines = []
 
-    if has_unstaged_changes():
+    has_changes, _ = has_unstaged_changes()
+    if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
-        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
+        error_lines.append("  - Commit: git add -u && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
         return "\n".join(error_lines)
 
@@ -215,3 +210,27 @@ def display_job_summary(
                 print(f"  {i + 1}. {yellow(arg)}")
 
     print(f"\n{divider}")
+
+
+def set_task_secrets(task: sky.Task) -> None:
+    """Write job secrets to task envs."""
+
+    # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
+    # Also, copying the entire `.netrc` is too much (it could contain other credentials).
+
+    wandb_password = netrc.netrc(os.path.expanduser("~/.netrc")).hosts["api.wandb.ai"][2]
+    if not wandb_password:
+        raise ValueError("Failed to get wandb password, run 'metta install' to fix")
+
+    observatory_token = metta.common.util.stats_client_cfg.get_machine_token(
+        "https://observatory.softmax-research.net/api"
+    )
+    if not observatory_token:
+        observatory_token = ""  # we don't have a token in CI
+
+    task.update_secrets(
+        dict(
+            WANDB_PASSWORD=wandb_password,
+            OBSERVATORY_TOKEN=observatory_token,
+        )
+    )

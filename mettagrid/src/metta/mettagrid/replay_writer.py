@@ -2,16 +2,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from omegaconf import OmegaConf
-
 if TYPE_CHECKING:
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
+    from metta.mettagrid.core import MettaGridCore
 
 import json
 import zlib
 
 import numpy as np
 
+from metta.mettagrid.grid_object_formatter import format_grid_object
 from metta.mettagrid.util.file import http_url, write_data
 
 
@@ -22,7 +21,7 @@ class ReplayWriter:
         self.replay_dir = replay_dir
         self.episodes = {}
 
-    def start_episode(self, episode_id: str, env: MettaGridEnv):
+    def start_episode(self, episode_id: str, env: MettaGridCore):
         self.episodes[episode_id] = EpisodeReplay(env)
 
     def log_step(self, episode_id: str, actions: np.ndarray, rewards: np.ndarray):
@@ -41,35 +40,33 @@ class ReplayWriter:
 
 
 class EpisodeReplay:
-    def __init__(self, env: MettaGridEnv):
+    def __init__(self, env: MettaGridCore):
         self.env = env
         self.step = 0
-        self.grid_objects = []
+        self.objects = []
         self.total_rewards = np.zeros(env.num_agents)
         self.replay_data = {
-            "version": 1,
+            "version": 2,
             "action_names": env.action_names,
-            "inventory_items": env.inventory_item_names,
-            "object_types": env.object_type_names,
+            "item_names": env.inventory_item_names,
+            "type_names": env.object_type_names,
             "map_size": [env.map_width, env.map_height],
             "num_agents": env.num_agents,
             "max_steps": env.max_steps,
-            "grid_objects": self.grid_objects,
+            "objects": self.objects,
         }
 
     def log_step(self, actions: np.ndarray, rewards: np.ndarray):
         self.total_rewards += rewards
         for i, grid_object in enumerate(self.env.grid_objects.values()):
-            update_object = grid_object.copy()
-            if len(self.grid_objects) <= i:
-                self.grid_objects.append({})
-            if "agent_id" in grid_object:
-                agent_id = update_object["agent_id"]
-                update_object["action"] = actions[agent_id].tolist()
-                update_object["action_success"] = bool(self.env.action_success[agent_id])
-                update_object["reward"] = rewards[agent_id].item()
-                update_object["total_reward"] = self.total_rewards[agent_id].item()
-            self._seq_key_merge(self.grid_objects[i], self.step, update_object)
+            if len(self.objects) <= i:
+                self.objects.append({})
+
+            update_object = format_grid_object(
+                grid_object, actions, self.env.action_success, rewards, self.total_rewards
+            )
+
+            self._seq_key_merge(self.objects[i], self.step, update_object)
         self.step += 1
 
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
@@ -95,19 +92,16 @@ class EpisodeReplay:
         """Gets full replay as a tree of plain python dictionaries."""
         self.replay_data["max_steps"] = self.step
         # Trim value changes to make them more compact.
-        for grid_object in self.grid_objects:
+        for grid_object in self.objects:
             for key, changes in list(grid_object.items()):
                 if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
-
-        self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg())
-        # The map_builder is not needed for replay, and it's not serializable.
-        del self.replay_data["config"]["game"]["map_builder"]
 
         return self.replay_data
 
     def write_replay(self, path: str):
         """Writes a replay to a file."""
+
         replay_data = json.dumps(self.get_replay_data())  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes

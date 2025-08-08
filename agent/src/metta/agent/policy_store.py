@@ -14,22 +14,17 @@ import logging
 import os
 import random
 import sys
-from types import SimpleNamespace
 from typing import Any, Literal
 
-import gymnasium as gym
-import numpy as np
 import torch
 import wandb
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import make_policy
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
-from metta.rl.trainer_config import TrainerConfig, create_trainer_config
 
 logger = logging.getLogger("policy_store")
 
@@ -45,10 +40,26 @@ class PolicySelectorConfig:
         self.metric = metric
 
 
+class PolicyMissingError(ValueError):
+    pass
+
+
 class PolicyStore:
-    def __init__(self, cfg: DictConfig, wandb_run: WandbRun | None, policy_cache_size: int = 10) -> None:
-        self._cfg = cfg
-        self._device = cfg.device
+    def __init__(
+        self,
+        device: str | None = None,  # for loading policies from checkpoints
+        wandb_run: WandbRun | None = None,  # for saving artifacts to wandb
+        data_dir: str | None = None,  # for storing policy artifacts locally for cached access
+        wandb_entity: str | None = None,  # for loading policies from wandb
+        wandb_project: str | None = None,  # for loading policies from wandb
+        pytorch_cfg: DictConfig | None = None,  # for loading pytorch policies
+        policy_cache_size: int = 10,  # num policies to keep in memory
+    ) -> None:
+        self._device = device or "cpu"
+        self._data_dir = data_dir or "./train_dir"
+        self._wandb_entity = wandb_entity
+        self._wandb_project = wandb_project
+        self._pytorch_cfg = pytorch_cfg
         self._wandb_run: WandbRun | None = wandb_run
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._made_codebase_backwards_compatible = False
@@ -92,7 +103,7 @@ class PolicyStore:
         prs = self._load_policy_records_from_uri(uri)
 
         if not prs:
-            raise ValueError(f"No policy records found at {uri}")
+            raise PolicyMissingError(f"No policy records found at {uri}")
 
         logger.info(f"Found {len(prs)} policy records at {uri}")
 
@@ -131,15 +142,11 @@ class PolicyStore:
 
         for prefix, artifact_type in [("run/", "model"), ("sweep/", "sweep_model")]:
             if wandb_uri.startswith(prefix):
-                if not hasattr(self._cfg, "wandb") or not all(
-                    hasattr(self._cfg.wandb, attr) for attr in ["entity", "project"]
-                ):
-                    raise ValueError(
-                        "Wandb entity and project must be specified in your config to use short policy uris"
-                    )
+                if not self._wandb_entity or not self._wandb_project:
+                    raise ValueError("Wandb entity and project must be specified to use short policy uris")
                 name = wandb_uri[len(prefix) :]
                 return self._prs_from_wandb_artifact(
-                    f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/{artifact_type}/{name}",
+                    f"{self._wandb_entity}/{self._wandb_project}/{artifact_type}/{name}",
                     version,
                 )
         else:
@@ -222,16 +229,11 @@ class PolicyStore:
             logger.warning(f"Metric '{metric}' not found in policy metadata")
             return {p: None for p in prs}
 
-    def make_model_name(self, epoch: int):
+    def make_model_name(self, epoch: int) -> str:
         return f"model_{epoch:04d}.pt"
 
-    def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
-        if "trainer" not in self._cfg:
-            raise AttributeError("New policies can't be created by a PolicyStore with no 'cfg.trainer' attribute.")
-
-        trainer_cfg: TrainerConfig = create_trainer_config(self._cfg)
-
-        path = override_path if override_path is not None else os.path.join(trainer_cfg.checkpoint.checkpoint_dir, name)
+    def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
+        path = os.path.join(checkpoint_dir, name)
         metadata = PolicyMetadata()
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
@@ -353,7 +355,7 @@ class PolicyStore:
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
         pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
-        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
+        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
         return pr
 
     def _make_codebase_backwards_compatible(self):
@@ -421,91 +423,18 @@ class PolicyStore:
         # Load checkpoint - could be PolicyRecord or legacy format
         checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
-        if isinstance(checkpoint, PolicyRecord):
-            # New format - PolicyRecord object
-            pr = checkpoint
-            pr._policy_store = self
+        if not isinstance(checkpoint, PolicyRecord):
+            raise Exception("Invalid checkpoint, possibly in a legacy format")
 
-            # Ensure _cached_policy attribute exists
-            if not hasattr(pr, "_cached_policy"):
-                pr._cached_policy = None
-
-            # Check if this is a legacy PolicyRecord with metadata under old names
-            if not hasattr(pr, "_metadata"):
-                # Access metadata property to trigger backwards compatibility
-                try:
-                    _ = pr.metadata  # This will convert old attributes to new format
-                    logger.info("Converted legacy PolicyRecord metadata to new format")
-                except AttributeError:
-                    logger.warning("PolicyRecord has no metadata - creating default metadata")
-                    pr._metadata = PolicyMetadata()
-
-            # Also check for policy under old attribute names
-            if not metadata_only and pr._cached_policy is None:
-                policy_cache_attributes = ["_cached_policy", "_policy", "policy_cache"]
-                for attr in policy_cache_attributes:
-                    if hasattr(pr, attr):
-                        policy = getattr(pr, attr)
-                        if policy is not None:
-                            pr._cached_policy = policy
-                            if attr != "_cached_policy":
-                                logger.info(f"Found policy under legacy attribute '{attr}'")
-                            break
-
-            self._cached_prs.put(path, pr)
-
-            if metadata_only:
-                pr._cached_policy = None
-
-            return pr
-
-        # Legacy format - try to load as old checkpoint
-        return self._load_legacy_checkpoint(path, checkpoint, metadata_only)
-
-    def _load_legacy_checkpoint(self, path: str, checkpoint: Any, metadata_only: bool = False) -> PolicyRecord:
-        """Load a legacy checkpoint format (dict or old PolicyRecord)."""
-        logger.info(f"Loading legacy checkpoint from {path}")
-
-        if not isinstance(checkpoint, dict):
-            raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
-
-        # Create PolicyRecord with metadata from checkpoint
-        metadata_dict = {
-            k: checkpoint.get(k, 0 if k != "action_names" else [])
-            for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
-        }
-
-        pr = PolicyRecord(self, os.path.basename(path), f"file://{path}", PolicyMetadata(**metadata_dict))
-
-        if not metadata_only:
-            try:
-                # Create mock environment for policy creation
-                obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
-                env = SimpleNamespace(
-                    single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                    obs_width=obs_shape[1],
-                    obs_height=obs_shape[2],
-                    single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
-                    feature_normalizations=checkpoint.get("feature_normalizations", {}),
-                    global_features=[],
-                )
-
-                policy = make_policy(env, self._cfg)  # type: ignore
-
-                # Load state dict from checkpoint
-                state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
-                if state_key:
-                    policy.load_state_dict(checkpoint[state_key])
-                else:
-                    # If no state dict key found, assume the checkpoint itself is the state dict
-                    policy.load_state_dict(checkpoint)
-
-                pr._cached_policy = policy
-                logger.info("Successfully loaded legacy checkpoint as MettaAgent")
-            except Exception as e:
-                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
+        # New format - PolicyRecord object
+        pr = checkpoint
+        pr._policy_store = self
 
         self._cached_prs.put(path, pr)
+
+        if metadata_only:
+            pr._cached_policy = None
+
         return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
@@ -513,7 +442,7 @@ class PolicyStore:
 
         artifact = wandb.Api().artifact(qualified_name)
 
-        artifact_path = os.path.join(self._cfg.data_dir, "artifacts", artifact.name)
+        artifact_path = os.path.join(self._data_dir, "artifacts", artifact.name)
 
         if not os.path.exists(artifact_path):
             artifact.download(root=artifact_path)

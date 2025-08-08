@@ -6,6 +6,15 @@ import numpy as np
 # Type alias for clarity
 StatsDict: TypeAlias = dict[str, float]
 
+# Data types exported from C++
+dtype_observations: np.dtype
+dtype_terminals: np.dtype
+dtype_truncations: np.dtype
+dtype_rewards: np.dtype
+dtype_actions: np.dtype
+dtype_masks: np.dtype
+dtype_success: np.dtype
+
 class EpisodeStats(TypedDict):
     game: StatsDict
     agent: list[StatsDict]
@@ -65,6 +74,7 @@ class AgentConfig(GridObjectConfig):
     resource_rewards: dict[int, float]
     resource_reward_max: dict[int, float]
     group_reward_pct: float
+    initial_inventory: dict[int, int]
 
 class ConverterConfig(GridObjectConfig):
     type_id: int
@@ -72,6 +82,7 @@ class ConverterConfig(GridObjectConfig):
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     max_output: int
+    max_conversions: int
     conversion_ticks: int
     cooldown: int
     initial_resource_count: int
@@ -150,5 +161,4 @@ class MettaGrid:
     def max_action_args(self) -> list[int]: ...
     def object_type_names(self) -> list[str]: ...
     def inventory_item_names(self) -> list[str]: ...
-    def feature_normalizations(self) -> dict[int, float]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...

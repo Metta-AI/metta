@@ -3,10 +3,11 @@ import type { HoverBubble } from './hoverbubbles.js'
 import { find, localStorageGetNumber, parseHtmlColor, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { Vec2f } from './vector_math.js'
+import { Entity, Replay } from './replay.js'
+import { Heatmap } from './heatmap.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
-;(window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -20,6 +21,11 @@ export const PANEL_BOTTOM_MARGIN = 60
 export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0]
+
+// GitHub constants - keep in sync with metta/common/src/metta/common/util/constants.py
+export const METTA_GITHUB_ORGANIZATION = 'Metta-AI'
+export const METTA_GITHUB_REPO = 'metta'
+export const METTA_GITHUB_PRIMARY_BRANCH = 'main'
 
 // Map constants
 export const TILE_SIZE = 200
@@ -35,6 +41,9 @@ export const TRACE_WIDTH = 54
 
 // Info panel constants
 export const INFO_PANEL_POP_TIME = 300 // ms
+
+export const HEATMAP_MIN_OPACITY = 0.1
+export const HEATMAP_MAX_OPACITY = 0.7
 
 // Colors for resources
 export const COLORS = new Map([
@@ -93,9 +102,10 @@ export const ui = {
 
 export const state = {
   // Replay data and player state
-  replay: null as any,
-  selectedGridObject: null as any,
+  replay: new Replay(),
+  selectedGridObject: null as Entity | null,
   followSelection: false, // Flag to follow the selected entity.
+  heatmap: new Heatmap(),
 
   // Playback state
   step: 0,
@@ -111,6 +121,7 @@ export const state = {
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
+  showHeatmap: false, // TODO we need to add a heatmap button
   showMiniMap: false,
   showInfo: false,
   showTraces: true,
@@ -122,9 +133,6 @@ export const state = {
   ws: null as WebSocket | null,
   isOneToOneAction: false,
 }
-
-// Expose state for easier testing
-;(window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,
@@ -158,6 +166,7 @@ export const html = {
   gridToggle: find('#grid-toggle'),
   visualRangeToggle: find('#visual-range-toggle'),
   fogOfWarToggle: find('#fog-of-war-toggle'),
+  heatmapToggle: find('#heatmap-toggle'),
 
   stepCounter: find('#step-counter'),
 

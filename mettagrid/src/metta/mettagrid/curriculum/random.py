@@ -28,6 +28,8 @@ class RandomCurriculum(MultiTaskCurriculum):
     def get_task(self) -> Task:
         task_id = random.choices(list(self._curricula.keys()), weights=list(self._task_weights.values()))[0]
         task = self._curricula[task_id].get_task()
+        # Note that tasks are ephemeral (which they have to be, since they get completed), so there's no concern
+        # about adding parents to the same task multiple times.
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
         return task

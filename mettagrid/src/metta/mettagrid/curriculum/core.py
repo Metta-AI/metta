@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Tuple
 
 import hydra
 from omegaconf import DictConfig
@@ -33,41 +33,75 @@ class Curriculum:
 
 
 class Task:
-    def __init__(self, id: str, curriculum: "Curriculum", env_cfg: DictConfig):
+    _name: str
+    _id: str
+    _curricula: List[Tuple[Curriculum, str]]
+    _is_complete: bool
+
+    def __init__(self, id: str, curriculum: Curriculum):
         self._id = id
-        self._is_complete = False
+        self._name = id
         self._curricula = [(curriculum, id)]
+        self._is_complete = False
+
+    def complete_trial(self, score: float) -> bool:
+        """Lets the task know that a trial has been completed.
+
+        Based on this, the task should expose a new trial, or become complete.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def is_complete(self):
+        """True if the task is complete, false otherwise."""
+        return self._is_complete
+
+    def env_cfg(self) -> DictConfig:
+        """Returns the environment configuration for the current trial."""
+        # TODO: ideally we'd have a separate config for the task itself (same for a separate config for the curriculum)
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def id(self) -> str:
+        """Returns the id of the task."""
+        return self._id
+
+    def name(self) -> str:
+        """Returns the name of the task."""
+        return self._name
+
+    def short_name(self) -> str:
+        """Returns the short name of the task."""
+        return self.name().split("/")[-1]
+
+    def add_parent(self, parent_curriculum: Curriculum, parent_id: str):
+        """Adds a parent to the task. Parents are notified when the task is completed."""
+        self._curricula.append((parent_curriculum, parent_id))
+        self._name = f"{parent_id}:{self._name}"
+
+
+class SingleTrialTask(Task):
+    """A task that only has a single trial. This task may be repeated multiple times."""
+
+    def __init__(self, id: str, curriculum: Curriculum, env_cfg: DictConfig):
+        super().__init__(id, curriculum)
+        self._total_score = 0.0
+        self._num_trials = env_cfg.get("num_trials", 1)
+        self._current_trial = 0
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
         self._env_cfg = hydra.utils.instantiate(env_cfg)
-        self._name = self._id
 
-    def complete(self, score: float):
+    def complete_trial(self, score: float):
         assert not self._is_complete, "Task is already complete"
-        for curriculum, id in self._curricula:
-            curriculum.complete_task(id, score)
-        self._is_complete = True
-        # logger.info(f"Task completed: {self.name()} -> {score:.5f}")
-
-    def is_complete(self):
-        return self._is_complete
+        self._current_trial += 1
+        self._total_score += score
+        if self._current_trial >= self._num_trials:
+            self._is_complete = True
+            for curriculum, id in self._curricula:
+                curriculum.complete_task(id, self._total_score)
 
     def env_cfg(self) -> DictConfig:
         assert self._env_cfg is not None, "Task has no environment configuration"
         return self._env_cfg
-
-    def id(self) -> str:
-        return self._id
-
-    def name(self) -> str:
-        return self._name
-
-    def short_name(self) -> str:
-        return self._name.split("/")[-1]
-
-    def add_parent(self, parent_curriculum: "Curriculum", parent_id: str):
-        self._curricula.append((parent_curriculum, parent_id))
-        self._name = f"{parent_id}:{self._name}"
 
 
 class SingleTaskCurriculum(Curriculum):
@@ -78,4 +112,7 @@ class SingleTaskCurriculum(Curriculum):
         self._task_cfg = task_cfg
 
     def get_task(self) -> Task:
-        return Task(self._task_id, self, self._task_cfg)
+        return SingleTrialTask(self._task_id, self, self._task_cfg)
+
+    def get_task_probs(self) -> dict[str, float]:
+        return {self._task_id: 1.0}

@@ -6,7 +6,7 @@ defaults:
       - basic
   - _self_
 
-sampling: 0
+desync_episodes: true
 
 game:
   num_agents: ???
@@ -24,7 +24,9 @@ game:
     last_action: true # Controls both last_action and last_action_arg tokens
     last_reward: true
     resource_rewards: false
-
+    visitation_counts: false
+      # Controls whether an agent can see how many times it has visited a square
+      # may create memory issues for large number of agents / large grids
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
   # inventory they didn't intend (e.g., "ore" instead of "ore_red").
   inventory_item_names:

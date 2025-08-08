@@ -75,23 +75,24 @@ jobs:
           echo "Installation complete"
           echo "::endgroup::"
 
-      - name: Check format and lint
-        run: |
-          cd mettascope
-          pnpm run lint
+      # TODO: Re-enable when it stops eating our code.
+      # - name: Check format and lint
+      #   run: |
+      #     cd mettascope
+      #     pnpm run lint
 
       - name: Run training
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
+          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=smoke_test +user=ci wandb=off
           echo "::endgroup::"
 
       - name: Generate replay
         run: |
           echo "::group::Replay generation"
           echo "Generating replay..."
-          uv run --no-sync tools/replay.py run=smoke_test +hardware=github wandb=off
+          uv run --no-sync tools/replay.py run=smoke_test +user=ci wandb=off
           echo "Replay generation completed"
           echo "::endgroup::"
 
@@ -104,7 +105,7 @@ jobs:
 
           # Start the backend with proper logging
           echo "Starting backend server..."
-          uv run --no-sync tools/play.py run=smoke_test +hardware=github wandb=off replay_job.open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
+          uv run --no-sync tools/play.py run=smoke_test +user=ci wandb=off replay_job.open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
           BACKEND_PID=$!
           echo "Backend started with PID: $BACKEND_PID"
 

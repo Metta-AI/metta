@@ -9,6 +9,16 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server/
 
 releases:
+  ########## System configurations ##########
+  - name: system
+    chart: ./system
+    version: 0.1.0
+    namespace: kube-system
+    values:
+      - nodePools:
+          jobs:
+            enabled: true
+
   ########## Core infrastructure ##########
   - name: external-dns
     chart: external-dns/external-dns
@@ -70,48 +80,22 @@ releases:
     version: 3.12.2
     namespace: metrics-server
 
+  - name: prometheus
+    chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
+    version: 75.15.1
+    namespace: monitoring
+    values:
+      - ./helm.values/prometheus-values.yaml
+
   ########## Skypilot ##########
   - name: skypilot
     chart: ./skypilot
     version: 0.0.8
     namespace: skypilot
     values:
-      - apiService:
-          config: |
-            jobs:
-              bucket: s3://skypilot-jobs/
-          resources:
-            requests:
-              cpu: "8"
-              memory: "16Gi"
-            limits:
-              cpu: "8"
-              memory: "16Gi"
-        awsCredentials:
-          enabled: true
-        ingress:
-          certManager:
-            clusterIssuer: letsencrypt
-            enabled: true
-          host: skypilot-api.softmax-research.net
-          oauth2-proxy:
-            enabled: true
-            oidc-issuer-url: https://accounts.google.com
-            use-https: true
-            email-domain: stem.ai,softmax.com
-            # This secret must be created manually.
-            # (it's not possible to automate it because it's not possible to terraform oauth clients in GCP)
-            client-details-from-secret: skypilot-oauth2-proxy-details
-        # managed as a separate chart, see above
-        ingress-nginx:
-          enabled: false
-        lambdaCredentials:
-          enabled: true
-          # created by terraform
-          lambdaSecretName: lambda-ai-credentials
-        storage:
-          size: 50Gi
+      - ./helm.values/skypilot-values.yaml
 
+  ########## Softmax apps ##########
   - name: orchestrator
     chart: ./orchestrator
     version: 0.1.0
@@ -120,3 +104,13 @@ releases:
       - events: ["presync"]
         command: "kubectl"
         args: ["create", "namespace", "orchestrator", "--dry-run=client"]
+
+  - name: home
+    chart: ./home
+    version: 0.1.0
+    namespace: home
+    hooks:
+      - events: ["presync"]
+        command: "kubectl"
+        args: ["create", "namespace", "home", "--dry-run=client"]
+  # Note: Observatory is deployed automatically by Github Actions.

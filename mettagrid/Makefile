@@ -1,59 +1,68 @@
-.PHONY: help build lint test clean install pytest tidy coverage
+.PHONY: help build build-prod benchmark test coverage lint tidy clean install pytest
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  build          - Build project for tests"
-	@echo "  build-prod     - Build project for production"
-	@echo "  lint           - Run cpplint on all C++ source files"
-	@echo "  tidy           - Run clang-tidy static analysis"
-	@echo "  test           - Build and run all C++ tests"
-	@echo "  pytest         - Install package and run all Python tests"
-	@echo "  coverage       - Generate C++ coverage report"
+	@echo "  build          - Debug build with tests and coverage"
+	@echo "  build-prod     - Release build (no tests)"
+	@echo "  benchmark      - Build and run benchmarks"
+	@echo "  test           - Run unit tests"
+	@echo "  coverage       - Generate coverage report"
+	@echo "  lint           - Run cpplint"
+	@echo "  tidy           - Run clang-tidy"
+	@echo "  pytest         - Run Python tests"
 	@echo "  clean          - Clean all build artifacts"
 	@echo "  install        - Install package in editable mode"
 
-# Build project with tests
+# Debug build with tests and coverage
 build:
-	@echo "Building in debug mode..."
+	@echo "🔨 Building debug with tests and coverage..."
 	cmake --preset debug
 	cmake --build build-debug
 
+# Production release build
 build-prod:
-	@echo "Building in release mode..."
-	cmake --preset release-no-tests
+	@echo "🔨 Building release..."
+	cmake --preset release
 	cmake --build build-release
 
-# Run cpplint on all C++ source files
-lint:
-	@echo "Running cpplint..."
-	@bash ./tests/cpplint.sh
+# Build and run benchmarks
+benchmark:
+	@echo "🏃 Building and running benchmarks..."
+	cmake --preset benchmark
+	cmake --build build-release
+	cd build-release && ctest -L benchmark --output-on-failure
 
-test: build lint
-	@echo "Running C++ tests..."
-	ctest --test-dir build-debug -V --output-on-failure
+# Run unit tests
+test: build
+	@echo "🧪 Running unit tests..."
+	cd build-debug && ctest -L test --output-on-failure
 
-coverage:
-	@echo "Generating C++ coverage..."
+# Generate coverage report
+coverage: test
+	@echo "📊 Generating coverage report..."
 	@./generate_coverage.py
 
-clean:
-	@echo "Cleaning extra venv..."
-	@rm -rf .venv
-	@rm -f uv.lock
-	@echo "Cleaning build artifacts..."
-	rm -rf build-debug build-release build build-coverage
-	@echo "Cleaning coverage files..."
-	rm -f coverage.info *.gcda *.gcno *.profraw *.profdata
+# Code quality
+lint:
+	@echo "🔍 Running cpplint..."
+	@bash ./tests/cpplint.sh
 
+tidy: build
+	@echo "🔍 Running clang-tidy..."
+	@bash clang-tidy.sh
+
+# Python
 install:
-	@echo "Installing package in editable mode..."
+	@echo "📦 Installing package..."
 	UV_PROJECT_ENVIRONMENT=../.venv uv sync --inexact --active
 
 pytest: install
-	@echo "Running Python tests..."
+	@echo "🐍 Running Python tests..."
 	UV_PROJECT_ENVIRONMENT=../.venv uv run --active pytest
 
-tidy: build
-	@echo "Running clang-tidy..."
-	@bash clang-tidy.sh
+# Cleanup
+clean:
+	@echo "🧹 Cleaning build artifacts..."
+	rm -rf build-debug build-release .venv uv.lock
+	rm -f coverage.info *.gcda *.gcno *.profraw *.profdata

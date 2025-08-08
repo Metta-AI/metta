@@ -2,6 +2,7 @@
 #define OBJECTS_AGENT_HPP_
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <string>
 #include <vector>
@@ -24,7 +25,8 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<InventoryItem, RewardType>& resource_reward_max,
               const std::map<std::string, RewardType>& stat_rewards,
               const std::map<std::string, RewardType>& stat_reward_max,
-              float group_reward_pct)
+              float group_reward_pct,
+              const std::map<InventoryItem, InventoryQuantity>& initial_inventory)
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
@@ -35,7 +37,8 @@ struct AgentConfig : public GridObjectConfig {
         resource_reward_max(resource_reward_max),
         stat_rewards(stat_rewards),
         stat_reward_max(stat_reward_max),
-        group_reward_pct(group_reward_pct) {}
+        group_reward_pct(group_reward_pct),
+        initial_inventory(initial_inventory) {}
   unsigned char group_id;
   std::string group_name;
   short freeze_duration;
@@ -46,6 +49,7 @@ struct AgentConfig : public GridObjectConfig {
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
+  std::map<InventoryItem, InventoryQuantity> initial_inventory;
 };
 
 class Agent : public GridObject {
@@ -73,13 +77,19 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
+  // Visitation count grid: tracks how many times the agent has visited each position
+  std::vector<std::vector<unsigned int>> visitation_grid;
+  bool visitation_counts_enabled = false;
+  GridLocation prev_location;
+  std::string prev_action_name;
+  unsigned int steps_without_motion;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::Up),
-        inventory(),  // default constructor
+        inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -88,16 +98,59 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
-        glyph(0),
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
-        reward(nullptr) {
+        reward(nullptr),
+        prev_location(r, c, GridLayer::AgentLayer),
+        prev_action_name(""),
+        steps_without_motion(0) {
+    populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
   void init(RewardType* reward_ptr) {
     this->reward = reward_ptr;
+  }
+
+  void populate_initial_inventory(const std::map<InventoryItem, InventoryQuantity>& initial_inventory) {
+    for (const auto& [item, amount] : initial_inventory) {
+      if (amount > 0) {
+        this->inventory[item] = amount;
+      }
+    }
+  }
+
+  void init_visitation_grid(GridCoord height, GridCoord width) {
+    visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
+    visitation_counts_enabled = true;
+  }
+
+  void reset_visitation_counts() {
+    for (auto& row : visitation_grid) {
+      std::fill(row.begin(), row.end(), 0);
+    }
+  }
+
+  void increment_visitation_count(GridCoord r, GridCoord c) {
+    if (!visitation_counts_enabled) return;
+
+    if (r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) && c >= 0 &&
+        c < static_cast<GridCoord>(visitation_grid[0].size())) {
+      visitation_grid[r][c]++;
+    }
+  }
+
+  std::array<unsigned int, 5> get_visitation_counts() const {
+    std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
+    if (!visitation_grid.empty()) {
+      counts[0] = get_visitation_count(location.r, location.c);      // center
+      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+      counts[2] = get_visitation_count(location.r + 1, location.c);  // down
+      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+      counts[4] = get_visitation_count(location.r, location.c + 1);  // right
+    }
+    return counts;
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
@@ -214,6 +267,14 @@ private:
     // Update both the current resource reward and the total reward
     float reward_delta = new_contribution - old_contribution;
     *this->reward += reward_delta;
+  }
+
+  unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
+    if (visitation_grid.empty() || r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) || c < 0 ||
+        c >= static_cast<GridCoord>(visitation_grid[0].size())) {
+      return 0;  // Return 0 for out-of-bounds positions
+    }
+    return visitation_grid[r][c];
   }
 };
 

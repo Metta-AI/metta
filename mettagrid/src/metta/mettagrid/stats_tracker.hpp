@@ -53,10 +53,15 @@ private:
   // Test class needs access for testing
   friend class StatsTrackerTest;
 
-public:
-  inline static const std::string NO_ENV_INVENTORY_ITEM_NAME = "[unknown -- stats tracker not initialized]";
+  // Use a static function to avoid global destructor
+  static const std::string& get_no_env_inventory_item_name() {
+    static const std::string name = "[unknown -- stats tracker not initialized]";
+    return name;
+  }
 
-  StatsTracker() : _env(nullptr) {}
+public:
+  StatsTracker()
+      : _stats(), _first_seen_at(), _last_seen_at(), _min_value(), _max_value(), _update_count(), _env(nullptr) {}
 
   void set_environment(MettaGrid* env) {
     _env = env;
@@ -83,6 +88,10 @@ public:
     _stats[key] = value;
     track_timing(key);
     track_bounds(key, value);
+  }
+
+  float get(const std::string& key) {
+    return _stats[key];
   }
 
   // Calculate rate (updates per step)
