@@ -126,7 +126,6 @@ run: |
   echo "METTA_GIT_REF = $METTA_GIT_REF"
   echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
 
-
   # Rendezvous (torch c10d store) — one fixed port
   export MASTER_PORT="${MASTER_PORT:-29501}"
 
@@ -148,10 +147,12 @@ run: |
     unset NCCL_DEBUG_SUBSYS
     unset CUDA_LAUNCH_BLOCKING
   fi
+
   # Enable fast paths (still no IB)
   export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-0}"
   export NCCL_SHM_DISABLE="${NCCL_SHM_DISABLE:-0}"
   export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
+
   # Light socket parallelism + a few channels
   export NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS:-4}"
   export NCCL_MAX_NCHANNELS="${NCCL_MAX_NCHANNELS:-8}"
@@ -189,12 +190,31 @@ run: |
       fi
   fi
 
-  echo "Running $METTA_CMD script for run=$METTA_RUN_ID with args $METTA_CMD_ARGS"
 
-  if ./devops/"$METTA_CMD".sh run="$METTA_RUN_ID" $METTA_CMD_ARGS; then
-    CMD_EXIT=0
-  else
-    CMD_EXIT=$?
+
+
+  HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+
+  # Start train.sh in background
+  ./devops/"$METTA_CMD".sh run="$METTA_RUN_ID" $METTA_CMD_ARGS &
+  TRAIN_PID=$!
+
+  # Start heartbeat *watching the train PID*
+  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+    echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$TRAIN_PID)"
+    python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
+      --pid "$TRAIN_PID" --timeout "$HEARTBEAT_TIMEOUT" \
+      >/dev/null 2>&1 &
+    HEARTBEAT_PID=$!
+  fi
+
+  # Wait for training to finish, capture exit, then kill heartbeat cleanly
+  wait "$TRAIN_PID"
+  CMD_EXIT=$?
+
+  if [[ -n "${HEARTBEAT_PID:-}" ]]; then
+    kill "$HEARTBEAT_PID" 2>/dev/null || true
+    wait "$HEARTBEAT_PID" 2>/dev/null || true
   fi
 
   # if a github token is provided, report training status back to github

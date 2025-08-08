@@ -154,7 +154,6 @@ def setup_nccl_debug_env(master_addr: str | None = os.environ.get("MASTER_ADDR")
 
     defaults = {
         "NCCL_DEBUG": "INFO" if debug_mode else "VERSION",
-        "NCCL_DEBUG_SUBSYS": "ALL" if debug_mode else "",
         "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
         "NCCL_SHM_DISABLE": "1",  # keep isolation by default
         "NCCL_P2P_DISABLE": "1",  # keep isolation by default
@@ -165,12 +164,12 @@ def setup_nccl_debug_env(master_addr: str | None = os.environ.get("MASTER_ADDR")
         "NCCL_MAX_NCHANNELS": "2",
     }
     if debug_mode:
+        defaults["NCCL_DEBUG_SUBSYS"] = "ALL"
         defaults["CUDA_LAUNCH_BLOCKING"] = "1"
 
     for k, v in defaults.items():
-        if v:  # skip empty strings
-            os.environ.setdefault(k, v)
-        logger.info(f"{k}={os.environ[k]}")
+        os.environ.setdefault(k, v)
+        logger.info(f"{k}={os.environ.get(k)}")
 
     iface = _detect_iface_to(master_addr) if master_addr else None
     if iface and _iface_is_up(iface):
