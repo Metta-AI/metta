@@ -121,6 +121,22 @@ class TorchProfilerConfig(BaseModelWithForbidExtra):
         return self
 
 
+class RepConfig(BaseModelWithForbidExtra):
+    """Configuration for representation learning with temporal consistency."""
+
+    enabled: bool = True
+    latent_dim: int = Field(default=256, gt=0)
+    tau: float = Field(default=0.998, ge=0.0, le=1.0)
+    K: int = Field(default=8, gt=0)
+    gamma: float = Field(default=0.99, ge=0.0, le=1.0)
+    reward_head: bool = True
+    lambda_r: float = Field(default=0.5, ge=0.0)
+    lr: float = Field(default=3e-4, gt=0.0)
+    tc_epochs: int = Field(default=1, gt=0)
+    ppo_epochs: int = Field(default=4, gt=0)
+    burn_in: int = Field(default=32, ge=0)
+
+
 class TrainerConfig(BaseModelWithForbidExtra):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
@@ -169,6 +185,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     # Profile every 10K epochs: Infrequent to minimize overhead
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+
+    # Representation learning
+    rep: RepConfig = Field(default_factory=RepConfig)
 
     # Distributed training
     # Forward minibatch: Type 2 default chosen arbitrarily
