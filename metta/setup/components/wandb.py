@@ -48,6 +48,11 @@ class WandbSetup(SetupModule):
                 Visit https://wandb.ai/authorize to get your API key.
             """)
 
+        # In test/CI environments, avoid interactive prompts entirely
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
+            info("Skipping W&B interactive setup in test/CI environment.")
+            return
+
         use_wandb = input("\nDo you have your API key ready? (y/n): ").strip().lower()
         if use_wandb != "y":
             info("Skipping W&B setup. You can configure it later with 'wandb login'")
