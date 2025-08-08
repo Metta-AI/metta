@@ -52,7 +52,7 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 echo "[INFO] Starting training..."
 
 set +e
-PYTHONPATH=$PYTHONPATH:. uv run torchrun \
+uv run torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
   --master-addr=$MASTER_ADDR \
