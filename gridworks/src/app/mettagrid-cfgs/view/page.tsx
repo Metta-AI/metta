@@ -39,9 +39,9 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
         </span>
         <span className="text-xl text-gray-400"> {cfg.metadata.kind}</span>
       </h1>
-      {(cfg.metadata.kind === "map" || cfg.metadata.kind === "env") && (
-        <MapSection cfg={cfg} />
-      )}
+      {(cfg.metadata.kind === "map" ||
+        cfg.metadata.kind === "env" ||
+        cfg.metadata.kind === "curriculum") && <MapSection cfg={cfg} />}
       <section className="mb-8">
         <h2 className="mb-4 text-xl font-bold">Config</h2>
         <JsonAsYaml json={cfg.cfg as Record<string, unknown>} />
