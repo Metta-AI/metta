@@ -58,6 +58,14 @@ class LSTM(LayerBase):
 
     def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
+        # Guard against setup order issues for static analyzers and runtime safety
+        assert (
+            getattr(self, "_in_tensor_shapes", None) is not None
+            and isinstance(self._in_tensor_shapes, list)
+            and len(self._in_tensor_shapes) > 0
+            and isinstance(self._in_tensor_shapes[0], list)
+            and len(self._in_tensor_shapes[0]) > 0
+        ), "LSTM requires a valid input tensor shape from its source component"
         net = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
 
         for name, param in net.named_parameters():
@@ -68,8 +76,11 @@ class LSTM(LayerBase):
 
         return net
 
-    @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def _forward(self, td: TensorDict):
+        assert (
+            getattr(self, "_sources", None) is not None and isinstance(self._sources, list) and len(self._sources) > 0
+        ), "LSTM requires at least one source component"
         hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
         TT = td["bptt"][0]
@@ -86,9 +97,9 @@ class LSTM(LayerBase):
             dones = td.get("dones", None)
             truncateds = td.get("truncateds", None)
             if dones is not None and truncateds is not None:
-                reset_mask = dones.bool() | truncateds.bool()
-                h_0[:, reset_mask, :] = 0
-                c_0[:, reset_mask, :] = 0
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                h_0 = h_0.masked_fill(reset_mask, 0)
+                c_0 = c_0.masked_fill(reset_mask, 0)
         else:
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
