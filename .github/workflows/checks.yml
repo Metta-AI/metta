@@ -378,7 +378,7 @@ jobs:
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
   setup-tests:
-    name: "`metta setup` Tests - profile=${{ matrix.profile }}"
+    name: "setup - METTA_TEST_PROFILE=${{ matrix.profile }}"
     needs: [setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
