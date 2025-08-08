@@ -21,6 +21,7 @@ import wandb
 from omegaconf import DictConfig
 
 from metta.agent.policy_cache import PolicyCache
+from metta.agent.policy_checkpoint_manager import PolicyCheckpointManager
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.common.wandb.wandb_context import WandbRun
@@ -238,7 +239,13 @@ class PolicyStore:
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
-        """Save a policy record using the simple torch.save approach with atomic file operations."""
+        """Save a policy record using the simple torch.save approach with atomic file operations.
+
+        This method saves three files:
+        - <file>.pt: The complete PolicyRecord object (existing format)
+        - <file>.ptx: Just the torch model weights/state dict
+        - <file>.yaml: Just the metadata in YAML format
+        """
         if path is None:
             if hasattr(pr, "file_path"):
                 path = pr.file_path
@@ -270,6 +277,22 @@ class PolicyStore:
                     os.remove(temp_path)
                 except OSError:
                     pass
+
+        # Use PolicyCheckpointManager to save additional files (.ptx and .yaml)
+        if pr._cached_policy is not None:
+            try:
+                # Create checkpoint manager for the directory
+                checkpoint_dir = os.path.dirname(path)
+                checkpoint_name = os.path.splitext(os.path.basename(path))[0]
+
+                checkpoint_manager = PolicyCheckpointManager(checkpoint_dir)
+
+                # Save using checkpoint manager with simplified interface
+                checkpoint_manager.save(pr, checkpoint_name)
+                logger.info("Saved additional files (.ptx, .yaml) using PolicyCheckpointManager")
+
+            except Exception as e:
+                logger.warning(f"Failed to save additional files using PolicyCheckpointManager: {e}")
 
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
