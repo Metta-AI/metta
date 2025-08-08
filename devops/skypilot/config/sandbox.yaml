@@ -18,12 +18,12 @@ setup: |
   set -e
   cd /workspace/metta
 
-  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
+  git fetch origin "$METTA_GIT_REF" || git fetch origin
   git checkout "$METTA_GIT_REF"
-  echo "Checked out: $(git rev-parse HEAD)"
+  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
   # Python environment setup
-  echo "Setting up Python environment..."
+  echo "[SETUP] Setting up Python environment..."
   uv sync
 
   # Create required directories
@@ -41,7 +41,7 @@ setup: |
     --wandb-password "$WANDB_PASSWORD" \
     --observatory-token "$OBSERVATORY_TOKEN"
 
-  echo "Sandbox is ready"
+  echo "[SETUP] Sandbox is ready"
 
 run: |
   set -e
@@ -53,7 +53,7 @@ run: |
   fi
   . .venv/bin/activate
 
-  # Export GPU-related environment variables (evaluated when user logs in)
+  # set up GPU-related environment variables
   export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}
   export NUM_NODES=${SKYPILOT_NUM_NODES}
   export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)
