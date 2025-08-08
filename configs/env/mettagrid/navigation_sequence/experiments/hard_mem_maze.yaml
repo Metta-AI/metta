@@ -11,5 +11,6 @@ buckets:
 env_overrides:
   game:
     map_builder:
-      room:
-        dir: varied_terrain/maze_small
+      instance_map:
+        params:
+          dir: varied_terrain/maze_small

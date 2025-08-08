@@ -312,7 +312,15 @@ def train(
                     td["rewards"] = r
                     td["dones"] = d.float()
                     td["truncateds"] = t.float()
-                    td.training_env_id = training_env_id
+                    td.set(
+                        "training_env_id_start",
+                        torch.full(
+                            td.batch_size,
+                            training_env_id.start,
+                            device=td.device,
+                            dtype=torch.long,
+                        ),
+                    )
 
                     # Inference
                     with torch.no_grad():
@@ -533,7 +541,7 @@ def train(
                         wandb_run=wandb_run,
                         trainer_cfg=trainer_cfg,
                     )
-                else:
+                if trainer_cfg.simulation.evaluate_local:
                     eval_scores = evaluate_policy(
                         policy_record=latest_saved_policy_record,
                         sim_suite_config=extended_suite_config,
