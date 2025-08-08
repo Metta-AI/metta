@@ -72,17 +72,28 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
 
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client is not None:
+        stats_client.validate_authenticated()
+
     # Determine git hash for remote simulations
-    if cfg.trainer.simulation.evaluate_remote and not cfg.trainer.simulation.git_hash:
-        cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
-            skip_git_check=cfg.trainer.simulation.skip_git_check,
-            skip_cmd="trainer.simulation.skip_git_check=true",
-            logger=logger,
-        )
-        if cfg.trainer.simulation.git_hash:
-            logger.info(f"Git hash for remote evaluations: {cfg.trainer.simulation.git_hash}")
-        else:
-            logger.info("No git hash available for remote evaluations")
+    if cfg.trainer.simulation.evaluate_remote:
+        if not stats_client:
+            cfg.trainer.simulation.evaluate_remote = False
+            logger.info("Not connected to stats server, disabling remote evaluations")
+        elif not cfg.trainer.simulation.evaluate_interval:
+            cfg.trainer.simulation.evaluate_remote = False
+            logger.info("Evaluate interval set to 0, disabling remote evaluations")
+        elif not cfg.trainer.simulation.git_hash:
+            cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
+                skip_git_check=cfg.trainer.simulation.skip_git_check,
+                skip_cmd="trainer.simulation.skip_git_check=true",
+                logger=logger,
+            )
+            if cfg.trainer.simulation.git_hash:
+                logger.info(f"Git hash for remote evaluations: {cfg.trainer.simulation.git_hash}")
+            else:
+                logger.info("No git hash available for remote evaluations")
 
     cfg = validate_train_job_config(cfg)
     logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
@@ -100,9 +111,6 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
     policy_store = get_policy_store_from_cfg(cfg, wandb_run)
-    stats_client: StatsClient | None = get_stats_client(cfg, logger)
-    if stats_client is not None:
-        stats_client.validate_authenticated()
 
     # Use the functional train interface directly
     train(
