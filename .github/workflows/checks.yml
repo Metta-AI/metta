@@ -391,9 +391,9 @@ jobs:
         profile: [softmax, external, cloud, softmax-docker]
     env:
       METTA_TEST_ENV: 1
-      AWS_SSO_NONINTERACTIVE: 1
       METTA_TEST_PROFILE: ${{ matrix.profile }}
       METTA_TEST_SETUP: 1
+      AWS_SSO_NONINTERACTIVE: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -405,9 +405,8 @@ jobs:
 
       - name: Run setup-focused tests (tests/setup)
         run: |
-          PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --disable-warnings -v"
-          echo "Running setup tests with METTA_TEST_PROFILE=${METTA_TEST_PROFILE}"
-          make METTA_TEST_PROFILE=${{ matrix.profile }} test-setup
+          echo "Running setup tests with METTA_TEST_PROFILE=${{env.METTA_TEST_PROFILE}}"
+          make METTA_TEST_PROFILE=${{ env.METTA_TEST_PROFILE }} test-setup
 
   tests-summary:
     name: "Tests"
