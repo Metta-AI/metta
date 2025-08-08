@@ -36,6 +36,7 @@ def get_gpu_diagnostics() -> dict[str, Any]:
     diagnostics = {
         "nvidia_smi": None,
         "cuda_version": None,
+        "torch_version": getattr(torch, "__version__", "unknown"),
         "nccl_version": None,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "not set"),
         "gpu_count": 0,
@@ -99,6 +100,7 @@ def print_diagnostics(diagnostics: dict[str, Any]) -> None:
     else:
         print("nvidia-smi: Not available")
 
+    print(f"PyTorch Version: {diagnostics['torch_version']}")
     print(f"\nCUDA Version: {diagnostics['cuda_version']}")
     print(f"NCCL Version: {diagnostics['nccl_version']}")
     print(f"CUDA_VISIBLE_DEVICES: {diagnostics['cuda_visible_devices']}")
@@ -114,23 +116,72 @@ def print_diagnostics(diagnostics: dict[str, Any]) -> None:
     print("=====================\n")
 
 
-def setup_nccl_debug_env() -> None:
-    # Make these effective for *all* ranks before init
+def _detect_iface_to(master_addr: str) -> str | None:
+    """Return the iface name that routes to master_addr, or None if not found."""
+    if not master_addr:
+        return None
+    try:
+        # Example output: "… dev ens5 src 172.31.33.153 uid 0"
+        out = subprocess.check_output(
+            [
+                "bash",
+                "-lc",
+                f"ip route get {master_addr} | awk '{{for(i=1;i<=NF;i++) if($i==\"dev\"){{print $(i+1); exit}}}}'",
+            ],
+            text=True,
+        ).strip()
+        return out or None
+    except Exception as e:
+        logger.warning(f"Could not detect iface to {master_addr}: {e}")
+        return None
+
+
+def _iface_is_up(iface: str) -> bool:
+    """Return True if the network interface exists and is UP."""
+    try:
+        out = subprocess.check_output(
+            ["bash", "-lc", f"ip -o link show dev {iface}"],
+            text=True,
+        )
+        return "state UP" in out
+    except Exception:
+        return False
+
+
+def setup_nccl_debug_env(master_addr: str | None = os.environ.get("MASTER_ADDR")) -> None:
+    """
+    Call this on every rank *before* torch.distributed.init_process_group().
+    """
+    # Base debug/isolation env (turn some off later for perf once things work)
     defaults = {
         "NCCL_DEBUG": "INFO",
         "NCCL_DEBUG_SUBSYS": "ALL",
         "CUDA_LAUNCH_BLOCKING": "1",
-        # Critical for your failure:
-        "NCCL_SHM_DISABLE": "1",
-        # Isolation-only; remove later for performance:
-        "NCCL_P2P_DISABLE": "1",
-        "NCCL_IB_DISABLE": "1",
-        # Select EC2 NICs, avoid docker0
-        "NCCL_SOCKET_IFNAME": "eth0,ens5,ens6,enp*,eno*",
+        "NCCL_SHM_DISABLE": "1",  # isolation: no POSIX shm
+        "NCCL_P2P_DISABLE": "1",  # isolation: no GPU P2P
+        "NCCL_IB_DISABLE": "1",  # isolation: no InfiniBand
+        "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
     }
+
+    # Apply defaults only if not already set by the user
     for k, v in defaults.items():
         os.environ.setdefault(k, v)
         logger.info(f"{k}={os.environ[k]}")
+
+    # Choose a socket interface: prefer the actual NIC to MASTER_ADDR
+    iface = _detect_iface_to(master_addr) if master_addr else None
+    if iface and _iface_is_up(iface):
+        os.environ["NCCL_SOCKET_IFNAME"] = iface
+        picked = iface
+    else:
+        # Safe fallback: allow all except loopback/virtual bridges
+        os.environ["NCCL_SOCKET_IFNAME"] = "^lo,docker*,veth*,br*,virbr*,tap*"
+        picked = os.environ["NCCL_SOCKET_IFNAME"]
+
+    logger.info(f"NCCL_SOCKET_IFNAME={picked}")
+
+    # Nice-to-have visibility
+    logger.info(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
 
 def test_nccl_communication() -> bool:
@@ -144,8 +195,9 @@ def test_nccl_communication() -> bool:
             return True
 
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        logger.info(f"Setting desive to local_rank = {local_rank}")
+        logger.info(f"Setting device to local_rank = {local_rank}")
         torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
 
         # Initialize process group
         logger.info("Initializing process group...")
@@ -154,18 +206,13 @@ def test_nccl_communication() -> bool:
         rank = dist.get_rank()
         world_size = dist.get_world_size()
         logger.info(f"Rank {rank}/{world_size}: Process group initialized")
-
-        # Determine device
-        device_count = torch.cuda.device_count()
-        device_id = rank % device_count
-        device = torch.device(f"cuda:{device_id}")
         logger.info(f"Rank {rank}: Using device {device}")
 
         # Test 1: All-reduce
         logger.info(f"Rank {rank}: Testing all-reduce...")
         tensor = torch.ones(1).to(device) * (rank + 1)
         dist.all_reduce(tensor)
-        expected = sum(range(1, world_size + 1))
+        expected = world_size * (world_size + 1) // 2
         if abs(tensor.item() - expected) > 1e-6:
             raise ValueError(f"All-reduce failed: expected {expected}, got {tensor.item()}")
         logger.info(f"Rank {rank}: All-reduce test passed")
@@ -185,14 +232,19 @@ def test_nccl_communication() -> bool:
         dist.barrier()
         logger.info(f"Rank {rank}: Barrier test passed")
 
-        # Cleanup
-        dist.destroy_process_group()
         logger.info(f"Rank {rank}: NCCL tests completed successfully")
         return True
 
     except Exception as e:
         logger.error(f"NCCL test failed: {e}", exc_info=True)
         return False
+    finally:
+        # Ensure we don’t leak communicators on failures too
+        try:
+            if dist.is_available() and dist.is_initialized():
+                dist.destroy_process_group()
+        except Exception:
+            pass
 
 
 def test_single_gpu() -> bool:
