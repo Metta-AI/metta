@@ -90,8 +90,11 @@ def load_pytorch_policy(path: str, device: str = "cpu", cfg = None, pytorch_cfg:
         feature_normalizations={},
         global_features=[],
     )
+    from metta.rl.env_config import create_env_config
 
-    builder = MettaAgentBuilder(env, cfg)
+    logger.info(f"Logger Policy: {pytorch_cfg}")
+
+    builder = MettaAgentBuilder(env, None, pytorch_cfg)
 
     metta_agent = builder.build(policy)
     return metta_agent

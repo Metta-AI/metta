@@ -1,7 +1,5 @@
 import logging
 
-import logging
-
 import einops
 import pufferlib.models
 import pufferlib.pytorch
@@ -9,13 +7,11 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-import numpy as np
-
 logger = logging.getLogger(__name__)
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=256, hidden_size=256):
+    def __init__(self, env, policy=None, cnn_channels=128, input_size=512, hidden_size=512):
         if policy is None:
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
         super().__init__(env, policy, input_size, hidden_size)
@@ -29,7 +25,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         is_training: bool = True,
     ):
         self.activate_actions(action_names, action_max_params, device)
-
 
     def activate_actions(self, action_names, action_max_params, device):
         """
@@ -60,7 +55,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         logger.info(f"Policy actions initialized with: {self.active_actions}")
 
-    def forward(self, observations, state, action):
+    def forward(self, observations, state=None, action=None):
         """
         Forward pass through the recurrent policy.
 
@@ -98,7 +93,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         # LSTM forward pass
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # Shape: (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
-
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)  # Shape: (B * TT, hidden_size)
 
         # Decode actions and value
@@ -147,8 +141,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             value,  # Keep value as [B*TT, 1] which should be [B, 1] when TT=1
             logits_list,
         )
-
-
 
 
 class Policy(nn.Module):
@@ -206,10 +198,7 @@ class Policy(nn.Module):
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec.to(self.device))
-        )[None, :, None, None]
-        self.register_buffer("max_vec", max_vec.to(self.device))
 
-        action_nvec = self.action_space.nvec
         action_nvec = self.action_space.nvec
         self.actor = nn.ModuleList(
             [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
@@ -217,20 +206,8 @@ class Policy(nn.Module):
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
         self.to(self.device)
-        self.to(self.device)
 
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
-
-        Args:
-            observations: Input tensor, shape (B, TT, M, 3) or (B, M, 3)
-            state: Optional state dictionary
-
-        Returns:
-            hidden: Encoded representation, shape (B * TT, hidden_size)
-        """
-        observations = observations.to(self.device)
         """
         Encode observations into a hidden representation.
 
@@ -246,18 +223,19 @@ class Policy(nn.Module):
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
         if token_observations.dim() != 3:
-        TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
-        if token_observations.dim() != 3:
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
 
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
         token_observations[token_observations == 255] = 0
 
+        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = token_observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
-        y_coord_indices = (coords_byte & 0x0F).long()
-        atr_indices = token_observations[..., 1].long()
-        atr_values = token_observations[..., 2].float()
+
+        # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 
         box_obs = torch.zeros(
             (B * TT, self.num_layers, self.out_width, self.out_height),
@@ -278,7 +256,6 @@ class Policy(nn.Module):
         ] = atr_values[valid_tokens]
 
         features = box_obs / self.max_vec
-        features = box_obs / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)
@@ -294,19 +271,6 @@ class Policy(nn.Module):
             logits: List of logits for each action head, [shape (B * TT, n_i)]
             value: Value estimate, shape (B * TT, 1)
         """
-        """
-        Decode hidden representation into logits and value.
-
-        Args:
-            hidden: Hidden representation, shape (B * TT, hidden_size)
-
-        Returns:
-            logits: List of logits for each action head, [shape (B * TT, n_i)]
-            value: Value estimate, shape (B * TT, 1)
-        """
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
-
-
-
