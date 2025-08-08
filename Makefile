@@ -1,5 +1,6 @@
-.PHONY: help all dev test clean install pytest
+.PHONY: help all dev test clean install pytest test-setup
 
+override METTA_PROFILE ?= softmax
 
 # Default target when just running 'make'
 help:
@@ -7,6 +8,7 @@ help:
 	@echo " dev - Prepare the dev environment"
 	@echo " test - Run all unit tests with coverage"
 	@echo " pytest - Run all unit tests"
+	@echo " test-setup - Run setup integration tests"
 	@echo " all - Run dev and test"
 	@echo " clean - Remove cmake build artifacts and temporary files"
 
@@ -24,6 +26,12 @@ dev:
 test:
 	@echo "Running python tests with coverage"
 	uv run  --active metta test --cov=metta --cov-report=term-missing --durations=10
+
+test-setup:
+	@echo "Running setup integration tests..."
+	export META_TEST_ENV=1
+	export AWS_SSO_NONINTERACTIVE=1
+	uv run --active metta test tests/setup -v -n auto --metta-profile=$(METTA_PROFILE)
 
 install:
 	@echo "Installing package in editable mode..."
