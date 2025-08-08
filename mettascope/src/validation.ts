@@ -72,8 +72,12 @@ function validateStringList(lst: any, fieldName: string, issues: ValidationIssue
   }
 }
 
-function validateTimeSeries(data: any, fieldName: string, validator: (value: any) => boolean, issues: ValidationIssue[]): void {
-
+function validateTimeSeries(
+  data: any,
+  fieldName: string,
+  validator: (value: any) => boolean,
+  issues: ValidationIssue[]
+): void {
   // check if it's a singular value.
   if (validator(data)) return
 
@@ -91,7 +95,10 @@ function validateTimeSeries(data: any, fieldName: string, validator: (value: any
 
   // If it's an Array, validate it as well.
   if (!Array.isArray(data)) {
-    issues.push({ message: `'${fieldName}' must be valid value or time series of [step, value] pairs`, field: fieldName })
+    issues.push({
+      message: `'${fieldName}' must be valid value or time series of [step, value] pairs`,
+      field: fieldName,
+    })
     return
   }
 
@@ -128,11 +135,11 @@ function isBoolean(value: any): boolean {
 }
 
 function isCoordinates(value: any): boolean {
-  return Array.isArray(value) && value.length === 3 && value.every(coord => typeof coord === 'number')
+  return Array.isArray(value) && value.length === 3 && value.every((coord) => typeof coord === 'number')
 }
 
 function requireFields(obj: any, fields: string[], objName: string, issues: ValidationIssue[]): void {
-  const missing = fields.filter(field => !(field in obj))
+  const missing = fields.filter((field) => !(field in obj))
   if (missing.length > 0) {
     issues.push({ message: `${objName} missing required fields: ${missing.join(', ')}` })
   }
@@ -199,7 +206,10 @@ function validateInventoryFormat(inventory: any, fieldName: string, issues: Vali
   // Time series format
   for (const item of inventory) {
     if (!Array.isArray(item) || item.length !== 2) {
-      issues.push({ message: `'${fieldName}' time series items must be [step, inventory_list] pairs`, field: fieldName })
+      issues.push({
+        message: `'${fieldName}' time series items must be [step, inventory_list] pairs`,
+        field: fieldName,
+      })
       return
     }
 
@@ -313,13 +323,19 @@ function validateReplaySchema(data: any, issues: ValidationIssue[]): void {
       for (let i = 0; i < matrix.length; i++) {
         validateType(matrix[i], 'array', `rewardSharingMatrix[${i}]`, issues)
         if (matrix[i] && matrix[i].length !== numAgents) {
-          issues.push({ message: `'rewardSharingMatrix[${i}]' must have ${numAgents} columns`, field: `rewardSharingMatrix[${i}]` })
+          issues.push({
+            message: `'rewardSharingMatrix[${i}]' must have ${numAgents} columns`,
+            field: `rewardSharingMatrix[${i}]`,
+          })
         }
 
         if (matrix[i]) {
           for (const value of matrix[i]) {
             if (typeof value !== 'number') {
-              issues.push({ message: `'rewardSharingMatrix[${i}]' must contain numbers`, field: `rewardSharingMatrix[${i}]` })
+              issues.push({
+                message: `'rewardSharingMatrix[${i}]' must contain numbers`,
+                field: `rewardSharingMatrix[${i}]`,
+              })
               break
             }
           }
@@ -360,9 +376,7 @@ function showValidationModal(issues: ValidationIssue[]): void {
   const title = `Validation Errors (${issues.length})`
 
   // Create a formatted message with all issues
-  const formattedIssues = issues.map((issue, index) =>
-    `${index + 1}. ${issue.message}`
-  ).join('\n')
+  const formattedIssues = issues.map((issue, index) => `${index + 1}. ${issue.message}`).join('\n')
 
   const message = `Found ${issues.length} validation error(s):\n\n${formattedIssues}`
 
@@ -382,7 +396,7 @@ export function validateReplayData(replay: Replay): void {
   const issues: ValidationIssue[] = []
   validateReplaySchema(replay, issues)
 
-  console.log("validation modal with", issues.length, "issues")
+  console.log('validation modal with', issues.length, 'issues')
   if (issues.length > 0) {
     showValidationModal(issues)
   }
@@ -407,66 +421,69 @@ export function validateReplayStep(replayStep: any): void {
     return
   }
 
-      for (let i = 0; i < replayStep.objects.length; i++) {
-      const obj = replayStep.objects[i]
-      const prefix = `Step ${replayStep.step}, Object ${i + 1}:`
+  for (let i = 0; i < replayStep.objects.length; i++) {
+    const obj = replayStep.objects[i]
+    const prefix = `Step ${replayStep.step}, Object ${i + 1}:`
 
-      if (typeof obj.id !== 'number' || obj.id < 1) {
-        issues.push({ message: `${prefix} Invalid or missing ID`, field: `objects[${i}].id` })
-      }
+    if (typeof obj.id !== 'number' || obj.id < 1) {
+      issues.push({ message: `${prefix} Invalid or missing ID`, field: `objects[${i}].id` })
+    }
 
-      if (typeof obj.type_id !== 'number' || obj.type_id < 0) {
-        issues.push({ message: `${prefix} Invalid type ID`, field: `objects[${i}].type_id` })
-      }
+    if (typeof obj.type_id !== 'number' || obj.type_id < 0) {
+      issues.push({ message: `${prefix} Invalid type ID`, field: `objects[${i}].type_id` })
+    }
 
-      if (obj.location !== undefined) {
-        if (!Array.isArray(obj.location) || obj.location.length < 2) {
-          issues.push({ message: `${prefix} Invalid location format`, field: `objects[${i}].location` })
-        } else {
-          const [x, y] = obj.location
-          if (typeof x !== 'number' || typeof y !== 'number') {
-            issues.push({ message: `${prefix} Location coordinates must be numbers`, field: `objects[${i}].location` })
-          }
-        }
-      }
-
-      if ('agent_id' in obj) {
-        if (typeof obj.agent_id !== 'number' || obj.agent_id < 0) {
-          issues.push({ message: `${prefix} Invalid agent ID`, field: `objects[${i}].agent_id` })
-        }
-
-        if (obj.action_id !== undefined && (typeof obj.action_id !== 'number' || obj.action_id < 0)) {
-          issues.push({ message: `${prefix} Invalid action ID`, field: `objects[${i}].action_id` })
-        }
-
-        if (obj.current_reward !== undefined && typeof obj.current_reward !== 'number') {
-          issues.push({ message: `${prefix} Current reward must be a number`, field: `objects[${i}].current_reward` })
-        }
-
-        if (obj.total_reward !== undefined && typeof obj.total_reward !== 'number') {
-          issues.push({ message: `${prefix} Total reward must be a number`, field: `objects[${i}].total_reward` })
-        }
-      }
-
-      if (obj.inventory !== undefined) {
-        validateType(obj.inventory, 'array', `${prefix} Inventory`, issues)
-        if (Array.isArray(obj.inventory)) {
-          for (let j = 0; j < obj.inventory.length; j++) {
-            const invItem = obj.inventory[j]
-            if (
-              !Array.isArray(invItem) ||
-              invItem.length !== 2 ||
-              typeof invItem[0] !== 'number' ||
-              typeof invItem[1] !== 'number'
-            ) {
-              issues.push({ message: `${prefix} Invalid inventory item format at index ${j}`, field: `objects[${i}].inventory[${j}]` })
-            }
-          }
+    if (obj.location !== undefined) {
+      if (!Array.isArray(obj.location) || obj.location.length < 2) {
+        issues.push({ message: `${prefix} Invalid location format`, field: `objects[${i}].location` })
+      } else {
+        const [x, y] = obj.location
+        if (typeof x !== 'number' || typeof y !== 'number') {
+          issues.push({ message: `${prefix} Location coordinates must be numbers`, field: `objects[${i}].location` })
         }
       }
     }
 
-    if (issues.length > 0) {
-      showValidationModal(issues)
+    if ('agent_id' in obj) {
+      if (typeof obj.agent_id !== 'number' || obj.agent_id < 0) {
+        issues.push({ message: `${prefix} Invalid agent ID`, field: `objects[${i}].agent_id` })
+      }
+
+      if (obj.action_id !== undefined && (typeof obj.action_id !== 'number' || obj.action_id < 0)) {
+        issues.push({ message: `${prefix} Invalid action ID`, field: `objects[${i}].action_id` })
+      }
+
+      if (obj.current_reward !== undefined && typeof obj.current_reward !== 'number') {
+        issues.push({ message: `${prefix} Current reward must be a number`, field: `objects[${i}].current_reward` })
+      }
+
+      if (obj.total_reward !== undefined && typeof obj.total_reward !== 'number') {
+        issues.push({ message: `${prefix} Total reward must be a number`, field: `objects[${i}].total_reward` })
+      }
     }
+
+    if (obj.inventory !== undefined) {
+      validateType(obj.inventory, 'array', `${prefix} Inventory`, issues)
+      if (Array.isArray(obj.inventory)) {
+        for (let j = 0; j < obj.inventory.length; j++) {
+          const invItem = obj.inventory[j]
+          if (
+            !Array.isArray(invItem) ||
+            invItem.length !== 2 ||
+            typeof invItem[0] !== 'number' ||
+            typeof invItem[1] !== 'number'
+          ) {
+            issues.push({
+              message: `${prefix} Invalid inventory item format at index ${j}`,
+              field: `objects[${i}].inventory[${j}]`,
+            })
+          }
+        }
+      }
+    }
+  }
+
+  if (issues.length > 0) {
+    showValidationModal(issues)
+  }
 }
