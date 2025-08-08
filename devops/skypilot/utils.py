@@ -8,7 +8,7 @@ import sky.jobs
 import sky.server.common
 
 import metta.common.util.stats_client_cfg
-from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_tracked_changes, is_commit_pushed
+from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -45,8 +45,8 @@ def check_git_state(commit_hash: str) -> str | None:
     """Check that the commit has been pushed and there are no staged changes."""
     error_lines = []
 
-    dirty_tracked, _ = has_unstaged_tracked_changes()
-    if dirty_tracked:
+    has_changes, _ = has_unstaged_changes()
+    if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
         error_lines.append("  - Commit: git add -u && git commit -m 'your message'")
