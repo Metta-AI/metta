@@ -138,6 +138,17 @@ function isCoordinates(value: any): boolean {
   return Array.isArray(value) && value.length === 3 && value.every((coord) => typeof coord === 'number')
 }
 
+function isInventoryList(value: any): boolean {
+  if (!Array.isArray(value)) return false
+
+  return value.every((pair: any) =>
+    Array.isArray(pair) &&
+    pair.length === 2 &&
+    typeof pair[0] === 'number' && pair[0] >= 0 &&
+    typeof pair[1] === 'number' && pair[1] >= 0
+  )
+}
+
 function requireFields(obj: any, fields: string[], objName: string, issues: ValidationIssue[]): void {
   const missing = fields.filter((field) => !(field in obj))
   if (missing.length > 0) {
@@ -145,82 +156,7 @@ function requireFields(obj: any, fields: string[], objName: string, issues: Vali
   }
 }
 
-function validateLocation(location: any, objName: string, issues: ValidationIssue[]): void {
-  validateTimeSeries(location, `${objName}.location`, isCoordinates, issues)
-}
 
-function validateInventoryList(inventoryList: any, fieldName: string, issues: ValidationIssue[]): void {
-  validateType(inventoryList, 'array', fieldName, issues)
-
-  if (Array.isArray(inventoryList)) {
-    for (const pair of inventoryList) {
-      if (!Array.isArray(pair) || pair.length !== 2) {
-        issues.push({ message: `'${fieldName}' must contain [item_id, amount] pairs`, field: fieldName })
-        return
-      }
-
-      if (typeof pair[0] !== 'number' || pair[0] < 0) {
-        issues.push({ message: `'${fieldName}' item_id must be non-negative integer`, field: fieldName })
-        return
-      }
-
-      if (typeof pair[1] !== 'number' || pair[1] < 0) {
-        issues.push({ message: `'${fieldName}' amount must be non-negative number`, field: fieldName })
-        return
-      }
-    }
-  }
-}
-
-function validateInventoryFormat(inventory: any, fieldName: string, issues: ValidationIssue[]): void {
-  // Handle Sequence objects for inventory
-  if (inventory instanceof Sequence) {
-    // Validate all inventory states in the sequence
-    const length = inventory.length()
-    for (let step = 0; step < length; step++) {
-      const inventoryList = inventory.get(step)
-      const stepFieldName = `${fieldName} at step ${step}`
-      validateInventoryList(inventoryList, stepFieldName, issues)
-    }
-    return
-  }
-
-  if (!Array.isArray(inventory)) {
-    validateType(inventory, 'array', fieldName, issues)
-    return
-  }
-
-  if (inventory.length === 0) return
-
-  // Single inventory list
-  if (
-    inventory.every(
-      (item: any) =>
-        Array.isArray(item) && item.length === 2 && typeof item[0] === 'number' && typeof item[1] === 'number'
-    )
-  ) {
-    validateInventoryList(inventory, fieldName, issues)
-    return
-  }
-
-  // Time series format
-  for (const item of inventory) {
-    if (!Array.isArray(item) || item.length !== 2) {
-      issues.push({
-        message: `'${fieldName}' time series items must be [step, inventory_list] pairs`,
-        field: fieldName,
-      })
-      return
-    }
-
-    if (typeof item[0] !== 'number' || item[0] < 0) {
-      issues.push({ message: `'${fieldName}' time series step must be non-negative`, field: fieldName })
-      return
-    }
-
-    validateInventoryList(item[1], fieldName, issues)
-  }
-}
 
 function validateObject(obj: any, objIndex: number, replayData: any, issues: ValidationIssue[]): void {
   const objName = `Object ${objIndex + 1}`
@@ -237,9 +173,9 @@ function validateObject(obj: any, objIndex: number, replayData: any, issues: Val
     issues.push({ message: `${objName}.typeId ${obj.typeId} out of range`, field: `${objName}.typeId` })
   }
 
-  validateLocation(obj.location, objName, issues)
+  validateTimeSeries(obj.location, `${objName}.location`, isCoordinates, issues)
   validateTimeSeries(obj.orientation, `${objName}.orientation`, isNumber, issues)
-  validateInventoryFormat(obj.inventory, `${objName}.inventory`, issues)
+  validateTimeSeries(obj.inventory, `${objName}.inventory`, isInventoryList, issues)
   validateTimeSeries(obj.color, `${objName}.color`, isNumber, issues)
 
   if (obj.isAgent || obj.agentId !== undefined) {
