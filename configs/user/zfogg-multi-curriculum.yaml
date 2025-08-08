@@ -1,0 +1,15 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Basic resource gathering tasks - these use only core objects (mines, generators, altars)
+  /env/mettagrid/arena/basic: 6
+  /env/mettagrid/arena/basic_easy: 6
+  /env/mettagrid/arena/basic_easy_shaped: 8
+  /env/mettagrid/arena/basic_poor: 4
+  
+  # Tag games - no special objects, just agent interactions
+  /env/mettagrid/arena/tag: 4
+  /env/mettagrid/arena/tag_easy: 4
+  /env/mettagrid/arena/tag_easy_shaped: 4
+
+# All tasks use standard objects that work in production builds
