@@ -2,6 +2,7 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
+from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -74,8 +75,7 @@ class LSTM(LayerBase):
         TT = td["bptt"][0]
         B = td["batch"][0]
 
-        h_size = hidden.shape[-1]
-        hidden = hidden.view(B, TT, h_size).transpose(0, 1)
+        hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
         training_env_id_start = td.get("training_env_id_start", torch.tensor([0]))[0].item()
 
@@ -98,7 +98,7 @@ class LSTM(LayerBase):
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
 
-        hidden = hidden.transpose(0, 1).reshape(B * TT, h_size)
+        hidden = rearrange(hidden, "t b h -> (b t) h")
 
         td[self._name] = hidden
 
