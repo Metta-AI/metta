@@ -127,8 +127,9 @@ def get_cost_info() -> dict[str, Any] | None:
 
 def main():
     """
-    Calculates the total hourly cost for the cluster and sets METTA_HOURLY_COST
-    environment variable by appending to the shell's environment.
+    Calculates the total hourly cost for the cluster and sets METTA_HOURLY_COST environment variable by appending
+    to the shell's environment. Also prints METTA_HOURLY_COST to stdout for shell script consumption. Other output
+    goes to stderr.
     """
     cost_info = get_cost_info()
     if cost_info:
@@ -136,7 +137,8 @@ def main():
         num_nodes_env = os.environ.get("SKYPILOT_NUM_NODES")
         if num_nodes_env is None:
             logger.warning("SKYPILOT_NUM_NODES environment variable not set; cost info will not be provided.")
-            return
+            return 1
+
         num_nodes = int(num_nodes_env)
         total_hourly_cost = instance_hourly_cost * num_nodes
 
@@ -147,7 +149,6 @@ def main():
         try:
             # Ensure the parent directory exists
             os.makedirs(os.path.dirname(METTA_ENV_FILE), exist_ok=True)
-
             with open(METTA_ENV_FILE, "a") as f:
                 f.write(f"\nexport METTA_HOURLY_COST={total_hourly_cost}\n")
         except FileNotFoundError:
@@ -166,9 +167,14 @@ def main():
             f"(${instance_hourly_cost:.4f}/hr per instance)"
         )
         logger.info(f"Set METTA_HOURLY_COST={total_hourly_cost}")
+
+        # Print the value to stdout for shell script consumption
+        print(total_hourly_cost)
+        return 0
     else:
         logger.warning("Could not determine hourly cost. METTA_HOURLY_COST will not be set.")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

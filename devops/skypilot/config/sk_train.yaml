@@ -84,18 +84,21 @@ run: |
   export NODE_INDEX=$SKYPILOT_NODE_RANK
   export NCCL_SHM_DISABLE=1
 
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    if uv run python common/src/metta/common/util/cost_monitor.py; then
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    METTA_HOURLY_COST=$(uv run python common/src/metta/common/util/cost_monitor.py 2>&1 | tail -1)
+    if [ $? -eq 0 ] && [ -n "$METTA_HOURLY_COST" ]; then
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
     else
-      echo "[RUN] Cost monitor script failed to run."
+      echo "[RUN] Cost monitor script failed to run or returned no value."
     fi
   else
     echo "[RUN] Cost monitor script is missing!"
   fi
 
-  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  # load ENV
   source "$METTA_ENV_FILE"
 
   echo "[RUN] Running training script..."
