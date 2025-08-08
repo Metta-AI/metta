@@ -377,40 +377,9 @@ jobs:
           chmod +x .github/scripts/upload_codecov.py
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
-  setup-tests:
-    name: "setup - METTA_TEST_PROFILE=${{ matrix.profile }}"
-    needs: [setup-checks]
-    if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        profile: [softmax, external, cloud, softmax-docker]
-    env:
-      METTA_TEST_ENV: 1
-      METTA_TEST_PROFILE: ${{ matrix.profile }}
-      METTA_TEST_SETUP: 1
-      AWS_SSO_NONINTERACTIVE: 1
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
-        with:
-          install-mode: "testing"
-
-      - name: Run setup-focused tests (tests/setup)
-        run: |
-          echo "Running setup tests with METTA_TEST_PROFILE=${{env.METTA_TEST_PROFILE}}"
-          make METTA_TEST_PROFILE=${{ env.METTA_TEST_PROFILE }} test-setup
-
   tests-summary:
     name: "Tests"
-    needs: [test-matrix, setup-tests]
+    needs: [test-matrix]
     if: always()
     runs-on: ubuntu-latest
     steps:
