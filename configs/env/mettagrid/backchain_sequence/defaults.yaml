@@ -18,6 +18,9 @@ game:
       enabled: false
   agent:
     default_resource_limit: 1
+    rewards:
+      inventory:
+        heart: 1.0
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
@@ -29,3 +32,33 @@ game:
       params:
         agents: 1
         objects: ??
+
+objects:
+  altar:
+    cooldown: 255
+    initial_resource_count: 0
+    input_resources:
+      battery_red: 1
+    output_resources:
+      heart: 1
+  generator_red:
+    cooldown: 255
+    initial_resource_count: 0
+    input_resources:
+      ore_red: 1
+    output_resources:
+      battery_red: 1
+  mine_red:
+    cooldown: 255
+    initial_resource_count: 0
+    input_resources:
+      ore_green: 1
+    output_resources:
+      ore_red: 1
+  mine_green:
+    cooldown: 255
+    initial_resource_count: 0
+    input_resources:
+      ore_blue: 1
+    output_resources:
+      ore_green: 1
