@@ -1088,6 +1088,13 @@ onEvent('click', '#action-buttons .close', () => {
   requestFrame()
 })
 
+onEvent('click', '#modal', () => {
+  // make error modal dismissable.
+  if (html.modal.classList.contains('error')) {
+    Common.closeModal()
+  }
+})
+
 initHighDpiMode()
 initActionButtons()
 initAgentTable()
