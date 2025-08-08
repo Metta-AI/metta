@@ -30,7 +30,7 @@ game:
       sequence_reward: 1.0
       num_trials: 1
       attempts_per_trial: 16
-      reward_mode: "dense"
+      reward_mode: "partial"
       trial_sequences:
         - [0, 1, 0, 1] # Same sequence for entire 64-step episode
       color_to_item: {0: ore_red, 1: ore_blue}
