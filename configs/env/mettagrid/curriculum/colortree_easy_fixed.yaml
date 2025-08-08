@@ -1,3 +1,6 @@
-_target_: metta.mettagrid.curriculum.core.SingleTaskCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
-task: /env/mettagrid/colortree_easy
+
+tasks:
+  /env/mettagrid/colortree_easy:   1
+

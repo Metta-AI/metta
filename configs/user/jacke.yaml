@@ -9,24 +9,25 @@ wandb:
 run_id: 492
 run: ${oc.env:USER}.local.${run_id}
 
-# LSTM policy for ColorTree tasks
-agent:
-  _target_: metta.agent.external.lstm_transformer.Recurrent
+
+# agent:
+#   _target_: metta.agent.external.lstm_transformer.Recurrent
 
 # PPO hyperparameters optimized for ColorTree
+
 trainer:
-  ppo:
-    clip_coef: 0.2        # Higher clip helps small advantages
-    ent_coef: 0.001       # Lower entropy bonus
-    vf_coef: 0.5
-    gamma: 0.95           # Shorter horizon matches 64-step episodes
-  optimizer:
-    learning_rate: 0.0008 # Larger step for small rewards
+#   ppo:
+#     clip_coef: 0.2        # Higher clip helps small advantages
+#     ent_coef: 0.001       # Lower entropy bonus
+#     vf_coef: 0.5
+#     gamma: 0.95           # Shorter horizon matches 64-step episodes
+#   optimizer:
+#     learning_rate: 0.0008 # Larger step for small rewards
 
   # # Optimized batch sizes for single-agent training
   # batch_size: 2048
   # minibatch_size: 256
-  # bptt_horizon: 64
+  bptt_horizon: 64
   # update_epochs: 2
   # forward_pass_minibatch_target_size: 256
 
