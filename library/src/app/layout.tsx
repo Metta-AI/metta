@@ -19,9 +19,7 @@ const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
   return (
     <SessionProvider>
       <NuqsAdapter>
-        <MathJaxProvider>
-          {children}
-        </MathJaxProvider>
+        <MathJaxProvider>{children}</MathJaxProvider>
       </NuqsAdapter>
     </SessionProvider>
   );
@@ -35,7 +33,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 
   return (
     <html lang="en">
-      <body className="overflow-y-scroll">
+      <body className="overflow-y-scroll" suppressHydrationWarning={true}>
         <GlobalProviders>
           <LibraryLayout>{children}</LibraryLayout>
         </GlobalProviders>

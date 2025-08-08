@@ -16,6 +16,7 @@ model User {
   accounts              Account[]
   authenticators        Authenticator[]
   posts                 Post[]
+  comments              Comment[]
   sessions              Session[]
   userPaperInteractions UserPaperInteraction[]
   userPostLikes         UserPostLike[]
@@ -89,8 +90,22 @@ model Post {
   author        User           @relation(fields: [authorId], references: [id])
   paper         Paper?         @relation(fields: [paperId], references: [id])
   userPostLikes UserPostLike[]
+  comments      Comment[]
 
   @@map("post")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  postId    String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("comment")
 }
 
 model Author {

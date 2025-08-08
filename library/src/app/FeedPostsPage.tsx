@@ -19,6 +19,7 @@ import UserCard from "@/components/UserCard";
 
 import { FeedPost } from "./FeedPost";
 import { NewPostForm } from "./NewPostForm";
+import { CommentSidebar } from "@/posts/components/CommentSidebar";
 
 /**
  * FeedPostsPage Component
@@ -52,6 +53,10 @@ export const FeedPostsPage: FC<{
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
+  // Comment sidebar state
+  const [selectedPostForComments, setSelectedPostForComments] =
+    useState<FeedPostDTO | null>(null);
+
   // Handle paper click using overlay navigation
   const handlePaperClick = (paperId: string) => {
     const paper = papersData.papers.find((p) => p.id === paperId);
@@ -77,6 +82,16 @@ export const FeedPostsPage: FC<{
   // Handle user card close
   const handleUserCardClose = () => {
     setSelectedUser(null);
+  };
+
+  // Handle comment button click
+  const handleCommentClick = (post: FeedPostDTO) => {
+    setSelectedPostForComments(post);
+  };
+
+  // Handle comment sidebar close
+  const handleCommentSidebarClose = () => {
+    setSelectedPostForComments(null);
   };
 
   // Handle toggle star
@@ -144,6 +159,7 @@ export const FeedPostsPage: FC<{
                 post={post}
                 onPaperClick={handlePaperClick}
                 onUserClick={handleUserClick}
+                onCommentClick={handleCommentClick}
                 currentUser={currentUser}
               />
             ))}
@@ -185,6 +201,13 @@ export const FeedPostsPage: FC<{
           onClose={handleUserCardClose}
         />
       )}
+      {/* Comment Sidebar */}
+      <CommentSidebar
+        post={selectedPostForComments}
+        onClose={handleCommentSidebarClose}
+        onPaperClick={handlePaperClick}
+        currentUser={currentUser}
+      />
     </>
   );
 };

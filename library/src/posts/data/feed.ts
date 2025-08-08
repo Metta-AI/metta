@@ -6,7 +6,7 @@ export type FeedPostDTO = {
   id: string;
   title: string;
   content: string | null;
-  postType: 'user-post' | 'paper-post' | 'pure-paper';
+  postType: "user-post" | "paper-post" | "pure-paper";
   likes: number;
   liked: boolean;
   retweets: number;
@@ -21,7 +21,12 @@ export type FeedPostDTO = {
     id: string;
     title: string;
     abstract: string | null;
-    authors?: { id: string; name: string; orcid?: string | null; institution?: string | null }[];
+    authors?: {
+      id: string;
+      name: string;
+      orcid?: string | null;
+      institution?: string | null;
+    }[];
     institutions: string[] | null;
     tags: string[] | null;
     link: string | null;
@@ -36,15 +41,20 @@ export type FeedPostDTO = {
   updatedAt: Date;
 };
 
-export function toFeedPostDTO(dbModel: any, usersMap: Map<string, any>, papersMap: Map<string, any>, userLikesMap: Map<string, boolean> = new Map()): FeedPostDTO {
+export function toFeedPostDTO(
+  dbModel: any,
+  usersMap: Map<string, any>,
+  papersMap: Map<string, any>,
+  userLikesMap: Map<string, boolean> = new Map()
+): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
-  
+
   return {
     id: dbModel.id,
     title: dbModel.title,
     content: dbModel.content,
-    postType: dbModel.postType as 'user-post' | 'paper-post' | 'pure-paper',
+    postType: dbModel.postType as "user-post" | "paper-post" | "pure-paper",
     likes: dbModel.likes ?? 0,
     liked: userLikesMap.get(dbModel.id) ?? false,
     retweets: dbModel.retweets ?? 0,
@@ -55,26 +65,29 @@ export function toFeedPostDTO(dbModel: any, usersMap: Map<string, any>, papersMa
       email: author?.email ?? null,
       image: author?.image ?? null,
     },
-    paper: paper ? {
-      id: paper.id,
-      title: paper.title,
-      abstract: paper.abstract,
-      authors: paper.paperAuthors?.map((pa: any) => ({
-        id: pa.author.id,
-        name: pa.author.name,
-        orcid: pa.author.orcid,
-        institution: pa.author.institution
-      })) || [],
-      institutions: paper.institutions,
-      tags: paper.tags,
-      link: paper.link,
-      source: paper.source,
-      externalId: paper.externalId,
-      stars: paper.stars ?? 0,
-      starred: false, // TODO: Get from user interactions
-      createdAt: paper.createdAt,
-      updatedAt: paper.updatedAt,
-    } : undefined,
+    paper: paper
+      ? {
+          id: paper.id,
+          title: paper.title,
+          abstract: paper.abstract,
+          authors:
+            paper.paperAuthors?.map((pa: any) => ({
+              id: pa.author.id,
+              name: pa.author.name,
+              orcid: pa.author.orcid,
+              institution: pa.author.institution,
+            })) || [],
+          institutions: paper.institutions,
+          tags: paper.tags,
+          link: paper.link,
+          source: paper.source,
+          externalId: paper.externalId,
+          stars: paper.stars ?? 0,
+          starred: false, // TODO: Get from user interactions
+          createdAt: paper.createdAt,
+          updatedAt: paper.updatedAt,
+        }
+      : undefined,
     createdAt: dbModel.createdAt,
     updatedAt: dbModel.updatedAt,
   };
@@ -89,21 +102,23 @@ export async function loadFeedPosts({
 } = {}): Promise<Paginated<FeedPostDTO>> {
   // Get current user session
   const session = await auth();
-  
+
   // Build the query with proper cursor-based pagination
   const rows = await prisma.post.findMany({
-    where: cursor ? {
-      createdAt: {
-        lt: cursor,
-      },
-    } : undefined,
+    where: cursor
+      ? {
+          createdAt: {
+            lt: cursor,
+          },
+        }
+      : undefined,
     take: limit + 1,
     orderBy: [
       {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       {
-        id: 'desc', // Secondary sort by ID to ensure consistent ordering
+        id: "desc", // Secondary sort by ID to ensure consistent ordering
       },
     ],
     include: {
@@ -117,12 +132,12 @@ export async function loadFeedPosts({
                   id: true,
                   name: true,
                   orcid: true,
-                  institution: true
-                }
-              }
-            }
-          }
-        }
+                  institution: true,
+                },
+              },
+            },
+          },
+        },
       },
     },
   });
@@ -130,7 +145,7 @@ export async function loadFeedPosts({
   // Fetch user likes for these posts if user is authenticated
   let userLikesMap = new Map<string, boolean>();
   if (session?.user?.id) {
-    const postIds = rows.map(row => row.id);
+    const postIds = rows.map((row) => row.id);
     const userLikes = await prisma.userPostLike.findMany({
       where: {
         userId: session.user.id,
@@ -139,12 +154,12 @@ export async function loadFeedPosts({
         },
       },
     });
-    
-    userLikesMap = new Map(userLikes.map(like => [like.postId, true]));
+
+    userLikesMap = new Map(userLikes.map((like) => [like.postId, true]));
   }
 
   // Transform the data to match the expected format
-  const posts = rows.map(row => {
+  const posts = rows.map((row) => {
     // Create maps for the lookup (maintaining compatibility with existing toFeedPostDTO function)
     const usersMap = new Map();
     if (row.author) {
@@ -169,4 +184,4 @@ export async function loadFeedPosts({
   }
 
   return makePaginated(posts, limit, loadMore);
-} 
+}

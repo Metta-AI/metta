@@ -7,6 +7,7 @@ import { useAction } from "next-safe-action/hooks";
 import { postRoute } from "@/lib/routes";
 import { FeedPostDTO } from "@/posts/data/feed";
 import { PaperCard } from "@/components/PaperCard";
+import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleLikeAction } from "@/posts/actions/toggleLikeAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
@@ -25,18 +26,22 @@ export const FeedPost: FC<{
   post: FeedPostDTO;
   onPaperClick?: (paperId: string) => void;
   onUserClick?: (userId: string) => void;
+  onCommentClick?: (post: FeedPostDTO) => void;
   currentUser: {
     id: string;
     name?: string | null;
     email?: string | null;
   } | null;
-}> = ({ post, onPaperClick, onUserClick, currentUser }) => {
+}> = ({ post, onPaperClick, onUserClick, onCommentClick, currentUser }) => {
   // Local state for paper data that can be updated when institutions are added
   const [paperData, setPaperData] = useState(post.paper);
 
   // Local state for optimistic like updates
   const [optimisticLikes, setOptimisticLikes] = useState(post.likes);
   const [optimisticLiked, setOptimisticLiked] = useState(post.liked);
+
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Sync local state when post prop changes
   useEffect(() => {
@@ -149,16 +154,24 @@ export const FeedPost: FC<{
   };
 
   const handleReply = () => {
-    // TODO: Implement reply functionality
-    console.log("Reply to post:", post.id);
+    if (onCommentClick) {
+      onCommentClick(post);
+    }
   };
 
   const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this post?")) {
-      const formData = new FormData();
-      formData.append("postId", post.id);
-      executeDelete(formData);
-    }
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = () => {
+    const formData = new FormData();
+    formData.append("postId", post.id);
+    executeDelete(formData);
+    setShowDeleteModal(false);
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
   };
 
   // Handle pure paper posts (papers without user commentary)
@@ -338,6 +351,16 @@ export const FeedPost: FC<{
           </svg>
         </button>
       </div>
+
+      {/* Delete Post Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+        title="Delete Post"
+        message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };
