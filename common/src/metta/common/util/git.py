@@ -86,10 +86,12 @@ def get_commit_message(commit_hash: str) -> str:
 
 
 def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
-    """Return (is_dirty_tracked, status_output) considering only tracked file changes.
+    """Returns if there are any unstaged changes in the local git checkout.
+
+    If allow_untracked is True, then unstaged changes in the form of new untracked files will be ignored.
 
     Interpretation of porcelain codes:
-    - Lines starting with '??' indicate untracked files (ignored)
+    - Lines starting with '??' indicate untracked files
     - Any other status lines indicate changes to tracked files
     """
     status_output = run_git("status", "--porcelain")
