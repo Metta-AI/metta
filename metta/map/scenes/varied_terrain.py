@@ -19,12 +19,18 @@ The build order is:
 from typing import List, Optional, Tuple
 
 import numpy as np
-from omegaconf import DictConfig
 
-from metta.mettagrid.room.room import Room
+from metta.common.util.config import Config
+from metta.map.scene import Scene
 
 
-class VariedTerrain(Room):
+class VariedTerrainParams(Config):
+    objects: dict[str, int]
+    agents: int = 1
+    style: str = "balanced"
+
+
+class VariedTerrain(Scene[VariedTerrainParams]):
     # Base style parameters for a 60x60 (area=3600) grid.
     # These counts are intentionally moderate.
     STYLE_PARAMETERS = {
@@ -67,33 +73,13 @@ class VariedTerrain(Room):
         },
     }
 
-    def __init__(
-        self,
-        width: int,
-        height: int,
-        objects: DictConfig,
-        agents: int | dict = 1,
-        seed: Optional[int] = None,
-        border_width: int = 0,
-        border_object: str = "wall",
-        occupancy_threshold: float = 0.66,  # maximum fraction of grid cells to occupy
-        style: str = "balanced",
-        teams: list | None = None,
-    ):
-        super().__init__(border_width=border_width, border_object=border_object, labels=[style])
-        self.set_size_labels(width, height)
-        self._rng = np.random.default_rng(seed)
-        self._width = width
-        self._height = height
-        self._agents = agents
-        self._teams = teams
-        self._occupancy_threshold = occupancy_threshold
-
+    def post_init(self):
+        style = self.params.style
         if style not in self.STYLE_PARAMETERS:
             raise ValueError(f"Unknown style: '{style}'. Available styles: {list(self.STYLE_PARAMETERS.keys())}")
         base_params = self.STYLE_PARAMETERS[style]
         # Determine scale from the room area relative to a 60x60 (3600 cells) grid.
-        area = width * height
+        area = self.width * self.height
         scale = area / 3600.0
 
         # Define approximate average cell occupancy for each obstacle type.
@@ -110,7 +96,7 @@ class VariedTerrain(Room):
         allowed_fraction = 0.3
 
         def clamp_count(base_count, avg_size):
-            base_count = self._rng.integers(base_count[0], base_count[1])
+            base_count = self.rng.integers(base_count[0], base_count[1])
             scaled = int(base_count * scale)
             max_allowed = int((allowed_fraction * area) / avg_size)
             return min(scaled, max_allowed) if scaled > 0 else 0
@@ -129,52 +115,40 @@ class VariedTerrain(Room):
             "count": clamp_count(base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"])
         }
         self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
-        self._objects = objects
 
-    def _build(self) -> np.ndarray:
-        # Prepare agent symbols.
-        if self._teams is None:
-            if isinstance(self._agents, int):
-                agents = ["agent.agent"] * self._agents
-        else:
-            agents = []
-            agents_per_team = self._agents // len(self._teams)
-            for team in self._teams:
-                agents += ["agent." + team] * agents_per_team
-
-        # Create an empty grid.
-        grid = np.full((self._height, self._width), "empty", dtype=object)
+    def render(self):
         # Initialize an occupancy mask: False means cell is empty, True means occupied.
-        self._occupancy = np.zeros((self._height, self._width), dtype=bool)
+        self._occupancy = np.zeros((self.height, self.width), dtype=bool)
 
         # Place features in order.
-        grid = self._place_labyrinths(grid)
-        grid = self._place_all_obstacles(grid)
-        grid = self._place_scattered_walls(grid)
-        grid = self._place_blocks(grid)
+        self._place_labyrinths()
+        self._place_all_obstacles()
+        self._place_scattered_walls()
+        self._place_blocks()
 
         # Place agents.
-        for agent in agents:
+        for _ in range(self.params.agents):
             pos = self._choose_random_empty()
             if pos is None:
                 break
             r, c = pos
-            grid[r, c] = agent
+            self.grid[r, c] = "agent.agent"
             self._occupancy[r, c] = True
 
         # Place objects.
-        for obj_name, obj_count in self._objects.items():
-            num_objs_to_place = obj_count - np.where(grid == obj_name, 1, 0).sum()
+        for obj_name, obj_count in self.params.objects.items():
+            num_objs_to_place = obj_count - np.where(self.grid == obj_name, 1, 0).sum()
             if num_objs_to_place > 0:
                 for _ in range(num_objs_to_place):
                     pos = self._choose_random_empty()
                     if pos is None:
                         break
                     r, c = pos
-                    grid[r, c] = obj_name
+                    self.grid[r, c] = obj_name
                     self._occupancy[r, c] = True
 
-        return grid
+    def get_labels(self) -> list[str]:
+        return [*super().get_labels(), self.params.style]
 
     # ---------------------------
     # Helper Functions
@@ -212,10 +186,10 @@ class VariedTerrain(Room):
         empty_flat = np.flatnonzero(~self._occupancy)
         if empty_flat.size == 0:
             return None
-        idx = self._rng.integers(0, empty_flat.size)
+        idx = self.rng.integers(0, empty_flat.size)
         return np.unravel_index(empty_flat[idx], self._occupancy.shape)
 
-    def _place_candidate_region(self, grid: np.ndarray, pattern: np.ndarray, clearance: int = 0) -> bool:
+    def _place_candidate_region(self, pattern: np.ndarray, clearance: int = 0) -> bool:
         """
         Attempts to place the given pattern in a candidate region that is completely empty,
         taking into account a clearance border around the pattern.
@@ -224,9 +198,9 @@ class VariedTerrain(Room):
         eff_h, eff_w = p_h + 2 * clearance, p_w + 2 * clearance
         candidates = self._find_candidates((eff_h, eff_w))
         if candidates:
-            r, c = candidates[self._rng.integers(0, len(candidates))]
+            r, c = candidates[self.rng.integers(0, len(candidates))]
             # Place pattern with clearance offset.
-            grid[r + clearance : r + clearance + p_h, c + clearance : c + clearance + p_w] = pattern
+            self.grid[r + clearance : r + clearance + p_h, c + clearance : c + clearance + p_w] = pattern
             self._update_occupancy((r + clearance, c + clearance), pattern)
             return True
         return False
@@ -234,57 +208,56 @@ class VariedTerrain(Room):
     # ---------------------------
     # Placement Routines
     # ---------------------------
-    def _place_labyrinths(self, grid: np.ndarray) -> np.ndarray:
+    def _place_labyrinths(self):
         labyrinth_count = self._labyrinths.get("count", 0)
         for _ in range(labyrinth_count):
             pattern = self._generate_labyrinth_pattern()
+            assert len(pattern.shape) == 2
             candidates = self._find_candidates(pattern.shape)
             if candidates:
-                r, c = candidates[self._rng.integers(0, len(candidates))]
-                grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
+                r, c = candidates[self.rng.integers(0, len(candidates))]
+                self.grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
                 self._update_occupancy((r, c), pattern)
-        return grid
 
-    def _place_all_obstacles(self, grid: np.ndarray) -> np.ndarray:
+    def _place_all_obstacles(self):
         clearance = 1
         # Place large obstacles.
         large_count = self._large_obstacles.get("count", 0)
         low_large, high_large = self._large_obstacles.get("size_range", [10, 25])
         for _ in range(large_count):
-            target = self._rng.integers(low_large, high_large + 1)
+            target = self.rng.integers(low_large, high_large + 1)
             pattern = self._generate_random_shape(target)
-            self._place_candidate_region(grid, pattern, clearance)
+            self._place_candidate_region(pattern, clearance)
         # Place small obstacles.
         small_count = self._small_obstacles.get("count", 0)
         low_small, high_small = self._small_obstacles.get("size_range", [3, 6])
         for _ in range(small_count):
-            target = self._rng.integers(low_small, high_small + 1)
+            target = self.rng.integers(low_small, high_small + 1)
             pattern = self._generate_random_shape(target)
-            self._place_candidate_region(grid, pattern, clearance)
+            self._place_candidate_region(pattern, clearance)
         # Place cross obstacles (with no extra clearance).
         crosses_count = self._crosses.get("count", 0)
         for _ in range(crosses_count):
             pattern = self._generate_cross_pattern()
+            assert len(pattern.shape) == 2
             candidates = self._find_candidates(pattern.shape)
             if candidates:
-                r, c = candidates[self._rng.integers(0, len(candidates))]
-                grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
+                r, c = candidates[self.rng.integers(0, len(candidates))]
+                self.grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
                 self._update_occupancy((r, c), pattern)
-        return grid
 
-    def _place_scattered_walls(self, grid: np.ndarray) -> np.ndarray:
+    def _place_scattered_walls(self):
         count = self._scattered_walls.get("count", 0)
         empty_flat = np.flatnonzero(~self._occupancy)
         num_to_place = min(count, empty_flat.size)
         if num_to_place == 0:
-            return grid
-        chosen_flat = self._rng.choice(empty_flat, size=num_to_place, replace=False)
-        r_coords, c_coords = np.unravel_index(chosen_flat, grid.shape)
-        grid[r_coords, c_coords] = "wall"
+            return
+        chosen_flat = self.rng.choice(empty_flat, size=num_to_place, replace=False)
+        r_coords, c_coords = np.unravel_index(chosen_flat, self.grid.shape)
+        self.grid[r_coords, c_coords] = "wall"
         self._occupancy[r_coords, c_coords] = True
-        return grid
 
-    def _place_blocks(self, grid: np.ndarray) -> np.ndarray:
+    def _place_blocks(self):
         """
         Places rectangular block objects on the grid.
         For each block, the width and height are sampled uniformly between 2 and 14.
@@ -293,15 +266,14 @@ class VariedTerrain(Room):
         """
         block_count = self._blocks.get("count", 0)
         for _ in range(block_count):
-            block_w = self._rng.integers(2, 15)  # 2 to 14 inclusive.
-            block_h = self._rng.integers(2, 15)
+            block_w = self.rng.integers(2, 15)  # 2 to 14 inclusive.
+            block_h = self.rng.integers(2, 15)
             candidates = self._find_candidates((block_h, block_w))
             if candidates:
-                r, c = candidates[self._rng.integers(0, len(candidates))]
-                grid[r : r + block_h, c : c + block_w] = "wall"
+                r, c = candidates[self.rng.integers(0, len(candidates))]
+                self.grid[r : r + block_h, c : c + block_w] = "wall"
                 block_pattern = np.full((block_h, block_w), "wall", dtype=object)
                 self._update_occupancy((r, c), block_pattern)
-        return grid
 
     # ---------------------------
     # Pattern Generation Functions
@@ -317,7 +289,7 @@ class VariedTerrain(Room):
                         candidates.append(candidate)
             if not candidates:
                 break
-            new_cell = candidates[self._rng.integers(0, len(candidates))]
+            new_cell = candidates[self.rng.integers(0, len(candidates))]
             shape_cells.add(new_cell)
         min_r = min(r for r, _ in shape_cells)
         min_c = min(c for _, c in shape_cells)
@@ -329,8 +301,8 @@ class VariedTerrain(Room):
         return pattern
 
     def _generate_cross_pattern(self) -> np.ndarray:
-        cross_w = self._rng.integers(1, 9)
-        cross_h = self._rng.integers(1, 9)
+        cross_w = self.rng.integers(1, 9)
+        cross_h = self.rng.integers(1, 9)
         pattern = np.full((cross_h, cross_w), "empty", dtype=object)
         center_row = cross_h // 2
         center_col = cross_w // 2
@@ -340,8 +312,8 @@ class VariedTerrain(Room):
 
     def _generate_labyrinth_pattern(self) -> np.ndarray:
         # Choose dimensions between 11 and 13, then clamp to 11 and force odd.
-        h = int(self._rng.integers(11, 26))
-        w = int(self._rng.integers(11, 26))
+        h = int(self.rng.integers(11, 26))
+        w = int(self.rng.integers(11, 26))
         if h % 2 == 0:
             h -= 1
         if w % 2 == 0:
@@ -360,7 +332,7 @@ class VariedTerrain(Room):
                 if 0 <= nr < h and 0 <= nc < w and maze[nr, nc] == "wall":
                     neighbors.append((nr, nc))
             if neighbors:
-                next_cell = neighbors[self._rng.integers(0, len(neighbors))]
+                next_cell = neighbors[self.rng.integers(0, len(neighbors))]
                 nr, nc = next_cell
                 wall_r, wall_c = r + (nr - r) // 2, c + (nc - c) // 2
                 maze[wall_r, wall_c] = "empty"
@@ -382,18 +354,18 @@ class VariedTerrain(Room):
         # Scatter hearts in empty cells with 1% probability.
         for i in range(h):
             for j in range(w):
-                if maze[i, j] == "empty" and self._rng.random() < 0.03:
+                if maze[i, j] == "empty" and self.rng.random() < 0.03:
                     maze[i, j] = "altar"
 
             # Apply thickening based on a random probability between 0.3 and 1.0.
-        thick_prob = 0.7 * self._rng.random()
+        thick_prob = 0.7 * self.rng.random()
         maze_thick = maze.copy()
         for i in range(1, h - 1):
             for j in range(1, w - 1):
                 if maze[i, j] == "empty":
-                    if self._rng.random() < thick_prob and j + 1 < w:
+                    if self.rng.random() < thick_prob and j + 1 < w:
                         maze_thick[i, j + 1] = "empty"
-                    if self._rng.random() < thick_prob and i + 1 < h:
+                    if self.rng.random() < thick_prob and i + 1 < h:
                         maze_thick[i + 1, j] = "empty"
         maze = maze_thick
         return maze
@@ -405,6 +377,3 @@ class VariedTerrain(Room):
             if contiguous >= 2:
                 return True
         return False
-
-
-# End of VariedTerrain class implementation
