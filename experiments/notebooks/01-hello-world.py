@@ -19,6 +19,9 @@
 # Let's load dependencies and set up some scaffolding. Don't worry about the details here.
 
 # %%
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 # Setup imports for core notebook workflow
 # %load_ext autoreload
 # %autoreload 2
@@ -34,7 +37,8 @@ import numpy as np  # used later
 import pandas as pd
 import matplotlib.pyplot as plt
 from omegaconf import OmegaConf
-from metta.interface.environment import _get_default_env_config
+from typing import Any, Dict  # type: ignore
+from metta.mettagrid.util.hydra import get_cfg  # type: ignore
 from metta.common.util.fs import get_repo_root
 from tools.renderer import setup_environment, get_policy
 import ipywidgets as widgets
@@ -88,7 +92,13 @@ hallway_map = """###########
 #@.......m#
 ###########"""
 
-env_dict = _get_default_env_config(num_agents=1, width=11, height=3)
+env_cfg = get_cfg("benchmark")  # type: ignore
+# Convert to plain dict so we can edit
+env_dict: Dict[str, Any] = OmegaConf.to_container(env_cfg, resolve=True)  # type: ignore
+# Override for a single 11x3 hallway map
+env_dict["game"]["num_agents"] = 1  # type: ignore
+env_dict["game"]["obs_width"] = 11  # type: ignore
+env_dict["game"]["obs_height"] = 11  # type: ignore
 env_dict["game"]["map_builder"] = {
     "_target_": "metta.map.mapgen.MapGen",
     "border_width": 0,
@@ -100,7 +110,9 @@ env_dict["game"]["map_builder"] = {
 env_dict["game"]["objects"]["mine_red"]["initial_resource_count"] = 1
 env_dict["game"]["objects"]["mine_red"]["conversion_ticks"] = 4
 env_dict["game"]["objects"]["mine_red"]["cooldown"] = 0
-env_dict["game"]["objects"]["mine_red"]["max_output"] = 2
+env_dict["game"]["objects"]["mine_red"]["max_output"] = 2  # type: ignore
+env_dict["game"]["objects"]["mine_red"]["max_conversions"] = -1  # type: ignore
+env_dict["game"]["objects"]["generator_red"]["max_conversions"] = -1  # type: ignore
 env_dict["game"]["agent"]["rewards"]["inventory"]["ore_red"] = 1.0
 
 cfg = OmegaConf.create({
@@ -125,10 +137,9 @@ cfg = OmegaConf.create({
 # We'll also track the agent's inventory and display the score.
 #
 # %%
-_dummy_buf = io.StringIO()
-with contextlib.redirect_stdout(_dummy_buf):
-  env, render_mode = setup_environment(cfg)
-  policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
+with contextlib.redirect_stdout(io.StringIO()):
+    env, render_mode = setup_environment(cfg)
+    policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
 
 header = widgets.HTML()
 map_box = widgets.HTML()
@@ -207,7 +218,7 @@ env.close()
 # This establishes a numeric baseline for the opportunistic agent. Later we'll train a policy and expect this number to rise significantly.
 
 # %%
-EVAL_EPISODES = 30  # keep runtime snappy for the notebook
+EVAL_EPISODES = 30
 scores: list[int] = []
 
 # Re-use the same cfg (contains ore_red reward = 1.0)
@@ -331,8 +342,6 @@ temp_curriculum_path.unlink(missing_ok=True)
 # Let’s load the newest checkpoint and watch the trained policy in the same hallway environment.
 
 # %%
-from pathlib import Path
-
 # Locate latest checkpoint
 ckpt_dir = Path("train_dir") / run_name / "checkpoints"
 latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
