@@ -6,7 +6,6 @@ This module provides comprehensive GPU/CUDA/NCCL diagnostics and testing capabil
 for distributed PyTorch training environments.
 """
 
-import json
 import logging
 import os
 import subprocess
@@ -116,13 +115,22 @@ def print_diagnostics(diagnostics: dict[str, Any]) -> None:
 
 
 def setup_nccl_debug_env() -> None:
-    """Set NCCL environment variables for better debugging."""
-    debug_vars = {"NCCL_DEBUG": "INFO", "NCCL_DEBUG_SUBSYS": "ALL", "CUDA_LAUNCH_BLOCKING": "1"}
-
-    logger.info("Setting NCCL debug environment variables...")
-    for var, value in debug_vars.items():
-        os.environ[var] = value
-        logger.info(f"  {var}={value}")
+    # Make these effective for *all* ranks before init
+    defaults = {
+        "NCCL_DEBUG": "INFO",
+        "NCCL_DEBUG_SUBSYS": "ALL",
+        "CUDA_LAUNCH_BLOCKING": "1",
+        # Critical for your failure:
+        "NCCL_SHM_DISABLE": "1",
+        # Isolation-only; remove later for performance:
+        "NCCL_P2P_DISABLE": "1",
+        "NCCL_IB_DISABLE": "1",
+        # Select EC2 NICs, avoid docker0
+        "NCCL_SOCKET_IFNAME": "eth0,ens5,ens6,enp*,eno*",
+    }
+    for k, v in defaults.items():
+        os.environ.setdefault(k, v)
+        logger.info(f"{k}={os.environ[k]}")
 
 
 def test_nccl_communication() -> bool:
@@ -134,6 +142,10 @@ def test_nccl_communication() -> bool:
         if "RANK" not in os.environ:
             logger.warning("RANK not set, skipping distributed NCCL test")
             return True
+
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        logger.info(f"Setting desive to local_rank = {local_rank}")
+        torch.cuda.set_device(local_rank)
 
         # Initialize process group
         logger.info("Initializing process group...")
@@ -254,13 +266,6 @@ def main():
     else:
         logger.error("Some tests failed!")
         print("\n✗ Some tests failed!")
-
-    # Save diagnostics to file if requested
-    if os.environ.get("SAVE_DIAGNOSTICS"):
-        output_file = os.environ.get("DIAGNOSTICS_FILE", "gpu_diagnostics.json")
-        with open(output_file, "w") as f:
-            json.dump(diagnostics, f, indent=2, default=str)
-        logger.info(f"Diagnostics saved to {output_file}")
 
     return 0 if all_passed else 1
 

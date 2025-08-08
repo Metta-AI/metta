@@ -119,6 +119,9 @@ run: |
   echo "METTA_GIT_REF = $METTA_GIT_REF"
   echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
 
+  ulimit -l             # should be "unlimited"
+  mount | grep /dev/shm
+
   # Run comprehensive GPU diagnostics and NCCL tests
   echo "Running GPU diagnostics and NCCL tests..."
   if [ "$NUM_NODES" -gt 1 ] || [ "$NUM_GPUS" -gt 1 ]; then
