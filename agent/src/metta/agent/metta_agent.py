@@ -434,8 +434,16 @@ class MettaAgent(nn.Module):
             - In inference mode, this contains data to be stored in the experience buffer.
             - In training mode, this contains data for loss calculation.
         """
-
-        td, B, TT = self._reshape_td(td)
+        if td.batch_dims > 1:
+            B, TT = td.batch_size[0], td.batch_size[1]
+            td = td.reshape(B * TT)
+            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+        else:
+            B = td.batch_size.numel()
+            TT = 1
+            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)
@@ -452,21 +460,6 @@ class MettaAgent(nn.Module):
             output_td = output_td.reshape(B, TT)
 
         return output_td
-
-    @torch.compile(disable=True)
-    def _reshape_td(self, td: TensorDict) -> tuple[TensorDict, int, int]:
-        """This is entirely to allow torch compile to work."""
-        if td.batch_dims > 1:
-            B, TT = td.batch_size[0], td.batch_size[1]
-            td = td.reshape(B * TT)
-            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
-        else:
-            B = td.batch_size.numel()
-            TT = 1
-            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
-        return td, B, TT
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
