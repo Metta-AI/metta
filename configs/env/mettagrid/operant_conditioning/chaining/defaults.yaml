@@ -10,7 +10,7 @@ desync_episodes: false
 
 game:
   num_agents: 24
-  # max_steps: ??
+  max_steps: 256
   actions:
     attack:
       enabled: false
@@ -35,18 +35,3 @@ game:
       params:
         agents: 1
         objects: ??
-  # objects:
-  #   mine_red:
-  #     cooldown: 50
-  #   generator_red:
-  #     cooldown: 25
-  #     conversion_ticks: 1
-  #   generator_blue:
-  #     cooldown: 25
-  #     conversion_ticks: 1
-  #   generator_green:
-  #     cooldown: 25
-  #     conversion_ticks: 1
-  #   altar:
-  #     cooldown: 25
-  #     conversion_ticks: 1
