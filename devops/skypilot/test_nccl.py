@@ -149,30 +149,36 @@ def _iface_is_up(iface: str) -> bool:
 
 
 def setup_nccl_debug_env(master_addr: str | None = os.environ.get("MASTER_ADDR")) -> None:
+    """Set sane NCCL defaults for test runs, with optional verbose mode via METTA_NCCL_DEBUG=1."""
+    debug_mode = os.environ.get("METTA_NCCL_DEBUG", "0") == "1"
+
     defaults = {
-        "NCCL_DEBUG": "INFO",
-        "NCCL_DEBUG_SUBSYS": "ALL",
-        "CUDA_LAUNCH_BLOCKING": "1",
-        "NCCL_SHM_DISABLE": "1",
-        "NCCL_P2P_DISABLE": "1",
-        "NCCL_IB_DISABLE": "1",
+        "NCCL_DEBUG": "INFO" if debug_mode else "VERSION",
+        "NCCL_DEBUG_SUBSYS": "ALL" if debug_mode else "",
         "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
-        # new:
+        "NCCL_SHM_DISABLE": "1",  # keep isolation by default
+        "NCCL_P2P_DISABLE": "1",  # keep isolation by default
+        "NCCL_IB_DISABLE": "1",  # no IB/RDMA on these boxes
         "NCCL_SOCKET_FAMILY": "AF_INET",
         "NCCL_PORT_RANGE": os.environ.get("NCCL_PORT_RANGE", "43000-43063"),
         "NCCL_MIN_NCHANNELS": "1",
         "NCCL_MAX_NCHANNELS": "2",
     }
+    if debug_mode:
+        defaults["CUDA_LAUNCH_BLOCKING"] = "1"
+
     for k, v in defaults.items():
-        os.environ.setdefault(k, v)
+        if v:  # skip empty strings
+            os.environ.setdefault(k, v)
         logger.info(f"{k}={os.environ[k]}")
 
     iface = _detect_iface_to(master_addr) if master_addr else None
     if iface and _iface_is_up(iface):
         os.environ["NCCL_SOCKET_IFNAME"] = iface
     else:
-        # safer: explicitly prefer your real NIC, not a negated list
+        # safer: explicitly prefer your real NIC
         os.environ.setdefault("NCCL_SOCKET_IFNAME", "enp39s0")
+
     logger.info(f"NCCL_SOCKET_IFNAME={os.environ['NCCL_SOCKET_IFNAME']}")
     logger.info(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
