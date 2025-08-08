@@ -16,6 +16,7 @@ def curriculum_configs() -> list[MettagridCfgFileMetadata]:
     # properly, you can add them to this list.
     exclude_patterns = [
         "multiagent/experiments/defaults_bucketed.yaml",  # partial
+        "navigation/training/maze_multi_trial_task.yaml",  # it's a task, not a curriculum
     ]
 
     for p in (cfg.path for cfg in result):
