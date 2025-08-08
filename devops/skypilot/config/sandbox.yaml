@@ -18,12 +18,6 @@ setup: |
   set -e
   cd /workspace/metta
 
-  # Note that the docker image may start with its own venv - switch to metta venv
-  if [ -n "$VIRTUAL_ENV" ]; then
-      deactivate 2>/dev/null || true
-  fi
-  . .venv/bin/activate
-
   git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
   git checkout "$METTA_GIT_REF"
   echo "Checked out: $(git rev-parse HEAD)"
