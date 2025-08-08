@@ -105,4 +105,12 @@ releases:
         command: "kubectl"
         args: ["create", "namespace", "orchestrator", "--dry-run=client"]
 
+  - name: home
+    chart: ./home
+    version: 0.1.0
+    namespace: home
+    hooks:
+      - events: ["presync"]
+        command: "kubectl"
+        args: ["create", "namespace", "home", "--dry-run=client"]
   # Note: Observatory is deployed automatically by Github Actions.
