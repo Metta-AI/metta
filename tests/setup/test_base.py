@@ -11,6 +11,9 @@ from metta.setup.profiles import UserType
 
 
 class BaseMettaSetupTest(unittest.TestCase):
+    # Set by conftest from --metta-profile or METTA_TEST_PROFILE
+    active_profile_name: str | None = None
+    active_user_type: "UserType | None" = None
     """Base class for metta setup installer component tests.
 
     Provides common setup and teardown logic for testing metta setup components
@@ -128,6 +131,14 @@ class BaseMettaSetupTest(unittest.TestCase):
         config_file = self.test_config_dir / "config.yaml"
         with open(config_file, "w") as f:
             yaml.dump(config_data, f)
+
+    def _create_test_config_from_active_profile(self, custom_config: bool = False) -> None:
+        """Create config using the active profile set by test flags/env.
+
+        Falls back to UserType.EXTERNAL if not set or invalid.
+        """
+        resolved = self.active_user_type or UserType.EXTERNAL
+        self._create_test_config(resolved, custom_config=custom_config)
 
     def _run_metta_command(self, args: list[str]) -> "subprocess.CompletedProcess[str]":
         """Run metta command and return result.

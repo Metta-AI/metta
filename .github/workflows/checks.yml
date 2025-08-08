@@ -393,6 +393,7 @@ jobs:
       METTA_TEST_ENV: 1
       AWS_SSO_NONINTERACTIVE: 1
       METTA_TEST_PROFILE: ${{ matrix.profile }}
+      METTA_TEST_SETUP: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -406,7 +407,7 @@ jobs:
         run: |
           PYTEST_ARGS="-n ${{ env.PYTEST_WORKERS }} --disable-warnings -v"
           echo "Running setup tests with METTA_TEST_PROFILE=${METTA_TEST_PROFILE}"
-          pytest $PYTEST_ARGS tests/setup
+          make METTA_TEST_PROFILE=${{ matrix.profile }} test-setup
 
   tests-summary:
     name: "Tests"

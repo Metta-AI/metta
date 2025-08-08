@@ -31,6 +31,7 @@ class AWSAssertionsMixin:
         return f"[profile {profile_name}]" in content
 
 
+@pytest.mark.setup
 @pytest.mark.profile("softmax")
 class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
     """Tests for AWS profile setup functionality."""
@@ -125,6 +126,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         assert export_count == 1, f"Should have exactly one AWS_PROFILE export, found {export_count}"
 
 
+@pytest.mark.setup
 @pytest.mark.profile("external")
 class TestAWSProfileExternal(AWSAssertionsMixin, BaseMettaSetupTest):
     """Ensure the external profile does not touch AWS config or shell exports."""

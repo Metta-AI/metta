@@ -1,6 +1,6 @@
 .PHONY: help all dev test clean install pytest test-setup
 
-override METTA_PROFILE ?= softmax
+override METTA_TEST_PROFILE ?= softmax
 
 # Default target when just running 'make'
 help:
@@ -29,10 +29,11 @@ test:
 
 test-setup:
 	@echo "Running setup integration tests..."
-	export METTA_TEST_ENV=1
-	export METTA_TEST_PROFILE=$(METTA_PROFILE)
-	export AWS_SSO_NONINTERACTIVE=1
-	uv run --active metta test tests/setup -v -n auto
+	METTA_TEST_ENV=1 \
+	METTA_TEST_SETUP=1 \
+	METTA_TEST_PROFILE=$(METTA_TEST_PROFILE) \
+	AWS_SSO_NONINTERACTIVE=1 \
+		uv run --active metta test tests/setup -v -n auto
 
 install:
 	@echo "Installing package in editable mode..."

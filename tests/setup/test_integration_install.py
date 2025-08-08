@@ -14,6 +14,7 @@ from metta.setup.config import SetupConfig, UserType
 from tests.setup.test_base import BaseMettaSetupTest
 
 
+@pytest.mark.setup
 @pytest.mark.profile("softmax")
 class TestInstallSoftmax(BaseMettaSetupTest):
     """Integration tests for metta install with softmax profile (condensed)."""
@@ -71,6 +72,7 @@ class TestInstallSoftmax(BaseMettaSetupTest):
         assert r2.returncode == 0
 
 
+@pytest.mark.setup
 @pytest.mark.profile("external")
 class TestInstallExternal(BaseMettaSetupTest):
     def test_install_softmax_profile(self):
@@ -79,6 +81,7 @@ class TestInstallExternal(BaseMettaSetupTest):
         assert result.returncode == 0, f"Install failed: {result.stderr}"
 
 
+@pytest.mark.setup
 @pytest.mark.profile("cloud")
 class TestInstallCloud(BaseMettaSetupTest):
     def test_install_cloud_profile(self):
@@ -90,6 +93,7 @@ class TestInstallCloud(BaseMettaSetupTest):
         assert config.is_component_enabled("aws")
 
 
+@pytest.mark.setup
 @pytest.mark.profile("custom")
 class TestInstallCustom(BaseMettaSetupTest):
     def test_install_custom_profile(self):
@@ -101,6 +105,7 @@ class TestInstallCustom(BaseMettaSetupTest):
         assert config.is_custom_config
 
 
+@pytest.mark.setup
 @pytest.mark.profile("external")
 class TestFromScratchExternal(BaseMettaSetupTest):
     def test_fresh_install_external(self):
@@ -110,6 +115,7 @@ class TestFromScratchExternal(BaseMettaSetupTest):
         assert install_result.returncode == 0, f"Install failed: {install_result.stderr}"
 
 
+@pytest.mark.setup
 @pytest.mark.profile("cloud")
 class TestFromScratchCloud(BaseMettaSetupTest):
     def test_fresh_install_cloud(self):
