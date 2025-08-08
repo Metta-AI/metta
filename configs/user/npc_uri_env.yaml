@@ -1,5 +1,5 @@
-# npc_uri_env.yaml
+# configs/user/npc_uri_env.yaml
 trainer:
   dual_policy:
     checkpoint_npc:
-      uri: ${oc.env:WANDB_CHECKPOINT_URI}
+      uri: ${oc.env:WANDB_CHECKPOINT_URI,wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2}
