@@ -1,9 +1,9 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/operant_conditioning/operant_sequence/chaining/3_converters/brg: 1
-  /env/mettagrid/operant_conditioning/operant_sequence/chaining/3_converters/rbg: 1
-  /env/mettagrid/operant_conditioning/operant_sequence/chaining/3_converters/grb: 1
-  /env/mettagrid/operant_conditioning/operant_sequence/chaining/3_converters/gbr: 1
-  /env/mettagrid/operant_conditioning/operant_sequence/chaining/3_converters/bgr: 1
-  /env/mettagrid/operant_conditioning/operant_sequence/chaining/3_converters/rgb: 1
+  /env/mettagrid/operant_conditioning/chaining/3_converters/brg: 1
+  /env/mettagrid/operant_conditioning/chaining/3_converters/rbg: 1
+  /env/mettagrid/operant_conditioning/chaining/3_converters/grb: 1
+  /env/mettagrid/operant_conditioning/chaining/3_converters/gbr: 1
+  /env/mettagrid/operant_conditioning/chaining/3_converters/bgr: 1
+  /env/mettagrid/operant_conditioning/chaining/3_converters/rgb: 1

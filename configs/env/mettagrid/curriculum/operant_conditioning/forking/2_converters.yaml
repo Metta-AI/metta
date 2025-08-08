@@ -1,5 +1,5 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/operant_conditioning/operant_sequence/forking/2_converters/2_converters_red: 1
-  /env/mettagrid/operant_conditioning/operant_sequence/forking/2_converters/2_converters_blue: 1
+  /env/mettagrid/operant_conditioning/forking/2_converters/2_converters_red: 1
+  /env/mettagrid/operant_conditioning/forking/2_converters/2_converters_blue: 1
