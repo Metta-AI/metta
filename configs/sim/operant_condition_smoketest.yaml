@@ -1,0 +1,25 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: operant_conditioning_smoketest
+
+simulations:
+  operant_conditioning_smoketest/2_converters_mine_red:
+    env: env/mettagrid/operant_conditioning/smoke_tests/2_converters/mine_red
+  operant_conditioning_smoketest/2_converters_mine_blue:
+    env: env/mettagrid/operant_conditioning/smoke_tests/2_converters/mine_blue
+  operant_conditioning_smoketest/3_converters_mine_red:
+    env: env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_red
+  operant_conditioning_smoketest/3_converters_mine_blue:
+    env: env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_blue
+  operant_conditioning_smoketest/3_converters_mine_green:
+    env: env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_green
+  operant_conditioning_smoketest/4_converters_mine_red:
+    env: env/mettagrid/operant_conditioning/smoke_tests/4_converters/mine_red
+  operant_conditioning_smoketest/4_converters_mine_blue:
+    env: env/mettagrid/operant_conditioning/smoke_tests/4_converters/mine_blue
+  operant_conditioning_smoketest/4_converters_mine_green:
+    env: env/mettagrid/operant_conditioning/smoke_tests/4_converters/mine_green
+  operant_conditioning_smoketest/4_converters_factory:
+    env: env/mettagrid/operant_conditioning/smoke_tests/4_converters/factory

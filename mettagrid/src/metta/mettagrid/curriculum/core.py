@@ -60,6 +60,9 @@ class Task:
         # TODO: ideally we'd have a separate config for the task itself (same for a separate config for the curriculum)
         raise NotImplementedError("Subclasses must implement this method")
 
+    def original_env_cfg(self) -> DictConfig:
+        raise NotImplementedError("Subclasses must implement this method")
+
     def id(self) -> str:
         """Returns the id of the task."""
         return self._id
@@ -88,6 +91,7 @@ class SingleTrialTask(Task):
         self._current_trial = 0
         # We may have been lazy about instantiation up to this point, since that allows us to
         # override the config. Now we complete the instantiation.
+        self._original_env_cfg = env_cfg
         self._env_cfg = hydra.utils.instantiate(env_cfg)
 
     def complete_trial(self, score: float):
@@ -102,6 +106,9 @@ class SingleTrialTask(Task):
     def env_cfg(self) -> DictConfig:
         assert self._env_cfg is not None, "Task has no environment configuration"
         return self._env_cfg
+
+    def original_env_cfg(self) -> DictConfig:
+        return self._original_env_cfg
 
 
 class SingleTaskCurriculum(Curriculum):

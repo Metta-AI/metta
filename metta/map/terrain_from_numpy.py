@@ -1,29 +1,17 @@
 import logging
 import os
 import random
-import time
 import zipfile
 
 import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
-from omegaconf import DictConfig
 
-from metta.mettagrid.room.room import Room
+from metta.common.util.config import Config
+from metta.mettagrid.level_builder import Level, LevelBuilder
 
-logger = logging.getLogger("terrain_from_numpy")
-
-
-def safe_load(path, retries=5, delay=1.0):
-    for attempt in range(retries):
-        try:
-            return np.load(path, allow_pickle=True)
-        except ValueError:
-            if attempt < retries - 1:
-                time.sleep(delay)
-                continue
-            raise
+logger = logging.getLogger(__name__)
 
 
 def pick_random_file(path):
@@ -38,7 +26,7 @@ def pick_random_file(path):
     return chosen
 
 
-def download_from_s3(s3_path: str, save_path: str, location: str = "us-east-1"):
+def download_from_s3(s3_path: str, save_path: str):
     if not s3_path.startswith("s3://"):
         raise ValueError(f"Invalid S3 path: {s3_path}. Must start with s3://")
 
@@ -63,27 +51,23 @@ def download_from_s3(s3_path: str, save_path: str, location: str = "us-east-1"):
         raise e
 
 
-class TerrainFromNumpy(Room):
-    """
-    This class is used to load a terrain environment from numpy arrays on s3
+class TerrainFromNumpyParams(Config):
+    objects: dict[str, int] = {}
+    agents: int | dict[str, int] = 0
+    dir: str
+    file: str | None = None
 
-    These maps each have 10 agents in them .
+
+class TerrainFromNumpy(LevelBuilder):
+    """
+    This class is used to load a terrain environment from numpy arrays on s3.
+
+    It's not a MapGen scene, because we don't know the grid size until we load the file.
     """
 
-    def __init__(
-        self,
-        objects: DictConfig,
-        agents: int | DictConfig = 10,
-        dir: str = "terrain_maps_nohearts",
-        file: str | None = None,
-        border_width: int = 0,
-        border_object: str = "wall",
-    ):
-        self._dir = dir
-        self._file = file
-        self._agents = agents
-        self._objects = objects
-        super().__init__(border_width=border_width, border_object=border_object)
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.params = TerrainFromNumpyParams(**kwargs)
 
     def get_valid_positions(self, level):
         # Create a boolean mask for empty cells
@@ -109,11 +93,13 @@ class TerrainFromNumpy(Room):
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
-    def _build(self):
-        root = self._dir.split("/")[0]
-        self.labels.append(root)
+    def get_labels(self) -> list[str]:
+        return [self.params.dir.split("/")[0]]
 
-        map_dir = f"train_dir/{self._dir}"
+    def build(self):
+        root = self.params.dir.split("/")[0]
+
+        map_dir = f"train_dir/{self.params.dir}"
         root_dir = f"train_dir/{root}"
 
         s3_path = f"s3://softmax-public/maps/{root}.zip"
@@ -128,47 +114,43 @@ class TerrainFromNumpy(Room):
                 os.remove(local_zipped_dir)
                 logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
 
-        if self._file is None:
+        if self.params.file is None:
             uri = pick_random_file(map_dir)
         else:
-            uri = self._file
+            uri = self.params.file
 
-        level = safe_load(f"{map_dir}/{uri}")
-        height, width = level.shape
-        self.set_size_labels(width, height)
+        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
         # remove agents to then repopulate
-        level[level == "agent.agent"] = "empty"
+        grid[grid == "agent.agent"] = "empty"
 
-        # 3. Prepare agent labels
-        if isinstance(self._agents, int):
-            agent_labels = ["agent.agent"] * self._agents
-        elif isinstance(self._agents, DictConfig):
-            agent_labels = [f"agent.{name}" for name, count in self._agents.items() for _ in range(count)]
+        # Prepare agent labels
+        if isinstance(self.params.agents, int):
+            agent_labels = ["agent.agent"] * self.params.agents
         else:
-            raise TypeError("Unsupported _agents type")
+            agent_labels = [f"agent.{name}" for name, count in self.params.agents.items() for _ in range(count)]
+
         num_agents = len(agent_labels)
 
-        valid_positions = self.get_valid_positions(level)
+        valid_positions = self.get_valid_positions(grid)
         random.shuffle(valid_positions)
 
-        # 5. Place agents in first slice
+        # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=False):
-            level[pos] = label
+            grid[pos] = label
 
         # Convert to set for O(1) removal operations
         valid_positions_set = set(valid_positions[num_agents:])
 
-        for obj_name, count in self._objects.items():
-            count = count - np.where(level == obj_name, 1, 0).sum()
+        for obj_name, count in self.params.objects.items():
+            count = count - np.where(grid == obj_name, 1, 0).sum()
             if count < 0:
                 continue
             # Sample from remaining valid positions
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
-                level[pos] = obj_name
+                grid[pos] = obj_name
                 valid_positions_set.remove(pos)
 
-        self._level = level
-        return self._level
+        return Level(grid=grid, labels=self.get_labels())
