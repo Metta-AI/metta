@@ -144,8 +144,18 @@ def main():
         os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)
 
         # Also append to local metta_env_path file to persist for parent process
-        with open(METTA_ENV_FILE, "a") as f:
-            f.write(f"\nexport METTA_HOURLY_COST={total_hourly_cost}\n")
+        try:
+            # Ensure the parent directory exists
+            os.makedirs(os.path.dirname(METTA_ENV_FILE), exist_ok=True)
+
+            with open(METTA_ENV_FILE, "a") as f:
+                f.write(f"\nexport METTA_HOURLY_COST={total_hourly_cost}\n")
+        except FileNotFoundError:
+            print(f"Warning: Directory for {METTA_ENV_FILE} could not be created", file=sys.stderr)
+        except PermissionError:
+            print(f"Warning: No permission to write to {METTA_ENV_FILE}", file=sys.stderr)
+        except IOError as e:
+            print(f"Warning: Failed to write to {METTA_ENV_FILE}: {e}", file=sys.stderr)
 
         # Log details to stderr for visibility in SkyPilot logs
         logger.info(f"Instance Type: {cost_info['instance_type']}")
