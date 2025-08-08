@@ -79,6 +79,7 @@ if(BUILD_TESTS)
       GTest::gtest_main
       mettagrid_all_flags           # Full flags including sanitizers
       mettagrid_test_suppressions   # Warning suppressions
+      ${RAYLIB_LIBRARY}
     )
 
     add_test(NAME ${test_name} COMMAND ${test_name} --gtest_color=yes)
@@ -127,6 +128,7 @@ if(BUILD_BENCHMARKS)
       benchmark::benchmark_main
       mettagrid_common_flags        # Base flags WITHOUT sanitizers
       mettagrid_test_suppressions   # Warning suppressions
+      ${RAYLIB_LIBRARY}
     )
 
     # Explicitly disable sanitizers for benchmarks in all builds
