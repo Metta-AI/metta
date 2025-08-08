@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
+import { makePaginated, Paginated } from "@/lib/paginated";
+import { auth } from "@/lib/auth";
 
 export type FeedPostDTO = {
   id: string;
@@ -6,6 +8,7 @@ export type FeedPostDTO = {
   content: string | null;
   postType: 'user-post' | 'paper-post' | 'pure-paper';
   likes: number;
+  liked: boolean;
   retweets: number;
   replies: number;
   author: {
@@ -33,7 +36,7 @@ export type FeedPostDTO = {
   updatedAt: Date;
 };
 
-export function toFeedPostDTOPrisma(dbModel: any, usersMap: Map<string, any>, papersMap: Map<string, any>): FeedPostDTO {
+export function toFeedPostDTO(dbModel: any, usersMap: Map<string, any>, papersMap: Map<string, any>, userLikesMap: Map<string, boolean> = new Map()): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
   
@@ -43,6 +46,7 @@ export function toFeedPostDTOPrisma(dbModel: any, usersMap: Map<string, any>, pa
     content: dbModel.content,
     postType: dbModel.postType as 'user-post' | 'paper-post' | 'pure-paper',
     likes: dbModel.likes ?? 0,
+    liked: userLikesMap.get(dbModel.id) ?? false,
     retweets: dbModel.retweets ?? 0,
     replies: dbModel.replies ?? 0,
     author: {
@@ -77,7 +81,10 @@ export async function loadFeedPostsPrisma({
 }: {
   limit?: number;
   cursor?: Date;
-} = {}): Promise<FeedPostDTO[]> {
+} = {}): Promise<Paginated<FeedPostDTO>> {
+  // Get current user session
+  const session = await auth();
+  
   // Build the query with proper cursor-based pagination
   const rows = await prisma.post.findMany({
     where: cursor ? {
@@ -95,6 +102,22 @@ export async function loadFeedPostsPrisma({
     },
   });
 
+  // Fetch user likes for these posts if user is authenticated
+  let userLikesMap = new Map<string, boolean>();
+  if (session?.user?.id) {
+    const postIds = rows.map(row => row.id);
+    const userLikes = await prisma.userPostLike.findMany({
+      where: {
+        userId: session.user.id,
+        postId: {
+          in: postIds,
+        },
+      },
+    });
+    
+    userLikesMap = new Map(userLikes.map(like => [like.postId, true]));
+  }
+
   // Transform the data to match the expected format
   const posts = rows.map(row => {
     // Create maps for the lookup (maintaining compatibility with existing toFeedPostDTO function)
@@ -108,7 +131,7 @@ export async function loadFeedPostsPrisma({
       papersMap.set(row.paper.id, row.paper);
     }
 
-    return toFeedPostDTOPrisma(row, usersMap, papersMap);
+    return toFeedPostDTO(row, usersMap, papersMap, userLikesMap);
   });
 
   return posts;

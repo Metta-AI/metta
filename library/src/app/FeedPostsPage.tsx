@@ -12,7 +12,7 @@ import {
   User,
   UserInteraction,
 } from "@/posts/data/papers";
-import PaperOverlay from "@/components/PaperOverlay";
+import { useOverlayNavigation } from "@/components/OverlayStack";
 import { toggleStarAction } from "@/posts/actions/toggleStarAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import UserCard from "@/components/UserCard";
@@ -47,25 +47,23 @@ export const FeedPostsPage: FC<{
   const page = usePaginator(initialPosts);
   const { mathJaxLoaded, renderMath } = useMathJax();
   const feedRef = useRef<HTMLDivElement>(null);
-
-  // Paper overlay state
-  const [selectedPaper, setSelectedPaper] =
-    useState<PaperWithUserContext | null>(null);
+  const { openPaper } = useOverlayNavigation();
 
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Handle paper click
+  // Handle paper click using overlay navigation
   const handlePaperClick = (paperId: string) => {
     const paper = papersData.papers.find((p) => p.id === paperId);
     if (paper) {
-      setSelectedPaper(paper);
+      openPaper(
+        paper,
+        papersData.users,
+        papersData.interactions,
+        handleToggleStar,
+        handleToggleQueue
+      );
     }
-  };
-
-  // Handle paper overlay close
-  const handlePaperOverlayClose = () => {
-    setSelectedPaper(null);
   };
 
   // Handle user click
@@ -88,18 +86,7 @@ export const FeedPostsPage: FC<{
       formData.append("paperId", paperId);
       await toggleStarAction(formData);
 
-      // Update local state
-      // This part of the logic needs to be adapted to handle the new papersData prop
-      // For now, we'll just update the selected paper if it's the same one
-      setSelectedPaper((prev) => {
-        if (prev && prev.id === paperId) {
-          return {
-            ...prev,
-            isStarredByCurrentUser: !prev.isStarredByCurrentUser,
-          };
-        }
-        return prev;
-      });
+      // The overlay stack handles its own state updates
     } catch (error) {
       console.error("Error toggling star:", error);
     }
@@ -112,18 +99,7 @@ export const FeedPostsPage: FC<{
       formData.append("paperId", paperId);
       await toggleQueueAction(formData);
 
-      // Update local state
-      // This part of the logic needs to be adapted to handle the new papersData prop
-      // For now, we'll just update the selected paper if it's the same one
-      setSelectedPaper((prev) => {
-        if (prev && prev.id === paperId) {
-          return {
-            ...prev,
-            isQueuedByCurrentUser: !prev.isQueuedByCurrentUser,
-          };
-        }
-        return prev;
-      });
+      // The overlay stack handles its own state updates
     } catch (error) {
       console.error("Error toggling queue:", error);
     }
@@ -198,17 +174,7 @@ export const FeedPostsPage: FC<{
           </div>
         )}
       </div>
-      {/* Paper Overlay */}
-      {selectedPaper && (
-        <PaperOverlay
-          paper={selectedPaper}
-          users={papersData.users}
-          interactions={papersData.interactions}
-          onClose={handlePaperOverlayClose}
-          onStarToggle={handleToggleStar}
-          onQueueToggle={handleToggleQueue}
-        />
-      )}
+      {/* Paper overlays are now handled by the OverlayStack */}
       {/* User Card */}
       {selectedUser && (
         <UserCard
