@@ -23,6 +23,7 @@ def test_wandb_movement_metrics():
     cfg.game.max_steps = 20  # Short episode
     cfg.game.episode_truncates = True
     cfg.game.track_movement_metrics = True  # Enable movement metrics
+    cfg.game.no_agent_interference = False
 
     cfg.game.map_builder = OmegaConf.create(
         {

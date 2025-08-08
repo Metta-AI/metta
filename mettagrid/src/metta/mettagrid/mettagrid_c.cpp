@@ -43,7 +43,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       inventory_item_names(cfg.inventory_item_names),
       _global_obs_config(cfg.global_obs),
       _num_observation_tokens(cfg.num_observation_tokens),
-      _track_movement_metrics(cfg.track_movement_metrics) {
+      _track_movement_metrics(cfg.track_movement_metrics),
+      _no_agent_interference(cfg.no_agent_interference) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -87,7 +88,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics, _no_agent_interference));
     } else if (action_name_str == "move_8way") {
       _action_handlers.push_back(std::make_unique<Move8Way>(*action_config));
     } else if (action_name_str == "move_cardinal") {
@@ -193,7 +194,12 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        _grid->add_object(agent);
+        if(_no_agent_interference) {
+          _grid->ghost_add_object(agent);
+        }
+        else {
+          _grid->add_object(agent);
+        }
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
@@ -370,7 +376,22 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
       GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c), layer);
       auto obj = _grid->object_at(object_loc);
-      if (!obj) continue;
+      if(_no_agent_interference) {
+        if(layer == GridLayer::ObjectLayer) {
+          if (!obj) continue;
+        }
+        if (layer == GridLayer::AgentLayer) {
+          // IN AGENT agent_idx's observation ONLY INCLUDE agent idx's features and not any other agents
+          if (r_offset == 0 && c_offset == 0) {
+            obj = _agents[agent_idx];
+          } else {
+            continue;
+          }
+        }
+      }
+      else {
+        if (!obj) continue;
+      }
 
       // Prepare observation buffer for this object
       ObservationToken* obs_ptr =
@@ -1055,6 +1076,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     bool,
+                    bool,
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -1067,6 +1089,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("actions"),
            py::arg("objects"),
            py::arg("track_movement_metrics"),
+           py::arg("no_agent_interference") = false,
            py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
@@ -1077,6 +1100,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
+      .def_readwrite("no_agent_interference", &GameConfig::no_agent_interference)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!

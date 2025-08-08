@@ -74,6 +74,7 @@ def make_test_config(
             "resource_rewards": False,
         },
         "track_movement_metrics": False,
+        "no_agent_interference": False,
         "recipe_details_obs": False,
         "actions": default_actions,
         "agent": {

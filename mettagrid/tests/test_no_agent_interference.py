@@ -7,18 +7,18 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.hydra import get_cfg
 
 
-def test_movement_metrics():
+def test_no_agent_interference():
     """Test that movement metrics are correctly tracked"""
 
     # Get the benchmark config and modify it
     cfg = get_cfg("benchmark")
 
     # Simplify config for testing
-    cfg.game.num_agents = 1
+    cfg.game.num_agents = 2
     cfg.game.max_steps = 100
     cfg.game.episode_truncates = True
     cfg.game.track_movement_metrics = True  # Enable movement metrics
-    cfg.game.no_agent_interference = False
+    cfg.game.no_agent_interference = True
 
     # Create a simple level with one agent
     cfg.game.map_builder = OmegaConf.create(
@@ -27,7 +27,7 @@ def test_movement_metrics():
             "width": 5,
             "height": 5,
             "objects": {},
-            "agents": 1,
+            "agents": 2,
             "border_width": 1,
         }
     )
@@ -50,16 +50,19 @@ def test_movement_metrics():
     print("Testing refactored movement metrics...")
     print(f"Action indices - Rotate: {rotate_idx}, Move: {move_idx}, Noop: {noop_idx}")
 
-    # Test sequence to verify movement metrics:
-    # 1. Movement directions: track when agent actually moves in each direction
-    # 2. Sequential rotations: noop doesn't break the sequence
+    # Test sequence to verify agent don't interfere with each other
+    # - Both agents move into the same corner and then walk around together
 
     # Expected behavior:
-    # - Move forward (should track movement.direction based on orientation)
-    # - Rotate, noop, noop, rotate, noop, rotate, move
-    #   Should count as 2 sequential rotations (only rotations that follow another rotation)
+    # - Both agents walk around the map overlapping each other
 
     actions_sequence = [
+        [move_idx, 0],  # Move forward (direction depends on initial orientation)
+        [move_idx, 0],  # Move forward (direction depends on initial orientation)
+        [move_idx, 0],  # Move forward (direction depends on initial orientation)
+        [rotate_idx, 2],  # Rotate to Left - continue sequence,
+        [move_idx, 0],  # Move forward (direction depends on initial orientation)
+        [move_idx, 0],  # Move forward (direction depends on initial orientation)
         [move_idx, 0],  # Move forward (direction depends on initial orientation)
         [rotate_idx, 1],  # Rotate to Down - start sequence
         [noop_idx, 0],  # Noop - doesn't break sequence
@@ -72,7 +75,7 @@ def test_movement_metrics():
     ]
 
     for i, (action, arg) in enumerate(actions_sequence):
-        actions = np.array([[action, arg]], dtype=np.int32)
+        actions = np.array([[action, arg], [action, arg]], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         print(f"\nStep {i + 1}: action={action_names[action] if action < len(action_names) else 'invalid'}, arg={arg}")
@@ -87,54 +90,34 @@ def test_movement_metrics():
     # Force episode end to get final stats
     print("\nForcing episode end to collect final stats...")
     for _step in range(env.max_steps):
-        actions = np.array([[noop_idx or 0, 0]], dtype=np.int32)
+        actions = np.array([[noop_idx or 0, 0], [noop_idx or 0, 0]], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
         if terminals.any() or truncations.any():
             break
 
     # Print final stats
     stats = info.get("agent", {})
-    print_results(stats)
+    print_results(stats, early_end=False, step=len(actions_sequence))
 
 
 def print_results(stats, early_end=False, step=None):
-    """Print the movement metrics results."""
-    if early_end:
-        print(f"\nEpisode ended early at step {step}")
+    """Print test results"""
+    print(f"\n{'=' * 50}")
+    print(f"TEST RESULTS {'(Early End)' if early_end else ''}")
+    if step:
+        print(f"Steps completed: {step}")
+    print(f"{'=' * 50}")
 
-    print("\n" + "=" * 60)
-    print("MOVEMENT METRICS RESULTS (REFACTORED)")
-    print("=" * 60)
+    if not stats:
+        print("No stats available")
+        return
 
-    # Movement direction counts
-    print("\nMovement direction counts:")
-    print("(Number of successful moves in each direction)")
-    total_moves = 0
-    for direction in ["up", "down", "left", "right"]:
-        key = f"movement.direction.{direction}"
-        value = stats.get(key, 0)
-        total_moves += value
-        if value > 0:
-            print(f"  {key}: {value}")
-    print(f"  Total moves: {total_moves}")
-
-    # Sequential rotation behavior
-    print("\nSequential rotation behavior:")
-    print("(Sum of all sequential rotation sequence lengths)")
-    key = "movement.sequential_rotations"
-    value = stats.get(key, 0)
-    print(f"  {key}: {value}")
-    print("  Expected: 2 (rotations that follow another rotation, ignoring the first)")
-
-    # Show existing action metrics for comparison
-    print("\nExisting action metrics (for comparison):")
-    for action_type in ["rotate", "move", "noop"]:
-        for result in ["success", "failed"]:
-            key = f"action.{action_type}.{result}"
-            value = stats.get(key, 0)
-            if value > 0:
-                print(f"  {key}: {value}")
+    print("Agent stats:")
+    for agent_id, agent_stats in stats.items():
+        print(f"  Agent {agent_id}:")
+        for stat_name, stat_value in agent_stats.items():
+            print(f"    {stat_name}: {stat_value}")
 
 
 if __name__ == "__main__":
-    test_movement_metrics()
+    test_no_agent_interference()
