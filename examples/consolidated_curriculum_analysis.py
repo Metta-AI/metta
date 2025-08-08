@@ -11,6 +11,7 @@ This script accomplishes three core goals:
 """
 
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -803,7 +804,9 @@ class CurriculumVisualizer:
         CurriculumVisualizer._create_grid_search_visualization(results, ax6)
 
         # Save figure
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        # Only save locally if configured
+        if os.environ.get("CURR_ANALYSIS_SAVE_LOCAL", "1") == "1":
+            plt.savefig(output_path, dpi=300, bbox_inches="tight")
 
         # Log to wandb if enabled
         if wandb_cfg and wandb_cfg.log_images:
@@ -1304,7 +1307,13 @@ def run_consolidated_analysis(graph_type: str = "chain", num_tasks: int = 10, nu
     grid_results = sweep.run_grid_search(num_epochs)
 
     # Create visualizations
-    CurriculumVisualizer.create_comprehensive_visualization(results, G, dependency_depths)
+    CurriculumVisualizer.create_comprehensive_visualization(
+        results,
+        G,
+        dependency_depths,
+        output_path="curriculum_analysis.png",
+        wandb_cfg=OmegaConf.create({"log_images": False}),
+    )
 
     # Print summary statistics
     print_summary_statistics(results, grid_results)
@@ -1546,7 +1555,7 @@ def main(cfg: DictConfig):
     print_summary_statistics(results, results.get("grid_search", {}))
 
     # Create comprehensive visualization
-    output_path = f"curriculum_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    output_path = "curriculum_analysis.png"
     CurriculumVisualizer.create_comprehensive_visualization(
         results,
         analysis.dependency_graph,
