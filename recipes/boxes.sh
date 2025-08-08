@@ -24,7 +24,7 @@ num_rooms=4
 num_agents_per_room=4
 for seed in 0 1 2 3 4; do
    ./devops/skypilot/launch.py train \
-    run=$USER.navigation.ffa_BOXES_500_regular_PASSTHROUGH_seed${seed}.$(date +%m-%d) \
+    run=$USER.navigation.ffa_BOXES_500_const_penalty0.1_PASSTHROUGH_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/autocurricula/random \
     --gpus=1 \
     --nodes=1 \
