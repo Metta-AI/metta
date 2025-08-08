@@ -27,6 +27,13 @@ resources:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 20
 
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --shm-size=4g
+
 file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -139,7 +146,7 @@ run: |
   echo "Using MASTER_ADDR=$MASTER_ADDR MASTER_PORT=$MASTER_PORT"
   echo "NCCL_SOCKET_IFNAME=$NCCL_SOCKET_IFNAME NCCL_SOCKET_FAMILY=$NCCL_SOCKET_FAMILY NCCL_PORT_RANGE=$NCCL_PORT_RANGE"
 
-  ulimit -l unlimited
+  ulimit -l
   mount | grep /dev/shm
 
   ip -o route get $MASTER_ADDR
