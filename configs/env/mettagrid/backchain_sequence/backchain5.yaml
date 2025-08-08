@@ -1,0 +1,13 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+env_cfg_template_path: /env/mettagrid/backchain_sequence/defaults
+
+buckets:
+  game.agent.initial_inventory.battery_blue: [1]
+  game.map_builder.root.params.objects.altar: [1]
+  game.map_builder.root.params.objects.generator_red: [1]
+  game.map_builder.root.params.objects.mine_red: [1]
+  game.map_builder.root.params.objects.mine_green: [1]
+  game.map_builder.root.params.objects.generator_blue: [1]
+  game.max_steps: [200, 550]
+  game.map_builder.width: [6, 7]
+  game.map_builder.height: [5, 8]

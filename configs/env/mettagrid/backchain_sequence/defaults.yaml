@@ -62,3 +62,11 @@ objects:
       ore_blue: 1
     output_resources:
       ore_green: 1
+  battery_blue:
+    cooldown: 255
+    initial_resource_count: 0
+    input_resources:
+      battery_blue: 1
+      ore_blue: 0
+    output_resources:
+      ore_blue: 1
