@@ -2,24 +2,24 @@ defaults:
   - sim_suite
   - _self_
 
-name: operant_conditioning_singleepisode
+name: operant_conditioning_singleconversion
 
 simulations:
-  operant_conditioning_multiday/2_converters_generator_blue:
+  operant_conditioning_singleconversion/2_converters_generator_blue:
     env: env/mettagrid/operant_conditioning/single_conversion/2_converters/generator_blue
-  operant_conditioning_multiday/2_converters_generator_red:
+  operant_conditioning_singleconversion/2_converters_generator_red:
     env: env/mettagrid/operant_conditioning/single_conversion/2_converters/generator_red
-  operant_conditioning_multiday/3_converters_generator_blue:
+  operant_conditioning_singleconversion/3_converters_generator_blue:
     env: env/mettagrid/operant_conditioning/single_conversion/3_converters/generator_blue
-  operant_conditioning_multiday/3_converters_generator_red:
+  operant_conditioning_singleconversion/3_converters_generator_red:
     env: env/mettagrid/operant_conditioning/single_conversion/3_converters/generator_red
-  operant_conditioning_multiday/3_converters_generator_green:
+  operant_conditioning_singleconversion/3_converters_generator_green:
     env: env/mettagrid/operant_conditioning/single_conversion/3_converters/generator_green
-  operant_conditioning_multiday/4_converters_generator_blue:
+  operant_conditioning_singleconversion/4_converters_generator_blue:
     env: env/mettagrid/operant_conditioning/single_conversion/4_converters/generator_blue
-  operant_conditioning_multiday/4_converters_generator_red:
+  operant_conditioning_singleconversion/4_converters_generator_red:
     env: env/mettagrid/operant_conditioning/single_conversion/4_converters/generator_red
-  operant_conditioning_multiday/4_converters_generator_green:
+  operant_conditioning_singleconversion/4_converters_generator_green:
     env: env/mettagrid/operant_conditioning/single_conversion/4_converters/generator_green
-  operant_conditioning_multiday/4_converters_altar:
+  operant_conditioning_singleconversion/4_converters_altar:
     env: env/mettagrid/operant_conditioning/single_conversion/4_converters/altar
