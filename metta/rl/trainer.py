@@ -312,7 +312,15 @@ def train(
                     td["rewards"] = r
                     td["dones"] = d.float()
                     td["truncateds"] = t.float()
-                    td.training_env_id = training_env_id
+                    td.set(
+                        "training_env_id_start",
+                        torch.full(
+                            td.batch_size,
+                            training_env_id.start,
+                            device=td.device,
+                            dtype=torch.long,
+                        ),
+                    )
 
                     # Inference
                     with torch.no_grad():
