@@ -23,6 +23,13 @@ export HYDRA_FULL_ERROR=1
 export WANDB_DIR="./wandb"
 export DATA_DIR=${DATA_DIR:-./train_dir}
 
+export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
+export NUM_NODES=$SKYPILOT_NUM_NODES
+export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+export MASTER_PORT=8008
+export NODE_INDEX=$SKYPILOT_NODE_RANK
+export NCCL_SHM_DISABLE=1
+
 EOF
 
 

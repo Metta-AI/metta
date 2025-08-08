@@ -40,14 +40,6 @@ setup: |
 
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
-  # Export GPU-related environment variables (evaluated when user logs in)
-  echo 'export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}' >> "$METTA_ENV_FILE"
-  echo 'export NUM_NODES=${SKYPILOT_NUM_NODES}' >> "$METTA_ENV_FILE"
-  echo 'export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)' >> "$METTA_ENV_FILE"
-  echo 'export MASTER_PORT=8008' >> "$METTA_ENV_FILE"
-  echo 'export NODE_INDEX=${SKYPILOT_NODE_RANK}' >> "$METTA_ENV_FILE"
-  echo 'export NCCL_SHM_DISABLE=1' >> "$METTA_ENV_FILE"
-
   echo "Sandbox is ready"
 
 run: |

@@ -93,19 +93,9 @@ run: |
     echo "[RUN] Latency script is missing!"
   fi
 
-  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
-  export NUM_NODES=$SKYPILOT_NUM_NODES
-  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
-  export MASTER_PORT=8008
-  export NODE_INDEX=$SKYPILOT_NODE_RANK
-  export NCCL_SHM_DISABLE=1
-
-  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
-
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
     if uv run python common/src/metta/common/util/cost_monitor.py; then
-      source ~/.bashrc || true
       echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
     else
       echo "[RUN] Cost monitor script failed to run."
@@ -114,6 +104,7 @@ run: |
     echo "[RUN] Cost monitor script is missing!"
   fi
 
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
   source "$METTA_ENV_FILE"
 
   echo "[RUN] Running training script..."
