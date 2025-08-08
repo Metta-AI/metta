@@ -18,7 +18,7 @@ setup: |
   set -e
   cd /workspace/metta
 
-  git fetch origin "$METTA_GIT_REF" || git fetch origin
+  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
   git checkout "$METTA_GIT_REF"
   echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 

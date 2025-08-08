@@ -40,7 +40,7 @@ setup: |
   cd /workspace/metta
 
   echo "[SETUP] Fetching latest from origin..."
-  git fetch origin "$METTA_GIT_REF" || git fetch origin
+  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
 
   echo "[SETUP] Checking out ref: $METTA_GIT_REF"
   git checkout $METTA_GIT_REF
