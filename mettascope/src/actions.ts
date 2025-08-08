@@ -123,34 +123,54 @@ export function processActions(event: KeyboardEvent) {
       // Get the output.
       sendAction('get_items', 0)
     }
-    // Diagonal movement with numpad (4-action approach for true diagonal in one press)
+    // Diagonal movement with numpad (prefers move_8way, falls back to multi-action)
     if (event.code === 'Numpad7') {
-      // Up-Left
-      sendAction('rotate', 0) // Rotate up
-      sendAction('move', 0) // Move up
-      sendAction('rotate', 2) // Rotate left
-      sendAction('move', 0) // Move left
+      // Northwest
+      if (state.replay.actionNames.includes('move_8way')) {
+        sendAction('move_8way', 7)
+      } else {
+        // Fallback: Up-Left with multiple actions
+        sendAction('rotate', 0) // Rotate up
+        sendAction('move', 0) // Move up
+        sendAction('rotate', 2) // Rotate left
+        sendAction('move', 0) // Move left
+      }
     }
     if (event.code === 'Numpad9') {
-      // Up-Right
-      sendAction('rotate', 0) // Rotate up
-      sendAction('move', 0) // Move up
-      sendAction('rotate', 3) // Rotate right
-      sendAction('move', 0) // Move right
+      // Northeast
+      if (state.replay.actionNames.includes('move_8way')) {
+        sendAction('move_8way', 1)
+      } else {
+        // Fallback: Up-Right with multiple actions
+        sendAction('rotate', 0) // Rotate up
+        sendAction('move', 0) // Move up
+        sendAction('rotate', 3) // Rotate right
+        sendAction('move', 0) // Move right
+      }
     }
     if (event.code === 'Numpad1') {
-      // Down-Left
-      sendAction('rotate', 1) // Rotate down
-      sendAction('move', 0) // Move down
-      sendAction('rotate', 2) // Rotate left
-      sendAction('move', 0) // Move left
+      // Southwest
+      if (state.replay.actionNames.includes('move_8way')) {
+        sendAction('move_8way', 5)
+      } else {
+        // Fallback: Down-Left with multiple actions
+        sendAction('rotate', 1) // Rotate down
+        sendAction('move', 0) // Move down
+        sendAction('rotate', 2) // Rotate left
+        sendAction('move', 0) // Move left
+      }
     }
     if (event.code === 'Numpad3') {
-      // Down-Right
-      sendAction('rotate', 1) // Rotate down
-      sendAction('move', 0) // Move down
-      sendAction('rotate', 3) // Rotate right
-      sendAction('move', 0) // Move right
+      // Southeast
+      if (state.replay.actionNames.includes('move_8way')) {
+        sendAction('move_8way', 3)
+      } else {
+        // Fallback: Down-Right with multiple actions
+        sendAction('rotate', 1) // Rotate down
+        sendAction('move', 0) // Move down
+        sendAction('rotate', 3) // Rotate right
+        sendAction('move', 0) // Move right
+      }
     }
 
     if (event.key === 'x' || event.code === 'Numpad5') {

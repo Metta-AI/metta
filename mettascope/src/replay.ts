@@ -255,11 +255,17 @@ function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.actionImages = []
   for (const actionName of state.replay.actionNames) {
-    const path = `trace/${actionName}.png`
-    if (ctx.hasImage(path)) {
-      state.replay.actionImages.push(path)
+    let imagePath = `trace/${actionName}.png`
+
+    // Use move.png for move_8way since they're both movement actions
+    if (actionName === 'move_8way') {
+      imagePath = 'trace/move.png'
+    }
+
+    if (ctx.hasImage(imagePath)) {
+      state.replay.actionImages.push(imagePath)
     } else {
-      console.warn('Action not supported: ', path)
+      console.warn('Action not supported: ', imagePath)
       state.replay.actionImages.push('trace/unknown.png')
     }
   }

@@ -14,3 +14,12 @@ wandb:
 trainer:
   simulation:
     replay_dir: ${run_dir}/replays/local # disable uploading replays to s3
+
+# Enable 8-way diagonal movement for testing
+replay_job:
+  sim:
+    env_overrides:
+      game:
+        actions:
+          move_8way:
+            enabled: true
