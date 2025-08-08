@@ -27,14 +27,20 @@ resources:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 20
 
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
 setup: |
   set -e
-  echo "[SETUP] Starting setup phase..."
-
   cd /workspace/metta
 
   echo "[SETUP] Fetching latest from origin..."
-  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
+  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
 
   echo "[SETUP] Checking out ref: $METTA_GIT_REF"
   git checkout $METTA_GIT_REF
@@ -50,14 +56,18 @@ setup: |
   echo "[SETUP] Setup complete."
 
 run: |
-  set -e
+  set -euo pipefail
+  cd /workspace/metta
+
+  # Note that the docker image may start with its own venv - switch to metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
 
   echo "[RUN] Starting run phase..."
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
-
-  cd /workspace/metta
-  source ./devops/setup.env
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
@@ -74,16 +84,26 @@ run: |
   export NODE_INDEX=$SKYPILOT_NODE_RANK
   export NCCL_SHM_DISABLE=1
 
-    if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+
+  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    if uv run python common/src/metta/common/util/cost_monitor.py; then
-      source ~/.bashrc || true
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    METTA_HOURLY_COST=$(uv run python common/src/metta/common/util/cost_monitor.py 2>&1 | tail -1)
+    if [ $? -eq 0 ] && [ -n "$METTA_HOURLY_COST" ]; then
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
     else
-      echo "[RUN] Cost monitor script failed to run."
+      echo "[RUN] Cost monitor script failed to run or returned no value."
     fi
   else
     echo "[RUN] Cost monitor script is missing!"
+  fi
+
+  # load ENV
+  if [ -f "$METTA_ENV_FILE" ]; then
+    source "$METTA_ENV_FILE"
+  else
+    echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
+    touch "$METTA_ENV_FILE"
   fi
 
   echo "[RUN] Running training script..."
@@ -95,15 +115,6 @@ run: |
 
   echo "[RUN] Job complete."
   exit $TRAIN_EXIT
-
-file_mounts:
-  /mnt/s3/softmax-public:
-    source: s3://softmax-public
-    mode: MOUNT_CACHED
-  /mnt/s3/train_dir:
-    name: softmax-train-dir
-    store: s3
-    mode: MOUNT_CACHED
 
 envs:
   METTA_RUN_ID: ""
