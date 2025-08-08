@@ -40,7 +40,7 @@ jobs:
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
 
   setup-tests:
-    name: "setup - METTA_TEST_PROFILE=${{ matrix.profile }}"
+    name: "METTA_TEST_PROFILE=${{ matrix.profile }}"
     if: needs.graphite-ci-optimizer.outputs.should_skip == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 15
