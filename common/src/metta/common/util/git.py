@@ -93,7 +93,7 @@ def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
     - Any other status lines indicate changes to tracked files
     """
     status_output = run_git("status", "--porcelain")
-    if allow_untracked:
+    if not allow_untracked:
         return bool(status_output), status_output
 
     is_dirty_tracked = False
