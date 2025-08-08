@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: home
+  name: {{ .Release.Name }}
   annotations:
     nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
     nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
@@ -15,7 +15,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: {{ .Values.host }}
+    - host: "{{ .Values.host | required "host is required" }}"
       http:
         paths:
           - path: /
@@ -28,4 +28,4 @@ spec:
   tls:
     - hosts:
         - {{ .Values.host | required "host is required" }}
-      secretName: home-tls
+      secretName: {{ .Release.Name }}-tls
