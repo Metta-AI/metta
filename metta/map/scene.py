@@ -278,11 +278,11 @@ class Scene(Generic[ParamsT]):
             child_scene.transplant_to_grid(grid, shift_x, shift_y, is_root=False)
 
 
-def load_class(full_class_name: str) -> type[Scene]:
+def load_class(full_class_name: str, check_is_scene=True) -> type[Scene]:
     module_name, class_name = full_class_name.rsplit(".", 1)
     module = importlib.import_module(module_name)
     cls = getattr(module, class_name)
-    if not issubclass(cls, Scene):
+    if check_is_scene and not issubclass(cls, Scene):
         raise ValueError(f"Class {cls} does not inherit from Scene")
     return cls
 

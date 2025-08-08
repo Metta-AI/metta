@@ -1,3 +1,6 @@
+from collections import Counter
+from typing import Hashable, Iterable, List
+
 from omegaconf import DictConfig, ListConfig
 
 
@@ -60,3 +63,9 @@ def flatten_config(obj, parent_key="", sep="."):
         items[parent_key] = obj
 
     return items
+
+
+def duplicates(iterable: Iterable[Hashable]) -> List[Hashable]:
+    """Returns a list of items that appear more than once in the iterable."""
+    counts = Counter(iterable)
+    return [item for item, count in counts.items() if count > 1]

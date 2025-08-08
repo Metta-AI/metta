@@ -24,7 +24,12 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
-from metta.rl.wandb import POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
+from metta.rl.wandb import (
+    POLICY_EVALUATOR_EPOCH_METRIC,
+    POLICY_EVALUATOR_METRIC_PREFIX,
+    POLICY_EVALUATOR_STEP_METRIC,
+    setup_policy_evaluator_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -429,8 +434,8 @@ def process_policy_evaluator_stats(
         logger.warning("No metrics to log for policy evaluator")
         return
 
-    if not (epoch := pr.metadata.get("epoch")):
-        logger.warning("No epoch found in policy record")
+    if not (epoch := pr.metadata.epoch) or not (agent_step := pr.metadata.agent_step):
+        logger.warning("No epoch or agent_step found in policy record")
         return
 
     try:
@@ -450,7 +455,13 @@ def process_policy_evaluator_stats(
         resume="must",
     )
     try:
-        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: epoch})
+        try:
+            setup_policy_evaluator_metrics(run)
+        except Exception:
+            logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
+            pass
+
+        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
     finally:
         run.finish()

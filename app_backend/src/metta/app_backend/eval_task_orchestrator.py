@@ -92,7 +92,9 @@ class EvalTaskOrchestrator:
             for task in claimed_tasks:
                 if task.assignee and task.assignee not in alive_workers_by_name:
                     reason = "worker_dead"
-                elif task.assigned_at and task.assigned_at < datetime.now(timezone.utc) - timedelta(minutes=10):
+                elif task.assigned_at and task.assigned_at.replace(tzinfo=timezone.utc) < (
+                    datetime.now(timezone.utc) - timedelta(minutes=10)
+                ):
                     reason = "worker_timeout"
                 else:
                     continue

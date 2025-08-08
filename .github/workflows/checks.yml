@@ -155,7 +155,7 @@ jobs:
 
   test-matrix:
     name: "Unit Tests - ${{ matrix.name }}"
-    needs: [setup-checks]
+    needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
@@ -537,7 +537,7 @@ jobs:
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+          POLICY: wandb://run/m.av.replay.probe.751
         run: |
           uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 

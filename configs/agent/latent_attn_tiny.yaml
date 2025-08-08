@@ -44,9 +44,9 @@ components:
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: obs_cross_attn
-    output_size: 128
+      - name: encoded_obs
     nn_params:
+      hidden_size: 128
       num_layers: 2
 
   critic_1:
