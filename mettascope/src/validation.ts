@@ -1,5 +1,5 @@
 import * as Common from './common.js'
-import { Replay } from './replay.js'
+import { Replay, Sequence } from './replay.js'
 
 const REQUIRED_KEYS = [
   'version',
@@ -73,8 +73,23 @@ function validateStringList(lst: any, fieldName: string, issues: ValidationIssue
 }
 
 function validateTimeSeries(data: any, fieldName: string, validator: (value: any) => boolean, issues: ValidationIssue[]): void {
+
+  // check if it's a singular value.
   if (validator(data)) return
 
+  // validate time series if it's a Sequence.
+  if (data instanceof Sequence) {
+    const length = data.length()
+    for (let step = 0; step < length; step++) {
+      const value = data.get(step)
+      if (!validator(value)) {
+        issues.push({ message: `'${fieldName}' contains invalid value at step ${step}`, field: fieldName })
+      }
+    }
+    return
+  }
+
+  // If it's an Array, validate it as well.
   if (!Array.isArray(data)) {
     issues.push({ message: `'${fieldName}' must be valid value or time series of [step, value] pairs`, field: fieldName })
     return
@@ -151,6 +166,18 @@ function validateInventoryList(inventoryList: any, fieldName: string, issues: Va
 }
 
 function validateInventoryFormat(inventory: any, fieldName: string, issues: ValidationIssue[]): void {
+  // Handle Sequence objects for inventory
+  if (inventory instanceof Sequence) {
+    // Validate all inventory states in the sequence
+    const length = inventory.length()
+    for (let step = 0; step < length; step++) {
+      const inventoryList = inventory.get(step)
+      const stepFieldName = `${fieldName} at step ${step}`
+      validateInventoryList(inventoryList, stepFieldName, issues)
+    }
+    return
+  }
+
   if (!Array.isArray(inventory)) {
     validateType(inventory, 'array', fieldName, issues)
     return
@@ -317,7 +344,7 @@ function validateReplaySchema(data: any, issues: ValidationIssue[]): void {
     let agentCount = 0
     for (let i = 0; i < data.objects.length; i++) {
       validateObject(data.objects[i], i, data, issues)
-      if (data.objects[i].isAgent || data.objects[i].agentId !== undefined) {
+      if (data.objects[i].isAgent) {
         agentCount++
       }
     }
