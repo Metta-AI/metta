@@ -141,11 +141,14 @@ function isCoordinates(value: any): boolean {
 function isInventoryList(value: any): boolean {
   if (!Array.isArray(value)) return false
 
-  return value.every((pair: any) =>
-    Array.isArray(pair) &&
-    pair.length === 2 &&
-    typeof pair[0] === 'number' && pair[0] >= 0 &&
-    typeof pair[1] === 'number' && pair[1] >= 0
+  return value.every(
+    (pair: any) =>
+      Array.isArray(pair) &&
+      pair.length === 2 &&
+      typeof pair[0] === 'number' &&
+      pair[0] >= 0 &&
+      typeof pair[1] === 'number' &&
+      pair[1] >= 0
   )
 }
 
@@ -155,8 +158,6 @@ function requireFields(obj: any, fields: string[], objName: string, issues: Vali
     issues.push({ message: `${objName} missing required fields: ${missing.join(', ')}` })
   }
 }
-
-
 
 function validateObject(obj: any, objIndex: number, replayData: any, issues: ValidationIssue[]): void {
   const objName = `Object ${objIndex + 1}`

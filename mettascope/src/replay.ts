@@ -584,7 +584,6 @@ function loadReplayJson(url: string, replayJson: any) {
 
 /** Loads a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
-
   validateReplayStep(replayStep)
 
   // This gets us a simple replay step that we can overwrite.
