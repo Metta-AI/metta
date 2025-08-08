@@ -1,7 +1,4 @@
 name: "Setup Tests"
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
-  cancel-in-progress: true
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -17,31 +14,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  # check if CI should run based on Graphite's stack position
-  graphite-ci-optimizer:
-    name: "Graphite CI Optimizer"
-    if: |
-      github.event.pull_request.draft == false ||
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'merge_group'
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.graphite_ci.outputs.skip }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Graphite CI Optimizer
-        id: graphite_ci
-        uses: withgraphite/graphite-ci-action@main
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
-
   setup-tests:
     name: "METTA_TEST_PROFILE=${{ matrix.profile }}"
-    if: needs.graphite-ci-optimizer.outputs.should_skip == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
